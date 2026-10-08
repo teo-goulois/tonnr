@@ -145,6 +145,12 @@ describe("parseCampaignPage", () => {
     expect(reading?.maxHeightM).toBe(5.3);
   });
 
+  it("reports a label that only looks known because every object has it", () => {
+    const page = directionalPage.replace("Etal. au pic (\\u00b0)", "toString");
+
+    expect(parseCampaignPage(page, "06403")).toBeInstanceOf(FormatError);
+  });
+
   it("reports a series it does not know instead of guessing", () => {
     const page = directionalPage.replace("Etal. au pic", "Nouvelle mesure");
 

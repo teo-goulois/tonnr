@@ -16,5 +16,10 @@ export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Dat
   yield* Effect.logInfo(
     `${provider.id}: ${saved.stations} stations, ${saved.newReadings} new readings, ${snapshot.rejected} rows rejected`,
   );
+  if (saved.failedStations > 0) {
+    yield* Effect.logWarning(
+      `${provider.id}: the database refused ${saved.failedStations} stations`,
+    );
+  }
   return saved;
 });

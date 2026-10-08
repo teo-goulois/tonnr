@@ -145,6 +145,23 @@ describe("parseLatestObservations", () => {
     expect(snapshot.readings[0]?.windDirectionDeg).toBeNull();
   });
 
+  it("stores a value too small for the database as zero", () => {
+    const text = latestObservations.replace("18.0  6.4  12  8.7", "18.0  6.4  12  1e-50");
+    const snapshot = parseLatestObservations(text, new Map());
+    if (snapshot instanceof FormatError) throw snapshot;
+
+    expect(snapshot.readings[0]).toMatchObject({ providerStationId: "46071", meanPeriodS: 0 });
+  });
+
+  it("rejects a row dated in a year the database cannot store", () => {
+    const text = latestObservations.replace("2026 10 08 06 50", "10000 10 08 06 50");
+    const snapshot = parseLatestObservations(text, new Map());
+    if (snapshot instanceof FormatError) throw snapshot;
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings).toHaveLength(2);
+  });
+
   it("rejects a row whose position is not on Earth", () => {
     const text = latestObservations.replace("51.035  179.808", "151.035  179.808");
     const snapshot = parseLatestObservations(text, new Map());

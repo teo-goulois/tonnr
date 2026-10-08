@@ -1,9 +1,12 @@
 import type { ReadingInput } from "./provider";
 
-type Measurement = Exclude<keyof ReadingInput, "providerStationId" | "observedAt" | "validated">;
+export type Measurement = Exclude<
+  keyof ReadingInput,
+  "providerStationId" | "observedAt" | "validated"
+>;
 
 // What the sea and the wind can actually do, with a wide margin. A value outside its range is a
-// provider glitch, and one too large for the database column would fail the whole snapshot.
+// provider glitch, and one the database column cannot hold would fail the whole snapshot.
 const RANGES: Record<Measurement, readonly [min: number, max: number]> = {
   significantHeightM: [0, 30],
   maxHeightM: [0, 50],
@@ -18,10 +21,15 @@ const RANGES: Record<Measurement, readonly [min: number, max: number]> = {
   windDirectionDeg: [0, 360],
 };
 
-/** Whether a value is one the measurement can take. */
-export function isPlausible(measurement: Measurement, value: number) {
+/**
+ * The value as it will be stored, or null when the measurement cannot take it.
+ * No provider reports finer than a thousandth, and rounding to it turns a value too small for
+ * the column, such as 1e-50, into zero.
+ */
+export function plausible(measurement: Measurement, value: number) {
   const [min, max] = RANGES[measurement];
-  return Number.isFinite(value) && value >= min && value <= max;
+  if (!Number.isFinite(value) || value < min || value > max) return null;
+  return Math.round(value * 1000) / 1000;
 }
 
 export function isPosition(latitude: number, longitude: number) {

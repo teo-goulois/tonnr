@@ -13,6 +13,7 @@ Buoy measurements come from many providers. Each has its own format, update rhyt
 - Saving a snapshot twice changes nothing the second time. Stations are upserted, and a reading that already exists for a station and time is left alone. A failed run is not retried, since the next run fetches the same data.
 - A parser that meets a format it does not know returns a `FormatError`. It does not guess.
 - A parser drops a row whose date or position cannot be real and counts it, and the worker logs the count. It treats a measurement outside what the sea can do as missing.
+- When the database refuses a snapshot, the worker saves it station by station, so one value it cannot store does not block the other stations.
 - A station id is `<provider>-<the provider's own id>`, in lower case, such as `candhis-06403`.
 - `station` carries its license type, license URL, attribution, and whether commercial use is allowed. Commercial use is null when the owner's terms have not been checked.
 - `station.latest_observed_at` points at the latest reading, so listing stations with their latest reading is a plain join.

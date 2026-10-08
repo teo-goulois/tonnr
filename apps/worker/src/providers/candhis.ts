@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import { fetchText } from "@repo/upstream";
 import { FormatError } from "./format-error";
-import { isPlausible, isPosition } from "./plausible";
+import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, StationInput } from "./provider";
 import { utcDate } from "./utc-date";
 
@@ -75,7 +75,7 @@ const MEASUREMENT_BY_LABEL = {
 type Measurement = (typeof MEASUREMENT_BY_LABEL)[keyof typeof MEASUREMENT_BY_LABEL];
 
 function isKnownLabel(label: unknown): label is keyof typeof MEASUREMENT_BY_LABEL {
-  return typeof label === "string" && label in MEASUREMENT_BY_LABEL;
+  return typeof label === "string" && Object.hasOwn(MEASUREMENT_BY_LABEL, label);
 }
 
 /** Reads a campaign page: the partners to credit and two days of readings. */
@@ -119,8 +119,9 @@ export function parseCampaignPage(
           return formatError(`campaign ${campaignId} has data in a series without a label`);
         }
         // A value outside what the sea can do is treated as missing.
-        if (!isPlausible(measurement, value)) continue;
-        byTime.set(row[0], { ...byTime.get(row[0]), [measurement]: value });
+        const stored = plausible(measurement, value);
+        if (stored === null) continue;
+        byTime.set(row[0], { ...byTime.get(row[0]), [measurement]: stored });
       }
     }
   }

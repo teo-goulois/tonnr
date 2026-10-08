@@ -2,7 +2,7 @@ import { Effect } from "effect";
 
 import { fetchText } from "@repo/upstream";
 import { FormatError } from "./format-error";
-import { isPlausible, isPosition } from "./plausible";
+import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
 import { utcDate } from "./utc-date";
 
@@ -101,9 +101,9 @@ export function parseLatestObservations(
     };
 
     // A measurement outside what the sea can do is treated as missing.
-    const measure = (column: string, measurement: Parameters<typeof isPlausible>[0]) => {
+    const measure = (column: string, measurement: Measurement) => {
       const value = number(column);
-      return value !== null && isPlausible(measurement, value) ? value : null;
+      return value === null ? null : plausible(measurement, value);
     };
 
     const significantHeightM = measure("WVHT", "significantHeightM");

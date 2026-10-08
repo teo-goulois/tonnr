@@ -29,9 +29,15 @@ function run(name, command, args, options = {}) {
     detached: true,
   });
   children.push(child);
-  // A program that cannot start must not leave the ones already running behind.
+  // A program that cannot start, or that fails, must not leave the others running behind.
   child.on("error", (error) => {
     console.error(`[${name}] could not start: ${error.message}`);
+    stop();
+    process.exit(1);
+  });
+  child.on("exit", (code) => {
+    if (stopping || code === 0 || code === null) return;
+    console.error(`[${name}] exited with code ${code}`);
     stop();
     process.exit(1);
   });
@@ -54,7 +60,10 @@ function finished(child, name) {
   });
 }
 
+let stopping = false;
+
 function stop() {
+  stopping = true;
   for (const child of children) {
     try {
       process.kill(-child.pid, "SIGTERM");
