@@ -1,130 +1,347 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
 
+/* The Tonnr theme. GUI.md and gui/themes/tonnr.md describe it. Literal values live here only. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --toolbar-divider-bleed: 1;
+  --focus-ring-outline: 2px solid color-mix(in srgb, #000000 50%, transparent);
+  --icon-stroke-width: 2;
+  --icon-light-display: none;
+  --icon-regular-display: inline;
+  --icon-bold-display: none;
+  --motion-duration: 160ms;
+  --motion-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-type: easing;
+  --motion-visual-duration: 0.16;
+  --motion-bounce: 0.2;
+  --motion-enabled: 1;
+  --motion-small-iterations: infinite;
+  --motion-large-duration: 280ms;
+  --motion-large-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-large-type: easing;
+  --motion-large-visual-duration: 0.28;
+  --motion-large-bounce: 0.3;
+  --motion-large-iterations: infinite;
+  --motion-popup-scale: 0.96;
+  --motion-press-distance: 1px;
+  --option-badge-background: color-mix(in srgb, var(--color-1) 10%, transparent);
+  --option-badge-foreground: #262626;
+  --navigation-active-foreground: #fafafa;
+  --emphasis-chart-fill: #26262633;
+  --surface-raised-image: none;
+  --surface-raised-shadow: 0 0 0 0 transparent;
+  --surface-recessed-image: none;
+  --surface-recessed-shadow: 0 0 0 0 transparent;
+  --space-zero: 0px;
+  --space-xxs: 4px;
+  --space-xs: 8px;
+  --space-s: 13px;
+  --space-m: 17px;
+  --space-l: 25px;
+  --space-xl: 33px;
+  --space-xxl: 50px;
+  --size-xxs: 9px;
+  --line-xxs: 13px;
+  --letter-spacing-xxs: 0em;
+  --size-xs: 11px;
+  --line-xs: 15px;
+  --letter-spacing-xs: 0em;
+  --size-s: 13px;
+  --line-s: 19px;
+  --letter-spacing-s: 0em;
+  --size-m: 15px;
+  --line-m: 23px;
+  --letter-spacing-m: 0em;
+  --size-l: 23px;
+  --line-l: 31px;
+  --letter-spacing-l: 0em;
+  --size-xl: 35px;
+  --line-xl: 38px;
+  --letter-spacing-xl: 0em;
+  --size-xxl: 46px;
+  --line-xxl: 50px;
+  --letter-spacing-xxl: 0em;
+  --border-none: 0px;
+  --border-s: 0.5px;
+  --border-m: 1.5px;
+  --border-l: 2px;
+  --border-default-color: rgb(0 0 0 / 0.1);
+  --border-shadow-none: 0 0 0 0 transparent;
+  --border-shadow-s: 0 0 0 0.5px rgb(0 0 0 / 0.1);
+  --border-shadow-m: 0 0 0 1.5px rgb(0 0 0 / 0.1);
+  --border-shadow-l: 0 0 0 2px rgb(0 0 0 / 0.1);
+  --font-ui: "Geist Variable", sans-serif;
+  --weight-ui-regular: 400;
+  --weight-ui-medium: 500;
+  --weight-ui-heavy: 700;
+  --font-brand: "Geist Variable", sans-serif;
+  --weight-brand-regular: 400;
+  --weight-brand-medium: 500;
+  --weight-brand-heavy: 700;
+  --font-editorial: "Geist Variable", sans-serif;
+  --weight-editorial-regular: 400;
+  --weight-editorial-medium: 500;
+  --weight-editorial-heavy: 700;
+  --font-data: "Geist Mono Variable", monospace;
+  --weight-data-regular: 400;
+  --weight-data-medium: 500;
+  --weight-data-heavy: 700;
+  --color-none: transparent;
+  --color-1: #262626;
+  --color-1-transparent: #26262633;
+  --color-2: #707070;
+  --color-2-transparent: #70707033;
+  --color-3: #b6b6b6;
+  --color-3-transparent: #b6b6b633;
+  --color-4: #e8e8e8;
+  --color-4-transparent: #e8e8e833;
+  --neutral-1: #ffffff;
+  --neutral-1-transparent: #ffffff33;
+  --neutral-2: #fafafa;
+  --neutral-2-transparent: #fafafa33;
+  --neutral-3: #f0f0f0;
+  --neutral-3-transparent: #f0f0f033;
+  --neutral-4: #dedede;
+  --neutral-4-transparent: #dedede33;
+  --neutral-5: #c5c5c5;
+  --neutral-5-transparent: #c5c5c533;
+  --neutral-6: #969696;
+  --neutral-6-transparent: #96969633;
+  --neutral-7: #6c6c6c;
+  --neutral-7-transparent: #6c6c6c33;
+  --neutral-8: #454545;
+  --neutral-8-transparent: #45454533;
+  --neutral-9: #252525;
+  --neutral-9-transparent: #25252533;
+  --neutral-10: #000000;
+  --neutral-10-transparent: #00000033;
+  --success: #76ef6b;
+  --success-transparent: #76ef6b33;
+  --warning: #ffa344;
+  --warning-transparent: #ffa34433;
+  --error: #ff5263;
+  --error-transparent: #ff526333;
+  --cte-canvas: #ffffff;
+  --cte-surface: #fafafa;
+  --cte-surface-muted: #f0f0f0;
+  --cte-text: #000000;
+  --cte-text-muted: #6c6c6c;
+  --cte-border: rgb(0 0 0 / 0.1);
+  --cte-accent: #262626;
+  --cte-accent-text: #fafafa;
+  --cte-danger: #ff5263;
+  --cte-focus: #262626;
+  --cte-font: var(--font-ui);
+  --cte-font-size: 15px;
+  --cte-font-weight: 400;
+  --cte-line-height: 23px;
+  --cte-letter-spacing: 0em;
+  --cte-detail-font-size: 15px;
+  --cte-detail-line-height: 23px;
+  --cte-detail-letter-spacing: 0em;
+
+  /* Names the shadcn components read, resolved to the theme. */
+  --background: var(--cte-canvas);
+  --foreground: var(--cte-text);
+  --card: var(--cte-surface);
+  --card-foreground: var(--cte-text);
+  --popover: var(--neutral-1);
+  --popover-foreground: var(--neutral-10);
+  --primary: var(--color-1);
+  --primary-foreground: var(--neutral-1);
+  --secondary: var(--neutral-3);
+  --secondary-foreground: var(--neutral-10);
+  --muted: var(--neutral-3);
+  --muted-foreground: var(--neutral-7);
+  --accent: var(--neutral-3);
+  --accent-foreground: var(--neutral-10);
+  --destructive: var(--error);
+  --border: var(--neutral-4);
+  --input: var(--neutral-4);
+  --ring: var(--color-1);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --focus-ring-outline: 2px solid color-mix(in srgb, #ffffff 50%, transparent);
+  --option-badge-foreground: #e5e5e5;
+  --navigation-active-foreground: #202020;
+  --emphasis-chart-fill: #e5e5e533;
+  --color-1: #e5e5e5;
+  --color-1-transparent: #e5e5e533;
+  --color-2: #b1b1b1;
+  --color-2-transparent: #b1b1b133;
+  --color-3: #777777;
+  --color-3-transparent: #77777733;
+  --color-4: #424242;
+  --color-4-transparent: #42424233;
+  --neutral-1: #000000;
+  --neutral-1-transparent: #00000033;
+  --neutral-2: #202020;
+  --neutral-2-transparent: #20202033;
+  --neutral-3: #2b2b2b;
+  --neutral-3-transparent: #2b2b2b33;
+  --neutral-4: #383838;
+  --neutral-4-transparent: #38383833;
+  --neutral-5: #505050;
+  --neutral-5-transparent: #50505033;
+  --neutral-6: #777777;
+  --neutral-6-transparent: #77777733;
+  --neutral-7: #a3a3a3;
+  --neutral-7-transparent: #a3a3a333;
+  --neutral-8: #c6c6c6;
+  --neutral-8-transparent: #c6c6c633;
+  --neutral-9: #e5e5e5;
+  --neutral-9-transparent: #e5e5e533;
+  --neutral-10: #ffffff;
+  --neutral-10-transparent: #ffffff33;
+  --cte-canvas: #000000;
+  --cte-surface: #202020;
+  --cte-surface-muted: #2b2b2b;
+  --cte-text: #ffffff;
+  --cte-text-muted: #a3a3a3;
+  --cte-accent: #e5e5e5;
+  --cte-accent-text: #202020;
+  --cte-focus: #e5e5e5;
+}
+
+/* Tailwind reads rounded-s and rounded-l as "start corners" and "left corners", and max-w-xl as the
+   spacing step. Write rounded-(--radius-s), rounded-(--radius-l) and max-w-(--container-xl). */
+@theme {
+  --radius-zero: 0px;
+  --radius-xs: 18px;
+  --radius-s: 28px;
+  --radius-m: 42px;
+  --radius-l: 50px;
+  --radius-xl: 36px;
+  --radius-full: 9999px;
+  --shadow-none: none;
+  --shadow-s: 0px 1px 2px 0px #00000000;
+  --shadow-m: 0px 8px 24px 0px #00000000;
+  --shadow-l: 0px 12px 30px 0px #00000000;
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-data);
+
+  --color-color-1: var(--color-1);
+  --color-color-2: var(--color-2);
+  --color-color-3: var(--color-3);
+  --color-color-4: var(--color-4);
+  --color-neutral-1: var(--neutral-1);
+  --color-neutral-2: var(--neutral-2);
+  --color-neutral-3: var(--neutral-3);
+  --color-neutral-4: var(--neutral-4);
+  --color-neutral-5: var(--neutral-5);
+  --color-neutral-6: var(--neutral-6);
+  --color-neutral-7: var(--neutral-7);
+  --color-neutral-8: var(--neutral-8);
+  --color-neutral-9: var(--neutral-9);
+  --color-neutral-10: var(--neutral-10);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --spacing-xxs: var(--space-xxs);
+  --spacing-xs: var(--space-xs);
+  --spacing-s: var(--space-s);
+  --spacing-m: var(--space-m);
+  --spacing-l: var(--space-l);
+  --spacing-xl: var(--space-xl);
+  --spacing-xxl: var(--space-xxl);
+
+  --text-xxs: var(--size-xxs);
+  --text-xxs--line-height: var(--line-xxs);
+  --text-xxs--letter-spacing: var(--letter-spacing-xxs);
+  --text-xs: var(--size-xs);
+  --text-xs--line-height: var(--line-xs);
+  --text-xs--letter-spacing: var(--letter-spacing-xs);
+  --text-s: var(--size-s);
+  --text-s--line-height: var(--line-s);
+  --text-s--letter-spacing: var(--letter-spacing-s);
+  --text-m: var(--size-m);
+  --text-m--line-height: var(--line-m);
+  --text-m--letter-spacing: var(--letter-spacing-m);
+  --text-l: var(--size-l);
+  --text-l--line-height: var(--line-l);
+  --text-l--letter-spacing: var(--letter-spacing-l);
+  --text-xl: var(--size-xl);
+  --text-xl--line-height: var(--line-xl);
+  --text-xl--letter-spacing: var(--letter-spacing-xl);
+  --text-xxl: var(--size-xxl);
+  --text-xxl--line-height: var(--line-xxl);
+  --text-xxl--letter-spacing: var(--letter-spacing-xxl);
+
+  /* The radius names shadcn components use, on the theme's scale. */
+  --radius-sm: var(--radius-xs);
+  --radius-md: var(--radius-xs);
+  --radius-lg: var(--radius-s);
+  --radius-2xl: var(--radius-m);
+  --radius-3xl: var(--radius-m);
+  --radius-4xl: var(--radius-l);
+
+  --ease-theme: var(--motion-easing);
+  --ease-theme-large: var(--motion-large-easing);
+}
+
+/* A component's edge is a box shadow, never a border. Set --edge-color, and --edge-elevation for a
+   shadow under it. */
+@utility edge {
+  border-width: 0;
+  box-shadow:
+    0 0 0 var(--edge-width, var(--border-s)) var(--edge-color, var(--neutral-4)),
+    var(--edge-elevation, 0 0 #0000);
+}
+
+@utility edge-inset {
+  border-width: 0;
+  box-shadow:
+    inset 0 0 0 var(--edge-width, var(--border-s)) var(--edge-color, var(--neutral-4)),
+    var(--edge-elevation, 0 0 #0000);
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--focus-ring-outline);
+    outline-offset: 2px;
+  }
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply font-sans bg-background text-foreground;
+    @apply border-border;
   }
   html {
     @apply font-sans;
+    text-wrap: pretty;
+  }
+  body {
+    @apply bg-background text-m text-foreground;
   }
 }

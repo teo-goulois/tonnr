@@ -8,6 +8,7 @@
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
+    "./icon": "./src/icon/index.ts",
     "./postcss.config": "./postcss.config.mjs"
   },
   "scripts": {
@@ -15,6 +16,8 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@shadcn/react": "^0.3.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.5",
