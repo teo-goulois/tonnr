@@ -1,0 +1,9 @@
+# Decisions
+
+Numbered records of durable decisions. Add one when a decision changes product scope, a boundary between apps or packages, a provider with lock-in, or the security, migration, or deployment strategy. When a decision replaces an older one, mark the old record as superseded and link the new one.
+
+- [001. Initial stack](001-stack.md)
+- [002. Tide source](002-tide-source.md)
+- [003. API versioning](003-api-versioning.md)
+- [004. Buoy ingestion and data model](004-buoy-ingestion.md)
+- [005. Forecast source](005-forecasts.md)
