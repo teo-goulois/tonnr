@@ -11,6 +11,8 @@ export type StationInput = Omit<
   | "latestObservedAt"
   | "reportsWaves"
   | "reportsWind"
+  | "exposure"
+  | "movedAt"
   | "createdAt"
   | "updatedAt"
 >;
