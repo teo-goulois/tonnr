@@ -90,3 +90,6 @@ async function shutdown() {
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+// Every queue is scheduled, and a stop is handled from here on.
+console.log("Worker ready");

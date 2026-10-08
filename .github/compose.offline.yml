@@ -1,0 +1,5 @@
+# CI adds this file to docker-compose.yml: the containers reach each other and nothing else, so
+# nothing they run can call a data provider.
+networks:
+  default:
+    internal: true
