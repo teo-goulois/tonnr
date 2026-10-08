@@ -43,9 +43,15 @@ const stationSchema = z.object({
   attribution: z.string(),
   // What the station has been seen to report.
   measures: z.array(z.enum(["waves", "wind"])),
-  // Whether the open sea reaches the station. "sheltered" is a site in a harbour or an estuary,
-  // whose waves say nothing of the sea outside. Null until rough days have told.
-  exposure: z.enum(["open", "sheltered"]).nullable(),
+  exposure: z
+    .enum(["open", "sheltered"])
+    .nullable()
+    .describe(
+      "How the station's waves compare with those of the stations within 60 km on rough days. " +
+        '"open": it has had at least half their height on two days. "sheltered": it stayed ' +
+        "under a fifth of it on every rough day, as a site in a harbour or an estuary does. " +
+        "Null when the days seen so far establish neither.",
+    ),
   // commercialUse is null when the owner's terms have not been checked.
   license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean().nullable() }),
 });

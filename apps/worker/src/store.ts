@@ -43,6 +43,11 @@ const MEASUREMENTS = [
   reading.windDirectionDeg,
 ];
 
+// A moored buoy swings a few hundred metres around its anchor, a few kilometres in deep water.
+// A station seen farther than this from where it was, about five kilometres, is another site.
+const MOVED_DEG = 0.05;
+const hasMoved = sql`(abs(${station.latitude} - excluded.latitude) > ${MOVED_DEG} or abs(${station.longitude} - excluded.longitude) > ${MOVED_DEG})`;
+
 // How many readings one statement writes. A reading takes up to fourteen parameters, and
 // Postgres accepts 65,535 in a statement.
 const READINGS_PER_STATEMENT = 2000;
@@ -154,6 +159,9 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
             reportsWaves: sql`${station.reportsWaves} or excluded.reports_waves`,
             reportsWind: sql`${station.reportsWind} or excluded.reports_wind`,
             latestObservedAt: sql`greatest(${station.latestObservedAt}, excluded.latest_observed_at)`,
+            // What was known of a station's exposure was known of the place it has left.
+            exposure: sql`case when ${hasMoved} then null else ${station.exposure} end`,
+            movedAt: sql`case when ${hasMoved} then now() else ${station.movedAt} end`,
             updatedAt: sql`now()`,
           },
         });

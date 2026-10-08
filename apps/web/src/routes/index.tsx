@@ -125,7 +125,7 @@ function Viewer() {
               </span>
               <span className="flex items-center gap-1">
                 <span className="size-1.5 rounded-full bg-white/40" />
-                site abrité (port, estuaire)
+                site abrité
               </span>
             </div>
           </div>

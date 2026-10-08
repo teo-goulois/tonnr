@@ -141,8 +141,8 @@ export function StationPanel({ stationId }: { stationId: string }) {
         </p>
         {station.exposure === "sheltered" && (
           <p className="mt-2 text-xs">
-            Site abrité : ses vagues restent très en dessous de celles des stations voisines. Elles
-            ne disent rien de la mer au large.
+            Site abrité : les jours de mer agitée, ses vagues sont restées sous un cinquième de
+            celles des stations voisines.
           </p>
         )}
       </header>

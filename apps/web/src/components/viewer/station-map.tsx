@@ -141,6 +141,10 @@ function stationRadius(selectedId: string | undefined): ExpressionSpecification 
   return ["case", ["==", ["get", "id"], selectedId ?? ""], 10, ["get", "sheltered"], 4, 6];
 }
 
+function stationOpacity(selectedId: string | undefined): ExpressionSpecification {
+  return ["case", ["==", ["get", "id"], selectedId ?? ""], 1, ["get", "sheltered"], 0.35, 1];
+}
+
 function toGeoJson(stations: MapStation[]) {
   return {
     type: "FeatureCollection" as const,
@@ -209,7 +213,7 @@ export function StationMap({
           paint: {
             "circle-radius": stationRadius(latest.current.selectedId),
             // A sheltered site stays on the map, faded, so it is not read as the sea outside.
-            "circle-opacity": ["case", ["get", "sheltered"], 0.35, 1],
+            "circle-opacity": stationOpacity(latest.current.selectedId),
             "circle-color": [
               "case",
               ["<", ["get", "height"], 0],
@@ -285,6 +289,7 @@ export function StationMap({
     if (!instance?.getLayer("stations")) return;
 
     instance.setPaintProperty("stations", "circle-radius", stationRadius(selectedId));
+    instance.setPaintProperty("stations", "circle-opacity", stationOpacity(selectedId));
     instance.setPaintProperty("stations", "circle-stroke-width", whenSelected(selectedId, 3, 1.5));
     instance.setPaintProperty(
       "stations",

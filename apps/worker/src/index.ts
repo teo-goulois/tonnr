@@ -67,7 +67,7 @@ await boss.schedule(EXPOSURE_QUEUE, "47 3 * * *");
 await boss.work(EXPOSURE_QUEUE, async () => {
   const found = await Effect.runPromise(updateExposure(db));
   console.log(
-    `Exposure: ${found.open} open and ${found.sheltered} sheltered of ${found.stations} wave stations`,
+    `Exposure: ${found.open} open and ${found.sheltered} sheltered of ${found.stations} wave stations, ${found.changed} changed`,
   );
 });
 await boss.send(EXPOSURE_QUEUE);
