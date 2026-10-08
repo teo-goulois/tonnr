@@ -29,6 +29,7 @@ class StatusError extends Error {
 const fetchBody = Effect.fn("fetchBody")(function* <Body>(
   url: string,
   read: (response: Response) => Promise<Body>,
+  retry = true,
 ) {
   // One step for the request and its body: the signal that stops the request, on a timeout or
   // when the run is interrupted, then stops the download too.
@@ -56,7 +57,7 @@ const fetchBody = Effect.fn("fetchBody")(function* <Body>(
           new UpstreamError({ url, retryable: !(cause instanceof TooLargeError), cause }),
   });
 
-  return yield* request.pipe(Effect.retry(retrySchedule));
+  return yield* retry ? request.pipe(Effect.retry(retrySchedule)) : request;
 });
 
 class TooLargeError extends Error {}
@@ -101,11 +102,11 @@ async function readUpTo(response: Response, maxBytes: number) {
 // What a text answer may weigh at most. The largest one read today is a megabyte.
 const MAX_TEXT_BYTES = 32 * 1024 * 1024;
 
+const readText = async (response: Response) =>
+  new TextDecoder().decode(await readUpTo(response, MAX_TEXT_BYTES));
+
 /** Fetches a text document from a provider. */
-export const fetchText = (url: string) =>
-  fetchBody(url, async (response) =>
-    new TextDecoder().decode(await readUpTo(response, MAX_TEXT_BYTES)),
-  );
+export const fetchText = (url: string) => fetchBody(url, readText);
 
 /**
  * Fetches a file from a provider as it is, for the formats that are not text. The caller says
@@ -114,11 +115,21 @@ export const fetchText = (url: string) =>
 export const fetchBytes = (url: string, maxBytes: number) =>
   fetchBody(url, (response) => readUpTo(response, maxBytes));
 
-/** Fetches a JSON document from a provider. The caller validates its shape. */
-export const fetchJson = Effect.fn("fetchJson")(function* (url: string) {
-  const text = yield* fetchText(url);
-  return yield* Effect.try({
+const parseJson = (url: string, text: string) =>
+  Effect.try({
     try: (): unknown => JSON.parse(text),
     catch: (cause) => new UpstreamError({ url, retryable: false, cause }),
   });
+
+/** Fetches a JSON document from a provider. The caller validates its shape. */
+export const fetchJson = Effect.fn("fetchJson")(function* (url: string) {
+  return yield* parseJson(url, yield* fetchText(url));
+});
+
+/**
+ * Fetches a JSON document with a single request. For a shared public server that asks its
+ * callers to wait half a minute after a refusal: the caller's next scheduled run asks again.
+ */
+export const fetchJsonOnce = Effect.fn("fetchJsonOnce")(function* (url: string) {
+  return yield* parseJson(url, yield* fetchBody(url, readText, false));
 });

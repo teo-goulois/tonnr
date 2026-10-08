@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { breaksRouter } from "./breaks";
 import { forecastsRouter } from "./forecasts";
 import { notificationsRouter } from "./notifications";
 import { preferencesRouter } from "./preferences";
@@ -10,6 +11,7 @@ import { tidesRouter } from "./tides";
 
 // The public API, version 1. Once released it only grows: a breaking change goes in a new version.
 export const v1Router = {
+  breaks: breaksRouter,
   forecasts: forecastsRouter,
   notifications: notificationsRouter,
   spots: spotsRouter,

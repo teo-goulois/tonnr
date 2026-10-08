@@ -9,6 +9,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 ## What Tonnr does
 
 - A user saves a spot. A spot is a point on the map, a name, and the conditions that make it work: swell height, period and direction, wind, and tide.
+- The user picks the spot from a catalogue of known surf breaks, or places a point of their own. Their own point stays private. It joins the catalogue only after moderation, so that nobody publishes a secret spot by accident.
 - Tonnr alerts the user when measurements or forecasts match those conditions.
 - A spot is private, public, or shared with chosen people.
 - A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
@@ -25,6 +26,7 @@ Tonnr is free and not commercial for now. It is open source: the repository is p
 - Tides, computed from open harmonic constants. Téo rates them as essential. Decision 002 covers the source.
 - History for a point, switched on when a user first shows interest in that point.
 - Alerts when a spot is forecast to work. They are recorded and listed by the API. Sending them by email and web push is not built.
+- A catalogue of surf breaks from OpenStreetMap, 335 of them on 2026-10-08. Decision 015 covers it. Publishing a user's spot after moderation is not built.
 
 A mobile app follows the first release. The API runs as its own service, and notifications are designed for mobile push from the start.
 
@@ -53,3 +55,4 @@ Checked on 2026-10-08. Provider details are in `docs/data-sources.md`.
 ## Open questions
 
 - Which buoys of the five unchecked networks may be redistributed.
+- Where a fuller list of surf breaks can come from. The open sources are thin, and the full lists are proprietary.

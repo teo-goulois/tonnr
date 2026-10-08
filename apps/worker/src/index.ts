@@ -3,6 +3,7 @@ import { Effect } from "effect";
 import { PgBoss } from "pg-boss";
 
 import { evaluateAlerts } from "./alerts";
+import { breakSources, importBreaks, isDue } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { ingest, providers, retiredProviderIds } from "./ingest";
@@ -81,6 +82,24 @@ await boss.work(ALERTS_QUEUE, async () => {
   await Effect.runPromise(evaluateAlerts(db));
 });
 await boss.send(ALERTS_QUEUE);
+
+for (const source of breakSources) {
+  const queue = `import-breaks-${source.id}`;
+  // A shared public server is often busy. A run that fails is tried again ten minutes later,
+  // five times at most, since the next scheduled run is a week away.
+  const retries = { retryLimit: 5, retryDelay: 600 };
+  await boss.createQueue(queue, { policy: "stately", ...retries });
+  await boss.updateQueue(queue, retries);
+  await boss.schedule(queue, source.schedule);
+  await boss.work(queue, async () => {
+    await Effect.runPromise(importBreaks(source, db));
+  });
+  // A list of breaks changes over months, so a restart does not ask for it again. A first
+  // start does, and so does one after the schedule was missed.
+  if (await Effect.runPromise(isDue(source, db))) await boss.send(queue);
+
+  console.log(`Scheduled ${queue} (${source.schedule})`);
+}
 
 async function shutdown() {
   await boss.stop();

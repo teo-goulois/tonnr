@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { user } from "@repo/db/schema/auth";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, count, eq } from "drizzle-orm";
 import { Effect, Result } from "effect";
 import { z } from "zod";
@@ -36,6 +36,9 @@ const spotFields = {
 
 const spotSchema = z.object({
   id: z.string(),
+  // The catalogue break the spot was created from. Null for a point the user placed, and once
+  // the break has left the catalogue.
+  breakId: z.string().nullable(),
   ...spotFields,
   // Whether the caller owns the spot. The owner's identity is not exposed.
   isOwner: z.boolean(),
@@ -48,6 +51,7 @@ const criterionSchema = criteriaSchema.keyof();
 function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined) {
   return {
     id: row.id,
+    breakId: row.breakId,
     name: row.name,
     latitude: row.latitude,
     longitude: row.longitude,
@@ -72,19 +76,36 @@ export const spotsRouter = {
       path: "/spots",
       successStatus: 201,
       summary: "Save a spot with the conditions that make it work",
+      description:
+        "The spot starts from a break of the catalogue, or from a point of the caller's own. " +
+        "From a break it takes the name and the point, unless the request gives others. It then " +
+        "keeps them as its own: a later change to the break does not move the spot.",
       tags: ["Spots"],
     })
     .input(
-      z.object({
-        ...spotFields,
-        visibility: spotFields.visibility.default("private"),
-        criteria: criteriaSchema.default({}),
-        alertsEnabled: spotFields.alertsEnabled.default(false),
-      }),
+      z
+        .object({
+          breakId: z.string().optional(),
+          name: spotFields.name.optional(),
+          latitude: spotFields.latitude.optional(),
+          longitude: spotFields.longitude.optional(),
+          visibility: spotFields.visibility.default("private"),
+          criteria: criteriaSchema.default({}),
+          alertsEnabled: spotFields.alertsEnabled.default(false),
+        })
+        .refine(
+          (input) =>
+            input.breakId !== undefined ||
+            (input.name !== undefined &&
+              input.latitude !== undefined &&
+              input.longitude !== undefined),
+          "give a breakId, or a name with a latitude and a longitude",
+        ),
     )
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
+      const { breakId, ...fields } = input;
 
       const created = await context.db.transaction(async (tx) => {
         // Locking the account row makes its creations run one after the other, so two requests
@@ -97,9 +118,31 @@ export const spotsRouter = {
           .where(eq(spot.userId, userId));
         if ((owned?.total ?? 0) >= MAX_SPOTS_PER_USER) return null;
 
+        // The break is held until the spot is written, so an import cannot delete it meanwhile.
+        const [origin] = breakId
+          ? await tx.select().from(surfBreak).where(eq(surfBreak.id, breakId)).for("share")
+          : [];
+        if (breakId && !origin) {
+          throw new ORPCError("NOT_FOUND", { message: `No break "${breakId}".` });
+        }
+        const name = fields.name ?? origin?.name;
+        const latitude = fields.latitude ?? origin?.latitude;
+        const longitude = fields.longitude ?? origin?.longitude;
+        if (name === undefined || latitude === undefined || longitude === undefined) {
+          throw new ORPCError("BAD_REQUEST");
+        }
+
         const [row] = await tx
           .insert(spot)
-          .values({ id: crypto.randomUUID(), userId, ...input })
+          .values({
+            ...fields,
+            id: crypto.randomUUID(),
+            userId,
+            breakId: origin?.id ?? null,
+            name,
+            latitude,
+            longitude,
+          })
           .returning();
         return row;
       });

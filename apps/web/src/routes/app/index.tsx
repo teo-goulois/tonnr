@@ -3,7 +3,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
+import { BreakPanel } from "@/components/viewer/break-panel";
 import {
+  BREAK_COLOR,
   HEIGHT_SCALE,
   NO_READING_COLOR,
   StationMap,
@@ -17,7 +19,8 @@ import { orpc } from "@/utils/orpc";
 
 // A temporary page to look at the data the API serves. It is not the product's interface.
 export const Route = createFileRoute("/app/")({
-  validateSearch: z.object({ station: z.string().optional() }),
+  // A station or a break is selected, never both.
+  validateSearch: z.object({ station: z.string().optional(), break: z.string().optional() }),
   component: Viewer,
 });
 
@@ -27,6 +30,7 @@ const FRESH_WAVES_MS = 6 * HOUR_MS;
 const FRESH_WIND_MS = 2 * HOUR_MS;
 const KNOTS_PER_MS = 1.943844;
 const WIND_LIMIT = 500;
+const BREAK_LIMIT = 1000;
 
 const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
@@ -43,9 +47,10 @@ function useNow() {
 }
 
 function Viewer() {
-  const { station: selectedId } = Route.useSearch();
+  const { station: selectedId, break: selectedBreakId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [showWind, setShowWind] = useState(true);
+  const [showBreaks, setShowBreaks] = useState(true);
   const [bounds, setBounds] = useState<Bounds | null>(null);
 
   const waves = useQuery(
@@ -64,6 +69,17 @@ function Viewer() {
       refetchInterval: 5 * MINUTE_MS,
     }),
   );
+
+  const breaks = useQuery(
+    orpc.v1.breaks.list.queryOptions({
+      input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
+      enabled: showBreaks && bounds !== null,
+      placeholderData: keepPreviousData,
+      // The catalogue changes once a week.
+      staleTime: 60 * MINUTE_MS,
+    }),
+  );
+  const visibleBreaks = showBreaks ? (breaks.data?.breaks ?? []) : [];
 
   const now = useNow();
   const stations: MapStation[] = (waves.data?.stations ?? []).map((station) => ({
@@ -105,8 +121,10 @@ function Viewer() {
         <StationMap
           stations={stations}
           windStations={windStations}
-          selectedId={selectedId}
+          breaks={visibleBreaks}
+          selectedId={selectedId ?? selectedBreakId}
           onSelect={(id) => void navigate({ search: { station: id } })}
+          onSelectBreak={(id) => void navigate({ search: { break: id } })}
           onBoundsChange={setBounds}
         />
         <div className="bg-background/90 absolute bottom-3 left-3 grid gap-2 rounded-md border px-3 py-2 text-xs">
@@ -152,12 +170,24 @@ function Viewer() {
               </div>
             )}
           </div>
+          <label className="text-muted-foreground flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showBreaks}
+              onChange={(event) => setShowBreaks(event.target.checked)}
+            />
+            <span className="size-2 rounded-full" style={{ background: BREAK_COLOR }} />
+            Spots de surf, d'après OpenStreetMap
+            {showBreaks && breaks.data?.next != null && <span>(zoome pour tout voir)</span>}
+          </label>
         </div>
       </div>
 
       <aside className="min-h-0 overflow-y-auto border-t lg:border-t-0 lg:border-l">
         {selectedId ? (
           <StationPanel key={selectedId} stationId={selectedId} />
+        ) : selectedBreakId ? (
+          <BreakPanel key={selectedBreakId} breakId={selectedBreakId} />
         ) : (
           <div className="grid gap-4 p-4">
             <div>
@@ -167,7 +197,7 @@ function Viewer() {
                   ? "Chargement…"
                   : waves.isError
                     ? "L'API ne répond pas."
-                    : `${stations.length} bouées, ${windStations.length} stations de vent dans la vue. Choisis-en une sur la carte ou dans la liste.`}
+                    : `${stations.length} bouées, ${windStations.length} stations de vent et ${visibleBreaks.length} spots de surf dans la vue. Choisis-en un sur la carte ou dans la liste.`}
               </p>
             </div>
             <ul className="grid gap-1">

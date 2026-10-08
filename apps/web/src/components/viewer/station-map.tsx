@@ -32,14 +32,24 @@ export type WindStation = {
   directionDegrees: number | null;
 };
 
+export type MapBreak = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+};
+
 // West, south, east, north.
 export type Bounds = [number, number, number, number];
 
 type StationMapProps = {
   stations: MapStation[];
   windStations: WindStation[];
+  breaks: MapBreak[];
+  // The id of the selected station, or of the selected break.
   selectedId: string | undefined;
   onSelect: (id: string) => void;
+  onSelectBreak: (id: string) => void;
   onBoundsChange: (bounds: Bounds) => void;
 };
 
@@ -55,6 +65,8 @@ export const HEIGHT_SCALE = [
   { meters: 5, color: "#cde2fb" },
 ];
 export const NO_READING_COLOR = "#898781";
+// A third hue, and a smaller dot: a surf break measures nothing.
+export const BREAK_COLOR = "#c9e265";
 
 // One orange, darker for light air and lighter for strong wind.
 const CALM = { knots: 0, background: "#4a2412", text: "#ffffff" };
@@ -161,11 +173,24 @@ function toGeoJson(stations: MapStation[]) {
   };
 }
 
+function breaksToGeoJson(breaks: MapBreak[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: breaks.map((found) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [found.longitude, found.latitude] },
+      properties: { id: found.id, name: found.name },
+    })),
+  };
+}
+
 export function StationMap({
   stations,
   windStations,
+  breaks,
   selectedId,
   onSelect,
+  onSelectBreak,
   onBoundsChange,
 }: StationMapProps) {
   const container = useRef<HTMLDivElement>(null);
@@ -174,8 +199,8 @@ export function StationMap({
   const windMarkers = useRef<Marker[]>([]);
   const [ready, setReady] = useState(false);
   // The map is created once, so its handlers read the latest props through refs.
-  const latest = useRef({ stations, selectedId, onSelect, onBoundsChange });
-  latest.current = { stations, selectedId, onSelect, onBoundsChange };
+  const latest = useRef({ stations, breaks, selectedId, onSelect, onSelectBreak, onBoundsChange });
+  latest.current = { stations, breaks, selectedId, onSelect, onSelectBreak, onBoundsChange };
 
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +227,24 @@ export function StationMap({
       created = instance;
 
       instance.on("load", () => {
+        // Under the stations: where a break and a buoy overlap, the measurement stays readable.
+        instance.addSource("breaks", {
+          type: "geojson",
+          data: breaksToGeoJson(latest.current.breaks),
+        });
+        instance.addLayer({
+          id: "breaks",
+          type: "circle",
+          source: "breaks",
+          layout: { "circle-sort-key": whenSelected(latest.current.selectedId, 1, 0) },
+          paint: {
+            "circle-radius": whenSelected(latest.current.selectedId, 8, 4),
+            "circle-color": BREAK_COLOR,
+            "circle-stroke-width": whenSelected(latest.current.selectedId, 3, 1.5),
+            "circle-stroke-color": whenSelected(latest.current.selectedId, "#ffffff", "#1a1a19"),
+          },
+        });
+
         instance.addSource("stations", {
           type: "geojson",
           data: toGeoJson(latest.current.stations),
@@ -236,12 +279,20 @@ export function StationMap({
           const id = event.features?.[0]?.properties?.id;
           if (typeof id === "string") latest.current.onSelect(id);
         });
-        instance.on("mouseenter", "stations", () => {
-          instance.getCanvas().style.cursor = "pointer";
+        instance.on("click", "breaks", (event: MapLayerMouseEvent) => {
+          // A click on a station that covers a break is the station's.
+          const onStation = instance.queryRenderedFeatures(event.point, { layers: ["stations"] });
+          const id = event.features?.[0]?.properties?.id;
+          if (onStation.length === 0 && typeof id === "string") latest.current.onSelectBreak(id);
         });
-        instance.on("mouseleave", "stations", () => {
-          instance.getCanvas().style.cursor = "";
-        });
+        for (const layer of ["stations", "breaks"]) {
+          instance.on("mouseenter", layer, () => {
+            instance.getCanvas().style.cursor = "pointer";
+          });
+          instance.on("mouseleave", layer, () => {
+            instance.getCanvas().style.cursor = "";
+          });
+        }
 
         instance.on("moveend", () => latest.current.onBoundsChange(visibleBounds(instance)));
         latest.current.onBoundsChange(visibleBounds(instance));
@@ -263,6 +314,11 @@ export function StationMap({
     const source = map.current?.getSource<GeoJSONSource>("stations");
     source?.setData(toGeoJson(stations));
   }, [stations, ready]);
+
+  useEffect(() => {
+    const source = map.current?.getSource<GeoJSONSource>("breaks");
+    source?.setData(breaksToGeoJson(breaks));
+  }, [breaks, ready]);
 
   useEffect(() => {
     const instance = map.current;
@@ -296,6 +352,15 @@ export function StationMap({
     instance.setPaintProperty("stations", "circle-stroke-width", whenSelected(selectedId, 3, 1.5));
     instance.setPaintProperty(
       "stations",
+      "circle-stroke-color",
+      whenSelected(selectedId, "#ffffff", "#1a1a19"),
+    );
+
+    instance.setLayoutProperty("breaks", "circle-sort-key", whenSelected(selectedId, 1, 0));
+    instance.setPaintProperty("breaks", "circle-radius", whenSelected(selectedId, 8, 4));
+    instance.setPaintProperty("breaks", "circle-stroke-width", whenSelected(selectedId, 3, 1.5));
+    instance.setPaintProperty(
+      "breaks",
       "circle-stroke-color",
       whenSelected(selectedId, "#ffffff", "#1a1a19"),
     );

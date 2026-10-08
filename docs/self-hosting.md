@@ -24,7 +24,7 @@ The API then answers on port 3000, or on `API_PORT`. Put a reverse proxy with HT
 To check the instance:
 
 - `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference.
-- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings`.
+- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings` and `breaks-osm: 335 listed, 335 added, 0 removed, 0 rejected`.
 - With a web app, signing in from it proves that the three addresses agree.
 
 ## On another platform
@@ -56,7 +56,7 @@ docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-
 
 ## Running one job
 
-Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, or `exposure`.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `exposure`, or `breaks`.
 
 ## Accounts
 
@@ -68,6 +68,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 
 - Read [Data sources](data-sources.md) before you open an instance to other people. It says what each provider allows.
 - Show a station's attribution wherever you show its data. The API returns it with every station.
+- The catalogue of surf breaks comes from OpenStreetMap, through one request a week to the public Overpass servers. Show "© OpenStreetMap contributors" wherever you show a break. The API returns it with every break.
 - A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid.
 - The code's licence covers the code. The measurements stay under their providers' terms.
 

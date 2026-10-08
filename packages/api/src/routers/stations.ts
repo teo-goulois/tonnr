@@ -1,21 +1,13 @@
 import { ORPCError } from "@orpc/server";
 import { reading, station } from "@repo/db/schema/buoys";
-import { and, between, desc, eq, gte, lte, or } from "drizzle-orm";
+import { and, between, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { bboxSchema, inBbox } from "../bbox";
 import { publicProcedure } from "../index";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HISTORY_DAYS = 2;
-
-const latitudeSchema = z.number().min(-90).max(90);
-const longitudeSchema = z.number().min(-180).max(180);
-
-// "west,south,east,north", the order GeoJSON uses.
-const bboxSchema = z
-  .string()
-  .transform((value) => value.split(",").map(Number))
-  .pipe(z.tuple([longitudeSchema, latitudeSchema, longitudeSchema, latitudeSchema]));
 
 const readingSchema = z.object({
   observedAt: z.date(),
@@ -120,25 +112,13 @@ export const stationsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      const [west, south, east, north] = input.bbox ?? [];
-      const inBbox =
-        west === undefined || south === undefined || east === undefined || north === undefined
-          ? undefined
-          : and(
-              between(station.latitude, south, north),
-              // A box that crosses the antimeridian has its west edge east of its east edge.
-              west <= east
-                ? between(station.longitude, west, east)
-                : or(gte(station.longitude, west), lte(station.longitude, east)),
-            );
-
       const rows = await context.db
         .select({ station, reading })
         .from(station)
         .leftJoin(reading, isLatestReading)
         .where(
           and(
-            inBbox,
+            inBbox(station.latitude, station.longitude, input.bbox),
             input.provider ? eq(station.provider, input.provider) : undefined,
             input.measures === "waves" ? eq(station.reportsWaves, true) : undefined,
             input.measures === "wind" ? eq(station.reportsWind, true) : undefined,

@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { Effect, Fiber } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { fetchBytes, fetchJson, fetchText } from "./index";
+import { fetchBytes, fetchJson, fetchJsonOnce, fetchText } from "./index";
 
 type Handler = (request: http.IncomingMessage, response: http.ServerResponse) => void;
 
@@ -86,6 +86,26 @@ describe("fetchText and fetchJson", () => {
     expect(await failure(fetchText(url))).toMatchObject({ status: 404, retryable: false });
     expect(seen.requests).toBe(1);
     expect(await until(() => seen.closed === 1)).toBe(true);
+  });
+});
+
+describe("fetchJsonOnce", () => {
+  it("fetches a document", async () => {
+    const { url } = await provider((_, response) => response.end('{"height": 2.5}'));
+
+    expect(await Effect.runPromise(fetchJsonOnce(url))).toEqual({ height: 2.5 });
+  });
+
+  it("does not ask again after a refusal or a failure of the provider", async () => {
+    for (const status of [429, 503]) {
+      const { url, seen } = await provider((_, response) => {
+        response.statusCode = status;
+        response.end("busy");
+      });
+
+      expect(await failure(fetchJsonOnce(url))).toMatchObject({ status, retryable: true });
+      expect(seen.requests).toBe(1);
+    }
   });
 });
 
