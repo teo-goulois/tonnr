@@ -29,6 +29,13 @@ describe("parseZonedTime", () => {
     expect(parseZonedTime("2026-02-31T17:00:00+10:00")).toBeNull();
   });
 
+  it("refuses a fraction when the seconds are not written", () => {
+    expect(parseZonedTime("2026-10-08T07:00.5Z")).toBeNull();
+    expect(parseZonedTime("2026-10-08T07:00:00.5Z")).toEqual(
+      new Date(Date.UTC(2026, 9, 8, 7, 0, 0, 500)),
+    );
+  });
+
   it("refuses a time that names no zone", () => {
     expect(parseZonedTime("2026-10-08T07:00:00")).toBeNull();
     expect(parseZonedTime("2026-10-08")).toBeNull();

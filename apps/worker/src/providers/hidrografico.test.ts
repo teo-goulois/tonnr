@@ -183,7 +183,6 @@ describe("parseObservations", () => {
         peakDirectionDeg: 335,
         directionalSpreadDeg: 17,
         waterTemperatureC: 16.4,
-        validated: true,
       },
       {
         providerStationId: "4",
@@ -195,7 +194,6 @@ describe("parseObservations", () => {
         peakDirectionDeg: 332,
         directionalSpreadDeg: 20,
         waterTemperatureC: 16.4,
-        validated: true,
       },
       {
         providerStationId: "19",
@@ -207,7 +205,6 @@ describe("parseObservations", () => {
         peakDirectionDeg: 335,
         directionalSpreadDeg: 17,
         waterTemperatureC: 16.4,
-        validated: true,
       },
     ]);
   });
@@ -232,32 +229,26 @@ describe("parseObservations", () => {
         directionalSpreadDeg: null,
         maxHeightM: null,
         waterTemperatureC: 16.4,
-        validated: true,
       });
     }
   });
 
-  it("marks a reading as validated only when every value it keeps is flagged good", () => {
+  it("keeps a value nobody checked, probably good, or without a flag, and validates nothing", () => {
     const { readings } = parseOne({
       times: [...TIMES, "2026-10-08T10:02:16Z", "2026-10-08T10:32:16Z"],
       values: Object.fromEntries(Object.keys(UNITS).map((name) => [name, [1, 1, 1, 1]])),
-      flags: {
-        // Good, not checked, probably good, and no flag at all.
-        wave_tp: [1, 0, 2, null],
-        // A value left out for a bad flag says nothing about the values that stay.
-        wave_thtp: [4, 1, 1, 1],
-      },
+      flags: { wave_tp: [1, 0, 2, null] },
     });
 
-    expect(readings.map((reading) => reading.validated)).toEqual([true, false, false, false]);
     expect(readings.map((reading) => reading.peakPeriodS)).toEqual([1, 1, 1, 1]);
+    // The institute asks that its data be given no higher level of validation than it declares.
+    expect(readings.every((reading) => reading.validated === undefined)).toBe(true);
   });
 
   it("reads a flag written as text like the same flag written as a number", () => {
     const { readings } = parseOne({ flags: { wave_tp: ["1", "4"] } });
 
     expect(readings.map((reading) => reading.peakPeriodS)).toEqual([10, null]);
-    expect(readings.map((reading) => reading.validated)).toEqual([true, true]);
   });
 
   it("leaves out a time without a usable wave height", () => {
@@ -287,6 +278,14 @@ describe("parseObservations", () => {
     const badFlag = parseOne({ flags: { wave_tp: ["Z", 1] } });
     expect(badFlag.rejected).toBe(1);
     expect(badFlag.readings).toHaveLength(1);
+
+    // A flag it does not know is not excused by a value that is missing.
+    const badFlagOnNothing = parseOne({
+      values: { wave_tp: [null, 10], wave_hm0: [2.09, null] },
+      flags: { wave_tp: ["Z", 1], wave_hm0: [1, 17] },
+    });
+    expect(badFlagOnNothing.rejected).toBe(2);
+    expect(badFlagOnNothing.readings).toEqual([]);
   });
 
   it("reads a time written with another zone or without seconds", () => {

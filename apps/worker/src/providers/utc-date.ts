@@ -30,11 +30,14 @@ export function utcDate(year: number, month: number, day: number, hour: number, 
  * no moment an observation can have. `Date` alone would read 31 February as 3 March.
  */
 export function parseZonedTime(text: string) {
-  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(text);
+  // A fraction is one of the seconds, so it is read only when the seconds are written.
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::(\d{2})(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.exec(
+    text,
+  );
   if (!match) return null;
 
-  const [, written = "", seconds = ":00", fraction = "", zone = "Z"] = match;
-  const date = new Date(`${written}${seconds}${fraction}${zone}`);
+  const [, written = "", seconds = "00", fraction = "", zone = "Z"] = match;
+  const date = new Date(`${written}:${seconds}${fraction}${zone}`);
   if (Number.isNaN(date.getTime())) return null;
 
   // Read back in the zone it was written in, the moment must give the same day and time.

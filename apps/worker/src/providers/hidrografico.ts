@@ -37,14 +37,22 @@ const PARAMETERS: Record<string, { measurement: Measurement; unit: string }> = {
 // The quality flags of SeaDataNet (vocabulary L20). A value keeps its place when nobody checked
 // it, when it is good, or when it is probably good. Every other flag leaves it out: probably bad,
 // bad, changed, beyond a limit, interpolated, missing, or uncertain.
+// No reading is marked as validated: these are near-real-time values with an automatic check,
+// and the institute asks that its data be given no higher level of validation than it declares.
 const KNOWN_FLAGS = new Set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "Q"]);
 const USABLE_FLAGS = new Set(["0", "1", "2"]);
-const GOOD_FLAG = "1";
 
-// Who to credit besides the institute, from each buoy's own record. Téo read the record of
-// Leixões on 2026-10-08. The records of the other buoys have not been read.
-const ALSO_CREDITED: Record<string, string> = {
-  "4": "Administração dos Portos do Douro, Leixões e Viana do Castelo",
+// The institute asks to keep, with its data, the source, the reference to the metadata and its
+// DOI, the licence, and a word on what was changed. This is the record of the whole network.
+const NETWORK_RECORD =
+  "https://metadata.hidrografico.pt/geonetwork/srv/por/catalog.search#/metadata/0205ed82-a085-4432-98f5-ff0326c4d4de";
+// What a buoy's own record adds. Téo read the record of Leixões on 2026-10-08. The records of
+// the other buoys have not been read.
+const BUOY_RECORDS: Record<string, { alsoCredited: string; reference: string }> = {
+  "4": {
+    alsoCredited: "Administração dos Portos do Douro, Leixões e Viana do Castelo",
+    reference: "https://doi.org/10.71683/c035c48b-8834-4de1-85b3-3e9f64fed4b6",
+  },
 };
 
 type Buoy = { id: string; name: string; latitude: number; longitude: number };
@@ -198,23 +206,19 @@ export function parseObservations(
         continue;
       }
 
-      const reading: ReadingInput = { providerStationId: buoyId, observedAt, validated: true };
+      const reading: ReadingInput = { providerStationId: buoyId, observedAt };
       let unreadable = false;
       for (const { measurement, values, flags } of series) {
         const value = values[index];
         const flag = flags[index];
-        if (value === null) {
-          reading[measurement] = null;
-        } else if (typeof value !== "number" || (flag !== null && flagCode(flag) === null)) {
+        // A value without a flag is kept as one nobody checked.
+        const code = flag === null ? "0" : flagCode(flag);
+        if (code === null || (value !== null && typeof value !== "number")) {
           unreadable = true;
+        } else if (value === null) {
+          reading[measurement] = null;
         } else {
-          // A value without a flag is kept as one nobody checked.
-          const code = flag === null ? "0" : flagCode(flag);
-          const kept =
-            code !== null && USABLE_FLAGS.has(code) ? plausible(measurement, value) : null;
-          reading[measurement] = kept;
-          // Validated means that every value the reading keeps was checked and found good.
-          if (kept !== null && code !== GOOD_FLAG) reading.validated = false;
+          reading[measurement] = USABLE_FLAGS.has(code) ? plausible(measurement, value) : null;
         }
       }
       if (unreadable) {
@@ -249,20 +253,26 @@ export const hidrografico: Provider = {
 
     const stations: StationInput[] = listed.buoys
       .filter((buoy) => reporting.has(buoy.id))
-      .map((buoy) => ({
-        providerStationId: buoy.id,
-        name: buoy.name,
-        latitude: buoy.latitude,
-        longitude: buoy.longitude,
-        // The institute licenses the list of buoys under CC BY and their observations under
-        // CC BY-NC, which asks for the credit, a link to the source, and a word on what changed.
-        licenseType: "cc-by-nc-4.0",
-        licenseUrl: "https://creativecommons.org/licenses/by-nc/4.0/",
-        attribution:
-          `${["Instituto Hidrográfico", ALSO_CREDITED[buoy.id]].filter(Boolean).join(" and ")}, ` +
-          `<${COLLECTION_URL}>. Values flagged as bad or doubtful are left out.`,
-        commercialUse: false,
-      }));
+      .map((buoy) => {
+        const record = BUOY_RECORDS[buoy.id];
+        const credits = ["Instituto Hidrográfico", record?.alsoCredited].filter(Boolean);
+
+        return {
+          providerStationId: buoy.id,
+          name: buoy.name,
+          latitude: buoy.latitude,
+          longitude: buoy.longitude,
+          // The institute licenses the list of buoys under CC BY and their observations under
+          // CC BY-NC.
+          licenseType: "cc-by-nc-4.0",
+          licenseUrl: "https://creativecommons.org/licenses/by-nc/4.0/",
+          attribution:
+            `${credits.join(" and ")}, <${record?.reference ?? NETWORK_RECORD}>. ` +
+            "Filtered on the institute's quality flags and on physical limits, " +
+            "and rounded to three decimals.",
+          commercialUse: false,
+        };
+      });
 
     return {
       stations,
