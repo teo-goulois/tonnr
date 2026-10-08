@@ -34,6 +34,14 @@ The measurements belong to the networks that publish them, each under its own te
 
 [CONTRIBUTING.md](CONTRIBUTING.md) says how. Report a security problem in private, as [SECURITY.md](SECURITY.md) describes.
 
+## Licence
+
+Tonnr's code is free software under the [GNU Affero General Public License, version 3](LICENSE). Copyright © 2026 Téo Goulois.
+
+You may use it, change it, and share it. If you let people use a changed version over a network, the licence asks you to offer them its source. The measurements are not part of it: they stay under their providers' terms.
+
+The interface primitives in `packages/ui` come from [shadcn/ui](https://ui.shadcn.com), under the MIT licence.
+
 ## Learn more
 
 - [Product vision](docs/product-vision.md)

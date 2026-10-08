@@ -1,6 +1,6 @@
 # 009. Deployment of the API and the worker
 
-Status: proposed to Téo on 2026-10-08. On a development machine, an arm64 Mac, the two images were built and run against an empty database: the API applied the migrations and served, the worker ingested every provider, and each stopped within a second. Not tried: a build on amd64, Easypanel itself, and a switch from one version to the next. Nothing is deployed yet.
+Status: proposed to Téo on 2026-10-08. CI builds the two images on amd64 and starts them on an empty database: the worker applies the migrations and schedules its runs, the API serves, and each stops cleanly. On an arm64 Mac the worker also ingested every provider. Not tried: Easypanel itself, and a switch from one version to the next. Nothing is deployed yet.
 
 ## Context
 
@@ -8,7 +8,7 @@ Decision 001 puts the API, the worker, and Postgres on Téo's Easypanel server, 
 
 ## Decision
 
-- The API and the worker each have a Dockerfile, built with the repository root as context. The build stage installs what the app and its workspace packages need, with `pnpm install --filter "<app>..."`. The image that runs holds the built app and its production dependencies only.
+- The API and the worker each have a Dockerfile, built with the repository root as context. The build stage installs what the app and its workspace packages need, with `pnpm install --filter "<app>..."`. The image that runs holds the repository's files, the built app, and its production dependencies: no development dependency, and no pnpm.
 - A container takes every value from its environment. No `.env` file goes into an image. Varlock checks the values at startup, so a container with a missing value stops and names it. Each app's `.env.schema` lists what it needs.
 - Each container runs its app's `start.ts`, which applies the migrations and then starts the app. It uses the ORM's own migrator, which keeps the same record of applied migrations as `drizzle-kit migrate`, so development keeps using `pnpm run db:migrate`. A migration that fails stops the container before it does anything else.
 - A container locks the database while it migrates. The ones that start meanwhile wait, then find nothing left to apply, so the services may start in any order and together. Decision 012 asked for this.

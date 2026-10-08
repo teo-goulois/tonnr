@@ -10,7 +10,7 @@ Tonnr is built by one person, in the open. A fix or a small improvement is welco
 
 ## Checks
 
-`pnpm run check` runs lint, the format check, the type check, and the tests. CI runs it on every push and pull request.
+`pnpm run check` runs lint, the format check, the type check, and the tests. CI runs it on every push to `main` and on every pull request, then builds the two images and starts them on an empty database.
 
 Some tests need Postgres and are skipped without it. To run them, start the database with `pnpm run db:start`, then:
 
@@ -20,11 +20,9 @@ TEST_DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres pnpm ru
 
 They create databases of their own and drop them. The one the address names is never written to.
 
-A change to a Dockerfile, a dependency, or a migration also builds the two images in CI and starts them on an empty database.
-
 ## Changing the schema
 
-Change the schema in `packages/db`, run `pnpm run db:generate`, and commit the migration it writes. CI fails when the two disagree.
+Change the schema in `packages/db`, run `pnpm run db:generate`, and commit the migration it writes. CI fails when the schema has no migration, when a database built by the migrations differs from the schema, and when a pull request edits a migration that was already merged.
 
 A new version applies its migrations while the previous one still runs. Add in one release and remove in a later one, so that the previous version keeps working meanwhile.
 
@@ -33,3 +31,7 @@ A new version applies its migrations while the previous one still runs. Add in o
 - Read [Data sources](docs/data-sources.md) first. A provider is added once its terms were read at the source, station by station where they differ.
 - A test reads a saved sample of the provider's data, as small as the test needs. The sample stays under the provider's terms.
 - Neither the tests nor CI call a provider.
+
+## Licence
+
+Tonnr is under the GNU Affero General Public License, version 3. A contribution you send is published under the same licence.

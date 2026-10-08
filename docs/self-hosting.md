@@ -2,20 +2,20 @@
 
 An instance is three programs: Postgres 18, the API, and the worker that fetches the measurements. Decision 009 gives the reasons behind what follows.
 
-The web app is not one of the containers yet. Run it from the repository with `pnpm run dev:web`, or send it to Cloudflare with `pnpm run deploy`, a path that no real deployment has used so far.
+The web app is not one of the containers yet, and an instance without it serves the API alone. To run the web app, follow "Run it" in the [README](../README.md), with `VITE_SERVER_URL` in `apps/web/.env` set to the public address of the API. `pnpm run deploy` sends it to Cloudflare instead, a path that no real deployment has used so far.
 
 ## With Docker Compose
 
 1. Clone the repository on the server.
 2. Copy `apps/server/.env.example` to `apps/server/.env` and set the three values below. Compose sets `DATABASE_URL` itself.
-3. Copy `.env.example` to `.env` and choose `POSTGRES_PASSWORD`. Postgres takes it when it first creates its volume, so choose it before the first start.
+3. Copy `.env.example` to `.env` and choose `POSTGRES_PASSWORD`, from letters and digits only: it goes into the database's address as it is. `openssl rand -hex 24` makes one. Postgres takes it when it first creates its volume, so choose it before the first start.
 4. Run `docker compose up --detach --build`.
 
-| Variable             | Value                                                                     |
-| -------------------- | ------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET` | 32 characters or more. `openssl rand -base64 32` makes one.               |
-| `BETTER_AUTH_URL`    | The public HTTPS address of the API.                                      |
-| `CORS_ORIGIN`        | The public HTTPS address of the web app, exactly as the browser shows it. |
+| Variable             | Value                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET` | 32 characters or more. `openssl rand -base64 32` makes one.                                                         |
+| `BETTER_AUTH_URL`    | The public HTTPS address of the API.                                                                                |
+| `CORS_ORIGIN`        | The public HTTPS address of the web app, exactly as the browser shows it. Without a web app, the API's own address. |
 
 Keep the secret: changing it signs every user out.
 
@@ -25,7 +25,7 @@ To check the instance:
 
 - `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference.
 - `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings`.
-- Signing in from the web app proves that the three addresses agree.
+- With a web app, signing in from it proves that the three addresses agree.
 
 ## On another platform
 
@@ -47,12 +47,14 @@ docker compose up --detach --build
 A new version applies its migrations when its first container starts. A migration that fails stops the container, and none of the pending migrations is kept. Back the database up first:
 
 ```bash
-docker compose exec postgres pg_dump -U postgres app | gzip > tonnr-backup.sql.gz
+docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-$(date +%F).dump
 ```
+
+`pg_restore` reads the file back.
 
 ## Running one job
 
-`docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, or `exposure`.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, or `exposure`.
 
 ## Accounts
 
@@ -66,3 +68,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 - Show a station's attribution wherever you show its data. The API returns it with every station.
 - A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid.
 - The code's licence covers the code. The measurements stay under their providers' terms.
+
+## What the licence asks
+
+Tonnr is under the GNU Affero General Public License, version 3. Running it as it is asks nothing more of you. If you change the code and let other people use your instance, offer them the source of your version.
