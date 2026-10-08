@@ -135,7 +135,7 @@ export function StationPanel({ stationId }: { stationId: string }) {
   return (
     <div className="grid gap-6 p-4">
       <header>
-        <h2 className="text-xl font-semibold">{station.name}</h2>
+        <h2 className="text-l font-medium">{station.name}</h2>
         <p className="text-muted-foreground text-xs">
           {station.attribution} · licence {station.license.type}
         </p>
