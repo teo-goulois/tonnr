@@ -12,6 +12,7 @@ import {
 } from "@/lib/shortcuts";
 import { m } from "@/paraglide/messages.js";
 
+import { ShortcutAccount } from "./shortcut-account";
 import { ShortcutKeys } from "./shortcut-keys";
 
 // A module-level store, so that the command palette can open the dialog from anywhere.
@@ -94,6 +95,7 @@ export function ShortcutSettings() {
             <ShortcutRow key={action.id} action={action} bindings={bindings} />
           ))}
         </ul>
+        <ShortcutAccount />
       </DialogPopup>
     </Dialog>
   );

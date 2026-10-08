@@ -52,5 +52,13 @@
   "shortcuts_incomplete": "Add a key to the combination.",
   "shortcut_command_palette": "Open the command palette",
   "shortcut_toggle_theme": "Switch the theme",
-  "shortcut_switch_locale": "Switch the language"
+  "shortcut_switch_locale": "Switch the language",
+  "shortcuts_account_hint": "Shortcuts belong to this device. Save them to your account to use the same ones elsewhere.",
+  "shortcuts_account_saved_at": "In your account since {date}.",
+  "shortcuts_account_empty": "Nothing in your account yet.",
+  "shortcuts_account_save": "Save to my account",
+  "shortcuts_account_restore": "Use my account's",
+  "shortcuts_account_saved_toast": "Shortcuts saved to your account.",
+  "shortcuts_account_restored_toast": "Shortcuts taken from your account.",
+  "shortcuts_account_error": "Your account could not be reached."
 }

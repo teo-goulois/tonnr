@@ -52,5 +52,13 @@
   "shortcuts_incomplete": "Ajoute une touche à la combinaison.",
   "shortcut_command_palette": "Ouvrir la palette de commandes",
   "shortcut_toggle_theme": "Changer de thème",
-  "shortcut_switch_locale": "Changer de langue"
+  "shortcut_switch_locale": "Changer de langue",
+  "shortcuts_account_hint": "Les raccourcis sont propres à cet appareil. Enregistre-les dans ton compte pour retrouver les mêmes ailleurs.",
+  "shortcuts_account_saved_at": "Dans ton compte depuis le {date}.",
+  "shortcuts_account_empty": "Rien dans ton compte pour l'instant.",
+  "shortcuts_account_save": "Enregistrer dans mon compte",
+  "shortcuts_account_restore": "Reprendre ceux de mon compte",
+  "shortcuts_account_saved_toast": "Raccourcis enregistrés dans ton compte.",
+  "shortcuts_account_restored_toast": "Raccourcis repris de ton compte.",
+  "shortcuts_account_error": "Ton compte est injoignable."
 }

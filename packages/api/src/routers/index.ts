@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { forecastsRouter } from "./forecasts";
 import { notificationsRouter } from "./notifications";
+import { preferencesRouter } from "./preferences";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
 import { tidesRouter } from "./tides";
@@ -18,6 +19,7 @@ export const v1Router = {
 
 export const appRouter = {
   v1: v1Router,
+  preferences: preferencesRouter,
   healthCheck: publicProcedure.handler(() => {
     return "OK";
   }),

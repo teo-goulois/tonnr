@@ -82,6 +82,29 @@ export function resetShortcut(id: ShortcutId) {
   writeOverrides(rest);
 }
 
+/** This device's changes from the defaults, as the account stores them. */
+export function getShortcutOverrides(): Record<string, string> {
+  return { ...readOverrides() };
+}
+
+/**
+ * Replaces this device's shortcuts with a copy saved in the account. An entry for an action this
+ * version does not have, or a hotkey it cannot read, is left out.
+ */
+export function replaceShortcutOverrides(saved: Record<string, string>) {
+  const overrides: ShortcutOverrides = {};
+  for (const action of SHORTCUT_ACTIONS) {
+    const hotkey = saved[action.id];
+    if (hotkey === undefined) continue;
+    try {
+      overrides[action.id] = hotkey === "" ? "" : normalizeHotkey(hotkey);
+    } catch {
+      // The default applies.
+    }
+  }
+  writeOverrides(overrides);
+}
+
 export function isDefaultShortcut(action: ShortcutAction, hotkey: string) {
   return hotkey === normalizeHotkey(action.defaultHotkey);
 }
