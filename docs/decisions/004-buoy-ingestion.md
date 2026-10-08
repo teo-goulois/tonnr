@@ -29,4 +29,3 @@ Buoy measurements come from many providers. Each has its own format, update rhyt
 - To take a provider out, remove it from `providers` in `ingest.ts` and add its id to `retiredProviderIds`. The worker deletes the queue and the schedule of a retired provider when it starts. It deletes no other queue, since one it does not know may belong to a newer worker. The provider's stations and readings stay until someone deletes them.
 - A snapshot carries only what the provider shows now: the latest observation for NDBC, two days for CANDHIS and Queensland, twelve hours for the Finnish institute, six hours for Irish Lights and the Marine Institute. A worker stopped for longer than that leaves a hole. Fetching older history when a user asks for it is not built.
 - A reading that already exists is left alone, so a provider that corrects a value it already published is not followed.
-- The worker has no Dockerfile yet.

@@ -5,8 +5,8 @@ WORKDIR /app
 COPY . .
 # Only what this app and the workspace packages it uses need. The whole repository would add
 # the web app's and the infrastructure's dependencies, two gigabytes of them.
-RUN pnpm install --frozen-lockfile --filter "server..."
-RUN pnpm --filter server run build
+RUN pnpm install --frozen-lockfile --filter "worker..."
+RUN pnpm --filter worker run build
 
 FROM node:26-slim AS runner
 ENV NODE_ENV=production
@@ -14,8 +14,6 @@ WORKDIR /app
 COPY --from=builder --chown=node:node /app /app
 USER node
 
-EXPOSE 3000
-
-# The schema is brought up to date before the API starts. A migration that fails stops the
-# container before it serves anything.
-CMD ["sh", "-c", "cd packages/db && ./node_modules/.bin/drizzle-kit migrate && cd ../../apps/server && exec node dist/index.mjs"]
+# The worker changes no schema. Start it once the API has applied the migrations.
+WORKDIR /app/apps/worker
+CMD ["node", "dist/index.mjs"]

@@ -85,7 +85,7 @@ app.get("/", (c) => {
 
 import { serve } from "@hono/node-server";
 
-serve(
+const server = serve(
   {
     fetch: app.fetch,
     port: ENV.PORT,
@@ -94,3 +94,11 @@ serve(
     console.log(`Server is running on http://localhost:${info.port}`);
   },
 );
+
+// A container is stopped with SIGTERM. Requests under way get to finish, within five seconds.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  });
+}

@@ -6,8 +6,8 @@ Read `docs/product-vision.md` before product work, `docs/data-sources.md` before
 
 ## Boundaries
 
-- `apps/server` hosts the oRPC router with Hono on Node. It serves the public API at `/v1`, with its spec at `/v1/openapi.json` and reference at `/v1/docs`, the typed RPC transport at `/rpc`, and Better Auth at `/api/auth`. It deploys as a Docker container.
-- `apps/worker` fetches buoy data on a schedule and writes it to the database. Each provider is one module that knows its provider's format and nothing about the database. Decision 004 describes the model.
+- `apps/server` hosts the oRPC router with Hono on Node. It serves the public API at `/v1`, with its spec at `/v1/openapi.json` and reference at `/v1/docs`, the typed RPC transport at `/rpc`, and Better Auth at `/api/auth`. It deploys as a Docker container, and decision 009 says how.
+- `apps/worker` fetches buoy data on a schedule and writes it to the database. It deploys as a second container. Each provider is one module that knows its provider's format and nothing about the database. Decision 004 describes the model.
 - `apps/web` is the TanStack Start app. It deploys to Cloudflare through `packages/infra`.
 - `packages/api` holds the procedures. Each user action is one oRPC procedure, and its validation, authorization, and logic live in that procedure. Public procedures belong to a versioned router. Decision 003 says what may change inside a version.
 - `packages/db` holds the Drizzle schema and client. Use stock Postgres 18 features and change the schema through Drizzle migrations, so the database stays portable. Decision 001 gives the reason.
