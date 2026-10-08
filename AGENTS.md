@@ -21,7 +21,10 @@ For UI work, follow `GUI.md` and use `graphical-ui`, `graphical-convert`, or `gr
 
 - The Tonnr theme is defined once, in `packages/ui/src/styles/globals.css`. `gui/` is the snapshot it was written from, not a source to edit.
 - `rounded-s`, `rounded-l`, and `max-w-xl` do not mean the theme's steps in Tailwind. The comment above `@theme` in that file gives the spelling to use.
-- Icons are imported from `@repo/ui/icon` and nowhere else.
+- `packages/ui` follows Téo's handbook (teogoulois.com/code/web/conventions). Primitives live in `src/components/ui/`, and each one is taken from the teogoulois registry, then given the Tonnr theme. Add a missing one the same way before writing a new one.
+- Icons are Nucleo, imported from `@repo/ui/icon` and nowhere else. The theme's snapshot names another set: Nucleo replaces it.
+- `/design-system` shows every shared component with its variants and states, in development only. A new component is added there in the same change.
+- Keyboard shortcuts are listed in `apps/web/src/lib/shortcuts.ts` and registered with TanStack Hotkeys, never with a `keydown` listener. `D` switches the theme.
 - `/` is the landing page and `/app` is the product. A screen under `/app` is a component that takes props, in `apps/web/src/components/<feature>/`, and its route loads the data.
 - Every string a user reads is a message in `apps/web/messages/en.json` and `fr.json`. English has no URL prefix, French lives under `/fr`. Paraglide generates `apps/web/src/paraglide/`, which Git ignores.
 
@@ -42,6 +45,7 @@ Other people and agents work on this repository from other machines, on `main`.
 
 - Commit often, one change per commit, so that work in progress never sits only on one machine.
 - Run `git pull --rebase` before starting a task and before each commit.
+- Push after each commit. The project is at an experimental stage, and `main` is where everyone meets.
 
 ## A public repository
 

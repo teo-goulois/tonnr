@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
-import { buttonVariants } from "@repo/ui/components/button";
+import { buttonVariants } from "@repo/ui/components/ui/button";
 import { ArrowRightIcon } from "@repo/ui/icon";
 
 import { m } from "@/paraglide/messages.js";
@@ -31,7 +31,7 @@ export function LandingPage({ apiDocsUrl }: { apiDocsUrl: string }) {
             <div className="flex flex-wrap gap-xs">
               <Link to="/app" className={buttonVariants()}>
                 {m.landing_open_app()}
-                <ArrowRightIcon aria-hidden />
+                <ArrowRightIcon data-slot="icon" aria-hidden />
               </Link>
               <a href={apiDocsUrl} className={buttonVariants({ variant: "outline" })}>
                 {m.landing_read_api()}

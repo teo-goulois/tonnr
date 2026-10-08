@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
-import { Button, buttonVariants } from "@repo/ui/components/button";
+import { Button, buttonVariants } from "@repo/ui/components/ui/button";
 
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { m } from "@/paraglide/messages.js";

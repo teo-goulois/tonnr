@@ -1,0 +1,45 @@
+import type { IconProps } from "./icon-types";
+
+export function XIcon({
+  height,
+  size = "1em",
+  strokeWidth = 2,
+  title,
+  width,
+  ...props
+}: IconProps) {
+  return (
+    <svg
+      height={height ?? size}
+      width={width ?? size}
+      viewBox="0 0 20 20"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      {title ? <title>{title}</title> : null}
+      <line
+        x1="5"
+        y1="5"
+        x2="15"
+        y2="15"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={strokeWidth}
+        data-color="color-2"
+      ></line>
+      <line
+        x1="5"
+        y1="15"
+        x2="15"
+        y2="5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={strokeWidth}
+      ></line>
+    </svg>
+  );
+}

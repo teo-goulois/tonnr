@@ -3,8 +3,10 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { APP_NAME } from "@repo/config/app";
-import { Toaster } from "@repo/ui/components/sonner";
+import { Toaster } from "@repo/ui/components/ui/sonner";
+import { ThemeProvider } from "next-themes";
 
+import { AppHotkeys } from "@/components/shared/app-hotkeys";
 import type { orpc } from "@/utils/orpc";
 
 import { getLocale } from "@/paraglide/runtime.js";
@@ -40,20 +42,24 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootDocument,
 });
 
-// Applies the saved theme, or the system's, before the first paint.
-const THEME_SCRIPT = `document.documentElement.classList.toggle("dark",localStorage.theme?localStorage.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches)`;
-
 function RootDocument() {
   return (
-    // The script below sets the theme class before React hydrates.
+    // next-themes sets the theme class on <html> before React hydrates.
     <html lang={getLocale()} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <HeadContent />
       </head>
       <body>
-        <Outlet />
-        <Toaster richColors />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AppHotkeys />
+          <Outlet />
+          <Toaster richColors />
+        </ThemeProvider>
         <TanStackRouterDevtools position="bottom-left" />
         <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
         <Scripts />

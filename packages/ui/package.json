@@ -6,9 +6,9 @@
   "exports": {
     "./globals.css": "./src/styles/globals.css",
     "./lib/*": "./src/lib/*.ts",
-    "./components/*": "./src/components/*.tsx",
-    "./hooks/*": "./src/hooks/*.ts",
+    "./components/ui/*": "./src/components/ui/*.tsx",
     "./icon": "./src/icon/index.ts",
+    "./hooks/*": "./src/hooks/*.ts",
     "./postcss.config": "./postcss.config.mjs"
   },
   "scripts": {
@@ -21,8 +21,10 @@
     "@shadcn/react": "^0.3.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.5",
-    "lucide-react": "catalog:",
+    "motion": "^14.0.0",
     "next-themes": "catalog:",
+    "nucleo-ui-fill-18": "^1.5.1",
+    "nucleo-ui-outline-18": "^1.5.1",
     "react": "catalog:",
     "react-dom": "catalog:",
     "shadcn": "^4.21.0",
