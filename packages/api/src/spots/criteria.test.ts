@@ -4,6 +4,7 @@ import {
   criteriaSchema,
   findWindows,
   isInArc,
+  tideTrendAt,
   unmetCriteria,
   type HourConditions,
 } from "./criteria";
@@ -77,6 +78,25 @@ describe("unmetCriteria", () => {
 
   it("checks nothing when no criterion is set", () => {
     expect(unmetCriteria(hour, {})).toEqual([]);
+  });
+});
+
+describe("tideTrendAt", () => {
+  const extremes = [
+    { time: new Date("2026-10-08T08:18:57Z"), type: "low" as const },
+    { time: new Date("2026-10-08T14:23:50Z"), type: "high" as const },
+  ];
+
+  it("says falling just before low water, even though the tide is higher an hour later", () => {
+    expect(tideTrendAt(new Date("2026-10-08T08:00:00Z"), extremes)).toBe("falling");
+  });
+
+  it("says rising between low and high water", () => {
+    expect(tideTrendAt(new Date("2026-10-08T09:00:00Z"), extremes)).toBe("rising");
+  });
+
+  it("is unknown after the last tide it was given", () => {
+    expect(tideTrendAt(new Date("2026-10-08T15:00:00Z"), extremes)).toBeNull();
   });
 });
 

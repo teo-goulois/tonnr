@@ -107,6 +107,17 @@ export function unmetCriteria(hour: HourConditions, criteria: SpotCriteria): Cri
   return unmet;
 }
 
+/**
+ * Whether the tide is rising or falling at a moment: it rises toward the next high water and
+ * falls toward the next low water. Comparing two heights an hour apart would get it wrong around
+ * a turn of the tide. Null when no later tide is known.
+ */
+export function tideTrendAt(time: Date, extremes: readonly { time: Date; type: "high" | "low" }[]) {
+  const next = extremes.find((extreme) => extreme.time > time);
+  if (!next) return null;
+  return next.type === "high" ? ("rising" as const) : ("falling" as const);
+}
+
 const HOUR_MS = 60 * 60 * 1000;
 
 /**

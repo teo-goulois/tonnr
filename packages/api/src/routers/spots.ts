@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
 import { and, asc, count, eq } from "drizzle-orm";
 import { Effect, Result } from "effect";
@@ -10,8 +11,21 @@ import { criteriaSchema } from "../spots/criteria";
 
 const MAX_SPOTS_PER_USER = 100;
 
+// The database refuses some control characters, and none belongs in a name.
+function hasControlCharacter(text: string) {
+  return Array.from(text).some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 32 || code === 127;
+  });
+}
+
 const spotFields = {
-  name: z.string().trim().min(1).max(80),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .refine((name) => !hasControlCharacter(name), "must not contain control characters"),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   visibility: z.enum(["private", "public"]),
@@ -67,20 +81,29 @@ export const spotsRouter = {
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const [owned] = await context.db
-        .select({ total: count() })
-        .from(spot)
-        .where(eq(spot.userId, userId));
-      if ((owned?.total ?? 0) >= MAX_SPOTS_PER_USER) {
+
+      const created = await context.db.transaction(async (tx) => {
+        // Locking the account row makes its creations run one after the other, so two requests
+        // at once cannot both pass the limit.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
+
+        const [owned] = await tx
+          .select({ total: count() })
+          .from(spot)
+          .where(eq(spot.userId, userId));
+        if ((owned?.total ?? 0) >= MAX_SPOTS_PER_USER) return null;
+
+        const [row] = await tx
+          .insert(spot)
+          .values({ id: crypto.randomUUID(), userId, ...input })
+          .returning();
+        return row;
+      });
+      if (created === null) {
         throw new ORPCError("FORBIDDEN", {
           message: `An account holds at most ${MAX_SPOTS_PER_USER} spots.`,
         });
       }
-
-      const [created] = await context.db
-        .insert(spot)
-        .values({ id: crypto.randomUUID(), userId, ...input })
-        .returning();
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
       return describeSpot(created, userId);
     }),
