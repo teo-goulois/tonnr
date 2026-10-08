@@ -1,11 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { orpc } from "@/utils/orpc";
 
 import { LineChart } from "./line-chart";
 
 const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+
+// The hour under way. It changes once an hour, so the queries that start from it keep their
+// key between renders and ask again when the page has stayed open.
+function useCurrentHour() {
+  const [hour, setHour] = useState(() => Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
+  useEffect(() => {
+    const timer = setInterval(() => setHour(Math.floor(Date.now() / HOUR_MS) * HOUR_MS), MINUTE_MS);
+    return () => clearInterval(timer);
+  }, []);
+  return useMemo(() => new Date(hour), [hour]);
+}
 
 export const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const clock = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -43,8 +55,7 @@ export function Section({
 
 /** The swell forecast and the tide at a point, whatever stands there: a buoy or a surf break. */
 export function PointConditions({ latitude, longitude }: { latitude: number; longitude: number }) {
-  // Rounded to the hour so the query keys stay the same between renders.
-  const now = useMemo(() => new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS), []);
+  const now = useCurrentHour();
 
   const tides = useQuery(
     orpc.v1.tides.timeline.queryOptions({
@@ -68,6 +79,8 @@ export function PointConditions({ latitude, longitude }: { latitude: number; lon
     orpc.v1.forecasts.get.queryOptions({
       input: { latitude, longitude, days: 4 },
       retry: false,
+      // The API keeps a forecast for an hour.
+      refetchInterval: HOUR_MS,
     }),
   );
 

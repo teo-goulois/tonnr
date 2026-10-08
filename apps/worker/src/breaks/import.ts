@@ -1,39 +1,43 @@
 import type { Database } from "@repo/db";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, count, eq, lt, max, sql } from "drizzle-orm";
+import { and, count, eq, max, sql } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { StoreError } from "../store";
 import { osm } from "./osm";
-import type { BreakSource, ListedBreak } from "./source";
+import type { BreakList, BreakSource } from "./source";
 
 export const breakSources: readonly BreakSource[] = [osm];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A source is asked again at startup when its last import is older than this.
 const STALE_MS = 8 * DAY_MS;
-// A list this much shorter than the last one is a source that answered in part, not a source
-// that lost its breaks. Nothing is then deleted.
+// A list this much shorter than what the catalogue holds of the source is taken for a source
+// that answered in part, and nothing is deleted. Below a few breaks the rule would tell nothing.
 const MIN_SHARE_OF_KNOWN = 0.5;
-// A break takes ten parameters, and Postgres accepts 65,535 in a statement.
+const MIN_KNOWN_TO_DOUBT = 20;
+// A break takes eleven parameters, and Postgres accepts 65,535 in a statement.
 const BREAKS_PER_STATEMENT = 2000;
 
 const failed = (source: BreakSource) => (cause: unknown) =>
   new StoreError({ provider: `breaks-${source.id}`, cause });
 
 /**
- * Makes the catalogue hold what the source lists now. A break already known keeps its id and
- * takes the source's name and position. A break the source no longer lists is deleted, and the
- * spots made from it keep their own name and point.
+ * Makes the catalogue hold what the source lists. A break already known keeps its id and takes
+ * the source's name and position. A break the source no longer lists is deleted, and the spots
+ * made from it keep their own name and point.
+ *
+ * `fetchedAt` is when the list was asked for. Null is returned, and nothing written, when a
+ * list asked for later is already stored.
  */
 export const saveBreaks = Effect.fn("saveBreaks")(function* (
   db: Database,
   source: BreakSource,
-  listed: readonly ListedBreak[],
-  now: Date,
+  list: BreakList,
+  fetchedAt: Date,
 ) {
   // One row per reference: the database refuses to write a row twice in a statement.
-  const byRef = new Map(listed.map((found) => [found.ref, found]));
+  const byRef = new Map(list.breaks.map((found) => [found.ref, found]));
   const rows = Array.from(byRef.values(), (found) => ({
     id: crypto.randomUUID(),
     provider: source.id,
@@ -45,15 +49,25 @@ export const saveBreaks = Effect.fn("saveBreaks")(function* (
     licenseType: source.licenseType,
     licenseUrl: source.licenseUrl,
     attribution: source.attribution,
-    lastSeenAt: now,
+    lastSeenAt: fetchedAt,
   }));
+  // What the source still lists: the breaks read, and the ones that could not be.
+  const listedRefs = [...byRef.keys(), ...list.unreadable];
   const ofSource = eq(surfBreak.provider, source.id);
 
   return yield* Effect.tryPromise({
     try: () =>
       db.transaction(async (tx) => {
-        const [before] = await tx.select({ total: count() }).from(surfBreak).where(ofSource);
+        // One import of a source at a time. Two together would each miss the rows the other
+        // is writing, and could wait on each other for ever.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`breaks-${source.id}`}))`);
+
+        const [before] = await tx
+          .select({ total: count(), latest: max(surfBreak.lastSeenAt) })
+          .from(surfBreak)
+          .where(ofSource);
         const known = before?.total ?? 0;
+        if (before?.latest && before.latest > fetchedAt) return null;
 
         for (let start = 0; start < rows.length; start += BREAKS_PER_STATEMENT) {
           await tx
@@ -74,12 +88,20 @@ export const saveBreaks = Effect.fn("saveBreaks")(function* (
             });
         }
 
-        const isPartial = rows.length < known * MIN_SHARE_OF_KNOWN;
-        const removed = isPartial
+        const isDoubtful =
+          rows.length === 0 ||
+          (known >= MIN_KNOWN_TO_DOUBT && rows.length < known * MIN_SHARE_OF_KNOWN);
+        const removed = isDoubtful
           ? []
           : await tx
               .delete(surfBreak)
-              .where(and(ofSource, lt(surfBreak.lastSeenAt, now)))
+              // One parameter for the whole list, however long it is.
+              .where(
+                and(
+                  ofSource,
+                  sql`${surfBreak.providerRef} <> all(${sql.param(listedRefs)}::text[])`,
+                ),
+              )
               .returning({ id: surfBreak.id });
 
         const [after] = await tx.select({ total: count() }).from(surfBreak).where(ofSource);
@@ -88,8 +110,9 @@ export const saveBreaks = Effect.fn("saveBreaks")(function* (
           listed: rows.length,
           added: total - known + removed.length,
           removed: removed.length,
-          // Breaks the source did not list and that were kept, because its list looked partial.
-          keptMissing: total - rows.length,
+          // Breaks the list did not give and that stayed: unreadable, or kept out of doubt.
+          kept: total - rows.length,
+          isDoubtful,
         };
       }),
     catch: failed(source),
@@ -103,14 +126,20 @@ export const importBreaks = Effect.fn("importBreaks")(function* (
   now: Date = new Date(),
 ) {
   const list = yield* source.fetchBreaks;
-  const saved = yield* saveBreaks(db, source, list.breaks, now);
+  const saved = yield* saveBreaks(db, source, list, now);
+  if (!saved) {
+    yield* Effect.logWarning(
+      `breaks-${source.id}: a list asked for later is already stored, so this one was left out`,
+    );
+    return null;
+  }
 
   yield* Effect.logInfo(
-    `breaks-${source.id}: ${saved.listed} listed, ${saved.added} added, ${saved.removed} removed, ${list.rejected} rejected`,
+    `breaks-${source.id}: ${saved.listed} listed, ${saved.added} added, ${saved.removed} removed, ${list.unreadable.length} unreadable`,
   );
-  if (saved.keptMissing > 0) {
+  if (saved.isDoubtful && saved.kept > 0) {
     yield* Effect.logWarning(
-      `breaks-${source.id}: the list is less than half the last one, so the ${saved.keptMissing} breaks missing from it were kept`,
+      `breaks-${source.id}: the list is empty or less than half of what the catalogue holds, so the ${saved.kept} breaks missing from it were kept. Delete them by hand if the source did lose them.`,
     );
   }
   return saved;

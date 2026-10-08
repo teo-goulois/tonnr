@@ -47,7 +47,10 @@ function useNow() {
 }
 
 function Viewer() {
-  const { station: selectedId, break: selectedBreakId } = Route.useSearch();
+  const search = Route.useSearch();
+  // An empty value selects nothing, and a station wins over a break given with it.
+  const selectedId = search.station || undefined;
+  const selectedBreakId = selectedId ? undefined : search.break || undefined;
   const navigate = Route.useNavigate();
   const [showWind, setShowWind] = useState(true);
   const [showBreaks, setShowBreaks] = useState(true);

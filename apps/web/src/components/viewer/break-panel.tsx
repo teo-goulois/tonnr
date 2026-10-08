@@ -8,7 +8,8 @@ export function BreakPanel({ breakId }: { breakId: string }) {
   const found = useQuery(orpc.v1.breaks.get.queryOptions({ input: { id: breakId }, retry: false }));
 
   if (found.isPending) return <p className="text-muted-foreground p-4 text-sm">Chargement…</p>;
-  if (!found.data) return <p className="p-4 text-sm">Ce spot est introuvable.</p>;
+  // An error comes first: a break that has left the catalogue may still be in the cache.
+  if (found.isError || !found.data) return <p className="p-4 text-sm">Ce spot est introuvable.</p>;
 
   const { name, latitude, longitude, source } = found.data;
 

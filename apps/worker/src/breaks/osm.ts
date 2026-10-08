@@ -8,7 +8,8 @@ import type { BreakList, BreakSource, ListedBreak } from "./source";
 
 // Every object tagged for surfing, with its tags. A line or an area comes with the centre of
 // the box around it, which for a long beach can lie a few hundred metres from the peak.
-const QUERY = '[out:json][timeout:60];nwr["sport"="surfing"];out tags center;';
+// Overpass gives up after 25 seconds, before the request itself times out.
+const QUERY = '[out:json][timeout:25];nwr["sport"="surfing"];out tags center;';
 const OVERPASS_URL = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(QUERY)}`;
 
 // The longest name the API accepts for a spot.
@@ -26,9 +27,11 @@ const BUSINESS_KEYS = [
   "healthcare",
   "brand",
   "school",
+  // A ride at a fair or a slide at a pool.
+  "attraction",
 ];
-// Ways to reach an owner. A beach can have a website and opening hours. A bare point that has
-// them is a business.
+// Ways to reach an owner. A beach can have a website. A bare point that has one is a business.
+// An address or opening hours prove nothing: mappers give them to beaches and car parks too.
 const CONTACT_KEYS = [
   "operator",
   "website",
@@ -37,21 +40,26 @@ const CONTACT_KEYS = [
   "contact:phone",
   "email",
   "contact:email",
-  "opening_hours",
-  "addr:street",
-  "addr:housenumber",
 ];
 const SHORE = ["beach", "reef", "bay", "cape", "shoal", "sand", "coastline", "peninsula"];
 // A beach or a stretch of water is often drawn as one of these. Any other leisure or tourism
 // value is a facility: a sports centre, a wave pool, a holiday camp.
-const OPEN_AIR_LEISURE = ["pitch", "swimming_area", "park", "beach_resort", "nature_reserve"];
+const OPEN_AIR_LEISURE = [
+  "pitch",
+  "swimming_area",
+  "park",
+  "beach_resort",
+  "nature_reserve",
+  "surfing",
+  "sport",
+];
 const OPEN_AIR_TOURISM = ["attraction", "viewpoint", "yes"];
 // River waves, lakes and pools. The forecast is a sea forecast, so an alert there never fires.
 const INLAND_KEYS = ["waterway", "whitewater", "playspot", "water"];
 
 // Words that name a business, a river wave or another sport, in the languages seen in the data.
 const NOT_A_BREAK =
-  /school|schule|[ée]cole|escuela|escola|scuola|club|klub|camp\b|camping|cent(er|re|ro)\b|shop|brand|rental|verleih|hostel|(surf|guest) ?house|lodge|kite|wind ?surf|water ?sports?|stand ?up|\bsup\b|paddle ?(surf|board)|wake ?(board|park|surf)|verein|association|welle\b|river ?(surf|wave)|whitewater|wave ?(pool|park|garden)|\bwave$|flow ?rider/i;
+  /school|schule|[ée]cole|escuela|escola|scuola|club|klub|camp\b|camping|cent(er|re|ro)\b|shop|\bbrand\b|rental|verleih|hostel|(surf|guest) ?house|lodge|kite|wind ?surf|water ?sports?|stand ?up|\bsup\b|paddle ?(surf|board)|wake ?(board|park|surf)|verein|association|welle\b|river ?(surf|wave)|whitewater|wave ?(pool|park|garden)|\bwave$|flow ?rider/i;
 // A name that says what the object is and not which one.
 const GENERIC_NAME =
   /^(the )?(spot de surf|surf(ing)? ?spot|surf ?break|surf|surfing|surf beach)$/i;
@@ -97,40 +105,38 @@ export function parseSurfingObjects(json: unknown): BreakList | FormatError {
   }
 
   const breaks: ListedBreak[] = [];
-  let rejected = 0;
+  const unreadable: string[] = [];
 
   for (const element of json.elements) {
     if (!isRecord(element) || !isRecord(element.tags)) continue;
     if (!isSurfBreak(element.tags)) continue;
 
     const { type, id } = element;
+    // Without a reference there is nothing to call it by, here or in the catalogue.
+    if ((type !== "node" && type !== "way" && type !== "relation") || typeof id !== "number") {
+      continue;
+    }
+    const ref = `${type}/${id}`;
+
     // A node carries its position, a line or an area the centre Overpass computed.
     const point = isRecord(element.center) ? element.center : element;
     const latitude = numberOrNull(point.lat);
     const longitude = numberOrNull(point.lon);
     const name = cleanText(String(element.tags.name));
     if (
-      (type !== "node" && type !== "way" && type !== "relation") ||
-      typeof id !== "number" ||
       latitude === null ||
       longitude === null ||
       !isPosition(latitude, longitude) ||
       name.length > MAX_NAME_LENGTH
     ) {
-      rejected += 1;
+      unreadable.push(ref);
       continue;
     }
 
-    breaks.push({
-      ref: `${type}/${id}`,
-      name,
-      latitude,
-      longitude,
-      url: `https://www.openstreetmap.org/${type}/${id}`,
-    });
+    breaks.push({ ref, name, latitude, longitude, url: `https://www.openstreetmap.org/${ref}` });
   }
 
-  return { breaks, rejected };
+  return { breaks, unreadable };
 }
 
 export const osm: BreakSource = {

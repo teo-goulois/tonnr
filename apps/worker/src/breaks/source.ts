@@ -16,8 +16,9 @@ export type ListedBreak = {
 
 export type BreakList = {
   breaks: ListedBreak[];
-  // Objects that looked like a break and could not be read, such as one without a position.
-  rejected: number;
+  // The references of breaks the source lists and that could not be read, such as an area
+  // without a centre. A break known under one of them stays as it was.
+  unreadable: string[];
 };
 
 /** A list of surf breaks that may be republished, and the terms on which it may. */

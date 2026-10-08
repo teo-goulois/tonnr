@@ -24,7 +24,7 @@ The API then answers on port 3000, or on `API_PORT`. Put a reverse proxy with HT
 To check the instance:
 
 - `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference.
-- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings` and `breaks-osm: 335 listed, 335 added, 0 removed, 0 rejected`.
+- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings` and `breaks-osm: 340 listed, 340 added, 0 removed, 0 unreadable`.
 - With a web app, signing in from it proves that the three addresses agree.
 
 ## On another platform

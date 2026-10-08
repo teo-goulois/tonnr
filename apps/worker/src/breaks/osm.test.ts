@@ -41,12 +41,11 @@ describe("isSurfBreak", () => {
     expect(isSurfBreak({ sport: "surfing", name: "Le hangar", building: "yes" })).toBe(false);
   });
 
-  it("keeps a beach that has a website, opening hours or an address", () => {
+  it("keeps a beach that has a website or a phone number", () => {
     const beach = { sport: "surfing", natural: "beach", name: "Praia de Traba" };
 
     expect(isSurfBreak({ ...beach, website: "https://example.org" })).toBe(true);
-    expect(isSurfBreak({ ...beach, opening_hours: "24/7" })).toBe(true);
-    expect(isSurfBreak({ ...beach, "addr:street": "Rua do Mar" })).toBe(true);
+    expect(isSurfBreak({ ...beach, phone: "+34 900 000 000" })).toBe(true);
   });
 
   it("drops a beach that is also a business", () => {
@@ -64,6 +63,22 @@ describe("isSurfBreak", () => {
     );
   });
 
+  it("keeps a bare point that only has an address or opening hours", () => {
+    expect(isSurfBreak({ sport: "surfing", name: "Cove", "addr:street": "Shore Road" })).toBe(true);
+    expect(isSurfBreak({ sport: "surfing", name: "Sealinks", opening_hours: "24/7" })).toBe(true);
+  });
+
+  it("keeps a surfing area whatever leisure value says so", () => {
+    expect(isSurfBreak({ sport: "surfing", name: "Mundaka", leisure: "sport" })).toBe(true);
+    expect(isSurfBreak({ sport: "surfing", name: "Kizakihama", leisure: "surfing" })).toBe(true);
+  });
+
+  it("drops a ride at a fair", () => {
+    expect(isSurfBreak({ sport: "surfing", name: "Cowabunga", attraction: "amusement_ride" })).toBe(
+      false,
+    );
+  });
+
   it("drops a place that gives a way to reach its owner", () => {
     expect(isSurfBreak({ sport: "surfing", name: "Nature", website: "https://example.org" })).toBe(
       false,
@@ -71,7 +86,7 @@ describe("isSurfBreak", () => {
     expect(isSurfBreak({ sport: "surfing", name: "Nature", phone: "+33 5 00 00 00 00" })).toBe(
       false,
     );
-    expect(isSurfBreak({ sport: "surfing", name: "Nature", opening_hours: "Mo-Su" })).toBe(false);
+    expect(isSurfBreak({ sport: "surfing", name: "Nature", operator: "Nature SARL" })).toBe(false);
   });
 
   it("drops a sports centre, a wave pool and a holiday camp", () => {
@@ -100,7 +115,8 @@ describe("isSurfBreak", () => {
   });
 
   it("keeps a break whose name only contains such a word", () => {
-    // "camp", "center", "welle" and "sup" count as whole words, and "wave" only at the end.
+    // "camp", "center" and "welle" count at the end of a word, "sup" and "brand" as whole words,
+    // and "wave" at the end of the name.
     expect(isSurfBreak({ sport: "surfing", name: "Praia do Campeche" })).toBe(true);
     expect(isSurfBreak({ sport: "surfing", name: "Playa Centinela" })).toBe(true);
     expect(isSurfBreak({ sport: "surfing", name: "Wellenreiter Bay" })).toBe(true);
@@ -108,6 +124,7 @@ describe("isSurfBreak", () => {
     expect(isSurfBreak({ sport: "surfing", name: "Wavecrest" })).toBe(true);
     expect(isSurfBreak({ sport: "surfing", name: "Jordan River Point" })).toBe(true);
     expect(isSurfBreak({ sport: "surfing", name: "Lighthouse" })).toBe(true);
+    expect(isSurfBreak({ sport: "surfing", name: "Brandons" })).toBe(true);
   });
 
   it("drops a place with no name, or with a name that only says what it is", () => {
@@ -132,7 +149,7 @@ describe("parseSurfingObjects", () => {
           url: "https://www.openstreetmap.org/node/4172398201",
         },
       ],
-      rejected: 0,
+      unreadable: [],
     });
   });
 
@@ -155,7 +172,7 @@ describe("parseSurfingObjects", () => {
     ]);
   });
 
-  it("leaves out what is not a break without counting it as rejected", () => {
+  it("leaves out what is not a break without calling it unreadable", () => {
     const list = parse([
       node({ name: "Anchor Point" }),
       node({ name: "Surf Maroc", shop: "sports" }, { id: 2 }),
@@ -163,22 +180,36 @@ describe("parseSurfingObjects", () => {
     ]);
 
     expect(list.breaks.map((found) => found.ref)).toEqual(["node/4172398201"]);
-    expect(list.rejected).toBe(0);
+    expect(list.unreadable).toEqual([]);
   });
 
   it("stores a name without control characters or doubled spaces", () => {
     expect(parse([node({ name: " La\tNord \n" })]).breaks[0]?.name).toBe("La Nord");
   });
 
-  it("rejects a break with no position, a position off the globe, or a name too long", () => {
+  it("names a break it cannot read: no position, off the globe, or a name too long", () => {
     const list = parse([
-      node({ name: "No position" }, { lat: undefined, lon: undefined }),
-      node({ name: "Off the globe" }, { lat: 91 }),
-      node({ name: "x".repeat(81) }),
-      { type: "area", id: 9, lat: 1, lon: 1, tags: { sport: "surfing", name: "Unknown type" } },
+      node({ name: "No position" }, { id: 1, lat: undefined, lon: undefined }),
+      node({ name: "Off the globe" }, { id: 2, lat: 91 }),
+      node({ name: "x".repeat(81) }, { id: 3 }),
+      {
+        type: "way",
+        id: 4,
+        tags: { sport: "surfing", natural: "beach", name: "Without a middle" },
+      },
     ]);
 
-    expect(list).toEqual({ breaks: [], rejected: 4 });
+    expect(list).toEqual({ breaks: [], unreadable: ["node/1", "node/2", "node/3", "way/4"] });
+  });
+
+  it("skips an object that has no reference to call it by", () => {
+    const list = parse([
+      { type: "area", id: 9, lat: 1, lon: 1, tags: { sport: "surfing", name: "Unknown type" } },
+      { type: "node", id: "9", lat: 1, lon: 1, tags: { sport: "surfing", name: "Text id" } },
+      { type: "node", id: 10, lat: 1, lon: 1, tags: { sport: "surfing", name: 12 } },
+    ]);
+
+    expect(list).toEqual({ breaks: [], unreadable: [] });
   });
 
   it("refuses an answer that is not a list of objects", () => {

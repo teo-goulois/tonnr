@@ -85,10 +85,11 @@ await boss.send(ALERTS_QUEUE);
 
 for (const source of breakSources) {
   const queue = `import-breaks-${source.id}`;
-  // A shared public server is often busy. A run that fails is tried again ten minutes later,
-  // five times at most, since the next scheduled run is a week away.
+  // "exclusive" keeps one run at most, waiting, retrying or running: the weekly schedule and a
+  // restart add nothing while a failed run waits for its next try. A shared public server is
+  // often busy, so a run that fails is tried again ten minutes later, five times at most.
   const retries = { retryLimit: 5, retryDelay: 600 };
-  await boss.createQueue(queue, { policy: "stately", ...retries });
+  await boss.createQueue(queue, { policy: "exclusive", ...retries });
   await boss.updateQueue(queue, retries);
   await boss.schedule(queue, source.schedule);
   await boss.work(queue, async () => {

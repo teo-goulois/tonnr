@@ -58,7 +58,7 @@ export const breaksRouter = {
         // Part of the name, in any case.
         q: z.string().trim().min(2).max(80).optional(),
         // The `next` of the page before.
-        after: z.string().optional(),
+        after: z.uuid().optional(),
         limit: z.coerce.number().int().min(1).max(2000).default(500),
       }),
     )
@@ -98,7 +98,7 @@ export const breaksRouter = {
       summary: "One surf break of the catalogue",
       tags: ["Breaks"],
     })
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.uuid() }))
     .output(breakSchema)
     .handler(async ({ input, context }) => {
       const [row] = await context.db.select().from(surfBreak).where(eq(surfBreak.id, input.id));

@@ -48,6 +48,28 @@ const spotSchema = z.object({
 
 const criterionSchema = criteriaSchema.keyof();
 
+const defaultedFields = {
+  visibility: spotFields.visibility.default("private"),
+  criteria: criteriaSchema.default({}),
+  alertsEnabled: spotFields.alertsEnabled.default(false),
+};
+// A spot starts from a break of the catalogue, or from a point of the caller's own.
+const fromBreakSchema = z.object({
+  breakId: z.uuid(),
+  name: spotFields.name.optional(),
+  latitude: spotFields.latitude.optional(),
+  longitude: spotFields.longitude.optional(),
+  ...defaultedFields,
+});
+const fromPointSchema = z.object({
+  // Left out or null: anything else is a break that the first form would have taken.
+  breakId: z.null().optional(),
+  name: spotFields.name,
+  latitude: spotFields.latitude,
+  longitude: spotFields.longitude,
+  ...defaultedFields,
+});
+
 function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined) {
   return {
     id: row.id,
@@ -82,26 +104,7 @@ export const spotsRouter = {
         "keeps them as its own: a later change to the break does not move the spot.",
       tags: ["Spots"],
     })
-    .input(
-      z
-        .object({
-          breakId: z.string().optional(),
-          name: spotFields.name.optional(),
-          latitude: spotFields.latitude.optional(),
-          longitude: spotFields.longitude.optional(),
-          visibility: spotFields.visibility.default("private"),
-          criteria: criteriaSchema.default({}),
-          alertsEnabled: spotFields.alertsEnabled.default(false),
-        })
-        .refine(
-          (input) =>
-            input.breakId !== undefined ||
-            (input.name !== undefined &&
-              input.latitude !== undefined &&
-              input.longitude !== undefined),
-          "give a breakId, or a name with a latitude and a longitude",
-        ),
-    )
+    .input(z.union([fromBreakSchema, fromPointSchema]))
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;

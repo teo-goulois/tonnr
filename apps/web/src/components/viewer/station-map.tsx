@@ -4,7 +4,7 @@ import type {
   ExpressionSpecification,
   GeoJSONSource,
   Map as MapLibreMap,
-  MapLayerMouseEvent,
+  MapMouseEvent,
   Marker,
 } from "maplibre-gl";
 // The library runs its tile work in a worker, which the bundler has to build as its own file.
@@ -227,24 +227,6 @@ export function StationMap({
       created = instance;
 
       instance.on("load", () => {
-        // Under the stations: where a break and a buoy overlap, the measurement stays readable.
-        instance.addSource("breaks", {
-          type: "geojson",
-          data: breaksToGeoJson(latest.current.breaks),
-        });
-        instance.addLayer({
-          id: "breaks",
-          type: "circle",
-          source: "breaks",
-          layout: { "circle-sort-key": whenSelected(latest.current.selectedId, 1, 0) },
-          paint: {
-            "circle-radius": whenSelected(latest.current.selectedId, 8, 4),
-            "circle-color": BREAK_COLOR,
-            "circle-stroke-width": whenSelected(latest.current.selectedId, 3, 1.5),
-            "circle-stroke-color": whenSelected(latest.current.selectedId, "#ffffff", "#1a1a19"),
-          },
-        });
-
         instance.addSource("stations", {
           type: "geojson",
           data: toGeoJson(latest.current.stations),
@@ -275,15 +257,34 @@ export function StationMap({
           },
         });
 
-        instance.on("click", "stations", (event: MapLayerMouseEvent) => {
-          const id = event.features?.[0]?.properties?.id;
-          if (typeof id === "string") latest.current.onSelect(id);
+        // Above the stations and smaller: where a break and a buoy overlap, the buoy shows as a
+        // ring around the break, and both can be clicked.
+        instance.addSource("breaks", {
+          type: "geojson",
+          data: breaksToGeoJson(latest.current.breaks),
         });
-        instance.on("click", "breaks", (event: MapLayerMouseEvent) => {
-          // A click on a station that covers a break is the station's.
-          const onStation = instance.queryRenderedFeatures(event.point, { layers: ["stations"] });
-          const id = event.features?.[0]?.properties?.id;
-          if (onStation.length === 0 && typeof id === "string") latest.current.onSelectBreak(id);
+        instance.addLayer({
+          id: "breaks",
+          type: "circle",
+          source: "breaks",
+          layout: { "circle-sort-key": whenSelected(latest.current.selectedId, 1, 0) },
+          paint: {
+            "circle-radius": whenSelected(latest.current.selectedId, 8, 4),
+            "circle-color": BREAK_COLOR,
+            "circle-stroke-width": whenSelected(latest.current.selectedId, 3, 1.5),
+            "circle-stroke-color": whenSelected(latest.current.selectedId, "#ffffff", "#1a1a19"),
+          },
+        });
+
+        // One click selects one thing: whatever is drawn on top under the pointer.
+        instance.on("click", (event: MapMouseEvent) => {
+          const [hit] = instance.queryRenderedFeatures(event.point, {
+            layers: ["breaks", "stations"],
+          });
+          const id = hit?.properties?.id;
+          if (typeof id !== "string") return;
+          if (hit?.layer.id === "breaks") latest.current.onSelectBreak(id);
+          else latest.current.onSelect(id);
         });
         for (const layer of ["stations", "breaks"]) {
           instance.on("mouseenter", layer, () => {
