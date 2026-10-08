@@ -1,10 +1,10 @@
 # Contributing
 
-Tonn is built by one person, in the open. A fix or a small improvement is welcome as a pull request. For anything larger, open an issue first, so that we agree on it before you write it.
+Tonnr is built by one person, in the open. A fix or a small improvement is welcome as a pull request. For anything larger, open an issue first, so that we agree on it before you write it.
 
 ## Where things are
 
-- [README.md](README.md) says how to run Tonn on your machine.
+- [README.md](README.md) says how to run Tonnr on your machine.
 - [AGENTS.md](AGENTS.md) describes the packages, what each one may know, and the commands that have a catch. It is written for coding agents and holds for people.
 - [docs/decisions](docs/decisions/README.md) records why things are as they are. A change that goes against a record needs a new one.
 

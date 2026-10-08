@@ -1,6 +1,6 @@
 # Data sources
 
-Where Tonn's data comes from and what each provider allows. Checked on 2026-10-08 unless a row says otherwise. Update a row when you integrate or re-check its provider.
+Where Tonnr's data comes from and what each provider allows. Checked on 2026-10-08 unless a row says otherwise. Update a row when you integrate or re-check its provider.
 
 Fetch from these upstream providers. La Bouée's own API is proprietary and is not a source.
 
@@ -61,7 +61,7 @@ Open-Meteo's marine API serves wave and swell forecasts as JSON from several mod
 
 ## Tides
 
-Tonn computes tides from open harmonic constants. Decision 002 records that choice and the plan to ask SHOM for a contract after release.
+Tonnr computes tides from open harmonic constants. Decision 002 records that choice and the plan to ask SHOM for a contract after release.
 
 ### Computed tides
 

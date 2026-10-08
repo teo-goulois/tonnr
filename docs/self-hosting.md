@@ -1,4 +1,4 @@
-# Hosting Tonn yourself
+# Hosting Tonnr yourself
 
 An instance is three programs: Postgres 18, the API, and the worker that fetches the measurements. Decision 009 gives the reasons behind what follows.
 
@@ -47,7 +47,7 @@ docker compose up --detach --build
 A new version applies its migrations when its first container starts. A migration that fails stops the container, and none of the pending migrations is kept. Back the database up first:
 
 ```bash
-docker compose exec postgres pg_dump -U postgres app | gzip > tonn-backup.sql.gz
+docker compose exec postgres pg_dump -U postgres app | gzip > tonnr-backup.sql.gz
 ```
 
 ## Running one job
@@ -56,7 +56,7 @@ docker compose exec postgres pg_dump -U postgres app | gzip > tonn-backup.sql.gz
 
 ## Accounts
 
-Anyone who can reach the API can create an account with an email address and a password. Tonn does not check the address yet.
+Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet.
 
 ## What an instance owes the data providers
 

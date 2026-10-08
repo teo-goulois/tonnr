@@ -1,4 +1,4 @@
-export const APP_NAME = "Tonn";
+export const APP_NAME = "Tonnr";
 
 // Names infrastructure resources. Renaming it after a deploy creates new ones.
-export const APP_SLUG = "tonn";
+export const APP_SLUG = "tonnr";

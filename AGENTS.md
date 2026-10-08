@@ -1,6 +1,6 @@
-# Tonn
+# Tonnr
 
-Tonn is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history. The repository directory is still named `forecastr`.
+Tonnr is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history. The repository directory is still named `forecastr`.
 
 Read `docs/product-vision.md` before product work, `docs/data-sources.md` before touching a data provider, `docs/self-hosting.md` before changing how an instance is deployed, and the relevant record in `docs/decisions/` before structural work. Record a new decision there after making a durable one.
 
@@ -19,7 +19,7 @@ Read `docs/product-vision.md` before product work, `docs/data-sources.md` before
 
 The name may change. Read it from `APP_NAME` in `@repo/config/app` wherever a user sees it, and keep it out of identifiers. Packages use the neutral `@repo` scope for that reason.
 
-To rename the product, change `APP_NAME`, then the prose in `README.md`, this file, and `docs/`. `APP_SLUG`, the `name` in `docker-compose.yml`, and the `name` in the root `package.json` identify infrastructure. Change them only before the first deploy.
+To rename the product, change `APP_NAME`, then the prose in `README.md`, this file, and `docs/`. `APP_SLUG`, the `name` in `docker-compose.yml`, and the `name` in the root `package.json` identify infrastructure. Change them only before the first deploy. Compose names the images after its project, and `.github/workflows/images.yml` starts the worker's by that name.
 
 ## Data rules
 

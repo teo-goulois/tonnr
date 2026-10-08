@@ -4,7 +4,7 @@ Status: accepted on 2026-10-08.
 
 ## Context
 
-Tonn is free and built by one developer. Téo has a server running Easypanel. A mobile app follows the web app, so the API has several clients. The stack starts from the defaults in Téo's handbook (teogoulois.com/code) and departs from them where this project gives a reason.
+Tonnr is free and built by one developer. Téo has a server running Easypanel. A mobile app follows the web app, so the API has several clients. The stack starts from the defaults in Téo's handbook (teogoulois.com/code) and departs from them where this project gives a reason.
 
 `bts.jsonc` records what Better-T-Stack generated. This file records why.
 

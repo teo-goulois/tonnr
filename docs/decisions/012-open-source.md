@@ -4,7 +4,7 @@ Status: decided by Téo on 2026-10-08. The repository goes public without an ann
 
 ## Context
 
-Tonn was built in a private repository, for one deployment on Téo's server. Téo now wants it thought of as an open-source project: easy to deploy, with migrations that apply themselves at deployment, and a good CI.
+Tonnr was built in a private repository, for one deployment on Téo's server. Téo now wants it thought of as an open-source project: easy to deploy, with migrations that apply themselves at deployment, and a good CI.
 
 A public repository changes three things. Its history is published with it. People run it on servers that Téo does not operate. And pull requests come from people whose code CI runs before anyone has read it.
 

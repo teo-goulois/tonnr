@@ -10,7 +10,7 @@ import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider"
 import { isObservationTime } from "./utc-date";
 
 // The Copernicus Marine Service gathers the measurements of Europe's national networks under one
-// licence. This product covers the seas from Ireland to the Canaries, and Tonn reads its
+// licence. This product covers the seas from Ireland to the Canaries, and Tonnr reads its
 // moorings: the buoys of Spain, the Netherlands, Belgium, the English coasts, and others.
 const PRODUCT_URL =
   "https://stac.marine.copernicus.eu/metadata/INSITU_IBI_PHYBGCWAV_DISCRETE_MYNRT_013_033/product.stac.json";
@@ -64,7 +64,7 @@ const REQUIRED_VARIABLE = "VHM0";
 const USABLE_FLAGS = new Set([0, 1, 2]);
 const KNOWN_FLAGS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-// Buoys whose waves Tonn already reads from their owner or through another provider, which
+// Buoys whose waves Tonnr already reads from their owner or through another provider, which
 // would otherwise show twice. The institutions are written as the index of platforms writes
 // them. The platforms were matched one by one on 2026-10-08.
 const READ_ELSEWHERE = {

@@ -8,7 +8,7 @@ Tides are essential to the first release. SHOM publishes the official prediction
 
 ## Decision
 
-Tonn computes tides from open harmonic constants, with the Neaps predictor and its station database. The French stations come from TICON-4. The first release ships with this alone.
+Tonnr computes tides from open harmonic constants, with the Neaps predictor and its station database. The French stations come from TICON-4. The first release ships with this alone.
 
 After the app is released, Téo will ask SHOM for a contract that covers the free app.
 

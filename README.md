@@ -1,10 +1,10 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# Tonn
+# Tonnr
 
 A free, open-source surf-conditions service. Save your spots with the conditions that make them work, get alerted when measurements or forecasts match, and share them. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
-Tonn is at an early stage. The API lives under `/v1`, and [decision 003](docs/decisions/003-api-versioning.md) says what may change inside a version.
+Tonnr is at an early stage. The API lives under `/v1`, and [decision 003](docs/decisions/003-api-versioning.md) says what may change inside a version.
 
 ## Run it
 
@@ -24,11 +24,11 @@ The API reference is at http://localhost:3000/v1/docs. `pnpm run check` runs lin
 
 ## Host it
 
-`docker compose up` runs the API, the worker, and Postgres from this repository. Each container brings the database up to date when it starts. [Hosting Tonn yourself](docs/self-hosting.md) gives the steps, and says what an instance owes the data providers.
+`docker compose up` runs the API, the worker, and Postgres from this repository. Each container brings the database up to date when it starts. [Hosting Tonnr yourself](docs/self-hosting.md) gives the steps, and says what an instance owes the data providers.
 
 ## The data
 
-The measurements belong to the networks that publish them, each under its own terms. Tonn stores every station's licence and attribution and returns them with the data. [Data sources](docs/data-sources.md) lists the providers and what each one allows.
+The measurements belong to the networks that publish them, each under its own terms. Tonnr stores every station's licence and attribution and returns them with the data. [Data sources](docs/data-sources.md) lists the providers and what each one allows.
 
 ## Contribute
 

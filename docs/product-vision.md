@@ -6,14 +6,16 @@ Confirmed with Téo on 2026-10-08. Update this file when the product changes. De
 
 Surfers who want to know when their own spots work. Existing apps show buoy data and forecasts, then leave the surfer to check them and to judge each spot from memory. La Bouée (labouee.app) is the reference for data coverage. Its API is proprietary and by invitation.
 
-## What Tonn does
+## What Tonnr does
 
 - A user saves a spot. A spot is a point on the map, a name, and the conditions that make it work: swell height, period and direction, wind, and tide.
-- Tonn alerts the user when measurements or forecasts match those conditions.
+- Tonnr alerts the user when measurements or forecasts match those conditions.
 - A spot is private, public, or shared with chosen people.
 - A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
-Tonn is free and not commercial for now. It is open source: the repository is public, and anyone may host an instance of their own. Decision 012 says what follows from that. Téo wants a better interface and richer notifications than La Bouée offers.
+Tonnr lives at `tonnr.app`. Decision 013 records the name.
+
+Tonnr is free and not commercial for now. It is open source: the repository is public, and anyone may host an instance of their own. Decision 012 says what follows from that. Téo wants a better interface and richer notifications than La Bouée offers.
 
 ## First release
 
@@ -51,4 +53,3 @@ Checked on 2026-10-08. Provider details are in `docs/data-sources.md`.
 ## Open questions
 
 - Which buoys of the five unchecked networks may be redistributed.
-- Domain name. `tonn.app` is taken. `tonn.surf` and `tonn.bzh` did not resolve on 2026-10-08, which suggests they are free.
