@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 
 import { fetchText } from "@repo/upstream";
+import { parseDecimal } from "./decimal";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
@@ -99,8 +100,8 @@ export function parseLatestObservations(
     const field = (column: string) => fields[columns.indexOf(column)] ?? "MM";
     // NDBC writes "MM" for a missing measurement.
     const number = (column: string) => {
-      const value = Number(field(column));
-      return field(column) === "MM" || !Number.isFinite(value) ? null : value;
+      const value = field(column) === "MM" ? null : parseDecimal(field(column));
+      return value === null || !Number.isFinite(value) ? null : value;
     };
 
     // A measurement outside what the sea can do is treated as missing.

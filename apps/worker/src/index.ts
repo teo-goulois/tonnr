@@ -4,7 +4,7 @@ import { PgBoss } from "pg-boss";
 
 import { evaluateAlerts } from "./alerts";
 import { ENV } from "./env.server";
-import { ingest, providers } from "./ingest";
+import { ingest, providers, retiredProviderIds } from "./ingest";
 import { pruneReadings } from "./store";
 
 const db = createDb(ENV);
@@ -13,14 +13,21 @@ const boss = new PgBoss(ENV.DATABASE_URL);
 boss.on("error", (error) => console.error(error));
 await boss.start();
 
-// A provider taken out of the code leaves its schedule in the database, where it would keep
-// queueing runs that nothing works.
-const ingestQueues = new Set(providers.map((provider) => `ingest-${provider.id}`));
-for (const { name } of await boss.getSchedules()) {
-  if (!name.startsWith("ingest-") || ingestQueues.has(name)) continue;
-  await boss.unschedule(name);
-  await boss.deleteQueue(name);
-  console.log(`Removed ${name}, which has no provider any more`);
+// A provider taken out of the code leaves its queue in the database, with a schedule that would
+// keep queueing runs that nothing works. Only the queues listed as retired are deleted: any
+// other one may belong to a newer worker running next to this one.
+for (const id of retiredProviderIds) {
+  const queue = `ingest-${id}`;
+  try {
+    if (await boss.getQueue(queue)) {
+      // Deleting a queue deletes its schedule with it.
+      await boss.deleteQueue(queue);
+      console.log(`Removed ${queue}, whose provider is retired`);
+    }
+  } catch (error) {
+    // The next start tries again, and the other providers must still run.
+    console.error(`Could not remove ${queue}`, error);
+  }
 }
 
 for (const provider of providers) {

@@ -1,6 +1,7 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
+import { parseDecimal } from "./decimal";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
@@ -91,8 +92,13 @@ export function parseWaveObservations(xml: string): Snapshot | FormatError {
     }
 
     for (const [, time = "", text = ""] of points) {
-      // The service writes "NaN" for a missing value. `Number` would read an empty one as zero.
-      const value = text.trim() === "" ? null : plausible(measurement, Number(text));
+      const number = parseDecimal(text);
+      if (number === null) {
+        rejected += 1;
+        continue;
+      }
+      // The service writes "NaN" for a missing value.
+      const value = plausible(measurement, number);
       if (value === null) continue;
 
       const observedAt = parseUtcTime(time.trim());

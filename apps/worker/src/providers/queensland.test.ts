@@ -184,6 +184,18 @@ describe("parseWaveFile", () => {
     expect(snapshot.readings).toHaveLength(1);
   });
 
+  it("rejects a row with a number written in a way it does not know", () => {
+    const snapshot = parse(
+      CALOUNDRA_0720.replace(",0.807,", ",0x10,"),
+      CALOUNDRA_0720.replace(",7.140,", ',"7,140",'),
+      CALOUNDRA_0720,
+    );
+
+    expect(snapshot.rejected).toBe(2);
+    expect(snapshot.readings).toHaveLength(1);
+    expect(snapshot.readings[0]).toMatchObject({ significantHeightM: 0.807, peakPeriodS: 7.14 });
+  });
+
   it("rejects a row whose number holds a quote", () => {
     const snapshot = parse(CALOUNDRA_0720.replace(",0.807,", ',0"1",'), MACKAY_0740);
 

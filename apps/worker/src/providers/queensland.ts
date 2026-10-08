@@ -1,7 +1,8 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
-import { fieldNumber, parseCsv } from "./csv";
+import { parseCsv } from "./csv";
+import { parseDecimal } from "./decimal";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
@@ -63,14 +64,28 @@ export function parseWaveFile(text: string, now = new Date()): Snapshot | Format
       continue;
     }
     const field = (column: string) => fields[columns.indexOf(column)] ?? "";
+    // A number written in a way this parser does not know makes the whole row suspect.
+    let unreadable = false;
+    const number = (column: string) => {
+      const value = parseDecimal(field(column));
+      if (value === null) unreadable = true;
+      return value ?? Number.NaN;
+    };
 
     const id = field("SiteNumber");
-    const observedAt = new Date(fieldNumber(field("Seconds")) * 1000);
-    const latitude = fieldNumber(field("Latitude"));
-    const longitude = fieldNumber(field("Longitude"));
+    const observedAt = new Date(number("Seconds") * 1000);
+    const latitude = number("Latitude");
+    const longitude = number("Longitude");
+    const reading: ReadingInput = { providerStationId: id, observedAt };
+    for (const [column, measurement] of Object.entries(MEASUREMENT_BY_COLUMN)) {
+      // The file marks a missing value with -99.9, which no range accepts.
+      reading[measurement] = plausible(measurement, number(column));
+    }
+
     const key = `${id} ${observedAt.getTime()}`;
     if (
       id === "" ||
+      unreadable ||
       seen.has(key) ||
       !isObservationTime(observedAt) ||
       !isPosition(latitude, longitude)
@@ -81,11 +96,6 @@ export function parseWaveFile(text: string, now = new Date()): Snapshot | Format
     seen.add(key);
     if (now.getTime() - observedAt.getTime() > RECENT_MS) continue;
 
-    const reading: ReadingInput = { providerStationId: id, observedAt };
-    for (const [column, measurement] of Object.entries(MEASUREMENT_BY_COLUMN)) {
-      // The file marks a missing value with -99.9, which no range accepts.
-      reading[measurement] = plausible(measurement, fieldNumber(field(column)));
-    }
     if (reading.significantHeightM == null) continue;
     readings.push(reading);
 

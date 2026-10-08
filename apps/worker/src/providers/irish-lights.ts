@@ -1,7 +1,7 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
-import { fieldNumber } from "./csv";
+import { parseDecimal } from "./decimal";
 import { parseErddapCsv } from "./erddap";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
@@ -50,21 +50,23 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
       rejected += 1;
       continue;
     }
-    // The dataset writes "NaN" for a missing value.
-    const number = (column: string) => fieldNumber(field(column));
+    // The dataset writes "NaN" for a missing value. A number written in a way this parser does
+    // not know makes the whole row suspect.
+    let unreadable = false;
+    const number = (column: string) => {
+      const value = parseDecimal(field(column));
+      if (value === null) unreadable = true;
+      return value ?? Number.NaN;
+    };
 
     const id = field("mmsi");
     const observedAt = parseUtcTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
-    // A site is known by its MMSI, the number of its radio transmitter. Two rows for one site
-    // and moment cannot both be right.
-    const key = `${id} ${observedAt?.getTime()}`;
-    if (!/^\d+$/.test(id) || seen.has(key) || !observedAt || !isPosition(latitude, longitude)) {
+    if (!/^\d+$/.test(id) || !observedAt || !isPosition(latitude, longitude)) {
       rejected += 1;
       continue;
     }
-    seen.add(key);
 
     const reading: ReadingInput = {
       providerStationId: id,
@@ -77,6 +79,14 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
       windGustMs: plausible("windGustMs", number("GustSpeed") * MS_PER_KNOT),
       windDirectionDeg: plausible("windDirectionDeg", number("WindDirection")),
     };
+    // A site is known by its MMSI, the number of its radio transmitter. Two rows for one site
+    // and moment cannot both be right.
+    const key = `${id} ${observedAt.getTime()}`;
+    if (unreadable || seen.has(key)) {
+      rejected += 1;
+      continue;
+    }
+    seen.add(key);
     if (reading.significantHeightM == null && reading.windSpeedMs == null) continue;
     readings.push(reading);
 

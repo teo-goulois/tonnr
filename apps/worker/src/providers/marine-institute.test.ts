@@ -4,14 +4,13 @@ import { FormatError } from "./format-error";
 import { parseWeatherBuoys } from "./marine-institute";
 
 const NAMES =
-  "station_id,longitude,latitude,time,WindDirection,WindSpeed,Gust,WaveHeight,WavePeriod,Hmax,SeaTemperature,SprTp,ThTp,Tp";
+  "station_id,longitude,latitude,time,WindDirection,WindSpeed,Gust,WaveHeight,WavePeriod,Hmax,SeaTemperature,ThTp,Tp,QC_Flag";
 const UNITS =
-  ",degrees_east,degrees_north,UTC,degrees true,knots,knots,meters,seconds,meters,degrees_C,degrees,degrees_true,seconds";
+  ",degrees_east,degrees_north,UTC,degrees true,knots,knots,meters,seconds,meters,degrees_C,degrees_true,seconds,";
 const M3_0800 =
-  "M3,-10.548261,51.215956,2026-10-08T08:00:00Z,277.0,14.003,17.874,2.695,7.5,4.219,15.269,71.719,310.781,11.719";
-// Its spread column holds a value no spread can take.
+  "M3,-10.548261,51.215956,2026-10-08T08:00:00Z,277.0,14.003,17.874,2.695,7.5,4.219,15.269,310.781,11.719,0";
 const M2_0800 =
-  "M2,-5.4302,53.4836,2026-10-08T08:00:00Z,290.0,16.849,20.151,1.172,4.219,2.031,14.711,296.719,90.0,5.039";
+  "M2,-5.4302,53.4836,2026-10-08T08:00:00Z,290.0,16.849,20.151,1.172,4.219,2.031,14.711,90.0,5.039,0";
 
 function dataset(...rows: string[]) {
   return [NAMES, UNITS, ...rows, ""].join("\n");
@@ -52,23 +51,51 @@ describe("parseWeatherBuoys", () => {
         peakPeriodS: 11.719,
         meanPeriodS: 7.5,
         peakDirectionDeg: 310.781,
-        directionalSpreadDeg: 71.719,
         waterTemperatureC: 15.269,
         windSpeedMs: 7.204,
         windGustMs: 9.195,
         windDirectionDeg: 277,
+        validated: false,
       },
     ]);
   });
 
-  it("leaves out a spread no sea can have, and keeps the rest of the row", () => {
-    const { readings } = parse(M2_0800);
+  it("marks a row the institute flags as good, and leaves out one it flags as missing", () => {
+    const { stations, readings } = parse(
+      M3_0800.replace(/,0$/, ",1"),
+      M2_0800.replace(/,0$/, ",9"),
+    );
 
-    expect(readings[0]).toMatchObject({
-      directionalSpreadDeg: null,
-      peakDirectionDeg: 90,
-      significantHeightM: 1.172,
-    });
+    expect(ids(stations)).toEqual(["M3"]);
+    expect(readings).toHaveLength(1);
+    expect(readings[0]).toMatchObject({ providerStationId: "M3", validated: true });
+  });
+
+  it("rejects a row with a flag it does not know", () => {
+    const snapshot = parse(M3_0800.replace(/,0$/, ",4"), M3_0800.replace(/,0$/, ",NaN"), M2_0800);
+
+    expect(snapshot.rejected).toBe(2);
+    expect(ids(snapshot.readings)).toEqual(["M2"]);
+  });
+
+  it("rejects a row with a number written in a way it does not know", () => {
+    // The first would read as 16 metres, the second as a missing period.
+    const snapshot = parse(
+      M3_0800.replace(",2.695,", ",0x10,"),
+      M3_0800.replace(/,11\.719,0$/, ',"11,719",0'),
+      M2_0800,
+    );
+
+    expect(snapshot.rejected).toBe(2);
+    expect(ids(snapshot.readings)).toEqual(["M2"]);
+  });
+
+  it("stores the intact row that follows an unreadable one for the same buoy and hour", () => {
+    const snapshot = parse(M3_0800.replace(",11.719,", ",unavailable,"), M3_0800);
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings).toHaveLength(1);
+    expect(snapshot.readings[0]).toMatchObject({ peakPeriodS: 11.719 });
   });
 
   it("reads NaN and an empty field as missing values", () => {
@@ -160,7 +187,7 @@ describe("parseWeatherBuoys", () => {
 
   it("reports a dataset without a column it needs, or an answer that is not the dataset", () => {
     const withoutPeriod = parseWeatherBuoys(
-      [NAMES.replace(",Tp", ",PeakPeriod"), UNITS, M3_0800, ""].join("\n"),
+      [NAMES.replace(",Tp,", ",PeakPeriod,"), UNITS, M3_0800, ""].join("\n"),
     );
     expect(withoutPeriod).toBeInstanceOf(FormatError);
     expect(withoutPeriod).toMatchObject({ message: expect.stringContaining("Tp") });

@@ -208,6 +208,22 @@ describe("parseWaveObservations", () => {
     ]);
   });
 
+  it("rejects a value written in a way it does not know", () => {
+    // `Number` would read the first as 16 metres.
+    const snapshot = parse(
+      member(SUOMENLINNA, "WaveHs", [
+        [AT_0730, "0x10"],
+        [AT_0800, "0.4"],
+      ]),
+      member(SUOMENLINNA, "WTP", [[AT_0800, "3,1"]]),
+    );
+
+    expect(snapshot.rejected).toBe(2);
+    expect(snapshot.readings).toEqual([
+      { providerStationId: "103976", observedAt: new Date(AT_0800), significantHeightM: 0.4 },
+    ]);
+  });
+
   it("reads a member whose tag is written with a space", () => {
     const xml = collection(member(SUOMENLINNA, "WaveHs", [[AT_0800, "0.4"]]))
       .replace("<wfs:member>", "<wfs:member >")

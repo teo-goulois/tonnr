@@ -21,6 +21,10 @@ export const providers: readonly Provider[] = [
   queensland,
 ];
 
+// Providers taken out of the list above. The worker deletes their queue when it starts. Their
+// stations and readings stay until someone deletes them.
+export const retiredProviderIds: readonly string[] = ["cefas"];
+
 /** Fetches what a provider publishes now and stores it. */
 export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Database) {
   const snapshot = yield* provider.fetchSnapshot;

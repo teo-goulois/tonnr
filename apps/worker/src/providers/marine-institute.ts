@@ -1,7 +1,7 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
-import { fieldNumber } from "./csv";
+import { parseDecimal } from "./decimal";
 import { parseErddapCsv } from "./erddap";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
@@ -10,10 +10,12 @@ import { parseUtcTime } from "./utc-date";
 
 // The Marine Institute runs Ireland's weather buoys, M2 to M6, with Met Éireann. Each reports
 // once an hour. The last six hours of every buoy.
+// The dataset also has a spread, `SprTp`, which is left out: three buoys in four fill it with
+// values of 130 to 300 degrees, which no spread can take.
 const OBSERVATIONS_URL =
   "https://erddap.marine.ie/erddap/tabledap/IWBNetwork.csv" +
   "?station_id,longitude,latitude,time,WindDirection,WindSpeed,Gust" +
-  ",WaveHeight,WavePeriod,Hmax,SeaTemperature,SprTp,ThTp,Tp" +
+  ",WaveHeight,WavePeriod,Hmax,SeaTemperature,ThTp,Tp,QC_Flag" +
   "&time%3E=now-6hours";
 
 const MS_PER_KNOT = 0.514444;
@@ -29,9 +31,9 @@ const EXPECTED_UNITS: Record<string, string> = {
   WavePeriod: "seconds",
   Hmax: "meters",
   SeaTemperature: "degrees_C",
-  SprTp: "degrees",
   ThTp: "degrees_true",
   Tp: "seconds",
+  QC_Flag: "",
 };
 
 /** Reads the dataset as CSV: a line of column names, a line of units, then one line per hour and buoy. */
@@ -53,24 +55,33 @@ export function parseWeatherBuoys(text: string): Snapshot | FormatError {
       rejected += 1;
       continue;
     }
-    // The dataset writes "NaN" for a missing value.
-    const number = (column: string) => fieldNumber(field(column));
+    // The dataset writes "NaN" for a missing value. A number written in a way this parser does
+    // not know makes the whole row suspect.
+    let unreadable = false;
+    const number = (column: string) => {
+      const value = parseDecimal(field(column));
+      if (value === null) unreadable = true;
+      return value ?? Number.NaN;
+    };
+
+    // One flag for the whole row: 0 for a quality nobody checked, 1 for good, and 9 for
+    // measurements that are missing whatever the columns hold.
+    const flag = field("QC_Flag");
+    if (flag === "9") continue;
 
     const id = field("station_id");
     const observedAt = parseUtcTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
-    const key = `${id} ${observedAt?.getTime()}`;
     if (
       !/^[A-Za-z0-9]+$/.test(id) ||
-      seen.has(key) ||
+      (flag !== "0" && flag !== "1") ||
       !observedAt ||
       !isPosition(latitude, longitude)
     ) {
       rejected += 1;
       continue;
     }
-    seen.add(key);
 
     const reading: ReadingInput = {
       providerStationId: id,
@@ -83,13 +94,18 @@ export function parseWeatherBuoys(text: string): Snapshot | FormatError {
       meanPeriodS: plausible("meanPeriodS", number("WavePeriod")),
       // The direction at the peak period.
       peakDirectionDeg: plausible("peakDirectionDeg", number("ThTp")),
-      // Some buoys fill this column with values no spread can take, which come out as missing.
-      directionalSpreadDeg: plausible("directionalSpreadDeg", number("SprTp")),
       waterTemperatureC: plausible("waterTemperatureC", number("SeaTemperature")),
       windSpeedMs: plausible("windSpeedMs", number("WindSpeed") * MS_PER_KNOT),
       windGustMs: plausible("windGustMs", number("Gust") * MS_PER_KNOT),
       windDirectionDeg: plausible("windDirectionDeg", number("WindDirection")),
+      validated: flag === "1",
     };
+    const key = `${id} ${observedAt.getTime()}`;
+    if (unreadable || seen.has(key)) {
+      rejected += 1;
+      continue;
+    }
+    seen.add(key);
     if (reading.significantHeightM == null && reading.windSpeedMs == null) continue;
     readings.push(reading);
 
@@ -115,8 +131,8 @@ export function parseWeatherBuoys(text: string): Snapshot | FormatError {
 
 export const marineInstitute: Provider = {
   id: "marineinstitute",
-  // A buoy reports once an hour, and the row appears within the hour.
-  schedule: "20,50 * * * *",
+  // A buoy reports once an hour. The row of 09:00 was there at 09:50.
+  schedule: "50 * * * *",
   fetchSnapshot: Effect.gen(function* () {
     const snapshot = parseWeatherBuoys(yield* fetchText(OBSERVATIONS_URL));
     if (snapshot instanceof FormatError) return yield* snapshot;

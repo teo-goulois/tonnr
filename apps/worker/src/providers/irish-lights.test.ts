@@ -148,6 +148,18 @@ describe("parseMetOcean", () => {
     expect(snapshot.readings[0]).toMatchObject({ significantHeightM: null });
   });
 
+  it("rejects a row with a number written in a way it does not know", () => {
+    // The first would read as 16 metres, the second as a missing wind.
+    const snapshot = parse(
+      BRIGGS_0700.replace(",0.6,", ",0x10,"),
+      BARRELS_0700.replace("12.0,17.0", '"12,0",17.0'),
+      FINNIS_0700,
+    );
+
+    expect(snapshot.rejected).toBe(2);
+    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual(["992501196"]);
+  });
+
   it("rejects a row cut short instead of storing a part of it", () => {
     const afterWindSpeed = "-6.36847,52.13938,2026-10-08T07:00:00Z,Barrels AIS,992501070,15.0";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fieldNumber, parseCsv, parseCsvLine } from "./csv";
+import { parseCsv, parseCsvLine } from "./csv";
 
 describe("parseCsvLine", () => {
   it("splits on commas and trims each field", () => {
@@ -56,13 +56,5 @@ describe("parseCsv", () => {
 
   it("reads an empty text as no lines", () => {
     expect(parseCsv("")).toEqual([]);
-  });
-});
-
-describe("fieldNumber", () => {
-  it("reads an empty field as missing, not as zero", () => {
-    expect(fieldNumber("")).toBeNaN();
-    expect(fieldNumber("0")).toBe(0);
-    expect(fieldNumber("-26.84737")).toBe(-26.84737);
   });
 });

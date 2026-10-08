@@ -54,8 +54,3 @@ export function parseCsv(text: string) {
   if (cutShort) rows.push(null);
   return rows;
 }
-
-/** The number a field holds, or NaN for an empty field, which `Number` would read as zero. */
-export function fieldNumber(field: string) {
-  return field === "" ? Number.NaN : Number(field);
-}
