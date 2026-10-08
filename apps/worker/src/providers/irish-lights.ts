@@ -1,7 +1,7 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
-import { fieldNumber, parseCsvLine } from "./csv";
+import { fieldNumber, parseCsv } from "./csv";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
@@ -15,6 +15,8 @@ const OBSERVATIONS_URL =
 const MS_PER_KNOT = 0.514444;
 // The units the parser was written for. A change of unit would store wrong values silently.
 const EXPECTED_UNITS: Record<string, string> = {
+  longitude: "degrees_east",
+  latitude: "degrees_north",
   time: "UTC",
   AverageWindSpeed: "kn",
   GustSpeed: "kn",
@@ -30,9 +32,9 @@ function formatError(message: string) {
 
 /** Reads the dataset as CSV: a line of column names, a line of units, then one line per hour and site. */
 export function parseMetOcean(text: string): Snapshot | FormatError {
-  const lines = text.split(/\r?\n/);
-  const columns = parseCsvLine(lines[0] ?? "");
-  const units = parseCsvLine(lines[1] ?? "");
+  const [header, unitRow, ...rows] = parseCsv(text);
+  const columns = header ?? [];
+  const units = unitRow ?? [];
 
   for (const [column, unit] of Object.entries(EXPECTED_UNITS)) {
     const index = columns.indexOf(column);
@@ -41,18 +43,22 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
       return formatError(`${column} is in "${units[index] ?? ""}", not "${unit}"`);
     }
   }
-  for (const column of ["mmsi", "LatonName", "latitude", "longitude"]) {
+  for (const column of ["mmsi", "LatonName"]) {
     if (!columns.includes(column)) return formatError(`the dataset has no ${column} column`);
   }
 
   const stations = new Map<string, StationInput>();
   const latestRowAt = new Map<string, Date>();
   const readings: ReadingInput[] = [];
+  const seen = new Set<string>();
   let rejected = 0;
 
-  for (const line of lines.slice(2)) {
-    if (line.trim() === "") continue;
-    const fields = parseCsvLine(line);
+  for (const fields of rows) {
+    // A row that is cut short would otherwise be stored with its last values missing.
+    if (!fields || fields.length !== columns.length) {
+      rejected += 1;
+      continue;
+    }
     const field = (column: string) => fields[columns.indexOf(column)] ?? "";
     // The dataset writes "NaN" for a missing value.
     const number = (column: string) => fieldNumber(field(column));
@@ -61,10 +67,14 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
     const observedAt = parseUtcTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
-    if (id === "" || !observedAt || !isPosition(latitude, longitude)) {
+    const key = `${id} ${field("time")}`;
+    // A site is known by its MMSI, the number of its radio transmitter. Two rows for one site
+    // and hour cannot both be right.
+    if (!/^\d+$/.test(id) || seen.has(key) || !observedAt || !isPosition(latitude, longitude)) {
       rejected += 1;
       continue;
     }
+    seen.add(key);
 
     const reading: ReadingInput = {
       providerStationId: id,

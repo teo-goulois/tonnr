@@ -1,7 +1,7 @@
 import { fetchText } from "@repo/upstream";
 import { Effect } from "effect";
 
-import { fieldNumber, parseCsvLine } from "./csv";
+import { fieldNumber, parseCsv } from "./csv";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
@@ -14,24 +14,33 @@ const ATTRIBUTION =
 
 // Each run reads the same seven days again, so only the recent part is kept.
 const RECENT_MS = 48 * 60 * 60 * 1000;
-const REQUIRED_COLUMNS = ["Site", "SiteNumber", "Seconds", "Latitude", "Longitude", "Hs"];
 
 const MEASUREMENT_BY_COLUMN: Record<string, Measurement> = {
   Hs: "significantHeightM",
   Hmax: "maxHeightM",
   Tp: "peakPeriodS",
+  // The zero-upcrossing period.
   Tz: "meanPeriodS",
   SST: "waterTemperatureC",
   Direction: "peakDirectionDeg",
 };
+// A measurement column that goes missing is a change of format, not a missing value.
+const REQUIRED_COLUMNS = [
+  "Site",
+  "SiteNumber",
+  "Seconds",
+  "Latitude",
+  "Longitude",
+  ...Object.keys(MEASUREMENT_BY_COLUMN),
+];
 
 /**
  * Reads the wave file. Its first line is a note, its second the column names. "Seconds" is the
  * time in seconds since 1970 in UTC, and -99.9 stands for a missing value.
  */
 export function parseWaveFile(text: string, now = new Date()): Snapshot | FormatError {
-  const lines = text.split(/\r?\n/);
-  const columns = parseCsvLine(lines[1] ?? "");
+  const [, header, ...rows] = parseCsv(text);
+  const columns = header ?? [];
   const missing = REQUIRED_COLUMNS.filter((column) => !columns.includes(column));
   if (missing.length > 0) {
     return new FormatError({
@@ -43,21 +52,33 @@ export function parseWaveFile(text: string, now = new Date()): Snapshot | Format
   const stations = new Map<string, StationInput>();
   const latestRowAt = new Map<string, Date>();
   const readings: ReadingInput[] = [];
+  const seen = new Set<string>();
   let rejected = 0;
 
-  for (const line of lines.slice(2)) {
-    if (line.trim() === "") continue;
-    const fields = parseCsvLine(line);
+  for (const fields of rows) {
+    // A row that is cut short, as when the file is read while it is being written, would
+    // otherwise be stored with its last values missing.
+    if (!fields || fields.length !== columns.length) {
+      rejected += 1;
+      continue;
+    }
     const field = (column: string) => fields[columns.indexOf(column)] ?? "";
 
     const id = field("SiteNumber");
     const observedAt = new Date(fieldNumber(field("Seconds")) * 1000);
     const latitude = fieldNumber(field("Latitude"));
     const longitude = fieldNumber(field("Longitude"));
-    if (id === "" || !isObservationTime(observedAt) || !isPosition(latitude, longitude)) {
+    const key = `${id} ${field("Seconds")}`;
+    if (
+      id === "" ||
+      seen.has(key) ||
+      !isObservationTime(observedAt) ||
+      !isPosition(latitude, longitude)
+    ) {
       rejected += 1;
       continue;
     }
+    seen.add(key);
     if (now.getTime() - observedAt.getTime() > RECENT_MS) continue;
 
     const reading: ReadingInput = { providerStationId: id, observedAt };

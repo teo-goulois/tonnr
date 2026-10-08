@@ -123,8 +123,9 @@ describe("parseWaveFile", () => {
   it("finds the columns by name, wherever they are", () => {
     const text = [
       NOTE,
-      "SiteNumber, Site, Hs, Seconds, Longitude, Latitude",
-      "54,Caloundra,0.807,1791444000,153.15553,-26.84737",
+      "SiteNumber, Site, Hs, Seconds, Longitude, Latitude, Direction, SST, Tz, Tp, Hmax",
+      "54,Caloundra,0.807,1791444000,153.15553,-26.84737,81.60,21.20,5.263,7.140,1.370",
+      "",
     ].join("\n");
     const snapshot = parseWaveFile(text, now);
     if (snapshot instanceof FormatError) throw snapshot;
@@ -134,14 +135,56 @@ describe("parseWaveFile", () => {
         providerStationId: "54",
         observedAt: new Date("2026-10-08T07:20:00Z"),
         significantHeightM: 0.807,
-        maxHeightM: null,
-        peakPeriodS: null,
-        meanPeriodS: null,
-        waterTemperatureC: null,
-        peakDirectionDeg: null,
+        maxHeightM: 1.37,
+        peakPeriodS: 7.14,
+        meanPeriodS: 5.263,
+        waterTemperatureC: 21.2,
+        peakDirectionDeg: 81.6,
       },
     ]);
     expect(snapshot.stations[0]).toMatchObject({ latitude: -26.84737, longitude: 153.15553 });
+  });
+
+  it("rejects a row cut short instead of storing a part of it", () => {
+    // Cut after the wave height, and cut inside it: the file is read while it is being written.
+    const afterHeight = "Caloundra,54,1791442800,2026-10-08T17:00:00,-26.84737,153.15553,0.899";
+    const insideHeight = "Caloundra,54,1791444000,2026-10-08T17:20:00,-26.84737,153.15553,0.";
+
+    const middle = parse(afterHeight, MACKAY_0740);
+    expect(middle.rejected).toBe(1);
+    expect(middle.readings.map((reading) => reading.providerStationId)).toEqual(["4740htx"]);
+
+    const end = parseWaveFile([NOTE, HEADER, MACKAY_0740, insideHeight].join("\n"), now);
+    if (end instanceof FormatError) throw end;
+    expect(end.rejected).toBe(1);
+    expect(end.readings.map((reading) => reading.providerStationId)).toEqual(["4740htx"]);
+  });
+
+  it("rejects a last row that has every field but no line break after it", () => {
+    // The last field may be cut in the middle of a number.
+    const snapshot = parseWaveFile([NOTE, HEADER, MACKAY_0740, CALOUNDRA_0720].join("\n"), now);
+    if (snapshot instanceof FormatError) throw snapshot;
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual(["4740htx"]);
+  });
+
+  it("rejects a second row for the same site and time", () => {
+    const snapshot = parse(CALOUNDRA_0720, CALOUNDRA_0720.replace(",0.807,", ",3.500,"));
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings).toHaveLength(1);
+    expect(snapshot.readings[0]).toMatchObject({ significantHeightM: 0.807 });
+  });
+
+  it("reports a measurement column that went missing instead of storing nothing for it", () => {
+    const result = parseWaveFile(
+      [NOTE, HEADER.replace(" Tp,", " PeakPeriod,"), CALOUNDRA_0720, ""].join("\n"),
+      now,
+    );
+
+    expect(result).toBeInstanceOf(FormatError);
+    expect(result).toMatchObject({ message: expect.stringContaining("Tp") });
   });
 
   it("reports a file without the columns it needs instead of guessing", () => {

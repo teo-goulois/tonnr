@@ -118,6 +118,49 @@ describe("parseMetOcean", () => {
     expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual(["992501196"]);
   });
 
+  it("rejects a row whose site has no MMSI", () => {
+    const snapshot = parse(BRIGGS_0700.replace("992351133", "NaN"), FINNIS_0700);
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.stations.map((station) => station.providerStationId)).toEqual(["992501196"]);
+  });
+
+  it("rejects a second row for the same site and hour", () => {
+    // Barrels reports wind only. A row of Briggs under Barrels' MMSI must not make it a wave site.
+    const snapshot = parse(BARRELS_0700, BRIGGS_0700.replace("992351133", "992501070"));
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.stations).toHaveLength(1);
+    expect(snapshot.stations[0]).toMatchObject({ name: "Barrels AIS", latitude: 52.13938 });
+    expect(snapshot.readings).toHaveLength(1);
+    expect(snapshot.readings[0]).toMatchObject({ significantHeightM: null, windSpeedMs: 6.173 });
+  });
+
+  it("rejects a row cut short instead of storing a part of it", () => {
+    const afterWindSpeed = "-6.36847,52.13938,2026-10-08T07:00:00Z,Barrels AIS,992501070,15.0";
+
+    const middle = parse(afterWindSpeed, FINNIS_0700);
+    expect(middle.rejected).toBe(1);
+    expect(middle.readings.map((reading) => reading.providerStationId)).toEqual(["992501196"]);
+
+    // Every field is there, but the last one may be cut in the middle of a number.
+    const end = parseMetOcean([NAMES, UNITS, FINNIS_0700, BRIGGS_0700].join("\n"));
+    if (end instanceof FormatError) throw end;
+    expect(end.rejected).toBe(1);
+    expect(end.readings.map((reading) => reading.providerStationId)).toEqual(["992501196"]);
+  });
+
+  it("reports positions that are no longer in degrees", () => {
+    const result = parseMetOcean(
+      [NAMES, UNITS.replace("degrees_east,degrees_north", "radians,radians"), BRIGGS_0700, ""].join(
+        "\n",
+      ),
+    );
+
+    expect(result).toBeInstanceOf(FormatError);
+    expect(result).toMatchObject({ message: expect.stringContaining("longitude") });
+  });
+
   it("reports a change of unit instead of storing wrong values", () => {
     const result = parseMetOcean(
       [NAMES, UNITS.replace("kn,kn", "m s-1,m s-1"), BRIGGS_0700].join("\n"),

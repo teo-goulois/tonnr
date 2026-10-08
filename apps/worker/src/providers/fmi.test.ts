@@ -195,8 +195,66 @@ describe("parseWaveObservations", () => {
     expect(stations[0]?.name).toBe("Hanko & Russarö");
   });
 
+  it("reads an empty value as missing, not as zero", () => {
+    const { readings } = parse(
+      member(SUOMENLINNA, "WaveHs", [
+        [AT_0730, " "],
+        [AT_0800, "0.4"],
+      ]),
+    );
+
+    expect(readings).toEqual([
+      { providerStationId: "103976", observedAt: new Date(AT_0800), significantHeightM: 0.4 },
+    ]);
+  });
+
+  it("reads a member whose tag is written with a space", () => {
+    const xml = collection(member(SUOMENLINNA, "WaveHs", [[AT_0800, "0.4"]]))
+      .replace("<wfs:member>", "<wfs:member >")
+      .replace("</wfs:member>", "</wfs:member >");
+    const snapshot = parseWaveObservations(xml);
+    if (snapshot instanceof FormatError) throw snapshot;
+
+    expect(snapshot.readings).toHaveLength(1);
+  });
+
   it("accepts an empty collection, as when every buoy is out of the water", () => {
     expect(parse()).toEqual({ stations: [], readings: [], rejected: 0 });
+    expect(
+      parseWaveObservations('<wfs:FeatureCollection numberMatched="0" numberReturned="0"/>'),
+    ).toEqual({ stations: [], readings: [], rejected: 0 });
+  });
+
+  it("reports an answer cut short instead of storing a part of it", () => {
+    const whole = collection(
+      member(SUOMENLINNA, "WaveHs", [[AT_0800, "0.4"]]),
+      member(SUOMENLINNA, "WTP", [[AT_0800, "3.1"]]),
+    );
+    const afterFirstMember = whole.slice(0, whole.indexOf("</wfs:member>") + 13);
+    const insideSecondMember = whole.slice(0, whole.lastIndexOf("<wml2:value>"));
+    const withoutEnd = whole.replace("</wfs:FeatureCollection>", "");
+
+    for (const cut of [afterFirstMember, insideSecondMember, withoutEnd]) {
+      expect(parseWaveObservations(cut)).toBeInstanceOf(FormatError);
+    }
+  });
+
+  it("reports a collection that holds fewer members than it announces", () => {
+    const xml = collection(member(SUOMENLINNA, "WaveHs", [[AT_0800, "0.4"]])).replace(
+      'numberReturned="1"',
+      'numberReturned="5"',
+    );
+
+    expect(parseWaveObservations(xml)).toBeInstanceOf(FormatError);
+  });
+
+  it("reports a series whose points it cannot read", () => {
+    const xml = collection(member(SUOMENLINNA, "WaveHs", [[AT_0800, "0.4"]])).replace(
+      "<wml2:value>0.4</wml2:value>",
+      '<wml2:value uom="m">0.4</wml2:value>',
+    );
+
+    expect(parseWaveObservations(xml)).toBeInstanceOf(FormatError);
   });
 
   it("reports an answer that is not a collection of observations", () => {

@@ -10,6 +10,13 @@ describe("parseUtcTime", () => {
     );
   });
 
+  it("reads a UTC time written with a zero offset", () => {
+    expect(parseUtcTime("2026-10-08T04:00:00.000+00:00")).toEqual(
+      new Date(Date.UTC(2026, 9, 8, 4)),
+    );
+    expect(parseUtcTime("2026-02-31T04:00:00+00:00")).toBeNull();
+  });
+
   it("refuses a day that does not exist", () => {
     expect(parseUtcTime("2026-02-31T07:00:00Z")).toBeNull();
     expect(parseUtcTime("2026-13-01T07:00:00Z")).toBeNull();

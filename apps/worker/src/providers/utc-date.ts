@@ -25,16 +25,16 @@ export function utcDate(year: number, month: number, day: number, hour: number, 
 }
 
 /**
- * Reads a time written as `2026-10-08T07:00:00Z`, with or without a fraction of a second, or
- * returns null when it does not name a moment an observation can have. `Date` alone would read
- * 31 February as 3 March.
+ * Reads a time written in UTC, as `2026-10-08T07:00:00Z` or with `+00:00`, with or without a
+ * fraction of a second. Returns null when the text does not name a moment an observation can
+ * have. `Date` alone would read 31 February as 3 March.
  */
 export function parseUtcTime(text: string) {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(text)) return null;
+  const written = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|\+00:00)$/.exec(text)?.[1];
+  if (!written) return null;
 
   const date = new Date(text);
-  const isReal =
-    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 19) === text.slice(0, 19);
+  const isReal = !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 19) === written;
 
   return isReal && isObservationTime(date) ? date : null;
 }

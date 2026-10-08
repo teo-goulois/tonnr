@@ -30,11 +30,20 @@ function formatError(message: string) {
  * series of time and value. A parameter this parser does not know is left out.
  */
 export function parseWaveObservations(xml: string): Snapshot | FormatError {
-  if (!xml.includes("<wfs:FeatureCollection")) {
+  const announced = /<wfs:FeatureCollection\b[^>]*\bnumberReturned="(\d+)"/.exec(xml)?.[1];
+  if (announced === undefined) {
     return formatError("the answer is not a collection of observations");
   }
   // An empty collection is a valid answer: the buoys are taken out of the water for the winter.
-  const members = xml.split("<wfs:member>").slice(1);
+  const members = xml.split(/<wfs:member\s*>/).slice(1);
+  // An answer cut short would otherwise be stored with some of its parameters missing.
+  const closed = xml.match(/<\/wfs:member\s*>/g)?.length ?? 0;
+  const isWhole = Number(announced) === 0 || /<\/wfs:FeatureCollection\s*>/.test(xml);
+  if (!isWhole || members.length !== Number(announced) || closed !== members.length) {
+    return formatError(
+      `the answer announces ${announced} members and holds ${members.length}, ${closed} of them whole`,
+    );
+  }
 
   const stations = new Map<string, StationInput>();
   const byStationAndTime = new Map<string, ReadingInput>();
@@ -72,11 +81,18 @@ export function parseWaveObservations(xml: string): Snapshot | FormatError {
       commercialUse: true,
     });
 
-    for (const [, time = "", text = ""] of member.matchAll(
-      /<wml2:time>([^<]+)<\/wml2:time>\s*<wml2:value>([^<]+)<\/wml2:value>/g,
-    )) {
-      // The service writes "NaN" for a missing value.
-      const value = plausible(measurement, Number(text));
+    const points = [
+      ...member.matchAll(
+        /<wml2:time\s*>([^<]*)<\/wml2:time\s*>\s*<wml2:value\s*>([^<]*)<\/wml2:value\s*>/g,
+      ),
+    ];
+    if (points.length !== (member.match(/<wml2:MeasurementTVP\b/g)?.length ?? 0)) {
+      return formatError(`a ${parameter} series holds points that are not a time and a value`);
+    }
+
+    for (const [, time = "", text = ""] of points) {
+      // The service writes "NaN" for a missing value. `Number` would read an empty one as zero.
+      const value = text.trim() === "" ? null : plausible(measurement, Number(text));
       if (value === null) continue;
 
       const observedAt = parseUtcTime(time.trim());
