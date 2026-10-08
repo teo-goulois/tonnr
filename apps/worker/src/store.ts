@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
 import { reading, station } from "@repo/db/schema/buoys";
-import { sql } from "drizzle-orm";
+import { and, isNull, lt, sql } from "drizzle-orm";
 import { Effect, Schema } from "effect";
 
 import { cleanText } from "./clean-text";
@@ -35,6 +35,13 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     if (!latest || observedAt > latest) latestByStation.set(providerStationId, observedAt);
   }
 
+  const withWaves = new Set<string>();
+  const withWind = new Set<string>();
+  for (const { providerStationId, significantHeightM, windSpeedMs } of snapshot.readings) {
+    if (significantHeightM != null) withWaves.add(providerStationId);
+    if (windSpeedMs != null) withWind.add(providerStationId);
+  }
+
   const stationRows = snapshot.stations.map((input) => ({
     ...input,
     name: cleanText(input.name),
@@ -42,6 +49,8 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     id: stationId(provider, input.providerStationId),
     provider,
     latestObservedAt: latestByStation.get(input.providerStationId) ?? null,
+    reportsWaves: withWaves.has(input.providerStationId),
+    reportsWind: withWind.has(input.providerStationId),
   }));
   const readingRows = snapshot.readings.map(({ providerStationId, ...measurements }) => ({
     ...measurements,
@@ -66,6 +75,8 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
             licenseUrl: sql`excluded.license_url`,
             attribution: sql`excluded.attribution`,
             commercialUse: sql`excluded.commercial_use`,
+            reportsWaves: sql`${station.reportsWaves} or excluded.reports_waves`,
+            reportsWind: sql`${station.reportsWind} or excluded.reports_wind`,
             latestObservedAt: sql`greatest(${station.latestObservedAt}, excluded.latest_observed_at)`,
             updatedAt: sql`now()`,
           },
@@ -107,5 +118,26 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
       }
     },
     catch: (cause) => new StoreError({ provider, cause }),
+  });
+});
+
+const WIND_ONLY_DAYS = 7;
+
+/**
+ * Deletes readings without a wave height once they are a week old. Wind stations report every
+ * few minutes, and their history is only worth keeping once someone asks for it.
+ */
+export const pruneReadings = Effect.fn("pruneReadings")(function* (db: Database) {
+  const cutoff = new Date(Date.now() - WIND_ONLY_DAYS * 24 * 60 * 60 * 1000);
+
+  return yield* Effect.tryPromise({
+    try: async () => {
+      const deleted = await db
+        .delete(reading)
+        .where(and(isNull(reading.significantHeightM), lt(reading.observedAt, cutoff)))
+        .returning({ stationId: reading.stationId });
+      return deleted.length;
+    },
+    catch: (cause) => new StoreError({ provider: "prune", cause }),
   });
 });

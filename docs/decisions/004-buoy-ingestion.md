@@ -1,6 +1,6 @@
 # 004. Buoy ingestion and data model
 
-Status: accepted on 2026-10-08.
+Status: accepted on 2026-10-08. Decision 007 replaces the rule that only stations reporting a wave height are stored.
 
 ## Context
 

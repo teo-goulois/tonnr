@@ -3,10 +3,11 @@ import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
 import { ndbc } from "./providers/ndbc";
+import { openwindmap } from "./providers/openwindmap";
 import type { Provider } from "./providers/provider";
 import { saveSnapshot } from "./store";
 
-export const providers: readonly Provider[] = [candhis, ndbc];
+export const providers: readonly Provider[] = [candhis, ndbc, openwindmap];
 
 /** Fetches what a provider publishes now and stores it. */
 export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Database) {

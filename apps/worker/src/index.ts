@@ -4,6 +4,7 @@ import { PgBoss } from "pg-boss";
 
 import { ENV } from "./env.server";
 import { ingest, providers } from "./ingest";
+import { pruneReadings } from "./store";
 
 const db = createDb(ENV);
 const boss = new PgBoss(ENV.DATABASE_URL);
@@ -28,6 +29,16 @@ for (const provider of providers) {
 
   console.log(`Scheduled ${queue} (${provider.schedule})`);
 }
+
+const PRUNE_QUEUE = "prune-readings";
+await boss.createQueue(PRUNE_QUEUE, { policy: "stately", retryLimit: 0 });
+await boss.updateQueue(PRUNE_QUEUE, { retryLimit: 0 });
+// Once a night, at a quiet minute.
+await boss.schedule(PRUNE_QUEUE, "17 3 * * *");
+await boss.work(PRUNE_QUEUE, async () => {
+  const deleted = await Effect.runPromise(pruneReadings(db));
+  console.log(`Pruned ${deleted} old wind readings`);
+});
 
 async function shutdown() {
   await boss.stop();

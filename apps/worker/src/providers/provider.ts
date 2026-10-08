@@ -6,7 +6,13 @@ import type { FormatError } from "./format-error";
 
 export type StationInput = Omit<
   typeof station.$inferInsert,
-  "id" | "provider" | "latestObservedAt" | "createdAt" | "updatedAt"
+  | "id"
+  | "provider"
+  | "latestObservedAt"
+  | "reportsWaves"
+  | "reportsWind"
+  | "createdAt"
+  | "updatedAt"
 >;
 
 export type ReadingInput = Omit<typeof reading.$inferInsert, "stationId" | "ingestedAt"> & {

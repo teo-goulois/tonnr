@@ -25,6 +25,9 @@ export const station = pgTable(
     attribution: text("attribution").notNull(),
     // Null when the owner's terms have not been checked.
     commercialUse: boolean("commercial_use"),
+    // Set once the station has sent that kind of measurement, and kept afterwards.
+    reportsWaves: boolean("reports_waves").default(false).notNull(),
+    reportsWind: boolean("reports_wind").default(false).notNull(),
     latestObservedAt: timestamp("latest_observed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

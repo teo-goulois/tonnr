@@ -10,7 +10,18 @@ const LATEST_OBSERVATIONS_URL = "https://www.ndbc.noaa.gov/data/latest_obs/lates
 const ACTIVE_STATIONS_URL = "https://www.ndbc.noaa.gov/activestations.xml";
 const TERMS_URL = "https://www.weather.gov/disclaimer";
 
-const REQUIRED_COLUMNS = ["STN", "LAT", "LON", "YYYY", "MM", "DD", "hh", "mm", "WVHT"] as const;
+const REQUIRED_COLUMNS = [
+  "STN",
+  "LAT",
+  "LON",
+  "YYYY",
+  "MM",
+  "DD",
+  "hh",
+  "mm",
+  "WVHT",
+  "WSPD",
+] as const;
 
 type StationDetails = { name: string; owner: string; program: string };
 
@@ -69,7 +80,7 @@ function licenseFor(details: StationDetails | undefined) {
 
 /**
  * Reads `latest_obs.txt`: one line per station with its most recent observation.
- * Only lines that carry a wave height become a station and a reading.
+ * A line becomes a station and a reading when it carries a wave height or a wind speed.
  */
 export function parseLatestObservations(
   text: string,
@@ -110,7 +121,10 @@ export function parseLatestObservations(
     const latitude = number("LAT");
     const longitude = number("LON");
     const [year, month, day, hour, minute] = ["YYYY", "MM", "DD", "hh", "mm"].map(number);
-    if (significantHeightM === null || latitude === null || longitude === null) continue;
+    const windSpeedMs = measure("WSPD", "windSpeedMs");
+    // A line with neither waves nor wind comes from a station of another kind.
+    if (significantHeightM === null && windSpeedMs === null) continue;
+    if (latitude === null || longitude === null) continue;
     if (year == null || month == null || day == null || hour == null || minute == null) continue;
     if (!isPosition(latitude, longitude)) {
       rejected += 1;
@@ -142,7 +156,7 @@ export function parseLatestObservations(
       meanPeriodS: measure("APD", "meanPeriodS"),
       peakDirectionDeg: measure("MWD", "peakDirectionDeg"),
       waterTemperatureC: measure("WTMP", "waterTemperatureC"),
-      windSpeedMs: measure("WSPD", "windSpeedMs"),
+      windSpeedMs,
       windGustMs: measure("GST", "windGustMs"),
       windDirectionDeg: measure("WDIR", "windDirectionDeg"),
     });

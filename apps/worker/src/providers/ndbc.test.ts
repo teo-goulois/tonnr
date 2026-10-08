@@ -17,6 +17,14 @@ const latestObservations = `#STN       LAT      LON  YYYY MM DD hh mm WDIR WSPD 
 42044    26.191  -97.051 2026 10 08 06 30  MM    MM    MM  1.1   7  5.2 110     MM    MM    MM  28.4    MM   MM     MM
 `;
 
+function readingOf(snapshot: { readings: { providerStationId: string }[] }, id: string) {
+  return snapshot.readings.find((reading) => reading.providerStationId === id);
+}
+
+function ids(rows: { providerStationId: string }[]) {
+  return rows.map((row) => row.providerStationId);
+}
+
 function parse() {
   const snapshot = parseLatestObservations(latestObservations, parseActiveStations(activeStations));
   if (snapshot instanceof FormatError) throw snapshot;
@@ -37,21 +45,35 @@ describe("parseActiveStations", () => {
 });
 
 describe("parseLatestObservations", () => {
-  it("keeps only the stations that report a wave height", () => {
+  it("keeps the stations that report waves or wind", () => {
     const { stations, readings } = parse();
 
-    expect(stations.map((station) => station.providerStationId)).toEqual([
-      "46071",
-      "22101",
-      "42044",
-    ]);
-    expect(readings).toHaveLength(3);
+    expect(ids(stations)).toEqual(["15009", "46071", "22101", "42044"]);
+    expect(readings).toHaveLength(4);
+  });
+
+  it("leaves out a line with neither waves nor wind", () => {
+    const text = latestObservations.replace(
+      "15009     0.000   -3.051 2026 10 08 06 00 199   6.0",
+      "15009     0.000   -3.051 2026 10 08 06 00 199    MM",
+    );
+    const snapshot = parseLatestObservations(text, new Map());
+    if (snapshot instanceof FormatError) throw snapshot;
+
+    expect(ids(snapshot.stations)).not.toContain("15009");
+  });
+
+  it("stores a wind-only station without a wave height", () => {
+    expect(readingOf(parse(), "15009")).toMatchObject({
+      significantHeightM: null,
+      windSpeedMs: 6,
+      windDirectionDeg: 199,
+      waterTemperatureC: 26.6,
+    });
   });
 
   it("maps the columns to measurements, with null for a missing one", () => {
-    const [reading] = parse().readings;
-
-    expect(reading).toEqual({
+    expect(readingOf(parse(), "46071")).toEqual({
       providerStationId: "46071",
       observedAt: new Date("2026-10-08T06:50:00Z"),
       significantHeightM: 6.4,
@@ -66,7 +88,7 @@ describe("parseLatestObservations", () => {
   });
 
   it("marks NOAA's own buoys as public domain", () => {
-    const [station] = parse().stations;
+    const station = parse().stations.find((candidate) => candidate.providerStationId === "46071");
 
     expect(station).toMatchObject({
       name: "WESTERN ALEUTIANS",
@@ -97,7 +119,9 @@ describe("parseLatestObservations", () => {
     const snapshot = parseLatestObservations(latestObservations, details);
     if (snapshot instanceof FormatError) throw snapshot;
 
-    expect(snapshot.stations[0]).toMatchObject({
+    const station = snapshot.stations.find((candidate) => candidate.providerStationId === "46071");
+
+    expect(station).toMatchObject({
       licenseType: "ndbc-partner",
       attribution: "Private Owner, relayed by the NOAA National Data Buoy Center",
       commercialUse: null,
@@ -110,21 +134,18 @@ describe("parseLatestObservations", () => {
     if (snapshot instanceof FormatError) throw snapshot;
 
     expect(snapshot.rejected).toBe(1);
-    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual([
-      "22101",
-      "42044",
-    ]);
+    expect(ids(snapshot.readings)).toEqual(["15009", "22101", "42044"]);
   });
 
-  it("ignores a wave height that is not a finite number", () => {
+  it("ignores a wave height that is not a finite number, and keeps the station's wind", () => {
     const text = latestObservations.replace("18.0  6.4", "18.0  Infinity");
     const snapshot = parseLatestObservations(text, new Map());
     if (snapshot instanceof FormatError) throw snapshot;
 
-    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual([
-      "22101",
-      "42044",
-    ]);
+    expect(readingOf(snapshot, "46071")).toMatchObject({
+      significantHeightM: null,
+      windSpeedMs: 14,
+    });
   });
 
   it("treats a measurement the sea cannot produce as missing", () => {
@@ -138,11 +159,8 @@ describe("parseLatestObservations", () => {
     const snapshot = parseLatestObservations(text, new Map());
     if (snapshot instanceof FormatError) throw snapshot;
 
-    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual([
-      "22101",
-      "42044",
-    ]);
-    expect(snapshot.readings[0]?.windDirectionDeg).toBeNull();
+    expect(readingOf(snapshot, "46071")).toMatchObject({ significantHeightM: null });
+    expect(readingOf(snapshot, "22101")).toMatchObject({ windDirectionDeg: null, windSpeedMs: 2 });
   });
 
   it("stores a value too small for the database as zero", () => {
@@ -150,7 +168,7 @@ describe("parseLatestObservations", () => {
     const snapshot = parseLatestObservations(text, new Map());
     if (snapshot instanceof FormatError) throw snapshot;
 
-    expect(snapshot.readings[0]).toMatchObject({ providerStationId: "46071", meanPeriodS: 0 });
+    expect(readingOf(snapshot, "46071")).toMatchObject({ meanPeriodS: 0 });
   });
 
   it("rejects a row dated in a year the database cannot store", () => {
@@ -159,7 +177,7 @@ describe("parseLatestObservations", () => {
     if (snapshot instanceof FormatError) throw snapshot;
 
     expect(snapshot.rejected).toBe(1);
-    expect(snapshot.readings).toHaveLength(2);
+    expect(snapshot.readings).toHaveLength(3);
   });
 
   it("rejects a row whose position is not on Earth", () => {
@@ -168,10 +186,7 @@ describe("parseLatestObservations", () => {
     if (snapshot instanceof FormatError) throw snapshot;
 
     expect(snapshot.rejected).toBe(1);
-    expect(snapshot.stations.map((station) => station.providerStationId)).toEqual([
-      "22101",
-      "42044",
-    ]);
+    expect(ids(snapshot.stations)).toEqual(["15009", "22101", "42044"]);
   });
 
   it("reports a changed file format instead of guessing", () => {

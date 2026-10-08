@@ -41,6 +41,8 @@ const stationSchema = z.object({
   latitude: z.number(),
   longitude: z.number(),
   attribution: z.string(),
+  // What the station has been seen to report.
+  measures: z.array(z.enum(["waves", "wind"])),
   // commercialUse is null when the owner's terms have not been checked.
   license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean().nullable() }),
 });
@@ -53,6 +55,10 @@ function describeStation(row: typeof station.$inferSelect) {
     latitude: row.latitude,
     longitude: row.longitude,
     attribution: row.attribution,
+    measures: [
+      ...(row.reportsWaves ? (["waves"] as const) : []),
+      ...(row.reportsWind ? (["wind"] as const) : []),
+    ],
     license: { type: row.licenseType, url: row.licenseUrl, commercialUse: row.commercialUse },
   };
 }
@@ -93,6 +99,8 @@ export const stationsRouter = {
       z.object({
         bbox: bboxSchema.optional(),
         provider: z.string().optional(),
+        // Only the stations that report this.
+        measures: z.enum(["waves", "wind"]).optional(),
         limit: z.coerce.number().int().min(1).max(500).default(100),
       }),
     )
@@ -118,7 +126,14 @@ export const stationsRouter = {
         .select({ station, reading })
         .from(station)
         .leftJoin(reading, isLatestReading)
-        .where(and(inBbox, input.provider ? eq(station.provider, input.provider) : undefined))
+        .where(
+          and(
+            inBbox,
+            input.provider ? eq(station.provider, input.provider) : undefined,
+            input.measures === "waves" ? eq(station.reportsWaves, true) : undefined,
+            input.measures === "wind" ? eq(station.reportsWind, true) : undefined,
+          ),
+        )
         .orderBy(station.id)
         .limit(input.limit);
 

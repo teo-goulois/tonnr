@@ -8,3 +8,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [004. Buoy ingestion and data model](004-buoy-ingestion.md)
 - [005. Forecast source](005-forecasts.md)
 - [006. Spots and their criteria](006-spots.md)
+- [007. Wind stations](007-wind-stations.md)
