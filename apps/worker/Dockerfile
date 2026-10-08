@@ -21,6 +21,7 @@ COPY --from=production --chown=node:node /app /app
 COPY --from=builder --chown=node:node /app/apps/worker/dist /app/apps/worker/dist
 USER node
 
-# The worker changes no schema. Start it once the API has applied the migrations.
 WORKDIR /app/apps/worker
-CMD ["node", "dist/index.mjs"]
+# `start.mjs` applies the migrations, then starts the worker. `node dist/cli.mjs <job>` runs one
+# job once instead.
+CMD ["node", "dist/start.mjs"]

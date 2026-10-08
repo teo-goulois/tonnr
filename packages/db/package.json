@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -b",
     "check-types": "tsc -b",
+    "test": "vitest run",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate:deploy": "drizzle-kit migrate",
@@ -24,6 +25,7 @@
     "@types/pg": "^8.23.1",
     "drizzle-kit": "1.0.0-rc.4",
     "typescript": "catalog:",
-    "varlock": "catalog:"
+    "varlock": "catalog:",
+    "vitest": "^5.0.3"
   }
 }

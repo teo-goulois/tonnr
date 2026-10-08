@@ -7,12 +7,14 @@ services:
       dockerfile: apps/server/Dockerfile
     init: true
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     env_file:
       - path: apps/server/.env
         required: false
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/app
+      # The port inside the container, whatever the file above says. API_PORT sets the one outside.
+      PORT: 3000
     healthcheck:
       test:
         [
@@ -38,8 +40,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/app
     depends_on:
-      # The API applies the migrations when it starts.
-      server:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
@@ -50,7 +51,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     ports:
-      - "5432:5432"
+      # Reachable from this machine only: the containers reach it over their own network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
