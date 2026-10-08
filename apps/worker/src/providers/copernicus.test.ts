@@ -341,7 +341,8 @@ describe("readFile", () => {
     }
   });
 
-  it("reads many rows without failing, and stops at its limit", () => {
+  // Two files of some 200,000 rows each: half a second on a laptop, over five on a busy runner.
+  it("reads many rows without failing, and stops at its limit", { timeout: 30_000 }, () => {
     const many = (count: number) => {
       const database = new DatabaseSync(":memory:");
       database.exec(TABLE);
