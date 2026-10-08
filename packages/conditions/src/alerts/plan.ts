@@ -24,13 +24,19 @@ function duration(window: Window) {
   return window.end.getTime() - window.start.getTime();
 }
 
+function overlaps(announced: Announced, window: Window) {
+  return window.start <= announced.windowEnd && window.end >= announced.windowStart;
+}
+
 /**
- * Decides what to tell a spot's owner after an evaluation.
+ * Decides what to tell a spot's owner after an evaluation. `existing` holds the spot's
+ * notifications whose window has not passed, or whose day is today or later.
  *
  * A day gets one "window found" notification, for its longest window of at least two hours.
- * Later evaluations keep that notification's window up to date without telling the owner again.
- * When an announced window is missing from two evaluations in a row and has not passed yet, the
- * owner gets one "window cancelled" notification.
+ * A window that overlaps an announced one is the same window, even when it started on an earlier
+ * day: its notification is kept up to date and the owner is not told again. When an announced
+ * window is missing from two evaluations in a row and has not passed yet, the owner gets one
+ * "window cancelled" notification.
  */
 export function planNotifications(now: Date, windows: Window[], existing: Announced[]) {
   const windowOfDay = new Map<string, Window>();
@@ -42,7 +48,6 @@ export function planNotifications(now: Date, windows: Window[], existing: Announ
   }
 
   const found = existing.filter((notification) => notification.kind === "window_found");
-  const foundDays = new Set(found.map((notification) => notification.day));
   const cancelledDays = new Set(
     existing
       .filter((notification) => notification.kind === "window_cancelled")
@@ -51,16 +56,32 @@ export function planNotifications(now: Date, windows: Window[], existing: Announ
 
   const create: { kind: Announced["kind"]; day: string; windowStart: Date; windowEnd: Date }[] = [];
   const update: { day: string; windowStart: Date; windowEnd: Date; missedRuns: number }[] = [];
+  const stillThere = new Set<Announced>();
 
   for (const [day, window] of windowOfDay) {
-    const change = { day, windowStart: window.start, windowEnd: window.end };
-    if (foundDays.has(day)) update.push({ ...change, missedRuns: 0 });
-    else create.push({ kind: "window_found", ...change });
+    const continued = found.find((announced) => overlaps(announced, window));
+    const announced = continued ?? found.find((candidate) => candidate.day === day);
+    if (!announced) {
+      create.push({ kind: "window_found", day, windowStart: window.start, windowEnd: window.end });
+      continue;
+    }
+    // A day's second window never replaces the one already matched to its announcement.
+    if (stillThere.has(announced)) continue;
+
+    stillThere.add(announced);
+    update.push({
+      day: announced.day,
+      // A window already under way keeps the start it was announced with: the forecast no
+      // longer covers its first hours. One still ahead follows the forecast.
+      windowStart: continued && announced.windowStart <= now ? announced.windowStart : window.start,
+      windowEnd: window.end,
+      missedRuns: 0,
+    });
   }
 
   for (const announced of found) {
     const stillAhead = announced.windowEnd > now;
-    if (windowOfDay.has(announced.day) || !stillAhead || cancelledDays.has(announced.day)) continue;
+    if (stillThere.has(announced) || !stillAhead || cancelledDays.has(announced.day)) continue;
 
     const missedRuns = announced.missedRuns + 1;
     const window = { windowStart: announced.windowStart, windowEnd: announced.windowEnd };

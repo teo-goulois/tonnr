@@ -2,7 +2,7 @@ import { dayOf, planNotifications } from "@repo/conditions/alerts/plan";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import type { Database } from "@repo/db";
 import { notification, spot } from "@repo/db/schema/spots";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gt, gte, or } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import { StoreError } from "./store";
@@ -21,10 +21,22 @@ const evaluateSpot = Effect.fn("evaluateSpot")(function* (
   return yield* Effect.tryPromise({
     try: () =>
       db.transaction(async (tx) => {
+        // Locking the spot makes its evaluations run one after the other. The forecast took a
+        // moment to fetch, so the spot is read again: it may have been changed or switched off.
+        const [current] = await tx.select().from(spot).where(eq(spot.id, row.id)).for("update");
+        const unchanged = current?.updatedAt.getTime() === row.updatedAt.getTime();
+        if (!current?.alertsEnabled || !unchanged) return 0;
+
         const existing = await tx
           .select()
           .from(notification)
-          .where(and(eq(notification.spotId, row.id), gte(notification.day, dayOf(now))));
+          .where(
+            and(
+              eq(notification.spotId, row.id),
+              // Today's and later days', and any window that began earlier and has not ended.
+              or(gte(notification.day, dayOf(now)), gt(notification.windowEnd, now)),
+            ),
+          );
         const plan = planNotifications(now, assessment.windows, existing);
 
         for (const change of plan.update) {
