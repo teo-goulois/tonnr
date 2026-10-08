@@ -2,12 +2,22 @@ import type { Database } from "@repo/db";
 import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
+import { fmi } from "./providers/fmi";
+import { irishLights } from "./providers/irish-lights";
 import { ndbc } from "./providers/ndbc";
 import { openwindmap } from "./providers/openwindmap";
+import { queensland } from "./providers/queensland";
 import type { Provider } from "./providers/provider";
 import { saveSnapshot } from "./store";
 
-export const providers: readonly Provider[] = [candhis, ndbc, openwindmap];
+export const providers: readonly Provider[] = [
+  candhis,
+  fmi,
+  irishLights,
+  ndbc,
+  openwindmap,
+  queensland,
+];
 
 /** Fetches what a provider publishes now and stores it. */
 export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Database) {

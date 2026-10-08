@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
-import { isObservationTime } from "./utc-date";
+import { parseUtcTime } from "./utc-date";
 
 // OpenWindMap took over the Pioupiou network, and its API kept the old address.
 const LIVE_URL = "https://api.pioupiou.fr/v1/live-with-meta/all";
@@ -56,9 +56,9 @@ export function parseLiveStations(json: unknown, now = new Date()): Snapshot | F
     if (location.success !== true) continue;
     if (typeof measurements.date !== "string") continue;
 
-    const observedAt = new Date(measurements.date);
+    const observedAt = parseUtcTime(measurements.date);
     const id = typeof entry.id === "number" || typeof entry.id === "string" ? String(entry.id) : "";
-    if (id === "" || !isObservationTime(observedAt) || !isPosition(latitude, longitude)) {
+    if (id === "" || !observedAt || !isPosition(latitude, longitude)) {
       rejected += 1;
       continue;
     }

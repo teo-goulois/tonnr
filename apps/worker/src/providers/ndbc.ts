@@ -5,6 +5,7 @@ import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
 import { utcDate } from "./utc-date";
+import { decodeXmlEntities } from "./xml";
 
 const LATEST_OBSERVATIONS_URL = "https://www.ndbc.noaa.gov/data/latest_obs/latest_obs.txt";
 const ACTIVE_STATIONS_URL = "https://www.ndbc.noaa.gov/activestations.xml";
@@ -24,15 +25,6 @@ const REQUIRED_COLUMNS = [
 ] as const;
 
 type StationDetails = { name: string; owner: string; program: string };
-
-function decodeXmlEntities(value: string) {
-  return value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&amp;", "&");
-}
 
 /** Reads `activestations.xml`, a flat list of `<station/>` elements, into a map keyed by station id. */
 export function parseActiveStations(xml: string) {
