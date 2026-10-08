@@ -31,6 +31,7 @@ To rename the product, change `APP_NAME`, then the prose in `README.md`, this fi
 
 - `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing. `pnpm run format` writes.
 - `pnpm run db:start` needs Docker.
+- The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
 - `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one provider once with `pnpm --filter worker run ingest <provider>`.
 - `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. Delete `scripts/demo.mjs` once a real deployment exists.
 - Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files.

@@ -7,3 +7,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [003. API versioning](003-api-versioning.md)
 - [004. Buoy ingestion and data model](004-buoy-ingestion.md)
 - [005. Forecast source](005-forecasts.md)
+- [006. Spots and their criteria](006-spots.md)

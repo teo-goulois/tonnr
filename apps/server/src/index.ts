@@ -20,7 +20,7 @@ app.use(
   "/*",
   cors({
     origin: ENV.CORS_ORIGIN,
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
@@ -88,7 +88,7 @@ import { serve } from "@hono/node-server";
 serve(
   {
     fetch: app.fetch,
-    port: 3000,
+    port: ENV.PORT,
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`);
