@@ -16,8 +16,12 @@ import { Spinner } from "@repo/ui/components/ui/spinner";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 
+import { ShortcutKeys } from "@/components/shared/shortcut-keys";
+import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { useShortcuts } from "@/lib/shortcuts";
 
 const VARIANTS = [
   "default",
@@ -67,6 +71,8 @@ function Row({ children }: { children: ReactNode }) {
 
 // Every shared component with its variants and states. Development only.
 export function DesignSystemPage() {
+  const bindings = useShortcuts();
+
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-xxl px-m py-xl">
       <header className="flex items-center justify-between">
@@ -161,6 +167,24 @@ export function DesignSystemPage() {
               </MenuGroup>
             </MenuPopup>
           </Menu>
+        </Row>
+      </Section>
+
+      <Section title="Overlays">
+        <Row>
+          <Button variant="outline" onClick={openShortcutSettings}>
+            Open a dialog
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => toast("Spot saved", { description: "La Torche is in your spots." })}
+          >
+            Show a toast
+          </Button>
+          <span className="flex items-center gap-xs text-neutral-7">
+            Command palette
+            <ShortcutKeys hotkey={bindings["command-palette"]} />
+          </span>
         </Row>
       </Section>
 

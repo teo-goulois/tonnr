@@ -24,17 +24,22 @@ const Toaster = ({ ...props }: ToasterProps) => {
         error: <OctagonXIcon className="size-4" />,
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
+      // Follows the Toast assignments of the Tonnr theme.
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--normal-bg": "var(--neutral-1)",
+          "--normal-text": "var(--neutral-10)",
+          "--normal-border": "var(--neutral-4-transparent)",
+          "--border-radius": "var(--radius-m)",
+          "--width": "22rem",
+          fontFamily: "var(--font-ui)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast p-m! text-m! shadow-(--shadow-m)!",
+          title: "font-medium!",
+          description: "text-neutral-7!",
         },
       }}
       {...props}

@@ -7,6 +7,8 @@ import { Toaster } from "@repo/ui/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 
 import { AppHotkeys } from "@/components/shared/app-hotkeys";
+import { CommandPalette } from "@/components/shared/command-palette";
+import { ShortcutSettings } from "@/components/shared/shortcut-settings";
 import type { orpc } from "@/utils/orpc";
 
 import { getLocale } from "@/paraglide/runtime.js";
@@ -57,8 +59,10 @@ function RootDocument() {
           disableTransitionOnChange
         >
           <AppHotkeys />
+          <CommandPalette />
+          <ShortcutSettings />
           <Outlet />
-          <Toaster richColors />
+          <Toaster />
         </ThemeProvider>
         <TanStackRouterDevtools position="bottom-left" />
         <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />

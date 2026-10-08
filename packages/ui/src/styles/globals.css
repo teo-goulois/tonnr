@@ -248,6 +248,23 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
+  --color-color-1-transparent: var(--color-1-transparent);
+  --color-color-2-transparent: var(--color-2-transparent);
+  --color-color-3-transparent: var(--color-3-transparent);
+  --color-color-4-transparent: var(--color-4-transparent);
+  --color-neutral-1-transparent: var(--neutral-1-transparent);
+  --color-neutral-2-transparent: var(--neutral-2-transparent);
+  --color-neutral-3-transparent: var(--neutral-3-transparent);
+  --color-neutral-4-transparent: var(--neutral-4-transparent);
+  --color-neutral-5-transparent: var(--neutral-5-transparent);
+  --color-neutral-6-transparent: var(--neutral-6-transparent);
+  --color-neutral-7-transparent: var(--neutral-7-transparent);
+  --color-neutral-8-transparent: var(--neutral-8-transparent);
+  --color-neutral-9-transparent: var(--neutral-9-transparent);
+  --color-neutral-10-transparent: var(--neutral-10-transparent);
+  --color-success-transparent: var(--success-transparent);
+  --color-warning-transparent: var(--warning-transparent);
+  --color-error-transparent: var(--error-transparent);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
