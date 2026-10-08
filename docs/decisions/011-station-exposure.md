@@ -1,6 +1,6 @@
 # 011. Telling sheltered sites from the open sea
 
-Status: proposed to Téo on 2026-10-08, who asked that such sites be told apart from the data. The rule was tightened twice the same day after reviews. The demo then held two whole days of readings, too few for the rule to call any station sheltered or open yet.
+Status: in use since 2026-10-08. Téo asked that such sites be told apart from the data, and the rule was tightened twice that day after reviews. He kept it as the only source of the label, and put off letting users report a sheltered station until there are users. The demo then held two whole days of readings, too few for the rule to call any station sheltered or open yet.
 
 ## Context
 
@@ -33,3 +33,4 @@ Nothing the providers publish tells them apart. The files of Copernicus label an
 - The thresholds are judgments, not measurements. The demo held four days when they were set, the last one not over. By the rule's own count, two whole days gave 51 days to compare: 6 under a fifth of the neighbours' waves, 42 at half or more, and 3 in between. Counting also the day under way and every day with readings in two quarters, 141 days of 92 stations: the eight Dutch harbour and estuary sites that the first rule had called sheltered fell between 1% and 17%, two other sites had a day under a fifth, 119 days were at half or more, and 6 fell in between. Check the thresholds again once a month of readings from several coasts exists.
 - The search compares every station with every other, twice. Thirty days of 2,000 stations on a grid of sites 20 km apart took 1.6 seconds, and 5,000 took 9.
 - The queries and the move test are not covered by the automated tests, which have no database. They were run by hand on a copy of the demo's database.
+- Signed-in users could say which stations are sheltered, and reach the ones the rule cannot. With few users, one report would be one person's word for everyone, so this waits. When it comes, a measurement that shows a station open should win over a report, and the API should say where a label comes from.
