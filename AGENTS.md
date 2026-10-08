@@ -1,6 +1,6 @@
 # Tonnr
 
-Tonnr is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history. The repository directory is still named `forecastr`.
+Tonnr is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
 Read `docs/product-vision.md` before product work, `docs/data-sources.md` before touching a data provider, `docs/self-hosting.md` before changing how an instance is deployed, and the relevant record in `docs/decisions/` before structural work. Record a new decision there after making a durable one.
 

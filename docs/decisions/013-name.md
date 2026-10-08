@@ -21,4 +21,4 @@ Houl, "swell" in Breton, was the other candidate. An English speaker reads it as
 - The GitHub account `tonnr` is taken. The npm package `tonnr` was free on 2026-10-08.
 - No trademark register was searched. Do that before paying for a logo.
 - The name has to be spelled out: tonn, r, no e.
-- The repository is `teo-goulois/tonnr` on GitHub. Its directory on Téo's machine is still named `forecastr`.
+- The repository is `teo-goulois/tonnr` on GitHub.
