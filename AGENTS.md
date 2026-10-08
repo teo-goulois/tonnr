@@ -1,13 +1,13 @@
 # Tonn
 
-Tonn is a free surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history. The repository directory is still named `forecastr`.
+Tonn is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history. The repository directory is still named `forecastr`.
 
-Read `docs/product-vision.md` before product work, `docs/data-sources.md` before touching a data provider, and the relevant record in `docs/decisions/` before structural work. Record a new decision there after making a durable one.
+Read `docs/product-vision.md` before product work, `docs/data-sources.md` before touching a data provider, `docs/self-hosting.md` before changing how an instance is deployed, and the relevant record in `docs/decisions/` before structural work. Record a new decision there after making a durable one.
 
 ## Boundaries
 
 - `apps/server` hosts the oRPC router with Hono on Node. It serves the public API at `/v1`, with its spec at `/v1/openapi.json` and reference at `/v1/docs`, the typed RPC transport at `/rpc`, and Better Auth at `/api/auth`. It deploys as a Docker container, and decision 009 says how.
-- `apps/worker` fetches buoy data on a schedule and writes it to the database. It deploys as a second container. Each provider is one module that knows its provider's format and nothing about the database. Decision 004 describes the model.
+- `apps/worker` fetches buoy data on a schedule and writes it to the database. It deploys as a second container, which applies the migrations at its start as the API's does. Each provider is one module that knows its provider's format and nothing about the database. Decision 004 describes the model.
 - `apps/web` is the TanStack Start app. It deploys to Cloudflare through `packages/infra`.
 - `packages/api` holds the procedures. Each user action is one oRPC procedure, and its validation, authorization, and logic live in that procedure. Public procedures belong to a versioned router. Decision 003 says what may change inside a version.
 - `packages/db` holds the Drizzle schema and client. Use stock Postgres 18 features and change the schema through Drizzle migrations, so the database stays portable. Decision 001 gives the reason.
@@ -26,6 +26,15 @@ To rename the product, change `APP_NAME`, then the prose in `README.md`, this fi
 - Fetch from the upstream providers listed in `docs/data-sources.md`.
 - Store each station's license and attribution, and return them in API responses.
 
+## A public repository
+
+The repository is public, and so is its history. Decision 012 says what follows.
+
+- Keep secrets, personal data, and paths of one machine out of code, tests, docs, and commit messages.
+- Tests and CI never call a data provider. A test reads a saved sample, as small as the test needs.
+- CI reads no secret. A workflow that needs one is a decision to record first.
+- What a deployment needs goes into `docs/self-hosting.md` in the same change: other people follow it.
+
 ## Environment files
 
 Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
@@ -33,6 +42,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - Each app's `.env.schema` declares its variables and is committed. Varlock validates them at startup and generates `src/env.ts`.
 - Each app's `.env.example` lists the same variables with fake values. Update it in the change that starts reading a variable, and tell Téo which value goes in which file.
 - Real values live in `apps/server/.env` and `apps/web/.env`, which Git ignores. The worker and `packages/db` read the server's values through their schema's `@import`.
+- The `.env.example` at the root lists what `docker-compose.yml` reads. `TEST_DATABASE_URL` is set in the shell and in CI, in no file.
 - Show a file's variable names, never its contents. `envsync push` is Téo's to run.
 
 ## Commands
@@ -41,7 +51,8 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 
 - `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing. `pnpm run format` writes.
 - `pnpm run db:start` needs Docker.
-- `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 and belongs to the same Compose project as `db:start`, so stop the development API first.
+- `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 unless `API_PORT` and `POSTGRES_PORT` name others, and belongs to the same Compose project as `db:start`, so stop the development API first.
+- The tests that need Postgres are skipped unless `TEST_DATABASE_URL` names a server on which they may create databases: `TEST_DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres pnpm run test`. Each creates a database of its own and drops it.
 - The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
 - `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one job once with `pnpm --filter worker run job <provider>`, `... job alerts`, or `... job exposure`.
 - `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. `pnpm run demo:reload` rebuilds and restarts the app behind the same address. Delete `scripts/demo.mjs` once a real deployment exists.

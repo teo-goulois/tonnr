@@ -13,7 +13,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - A spot is private, public, or shared with chosen people.
 - A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
-Tonn is free and not commercial for now. Téo wants a better interface and richer notifications than La Bouée offers.
+Tonn is free and not commercial for now. It is open source: the repository is public, and anyone may host an instance of their own. Decision 012 says what follows from that. Téo wants a better interface and richer notifications than La Bouée offers.
 
 ## First release
 

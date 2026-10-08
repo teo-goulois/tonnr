@@ -2,9 +2,13 @@
 
 # Tonn
 
-A free surf-conditions service. Save your spots with the conditions that make them work, get alerted when measurements or forecasts match, and share them. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
+A free, open-source surf-conditions service. Save your spots with the conditions that make them work, get alerted when measurements or forecasts match, and share them. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
+
+Tonn is at an early stage. The API lives under `/v1`, and [decision 003](docs/decisions/003-api-versioning.md) says what may change inside a version.
 
 ## Run it
+
+You need Node 26, pnpm, and Docker.
 
 ```bash
 pnpm install
@@ -18,9 +22,20 @@ pnpm run dev:worker # fetch buoy data on a schedule
 
 The API reference is at http://localhost:3000/v1/docs. `pnpm run check` runs lint, the format check, the type check, and the tests.
 
+## Host it
+
+`docker compose up` runs the API, the worker, and Postgres from this repository. Each container brings the database up to date when it starts. [Hosting Tonn yourself](docs/self-hosting.md) gives the steps, and says what an instance owes the data providers.
+
+## The data
+
+The measurements belong to the networks that publish them, each under its own terms. Tonn stores every station's licence and attribution and returns them with the data. [Data sources](docs/data-sources.md) lists the providers and what each one allows.
+
+## Contribute
+
+[CONTRIBUTING.md](CONTRIBUTING.md) says how. Report a security problem in private, as [SECURITY.md](SECURITY.md) describes.
+
 ## Learn more
 
 - [Product vision](docs/product-vision.md)
-- [Data sources](docs/data-sources.md)
 - [Decisions](docs/decisions/README.md)
 - [AGENTS.md](AGENTS.md) for package boundaries and conventions
