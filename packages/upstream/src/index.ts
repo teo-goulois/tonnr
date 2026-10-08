@@ -19,39 +19,41 @@ const retrySchedule = Schedule.max([Schedule.exponential("500 millis"), Schedule
   Schedule.while(({ input }) => input.retryable),
 );
 
+class StatusError extends Error {
+  constructor(readonly status: number) {
+    super(`the provider answered ${status}`);
+  }
+}
+
 /** Fetches a document from a provider and reads its body, retrying network failures and 5xx answers. */
 const fetchBody = Effect.fn("fetchBody")(function* <Body>(
   url: string,
   read: (response: Response) => Promise<Body>,
 ) {
-  const request = Effect.gen(function* () {
-    const response = yield* Effect.tryPromise({
-      try: (signal) =>
-        fetch(url, {
-          headers: { "user-agent": USER_AGENT },
-          signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
-        }),
-      catch: (cause) => new UpstreamError({ url, retryable: true, cause }),
-    });
-
-    if (!response.ok) {
-      return yield* new UpstreamError({
-        url,
-        status: response.status,
-        retryable: response.status >= 500 || response.status === 429,
+  // One step for the request and its body: the signal that stops the request, on a timeout or
+  // when the run is interrupted, then stops the download too.
+  const request = Effect.tryPromise({
+    try: async (signal) => {
+      const response = await fetch(url, {
+        headers: { "user-agent": USER_AGENT },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
       });
-    }
-
-    return yield* Effect.tryPromise({
-      try: (signal) => {
-        // An interrupted run stops the download instead of leaving it open until the timeout.
-        signal.addEventListener("abort", () => void response.body?.cancel().catch(() => {}));
-        return read(response);
-      },
-      // A file that is too large stays too large: asking again would only download it again.
-      catch: (cause) =>
-        new UpstreamError({ url, retryable: !(cause instanceof TooLargeError), cause }),
-    });
+      if (!response.ok) {
+        // An error page is not read, and is not left open either.
+        await response.body?.cancel().catch(() => {});
+        throw new StatusError(response.status);
+      }
+      return await read(response);
+    },
+    catch: (cause) =>
+      cause instanceof StatusError
+        ? new UpstreamError({
+            url,
+            status: cause.status,
+            retryable: cause.status >= 500 || cause.status === 429,
+          })
+        : // A file that is too large stays too large: asking again would only download it again.
+          new UpstreamError({ url, retryable: !(cause instanceof TooLargeError), cause }),
   });
 
   return yield* request.pipe(Effect.retry(retrySchedule));

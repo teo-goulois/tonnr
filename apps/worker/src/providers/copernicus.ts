@@ -26,6 +26,8 @@ const WINDOW_MS = 72 * 60 * 60 * 1000;
 const MOORING = "MO";
 // The sea temperature is kept when it is measured within this depth, in metres.
 const SURFACE_DEPTH_M = 5;
+// Two positions this close are the same mooring: a hundred metres, far less than between two.
+const SAME_SPOT_DEG = 0.001;
 
 // What a run may read at most. The files come from outside. On 2026-10-08 the largest one
 // weighed 1.5 MB, and a run over three days kept about 110,000 rows.
@@ -279,12 +281,14 @@ function declaresOnly(sql: unknown, name: string, columns: readonly (readonly [s
 /**
  * Reads a file of one variable: a SQLite database with one row per platform, time, and depth.
  * Returns the rows from `since` on, how many rows it could not read, and how many more files
- * the store says continue this one.
+ * the store says continue this one. It stops at `maxRows` rows, which a run lowers to what it
+ * may still take.
  */
 export function readFile(
   bytes: Uint8Array,
   variable: string,
   since: Date,
+  maxRows = MAX_ROWS_PER_FILE,
 ): { rows: Row[]; rejected: number; overflowFiles: number } | FormatError {
   const database = new DatabaseSync(":memory:");
   try {
@@ -334,7 +338,7 @@ export function readFile(
         "from data where time >= ?",
     );
     for (const row of statement.iterate(Math.floor(since.getTime() / 1000))) {
-      if (rows.length + rejected >= MAX_ROWS_PER_FILE) {
+      if (rows.length + rejected >= maxRows) {
         return formatError(`the file of ${variable} holds too many rows for the window`);
       }
       const { platform_id, platform_type, time, longitude, latitude, elevation, value, value_qc } =
@@ -453,9 +457,12 @@ export function buildSnapshot(
       };
       moments.set(key, moment);
 
-      // Every variable of a moment must place the mooring at the same spot.
+      // Every variable of a moment must place the mooring at the same spot, give or take the
+      // rounding of a position.
       const isElsewhere = rows.some(
-        (row) => row.latitude !== moment.latitude || row.longitude !== moment.longitude,
+        (row) =>
+          Math.abs(row.latitude - moment.latitude) > SAME_SPOT_DEG ||
+          Math.abs(row.longitude - moment.longitude) > SAME_SPOT_DEG,
       );
       if (isElsewhere && !ambiguous.has(key)) {
         ambiguous.add(key);
@@ -548,25 +555,27 @@ export const copernicus: Provider = {
         );
         if (bytes === null) continue;
 
-        const file = readFile(bytes, name, since);
-        if (file instanceof FormatError) return yield* file;
-        const parts = [file];
+        // Each file is counted as it is read, so a run never holds more rows than its budget.
+        const allowance = () => Math.min(MAX_ROWS_PER_FILE, MAX_ROWS_PER_RUN - total);
+        const take = (file: { rows: Row[]; rejected: number }) => {
+          total += file.rows.length + file.rejected;
+          rejected += file.rejected;
+          for (const row of file.rows) rows.push(row);
+        };
+
+        const first = readFile(bytes, name, since, allowance());
+        if (first instanceof FormatError) return yield* first;
+        take(first);
         // A file the store announces must be there.
-        for (let part = 1; part <= file.overflowFiles; part += 1) {
+        for (let part = 1; part <= first.overflowFiles; part += 1) {
           const more = readFile(
             yield* fetchBytes(`${url}b${part}.sqlite`, MAX_FILE_BYTES),
             name,
             since,
+            allowance(),
           );
           if (more instanceof FormatError) return yield* more;
-          parts.push(more);
-        }
-
-        for (const part of parts) {
-          total += part.rows.length;
-          if (total > MAX_ROWS_PER_RUN) return yield* formatError("the run holds too many rows");
-          for (const row of part.rows) rows.push(row);
-          rejected += part.rejected;
+          take(more);
         }
       }
       rowsByVariable.set(name, rows);

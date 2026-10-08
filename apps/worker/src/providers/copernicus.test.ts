@@ -358,6 +358,27 @@ describe("readFile", () => {
     expect(many(200_001)).toBeInstanceOf(FormatError);
   });
 
+  it("stops at what the run may still take", () => {
+    const three = Array.from({ length: 3 }, (_, index) => [
+      `P${index}___MO`,
+      "MO",
+      AT_1100,
+      -3,
+      43,
+      0,
+      0,
+      null,
+      1,
+      1,
+    ]);
+
+    expect(readFile(file(three), "VHM0", since, 3)).toMatchObject({ rejected: 0 });
+    expect(readFile(file(three), "VHM0", since, 2)).toBeInstanceOf(FormatError);
+    expect(readFile(file(three), "VHM0", since, 0)).toBeInstanceOf(FormatError);
+    // A file with nothing in the window takes nothing from the run.
+    expect(readFile(file([]), "VHM0", since, 0)).toMatchObject({ rows: [] });
+  });
+
   it("reports a file that holds anything but the two plain tables", () => {
     const refused = [
       // Other columns, one more column, and a column with an expression.
@@ -599,6 +620,16 @@ describe("buildSnapshot", () => {
       expect(result.rejected).toBe(1);
       expect(result.readings).toEqual([]);
     }
+  });
+
+  it("takes two positions a rounding apart for the same spot", () => {
+    const { readings, rejected } = snapshot({
+      VHM0: [row()],
+      VTPK: [row({ value: 15, longitude: -3.0400001 })],
+    });
+
+    expect(rejected).toBe(0);
+    expect(readings).toMatchObject([{ significantHeightM: 3.16, peakPeriodS: 15 }]);
   });
 
   it("rejects a moment that two variables place at two spots", () => {
