@@ -11,7 +11,7 @@ import { logger } from "hono/logger";
 
 import { createContext } from "./context";
 import { ENV } from "./env.server";
-import { auth } from "./services";
+import { auth, db } from "./services";
 
 const app = new Hono();
 
@@ -95,10 +95,20 @@ const server = serve(
   },
 );
 
-// A container is stopped with SIGTERM. Requests under way get to finish, within five seconds.
+// A container is stopped with SIGTERM. Requests under way get five seconds to finish.
+let stopping = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 5000).unref();
+    if (stopping) return;
+    stopping = true;
+
+    setTimeout(() => {
+      console.error("Stopped with requests still under way");
+      process.exit(1);
+    }, 5000).unref();
+    server.close(async () => {
+      await db.$client.end();
+      process.exit(0);
+    });
   });
 }
