@@ -60,3 +60,4 @@ temp
 
 # The running demo, see scripts/demo.mjs
 .demo.pid
+.localify/project.json

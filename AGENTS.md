@@ -15,6 +15,16 @@ Read `docs/product-vision.md` before product work, `docs/data-sources.md` before
 - `packages/upstream` is how the API and the worker call a data provider. It sets the user agent, the timeout, and the retries, so no other code calls `fetch` on a provider.
 - `packages/auth` sets up Better Auth. `packages/ui` holds shared interface primitives.
 
+## Interface
+
+For UI work, follow `GUI.md` and use `graphical-ui`, `graphical-convert`, or `graphical-audit` from `.agents/skills/` as appropriate. Decision 014 says how the web app and the mobile app share a design.
+
+- The Tonnr theme is defined once, in `packages/ui/src/styles/globals.css`. `gui/` is the snapshot it was written from, not a source to edit.
+- `rounded-s`, `rounded-l`, and `max-w-xl` do not mean the theme's steps in Tailwind. The comment above `@theme` in that file gives the spelling to use.
+- Icons are imported from `@repo/ui/icon` and nowhere else.
+- `/` is the landing page and `/app` is the product. A screen under `/app` is a component that takes props, in `apps/web/src/components/<feature>/`, and its route loads the data.
+- Every string a user reads is a message in `apps/web/messages/en.json` and `fr.json`. English has no URL prefix, French lives under `/fr`. Paraglide generates `apps/web/src/paraglide/`, which Git ignores.
+
 ## The product name
 
 The name may change. Read it from `APP_NAME` in `@repo/config/app` wherever a user sees it, and keep it out of identifiers. Packages use the neutral `@repo` scope for that reason.
@@ -25,6 +35,13 @@ To rename the product, change `APP_NAME`, then the prose in `README.md`, this fi
 
 - Fetch from the upstream providers listed in `docs/data-sources.md`.
 - Store each station's license and attribution, and return them in API responses.
+
+## Working with others
+
+Other people and agents work on this repository from other machines, on `main`.
+
+- Commit often, one change per commit, so that work in progress never sits only on one machine.
+- Run `git pull --rebase` before starting a task and before each commit.
 
 ## A public repository
 
@@ -49,6 +66,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 
 `package.json` lists the scripts. These have a catch:
 
+- Localify serves the web app at `https://tonnr.localify` and the API at `https://api.tonnr.localify`. Start each with `localify dev web` and `localify dev server`: Localify picks the port. The local `.env` files name these two addresses, so the API's CORS and the auth cookies match them.
 - `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing. `pnpm run format` writes.
 - `pnpm run db:start` needs Docker.
 - `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 unless `API_PORT` and `POSTGRES_PORT` name others, and belongs to the same Compose project as `db:start`, so stop the development API first.
