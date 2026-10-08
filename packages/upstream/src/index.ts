@@ -43,7 +43,11 @@ const fetchBody = Effect.fn("fetchBody")(function* <Body>(
     }
 
     return yield* Effect.tryPromise({
-      try: () => read(response),
+      try: (signal) => {
+        // An interrupted run stops the download instead of leaving it open until the timeout.
+        signal.addEventListener("abort", () => void response.body?.cancel().catch(() => {}));
+        return read(response);
+      },
       // A file that is too large stays too large: asking again would only download it again.
       catch: (cause) =>
         new UpstreamError({ url, retryable: !(cause instanceof TooLargeError), cause }),
@@ -57,8 +61,15 @@ class TooLargeError extends Error {}
 
 /** Reads a body up to a size, and stops the download when the body turns out to be larger. */
 async function readUpTo(response: Response, maxBytes: number) {
-  const tooLarge = () => new TooLargeError(`the file is larger than ${maxBytes} bytes`);
-  if (Number(response.headers.get("content-length")) > maxBytes) throw tooLarge();
+  // Stopping the download is a courtesy. Whether it works or not, the file is too large.
+  const tooLarge = async () => {
+    await response.body?.cancel().catch(() => {});
+    return new TooLargeError(`the file is larger than ${maxBytes} bytes`);
+  };
+  // The announced size is that of the body as it travels. It says how large the body is only
+  // when the body is not compressed on the way.
+  const announced = Number(response.headers.get("content-length"));
+  if (!response.headers.get("content-encoding") && announced > maxBytes) throw await tooLarge();
 
   const parts: Uint8Array[] = [];
   let size = 0;
@@ -69,8 +80,8 @@ async function readUpTo(response: Response, maxBytes: number) {
       if (done) break;
       size += value.byteLength;
       if (size > maxBytes) {
-        await reader.cancel();
-        throw tooLarge();
+        await reader.cancel().catch(() => {});
+        throw await tooLarge();
       }
       parts.push(value);
     }
@@ -85,8 +96,14 @@ async function readUpTo(response: Response, maxBytes: number) {
   return bytes;
 }
 
+// What a text answer may weigh at most. The largest one read today is a megabyte.
+const MAX_TEXT_BYTES = 32 * 1024 * 1024;
+
 /** Fetches a text document from a provider. */
-export const fetchText = (url: string) => fetchBody(url, (response) => response.text());
+export const fetchText = (url: string) =>
+  fetchBody(url, async (response) =>
+    new TextDecoder().decode(await readUpTo(response, MAX_TEXT_BYTES)),
+  );
 
 /**
  * Fetches a file from a provider as it is, for the formats that are not text. The caller says

@@ -52,8 +52,8 @@ type ReadingInput = Snapshot["readings"][number];
 /**
  * Makes one reading of the readings a snapshot gives for the same station and moment, by the
  * rule the database follows: a value that is there stays, and a value that is missing is taken
- * from the next reading that has it. The result is validated only when every reading that went
- * into it was.
+ * from the next reading that has it. The result is validated only when every reading it took a
+ * value from was.
  */
 export function mergeReadings(readings: readonly ReadingInput[]): ReadingInput[] {
   const merged = new Map<string, ReadingInput>();
@@ -66,10 +66,15 @@ export function mergeReadings(readings: readonly ReadingInput[]): ReadingInput[]
       continue;
     }
 
+    let hasTaken = false;
     for (const field of MEASUREMENT_FIELDS) {
-      if (first[field] == null && next[field] != null) first[field] = next[field];
+      if (first[field] == null && next[field] != null) {
+        first[field] = next[field];
+        hasTaken = true;
+      }
     }
-    first.validated = (first.validated ?? false) && (next.validated ?? false);
+    // A reading that brings nothing changes nothing, its validated mark included.
+    if (hasTaken) first.validated = (first.validated ?? false) && (next.validated ?? false);
   }
 
   return [...merged.values()];

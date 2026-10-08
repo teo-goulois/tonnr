@@ -49,16 +49,29 @@ describe("mergeReadings", () => {
     expect(merged).toMatchObject([{ significantHeightM: 2, peakPeriodS: 10 }]);
   });
 
-  it("calls the result validated only when every reading that went into it was", () => {
-    const reading = { providerStationId: "one", observedAt: AT_1000, significantHeightM: 2 };
-    const validated = (...flags: (boolean | undefined)[]) =>
-      mergeReadings(flags.map((flag) => ({ ...reading, validated: flag })))[0]?.validated;
+  it("calls the result validated only when every reading it took a value from was", () => {
+    const height = { providerStationId: "one", observedAt: AT_1000, significantHeightM: 2 };
+    const period = { providerStationId: "one", observedAt: AT_1000, peakPeriodS: 10 };
+    const validated = (first: boolean | undefined, second: boolean | undefined) =>
+      mergeReadings([
+        { ...height, validated: first },
+        { ...period, validated: second },
+      ])[0]?.validated;
 
     expect(validated(true, true)).toBe(true);
     expect(validated(true, false)).toBe(false);
     expect(validated(false, true)).toBe(false);
     expect(validated(true, undefined)).toBe(false);
-    expect(validated(true)).toBe(true);
+  });
+
+  it("leaves the validated mark alone when the second reading brings nothing", () => {
+    const height = { providerStationId: "one", observedAt: AT_1000, significantHeightM: 2 };
+    const merged = mergeReadings([
+      { ...height, validated: true },
+      { ...height, significantHeightM: 8, validated: false },
+    ]);
+
+    expect(merged).toEqual([{ ...height, validated: true }]);
   });
 
   it("does not change the readings it was given", () => {
