@@ -1,6 +1,6 @@
 # 009. Deployment of the API and the worker
 
-Status: proposed to Téo on 2026-10-08. CI builds the two images on amd64 and starts them on an empty database: the worker applies the migrations and schedules its runs, the API serves, and each stops cleanly. On an arm64 Mac the worker also ingested every provider. Not tried: Easypanel itself, and a switch from one version to the next. Nothing is deployed yet.
+Status: in use since 2026-10-08, when Téo deployed the three services on Easypanel. The API answers at `api.tonnr.app` and the worker ingests. CI builds the two images on amd64 and starts them on an empty database at every push. Not tried yet: a release whose migration the previous version has to live with.
 
 ## Context
 
@@ -17,6 +17,7 @@ Decision 001 puts the API, the worker, and Postgres on Téo's Easypanel server, 
 - Both programs stop on SIGTERM. The API gives requests under way five seconds to finish and exits with an error when it has to cut one. A stop during the migrations ends the process at once, and Postgres rolls back the migration under way.
 - Both run as the `node` user, not as root.
 - `docker-compose.yml` runs the same two images with Postgres on one machine, to try a release before it is deployed.
+- Easypanel deploys a service when its deploy address is called. `pnpm run deploy:api` and `pnpm run deploy:worker` call it, reading it from the root `.env`: whoever knows the address can deploy, so it stays out of the repository.
 
 ## First deployment
 

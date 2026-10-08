@@ -42,7 +42,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - Each app's `.env.schema` declares its variables and is committed. Varlock validates them at startup and generates `src/env.ts`.
 - Each app's `.env.example` lists the same variables with fake values. Update it in the change that starts reading a variable, and tell Téo which value goes in which file.
 - Real values live in `apps/server/.env` and `apps/web/.env`, which Git ignores. The worker and `packages/db` read the server's values through their schema's `@import`.
-- The `.env.example` at the root lists what `docker-compose.yml` reads. `TEST_DATABASE_URL` is set in the shell and in CI, in no file.
+- The `.env.example` at the root lists what `docker-compose.yml` and the deploy commands read. `TEST_DATABASE_URL` is set in the shell and in CI, in no file.
 - Show a file's variable names, never its contents. `envsync push` is Téo's to run.
 
 ## Commands
@@ -55,6 +55,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - The tests that need Postgres are skipped unless `TEST_DATABASE_URL` names a server on which they may create databases: `TEST_DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres pnpm run test`. Each creates a database of its own and drops it.
 - The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
 - `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one job once with `pnpm --filter worker run job <provider>`, `... job alerts`, or `... job exposure`.
+- `pnpm run deploy:api` and `pnpm run deploy:worker` ask Easypanel to build and restart a service of Téo's instance, from what is on `main`. Each calls the service's deploy address, a secret that lives in the root `.env` and nowhere in the repository. `pnpm run deploy` is something else: it sends the web app to Cloudflare.
 - `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. `pnpm run demo:reload` rebuilds and restarts the app behind the same address. Delete `scripts/demo.mjs` once a real deployment exists.
 - Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files. Turborepo refuses these scripts in a shell without a terminal, as an agent's is: run them in the package, `pnpm --filter @repo/db run db:migrate`.
 - Run `pnpm run auth:generate` after changing Better Auth plugins, and `pnpm run env:generate` after changing a `.env.schema`.

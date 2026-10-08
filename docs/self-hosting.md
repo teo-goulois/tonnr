@@ -37,6 +37,8 @@ Run the same three services: `postgres:18` with its volume mounted at `/var/lib/
 
 The services may start in any order, and together.
 
+On Easypanel, each service has a deploy address under "Deployments". Put it in the root `.env`, as `.env.example` shows, and `pnpm run deploy:api` or `pnpm run deploy:worker` deploys the service from your machine. Keep the address secret: whoever knows it can deploy.
+
 ## Updating
 
 ```bash
