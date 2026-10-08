@@ -22,7 +22,7 @@ Tonn is free and not commercial for now. Téo wants a better interface and riche
 - Swell and wind forecasts, fetched per spot.
 - Tides, computed from open harmonic constants. Téo rates them as essential. Decision 002 covers the source.
 - History for a point, switched on when a user first shows interest in that point.
-- Alerts by email and web push.
+- Alerts when a spot is forecast to work. They are recorded and listed by the API. Sending them by email and web push is not built.
 
 A mobile app follows the first release. The API runs as its own service, and notifications are designed for mobile push from the start.
 

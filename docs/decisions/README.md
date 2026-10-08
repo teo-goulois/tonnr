@@ -9,3 +9,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [005. Forecast source](005-forecasts.md)
 - [006. Spots and their criteria](006-spots.md)
 - [007. Wind stations](007-wind-stations.md)
+- [008. Alerts](008-alerts.md)

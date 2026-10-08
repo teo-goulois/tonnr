@@ -421,6 +421,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@neaps/tide-database':
+        specifier: 'catalog:'
+        version: 0.9.20260907
+      '@repo/conditions':
+        specifier: workspace:*
+        version: link:../../packages/conditions
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db

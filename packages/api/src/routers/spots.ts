@@ -30,6 +30,8 @@ const spotFields = {
   longitude: z.number().min(-180).max(180),
   visibility: z.enum(["private", "public"]),
   criteria: criteriaSchema,
+  // Whether the owner is notified when the spot is forecast to work.
+  alertsEnabled: z.boolean(),
 };
 
 const spotSchema = z.object({
@@ -51,6 +53,7 @@ function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined)
     longitude: row.longitude,
     visibility: row.visibility,
     criteria: row.criteria,
+    alertsEnabled: row.alertsEnabled,
     isOwner: row.userId === userId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -76,6 +79,7 @@ export const spotsRouter = {
         ...spotFields,
         visibility: spotFields.visibility.default("private"),
         criteria: criteriaSchema.default({}),
+        alertsEnabled: spotFields.alertsEnabled.default(false),
       }),
     )
     .output(spotSchema)

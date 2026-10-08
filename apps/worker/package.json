@@ -7,11 +7,13 @@
     "check-types": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.mjs",
-    "ingest": "tsx src/cli.ts",
     "test": "vitest run",
-    "env:generate": "varlock codegen"
+    "env:generate": "varlock codegen",
+    "job": "tsx src/cli.ts"
   },
   "dependencies": {
+    "@neaps/tide-database": "catalog:",
+    "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/upstream": "workspace:*",
     "drizzle-orm": "catalog:",

@@ -2,6 +2,7 @@ import { createDb } from "@repo/db";
 import { Effect } from "effect";
 import { PgBoss } from "pg-boss";
 
+import { evaluateAlerts } from "./alerts";
 import { ENV } from "./env.server";
 import { ingest, providers } from "./ingest";
 import { pruneReadings } from "./store";
@@ -39,6 +40,16 @@ await boss.work(PRUNE_QUEUE, async () => {
   const deleted = await Effect.runPromise(pruneReadings(db));
   console.log(`Pruned ${deleted} old wind readings`);
 });
+
+const ALERTS_QUEUE = "evaluate-alerts";
+await boss.createQueue(ALERTS_QUEUE, { policy: "stately", retryLimit: 0 });
+await boss.updateQueue(ALERTS_QUEUE, { retryLimit: 0 });
+// Forecast models are renewed every six to twelve hours, so every three hours is often enough.
+await boss.schedule(ALERTS_QUEUE, "20 */3 * * *");
+await boss.work(ALERTS_QUEUE, async () => {
+  await Effect.runPromise(evaluateAlerts(db));
+});
+await boss.send(ALERTS_QUEUE);
 
 async function shutdown() {
   await boss.stop();
