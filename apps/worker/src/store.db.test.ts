@@ -29,7 +29,7 @@ describe.skipIf(!TEST_DATABASE_URL)("saveSnapshot", () => {
   beforeAll(async () => {
     database = await createTestDatabase();
   });
-  afterAll(() => database.drop());
+  afterAll(() => database?.drop());
 
   const save = (stations: Snapshot["stations"], readings: Snapshot["readings"] = []) =>
     Effect.runPromise(saveSnapshot(database.db, "test", { stations, readings, rejected: 0 }));

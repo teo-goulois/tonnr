@@ -10,7 +10,7 @@ describe.skipIf(!TEST_DATABASE_URL)("migrateDatabase", () => {
   beforeAll(async () => {
     database = await createEmptyTestDatabase();
   });
-  afterAll(() => database.drop());
+  afterAll(() => database?.drop());
 
   it("lets the containers of a deployment start together on an empty database", async () => {
     await Promise.all([

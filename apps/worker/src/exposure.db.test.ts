@@ -80,7 +80,7 @@ describe.skipIf(!TEST_DATABASE_URL)("updateExposure", () => {
       .set({ movedAt: new Date("2026-10-08T00:00:00Z") })
       .where(eq(station.id, "test-moved"));
   });
-  afterAll(() => database.drop());
+  afterAll(() => database?.drop());
 
   const exposures = async () => {
     const rows = await database.db

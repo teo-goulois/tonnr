@@ -11,33 +11,60 @@ export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 export const migrationsFolder = path.resolve(import.meta.dirname, "migrations");
 
-async function onServer(statement: string) {
+/** The server's address, refused before anything is created when it is not a plain one. */
+function serverUrl() {
   if (!TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL is not set");
 
-  const server = createDb({ DATABASE_URL: TEST_DATABASE_URL });
+  const url = new URL(TEST_DATABASE_URL);
+  if (url.protocol !== "postgresql:" && url.protocol !== "postgres:") {
+    throw new Error("TEST_DATABASE_URL must be a postgresql:// address");
+  }
+  // The driver lets a parameter name another database than the path does.
+  if (url.search !== "") throw new Error("TEST_DATABASE_URL must not carry parameters");
+  return url;
+}
+
+async function query(databaseUrl: string, statement: string) {
+  const db = createDb({ DATABASE_URL: databaseUrl });
   try {
-    await server.$client.query(statement);
+    return await db.$client.query(statement);
   } finally {
-    await server.$client.end();
+    await db.$client.end();
   }
 }
 
 /** Creates a database with no table in it. `drop` deletes it. */
 export async function createEmptyTestDatabase() {
-  if (!TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL is not set");
-
+  const url = serverUrl();
+  const server = url.href;
   const name = `test_${randomUUID().replaceAll("-", "")}`;
-  await onServer(`create database ${name}`);
-
-  const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${name}`;
-  return { url: url.href, drop: () => onServer(`drop database ${name} with (force)`) };
+
+  await query(server, `create database ${name}`);
+  const drop = async () => {
+    await query(server, `drop database if exists ${name} with (force)`);
+  };
+
+  try {
+    // Whatever the driver made of the address, the tests must be where they think they are.
+    const { rows } = await query(url.href, "select current_database() as name");
+    if (rows[0]?.name !== name) throw new Error("The address does not lead to the test database");
+  } catch (error) {
+    await drop();
+    throw error;
+  }
+  return { url: url.href, drop };
 }
 
 /** Creates a database with the current schema. `drop` closes its connections and deletes it. */
 export async function createTestDatabase() {
   const { url, drop } = await createEmptyTestDatabase();
-  await migrateDatabase(url, migrationsFolder);
+  try {
+    await migrateDatabase(url, migrationsFolder);
+  } catch (error) {
+    await drop();
+    throw error;
+  }
 
   const db = createDb({ DATABASE_URL: url });
   return {
