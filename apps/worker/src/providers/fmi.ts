@@ -5,7 +5,7 @@ import { parseDecimal } from "./decimal";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
-import { parseUtcTime } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 import { decodeXmlEntities } from "./xml";
 
 // The Finnish Meteorological Institute's open data, wave buoys of the Baltic. The last twelve
@@ -101,7 +101,7 @@ export function parseWaveObservations(xml: string): Snapshot | FormatError {
       const value = plausible(measurement, number);
       if (value === null) continue;
 
-      const observedAt = parseUtcTime(time.trim());
+      const observedAt = parseZonedTime(time.trim());
       if (!observedAt) {
         rejected += 1;
         continue;

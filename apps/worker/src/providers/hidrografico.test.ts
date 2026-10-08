@@ -14,18 +14,17 @@ function buoy(properties: Record<string, unknown> = {}, coordinates: unknown = [
       area: "Continente - Leixões",
       status: "active",
       nrt: "near-real-time data available",
-      last_sea: "2026-10-08T09:32:16+00:00",
       ...properties,
     },
   };
 }
 
+function list(features: unknown[], more: Record<string, unknown> = {}) {
+  return { type: "FeatureCollection", features, numberMatched: features.length, ...more };
+}
+
 function listed(...features: unknown[]) {
-  const result = parseBuoys({
-    type: "FeatureCollection",
-    features,
-    numberMatched: features.length,
-  });
+  const result = parseBuoys(list(features));
   if (result instanceof FormatError) throw result;
   return result;
 }
@@ -51,54 +50,74 @@ const VALUES: Record<string, unknown[]> = {
   sea_water_temperature: [16.4, 16.4],
 };
 
-// An answer as the API gives it, cut down to what the parser reads.
-function observations(
-  overrides: {
-    times?: unknown[];
-    values?: Record<string, unknown[]>;
-    flags?: Record<string, unknown[]>;
-    units?: Record<string, string>;
-  } = {},
-) {
-  const times = overrides.times ?? TIMES;
-  const parameters: Record<string, unknown> = {};
-  const ranges: Record<string, unknown> = {};
-  for (const [name, unit] of Object.entries({ ...UNITS, ...overrides.units })) {
-    parameters[name] = { type: "Parameter", unit: { symbol: { value: unit } } };
-    parameters[`${name}_qc`] = { type: "Parameter" };
-    ranges[name] = { type: "NdArray", values: overrides.values?.[name] ?? VALUES[name] };
+type Series = {
+  id?: unknown;
+  times?: unknown[];
+  values?: Record<string, unknown[]>;
+  flags?: Record<string, unknown[]>;
+};
+
+// One buoy's series as the API gives it, cut down to what the parser reads.
+function coverage({ id = "4", times = TIMES, values = {}, flags = {} }: Series = {}) {
+  const ranges: Record<string, Record<string, unknown>> = {};
+  for (const name of Object.keys(UNITS)) {
+    const shape = [times.length];
+    ranges[name] = {
+      type: "NdArray",
+      axisNames: ["t"],
+      shape,
+      values: values[name] ?? VALUES[name]?.slice(0, times.length),
+    };
     ranges[`${name}_qc`] = {
       type: "NdArray",
-      values: overrides.flags?.[name] ?? times.map(() => 1),
+      axisNames: ["t"],
+      shape,
+      values: flags[name] ?? times.map(() => 1),
     };
   }
 
   return {
+    type: "Coverage",
+    id,
+    domain: {
+      type: "Domain",
+      domainType: "PointSeries",
+      axes: { x: { values: [-8.9825] }, y: { values: [41.3155] }, t: { values: times } },
+    },
+    ranges,
+  };
+}
+
+function parameters(units: Record<string, string> = {}) {
+  const result: Record<string, unknown> = {};
+  for (const [name, unit] of Object.entries({ ...UNITS, ...units })) {
+    result[name] = { type: "Parameter", unit: { symbol: { value: unit } } };
+    result[`${name}_qc`] = { type: "Parameter" };
+  }
+  return result;
+}
+
+function collection(coverages: unknown[], units: Record<string, string> = {}) {
+  return {
     type: "CoverageCollection",
     domainType: "PointSeries",
-    parameters,
-    coverages: [
-      {
-        type: "Coverage",
-        id: "4",
-        domain: {
-          type: "Domain",
-          axes: { x: { values: [-8.9825] }, y: { values: [41.3155] }, t: { values: times } },
-        },
-        ranges,
-      },
-    ],
+    parameters: parameters(units),
+    coverages,
   };
 }
 
 function parse(json: unknown) {
-  const result = parseObservations(json, "4");
+  const result = parseObservations(json);
   if (result instanceof FormatError) throw result;
   return result;
 }
 
+function parseOne(series: Series = {}) {
+  return parse(collection([coverage(series)]));
+}
+
 describe("parseBuoys", () => {
-  it("keeps the active buoys, named after where they are moored", () => {
+  it("names each buoy after where it is moored, whatever its status", () => {
     const { buoys, rejected } = listed(
       buoy(),
       buoy({ id_est: 20, area: "Continente - Faro", status: "inactive" }, [-7.89779, 36.904495]),
@@ -108,6 +127,7 @@ describe("parseBuoys", () => {
     expect(rejected).toBe(0);
     expect(buoys).toEqual([
       { id: "4", name: "Continente - Leixões", latitude: 41.3155, longitude: -8.9825 },
+      { id: "20", name: "Continente - Faro", latitude: 36.904495, longitude: -7.89779 },
       { id: "19", name: "Continente - Sines", latitude: 37.9211, longitude: -8.9286 },
     ]);
   });
@@ -125,22 +145,31 @@ describe("parseBuoys", () => {
     expect(buoys.map((entry) => entry.id)).toEqual(["4"]);
   });
 
-  it("reports a status it does not know instead of guessing", () => {
-    const result = parseBuoys({ features: [buoy({ status: "maintenance" })] });
+  it("reports a list that is not whole", () => {
+    const next = {
+      rel: "next",
+      href: "https://ogcapi.hidrografico.pt/collections/buoys_datawell/items?offset=1",
+    };
 
-    expect(result).toBeInstanceOf(FormatError);
+    expect(parseBuoys(list([buoy()], { numberMatched: 120 }))).toBeInstanceOf(FormatError);
+    expect(parseBuoys(list([buoy()], { numberReturned: 2 }))).toBeInstanceOf(FormatError);
+    expect(parseBuoys({ features: [buoy()], links: [next] })).toBeInstanceOf(FormatError);
   });
 
-  it("reports a list cut by paging, and an answer that is not a list", () => {
-    expect(parseBuoys({ features: [buoy()], numberMatched: 120 })).toBeInstanceOf(FormatError);
+  it("accepts a list that gives no count, and reports an answer that is not a list", () => {
+    expect(parseBuoys({ features: [buoy()], links: [{ rel: "self" }] })).not.toBeInstanceOf(
+      FormatError,
+    );
     expect(parseBuoys({ code: "NotFound" })).toBeInstanceOf(FormatError);
     expect(parseBuoys("<html></html>")).toBeInstanceOf(FormatError);
   });
 });
 
 describe("parseObservations", () => {
-  it("turns each time into a reading", () => {
-    const { readings, rejected } = parse(observations());
+  it("turns each time of each buoy into a reading", () => {
+    const { readings, rejected } = parse(
+      collection([coverage(), coverage({ id: "19", times: [TIMES[1]] })]),
+    );
 
     expect(rejected).toBe(0);
     expect(readings).toEqual([
@@ -168,118 +197,179 @@ describe("parseObservations", () => {
         waterTemperatureC: 16.4,
         validated: true,
       },
+      {
+        providerStationId: "19",
+        observedAt: new Date("2026-10-08T09:32:16Z"),
+        significantHeightM: 2.09,
+        maxHeightM: 2.83,
+        peakPeriodS: 10,
+        meanPeriodS: 5.7,
+        peakDirectionDeg: 335,
+        directionalSpreadDeg: 17,
+        waterTemperatureC: 16.4,
+        validated: true,
+      },
     ]);
   });
 
-  it("leaves out a value flagged as bad or missing, and keeps the rest of the reading", () => {
-    const { readings } = parse(
-      observations({
-        flags: { wave_tp: [4, 9], wave_thtp: [3, 2], sea_water_temperature: [1, 0] },
-      }),
-    );
+  it("reads one buoy that comes as a single series, not as a collection", () => {
+    const single = { ...coverage(), parameters: parameters() };
 
-    expect(readings[0]).toMatchObject({
-      peakPeriodS: null,
-      peakDirectionDeg: null,
-      significantHeightM: 2.09,
-    });
-    expect(readings[1]).toMatchObject({
-      peakPeriodS: null,
-      peakDirectionDeg: 332,
-      waterTemperatureC: 16.4,
-    });
+    expect(parse(single).readings.map((reading) => reading.providerStationId)).toEqual(["4", "4"]);
   });
 
-  it("marks a reading as validated only when its wave height is flagged good", () => {
-    const { readings } = parse(observations({ flags: { wave_hm0: [0, 2] } }));
+  it("leaves out a value whose flag says not to use it, and keeps the rest of the reading", () => {
+    const { readings, rejected } = parseOne({
+      flags: { wave_tp: [4, 9], wave_thtp: [3, "A"], wave_sprtp: [8, 5], wave_hmax: [6, 7] },
+    });
 
-    expect(readings.map((reading) => reading.validated)).toEqual([false, false]);
-    expect(readings.map((reading) => reading.significantHeightM)).toEqual([2.09, 2.2]);
+    expect(rejected).toBe(0);
+    expect(readings).toHaveLength(2);
+    for (const reading of readings) {
+      expect(reading).toMatchObject({
+        peakPeriodS: null,
+        peakDirectionDeg: null,
+        directionalSpreadDeg: null,
+        maxHeightM: null,
+        waterTemperatureC: 16.4,
+        validated: true,
+      });
+    }
+  });
+
+  it("marks a reading as validated only when every value it keeps is flagged good", () => {
+    const { readings } = parseOne({
+      times: [...TIMES, "2026-10-08T10:02:16Z", "2026-10-08T10:32:16Z"],
+      values: Object.fromEntries(Object.keys(UNITS).map((name) => [name, [1, 1, 1, 1]])),
+      flags: {
+        // Good, not checked, probably good, and no flag at all.
+        wave_tp: [1, 0, 2, null],
+        // A value left out for a bad flag says nothing about the values that stay.
+        wave_thtp: [4, 1, 1, 1],
+      },
+    });
+
+    expect(readings.map((reading) => reading.validated)).toEqual([true, false, false, false]);
+    expect(readings.map((reading) => reading.peakPeriodS)).toEqual([1, 1, 1, 1]);
+  });
+
+  it("reads a flag written as text like the same flag written as a number", () => {
+    const { readings } = parseOne({ flags: { wave_tp: ["1", "4"] } });
+
+    expect(readings.map((reading) => reading.peakPeriodS)).toEqual([10, null]);
+    expect(readings.map((reading) => reading.validated)).toEqual([true, true]);
   });
 
   it("leaves out a time without a usable wave height", () => {
-    const missing = parse(observations({ values: { ...VALUES, wave_hm0: [null, 2.2] } }));
+    const missing = parseOne({ values: { wave_hm0: [null, 2.2] } });
     expect(missing.readings.map((reading) => reading.significantHeightM)).toEqual([2.2]);
     expect(missing.rejected).toBe(0);
 
-    const bad = parse(observations({ flags: { wave_hm0: [4, 1] } }));
+    const bad = parseOne({ flags: { wave_hm0: [4, 1] } });
     expect(bad.readings.map((reading) => reading.significantHeightM)).toEqual([2.2]);
   });
 
   it("treats a value the sea cannot produce as missing", () => {
-    const { readings } = parse(observations({ values: { ...VALUES, wave_thtp: [999, 332] } }));
+    const { readings } = parseOne({ values: { wave_thtp: [999, 332] } });
 
     expect(readings.map((reading) => reading.peakDirectionDeg)).toEqual([null, 332]);
   });
 
-  it("rejects a time it cannot read, and a value that is not a number", () => {
-    const badTime = parse(
-      observations({ times: ["2026-02-31T09:02:16Z", "2026-10-08T09:32:16Z"] }),
-    );
+  it("rejects a time it cannot read, a value that is not a number, and a flag it does not know", () => {
+    const badTime = parseOne({ times: ["2026-02-31T09:02:16Z", TIMES[1]] });
     expect(badTime.rejected).toBe(1);
     expect(badTime.readings).toHaveLength(1);
 
-    const badValue = parse(observations({ values: { ...VALUES, wave_tp: ["10,0", 10] } }));
+    const badValue = parseOne({ values: { wave_tp: ["10,0", 10] } });
     expect(badValue.rejected).toBe(1);
     expect(badValue.readings.map((reading) => reading.peakPeriodS)).toEqual([10]);
 
-    const badFlag = parse(observations({ flags: { wave_tp: ["A", 1] } }));
+    const badFlag = parseOne({ flags: { wave_tp: ["Z", 1] } });
     expect(badFlag.rejected).toBe(1);
     expect(badFlag.readings).toHaveLength(1);
   });
 
+  it("reads a time written with another zone or without seconds", () => {
+    const { readings } = parseOne({ times: ["2026-10-08T10:02:16+01:00", "2026-10-08T09:32Z"] });
+
+    expect(readings.map((reading) => reading.observedAt)).toEqual([
+      new Date("2026-10-08T09:02:16Z"),
+      new Date("2026-10-08T09:32:00Z"),
+    ]);
+  });
+
+  it("rejects a second value for the same buoy and moment", () => {
+    const first = coverage({ times: [TIMES[0]] });
+    const again = coverage({ times: ["2026-10-08T09:02:16+00:00"], values: { wave_hm0: [7] } });
+    const { readings, rejected } = parse(collection([first, again]));
+
+    expect(rejected).toBe(1);
+    expect(readings.map((reading) => reading.significantHeightM)).toEqual([2.09]);
+  });
+
   it("reports a change of unit instead of storing wrong values", () => {
-    const result = parseObservations(observations({ units: { wave_hm0: "cm" } }), "4");
+    const result = parseObservations(collection([coverage()], { wave_hm0: "cm" }));
 
     expect(result).toBeInstanceOf(FormatError);
     expect(result).toMatchObject({ message: expect.stringContaining("wave_hm0") });
   });
 
-  it("reports a series cut short: fewer values or flags than times", () => {
-    const shortValues = observations({ values: { ...VALUES, wave_tp: [10] } });
-    const shortFlags = observations({ flags: { wave_tp: [1] } });
+  it("reports a series whose values do not follow its times", () => {
+    const shortValues = coverage({ values: { wave_tp: [10] } });
+    const shortFlags = coverage({ flags: { wave_tp: [1] } });
+    const wrongShape = coverage();
+    (wrongShape.ranges.wave_tp as Record<string, unknown>).shape = [9];
+    const otherAxis = coverage();
+    (otherAxis.ranges.wave_tp as Record<string, unknown>).axisNames = ["z"];
 
-    expect(parseObservations(shortValues, "4")).toBeInstanceOf(FormatError);
-    expect(parseObservations(shortFlags, "4")).toBeInstanceOf(FormatError);
+    for (const broken of [shortValues, shortFlags, wrongShape, otherAxis]) {
+      expect(parseObservations(collection([broken]))).toBeInstanceOf(FormatError);
+    }
+  });
+
+  it("reports a series that does not say which buoy it is, or is not a series over time", () => {
+    const grid = coverage();
+    (grid.domain as Record<string, unknown>).domainType = "Grid";
+
+    expect(parseObservations(collection([coverage({ id: null })]))).toBeInstanceOf(FormatError);
+    expect(parseObservations(collection([coverage({ id: 4 })]))).toBeInstanceOf(FormatError);
+    expect(parseObservations(collection([grid]))).toBeInstanceOf(FormatError);
   });
 
   it("reports a parameter that went missing, and an answer that is not a series", () => {
-    const whole = observations();
-    const withoutPeriod = {
-      ...whole,
-      coverages: whole.coverages.map((coverage) => {
-        const { wave_tp: _, ...ranges } = coverage.ranges as Record<string, unknown>;
-        return { ...coverage, ranges };
-      }),
-    };
+    const whole = coverage();
+    const { wave_tp: _, ...ranges } = whole.ranges;
 
-    expect(parseObservations(withoutPeriod, "4")).toBeInstanceOf(FormatError);
-    expect(parseObservations({ code: "NoMatch", description: "no data" }, "4")).toBeInstanceOf(
+    expect(parseObservations(collection([{ ...whole, ranges }]))).toBeInstanceOf(FormatError);
+    expect(parseObservations({ code: "NoMatch", description: "no data" })).toBeInstanceOf(
       FormatError,
     );
   });
 
-  it("accepts a buoy with no observation in the window", () => {
-    const empty = observations({
-      times: [],
-      values: Object.fromEntries(Object.keys(UNITS).map((name) => [name, []])),
-    });
+  it("reports an answer that reached the most buoys one query returns", () => {
+    const twenty = Array.from({ length: 20 }, (_, index) => coverage({ id: String(index + 1) }));
 
-    expect(parse(empty)).toEqual({ readings: [], rejected: 0 });
-    expect(parse({ type: "CoverageCollection", parameters: {}, coverages: [] })).toEqual({
-      readings: [],
-      rejected: 0,
-    });
+    expect(parseObservations(collection(twenty))).toBeInstanceOf(FormatError);
+    expect(parseObservations(collection(twenty.slice(1)))).not.toBeInstanceOf(FormatError);
+  });
+
+  it("accepts an answer with no buoy, and a buoy with no observation in the window", () => {
+    const empty = Object.fromEntries(Object.keys(UNITS).map((name) => [name, []]));
+
+    expect(parse(collection([]))).toEqual({ readings: [], rejected: 0 });
+    expect(parseOne({ times: [], values: empty })).toEqual({ readings: [], rejected: 0 });
   });
 });
 
 describe("observationsUrl", () => {
-  it("asks for the twelve hours that end now, with every parameter and its flag", () => {
-    const url = observationsUrl("4", new Date("2026-10-08T11:48:40.123Z"));
+  it("asks for every buoy over the twelve hours that end now, with each parameter and its flag", () => {
+    const url = new URL(observationsUrl(new Date("2026-10-08T11:48:40.123Z")));
 
-    expect(url).toContain("/collections/buoys_datawell/instances/nrt/locations/4?f=json");
-    expect(url).toContain("datetime=2026-10-07T23:48:40Z/2026-10-08T11:48:40Z");
-    expect(url).toContain("wave_hm0,wave_hm0_qc,");
-    expect(url).toContain("sea_water_temperature,sea_water_temperature_qc");
+    expect(url.pathname).toBe("/collections/buoys_datawell/instances/nrt/area");
+    expect(url.searchParams.get("datetime")).toBe("2026-10-07T23:48:40Z/2026-10-08T11:48:40Z");
+    expect(url.searchParams.get("coords")).toMatch(/^POLYGON\(\(/);
+    expect(url.searchParams.get("parameter-name")?.split(",")).toEqual(
+      Object.keys(UNITS).flatMap((name) => [name, `${name}_qc`]),
+    );
   });
 });

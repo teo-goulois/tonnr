@@ -1,36 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import { parseUtcTime } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 
-describe("parseUtcTime", () => {
+describe("parseZonedTime", () => {
   it("reads a UTC time, with or without a fraction of a second", () => {
-    expect(parseUtcTime("2026-10-08T07:00:00Z")).toEqual(new Date(Date.UTC(2026, 9, 8, 7)));
-    expect(parseUtcTime("2026-10-08T08:19:47.000Z")).toEqual(
+    expect(parseZonedTime("2026-10-08T07:00:00Z")).toEqual(new Date(Date.UTC(2026, 9, 8, 7)));
+    expect(parseZonedTime("2026-10-08T08:19:47.000Z")).toEqual(
       new Date(Date.UTC(2026, 9, 8, 8, 19, 47)),
     );
   });
 
   it("reads a UTC time written with a zero offset", () => {
-    expect(parseUtcTime("2026-10-08T04:00:00.000+00:00")).toEqual(
+    expect(parseZonedTime("2026-10-08T04:00:00.000+00:00")).toEqual(
       new Date(Date.UTC(2026, 9, 8, 4)),
     );
-    expect(parseUtcTime("2026-02-31T04:00:00+00:00")).toBeNull();
+    expect(parseZonedTime("2026-02-31T04:00:00+00:00")).toBeNull();
   });
 
   it("refuses a day that does not exist", () => {
-    expect(parseUtcTime("2026-02-31T07:00:00Z")).toBeNull();
-    expect(parseUtcTime("2026-13-01T07:00:00Z")).toBeNull();
+    expect(parseZonedTime("2026-02-31T07:00:00Z")).toBeNull();
+    expect(parseZonedTime("2026-13-01T07:00:00Z")).toBeNull();
   });
 
-  it("refuses a time that is not written in UTC", () => {
-    expect(parseUtcTime("2026-10-08T07:00:00")).toBeNull();
-    expect(parseUtcTime("2026-10-08T07:00:00+10:00")).toBeNull();
-    expect(parseUtcTime("2026-10-08")).toBeNull();
-    expect(parseUtcTime("")).toBeNull();
+  it("reads a time written in another zone, or without seconds, as the moment it names", () => {
+    expect(parseZonedTime("2026-10-08T17:00:00+10:00")).toEqual(new Date(Date.UTC(2026, 9, 8, 7)));
+    expect(parseZonedTime("2026-10-08T02:30:00-04:30")).toEqual(new Date(Date.UTC(2026, 9, 8, 7)));
+    expect(parseZonedTime("2026-10-08T06:32Z")).toEqual(new Date(Date.UTC(2026, 9, 8, 6, 32)));
+    expect(parseZonedTime("2026-02-31T17:00:00+10:00")).toBeNull();
+  });
+
+  it("refuses a time that names no zone", () => {
+    expect(parseZonedTime("2026-10-08T07:00:00")).toBeNull();
+    expect(parseZonedTime("2026-10-08")).toBeNull();
+    expect(parseZonedTime("")).toBeNull();
+    expect(parseZonedTime("2026-10-08T07:00:00+25:00")).toBeNull();
   });
 
   it("refuses a time no observation can have", () => {
-    expect(parseUtcTime("1899-12-31T23:59:59Z")).toBeNull();
-    expect(parseUtcTime("9999-01-01T00:00:00Z")).toBeNull();
+    expect(parseZonedTime("1899-12-31T23:59:59Z")).toBeNull();
+    expect(parseZonedTime("9999-01-01T00:00:00Z")).toBeNull();
   });
 });

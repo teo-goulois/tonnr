@@ -6,7 +6,7 @@ import { parseErddapCsv } from "./erddap";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
-import { parseUtcTime } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 
 // The Marine Institute runs Ireland's weather buoys, M2 to M6, with Met Éireann. Each reports
 // once an hour. The last six hours of every buoy.
@@ -70,7 +70,7 @@ export function parseWeatherBuoys(text: string): Snapshot | FormatError {
     if (flag === "9") continue;
 
     const id = field("station_id");
-    const observedAt = parseUtcTime(field("time"));
+    const observedAt = parseZonedTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
     if (

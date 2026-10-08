@@ -4,15 +4,19 @@ import { Effect } from "effect";
 import { FormatError } from "./format-error";
 import { isPosition, plausible, type Measurement } from "./plausible";
 import type { Provider, ReadingInput, StationInput } from "./provider";
-import { parseUtcTime } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 
 // The Instituto Hidrográfico, the hydrographic institute of the Portuguese navy, runs Datawell
 // wave buoys off mainland Portugal, Madeira, and the Azores. Its API lists the buoys and serves
-// each one's last fifteen days, a reading every thirty minutes.
+// their last fifteen days, a reading every thirty minutes.
 const COLLECTION_URL = "https://ogcapi.hidrografico.pt/collections/buoys_datawell";
 const BUOYS_URL = `${COLLECTION_URL}/items?f=json&limit=100`;
 
-// The last twelve hours of each buoy. A reading shows up about two hours after its time.
+// One query returns every buoy inside an area, twenty at most. This one covers the collection:
+// mainland Portugal, Madeira, and the Azores.
+const AREA = "POLYGON((-32 32,-7 32,-7 42.5,-32 42.5,-32 32))";
+const AREA_BUOY_LIMIT = 20;
+// The last twelve hours. A reading shows up about two hours after its time.
 const WINDOW_MS = 12 * 60 * 60 * 1000;
 
 // Each parameter with the unit the parser was written for. A change of unit would store wrong
@@ -23,16 +27,25 @@ const PARAMETERS: Record<string, { measurement: Measurement; unit: string }> = {
   wave_tp: { measurement: "peakPeriodS", unit: "s" },
   // The spectral mean period, Tm02.
   wave_tm02: { measurement: "meanPeriodS", unit: "s" },
-  // The API does not say whether this is counted from true or from magnetic north. The two are
-  // one or two degrees apart off mainland Portugal and about eight in the Azores.
+  // The institute does not say whether this is counted from true or from magnetic north. In
+  // October 2026 the two are 1 degree apart off the mainland, 3 at Madeira, and 8 in the Azores.
   wave_thtp: { measurement: "peakDirectionDeg", unit: "deg" },
   wave_sprtp: { measurement: "directionalSpreadDeg", unit: "deg" },
   sea_water_temperature: { measurement: "waterTemperatureC", unit: "Cel" },
 };
 
-// The flags of SeaDataNet that leave a value usable: not checked, good, and probably good.
-const USABLE_FLAGS = new Set([0, 1, 2]);
-const GOOD_FLAG = 1;
+// The quality flags of SeaDataNet (vocabulary L20). A value keeps its place when nobody checked
+// it, when it is good, or when it is probably good. Every other flag leaves it out: probably bad,
+// bad, changed, beyond a limit, interpolated, missing, or uncertain.
+const KNOWN_FLAGS = new Set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "Q"]);
+const USABLE_FLAGS = new Set(["0", "1", "2"]);
+const GOOD_FLAG = "1";
+
+// Who to credit besides the institute, from each buoy's own record. Téo read the record of
+// Leixões on 2026-10-08. The records of the other buoys have not been read.
+const ALSO_CREDITED: Record<string, string> = {
+  "4": "Administração dos Portos do Douro, Leixões e Viana do Castelo",
+};
 
 type Buoy = { id: string; name: string; latitude: number; longitude: number };
 
@@ -44,37 +57,41 @@ function formatError(message: string) {
   return new FormatError({ provider: "hidrografico", message });
 }
 
-/** The address of a buoy's observations over the window that ends now. */
-export function observationsUrl(buoyId: string, now: Date) {
+/** The address of every buoy's observations over the window that ends now. */
+export function observationsUrl(now: Date) {
   const instant = (date: Date) => `${date.toISOString().slice(0, 19)}Z`;
   const names = Object.keys(PARAMETERS).flatMap((name) => [name, `${name}_qc`]);
+  const query = new URLSearchParams({
+    f: "json",
+    coords: AREA,
+    datetime: `${instant(new Date(now.getTime() - WINDOW_MS))}/${instant(now)}`,
+    "parameter-name": names.join(","),
+  });
 
-  return (
-    `${COLLECTION_URL}/instances/nrt/locations/${encodeURIComponent(buoyId)}?f=json` +
-    `&datetime=${instant(new Date(now.getTime() - WINDOW_MS))}/${instant(now)}` +
-    `&parameter-name=${names.join(",")}`
-  );
+  return `${COLLECTION_URL}/instances/nrt/area?${query}`;
 }
 
-/** Reads the list of buoys and returns those the institute marks as active. */
+/** Reads the list of buoys: where each one is, and the name of the place it is moored at. */
 export function parseBuoys(json: unknown): { buoys: Buoy[]; rejected: number } | FormatError {
   if (!isRecord(json) || !Array.isArray(json.features)) {
     return formatError("the answer has no list of buoys");
   }
-  if (typeof json.numberMatched === "number" && json.numberMatched > json.features.length) {
+  const { features } = json;
+  // The list must be whole: a second page would hold buoys that are then never named.
+  const counts = [json.numberMatched, json.numberReturned].filter(
+    (count) => typeof count === "number",
+  );
+  const hasNextPage =
+    Array.isArray(json.links) && json.links.some((link) => isRecord(link) && link.rel === "next");
+  if (hasNextPage || counts.some((count) => count !== features.length)) {
     return formatError("the list of buoys does not fit in one page");
   }
 
   const buoys: Buoy[] = [];
   let rejected = 0;
 
-  for (const feature of json.features) {
+  for (const feature of features) {
     const properties = isRecord(feature) && isRecord(feature.properties) ? feature.properties : {};
-    if (properties.status !== "active" && properties.status !== "inactive") {
-      return formatError("a buoy has a status other than active or inactive");
-    }
-    if (properties.status === "inactive") continue;
-
     const geometry = isRecord(feature) && isRecord(feature.geometry) ? feature.geometry : {};
     const [longitude, latitude]: unknown[] = Array.isArray(geometry.coordinates)
       ? geometry.coordinates
@@ -99,31 +116,62 @@ export function parseBuoys(json: unknown): { buoys: Buoy[]; rejected: number } |
   return { buoys, rejected };
 }
 
+/** A quality flag as its code, or null when it is not one of the vocabulary's. */
+function flagCode(flag: unknown) {
+  const code = typeof flag === "number" || typeof flag === "string" ? String(flag) : "";
+  return KNOWN_FLAGS.has(code) ? code : null;
+}
+
 /**
- * Reads a buoy's observations: a series of times, and for each parameter a series of values and
- * a series of quality flags of the same length. A value flagged as bad or missing is left out.
+ * Reads the observations: one series per buoy, named by the buoy's id. A series holds its
+ * times, and for each parameter as many values and quality flags as it has times.
  */
 export function parseObservations(
   json: unknown,
-  buoyId: string,
 ): { readings: ReadingInput[]; rejected: number } | FormatError {
-  if (!isRecord(json) || !Array.isArray(json.coverages) || !isRecord(json.parameters)) {
-    return formatError(`the observations of buoy ${buoyId} are not a collection of series`);
+  // One buoy alone may come as a single series instead of a collection of one.
+  const collection =
+    isRecord(json) && json.type === "Coverage" ? { ...json, coverages: [json] } : json;
+  if (
+    !isRecord(collection) ||
+    !Array.isArray(collection.coverages) ||
+    !isRecord(collection.parameters)
+  ) {
+    return formatError("the observations are not a collection of series");
+  }
+  if (collection.coverages.length >= AREA_BUOY_LIMIT) {
+    return formatError(`the answer holds ${AREA_BUOY_LIMIT} buoys, the most one query returns`);
   }
 
   const readings: ReadingInput[] = [];
+  const seen = new Set<string>();
   let rejected = 0;
 
-  for (const coverage of json.coverages) {
+  for (const coverage of collection.coverages) {
+    const buoyId = isRecord(coverage) && typeof coverage.id === "string" ? coverage.id : "";
     const domain = isRecord(coverage) && isRecord(coverage.domain) ? coverage.domain : {};
     const axes = isRecord(domain.axes) ? domain.axes : {};
     const times = isRecord(axes.t) && Array.isArray(axes.t.values) ? axes.t.values : null;
     const ranges = isRecord(coverage) && isRecord(coverage.ranges) ? coverage.ranges : null;
-    if (!times || !ranges) return formatError(`a series of buoy ${buoyId} has no times or values`);
+    if (!/^\d+$/.test(buoyId) || domain.domainType !== "PointSeries" || !times || !ranges) {
+      return formatError("a series is not that of one buoy over time");
+    }
+
+    // The values of a range along time, or null when the range is laid out any other way.
+    const alongTime = (name: string) => {
+      const range = ranges[name];
+      if (!isRecord(range) || !Array.isArray(range.values)) return null;
+      const { axisNames, shape, values } = range;
+      const isAlongTime =
+        values.length === times.length &&
+        (axisNames === undefined || (Array.isArray(axisNames) && axisNames.join() === "t")) &&
+        (shape === undefined || (Array.isArray(shape) && shape.join() === `${times.length}`));
+      return isAlongTime ? values : null;
+    };
 
     const series: { measurement: Measurement; values: unknown[]; flags: unknown[] }[] = [];
     for (const [name, { measurement, unit }] of Object.entries(PARAMETERS)) {
-      const parameter = json.parameters[name];
+      const parameter = collection.parameters[name];
       const symbol =
         isRecord(parameter) && isRecord(parameter.unit) && isRecord(parameter.unit.symbol)
           ? parameter.unit.symbol.value
@@ -132,12 +180,9 @@ export function parseObservations(
         return formatError(`${name} is in "${String(symbol)}", not "${unit}"`);
       }
 
-      const range = ranges[name];
-      const flagRange = ranges[`${name}_qc`];
-      const values = isRecord(range) && Array.isArray(range.values) ? range.values : null;
-      const flags =
-        isRecord(flagRange) && Array.isArray(flagRange.values) ? flagRange.values : null;
-      if (values?.length !== times.length || flags?.length !== times.length) {
+      const values = alongTime(name);
+      const flags = alongTime(`${name}_qc`);
+      if (!values || !flags) {
         return formatError(
           `${name} of buoy ${buoyId} does not have one value and one flag per time`,
         );
@@ -146,31 +191,37 @@ export function parseObservations(
     }
 
     for (const [index, time] of times.entries()) {
-      const observedAt = typeof time === "string" ? parseUtcTime(time) : null;
-      if (!observedAt) {
+      const observedAt = typeof time === "string" ? parseZonedTime(time) : null;
+      const key = `${buoyId} ${observedAt?.getTime()}`;
+      if (!observedAt || seen.has(key)) {
         rejected += 1;
         continue;
       }
 
-      const reading: ReadingInput = { providerStationId: buoyId, observedAt };
+      const reading: ReadingInput = { providerStationId: buoyId, observedAt, validated: true };
       let unreadable = false;
       for (const { measurement, values, flags } of series) {
         const value = values[index];
         const flag = flags[index];
-        // A missing value comes as null, with or without a flag.
         if (value === null) {
           reading[measurement] = null;
-        } else if (typeof value !== "number" || typeof flag !== "number") {
+        } else if (typeof value !== "number" || (flag !== null && flagCode(flag) === null)) {
           unreadable = true;
         } else {
-          reading[measurement] = USABLE_FLAGS.has(flag) ? plausible(measurement, value) : null;
-          if (measurement === "significantHeightM") reading.validated = flag === GOOD_FLAG;
+          // A value without a flag is kept as one nobody checked.
+          const code = flag === null ? "0" : flagCode(flag);
+          const kept =
+            code !== null && USABLE_FLAGS.has(code) ? plausible(measurement, value) : null;
+          reading[measurement] = kept;
+          // Validated means that every value the reading keeps was checked and found good.
+          if (kept !== null && code !== GOOD_FLAG) reading.validated = false;
         }
       }
       if (unreadable) {
         rejected += 1;
         continue;
       }
+      seen.add(key);
       if (reading.significantHeightM != null) readings.push(reading);
     }
   }
@@ -180,58 +231,44 @@ export function parseObservations(
 
 export const hidrografico: Provider = {
   id: "hidrografico",
-  // A buoy reports every thirty minutes.
+  // A buoy reports every thirty minutes. Two requests a run: the list, then every buoy's readings.
   schedule: "20,50 * * * *",
   fetchSnapshot: Effect.gen(function* () {
     const listed = parseBuoys(yield* fetchJson(BUOYS_URL));
     if (listed instanceof FormatError) return yield* listed;
 
-    const now = new Date();
-    // One request per active buoy, two at a time, to stay light on the institute's server.
-    const series = yield* Effect.forEach(
-      listed.buoys,
-      (buoy) =>
-        Effect.gen(function* () {
-          const observations = parseObservations(
-            yield* fetchJson(observationsUrl(buoy.id, now)),
-            buoy.id,
-          );
-          if (observations instanceof FormatError) return yield* observations;
-          return { buoy, ...observations };
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.gen(function* () {
-              yield* Effect.logWarning(`hidrografico: skipped buoy ${buoy.id}`, error);
-              return null;
-            }),
-          ),
-        ),
-      { concurrency: 2 },
+    const observations = parseObservations(yield* fetchJson(observationsUrl(new Date())));
+    if (observations instanceof FormatError) return yield* observations;
+
+    // A reading of a buoy the list does not name cannot be placed.
+    const listedIds = new Set(listed.buoys.map((buoy) => buoy.id));
+    const readings = observations.readings.filter((reading) =>
+      listedIds.has(reading.providerStationId),
     );
+    const reporting = new Set(readings.map((reading) => reading.providerStationId));
 
-    const read = series.filter((entry) => entry !== null);
-    if (listed.buoys.length > 0 && read.length === 0) {
-      return yield* formatError("no buoy's observations could be read");
-    }
-
-    // An active buoy with no wave height in the window is not stored as a station.
-    const reporting = read.filter((entry) => entry.readings.length > 0);
-    const stations: StationInput[] = reporting.map(({ buoy }) => ({
-      providerStationId: buoy.id,
-      name: buoy.name,
-      latitude: buoy.latitude,
-      longitude: buoy.longitude,
-      // The institute licenses the list of buoys under CC BY and their observations under CC BY-NC.
-      licenseType: "cc-by-nc-4.0",
-      licenseUrl: "https://creativecommons.org/licenses/by-nc/4.0/",
-      attribution: "Instituto Hidrográfico",
-      commercialUse: false,
-    }));
+    const stations: StationInput[] = listed.buoys
+      .filter((buoy) => reporting.has(buoy.id))
+      .map((buoy) => ({
+        providerStationId: buoy.id,
+        name: buoy.name,
+        latitude: buoy.latitude,
+        longitude: buoy.longitude,
+        // The institute licenses the list of buoys under CC BY and their observations under
+        // CC BY-NC, which asks for the credit, a link to the source, and a word on what changed.
+        licenseType: "cc-by-nc-4.0",
+        licenseUrl: "https://creativecommons.org/licenses/by-nc/4.0/",
+        attribution:
+          `${["Instituto Hidrográfico", ALSO_CREDITED[buoy.id]].filter(Boolean).join(" and ")}, ` +
+          `<${COLLECTION_URL}>. Values flagged as bad or doubtful are left out.`,
+        commercialUse: false,
+      }));
 
     return {
       stations,
-      readings: reporting.flatMap((entry) => entry.readings),
-      rejected: listed.rejected + read.reduce((total, entry) => total + entry.rejected, 0),
+      readings,
+      rejected:
+        listed.rejected + observations.rejected + (observations.readings.length - readings.length),
     };
   }),
 };

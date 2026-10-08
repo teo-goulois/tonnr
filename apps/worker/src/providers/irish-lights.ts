@@ -6,7 +6,7 @@ import { parseErddapCsv } from "./erddap";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
-import { parseUtcTime } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 
 // The Commissioners of Irish Lights publish, every hour, a ten-minute average from each of their
 // equipped buoys and lighthouses around Ireland. The last six hours of every site.
@@ -60,7 +60,7 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
     };
 
     const id = field("mmsi");
-    const observedAt = parseUtcTime(field("time"));
+    const observedAt = parseZonedTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
     if (!/^\d+$/.test(id) || !observedAt || !isPosition(latitude, longitude)) {

@@ -25,16 +25,23 @@ export function utcDate(year: number, month: number, day: number, hour: number, 
 }
 
 /**
- * Reads a time written in UTC, as `2026-10-08T07:00:00Z` or with `+00:00`, with or without a
- * fraction of a second. Returns null when the text does not name a moment an observation can
- * have. `Date` alone would read 31 February as 3 March.
+ * Reads a time written with its zone, as `2026-10-08T07:00:00Z` or `2026-10-08T09:00+02:00`, with
+ * or without seconds and a fraction of a second. Returns null when the text names no zone, or
+ * no moment an observation can have. `Date` alone would read 31 February as 3 March.
  */
-export function parseUtcTime(text: string) {
-  const written = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|\+00:00)$/.exec(text)?.[1];
-  if (!written) return null;
+export function parseZonedTime(text: string) {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(text);
+  if (!match) return null;
 
-  const date = new Date(text);
-  const isReal = !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 19) === written;
+  const [, written = "", seconds = ":00", fraction = "", zone = "Z"] = match;
+  const date = new Date(`${written}${seconds}${fraction}${zone}`);
+  if (Number.isNaN(date.getTime())) return null;
 
-  return isReal && isObservationTime(date) ? date : null;
+  // Read back in the zone it was written in, the moment must give the same day and time.
+  const sign = zone.startsWith("-") ? -1 : 1;
+  const offsetMinutes =
+    zone === "Z" ? 0 : sign * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6)));
+  const readBack = new Date(date.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 16);
+
+  return readBack === written && isObservationTime(date) ? date : null;
 }
