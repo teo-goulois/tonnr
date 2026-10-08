@@ -1,0 +1,53 @@
+{
+  "name": "tonn",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev --filter=!worker",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:web": "turbo run dev:bare -F web --",
+    "dev:server": "turbo run dev -F server --",
+    "dev:worker": "turbo run dev -F worker --",
+    "demo": "node scripts/demo.mjs",
+    "db:push": "turbo run db:push -F @repo/db --",
+    "db:studio": "turbo run db:studio -F @repo/db --",
+    "db:generate": "turbo run db:generate -F @repo/db --",
+    "db:migrate": "turbo run db:migrate -F @repo/db --",
+    "db:start": "docker compose up -d postgres",
+    "db:watch": "docker compose up postgres",
+    "db:stop": "docker compose stop postgres",
+    "db:down": "docker compose down postgres",
+    "deploy": "turbo run deploy -F @repo/infra --",
+    "destroy": "turbo run destroy -F @repo/infra --",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./packages/db/",
+    "auth:generate": "cd apps/server && pnpm run auth:generate",
+    "lint": "oxlint",
+    "format": "oxfmt --write",
+    "test": "turbo run test",
+    "check": "oxlint && oxfmt --check && turbo run check-types test"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260906.1",
+    "@repo/config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "^0.66.0",
+    "oxlint": "^1.81.0",
+    "turbo": "^2.10.12",
+    "typescript": "catalog:",
+    "varlock": "catalog:"
+  },
+  "packageManager": "pnpm@12.6.0"
+}

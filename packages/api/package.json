@@ -1,0 +1,32 @@
+{
+  "name": "@repo/api",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check-types": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@neaps/tide-database": "catalog:",
+    "@neaps/tide-predictor": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/zod": "catalog:",
+    "@repo/auth": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/upstream": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "^5.0.3"
+  }
+}

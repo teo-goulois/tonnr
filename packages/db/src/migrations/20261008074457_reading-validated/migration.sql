@@ -1,0 +1,1 @@
+ALTER TABLE "reading" ADD COLUMN "validated" boolean DEFAULT false NOT NULL;

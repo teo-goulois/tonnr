@@ -1,0 +1,7 @@
+{
+  "extends": "@repo/config/tsconfig.base.json",
+  "references": [{ "path": "../../packages/db" }],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

@@ -1,0 +1,39 @@
+import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
+import { APP_NAME } from "@repo/config/app";
+import type { Database } from "@repo/db";
+import * as schema from "@repo/db/schema/auth";
+import { betterAuth } from "better-auth";
+
+export type AuthConfig = {
+  BETTER_AUTH_URL: string;
+  BETTER_AUTH_SECRET: string;
+  CORS_ORIGIN: string;
+};
+
+export function createAuth(
+  env: AuthConfig,
+  database: Database,
+  desktopOrigins: readonly string[] = [],
+) {
+  return betterAuth({
+    appName: APP_NAME,
+    database: drizzleAdapter(database, {
+      provider: "pg",
+      schema,
+    }),
+    trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
+    emailAndPassword: { enabled: true },
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL,
+    advanced: {
+      defaultCookieAttributes: {
+        sameSite: "none",
+        secure: true,
+        httpOnly: true,
+      },
+    },
+    plugins: [],
+  });
+}
+
+export type Session = ReturnType<typeof createAuth>["$Infer"]["Session"];
