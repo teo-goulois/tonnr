@@ -88,6 +88,18 @@ export { IconPage2Outline18 as FileLinesIcon } from "nucleo-ui-outline-18/compon
 export { IconPen2Outline18 as PenIcon } from "nucleo-ui-outline-18/components/IconPen2Outline18";
 export { IconSparkle4Outline18 as SparkleIcon } from "nucleo-ui-outline-18/components/IconSparkle4Outline18";
 
+// Map & product icons — Nucleo UI outline 18, for the same reason: they sit next to small labels
+// and numbers.
+export { IconArrowDoorOutOutline18 as LogOutIcon } from "nucleo-ui-outline-18/components/IconArrowDoorOutOutline18";
+export { IconArrowUpOutline18 as ArrowUpIcon } from "nucleo-ui-outline-18/components/IconArrowUpOutline18";
+export { IconBellOutline18 as BellIcon } from "nucleo-ui-outline-18/components/IconBellOutline18";
+export { IconCircleUserOutline18 as UserIcon } from "nucleo-ui-outline-18/components/IconCircleUserOutline18";
+export { IconCrosshairs2Outline18 as LocateIcon } from "nucleo-ui-outline-18/components/IconCrosshairs2Outline18";
+export { IconListFavsOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconListFavsOutline18";
+export { IconTrashOutline18 as TrashIcon } from "nucleo-ui-outline-18/components/IconTrashOutline18";
+export { IconWaterWaveOutline18 as WaveIcon } from "nucleo-ui-outline-18/components/IconWaterWaveOutline18";
+export { IconWindOutline18 as WindIcon } from "nucleo-ui-outline-18/components/IconWindOutline18";
+
 // Small interface primitives — Nucleo Micro Bold, except LoaderIcon which keeps
 // its Lucide artwork.
 export { CheckIcon } from "./check-icon";
