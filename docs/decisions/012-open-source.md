@@ -25,7 +25,7 @@ A public repository changes three things. Its history is published with it. Peop
 
 - What was public stays with whoever cloned it, under the licence it had then. Making the repository private again withdraws neither.
 - Téo wrote all of the code, so he may also offer it under other terms. Once it holds other people's contributions, that takes their agreement.
-- The history carries on each commit the address that Téo's other public repositories already show, and a scan of it found no secret. It holds the Cefas provider that was taken out the same day, whose test carries one reading of a buoy that may not be redistributed. Whether the repository goes public with that reading is not settled.
+- The history carries on each commit the address that Téo's other public repositories already show, and a scan of it found no secret. It holds the Cefas provider that was taken out the same day, whose test carries one reading of a buoy that may not be redistributed. Téo chose to publish the history as it is rather than rewrite it.
 - A private repository has a monthly allowance of CI minutes, which a public one has not. A push uses about four of them.
 - The workflows pin each action to a commit, and Dependabot proposes the next one once a month.
 - Not done yet: the web app as a container, a way for an instance to name its operator to the providers, images published for each release, and updates of the npm dependencies.
