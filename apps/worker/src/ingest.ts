@@ -2,6 +2,7 @@ import type { Database } from "@repo/db";
 import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
+import { copernicus } from "./providers/copernicus";
 import { fmi } from "./providers/fmi";
 import { hidrografico } from "./providers/hidrografico";
 import { irishLights } from "./providers/irish-lights";
@@ -14,6 +15,7 @@ import { saveSnapshot } from "./store";
 
 export const providers: readonly Provider[] = [
   candhis,
+  copernicus,
   fmi,
   hidrografico,
   irishLights,

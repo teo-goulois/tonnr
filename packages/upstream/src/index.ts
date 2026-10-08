@@ -19,8 +19,11 @@ const retrySchedule = Schedule.max([Schedule.exponential("500 millis"), Schedule
   Schedule.while(({ input }) => input.retryable),
 );
 
-/** Fetches a text document from a provider, retrying network failures and 5xx answers. */
-export const fetchText = Effect.fn("fetchText")(function* (url: string) {
+/** Fetches a document from a provider and reads its body, retrying network failures and 5xx answers. */
+const fetchBody = Effect.fn("fetchBody")(function* <Body>(
+  url: string,
+  read: (response: Response) => Promise<Body>,
+) {
   const request = Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: (signal) =>
@@ -40,13 +43,20 @@ export const fetchText = Effect.fn("fetchText")(function* (url: string) {
     }
 
     return yield* Effect.tryPromise({
-      try: () => response.text(),
+      try: () => read(response),
       catch: (cause) => new UpstreamError({ url, retryable: true, cause }),
     });
   });
 
   return yield* request.pipe(Effect.retry(retrySchedule));
 });
+
+/** Fetches a text document from a provider. */
+export const fetchText = (url: string) => fetchBody(url, (response) => response.text());
+
+/** Fetches a file from a provider as it is, for the formats that are not text. */
+export const fetchBytes = (url: string) =>
+  fetchBody(url, async (response) => new Uint8Array(await response.arrayBuffer()));
 
 /** Fetches a JSON document from a provider. The caller validates its shape. */
 export const fetchJson = Effect.fn("fetchJson")(function* (url: string) {

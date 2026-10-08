@@ -11,3 +11,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [007. Wind stations](007-wind-stations.md)
 - [008. Alerts](008-alerts.md)
 - [009. Deployment of the API and the worker](009-deployment.md)
+- [010. Copernicus Marine as a source of buoys](010-copernicus-marine.md)
