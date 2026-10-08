@@ -12,3 +12,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [008. Alerts](008-alerts.md)
 - [009. Deployment of the API and the worker](009-deployment.md)
 - [010. Copernicus Marine as a source of buoys](010-copernicus-marine.md)
+- [011. Telling sheltered sites from the open sea](011-station-exposure.md)

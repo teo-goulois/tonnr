@@ -75,6 +75,7 @@ function Viewer() {
       station.latestReading && now - station.latestReading.observedAt.getTime() < FRESH_WAVES_MS
         ? station.latestReading.significantHeightMeters
         : null,
+    isSheltered: station.exposure === "sheltered",
   }));
   const windStations: WindStation[] = (showWind ? (wind.data?.stations ?? []) : []).flatMap(
     (station) => {
@@ -121,6 +122,10 @@ function Viewer() {
               <span className="flex items-center gap-1">
                 <span className="size-2.5 rounded-full" style={{ background: NO_READING_COLOR }} />
                 sans mesure récente
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="size-1.5 rounded-full bg-white/40" />
+                site abrité (port, estuaire)
               </span>
             </div>
           </div>

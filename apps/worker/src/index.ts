@@ -4,6 +4,7 @@ import { PgBoss } from "pg-boss";
 
 import { evaluateAlerts } from "./alerts";
 import { ENV } from "./env.server";
+import { updateExposure } from "./exposure";
 import { ingest, providers, retiredProviderIds } from "./ingest";
 import { pruneReadings } from "./store";
 
@@ -57,6 +58,19 @@ await boss.work(PRUNE_QUEUE, async () => {
   const deleted = await Effect.runPromise(pruneReadings(db));
   console.log(`Pruned ${deleted} old wind readings`);
 });
+
+const EXPOSURE_QUEUE = "classify-exposure";
+await boss.createQueue(EXPOSURE_QUEUE, { policy: "stately", retryLimit: 0 });
+await boss.updateQueue(EXPOSURE_QUEUE, { retryLimit: 0 });
+// Once a night: a station's exposure is read from days of waves, and changes slowly.
+await boss.schedule(EXPOSURE_QUEUE, "47 3 * * *");
+await boss.work(EXPOSURE_QUEUE, async () => {
+  const found = await Effect.runPromise(updateExposure(db));
+  console.log(
+    `Exposure: ${found.open} open and ${found.sheltered} sheltered of ${found.stations} wave stations`,
+  );
+});
+await boss.send(EXPOSURE_QUEUE);
 
 const ALERTS_QUEUE = "evaluate-alerts";
 await boss.createQueue(ALERTS_QUEUE, { policy: "stately", retryLimit: 0 });

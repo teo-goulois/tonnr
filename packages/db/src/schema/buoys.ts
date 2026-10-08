@@ -29,6 +29,9 @@ export const station = pgTable(
     reportsWaves: boolean("reports_waves").default(false).notNull(),
     reportsWind: boolean("reports_wind").default(false).notNull(),
     latestObservedAt: timestamp("latest_observed_at", { withTimezone: true }),
+    // Whether the open sea reaches the station, worked out from its waves and its neighbours'.
+    // Null until rough days have told.
+    exposure: text("exposure").$type<"open" | "sheltered">(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

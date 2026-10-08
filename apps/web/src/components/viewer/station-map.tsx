@@ -18,6 +18,8 @@ export type MapStation = {
   longitude: number;
   // Null when the station has no reading from the last few hours.
   significantHeightMeters: number | null;
+  // A site in a harbour or an estuary, whose waves say nothing of the sea outside.
+  isSheltered: boolean;
 };
 
 export type WindStation = {
@@ -134,6 +136,11 @@ function whenSelected<T extends number | string>(
   return ["case", ["==", ["get", "id"], selectedId ?? ""], selected, other];
 }
 
+/** A station's dot: larger when selected, smaller when the site is sheltered. */
+function stationRadius(selectedId: string | undefined): ExpressionSpecification {
+  return ["case", ["==", ["get", "id"], selectedId ?? ""], 10, ["get", "sheltered"], 4, 6];
+}
+
 function toGeoJson(stations: MapStation[]) {
   return {
     type: "FeatureCollection" as const,
@@ -144,6 +151,7 @@ function toGeoJson(stations: MapStation[]) {
         id: station.id,
         name: station.name,
         height: station.significantHeightMeters ?? -1,
+        sheltered: station.isSheltered,
       },
     })),
   };
@@ -199,7 +207,9 @@ export function StationMap({
           type: "circle",
           source: "stations",
           paint: {
-            "circle-radius": whenSelected(latest.current.selectedId, 10, 6),
+            "circle-radius": stationRadius(latest.current.selectedId),
+            // A sheltered site stays on the map, faded, so it is not read as the sea outside.
+            "circle-opacity": ["case", ["get", "sheltered"], 0.35, 1],
             "circle-color": [
               "case",
               ["<", ["get", "height"], 0],
@@ -274,7 +284,7 @@ export function StationMap({
     const instance = map.current;
     if (!instance?.getLayer("stations")) return;
 
-    instance.setPaintProperty("stations", "circle-radius", whenSelected(selectedId, 10, 6));
+    instance.setPaintProperty("stations", "circle-radius", stationRadius(selectedId));
     instance.setPaintProperty("stations", "circle-stroke-width", whenSelected(selectedId, 3, 1.5));
     instance.setPaintProperty(
       "stations",

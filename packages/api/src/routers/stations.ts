@@ -43,6 +43,9 @@ const stationSchema = z.object({
   attribution: z.string(),
   // What the station has been seen to report.
   measures: z.array(z.enum(["waves", "wind"])),
+  // Whether the open sea reaches the station. "sheltered" is a site in a harbour or an estuary,
+  // whose waves say nothing of the sea outside. Null until rough days have told.
+  exposure: z.enum(["open", "sheltered"]).nullable(),
   // commercialUse is null when the owner's terms have not been checked.
   license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean().nullable() }),
 });
@@ -59,6 +62,7 @@ function describeStation(row: typeof station.$inferSelect) {
       ...(row.reportsWaves ? (["waves"] as const) : []),
       ...(row.reportsWind ? (["wind"] as const) : []),
     ],
+    exposure: row.exposure,
     license: { type: row.licenseType, url: row.licenseUrl, commercialUse: row.commercialUse },
   };
 }

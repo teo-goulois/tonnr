@@ -139,6 +139,12 @@ export function StationPanel({ stationId }: { stationId: string }) {
         <p className="text-muted-foreground text-xs">
           {station.attribution} · licence {station.license.type}
         </p>
+        {station.exposure === "sheltered" && (
+          <p className="mt-2 text-xs">
+            Site abrité : ses vagues restent très en dessous de celles des stations voisines. Elles
+            ne disent rien de la mer au large.
+          </p>
+        )}
       </header>
 
       <Section title="Dernière mesure" note={latest && ago(latest.observedAt)}>
