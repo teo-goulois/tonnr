@@ -3,6 +3,7 @@ import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
 import { fmi } from "./providers/fmi";
+import { hidrografico } from "./providers/hidrografico";
 import { irishLights } from "./providers/irish-lights";
 import { marineInstitute } from "./providers/marine-institute";
 import { ndbc } from "./providers/ndbc";
@@ -14,6 +15,7 @@ import { saveSnapshot } from "./store";
 export const providers: readonly Provider[] = [
   candhis,
   fmi,
+  hidrografico,
   irishLights,
   marineInstitute,
   ndbc,
