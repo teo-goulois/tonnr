@@ -8,35 +8,38 @@ import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
 import { parseUtcTime } from "./utc-date";
 
-// The Commissioners of Irish Lights publish, every hour, a ten-minute average from each of their
-// equipped buoys and lighthouses around Ireland. The last six hours of every site.
+// The Marine Institute runs Ireland's weather buoys, M2 to M6, with Met Éireann. Each reports
+// once an hour. The last six hours of every buoy.
 const OBSERVATIONS_URL =
-  "https://erddap.irishlights.ie/erddap/tabledap/AllMetOcean.csv?&time%3E=now-6hours";
+  "https://erddap.marine.ie/erddap/tabledap/IWBNetwork.csv" +
+  "?station_id,longitude,latitude,time,WindDirection,WindSpeed,Gust" +
+  ",WaveHeight,WavePeriod,Hmax,SeaTemperature,SprTp,ThTp,Tp" +
+  "&time%3E=now-6hours";
 
 const MS_PER_KNOT = 0.514444;
-// The units the parser was written for. A change of unit would store wrong values silently.
 const EXPECTED_UNITS: Record<string, string> = {
-  mmsi: "",
-  LatonName: "",
+  station_id: "",
   longitude: "degrees_east",
   latitude: "degrees_north",
   time: "UTC",
-  AverageWindSpeed: "kn",
-  GustSpeed: "kn",
-  WindDirection: "degrees_true",
-  WaveHeight: "m",
-  WavePeriod: "s",
-  WaterTemperature: "degree_C",
+  WindDirection: "degrees true",
+  WindSpeed: "knots",
+  Gust: "knots",
+  WaveHeight: "meters",
+  WavePeriod: "seconds",
+  Hmax: "meters",
+  SeaTemperature: "degrees_C",
+  SprTp: "degrees",
+  ThTp: "degrees_true",
+  Tp: "seconds",
 };
 
-function formatError(message: string) {
-  return new FormatError({ provider: "irishlights", message });
-}
-
-/** Reads the dataset as CSV: a line of column names, a line of units, then one line per hour and site. */
-export function parseMetOcean(text: string): Snapshot | FormatError {
+/** Reads the dataset as CSV: a line of column names, a line of units, then one line per hour and buoy. */
+export function parseWeatherBuoys(text: string): Snapshot | FormatError {
   const table = parseErddapCsv(text, EXPECTED_UNITS);
-  if (typeof table === "string") return formatError(table);
+  if (typeof table === "string") {
+    return new FormatError({ provider: "marineinstitute", message: table });
+  }
 
   const stations = new Map<string, StationInput>();
   const latestRowAt = new Map<string, Date>();
@@ -53,14 +56,17 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
     // The dataset writes "NaN" for a missing value.
     const number = (column: string) => fieldNumber(field(column));
 
-    const id = field("mmsi");
+    const id = field("station_id");
     const observedAt = parseUtcTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
-    // A site is known by its MMSI, the number of its radio transmitter. Two rows for one site
-    // and moment cannot both be right.
     const key = `${id} ${observedAt?.getTime()}`;
-    if (!/^\d+$/.test(id) || seen.has(key) || !observedAt || !isPosition(latitude, longitude)) {
+    if (
+      !/^[A-Za-z0-9]+$/.test(id) ||
+      seen.has(key) ||
+      !observedAt ||
+      !isPosition(latitude, longitude)
+    ) {
       rejected += 1;
       continue;
     }
@@ -69,12 +75,19 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
     const reading: ReadingInput = {
       providerStationId: id,
       observedAt,
+      // Four times the root mean square of the sea surface.
       significantHeightM: plausible("significantHeightM", number("WaveHeight")),
-      // The dataset gives the average period.
+      maxHeightM: plausible("maxHeightM", number("Hmax")),
+      peakPeriodS: plausible("peakPeriodS", number("Tp")),
+      // The zero-upcrossing period.
       meanPeriodS: plausible("meanPeriodS", number("WavePeriod")),
-      waterTemperatureC: plausible("waterTemperatureC", number("WaterTemperature")),
-      windSpeedMs: plausible("windSpeedMs", number("AverageWindSpeed") * MS_PER_KNOT),
-      windGustMs: plausible("windGustMs", number("GustSpeed") * MS_PER_KNOT),
+      // The direction at the peak period.
+      peakDirectionDeg: plausible("peakDirectionDeg", number("ThTp")),
+      // Some buoys fill this column with values no spread can take, which come out as missing.
+      directionalSpreadDeg: plausible("directionalSpreadDeg", number("SprTp")),
+      waterTemperatureC: plausible("waterTemperatureC", number("SeaTemperature")),
+      windSpeedMs: plausible("windSpeedMs", number("WindSpeed") * MS_PER_KNOT),
+      windGustMs: plausible("windGustMs", number("Gust") * MS_PER_KNOT),
       windDirectionDeg: plausible("windDirectionDeg", number("WindDirection")),
     };
     if (reading.significantHeightM == null && reading.windSpeedMs == null) continue;
@@ -85,30 +98,27 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
       latestRowAt.set(id, observedAt);
       stations.set(id, {
         providerStationId: id,
-        name: field("LatonName") || `Station ${id}`,
+        // The dataset names a buoy by its id alone.
+        name: id,
         latitude,
         longitude,
         licenseType: "cc-by-4.0",
         licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
-        attribution: "Commissioners of Irish Lights",
+        attribution: "Marine Institute, Irish Weather Buoy Network",
         commercialUse: true,
       });
     }
   }
 
-  return {
-    stations: [...stations.values()],
-    readings,
-    rejected,
-  };
+  return { stations: [...stations.values()], readings, rejected };
 }
 
-export const irishLights: Provider = {
-  id: "irishlights",
-  // A site reports once an hour.
-  schedule: "25 * * * *",
+export const marineInstitute: Provider = {
+  id: "marineinstitute",
+  // A buoy reports once an hour, and the row appears within the hour.
+  schedule: "20,50 * * * *",
   fetchSnapshot: Effect.gen(function* () {
-    const snapshot = parseMetOcean(yield* fetchText(OBSERVATIONS_URL));
+    const snapshot = parseWeatherBuoys(yield* fetchText(OBSERVATIONS_URL));
     if (snapshot instanceof FormatError) return yield* snapshot;
     return snapshot;
   }),

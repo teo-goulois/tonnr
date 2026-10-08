@@ -14,7 +14,8 @@ const RANGES: Record<Measurement, readonly [min: number, max: number]> = {
   meanPeriodS: [0, 40],
   significantPeriodS: [0, 40],
   peakDirectionDeg: [0, 360],
-  directionalSpreadDeg: [0, 360],
+  // A spread is a standard deviation of directions, which cannot pass 81 degrees.
+  directionalSpreadDeg: [0, 90],
   waterTemperatureC: [-5, 45],
   windSpeedMs: [0, 120],
   windGustMs: [0, 120],

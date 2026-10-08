@@ -27,6 +27,6 @@ Buoy measurements come from many providers. Each has its own format, update rhyt
 - CANDHIS has no API. Its parser reads JavaScript variables in two kinds of pages, so it breaks when Cerema changes them. `candhis.test.ts` holds examples of the current format. A run makes one request per real-time campaign, two at a time.
 - NDBC relays buoys owned by partners. They are stored with the license type `ndbc-partner` and an unknown commercial use.
 - A provider taken out of `ingest.ts` loses its schedule and its queue at the next worker start. Its stations and readings stay until someone deletes them.
-- A snapshot carries only what the provider shows now: the latest observation for NDBC, two days for CANDHIS and Queensland, twelve hours for the Finnish institute, six hours for Irish Lights. A worker stopped for longer than that leaves a hole. Fetching older history when a user asks for it is not built.
+- A snapshot carries only what the provider shows now: the latest observation for NDBC, two days for CANDHIS and Queensland, twelve hours for the Finnish institute, six hours for Irish Lights and the Marine Institute. A worker stopped for longer than that leaves a hole. Fetching older history when a user asks for it is not built.
 - A reading that already exists is left alone, so a provider that corrects a value it already published is not followed.
 - The worker has no Dockerfile yet.

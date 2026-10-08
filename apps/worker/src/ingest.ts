@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { candhis } from "./providers/candhis";
 import { fmi } from "./providers/fmi";
 import { irishLights } from "./providers/irish-lights";
+import { marineInstitute } from "./providers/marine-institute";
 import { ndbc } from "./providers/ndbc";
 import { openwindmap } from "./providers/openwindmap";
 import { queensland } from "./providers/queensland";
@@ -14,6 +15,7 @@ export const providers: readonly Provider[] = [
   candhis,
   fmi,
   irishLights,
+  marineInstitute,
   ndbc,
   openwindmap,
   queensland,
