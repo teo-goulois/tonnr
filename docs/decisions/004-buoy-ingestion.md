@@ -10,10 +10,10 @@ Buoy measurements come from many providers. Each has its own format, update rhyt
 
 - `apps/worker` runs one job per provider on a pg-boss schedule. It also runs each provider once at startup.
 - A provider is one module in `apps/worker/src/providers/`. It returns a snapshot: the stations the provider publishes now and their recent readings. It knows the provider's URLs and format, and nothing about the database.
-- Saving a snapshot twice changes nothing the second time. Stations are upserted, and a reading that already exists for a station and time is left alone. A failed run is not retried, since the next run fetches the same data.
+- Saving a snapshot twice changes nothing the second time. Stations are upserted. A reading that already exists for a station and time keeps every value it has and takes the values it lacked, since a provider may publish a moment's height before its period. A failed run is not retried, since the next run fetches the same data.
 - A parser that meets a format it does not know returns a `FormatError`. It does not guess.
 - A parser drops a row whose date or position cannot be real and counts it, and the worker logs the count. It treats a measurement outside what the sea can do as missing.
-- A parser never stores a part of a row. A row cut short, as when a file is read while the provider writes it, is dropped and counted. An answer that says how much it holds and holds less is a `FormatError`. A reading is never completed later, so a partial one would stay partial.
+- A parser never stores a part of a row. A row cut short, as when a file is read while the provider writes it, is dropped and counted. An answer that says how much it holds and holds less is a `FormatError`. A value that is cut, such as `0.` for `0.8`, would be stored as it is and never replaced.
 - When the database refuses a snapshot, the worker saves it station by station, so one value it cannot store does not block the other stations.
 - A station id is `<provider>-<the provider's own id>`, in lower case, such as `candhis-06403`.
 - `station` carries its license type, license URL, attribution, and whether commercial use is allowed. Commercial use is null when the owner's terms have not been checked.
@@ -28,4 +28,4 @@ Buoy measurements come from many providers. Each has its own format, update rhyt
 - NDBC relays buoys owned by partners. They are stored with the license type `ndbc-partner` and an unknown commercial use.
 - To take a provider out, remove it from `providers` in `ingest.ts` and add its id to `retiredProviderIds`. The worker deletes the queue and the schedule of a retired provider when it starts. It deletes no other queue, since one it does not know may belong to a newer worker. The provider's stations and readings stay until someone deletes them.
 - A snapshot carries only the recent window the worker asks for: the latest observation for NDBC, two days for CANDHIS and Queensland, twelve hours for the Finnish and Portuguese institutes and for Copernicus Marine, six hours for Irish Lights and the Marine Institute. A worker stopped for longer than that leaves a hole. Fetching older history when a user asks for it is not built.
-- A reading that already exists is left alone, so a provider that corrects a value it already published is not followed.
+- A value already stored is never replaced, so a provider that corrects a value it already published is not followed.

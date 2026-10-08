@@ -378,8 +378,15 @@ export const copernicus: Provider = {
       const rows: Row[] = [];
       for (const url of fileUrls(layout, name, now)) {
         // A stretch of time with no measurement yet has no file, which the store answers with
-        // an error. Only the lack of every file of the wave height fails the run.
-        const bytes = yield* fetchBytes(url).pipe(Effect.catch(() => Effect.succeed(null)));
+        // 403 or 404. Any other failure fails the run, so no reading is stored without the
+        // values of the file that could not be read.
+        const bytes = yield* fetchBytes(url).pipe(
+          Effect.catch((error) =>
+            error.status === 403 || error.status === 404
+              ? Effect.succeed(null)
+              : Effect.fail(error),
+          ),
+        );
         if (bytes === null) continue;
 
         const file = readFile(bytes, name, since);

@@ -15,9 +15,30 @@ export function stationId(provider: string, providerStationId: string) {
   return `${provider}-${providerStationId.toLowerCase()}`;
 }
 
+// The measurements a reading can hold.
+const MEASUREMENTS = [
+  reading.significantHeightM,
+  reading.maxHeightM,
+  reading.peakPeriodS,
+  reading.meanPeriodS,
+  reading.significantPeriodS,
+  reading.peakDirectionDeg,
+  reading.directionalSpreadDeg,
+  reading.waterTemperatureC,
+  reading.windSpeedMs,
+  reading.windGustMs,
+  reading.windDirectionDeg,
+];
+
+/** The value a reading already has for a measurement, or else the one the snapshot brings. */
+function keptOrBrought(column: (typeof MEASUREMENTS)[number]) {
+  return sql`coalesce(${column}, ${sql.raw(`excluded.${column.name}`)})`;
+}
+
 /**
- * Writes a snapshot. Running it twice with the same snapshot changes nothing the second time:
- * stations are upserted and a reading that already exists is left alone.
+ * Writes a snapshot. Running it twice with the same snapshot changes nothing the second time.
+ * Stations are upserted. A reading that already exists keeps every value it has and takes the
+ * ones it lacked: a provider may publish a moment's height before its period.
  *
  * When the database refuses the snapshot, each station is saved on its own, so one value it
  * cannot store does not block the others.
@@ -27,7 +48,9 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
   provider: string,
   snapshot: Snapshot,
 ) {
-  if (snapshot.stations.length === 0) return { stations: 0, newReadings: 0, failedStations: 0 };
+  if (snapshot.stations.length === 0) {
+    return { stations: 0, newReadings: 0, completedReadings: 0, failedStations: 0 };
+  }
 
   const latestByStation = new Map<string, Date>();
   for (const { providerStationId, observedAt } of snapshot.readings) {
@@ -42,6 +65,11 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     if (windSpeedMs != null) withWind.add(providerStationId);
   }
 
+  const toRow = ({ providerStationId, ...measurements }: Snapshot["readings"][number]) => ({
+    ...measurements,
+    stationId: stationId(provider, providerStationId),
+  });
+
   const stationRows = snapshot.stations.map((input) => ({
     ...input,
     name: cleanText(input.name),
@@ -52,10 +80,15 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     reportsWaves: withWaves.has(input.providerStationId),
     reportsWind: withWind.has(input.providerStationId),
   }));
-  const readingRows = snapshot.readings.map(({ providerStationId, ...measurements }) => ({
-    ...measurements,
-    stationId: stationId(provider, providerStationId),
-  }));
+  // One row per station and moment, the first one given: the database refuses to complete a row
+  // twice in a statement.
+  const rowsByKey = new Map<string, ReturnType<typeof toRow>>();
+  for (const input of snapshot.readings) {
+    const row = toRow(input);
+    const key = `${row.stationId} ${row.observedAt.getTime()}`;
+    if (!rowsByKey.has(key)) rowsByKey.set(key, row);
+  }
+  const readingRows = [...rowsByKey.values()];
 
   type StationRow = (typeof stationRows)[number];
   type ReadingRow = (typeof readingRows)[number];
@@ -82,31 +115,58 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
           },
         });
 
-      const inserted =
+      const written =
         readings.length === 0
           ? []
           : await tx
               .insert(reading)
               .values(readings)
-              .onConflictDoNothing()
-              .returning({ stationId: reading.stationId });
+              .onConflictDoUpdate({
+                target: [reading.stationId, reading.observedAt],
+                set: {
+                  significantHeightM: keptOrBrought(reading.significantHeightM),
+                  maxHeightM: keptOrBrought(reading.maxHeightM),
+                  peakPeriodS: keptOrBrought(reading.peakPeriodS),
+                  meanPeriodS: keptOrBrought(reading.meanPeriodS),
+                  significantPeriodS: keptOrBrought(reading.significantPeriodS),
+                  peakDirectionDeg: keptOrBrought(reading.peakDirectionDeg),
+                  directionalSpreadDeg: keptOrBrought(reading.directionalSpreadDeg),
+                  waterTemperatureC: keptOrBrought(reading.waterTemperatureC),
+                  windSpeedMs: keptOrBrought(reading.windSpeedMs),
+                  windGustMs: keptOrBrought(reading.windGustMs),
+                  windDirectionDeg: keptOrBrought(reading.windDirectionDeg),
+                },
+                // Only a reading that lacks a value the snapshot brings is touched.
+                setWhere: sql.join(
+                  MEASUREMENTS.map(
+                    (column) =>
+                      sql`(${column} is null and ${sql.raw(`excluded.${column.name}`)} is not null)`,
+                  ),
+                  sql` or `,
+                ),
+              })
+              // Postgres leaves `xmax` at zero on a row it has just inserted.
+              .returning({ isNew: sql<boolean>`(xmax = 0)` });
 
-      return inserted.length;
+      const newReadings = written.filter((row) => row.isNew).length;
+      return { newReadings, completedReadings: written.length - newReadings };
     });
 
   return yield* Effect.tryPromise({
     try: async () => {
       try {
-        const newReadings = await save(stationRows, readingRows);
-        return { stations: stationRows.length, newReadings, failedStations: 0 };
+        const written = await save(stationRows, readingRows);
+        return { stations: stationRows.length, ...written, failedStations: 0 };
       } catch (error) {
-        const saved = { stations: 0, newReadings: 0, failedStations: 0 };
+        const saved = { stations: 0, newReadings: 0, completedReadings: 0, failedStations: 0 };
         for (const stationRow of stationRows) {
           try {
-            saved.newReadings += await save(
+            const written = await save(
               [stationRow],
               readingRows.filter((row) => row.stationId === stationRow.id),
             );
+            saved.newReadings += written.newReadings;
+            saved.completedReadings += written.completedReadings;
             saved.stations += 1;
           } catch {
             saved.failedStations += 1;
