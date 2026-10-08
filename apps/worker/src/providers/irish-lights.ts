@@ -67,9 +67,9 @@ export function parseMetOcean(text: string): Snapshot | FormatError {
     const observedAt = parseUtcTime(field("time"));
     const latitude = number("latitude");
     const longitude = number("longitude");
-    const key = `${id} ${field("time")}`;
     // A site is known by its MMSI, the number of its radio transmitter. Two rows for one site
-    // and hour cannot both be right.
+    // and moment cannot both be right.
+    const key = `${id} ${observedAt?.getTime()}`;
     if (!/^\d+$/.test(id) || seen.has(key) || !observedAt || !isPosition(latitude, longitude)) {
       rejected += 1;
       continue;

@@ -68,7 +68,7 @@ export function parseWaveFile(text: string, now = new Date()): Snapshot | Format
     const observedAt = new Date(fieldNumber(field("Seconds")) * 1000);
     const latitude = fieldNumber(field("Latitude"));
     const longitude = fieldNumber(field("Longitude"));
-    const key = `${id} ${field("Seconds")}`;
+    const key = `${id} ${observedAt.getTime()}`;
     if (
       id === "" ||
       seen.has(key) ||

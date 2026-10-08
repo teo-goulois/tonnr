@@ -136,6 +136,18 @@ describe("parseMetOcean", () => {
     expect(snapshot.readings[0]).toMatchObject({ significantHeightM: null, windSpeedMs: 6.173 });
   });
 
+  it("sees the same moment written in another way as the same row", () => {
+    const snapshot = parse(
+      BARRELS_0700,
+      BRIGGS_0700.replace("992351133", "992501070").replace("07:00:00Z", "07:00:00+00:00"),
+      BRIGGS_0700.replace("992351133", "992501070").replace("07:00:00Z", "07:00:00.000Z"),
+    );
+
+    expect(snapshot.rejected).toBe(2);
+    expect(snapshot.readings).toHaveLength(1);
+    expect(snapshot.readings[0]).toMatchObject({ significantHeightM: null });
+  });
+
   it("rejects a row cut short instead of storing a part of it", () => {
     const afterWindSpeed = "-6.36847,52.13938,2026-10-08T07:00:00Z,Barrels AIS,992501070,15.0";
 

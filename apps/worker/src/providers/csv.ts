@@ -1,33 +1,40 @@
 /**
- * Splits one line of CSV into its fields, or returns null when a quote is left open. A field in
- * double quotes may contain commas.
+ * Splits one line of CSV into its fields, or returns null when its quotes are not those of CSV:
+ * one left open, one in the middle of a field, or text after a closing one. A field in double
+ * quotes may contain commas.
  */
 export function parseCsvLine(line: string) {
   const fields: string[] = [];
   let field = "";
-  let quoted = false;
+  // "open" inside a quoted field, "closed" between its closing quote and the next comma.
+  let quote: "none" | "open" | "closed" = "none";
 
   for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (quoted) {
-      if (character === '"' && line[index + 1] === '"') {
+    const character = line.charAt(index);
+    if (quote === "open") {
+      if (character === '"' && line.charAt(index + 1) === '"') {
         field += '"';
         index += 1;
       } else if (character === '"') {
-        quoted = false;
+        quote = "closed";
       } else {
         field += character;
       }
-    } else if (character === '"') {
-      quoted = true;
     } else if (character === ",") {
       fields.push(field);
       field = "";
+      quote = "none";
+    } else if (quote === "closed") {
+      if (character.trim() !== "") return null;
+    } else if (character === '"') {
+      if (field.trim() !== "") return null;
+      field = "";
+      quote = "open";
     } else {
       field += character;
     }
   }
-  if (quoted) return null;
+  if (quote === "open") return null;
   fields.push(field);
 
   return fields.map((value) => value.trim());

@@ -15,6 +15,12 @@ describe("parseCsvLine", () => {
     expect(parseCsvLine('"The ""Barrels"" buoy",1')).toEqual(['The "Barrels" buoy', "1"]);
   });
 
+  it("refuses a quote in the middle of a field, and text after a closing quote", () => {
+    expect(parseCsvLine('Caloundra,0"1",5')).toBeNull();
+    expect(parseCsvLine('"0"1,5')).toBeNull();
+    expect(parseCsvLine(' "Caloundra" ,5')).toEqual(["Caloundra", "5"]);
+  });
+
   it("refuses a line with a quote left open", () => {
     expect(parseCsvLine('"Mackay, inner,4740htx')).toBeNull();
     expect(parseCsvLine('Barrels AIS,16.0"')).toBeNull();

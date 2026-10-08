@@ -13,6 +13,16 @@ const boss = new PgBoss(ENV.DATABASE_URL);
 boss.on("error", (error) => console.error(error));
 await boss.start();
 
+// A provider taken out of the code leaves its schedule in the database, where it would keep
+// queueing runs that nothing works.
+const ingestQueues = new Set(providers.map((provider) => `ingest-${provider.id}`));
+for (const { name } of await boss.getSchedules()) {
+  if (!name.startsWith("ingest-") || ingestQueues.has(name)) continue;
+  await boss.unschedule(name);
+  await boss.deleteQueue(name);
+  console.log(`Removed ${name}, which has no provider any more`);
+}
+
 for (const provider of providers) {
   const queue = `ingest-${provider.id}`;
 

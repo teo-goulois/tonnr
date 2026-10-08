@@ -177,6 +177,20 @@ describe("parseWaveFile", () => {
     expect(snapshot.readings[0]).toMatchObject({ significantHeightM: 0.807 });
   });
 
+  it("sees the same time written in another way as the same row", () => {
+    const snapshot = parse(CALOUNDRA_0720, CALOUNDRA_0720.replace("1791444000", "1791444000.0"));
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings).toHaveLength(1);
+  });
+
+  it("rejects a row whose number holds a quote", () => {
+    const snapshot = parse(CALOUNDRA_0720.replace(",0.807,", ',0"1",'), MACKAY_0740);
+
+    expect(snapshot.rejected).toBe(1);
+    expect(snapshot.readings.map((reading) => reading.providerStationId)).toEqual(["4740htx"]);
+  });
+
   it("reports a measurement column that went missing instead of storing nothing for it", () => {
     const result = parseWaveFile(
       [NOTE, HEADER.replace(" Tp,", " PeakPeriod,"), CALOUNDRA_0720, ""].join("\n"),
