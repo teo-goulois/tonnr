@@ -37,6 +37,9 @@ export const v1Handler = new OpenAPIHandler(v1Router, {
       docsTitle: `${APP_NAME} API v1`,
       specGenerateOptions: {
         info: { title: `${APP_NAME} API`, version: "1.0.0" },
+        // The public address, not the one a request arrives at: behind a proxy that ends HTTPS,
+        // that one starts with http, and the spec would send clients there.
+        servers: [{ url: new URL("/v1", ENV.BETTER_AUTH_URL).href }],
       },
     }),
   ],
