@@ -42,7 +42,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - `pnpm run db:start` needs Docker.
 - The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
 - `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one provider once with `pnpm --filter worker run ingest <provider>`.
-- `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. Delete `scripts/demo.mjs` once a real deployment exists.
+- `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. `pnpm run demo:reload` rebuilds and restarts the app behind the same address. Delete `scripts/demo.mjs` once a real deployment exists.
 - Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files.
 - Run `pnpm run auth:generate` after changing Better Auth plugins, and `pnpm run env:generate` after changing a `.env.schema`.
 - tsdown bundles into `apps/server/dist` every dependency that `apps/server/package.json` does not list. A library that reads files next to its own module then fails at startup, so list it there, as `@neaps/tide-database` is.

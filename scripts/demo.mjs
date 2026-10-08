@@ -1,15 +1,18 @@
 // Temporary: serves the built app through a Cloudflare quick tunnel, so it can be looked at
-// from another device. Delete this file and the "demo" script once a real deployment exists.
+// from another device. Delete this file and the "demo" scripts once a real deployment exists.
 //
 // Needs Postgres running (`pnpm run db:start`) and `cloudflared` on the PATH.
-// Run it with `pnpm run demo`, stop it with Ctrl+C.
+// `pnpm run demo` starts it and Ctrl+C stops it. `pnpm run demo:reload` rebuilds and restarts
+// the app behind the same address, which only changes when this script itself restarts.
 import { spawn } from "node:child_process";
+import { rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { pipeline } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const PID_FILE = path.join(root, ".demo.pid");
 const PROXY_PORT = 8787;
 const API_PORT = 3000;
 const WEB_PORT = 3001;
@@ -18,7 +21,10 @@ const WEB_BUILD = ".demo-dist";
 // The API owns these paths. Everything else is the web app.
 const API_PATHS = ["/rpc", "/v1", "/api/auth"];
 
-const children = [];
+const children = new Set();
+// The API, the worker, and the web app: the programs a reload restarts.
+let apps = [];
+let stopping = false;
 
 function run(name, command, args, options = {}) {
   const child = spawn(command, args, {
@@ -28,7 +34,7 @@ function run(name, command, args, options = {}) {
     // Its own process group, so stopping it also stops the processes it starts.
     detached: true,
   });
-  children.push(child);
+  children.add(child);
   // A program that cannot start, or that fails, must not leave the others running behind.
   child.on("error", (error) => {
     console.error(`[${name}] could not start: ${error.message}`);
@@ -36,6 +42,8 @@ function run(name, command, args, options = {}) {
     process.exit(1);
   });
   child.on("exit", (code) => {
+    children.delete(child);
+    // A program stopped by a signal was stopped on purpose, here or by a reload.
     if (stopping || code === 0 || code === null) return;
     console.error(`[${name}] exited with code ${code}`);
     stop();
@@ -52,6 +60,13 @@ function run(name, command, args, options = {}) {
   return child;
 }
 
+function exited(child) {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) resolve();
+    else child.on("exit", resolve);
+  });
+}
+
 function finished(child, name) {
   return new Promise((resolve, reject) => {
     child.on("exit", (code) =>
@@ -60,24 +75,68 @@ function finished(child, name) {
   });
 }
 
-let stopping = false;
+function signal(child) {
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch {
+    // It had already exited.
+  }
+}
 
 function stop() {
   stopping = true;
-  for (const child of children) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch {
-      // It had already exited.
-    }
-  }
+  for (const child of children) signal(child);
+  rmSync(PID_FILE, { force: true });
 }
-for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => {
+
+for (const name of ["SIGINT", "SIGTERM"]) {
+  process.on(name, () => {
     stop();
     // The tunnel takes a moment to close its connection.
     setTimeout(() => process.exit(0), 3000);
   });
+}
+
+async function build(publicUrl) {
+  await finished(
+    run("build", "pnpm", ["exec", "turbo", "run", "build", "-F", "server", "-F", "worker"]),
+    "build",
+  );
+  // The public address is baked into the web build.
+  await finished(
+    run("build", "pnpm", ["exec", "vite", "build", "--outDir", WEB_BUILD], {
+      cwd: path.join(root, "apps/web"),
+      env: { VITE_SERVER_URL: publicUrl },
+    }),
+    "web build",
+  );
+}
+
+function startApps(publicUrl) {
+  apps = [
+    run("api", "node", ["dist/index.mjs"], {
+      cwd: path.join(root, "apps/server"),
+      env: { BETTER_AUTH_URL: publicUrl, CORS_ORIGIN: publicUrl, PORT: String(API_PORT) },
+    }),
+    run("worker", "node", ["dist/index.mjs"], { cwd: path.join(root, "apps/worker") }),
+    run(
+      "web",
+      "pnpm",
+      [
+        "exec",
+        "vite",
+        "preview",
+        "--outDir",
+        WEB_BUILD,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        String(WEB_PORT),
+        "--strictPort",
+      ],
+      { cwd: path.join(root, "apps/web") },
+    ),
+  ];
 }
 
 // One origin for the browser: the tunnel reaches this proxy, which splits by path.
@@ -112,7 +171,7 @@ http
     );
     upstream.on("error", () => {
       response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
-      response.end("The app is still starting. Reload in a few seconds.");
+      response.end("The app is starting. Reload in a few seconds.");
     });
     request.pipe(upstream);
   })
@@ -139,40 +198,32 @@ try {
   });
   console.log(`\nPublic address: ${publicUrl}\nBuilding…\n`);
 
-  await finished(
-    run("build", "pnpm", ["exec", "turbo", "run", "build", "-F", "server", "-F", "worker"]),
-    "build",
-  );
-  await finished(
-    run("build", "pnpm", ["exec", "vite", "build", "--outDir", WEB_BUILD], {
-      cwd: path.join(root, "apps/web"),
-      env: { VITE_SERVER_URL: publicUrl },
-    }),
-    "web build",
-  );
-
-  const apiEnv = { BETTER_AUTH_URL: publicUrl, CORS_ORIGIN: publicUrl };
-  run("api", "node", ["dist/index.mjs"], { cwd: path.join(root, "apps/server"), env: apiEnv });
-  run("worker", "node", ["dist/index.mjs"], { cwd: path.join(root, "apps/worker") });
-  run(
-    "web",
-    "pnpm",
-    [
-      "exec",
-      "vite",
-      "preview",
-      "--outDir",
-      WEB_BUILD,
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(WEB_PORT),
-      "--strictPort",
-    ],
-    { cwd: path.join(root, "apps/web") },
-  );
-
+  await build(publicUrl);
+  startApps(publicUrl);
+  writeFileSync(PID_FILE, String(process.pid));
   console.log(`\nThe app is at ${publicUrl}\n`);
+
+  let reloading = false;
+  process.on("SIGHUP", async () => {
+    if (reloading || stopping) return;
+    reloading = true;
+    console.log("\nReloading…\n");
+    try {
+      // Build while the old version still answers, then swap.
+      await build(publicUrl);
+      const previous = apps;
+      for (const child of previous) signal(child);
+      await Promise.all(previous.map(exited));
+      startApps(publicUrl);
+      console.log(`\nReloaded. The app is still at ${publicUrl}\n`);
+    } catch (error) {
+      console.error(error);
+      stop();
+      process.exit(1);
+    } finally {
+      reloading = false;
+    }
+  });
 } catch (error) {
   console.error(error);
   stop();

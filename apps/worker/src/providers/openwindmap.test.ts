@@ -66,6 +66,12 @@ describe("parseLiveStations", () => {
     expect(parse([noPosition, noSpeed])).toEqual({ stations: [], readings: [], rejected: 0 });
   });
 
+  it("leaves out a station whose position the network no longer trusts", () => {
+    const lost = station({ location: { latitude: 0, longitude: 0, success: false } });
+
+    expect(parse([lost])).toEqual({ stations: [], readings: [], rejected: 0 });
+  });
+
   it("leaves out a station silent for more than a week", () => {
     const silent = station({
       measurements: { date: "2026-09-20T10:00:00.000Z", wind_speed_avg: 12 },

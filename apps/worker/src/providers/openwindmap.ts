@@ -52,6 +52,8 @@ export function parseLiveStations(json: unknown, now = new Date()): Snapshot | F
     const speedKmh = numberOrNull(measurements.wind_speed_avg);
     // A station that has never sent a position or a wind speed is not broken, only not set up yet.
     if (latitude === null || longitude === null || speedKmh === null) continue;
+    // The network marks a position it no longer trusts, for a station that moved or lost its fix.
+    if (location.success !== true) continue;
     if (typeof measurements.date !== "string") continue;
 
     const observedAt = new Date(measurements.date);

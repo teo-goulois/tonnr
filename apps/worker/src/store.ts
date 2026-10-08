@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
 import { reading, station } from "@repo/db/schema/buoys";
-import { and, isNull, lt, sql } from "drizzle-orm";
+import { and, inArray, isNull, lt, sql } from "drizzle-orm";
 import { Effect, Schema } from "effect";
 
 import { cleanText } from "./clean-text";
@@ -131,13 +131,25 @@ export const pruneReadings = Effect.fn("pruneReadings")(function* (db: Database)
   const cutoff = new Date(Date.now() - WIND_ONLY_DAYS * 24 * 60 * 60 * 1000);
 
   return yield* Effect.tryPromise({
-    try: async () => {
-      const deleted = await db
-        .delete(reading)
-        .where(and(isNull(reading.significantHeightM), lt(reading.observedAt, cutoff)))
-        .returning({ stationId: reading.stationId });
-      return deleted.length;
-    },
+    try: () =>
+      db.transaction(async (tx) => {
+        const deleted = await tx
+          .delete(reading)
+          .where(and(isNull(reading.significantHeightM), lt(reading.observedAt, cutoff)))
+          .returning({ stationId: reading.stationId });
+
+        // A station whose latest reading was deleted points at the latest one it still has.
+        const stationIds = [...new Set(deleted.map((row) => row.stationId))];
+        if (stationIds.length > 0) {
+          await tx
+            .update(station)
+            .set({
+              latestObservedAt: sql`(select max(${reading.observedAt}) from ${reading} where ${reading.stationId} = ${station.id})`,
+            })
+            .where(inArray(station.id, stationIds));
+        }
+        return deleted.length;
+      }),
     catch: (cause) => new StoreError({ provider: "prune", cause }),
   });
 });

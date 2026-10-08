@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import {
@@ -30,6 +30,18 @@ const WIND_LIMIT = 500;
 
 const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
+const MINUTE_MS = 60 * 1000;
+
+// The current time, updated every minute, so that a reading ages out while the page stays open.
+function useNow() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), MINUTE_MS);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
 function Viewer() {
   const { station: selectedId } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -37,7 +49,10 @@ function Viewer() {
   const [bounds, setBounds] = useState<Bounds | null>(null);
 
   const waves = useQuery(
-    orpc.v1.stations.list.queryOptions({ input: { measures: "waves", limit: 500 } }),
+    orpc.v1.stations.list.queryOptions({
+      input: { measures: "waves", limit: 500 },
+      refetchInterval: 10 * MINUTE_MS,
+    }),
   );
   // Wind stations are many, so only the ones in view are loaded.
   const wind = useQuery(
@@ -45,10 +60,12 @@ function Viewer() {
       input: { measures: "wind", bbox: bounds?.join(",") ?? "", limit: WIND_LIMIT },
       enabled: showWind && bounds !== null,
       placeholderData: keepPreviousData,
+      // The worker fetches the wind every ten minutes.
+      refetchInterval: 5 * MINUTE_MS,
     }),
   );
 
-  const now = Date.now();
+  const now = useNow();
   const stations: MapStation[] = (waves.data?.stations ?? []).map((station) => ({
     id: station.id,
     name: station.name,

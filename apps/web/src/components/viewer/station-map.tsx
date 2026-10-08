@@ -104,16 +104,24 @@ function windBadge(station: WindStation, selected: boolean, onSelect: (id: strin
   return badge;
 }
 
+// A longitude brought back between -180 and 180, since the map can be dragged past either edge.
+function wrapLongitude(degrees: number) {
+  return ((((degrees + 180) % 360) + 360) % 360) - 180;
+}
+
 // The visible area, widened to a tenth of a degree so that small moves ask for the same area.
+// West can be greater than east: the area then crosses the antimeridian.
 function visibleBounds(instance: MapLibreMap): Bounds {
   const bounds = instance.getBounds();
-  const wide = bounds.getEast() - bounds.getWest() >= 360;
-  const clamp = (value: number, limit: number) => Math.max(-limit, Math.min(limit, value));
+  const west = Math.floor(bounds.getWest() * 10) / 10;
+  const east = Math.ceil(bounds.getEast() * 10) / 10;
+  const wide = east - west >= 360;
+  const clampLatitude = (value: number) => Math.max(-90, Math.min(90, value));
   return [
-    wide ? -180 : clamp(Math.floor(bounds.getWest() * 10) / 10, 180),
-    clamp(Math.floor(bounds.getSouth() * 10) / 10, 90),
-    wide ? 180 : clamp(Math.ceil(bounds.getEast() * 10) / 10, 180),
-    clamp(Math.ceil(bounds.getNorth() * 10) / 10, 90),
+    wide ? -180 : wrapLongitude(west),
+    clampLatitude(Math.floor(bounds.getSouth() * 10) / 10),
+    wide ? 180 : wrapLongitude(east),
+    clampLatitude(Math.ceil(bounds.getNorth() * 10) / 10),
   ];
 }
 
@@ -171,7 +179,13 @@ export function StationMap({
         style: STYLE_URL,
         ...INITIAL_VIEW,
         attributionControl: { compact: true },
+        // North stays up, so a wind arrow drawn on the page points the right way on the map.
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
       });
+      instance.touchZoomRotate.disableRotation();
+      instance.keyboard.disableRotation();
       instance.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
       created = instance;
 
