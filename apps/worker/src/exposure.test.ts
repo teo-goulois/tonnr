@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyExposure, nextExposure, type DailyHeight, type Site } from "./exposure";
+import {
+  classifyExposure,
+  nextExposure,
+  wholeDaysBefore,
+  type DailyHeight,
+  type Site,
+} from "./exposure";
 
 // Six buoys along an open coast, five kilometres apart, and one site up an estuary.
 const coast: Site[] = Array.from({ length: 6 }, (_, index) => ({
@@ -143,6 +149,34 @@ describe("classifyExposure", () => {
     expect(verdictWith(1, 0.9)).toBe("unclear");
   });
 
+  it("takes the middle of the two middle places when their number is even", () => {
+    const sea = coast.slice(0, 4);
+    const days = ROUGH_DAYS.slice(0, 2).flatMap((date) =>
+      sea.map((site, index) => ({
+        stationId: site.id,
+        day: date,
+        heightM: [1, 2, 4, 6][index] ?? 0,
+      })),
+    );
+    const verdictWith = (estuaryM: number) =>
+      classifyExposure(
+        [...sea, estuary],
+        [
+          ...days,
+          ...ROUGH_DAYS.slice(0, 2).flatMap((date) => day(date, 0, { estuary: estuaryM }, [])),
+        ],
+      ).get("estuary");
+
+    // Half of 3 m, the middle of 2 m and 4 m.
+    expect(verdictWith(1.5)).toBe("open");
+    expect(verdictWith(1.49)).toBe("unclear");
+  });
+
+  it("doubts a site on a day that is not low, even among three places", () => {
+    expect(estuaryAfter([0.6], coast.slice(0, 3))).toBe("unclear");
+    expect(estuaryAfter([0.1], coast.slice(0, 3))).toBeUndefined();
+  });
+
   it("counts stations within two kilometres as one place", () => {
     // 0.01 degrees of latitude is 1.1 km, and 0.03 is 3.3 km.
     const spaced = (degrees: number): Site[] =>
@@ -199,21 +233,56 @@ describe("classifyExposure", () => {
     expect(estuaryAfter([2, 2], twins)).toBeUndefined();
   });
 
-  it("gives the same verdicts whatever the order of the sites", () => {
-    // A chain of three, 1.1 km apart: which two make a place must not depend on who comes first.
-    const chain: Site[] = [
-      { id: "chain-a", latitude: 51.8, longitude: 3.1 },
-      { id: "chain-b", latitude: 51.81, longitude: 3.1 },
-      { id: "chain-c", latitude: 51.82, longitude: 3.1 },
+  it("makes one place of a chain of stations, each within two kilometres of the next", () => {
+    // 1.7 km apart: the ends are 3.3 km from each other, and one place through the middle.
+    const chain: Site[] = ["a", "b", "c"].map((name, index) => ({
+      id: `chain-${name}`,
+      latitude: 51.7 + index * 0.015,
+      longitude: 3.2,
+    }));
+    const [first, middle, last] = chain;
+    const ends = [first, last].filter((site) => site !== undefined);
+    const sea = coast.slice(0, 1);
+    const verdictWith = (sites: Site[]) =>
+      classifyExposure(
+        [...sea, ...sites, estuary],
+        ROUGH_DAYS.slice(0, 2).flatMap((date) => day(date, 2, { estuary: 2 }, [...sea, ...ends])),
+      ).get("estuary");
+
+    expect(verdictWith(ends)).toBe("open");
+    // The middle station has no reading, and still makes one place of the three.
+    expect(verdictWith([...ends, ...(middle ? [middle] : [])])).toBeUndefined();
+  });
+
+  it("counts a place through the stations it has within sixty kilometres", () => {
+    // Two sensors of one place, 59 km and 60.7 km north of the site.
+    const near: Site = { id: "edge-near", latitude: 51.53, longitude: 3.05 };
+    const far: Site = { id: "edge-far", latitude: 51.546, longitude: 3.05 };
+    const others: Site[] = [
+      { id: "other-a", latitude: 51.2, longitude: 3.05 },
+      { id: "other-b", latitude: 51, longitude: 3.3 },
     ];
-    const sea = coast.slice(0, 3);
-    const sites = [...sea, ...chain, estuary];
-    const heights = ROUGH_DAYS.flatMap((date) =>
-      day(date, 2.4, { "chain-a": 2, "chain-b": 0.1, "chain-c": 1, estuary: 0.1 }, sea),
+    const site: Site = { id: "estuary", latitude: 51, longitude: 3.05 };
+    const verdictWith = (nearM: number, farM: number) =>
+      classifyExposure(
+        [near, far, ...others, site],
+        ROUGH_DAYS.slice(0, 2).flatMap((date) =>
+          day(date, 1.2, { "edge-near": nearM, "edge-far": farM, estuary: 0.7 }, others),
+        ),
+      ).get("estuary");
+
+    expect(verdictWith(1.2, 0.2)).toBe("open");
+    expect(verdictWith(0.2, 3)).toBeUndefined();
+  });
+
+  it("gives the same verdicts whatever the order of the sites", () => {
+    const sites = [...coast, estuary];
+    const heights = ROUGH_DAYS.flatMap((date, index) =>
+      day(date, 2 + index * 0.3, { "sea-1": 0.5, "sea-4": 1.1, estuary: 0.3 }),
     );
     const verdicts = classifyExposure(sites, heights);
 
-    expect(verdicts.get("estuary")).toBe("sheltered");
+    expect(verdicts.size).toBeGreaterThan(0);
     expect(classifyExposure(sites.toReversed(), heights)).toEqual(verdicts);
   });
 
@@ -236,18 +305,35 @@ describe("nextExposure", () => {
     expect(nextExposure(null, undefined)).toBeNull();
   });
 
-  it("keeps what was known when the days say nothing", () => {
+  it("keeps what was known when the days say nothing or say the same", () => {
     expect(nextExposure("open", undefined)).toBe("open");
     expect(nextExposure("sheltered", undefined)).toBe("sheltered");
+    expect(nextExposure("open", "open")).toBe("open");
+    expect(nextExposure("sheltered", "sheltered")).toBe("sheltered");
   });
 
-  it("keeps a station open once it was seen in the open", () => {
-    expect(nextExposure("open", "sheltered")).toBe("open");
-    expect(nextExposure("open", "unclear")).toBe("open");
-  });
-
-  it("takes sheltered back when rough days say otherwise", () => {
+  it("takes sheltered back on one day that was not low", () => {
     expect(nextExposure("sheltered", "unclear")).toBeNull();
     expect(nextExposure("sheltered", "open")).toBe("open");
+  });
+
+  it("keeps a station open until the days show it sheltered", () => {
+    expect(nextExposure("open", "unclear")).toBe("open");
+    expect(nextExposure("open", "sheltered")).toBe("sheltered");
+  });
+});
+
+describe("wholeDaysBefore", () => {
+  it("stops at the last midnight and goes back thirty days", () => {
+    expect(wholeDaysBefore(new Date("2026-10-08T03:47:00Z"))).toEqual({
+      since: new Date("2026-09-08T00:00:00Z"),
+      until: new Date("2026-10-08T00:00:00Z"),
+    });
+    expect(wholeDaysBefore(new Date("2026-10-08T00:00:00Z")).until).toEqual(
+      new Date("2026-10-08T00:00:00Z"),
+    );
+    expect(wholeDaysBefore(new Date("2026-10-07T23:59:59.999Z")).until).toEqual(
+      new Date("2026-10-07T00:00:00Z"),
+    );
   });
 });

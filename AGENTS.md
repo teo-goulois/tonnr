@@ -45,7 +45,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
 - `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one job once with `pnpm --filter worker run job <provider>`, `... job alerts`, or `... job exposure`.
 - `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. `pnpm run demo:reload` rebuilds and restarts the app behind the same address. Delete `scripts/demo.mjs` once a real deployment exists.
-- Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files.
+- Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files. Turborepo refuses these scripts in a shell without a terminal, as an agent's is: run them in the package, `pnpm --filter @repo/db run db:migrate`.
 - Run `pnpm run auth:generate` after changing Better Auth plugins, and `pnpm run env:generate` after changing a `.env.schema`.
 - tsdown bundles into `apps/server/dist` every dependency that `apps/server/package.json` does not list. A library that reads files next to its own module then fails at startup, so list it there, as `@neaps/tide-database` is.
 - Varlock blocks any HTTP response that contains the value of a sensitive variable. Mark a variable `@public` in `.env.schema` when its value may appear in a response, as the server URL does in the OpenAPI spec.

@@ -127,7 +127,7 @@ function visibleBounds(instance: MapLibreMap): Bounds {
   ];
 }
 
-// A paint value that differs for the selected station.
+// A paint or layout value that differs for the selected station.
 function whenSelected<T extends number | string>(
   selectedId: string | undefined,
   selected: T,
@@ -210,6 +210,8 @@ export function StationMap({
           id: "stations",
           type: "circle",
           source: "stations",
+          // The selected station is drawn above the others, so its neighbours do not hide it.
+          layout: { "circle-sort-key": whenSelected(latest.current.selectedId, 1, 0) },
           paint: {
             "circle-radius": stationRadius(latest.current.selectedId),
             // A sheltered site stays on the map, faded, so it is not read as the sea outside.
@@ -288,6 +290,7 @@ export function StationMap({
     const instance = map.current;
     if (!instance?.getLayer("stations")) return;
 
+    instance.setLayoutProperty("stations", "circle-sort-key", whenSelected(selectedId, 1, 0));
     instance.setPaintProperty("stations", "circle-radius", stationRadius(selectedId));
     instance.setPaintProperty("stations", "circle-opacity", stationOpacity(selectedId));
     instance.setPaintProperty("stations", "circle-stroke-width", whenSelected(selectedId, 3, 1.5));

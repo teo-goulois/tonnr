@@ -44,9 +44,12 @@ const MEASUREMENTS = [
 ];
 
 // A moored buoy swings a few hundred metres around its anchor, a few kilometres in deep water.
-// A station seen farther than this from where it was, about five kilometres, is another site.
-const MOVED_DEG = 0.05;
-const hasMoved = sql`(abs(${station.latitude} - excluded.latitude) > ${MOVED_DEG} or abs(${station.longitude} - excluded.longitude) > ${MOVED_DEG})`;
+// A station seen farther than this from where it was is another site.
+const MOVED_KM = 5;
+const KM_PER_DEGREE = 111.2;
+// The shorter way round, so that crossing the 180th meridian is not a move.
+const eastward = sql`(${station.longitude} - excluded.longitude - 360 * round((${station.longitude} - excluded.longitude) / 360))`;
+const hasMoved = sql`(${KM_PER_DEGREE} * sqrt(power(${station.latitude} - excluded.latitude, 2) + power(${eastward} * cos(radians(${station.latitude})), 2)) > ${MOVED_KM})`;
 
 // How many readings one statement writes. A reading takes up to fourteen parameters, and
 // Postgres accepts 65,535 in a statement.

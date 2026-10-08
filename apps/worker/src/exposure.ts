@@ -23,15 +23,15 @@ const NEIGHBOUR_KM = 60;
 // Stations this close measure the same water: several sensors on one platform, or one buoy that
 // two providers publish. They count as one place, and a station is not compared with its own.
 const SAME_PLACE_KM = 2;
-// A day counts for a station when its readings fall in three of the day's four quarters.
-const MIN_QUARTERS_PER_DAY = 3;
+// A day counts for a station when it has readings in each of the day's four quarters.
+const QUARTERS_PER_DAY = 4;
 // A place had a rough day when its strong waves reached this.
 const ROUGH_M = 1;
 // A day tells something of a station when this many places around it had a rough one. Their
-// median is what the station is compared with, so a sheltered neighbour never lowers it.
+// median is what the station is compared with, so a neighbour that stays low never lowers it.
 const MIN_ROUGH_PLACES = 3;
 
-// A station is open once it has had, on two rough days, half the waves of the places around it.
+// A station is open when it had, on two rough days, half the waves of the places around it.
 const OPEN_FROM = 0.5;
 const MIN_OPEN_DAYS = 2;
 // A station is sheltered when it stayed under a fifth of them on every rough day, three days at
@@ -62,6 +62,28 @@ function median(values: number[]) {
 }
 
 /**
+ * Numbers the places. Stations within reach of each other, straight or through others, share
+ * one, with or without readings, so that a place does not change with what was measured.
+ */
+function groupPlaces(sites: readonly Site[]) {
+  const placeOf = new Map<string, number>();
+  for (const [place, first] of sites.entries()) {
+    if (placeOf.has(first.id)) continue;
+
+    placeOf.set(first.id, place);
+    const reached = [first];
+    for (const from of reached) {
+      for (const other of sites) {
+        if (placeOf.has(other.id) || distanceKm(from, other) > SAME_PLACE_KM) continue;
+        placeOf.set(other.id, place);
+        reached.push(other);
+      }
+    }
+  }
+  return placeOf;
+}
+
+/**
  * Tells what the days say of each station: open, sheltered, or unclear. A station that no
  * rough day speaks for is left out: the days say nothing of it.
  */
@@ -75,45 +97,34 @@ export function classifyExposure(
     days.set(day, heightM);
     byStation.set(stationId, days);
   }
-  // In the order of their identifiers, so the places do not depend on the order of the sites.
-  const measured = sites
-    .filter((site) => byStation.has(site.id))
-    .toSorted((a, b) => (a.id < b.id ? -1 : 1));
-
-  // A place is the stations within reach of its first one.
-  const places: { anchor: Site; members: Site[] }[] = [];
-  const placeOf = new Map<string, number>();
-  for (const site of measured) {
-    let index = places.findIndex((place) => distanceKm(place.anchor, site) <= SAME_PLACE_KM);
-    if (index === -1) index = places.push({ anchor: site, members: [] }) - 1;
-    places[index]?.members.push(site);
-    placeOf.set(site.id, index);
-  }
-  const placeDays = places.map(({ members }) => {
-    const values = new Map<string, number[]>();
-    for (const member of members) {
-      for (const [day, heightM] of byStation.get(member.id) ?? []) {
-        values.set(day, [...(values.get(day) ?? []), heightM]);
-      }
-    }
-    return new Map([...values].map(([day, ofTheDay]) => [day, median(ofTheDay)]));
-  });
+  const placeOf = groupPlaces(sites);
 
   const verdicts = new Map<string, Verdict>();
-  for (const site of measured) {
-    const around = placeDays.filter(
-      (_, index) =>
-        index !== placeOf.get(site.id) &&
-        distanceKm(site, places[index]?.anchor ?? site) <= NEIGHBOUR_KM,
-    );
+  for (const site of sites) {
+    const days = byStation.get(site.id);
+    if (!days) continue;
+
+    // The days of the stations within reach, place by place. A place counts through the
+    // stations it has within reach, not through the others.
+    const around = new Map<number, Map<string, number>[]>();
+    for (const other of sites) {
+      const place = placeOf.get(other.id);
+      const otherDays = byStation.get(other.id);
+      if (place === undefined || place === placeOf.get(site.id) || !otherDays) continue;
+      if (distanceKm(site, other) > NEIGHBOUR_KM) continue;
+      around.set(place, [...(around.get(place) ?? []), otherDays]);
+    }
 
     let openDays = 0;
     let lowDays = 0;
     let hasDayNotLow = false;
-    for (const [day, heightM] of byStation.get(site.id) ?? []) {
-      const rough = around
-        .map((days) => days.get(day))
-        .filter((value) => value !== undefined)
+    for (const [day, heightM] of days) {
+      const rough = [...around.values()]
+        .map((stations) =>
+          stations.map((ofStation) => ofStation.get(day)).filter((value) => value !== undefined),
+        )
+        .filter((ofTheDay) => ofTheDay.length > 0)
+        .map(median)
         .filter((value) => value >= ROUGH_M);
       if (rough.length < MIN_ROUGH_PLACES) continue;
 
@@ -131,41 +142,45 @@ export function classifyExposure(
 }
 
 /**
- * What a station's exposure becomes, from what was known of it and what the days say. A station
- * seen in the open stays open: the days that showed it leave the window, the place does not
- * change. A sheltered station stays so until rough days say otherwise.
+ * What a station's exposure becomes, from what was known of it and what the days say. A label
+ * holds while the days say nothing. One day that is not low is enough to doubt a sheltered
+ * station, and an open one stays open until the days show it sheltered.
  */
 export function nextExposure(known: Exposure | null, verdict: Verdict | undefined) {
-  if (known === "open" || verdict === "open") return "open";
-  if (verdict === "unclear") return null;
-  if (verdict === "sheltered") return "sheltered";
+  if (verdict === "open" || verdict === "sheltered") return verdict;
+  if (verdict === "unclear" && known === "sheltered") return null;
   return known;
 }
 
+/** The whole UTC days before a moment, as many as the window holds. */
+export function wholeDaysBefore(now: Date) {
+  const until = new Date(Math.floor(now.getTime() / DAY_MS) * DAY_MS);
+  return { since: new Date(until.getTime() - WINDOW_DAYS * DAY_MS), until };
+}
+
 /**
- * Works out each wave station's exposure from the whole days of the last thirty and stores
- * what changed. A station the days say nothing of keeps what was known of it.
+ * Works out each wave station's exposure from the last thirty whole days and stores what
+ * changed. Today is left out: its readings would speak for a few hours of it, and only for the
+ * stations that report often.
  */
 export const updateExposure = Effect.fn("updateExposure")(function* (
   db: Database,
   now: Date = new Date(),
 ) {
-  // Whole UTC days: today's readings would speak for a few hours of it, and only for the
-  // stations that report often.
-  const until = new Date(Math.floor(now.getTime() / DAY_MS) * DAY_MS);
-  const since = new Date(until.getTime() - WINDOW_DAYS * DAY_MS);
+  const { since, until } = wholeDaysBefore(now);
   const day = sql<string>`to_char(${reading.observedAt} at time zone 'UTC', 'YYYY-MM-DD')`;
   const quarter = sql`floor(extract(hour from ${reading.observedAt} at time zone 'UTC') / 6)`;
 
   return yield* Effect.tryPromise({
     try: async () => {
-      const startedAt = new Date();
       const sites = await db
         .select({
           id: station.id,
           latitude: station.latitude,
           longitude: station.longitude,
           exposure: station.exposure,
+          // As text: a date would lose the microseconds the comparison below needs.
+          movedAt: sql<string | null>`${station.movedAt}::text`,
         })
         .from(station)
         .where(eq(station.reportsWaves, true));
@@ -173,7 +188,9 @@ export const updateExposure = Effect.fn("updateExposure")(function* (
         .select({
           stationId: reading.stationId,
           day,
-          heightM: sql<number>`percentile_cont(0.75) within group (order by ${reading.significantHeightM})`,
+          // A height the station measured, not one worked out between two: one high reading
+          // among four must not make a day.
+          heightM: sql<number>`percentile_disc(0.75) within group (order by ${reading.significantHeightM})`,
         })
         .from(reading)
         .innerJoin(station, eq(station.id, reading.stationId))
@@ -187,35 +204,56 @@ export const updateExposure = Effect.fn("updateExposure")(function* (
           ),
         )
         .groupBy(reading.stationId, day)
-        .having(sql`count(distinct ${quarter}) >= ${MIN_QUARTERS_PER_DAY}`);
+        .having(sql`count(distinct ${quarter}) = ${QUARTERS_PER_DAY}`);
 
       const verdicts = classifyExposure(sites, heights);
-      const counts = { open: 0, sheltered: 0, changed: 0 };
-      const changes = new Map<Exposure | null, string[]>();
+      const changes = new Map<
+        string,
+        { exposure: Exposure | null; movedAt: string | null; stationIds: string[] }
+      >();
       for (const site of sites) {
         const exposure = nextExposure(site.exposure, verdicts.get(site.id));
-        if (exposure) counts[exposure] += 1;
         if (exposure === site.exposure) continue;
-        counts.changed += 1;
-        changes.set(exposure, [...(changes.get(exposure) ?? []), site.id]);
+
+        const key = `${exposure} ${site.movedAt}`;
+        const change = changes.get(key) ?? { exposure, movedAt: site.movedAt, stationIds: [] };
+        change.stationIds.push(site.id);
+        changes.set(key, change);
       }
 
-      await db.transaction(async (tx) => {
-        for (const [exposure, stationIds] of changes) {
-          await tx
+      const changed = await db.transaction(async (tx) => {
+        let written = 0;
+        for (const { exposure, movedAt, stationIds } of changes.values()) {
+          const rows = await tx
             .update(station)
             .set({ exposure })
             .where(
               and(
                 inArray(station.id, stationIds),
-                // A station that moved while this ran is another place already.
-                or(isNull(station.movedAt), lt(station.movedAt, startedAt)),
+                // A station that moved since it was read is another place already.
+                sql`${station.movedAt}::text is not distinct from ${movedAt}`,
               ),
-            );
+            )
+            .returning({ id: station.id });
+          written += rows.length;
         }
+        return written;
       });
 
-      return { stations: sites.length, ...counts };
+      const known = await db
+        .select({ exposure: station.exposure, stations: sql<number>`count(*)::int` })
+        .from(station)
+        .where(and(eq(station.reportsWaves, true), isNotNull(station.exposure)))
+        .groupBy(station.exposure);
+      const count = (exposure: Exposure) =>
+        known.find((row) => row.exposure === exposure)?.stations ?? 0;
+
+      return {
+        stations: sites.length,
+        open: count("open"),
+        sheltered: count("sheltered"),
+        changed,
+      };
     },
     catch: (cause) => new StoreError({ provider: "exposure", cause }),
   });
