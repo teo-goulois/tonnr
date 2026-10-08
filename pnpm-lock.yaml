@@ -457,16 +457,10 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4))
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/api:
     dependencies:
-      '@neaps/tide-database':
-        specifier: 'catalog:'
-        version: 0.9.20260907
-      '@neaps/tide-predictor':
-        specifier: 'catalog:'
-        version: 0.11.0
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.15.4(@opentelemetry/api@1.9.1)
@@ -482,12 +476,12 @@ importers:
       '@repo/auth':
         specifier: workspace:*
         version: link:../auth
+      '@repo/conditions':
+        specifier: workspace:*
+        version: link:../conditions
       '@repo/db':
         specifier: workspace:*
         version: link:../db
-      '@repo/upstream':
-        specifier: workspace:*
-        version: link:../upstream
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261007.1)(@effect/sql-d1@4.0.1(effect@4.0.0))(@effect/sql-sqlite-do@4.0.1(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(effect@4.0.0)(pg@8.23.1)(valibot@1.2.0(typescript@7.0.2))(zod@4.6.5)
@@ -504,9 +498,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4))
 
   packages/auth:
     dependencies:
@@ -535,6 +526,40 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+
+  packages/conditions:
+    dependencies:
+      '@neaps/tide-database':
+        specifier: 'catalog:'
+        version: 0.9.20260907
+      '@neaps/tide-predictor':
+        specifier: 'catalog:'
+        version: 0.11.0
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
+      '@repo/upstream':
+        specifier: workspace:*
+        version: link:../upstream
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.4
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/config: {}
 
@@ -8112,7 +8137,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
-  '@vitest/mocker@5.0.3(vite@8.3.3(@types/node@26.6.4))':
+  '@vitest/mocker@5.0.3(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
@@ -8340,7 +8365,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
       solid-js: 1.9.16
-      vitest: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4))
+      vitest: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -10227,10 +10252,10 @@ snapshots:
     optionalDependencies:
       vite: 8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
-  vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4)):
+  vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.3.3(@types/node@26.6.4))
+      '@vitest/mocker': 5.0.3(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0

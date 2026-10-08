@@ -12,7 +12,7 @@ Tonn computes tides from open harmonic constants, with the Neaps predictor and i
 
 After the app is released, Téo will ask SHOM for a contract that covers the free app.
 
-`packages/api/src/tides/tide-prediction.ts` is the only module that knows where tides come from. Procedures call it, and the alert engine will too. A SHOM-backed source would replace or extend that module.
+`packages/conditions/src/tides/tide-prediction.ts` is the only module that knows where tides come from. Procedures call it, and the alert engine will too. A SHOM-backed source would replace or extend that module.
 
 ## Consequences
 

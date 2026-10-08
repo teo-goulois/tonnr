@@ -6,8 +6,8 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { protectedProcedure, publicProcedure } from "../index";
-import { assessSpot } from "../spots/conditions";
-import { criteriaSchema } from "../spots/criteria";
+import { assessSpot } from "@repo/conditions/spots/conditions";
+import { criteriaSchema } from "@repo/conditions/spots/criteria";
 
 const MAX_SPOTS_PER_USER = 100;
 

@@ -11,6 +11,7 @@ Read `docs/product-vision.md` before product work, `docs/data-sources.md` before
 - `apps/web` is the TanStack Start app. It deploys to Cloudflare through `packages/infra`.
 - `packages/api` holds the procedures. Each user action is one oRPC procedure, and its validation, authorization, and logic live in that procedure. Public procedures belong to a versioned router. Decision 003 says what may change inside a version.
 - `packages/db` holds the Drizzle schema and client. Use stock Postgres 18 features and change the schema through Drizzle migrations, so the database stays portable. Decision 001 gives the reason.
+- `packages/conditions` computes what the sea does at a point: tides, forecasts, and whether a spot's criteria are met. The API and the worker both use it, and it knows nothing about HTTP or the database.
 - `packages/upstream` is how the API and the worker call a data provider. It sets the user agent, the timeout, and the retries, so no other code calls `fetch` on a provider.
 - `packages/auth` sets up Better Auth. `packages/ui` holds shared interface primitives.
 

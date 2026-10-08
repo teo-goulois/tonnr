@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { Effect, Result } from "effect";
 import { z } from "zod";
 
-import { FORECAST_SOURCE, getForecast } from "../forecasts/open-meteo";
+import { FORECAST_SOURCE, getForecast } from "@repo/conditions/forecasts/open-meteo";
 import { publicProcedure } from "../index";
 
 const measurement = z.number().nullable();

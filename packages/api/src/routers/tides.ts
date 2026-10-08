@@ -6,7 +6,7 @@ import {
   MAX_STATION_DISTANCE_KM,
   predictTideExtremes,
   predictTideTimeline,
-} from "../tides/tide-prediction";
+} from "@repo/conditions/tides/tide-prediction";
 
 const MAX_RANGE_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;

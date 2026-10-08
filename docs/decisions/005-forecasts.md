@@ -11,7 +11,7 @@ The first release shows swell and wind forecasts for any point, and later for ea
 Forecasts come from Open-Meteo: its marine API for waves and swell, its weather API for wind. `GET /v1/forecasts` merges the two hour by hour.
 
 - The API fetches a forecast when it is asked for one and keeps the answer for an hour, per 0.05° cell. Nearby points share an answer.
-- `packages/api/src/forecasts/open-meteo.ts` is the only module that knows the source.
+- `packages/conditions/src/forecasts/open-meteo.ts` is the only module that knows the source.
 - Every request to a provider, from the API or the worker, goes through `packages/upstream`, which sets the user agent, the timeout, and the retry policy.
 
 ## Why this is allowed

@@ -1,0 +1,25 @@
+{
+  "name": "@repo/conditions",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@neaps/tide-database": "catalog:",
+    "@neaps/tide-predictor": "catalog:",
+    "@repo/db": "workspace:*",
+    "@repo/upstream": "workspace:*",
+    "effect": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^5.0.3"
+  }
+}

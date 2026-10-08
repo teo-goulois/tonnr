@@ -7,26 +7,22 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "check-types": "tsc -b",
-    "test": "vitest run"
+    "check-types": "tsc -b"
   },
   "dependencies": {
-    "@neaps/tide-database": "catalog:",
-    "@neaps/tide-predictor": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "@repo/auth": "workspace:*",
+    "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
-    "@repo/upstream": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@repo/config": "workspace:*",
-    "typescript": "catalog:",
-    "vitest": "^5.0.3"
+    "typescript": "catalog:"
   }
 }
