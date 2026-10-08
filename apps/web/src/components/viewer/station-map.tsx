@@ -5,10 +5,11 @@ import type {
   GeoJSONSource,
   Map as MapLibreMap,
   MapLayerMouseEvent,
+  Marker,
 } from "maplibre-gl";
 // The library runs its tile work in a worker, which the bundler has to build as its own file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type MapStation = {
   id: string;
@@ -19,10 +20,25 @@ export type MapStation = {
   significantHeightMeters: number | null;
 };
 
+export type WindStation = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  speedKnots: number;
+  // Where the wind comes from. Null when it turns too much to say.
+  directionDegrees: number | null;
+};
+
+// West, south, east, north.
+export type Bounds = [number, number, number, number];
+
 type StationMapProps = {
   stations: MapStation[];
+  windStations: WindStation[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
+  onBoundsChange: (bounds: Bounds) => void;
 };
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
@@ -37,6 +53,69 @@ export const HEIGHT_SCALE = [
   { meters: 5, color: "#cde2fb" },
 ];
 export const NO_READING_COLOR = "#898781";
+
+// One orange, darker for light air and lighter for strong wind.
+const CALM = { knots: 0, background: "#4a2412", text: "#ffffff" };
+export const WIND_SCALE = [
+  CALM,
+  { knots: 8, background: "#8a3d1c", text: "#ffffff" },
+  { knots: 15, background: "#d95926", text: "#ffffff" },
+  { knots: 25, background: "#f6a67e", text: "#0b0b0b" },
+];
+
+function windColor(knots: number) {
+  let color = CALM;
+  for (const stop of WIND_SCALE) {
+    if (knots >= stop.knots) color = stop;
+  }
+  return color;
+}
+
+// A badge with an arrow that points where the wind is going, and its speed in knots.
+function windBadge(station: WindStation, selected: boolean, onSelect: (id: string) => void) {
+  const color = windColor(station.speedKnots);
+  const badge = document.createElement("button");
+  badge.type = "button";
+  badge.title = station.name;
+  badge.style.cssText = [
+    "display:flex",
+    "align-items:center",
+    "gap:3px",
+    "padding:1px 5px",
+    "border-radius:5px",
+    "font:600 11px/16px system-ui,sans-serif",
+    "cursor:pointer",
+    `border:${selected ? "2px solid #ffffff" : "1.5px solid #1a1a19"}`,
+    `background:${color.background}`,
+    `color:${color.text}`,
+  ].join(";");
+
+  if (station.directionDegrees !== null) {
+    const arrow = document.createElement("span");
+    arrow.textContent = "↑";
+    arrow.style.cssText = `display:inline-block;transform:rotate(${station.directionDegrees + 180}deg)`;
+    badge.append(arrow);
+  }
+  badge.append(String(Math.round(station.speedKnots)));
+  badge.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onSelect(station.id);
+  });
+  return badge;
+}
+
+// The visible area, widened to a tenth of a degree so that small moves ask for the same area.
+function visibleBounds(instance: MapLibreMap): Bounds {
+  const bounds = instance.getBounds();
+  const wide = bounds.getEast() - bounds.getWest() >= 360;
+  const clamp = (value: number, limit: number) => Math.max(-limit, Math.min(limit, value));
+  return [
+    wide ? -180 : clamp(Math.floor(bounds.getWest() * 10) / 10, 180),
+    clamp(Math.floor(bounds.getSouth() * 10) / 10, 90),
+    wide ? 180 : clamp(Math.ceil(bounds.getEast() * 10) / 10, 180),
+    clamp(Math.ceil(bounds.getNorth() * 10) / 10, 90),
+  ];
+}
 
 // A paint value that differs for the selected station.
 function whenSelected<T extends number | string>(
@@ -62,12 +141,21 @@ function toGeoJson(stations: MapStation[]) {
   };
 }
 
-export function StationMap({ stations, selectedId, onSelect }: StationMapProps) {
+export function StationMap({
+  stations,
+  windStations,
+  selectedId,
+  onSelect,
+  onBoundsChange,
+}: StationMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
+  const library = useRef<typeof import("maplibre-gl") | null>(null);
+  const windMarkers = useRef<Marker[]>([]);
+  const [ready, setReady] = useState(false);
   // The map is created once, so its handlers read the latest props through refs.
-  const latest = useRef({ stations, selectedId, onSelect });
-  latest.current = { stations, selectedId, onSelect };
+  const latest = useRef({ stations, selectedId, onSelect, onBoundsChange });
+  latest.current = { stations, selectedId, onSelect, onBoundsChange };
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +213,12 @@ export function StationMap({ stations, selectedId, onSelect }: StationMapProps) 
           instance.getCanvas().style.cursor = "";
         });
 
+        instance.on("moveend", () => latest.current.onBoundsChange(visibleBounds(instance)));
+        latest.current.onBoundsChange(visibleBounds(instance));
+
         map.current = instance;
+        library.current = maplibre;
+        setReady(true);
       });
     });
 
@@ -139,7 +232,29 @@ export function StationMap({ stations, selectedId, onSelect }: StationMapProps) 
   useEffect(() => {
     const source = map.current?.getSource<GeoJSONSource>("stations");
     source?.setData(toGeoJson(stations));
-  }, [stations]);
+  }, [stations, ready]);
+
+  useEffect(() => {
+    const instance = map.current;
+    const maplibre = library.current;
+    if (!instance || !maplibre) return;
+
+    windMarkers.current = windStations.map((station) =>
+      new maplibre.Marker({
+        element: windBadge(station, station.id === selectedId, (id) => latest.current.onSelect(id)),
+        // Above the point, so a buoy that also measures the wind keeps its dot visible.
+        anchor: "bottom",
+        offset: [0, -8],
+      })
+        .setLngLat([station.longitude, station.latitude])
+        .addTo(instance),
+    );
+
+    return () => {
+      for (const marker of windMarkers.current) marker.remove();
+      windMarkers.current = [];
+    };
+  }, [windStations, selectedId, ready]);
 
   useEffect(() => {
     const instance = map.current;
@@ -152,7 +267,7 @@ export function StationMap({ stations, selectedId, onSelect }: StationMapProps) 
       "circle-stroke-color",
       whenSelected(selectedId, "#ffffff", "#1a1a19"),
     );
-  }, [selectedId]);
+  }, [selectedId, ready]);
 
   return <div ref={container} className="h-full min-h-[320px] w-full" />;
 }

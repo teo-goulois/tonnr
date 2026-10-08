@@ -6,6 +6,11 @@ import { orpc } from "@/utils/orpc";
 import { LineChart } from "./line-chart";
 
 const HOUR_MS = 60 * 60 * 1000;
+const KNOTS_PER_MS = 1.943844;
+
+function knots(metersPerSecond: number | null) {
+  return metersPerSecond === null ? null : metersPerSecond * KNOTS_PER_MS;
+}
 
 const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const clock = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -108,6 +113,8 @@ export function StationPanel({ stationId }: { stationId: string }) {
 
   const readings = history.data?.readings ?? [];
   const latest = readings[0];
+  const measuresWaves = station.measures.includes("waves");
+  const measuresWind = station.measures.includes("wind");
   const period =
     latest?.peakPeriodSeconds ??
     latest?.significantPeriodSeconds ??
@@ -137,12 +144,26 @@ export function StationPanel({ stationId }: { stationId: string }) {
       <Section title="Dernière mesure" note={latest && ago(latest.observedAt)}>
         {latest ? (
           <div className="grid grid-cols-3 gap-2">
-            <Tile label="Hauteur significative" value={latest.significantHeightMeters} unit="m" />
-            <Tile label="Hauteur max" value={latest.maxHeightMeters} unit="m" />
-            <Tile label={periodLabel} value={period} unit="s" />
-            <Tile label="Direction au pic" value={latest.peakDirectionDegrees} unit="°" />
-            <Tile label="Eau" value={latest.waterTemperatureCelsius} unit="°C" />
-            <Tile label="Vent" value={latest.windSpeedMetersPerSecond} unit="m/s" />
+            {measuresWaves && (
+              <>
+                <Tile
+                  label="Hauteur significative"
+                  value={latest.significantHeightMeters}
+                  unit="m"
+                />
+                <Tile label="Hauteur max" value={latest.maxHeightMeters} unit="m" />
+                <Tile label={periodLabel} value={period} unit="s" />
+                <Tile label="Direction au pic" value={latest.peakDirectionDegrees} unit="°" />
+                <Tile label="Eau" value={latest.waterTemperatureCelsius} unit="°C" />
+              </>
+            )}
+            <Tile label="Vent" value={knots(latest.windSpeedMetersPerSecond)} unit="nd" />
+            {measuresWind && (
+              <>
+                <Tile label="Rafales" value={knots(latest.windGustMetersPerSecond)} unit="nd" />
+                <Tile label="Vent, vient du" value={latest.windDirectionDegrees} unit="°" />
+              </>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">
@@ -151,18 +172,35 @@ export function StationPanel({ stationId }: { stationId: string }) {
         )}
       </Section>
 
-      <Section title="Hauteur significative mesurée" note="mètres, 48 dernières heures">
-        <LineChart
-          label="Hauteur significative mesurée"
-          unit="m"
-          points={readings
-            .map((reading) => ({
-              time: reading.observedAt,
-              value: reading.significantHeightMeters,
-            }))
-            .reverse()}
-        />
-      </Section>
+      {measuresWaves && (
+        <Section title="Hauteur significative mesurée" note="mètres, 48 dernières heures">
+          <LineChart
+            label="Hauteur significative mesurée"
+            unit="m"
+            points={readings
+              .map((reading) => ({
+                time: reading.observedAt,
+                value: reading.significantHeightMeters,
+              }))
+              .reverse()}
+          />
+        </Section>
+      )}
+
+      {measuresWind && (
+        <Section title="Vent mesuré" note="nœuds, 48 dernières heures">
+          <LineChart
+            label="Vitesse du vent mesurée"
+            unit="nd"
+            points={readings
+              .map((reading) => ({
+                time: reading.observedAt,
+                value: knots(reading.windSpeedMetersPerSecond),
+              }))
+              .reverse()}
+          />
+        </Section>
+      )}
 
       <Section
         title="Prévision de houle"
