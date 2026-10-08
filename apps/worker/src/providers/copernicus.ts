@@ -17,10 +17,22 @@ const PRODUCT_URL =
 const PRODUCT_DOI = "https://doi.org/10.48670/moi-00043";
 const LICENCE_URL = "https://marine.copernicus.eu/user-corner/service-commitments-and-licence";
 
-// The last twelve hours. A measurement shows up one to two hours after its time.
-const WINDOW_MS = 12 * 60 * 60 * 1000;
-// A mooring is a platform of this type, and its identifier ends with the type.
+// The last two days. Most measurements show up one to two hours after their time, and the
+// product says that they are distributed within 24 to 48 hours on average.
+const WINDOW_MS = 48 * 60 * 60 * 1000;
+// A mooring is a platform of this type, and its identifier ends with the type. It is any fixed
+// platform: a buoy, a pole, an oil platform, and some harbour or estuary sites.
 const MOORING = "MO";
+// The sea temperature is kept when it is measured within this depth, in metres.
+const SURFACE_DEPTH_M = 5;
+
+// What a run may read at most. The files come from outside, and the largest was 1.5 MB with
+// 23,000 rows on 2026-10-08.
+const MAX_FILE_BYTES = 32 * 1024 * 1024;
+const MAX_INDEX_BYTES = 32 * 1024 * 1024;
+const MAX_ROWS_PER_FILE = 500_000;
+const MAX_FILES_PER_VARIABLE = 4;
+const MAX_OVERFLOW_FILES = 20;
 
 // Each variable with the measurement it feeds and the unit the parser was written for. A change
 // of unit would store wrong values silently. A measurement takes the first variable that has a
@@ -38,26 +50,30 @@ const VARIABLES: readonly { name: string; measurement: Measurement; unit: string
 ];
 // The wind of these moorings is left out for now. It comes at other moments than the waves, so
 // a mooring's latest reading would often be one of wind alone, with no wave height to show.
+
 // Without this one a run has nothing to store.
 const REQUIRED_VARIABLE = "VHM0";
 
 // The quality flags of the in-situ products: 0 for no check, 1 good, 2 probably good, then
-// 3 to 9 for values that are bad, changed, unused, nominal, interpolated, or missing.
+// 3 and 4 bad, 5 changed, 6 below detection, 7 nominal, 8 interpolated, 9 missing.
 const USABLE_FLAGS = new Set([0, 1, 2]);
 const KNOWN_FLAGS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-// Buoys that Tonn already reads from their owner or through another provider, which would
-// otherwise show twice. The institutions are written as the index of platforms writes them.
+// Buoys whose waves Tonn already reads from their owner or through another provider, which
+// would otherwise show twice. The institutions are written as the index of platforms writes
+// them. The platforms were matched one by one on 2026-10-08.
 const READ_ELSEWHERE = {
-  institutions: new Set([
-    "Marine Institute",
-    "Met Eireann;Commissioners of Irish Lights",
-    // NDBC relays the Met Office's buoys.
-    "Met Office- Exeter",
-    "Met Office Exeter",
+  institutions: new Set(["Marine Institute", "Met Eireann;Commissioners of Irish Lights"]),
+  platforms: new Set([
+    // Two buoys of the Instituto Hidrográfico, which the index lists under Puertos del Estado.
+    "Leixoes-coast-buoy",
+    "Sines-coast-buoy",
+    // Three lightships of the Met Office whose waves NDBC relays. NDBC gives only the wind of
+    // the Met Office's other buoys, so their waves are read here.
+    "6200107",
+    "6200170",
+    "6200304",
   ]),
-  // The index lists these two buoys of the Instituto Hidrográfico under Puertos del Estado.
-  platforms: new Set(["Leixoes-coast-buoy", "Sines-coast-buoy"]),
 };
 
 export type Layout = {
@@ -84,6 +100,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function formatError(message: string) {
   return new FormatError({ provider: "copernicus", message });
 }
@@ -101,32 +121,38 @@ export function parseProduct(json: unknown): string | FormatError {
   return new URL(href, PRODUCT_URL).href;
 }
 
-/** Reads, from the dataset's record, where its files are and how they are cut in time. */
+/**
+ * Reads, from the dataset's record, where its files are and how they are cut. A file is named
+ * by four numbers: its stretch of time, its band of depth, and its cuts in longitude and
+ * latitude. Only the time changes from file to file here, so the three others are checked to
+ * be what the parser takes them for: the band around the surface, and no horizontal cut.
+ */
 export function parseDataset(json: unknown): Layout | FormatError {
   const assets = isRecord(json) && isRecord(json.assets) ? json.assets : {};
   const files = isRecord(assets.timeChunked) ? assets.timeChunked : {};
   const platforms = isRecord(assets.platforms) ? assets.platforms : {};
   const dimensions = isRecord(files.viewDims) ? files.viewDims : {};
-  const time = isRecord(dimensions.time) ? dimensions.time : {};
-  const lengths = isRecord(time.chunkLen) ? time.chunkLen : {};
+  const dimension = (name: string) => (isRecord(dimensions[name]) ? dimensions[name] : {});
+  const lengths = (name: string) => {
+    const cut = dimension(name).chunkLen;
+    return isRecord(cut) ? cut : {};
+  };
   const properties = isRecord(json) && isRecord(json.properties) ? json.properties : {};
   const described = isRecord(properties["cube:variables"]) ? properties["cube:variables"] : {};
 
+  const time = dimension("time");
+  const depth = dimension("elevation");
   if (
     typeof files.href !== "string" ||
     typeof platforms.href !== "string" ||
     typeof time.chunkRefCoord !== "number" ||
+    !Number.isFinite(time.chunkRefCoord) ||
     time.chunkType !== "default"
   ) {
     return formatError("the dataset does not say where its files are or how they are cut in time");
   }
-  // The files are named by four numbers: time, depth, longitude, latitude. Only time is read
-  // here, so the two horizontal ones must stay uncut.
-  for (const axis of ["longitude", "latitude"]) {
-    const cut = isRecord(dimensions[axis]) ? dimensions[axis].chunkLen : undefined;
-    if (!isRecord(cut) || VARIABLES.some(({ name }) => cut[name] !== null)) {
-      return formatError(`the files of the dataset are now cut by ${axis}`);
-    }
+  if (depth.chunkType !== "symmetricGeometric" || depth.chunkRefCoord !== 0) {
+    return formatError("the files of the dataset are no longer cut in bands around the surface");
   }
 
   const stretchS: Record<string, number> = {};
@@ -135,11 +161,19 @@ export function parseDataset(json: unknown): Layout | FormatError {
     const written = isRecord(variable) ? variable.unit : undefined;
     if (written !== unit) return formatError(`${name} is in "${String(written)}", not "${unit}"`);
 
-    const length = lengths[name];
-    if (typeof length !== "number" || !(length > 0)) {
+    const stretch = lengths("time")[name];
+    if (!isCount(stretch)) {
       return formatError(`the dataset does not say how the files of ${name} are cut in time`);
     }
-    stretchS[name] = length;
+    // The first band must hold everything down to the depth the sea temperature is kept from.
+    const band = lengths("elevation")[name];
+    if (!isCount(band) || band < SURFACE_DEPTH_M) {
+      return formatError(`the files of ${name} no longer hold the first ${SURFACE_DEPTH_M} metres`);
+    }
+    if (lengths("longitude")[name] !== null || lengths("latitude")[name] !== null) {
+      return formatError(`the files of ${name} are now cut by longitude or latitude`);
+    }
+    stretchS[name] = stretch;
   }
 
   return {
@@ -150,17 +184,23 @@ export function parseDataset(json: unknown): Layout | FormatError {
   };
 }
 
-/** The files of one variable that hold the window ending now: one, or two across a cut. */
-export function fileUrls(layout: Layout, variable: string, now: Date) {
+/**
+ * The files of one variable that hold the window ending now, without their extension: one, or
+ * a few when the window crosses a cut.
+ */
+export function fileUrls(layout: Layout, variable: string, now: Date): string[] | FormatError {
   const stretch = layout.stretchS[variable] ?? Number.NaN;
   const number = (ms: number) => Math.floor((ms / 1000 - layout.timeOriginS) / stretch);
   const first = number(now.getTime() - WINDOW_MS);
   const last = number(now.getTime());
+  if (!Number.isSafeInteger(first) || last - first >= MAX_FILES_PER_VARIABLE) {
+    return formatError(`the window would take too many files of ${variable}`);
+  }
 
   const urls: string[] = [];
   for (let index = first; index <= last; index += 1) {
-    // Depth, longitude, and latitude: the surface, and no cut.
-    urls.push(`${layout.filesUrl}/${variable}/${index}.0.0.0.sqlite`);
+    // The band around the surface, and no cut in longitude or latitude.
+    urls.push(`${layout.filesUrl}/${variable}/${index}.0.0.0`);
   }
   return urls;
 }
@@ -173,9 +213,10 @@ export function parsePlatforms(bytes: Uint8Array): Map<string, string> | FormatE
   let json: unknown;
   try {
     const isCompressed = bytes[0] === 0x1f && bytes[1] === 0x8b;
-    json = JSON.parse(new TextDecoder().decode(isCompressed ? gunzipSync(bytes) : bytes));
+    const text = isCompressed ? gunzipSync(bytes, { maxOutputLength: MAX_INDEX_BYTES }) : bytes;
+    json = JSON.parse(new TextDecoder().decode(text));
   } catch {
-    return formatError("the index of platforms is not JSON");
+    return formatError("the index of platforms is not JSON, or is too large");
   }
 
   const platforms = isRecord(json) && isRecord(json.platforms) ? json.platforms : null;
@@ -192,6 +233,8 @@ export function parsePlatforms(bytes: Uint8Array): Map<string, string> | FormatE
   return institutions;
 }
 
+// The table of a file, column for column. Another column would be something the parser does
+// not know how to read, such as a second instrument.
 const COLUMNS = [
   "platform_id",
   "platform_type",
@@ -199,39 +242,70 @@ const COLUMNS = [
   "longitude",
   "latitude",
   "elevation",
+  "is_approx_elevation",
+  "pressure",
   "value",
   "value_qc",
 ];
+const READ_COLUMNS = COLUMNS.filter(
+  (name) => name !== "is_approx_elevation" && name !== "pressure",
+);
 
 /**
  * Reads a file of one variable: a SQLite database with one row per platform, time, and depth.
- * Returns the rows from `since` on, and how many rows it could not read.
+ * Returns the rows from `since` on, how many rows it could not read, and how many more files
+ * the store says continue this one.
  */
 export function readFile(
   bytes: Uint8Array,
   variable: string,
   since: Date,
-): { rows: Row[]; rejected: number } | FormatError {
+): { rows: Row[]; rejected: number; overflowFiles: number } | FormatError {
   const database = new DatabaseSync(":memory:");
   try {
     database.deserialize(bytes);
-    // The file comes from outside: it is only ever read, and `data` must be a plain table.
-    database.enableDefensive(true);
+    // A damaged file would answer a query with fewer rows and no error.
+    const check = database.prepare("pragma integrity_check(1)").get();
     const table = database.prepare("select type from sqlite_schema where name = 'data'").get();
     const columns = database
       .prepare("select name from pragma_table_info('data')")
       .all()
       .map((column) => column.name);
-    if (table?.type !== "table" || COLUMNS.some((column) => !columns.includes(column))) {
+    if (
+      check?.integrity_check !== "ok" ||
+      table?.type !== "table" ||
+      columns.length !== COLUMNS.length ||
+      COLUMNS.some((column) => !columns.includes(column))
+    ) {
       return formatError(`the file of ${variable} does not have the table this parser reads`);
+    }
+
+    // A file too large for one database is continued in others, which its notes count.
+    let overflowFiles = 0;
+    const hasNotes = database.prepare("select 1 from sqlite_schema where name = 'meta'").get();
+    const notes = hasNotes ? database.prepare("select metadata from meta limit 1").get() : null;
+    if (typeof notes?.metadata === "string" && notes.metadata.trim() !== "") {
+      const parsed: unknown = JSON.parse(notes.metadata);
+      const count = isRecord(parsed) ? (parsed.overflow_chunks ?? 0) : 0;
+      if (typeof count !== "number" || !Number.isInteger(count) || count < 0) {
+        return formatError(`the file of ${variable} does not say how many files continue it`);
+      }
+      if (count > MAX_OVERFLOW_FILES) {
+        return formatError(`the file of ${variable} is continued in too many files`);
+      }
+      overflowFiles = count;
     }
 
     const rows: Row[] = [];
     let rejected = 0;
+    // The table is read row by row, not through an index the file brought with it.
     const statement = database.prepare(
-      `select ${COLUMNS.join(", ")} from data where time >= ? order by time`,
+      `select ${READ_COLUMNS.join(", ")} from data not indexed where time >= ?`,
     );
     for (const row of statement.iterate(Math.floor(since.getTime() / 1000))) {
+      if (rows.length + rejected >= MAX_ROWS_PER_FILE) {
+        return formatError(`the file of ${variable} holds too many rows`);
+      }
       const { platform_id, platform_type, time, longitude, latitude, elevation, value, value_qc } =
         row;
       if (
@@ -259,7 +333,7 @@ export function readFile(
         flag: value_qc,
       });
     }
-    return { rows, rejected };
+    return { rows, rejected, overflowFiles };
   } catch {
     return formatError(`the file of ${variable} is not a database this parser can read`);
   } finally {
@@ -279,11 +353,13 @@ export function buildSnapshot(
   const since = now.getTime() - WINDOW_MS;
   const readings = new Map<string, ReadingInput>();
   const positions = new Map<string, { at: number; latitude: number; longitude: number }>();
+  // The moments of a mooring for which the files disagree with themselves.
+  const ambiguous = new Set<string>();
   let rejected = 0;
 
   for (const { name, measurement } of VARIABLES) {
-    // The depth of the value already kept for a reading, to prefer the one nearest the surface.
-    const depths = new Map<string, number>();
+    // What this variable already gave for a mooring and moment.
+    const given = new Map<string, Row>();
 
     for (const row of rowsByVariable.get(name) ?? []) {
       if (row.platformType !== MOORING || !row.platformId.endsWith(`___${MOORING}`)) continue;
@@ -307,22 +383,38 @@ export function buildSnapshot(
         continue;
       }
       if (observedAt.getTime() < since) continue;
-      // The sea is measured at the surface or under it. A value above it is another instrument's.
-      if (row.elevation > 0) continue;
+      // The sea is measured at the surface or just under it. A value from above, or from the
+      // deep, is another instrument's.
+      if (row.elevation > 0 || row.elevation < -SURFACE_DEPTH_M) continue;
 
       const key = `${code} ${row.timeS}`;
+      const earlier = given.get(key);
+      if (earlier && earlier.elevation === row.elevation) {
+        // The same row twice says nothing new. Two rows that differ cannot both be right, and
+        // nothing says which instrument each one is.
+        const isSame =
+          earlier.value === row.value &&
+          earlier.flag === row.flag &&
+          earlier.latitude === row.latitude &&
+          earlier.longitude === row.longitude;
+        if (!isSame) {
+          ambiguous.add(key);
+          rejected += 1;
+        }
+        continue;
+      }
+
       const reading = readings.get(key) ?? { providerStationId: code, observedAt };
       // A value without a flag is kept as one nobody checked.
       const usable = row.flag === null || USABLE_FLAGS.has(row.flag);
       const value = row.value !== null && usable ? plausible(measurement, row.value) : null;
-
-      const depth = depths.get(key);
-      const isNearer = depth !== undefined && Math.abs(row.elevation) < Math.abs(depth);
+      // Of two depths, the one nearer the surface.
+      const isNearer = earlier !== undefined && row.elevation > earlier.elevation;
       if (value !== null && (reading[measurement] == null || isNearer)) {
         reading[measurement] = value;
-        depths.set(key, row.elevation);
       }
       readings.set(key, reading);
+      if (!earlier || isNearer) given.set(key, row);
 
       const position = positions.get(code);
       if (!position || row.timeS > position.at) {
@@ -331,7 +423,9 @@ export function buildSnapshot(
     }
   }
 
-  const kept = [...readings.values()].filter((reading) => reading.significantHeightM != null);
+  const kept = [...readings.entries()]
+    .filter(([key, reading]) => !ambiguous.has(key) && reading.significantHeightM != null)
+    .map(([, reading]) => reading);
   const reporting = new Set(kept.map((reading) => reading.providerStationId));
 
   const stations: StationInput[] = [];
@@ -366,7 +460,7 @@ export const copernicus: Provider = {
     if (datasetUrl instanceof FormatError) return yield* datasetUrl;
     const layout = parseDataset(yield* fetchJson(datasetUrl));
     if (layout instanceof FormatError) return yield* layout;
-    const institutions = parsePlatforms(yield* fetchBytes(layout.platformsUrl));
+    const institutions = parsePlatforms(yield* fetchBytes(layout.platformsUrl, MAX_INDEX_BYTES));
     if (institutions instanceof FormatError) return yield* institutions;
 
     const now = new Date();
@@ -375,12 +469,15 @@ export const copernicus: Provider = {
     let rejected = 0;
 
     for (const { name } of VARIABLES) {
+      const urls = fileUrls(layout, name, now);
+      if (urls instanceof FormatError) return yield* urls;
+
       const rows: Row[] = [];
-      for (const url of fileUrls(layout, name, now)) {
+      for (const url of urls) {
         // A stretch of time with no measurement yet has no file, which the store answers with
         // 403 or 404. Any other failure fails the run, so no reading is stored without the
-        // values of the file that could not be read.
-        const bytes = yield* fetchBytes(url).pipe(
+        // values of a file that could not be read.
+        const bytes = yield* fetchBytes(`${url}.sqlite`, MAX_FILE_BYTES).pipe(
           Effect.catch((error) =>
             error.status === 403 || error.status === 404
               ? Effect.succeed(null)
@@ -393,6 +490,18 @@ export const copernicus: Provider = {
         if (file instanceof FormatError) return yield* file;
         rows.push(...file.rows);
         rejected += file.rejected;
+
+        // A file the store announces must be there.
+        for (let part = 1; part <= file.overflowFiles; part += 1) {
+          const more = readFile(
+            yield* fetchBytes(`${url}b${part}.sqlite`, MAX_FILE_BYTES),
+            name,
+            since,
+          );
+          if (more instanceof FormatError) return yield* more;
+          rows.push(...more.rows);
+          rejected += more.rejected;
+        }
       }
       rowsByVariable.set(name, rows);
     }

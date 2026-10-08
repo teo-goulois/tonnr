@@ -57,6 +57,11 @@ function wholeDataset() {
             chunkRefCoord: 1_706_400_000,
             chunkType: "default",
           },
+          elevation: {
+            chunkLen: perVariable<number | null>(5),
+            chunkRefCoord: 0,
+            chunkType: "symmetricGeometric",
+          },
           longitude: { chunkLen: perVariable<number | null>(null) },
           latitude: { chunkLen: perVariable<number | null>(null) },
         },
@@ -89,16 +94,23 @@ const INSTITUTIONS = new Map([
   ["6200024___MO", "Puertos del Estado"],
   ["6200091___MO", "Marine Institute"],
   ["Leixoes-coast-buoy___MO", "Puertos del Estado"],
+  ["6200107___MO", "Met Office- Exeter"],
+  ["6200029___MO", "Met Office- Exeter"],
 ]);
 
 function snapshot(rows: Record<string, Row[]>, institutions = INSTITUTIONS) {
   return buildSnapshot(new Map(Object.entries(rows)), institutions, now);
 }
 
-// A file as the store serves it: a SQLite database with the table of one variable.
-function file(rows: unknown[][], create = TABLE) {
+// A file as the store serves it: a SQLite database with the table of one variable, and the
+// notes of the file when it has some.
+function file(rows: unknown[][], create = TABLE, notes?: string) {
   const database = new DatabaseSync(":memory:");
   database.exec(create);
+  if (notes !== undefined) {
+    database.exec("create table meta (metadata text)");
+    database.prepare("insert into meta values (?)").run(notes);
+  }
   for (const values of rows) {
     database
       .prepare("insert into data values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -157,7 +169,7 @@ describe("parseDataset", () => {
     expect(result).toMatchObject({ message: expect.stringContaining("VHM0") });
   });
 
-  it("reports files that are cut in another way than by time", () => {
+  it("reports files that are cut in another way than the parser takes them for", () => {
     const byLongitude = dataset((record) => {
       record.assets.timeChunked.viewDims.longitude.chunkLen.VHM0 = 10;
     });
@@ -167,10 +179,28 @@ describe("parseDataset", () => {
     const noLength = dataset((record) => {
       record.assets.timeChunked.viewDims.time.chunkLen.VTPK = null;
     });
+    const thinnerBand = dataset((record) => {
+      record.assets.timeChunked.viewDims.elevation.chunkLen.TEMP = 2;
+    });
+    const otherDepths = dataset((record) => {
+      record.assets.timeChunked.viewDims.elevation.chunkType = "default";
+    });
 
-    for (const record of [byLongitude, otherType, noLength]) {
+    for (const record of [byLongitude, otherType, noLength, thinnerBand, otherDepths]) {
       expect(parseDataset(record)).toBeInstanceOf(FormatError);
     }
+  });
+
+  it("reports numbers that are not finite, which no file could be counted from", () => {
+    const noOrigin = dataset((record) => {
+      record.assets.timeChunked.viewDims.time.chunkRefCoord = Number.POSITIVE_INFINITY;
+    });
+    const noStretch = dataset((record) => {
+      record.assets.timeChunked.viewDims.time.chunkLen.VHM0 = Number.POSITIVE_INFINITY;
+    });
+
+    expect(parseDataset(noOrigin)).toBeInstanceOf(FormatError);
+    expect(parseDataset(noStretch)).toBeInstanceOf(FormatError);
   });
 
   it("reports an answer that is not the dataset's record", () => {
@@ -179,18 +209,30 @@ describe("parseDataset", () => {
 });
 
 describe("fileUrls", () => {
-  it("names the file of the stretch of time that holds the window", () => {
-    // Twelve hours back from 12:15 stay within the day that started 618 days after the origin.
+  const files = "https://store.example/latest/timeChunked/VHM0";
+
+  it("names the files of the stretches of time that hold the last two days", () => {
+    // The stretches are a day long here, and 8 October 2026 is the 984th since the origin.
     expect(fileUrls(layout(), "VHM0", new Date("2026-10-08T12:15:00Z"))).toEqual([
-      "https://store.example/latest/timeChunked/VHM0/984.0.0.0.sqlite",
+      `${files}/982.0.0.0`,
+      `${files}/983.0.0.0`,
+      `${files}/984.0.0.0`,
     ]);
   });
 
-  it("names two files when the window crosses a cut", () => {
-    expect(fileUrls(layout(), "VHM0", new Date("2026-10-08T06:00:00Z"))).toEqual([
-      "https://store.example/latest/timeChunked/VHM0/983.0.0.0.sqlite",
-      "https://store.example/latest/timeChunked/VHM0/984.0.0.0.sqlite",
+  it("names one file when its stretch holds the whole window", () => {
+    const weeks = { ...layout(), stretchS: { VHM0: 28 * 86_400 } };
+
+    expect(fileUrls(weeks, "VHM0", new Date("2026-10-08T12:15:00Z"))).toEqual([
+      `${files}/35.0.0.0`,
     ]);
+  });
+
+  it("reports a window that would take too many files", () => {
+    const hours = { ...layout(), stretchS: { VHM0: 3600 } };
+
+    expect(fileUrls(hours, "VHM0", now)).toBeInstanceOf(FormatError);
+    expect(fileUrls(layout(), "UNKNOWN", now)).toBeInstanceOf(FormatError);
   });
 });
 
@@ -240,6 +282,7 @@ describe("readFile", () => {
 
     expect(readFile(bytes, "VHM0", since)).toEqual({
       rejected: 0,
+      overflowFiles: 0,
       rows: [
         row(),
         {
@@ -269,15 +312,42 @@ describe("readFile", () => {
     expect(result.rows).toEqual([row()]);
   });
 
+  it("says how many files continue the one it read", () => {
+    const row_ = ["6200024___MO", "MO", AT_1100, -3.04, 43.64, 0, 0, null, 3.16, 1];
+    const read = (notes: string) => readFile(file([row_], TABLE, notes), "VHM0", since);
+
+    expect(read('{"overflow_chunks": 2}')).toMatchObject({ overflowFiles: 2, rows: [row()] });
+    expect(read("{}")).toMatchObject({ overflowFiles: 0 });
+    expect(read("")).toMatchObject({ overflowFiles: 0 });
+    expect(read('{"overflow_chunks": "many"}')).toBeInstanceOf(FormatError);
+    expect(read('{"overflow_chunks": 1000}')).toBeInstanceOf(FormatError);
+    expect(read("not json")).toBeInstanceOf(FormatError);
+  });
+
+  it("reads the table itself, not an index the file brought", () => {
+    const withIndex = `${TABLE}; create index data_time on data (time)`;
+    const bytes = file(
+      [["6200024___MO", "MO", AT_1100, -3.04, 43.64, 0, 0, null, 3.16, 1]],
+      withIndex,
+    );
+
+    expect(readFile(bytes, "VHM0", since)).toMatchObject({ rows: [row()] });
+  });
+
   it("reports a file that is not a database, or not the table it reads", () => {
     const otherColumns = file([], "create table data (platform_id text, time integer, value real)");
+    const oneMore = file(
+      [],
+      TABLE.replace("value_qc integer", "value_qc integer, instrument text"),
+    );
     const view = file([], "create table rows (value real); create view data as select * from rows");
 
     expect(readFile(new TextEncoder().encode("<Error/>"), "VHM0", since)).toBeInstanceOf(
       FormatError,
     );
-    expect(readFile(otherColumns, "VHM0", since)).toBeInstanceOf(FormatError);
-    expect(readFile(view, "VHM0", since)).toBeInstanceOf(FormatError);
+    for (const bytes of [otherColumns, oneMore, view]) {
+      expect(readFile(bytes, "VHM0", since)).toBeInstanceOf(FormatError);
+    }
   });
 });
 
@@ -392,30 +462,59 @@ describe("buildSnapshot", () => {
     expect(stations.map((station) => station.providerStationId)).toEqual(["6200024"]);
   });
 
-  it("leaves out the buoys that another provider already gives", () => {
+  it("leaves out the buoys whose waves another provider already gives", () => {
     const { stations } = snapshot({
       VHM0: [
         row(),
         row({ platformId: "6200091___MO" }),
         row({ platformId: "Leixoes-coast-buoy___MO" }),
+        // NDBC relays the waves of this Met Office lightship, and only the wind of the next buoy.
+        row({ platformId: "6200107___MO" }),
+        row({ platformId: "6200029___MO" }),
       ],
     });
 
-    expect(stations.map((station) => station.providerStationId)).toEqual(["6200024"]);
+    expect(stations.map((station) => station.providerStationId)).toEqual(["6200024", "6200029"]);
   });
 
-  it("takes the sea temperature nearest the surface, and none from above it", () => {
-    const { readings } = snapshot({
-      VHM0: [row()],
-      TEMP: [
+  it("takes the sea temperature nearest the surface, within five metres of it", () => {
+    const depths = (...rows: Row[]) =>
+      snapshot({ VHM0: [row()], TEMP: rows }).readings[0]?.waterTemperatureC;
+
+    expect(
+      depths(
         row({ value: 18.2, elevation: -3 }),
         row({ value: 20.59, elevation: -0.5 }),
         row({ value: 19.1, elevation: -1 }),
-        row({ value: 15.3, elevation: 2 }),
-      ],
-    });
+      ),
+    ).toBe(20.59);
+    // The air above, and the water ten metres down, are not the sea surface.
+    expect(depths(row({ value: 15.3, elevation: 2 }), row({ value: 21, elevation: -10 }))).toBe(
+      undefined,
+    );
+    // A shallower value that is flagged bad leaves the deeper one.
+    expect(
+      depths(row({ value: 99, elevation: -0.5, flag: 4 }), row({ value: 19.1, elevation: -1 })),
+    ).toBe(19.1);
+  });
 
-    expect(readings[0]?.waterTemperatureC).toBe(20.59);
+  it("ignores a row given twice, and rejects a moment for which two rows disagree", () => {
+    const twice = snapshot({
+      VHM0: [row(), row()],
+      VTPK: [row({ value: 10 }), row({ value: 10 })],
+    });
+    expect(twice.rejected).toBe(0);
+    expect(twice.readings).toMatchObject([{ significantHeightM: 3.16, peakPeriodS: 10 }]);
+
+    // Two heights, one of them from another position: nothing says which the period belongs to.
+    const conflict = snapshot({
+      VHM0: [row({ value: 2 }), row({ value: 8, longitude: -4 }), row({ timeS: AT_1000 })],
+      VTPK: [row({ value: 15, longitude: -4 })],
+    });
+    expect(conflict.rejected).toBe(1);
+    expect(conflict.readings.map((reading) => reading.observedAt.toISOString())).toEqual([
+      "2026-10-08T10:00:00.000Z",
+    ]);
   });
 
   it("rejects a row with a time or a position that cannot be, or a flag it does not know", () => {
@@ -434,8 +533,14 @@ describe("buildSnapshot", () => {
     expect(result.stations.map((station) => station.providerStationId)).toEqual(["Donostia-buoy"]);
   });
 
+  it("keeps a measurement that shows up a day late, since the product may deliver that late", () => {
+    const { readings } = snapshot({ VHM0: [row({ timeS: AT_1100 - 30 * 3600 })] });
+
+    expect(readings).toHaveLength(1);
+  });
+
   it("leaves out a row older than the window, without counting it", () => {
-    const old = AT_1100 - 13 * 3600;
+    const old = AT_1100 - 49 * 3600;
 
     expect(snapshot({ VHM0: [row({ timeS: old })] })).toEqual({
       stations: [],

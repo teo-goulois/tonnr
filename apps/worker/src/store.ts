@@ -15,7 +15,20 @@ export function stationId(provider: string, providerStationId: string) {
   return `${provider}-${providerStationId.toLowerCase()}`;
 }
 
-// The measurements a reading can hold.
+// The measurements a reading can hold, as fields of a reading and as columns of the table.
+const MEASUREMENT_FIELDS = [
+  "significantHeightM",
+  "maxHeightM",
+  "peakPeriodS",
+  "meanPeriodS",
+  "significantPeriodS",
+  "peakDirectionDeg",
+  "directionalSpreadDeg",
+  "waterTemperatureC",
+  "windSpeedMs",
+  "windGustMs",
+  "windDirectionDeg",
+] as const;
 const MEASUREMENTS = [
   reading.significantHeightM,
   reading.maxHeightM,
@@ -29,6 +42,38 @@ const MEASUREMENTS = [
   reading.windGustMs,
   reading.windDirectionDeg,
 ];
+
+// How many readings one statement writes. A reading takes up to fourteen parameters, and
+// Postgres accepts 65,535 in a statement.
+const READINGS_PER_STATEMENT = 2000;
+
+type ReadingInput = Snapshot["readings"][number];
+
+/**
+ * Makes one reading of the readings a snapshot gives for the same station and moment, by the
+ * rule the database follows: a value that is there stays, and a value that is missing is taken
+ * from the next reading that has it. The result is validated only when every reading that went
+ * into it was.
+ */
+export function mergeReadings(readings: readonly ReadingInput[]): ReadingInput[] {
+  const merged = new Map<string, ReadingInput>();
+
+  for (const next of readings) {
+    const key = `${next.providerStationId} ${next.observedAt.getTime()}`;
+    const first = merged.get(key);
+    if (!first) {
+      merged.set(key, { ...next });
+      continue;
+    }
+
+    for (const field of MEASUREMENT_FIELDS) {
+      if (first[field] == null && next[field] != null) first[field] = next[field];
+    }
+    first.validated = (first.validated ?? false) && (next.validated ?? false);
+  }
+
+  return [...merged.values()];
+}
 
 /** The value a reading already has for a measurement, or else the one the snapshot brings. */
 function keptOrBrought(column: (typeof MEASUREMENTS)[number]) {
@@ -80,15 +125,8 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     reportsWaves: withWaves.has(input.providerStationId),
     reportsWind: withWind.has(input.providerStationId),
   }));
-  // One row per station and moment, the first one given: the database refuses to complete a row
-  // twice in a statement.
-  const rowsByKey = new Map<string, ReturnType<typeof toRow>>();
-  for (const input of snapshot.readings) {
-    const row = toRow(input);
-    const key = `${row.stationId} ${row.observedAt.getTime()}`;
-    if (!rowsByKey.has(key)) rowsByKey.set(key, row);
-  }
-  const readingRows = [...rowsByKey.values()];
+  // One row per station and moment: the database refuses to complete a row twice in a statement.
+  const readingRows = mergeReadings(snapshot.readings).map(toRow);
 
   type StationRow = (typeof stationRows)[number];
   type ReadingRow = (typeof readingRows)[number];
@@ -115,38 +153,43 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
           },
         });
 
-      const written =
-        readings.length === 0
-          ? []
-          : await tx
-              .insert(reading)
-              .values(readings)
-              .onConflictDoUpdate({
-                target: [reading.stationId, reading.observedAt],
-                set: {
-                  significantHeightM: keptOrBrought(reading.significantHeightM),
-                  maxHeightM: keptOrBrought(reading.maxHeightM),
-                  peakPeriodS: keptOrBrought(reading.peakPeriodS),
-                  meanPeriodS: keptOrBrought(reading.meanPeriodS),
-                  significantPeriodS: keptOrBrought(reading.significantPeriodS),
-                  peakDirectionDeg: keptOrBrought(reading.peakDirectionDeg),
-                  directionalSpreadDeg: keptOrBrought(reading.directionalSpreadDeg),
-                  waterTemperatureC: keptOrBrought(reading.waterTemperatureC),
-                  windSpeedMs: keptOrBrought(reading.windSpeedMs),
-                  windGustMs: keptOrBrought(reading.windGustMs),
-                  windDirectionDeg: keptOrBrought(reading.windDirectionDeg),
-                },
-                // Only a reading that lacks a value the snapshot brings is touched.
-                setWhere: sql.join(
-                  MEASUREMENTS.map(
-                    (column) =>
-                      sql`(${column} is null and ${sql.raw(`excluded.${column.name}`)} is not null)`,
-                  ),
-                  sql` or `,
+      const written: { isNew: boolean }[] = [];
+      for (let start = 0; start < readings.length; start += READINGS_PER_STATEMENT) {
+        written.push(
+          ...(await tx
+            .insert(reading)
+            .values(readings.slice(start, start + READINGS_PER_STATEMENT))
+            .onConflictDoUpdate({
+              target: [reading.stationId, reading.observedAt],
+              set: {
+                significantHeightM: keptOrBrought(reading.significantHeightM),
+                maxHeightM: keptOrBrought(reading.maxHeightM),
+                peakPeriodS: keptOrBrought(reading.peakPeriodS),
+                meanPeriodS: keptOrBrought(reading.meanPeriodS),
+                significantPeriodS: keptOrBrought(reading.significantPeriodS),
+                peakDirectionDeg: keptOrBrought(reading.peakDirectionDeg),
+                directionalSpreadDeg: keptOrBrought(reading.directionalSpreadDeg),
+                waterTemperatureC: keptOrBrought(reading.waterTemperatureC),
+                windSpeedMs: keptOrBrought(reading.windSpeedMs),
+                windGustMs: keptOrBrought(reading.windGustMs),
+                windDirectionDeg: keptOrBrought(reading.windDirectionDeg),
+                // A reading that takes a value from a snapshot that is not validated is not
+                // validated any more.
+                validated: sql`${reading.validated} and excluded.validated`,
+              },
+              // Only a reading that lacks a value the snapshot brings is touched.
+              setWhere: sql.join(
+                MEASUREMENTS.map(
+                  (column) =>
+                    sql`(${column} is null and ${sql.raw(`excluded.${column.name}`)} is not null)`,
                 ),
-              })
-              // Postgres leaves `xmax` at zero on a row it has just inserted.
-              .returning({ isNew: sql<boolean>`(xmax = 0)` });
+                sql` or `,
+              ),
+            })
+            // A row that was just inserted had no earlier version.
+            .returning({ isNew: sql<boolean>`(old.station_id is null)` })),
+        );
+      }
 
       const newReadings = written.filter((row) => row.isNew).length;
       return { newReadings, completedReadings: written.length - newReadings };
