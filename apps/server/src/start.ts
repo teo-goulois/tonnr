@@ -10,15 +10,16 @@ import { ENV } from "./env.server";
 // The folder is at the same depth from `src/` and from `dist/`.
 const migrationsFolder = path.resolve(import.meta.dirname, "../../../packages/db/src/migrations");
 
-// A stop that comes during the migrations ends the process. Postgres rolls back the migration
-// under way when its connection drops. The API takes the signals over once it starts.
+// A stop that comes before the API listens ends the process. Postgres rolls back the migrations
+// under way when its connection drops. These handlers stay until the API has set its own: a
+// container's first process ignores a signal that nothing handles.
 const stop = () => process.exit(1);
-process.once("SIGTERM", stop);
-process.once("SIGINT", stop);
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);
 
 await migrateDatabase(ENV.DATABASE_URL, migrationsFolder);
 console.log("Migrations applied");
 
+await import("./index");
 process.off("SIGTERM", stop);
 process.off("SIGINT", stop);
-await import("./index");

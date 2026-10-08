@@ -14,7 +14,7 @@ FROM base AS production
 # No script runs, since the one of the repository's root needs a development tool.
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts --filter worker
 
-# The image that runs has no package manager and no build tool.
+# The image that runs starts from a clean base: no pnpm, and nothing the build stage installed.
 FROM node:26-slim AS runner
 ENV NODE_ENV=production
 COPY --from=production --chown=node:node /app /app
