@@ -25,6 +25,15 @@ To rename the product, change `APP_NAME`, then the prose in `README.md`, this fi
 - Fetch from the upstream providers listed in `docs/data-sources.md`.
 - Store each station's license and attribution, and return them in API responses.
 
+## Environment files
+
+Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
+
+- Each app's `.env.schema` declares its variables and is committed. Varlock validates them at startup and generates `src/env.ts`.
+- Each app's `.env.example` lists the same variables with fake values. Update it in the change that starts reading a variable, and tell Téo which value goes in which file.
+- Real values live in `apps/server/.env` and `apps/web/.env`, which Git ignores. The worker and `packages/db` read the server's values through their schema's `@import`.
+- Show a file's variable names, never its contents. `envsync push` is Téo's to run.
+
 ## Commands
 
 `package.json` lists the scripts. These have a catch:

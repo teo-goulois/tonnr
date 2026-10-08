@@ -13,9 +13,10 @@ apps/web/src/routeTree.gen.ts
 local.db
 local.db-*
 
-# Environment variables
-.env
-.env*.local
+# Environment files hold real values and stay out of Git. The example and the schema list the names.
+.env*
+!.env.example
+!.env.schema
 
 # IDEs and editors
 .vscode/*

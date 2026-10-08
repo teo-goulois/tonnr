@@ -1,5 +1,7 @@
 dist/
 node_modules/
 .env*
+!.env.example
+!.env.schema
 *.log
 /src/env.ts

@@ -8,6 +8,8 @@ A free surf-conditions service. Save your spots with the conditions that make th
 
 ```bash
 pnpm install
+cp apps/server/.env.example apps/server/.env   # then fill in the secret
+cp apps/web/.env.example apps/web/.env
 pnpm run db:start   # Postgres in Docker
 pnpm run db:migrate # apply the schema
 pnpm run dev        # web on http://localhost:3001, API on http://localhost:3000
