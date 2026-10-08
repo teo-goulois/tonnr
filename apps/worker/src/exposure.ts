@@ -28,7 +28,7 @@ const QUARTERS_PER_DAY = 4;
 // A place had a rough day when its strong waves reached this.
 const ROUGH_M = 1;
 // A day tells something of a station when this many places around it had a rough one. Their
-// median is what the station is compared with, so a neighbour that stays low never lowers it.
+// median is what the station is compared with, so a place that stays low never lowers it.
 const MIN_ROUGH_PLACES = 3;
 
 // A station is open when it had, on two rough days, half the waves of the places around it.
@@ -112,7 +112,9 @@ export function classifyExposure(
       const otherDays = byStation.get(other.id);
       if (place === undefined || place === placeOf.get(site.id) || !otherDays) continue;
       if (distanceKm(site, other) > NEIGHBOUR_KM) continue;
-      around.set(place, [...(around.get(place) ?? []), otherDays]);
+      const ofPlace = around.get(place) ?? [];
+      ofPlace.push(otherDays);
+      around.set(place, ofPlace);
     }
 
     let openDays = 0;
@@ -170,41 +172,52 @@ export const updateExposure = Effect.fn("updateExposure")(function* (
   const { since, until } = wholeDaysBefore(now);
   const day = sql<string>`to_char(${reading.observedAt} at time zone 'UTC', 'YYYY-MM-DD')`;
   const quarter = sql`floor(extract(hour from ${reading.observedAt} at time zone 'UTC') / 6)`;
+  // As text, to the microsecond and in UTC whatever the session: a date would lose the
+  // microseconds the comparison before writing needs.
+  const movedAtText = sql<
+    string | null
+  >`to_char(${station.movedAt} at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS.US')`;
 
   return yield* Effect.tryPromise({
     try: async () => {
-      const sites = await db
-        .select({
-          id: station.id,
-          latitude: station.latitude,
-          longitude: station.longitude,
-          exposure: station.exposure,
-          // As text: a date would lose the microseconds the comparison below needs.
-          movedAt: sql<string | null>`${station.movedAt}::text`,
-        })
-        .from(station)
-        .where(eq(station.reportsWaves, true));
-      const heights = await db
-        .select({
-          stationId: reading.stationId,
-          day,
-          // A height the station measured, not one worked out between two: one high reading
-          // among four must not make a day.
-          heightM: sql<number>`percentile_disc(0.75) within group (order by ${reading.significantHeightM})`,
-        })
-        .from(reading)
-        .innerJoin(station, eq(station.id, reading.stationId))
-        .where(
-          and(
-            gte(reading.observedAt, since),
-            lt(reading.observedAt, until),
-            isNotNull(reading.significantHeightM),
-            // Readings from before a station moved speak for another place.
-            or(isNull(station.movedAt), gte(reading.observedAt, station.movedAt)),
-          ),
-        )
-        .groupBy(reading.stationId, day)
-        .having(sql`count(distinct ${quarter}) = ${QUARTERS_PER_DAY}`);
+      // One snapshot for both: a station that moved between two reads would be grouped where
+      // it was and measured where it is.
+      const { sites, heights } = await db.transaction(
+        async (tx) => ({
+          sites: await tx
+            .select({
+              id: station.id,
+              latitude: station.latitude,
+              longitude: station.longitude,
+              exposure: station.exposure,
+              movedAt: movedAtText,
+            })
+            .from(station)
+            .where(eq(station.reportsWaves, true)),
+          heights: await tx
+            .select({
+              stationId: reading.stationId,
+              day,
+              // A height the station measured, not one worked out between two: one high
+              // reading among four must not make a day.
+              heightM: sql<number>`percentile_disc(0.75) within group (order by ${reading.significantHeightM})`,
+            })
+            .from(reading)
+            .innerJoin(station, eq(station.id, reading.stationId))
+            .where(
+              and(
+                gte(reading.observedAt, since),
+                lt(reading.observedAt, until),
+                isNotNull(reading.significantHeightM),
+                // Readings from before a station moved speak for another place.
+                or(isNull(station.movedAt), gte(reading.observedAt, station.movedAt)),
+              ),
+            )
+            .groupBy(reading.stationId, day)
+            .having(sql`count(distinct ${quarter}) = ${QUARTERS_PER_DAY}`),
+        }),
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      );
 
       const verdicts = classifyExposure(sites, heights);
       const changes = new Map<
@@ -231,7 +244,7 @@ export const updateExposure = Effect.fn("updateExposure")(function* (
               and(
                 inArray(station.id, stationIds),
                 // A station that moved since it was read is another place already.
-                sql`${station.movedAt}::text is not distinct from ${movedAt}`,
+                sql`${movedAtText} is not distinct from ${movedAt}`,
               ),
             )
             .returning({ id: station.id });
