@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "update-project": {
+      "source": "teo-goulois/skills",
+      "sourceType": "github",
+      "skillPath": "skills/update-project/SKILL.md",
+      "computedHash": "b2ffcb4ac2cee51f71be186bbd70de87319a100b2046f6b1aef82093e1fc9b85"
+    }
+  }
+}
