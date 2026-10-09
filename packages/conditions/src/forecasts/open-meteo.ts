@@ -66,7 +66,8 @@ const weatherSchema = z.object({
     .refine(hasOneValuePerHour),
 });
 
-type ForecastQuery = { latitude: number; longitude: number; days: number };
+// `pastDays` adds the days before today, as the models last computed them.
+type ForecastQuery = { latitude: number; longitude: number; days: number; pastDays?: number };
 
 function snapToGrid(degrees: number) {
   return Math.round(degrees * GRID_STEPS_PER_DEGREE) / GRID_STEPS_PER_DEGREE;
@@ -77,6 +78,7 @@ function url(base: string, query: ForecastQuery, parameters: Record<string, stri
     latitude: String(query.latitude),
     longitude: String(query.longitude),
     forecast_days: String(query.days),
+    past_days: String(query.pastDays ?? 0),
     timeformat: "unixtime",
     timezone: "GMT",
     ...parameters,
@@ -162,8 +164,8 @@ const fetchForecast = Effect.fn("fetchForecast")(function* (query: ForecastQuery
 const cache = Effect.runSync(
   Cache.makeWith(
     (key: string) => {
-      const [latitude = 0, longitude = 0, days = 1] = key.split(",").map(Number);
-      return fetchForecast({ latitude, longitude, days });
+      const [latitude = 0, longitude = 0, days = 1, pastDays = 0] = key.split(",").map(Number);
+      return fetchForecast({ latitude, longitude, days, pastDays });
     },
     {
       capacity: CACHE_CAPACITY,
@@ -173,6 +175,11 @@ const cache = Effect.runSync(
 );
 
 export function getForecast(query: ForecastQuery) {
-  const key = [snapToGrid(query.latitude), snapToGrid(query.longitude), query.days].join(",");
+  const key = [
+    snapToGrid(query.latitude),
+    snapToGrid(query.longitude),
+    query.days,
+    query.pastDays ?? 0,
+  ].join(",");
   return Cache.get(cache, key);
 }

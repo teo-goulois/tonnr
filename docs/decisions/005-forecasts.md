@@ -24,3 +24,4 @@ Open-Meteo's free API is for non-commercial use: private or non-profit sites and
 - A commercial Tonnr needs Open-Meteo's paid API or its own copy of the models.
 - Open-Meteo says its accuracy near the coast is limited.
 - Forecasts are not stored. Comparing a forecast with what happened, and alerts on a spot, need the worker to fetch and store them per spot. That is not built.
+- `pastDays` adds up to two days before today to an answer. Their hours are what the models last computed for them, so a panel can draw the model beside a buoy's readings. They are not the forecast as it was issued, and say nothing of how good a forecast was.

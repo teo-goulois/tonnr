@@ -20,6 +20,16 @@ export const forecastsRouter = {
         latitude: z.coerce.number().min(-90).max(90),
         longitude: z.coerce.number().min(-180).max(180),
         days: z.coerce.number().int().min(1).max(7).default(3),
+        pastDays: z.coerce
+          .number()
+          .int()
+          .min(0)
+          .max(2)
+          .default(0)
+          .describe(
+            "Days before today to add at the start. Their hours are what the models last " +
+              "computed for them, not the forecast as it was first issued.",
+          ),
       }),
     )
     .output(
