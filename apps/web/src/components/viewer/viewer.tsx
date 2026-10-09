@@ -280,6 +280,16 @@ export function Viewer({
   // The id of what is selected: a station or a break.
   const selection = selectedId ?? selectedBreakId;
 
+  // The selected break as the map draws it. The breaks in view hold it, unless it was opened by
+  // its address: its place is then known once its panel has loaded.
+  const loadedBreak = selected.found.data;
+  const selectedBreak = useMemo<MapBreak | undefined>(() => {
+    if (!selectedBreakId) return undefined;
+    const inView = breaks.find((found) => found.id === selectedBreakId);
+    if (inView) return inView;
+    return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
+  }, [breaks, selectedBreakId, loadedBreak]);
+
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -370,6 +380,7 @@ export function Viewer({
         windStations={mapWindStations}
         breaks={layers.breaks ? breaks : []}
         selectedId={selection}
+        selectedBreak={selectedBreak}
         layers={layers}
         seaLayer={sea}
         seaTime={seaTime}

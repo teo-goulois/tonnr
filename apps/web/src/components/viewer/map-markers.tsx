@@ -1,4 +1,4 @@
-import { ArrowUpIcon, StarBoldIcon } from "@repo/ui/icon";
+import { ArrowUpIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps } from "react";
 
@@ -176,6 +176,72 @@ export function WindBadge({
       )}
       {formatNumber(speedKnots, 0)}
     </button>
+  );
+}
+
+/**
+ * The mark of a surf break: a disc with a wave in it, in the theme's ink since a break measures
+ * nothing.
+ */
+export function BreakDisc({
+  onDark = false,
+  className,
+}: {
+  // On a selected pill, whose surface is the ink.
+  onDark?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-6 shrink-0 place-items-center rounded-full [&>svg]:size-3.5",
+        onDark ? "bg-neutral-1 text-neutral-10" : "bg-neutral-10 text-neutral-1",
+        className,
+      )}
+    >
+      <WaveIcon strokeWidth={1.75} />
+    </span>
+  );
+}
+
+type BreakPillProps = ComponentProps<"span"> & {
+  name: string;
+  selected?: boolean;
+  // The name before the disc, for a pill that has no room after it.
+  mirrored?: boolean;
+};
+
+/**
+ * A surf break the reader points at or has selected: its mark and its name. The map draws the
+ * breaks itself, which are too many for a pill each, and puts this one over the break in hand.
+ */
+export function BreakPill({
+  name,
+  selected = false,
+  mirrored = false,
+  className,
+  ...props
+}: BreakPillProps) {
+  return (
+    <span
+      className={cn(
+        // structure & layout
+        "flex h-7 max-w-56 items-center gap-xxs rounded-full py-0.5",
+        mirrored ? "flex-row-reverse pr-0.5 pl-s" : "pr-s pl-0.5",
+        // typography
+        "text-s font-medium whitespace-nowrap",
+        // border & background
+        "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
+        // state: selected
+        selected && "scale-110 bg-color-1 text-neutral-1",
+        className,
+      )}
+      {...props}
+    >
+      <BreakDisc onDark={selected} />
+      <span className="truncate">{name}</span>
+    </span>
   );
 }
 

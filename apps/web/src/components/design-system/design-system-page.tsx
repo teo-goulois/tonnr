@@ -60,6 +60,8 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { MapLegend } from "@/components/viewer/map-legend";
 import { SeaTimeline } from "@/components/viewer/sea-timeline";
 import {
+  BreakDisc,
+  BreakPill,
   BuoyPill,
   FreshnessDot,
   HeightChip,
@@ -594,6 +596,13 @@ export function DesignSystemPage() {
           <span className="relative ml-s size-4">
             <UserDot className="absolute" />
           </span>
+        </Row>
+        <Row>
+          <BreakDisc />
+          <BreakPill name="Pointe des Sables" />
+          <BreakPill name="Pointe des Sables" selected />
+          <BreakPill name="Pointe des Sables" selected mirrored />
+          <BreakPill name="The long name of a break that the pill has to cut short" />
         </Row>
       </Section>
 

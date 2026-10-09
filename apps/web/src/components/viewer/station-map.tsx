@@ -21,6 +21,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
 import { formatNumber, type Freshness } from "@/lib/format";
@@ -32,7 +33,7 @@ import {
   seaColorTable,
 } from "@/lib/sea-scales";
 
-import { BuoyPill, UserDot, WindBadge } from "./map-markers";
+import { BreakPill, BuoyPill, UserDot, WindBadge } from "./map-markers";
 import {
   addLandProtocol,
   LAND_TILE_SIZE,
@@ -112,6 +113,9 @@ type StationMapProps = {
   breaks: MapBreak[];
   // The id of the selected station, or of the selected break.
   selectedId: string | undefined;
+  // The selected break, which may be none of `breaks`: one opened by its address, or one of a
+  // layer that is switched off.
+  selectedBreak: MapBreak | undefined;
   layers: MapLayers;
   seaLayer: SeaLayer | undefined;
   // The instant the sea is shown at.
@@ -154,8 +158,28 @@ const BUOY_BOX = { width: 104, height: 32 };
 const WIND_BOX = { width: 50, height: 26 };
 // A wind badge sits above its point, so a buoy that also measures the wind keeps both.
 const WIND_LIFT = 24;
-// The layers a click can land on, the topmost first.
+// The layers a press can land on.
 const DOT_LAYERS = ["break-dots", "station-dots", "wind-dots"];
+// How far from a dot a press still finds it, in pixels: a dot is small, and a finger is not. The
+// pointer of a mouse is finer, and has to come closer.
+const FINGER_REACH = 12;
+const MOUSE_REACH = 6;
+// The layers of the surf breaks, which their switch shows and hides together.
+const BREAK_LAYERS = ["break-dots", "break-waves", "break-names"];
+// A break is a dot from afar, which grows into a disc as the map comes closer: at a few zooms, the
+// radius of the disc and the width of the edge around it, in pixels.
+const BREAK_DISCS = [
+  { zoom: 4, radius: 1.5, edge: 0.7 },
+  { zoom: 7, radius: 2.5, edge: 0.8 },
+  { zoom: 9, radius: 4, edge: 1 },
+  { zoom: 10.5, radius: 7, edge: 1.4 },
+  { zoom: 12, radius: 10, edge: 1.5 },
+];
+// The wave is drawn in the disc once it is wide enough to hold it.
+const BREAK_WAVE_ZOOM = 9.75;
+const BREAK_NAME_ZOOM = 9;
+// The wave of a break's disc, as an image of the map: its name and its size.
+const BREAK_WAVE = { image: "break-wave", size: 13 };
 // A station this close to the edge of what is visible is brought back to the middle.
 const REVEAL_MARGIN = 56;
 
@@ -285,6 +309,74 @@ function breakFeatures(breaks: MapBreak[]) {
   };
 }
 
+// A paint of a break that follows the size of its disc: one value for each zoom of `BREAK_DISCS`.
+function byBreakDisc(
+  value: (disc: (typeof BREAK_DISCS)[number]) => number | ExpressionSpecification,
+): ExpressionSpecification {
+  return [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    ...BREAK_DISCS.flatMap((disc) => [disc.zoom, value(disc)]),
+  ] as ExpressionSpecification;
+}
+
+// The wave of a break's disc as an image, which is what the map draws. Its lines are read from the
+// icon the page holds, so the map and the page show the same artwork.
+function waveImage(icon: SVGSVGElement, color: string) {
+  const ratio = Math.min(3, Math.ceil(window.devicePixelRatio));
+  const size = BREAK_WAVE.size * ratio;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const box = icon.viewBox.baseVal;
+  context.scale(size / box.width, size / box.height);
+  context.strokeStyle = color;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  for (const path of icon.querySelectorAll("path")) {
+    context.lineWidth = Number(path.getAttribute("stroke-width")) || 1.5;
+    context.stroke(new Path2D(path.getAttribute("d") ?? ""));
+  }
+  return { image: context.getImageData(0, 0, size, size), pixelRatio: ratio };
+}
+
+// The dot nearest to a point of the screen, within reach. A dot under the point comes before one
+// beside it, whichever layer draws it.
+function nearestDot(instance: MapLibreMap, point: { x: number; y: number }, reach: number) {
+  const layers = DOT_LAYERS.filter((layer) => instance.getLayer(layer));
+  // A style that is still loading has drawn nothing to press.
+  if (layers.length === 0) return undefined;
+  const hits = instance.queryRenderedFeatures(
+    [
+      [point.x - reach, point.y - reach],
+      [point.x + reach, point.y + reach],
+    ],
+    { layers },
+  );
+  let nearest: { id: string; isBreak: boolean } | undefined;
+  let shortest = Number.POSITIVE_INFINITY;
+  for (const hit of hits) {
+    const id: unknown = hit.properties.id;
+    if (typeof id !== "string" || hit.geometry.type !== "Point") continue;
+    const [longitude, latitude] = hit.geometry.coordinates as [number, number];
+    // The map can show the world more than once: the dot is the copy nearest to the point.
+    const center = instance.getCenter().lng;
+    const at = instance.project([
+      longitude + Math.round((center - longitude) / 360) * 360,
+      latitude,
+    ]);
+    const distance = Math.hypot(at.x - point.x, at.y - point.y);
+    if (distance >= shortest) continue;
+    shortest = distance;
+    nearest = { id, isBreak: hit.layer.id === "break-dots" };
+  }
+  return nearest;
+}
+
 // A height written on the sea, in the ink that reads on the color the sea has there. The basemap
 // shows through that color, so a faint edge of the other ink keeps the figure legible.
 function seaHeightFeatures(heights: ReturnType<typeof seaHeights>) {
@@ -348,6 +440,7 @@ export function StationMap({
   windStations,
   breaks,
   selectedId,
+  selectedBreak,
   layers,
   seaLayer,
   seaTime,
@@ -361,10 +454,19 @@ export function StationMap({
 }: StationMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
+  // The icon the map draws in a break's disc. It is on the page, hidden, to be read from.
+  const wave = useRef<HTMLSpanElement>(null);
   // Counts the styles loaded so far. A new style drops every source and layer added to the last.
   const [styleVersion, setStyleVersion] = useState(0);
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
   const [markers, setMarkers] = useState<Marker[]>([]);
+  // The break under the pointer of a mouse, whose name is shown over it.
+  const [hoveredId, setHoveredId] = useState<string | undefined>(undefined);
+  // The pill of the selected break opens to the right of its disc, and to the left when the right
+  // is off the map or under a drawer.
+  const selectedPill = useRef<HTMLSpanElement>(null);
+  const selectedPillWidth = useRef(0);
+  const [selectedOpensLeft, setSelectedOpensLeft] = useState(false);
   const nodes = useRef(new Map<string, HTMLElement>());
   const positions = useRef(new Map<string, { x: number; y: number }>());
   const loadedTheme = useRef(theme);
@@ -383,12 +485,21 @@ export function StationMap({
       .sort((a, b) => rank(b) - rank(a));
   }, [stations, selectedId]);
 
+  const breaksById = useMemo(() => new Map(breaks.map((found) => [found.id, found])), [breaks]);
+  // The selected break has its own pill, so pointing at it adds nothing.
+  const hovered =
+    hoveredId !== undefined && hoveredId !== selectedBreak?.id
+      ? breaksById.get(hoveredId)
+      : undefined;
+
   // The map is created once, so its handlers read the latest props through a ref.
   const latest = useRef({
     stations,
     rankedStations,
     windStations,
     selectedId,
+    selectedBreak,
+    hovered,
     layers,
     padding,
     userLocation,
@@ -401,6 +512,8 @@ export function StationMap({
     rankedStations,
     windStations,
     selectedId,
+    selectedBreak,
+    hovered,
     layers,
     padding,
     userLocation,
@@ -415,7 +528,15 @@ export function StationMap({
     const element = container.current;
     if (!instance || !element) return;
 
-    const { rankedStations, windStations, selectedId, layers, userLocation } = latest.current;
+    const {
+      rankedStations,
+      windStations,
+      selectedId,
+      selectedBreak,
+      hovered,
+      layers,
+      userLocation,
+    } = latest.current;
     const width = element.clientWidth;
     const height = element.clientHeight;
     const taken: Box[] = [];
@@ -472,9 +593,23 @@ export function StationMap({
         );
       }
     }
-    if (userLocation) {
-      const point = instance.project([userLocation.longitude, userLocation.latitude]);
-      positions.current.set("user", { x: Math.round(point.x), y: Math.round(point.y) });
+    // What stands at one point and has no room to find: where the user is, and the break in hand.
+    const pinned = {
+      user: userLocation,
+      "break:selected": selectedBreak,
+      "break:hovered": hovered,
+    };
+    for (const [key, place] of Object.entries(pinned)) {
+      if (!place) continue;
+      const point = instance.project([place.longitude, place.latitude]);
+      positions.current.set(key, { x: Math.round(point.x), y: Math.round(point.y) });
+    }
+
+    const selectedAt = positions.current.get("break:selected");
+    if (selectedAt) {
+      const pill = selectedPillWidth.current;
+      const room = width - latest.current.padding.right - selectedAt.x;
+      setSelectedOpensLeft(room < pill && selectedAt.x > pill);
     }
 
     for (const [key, position] of positions.current) {
@@ -525,24 +660,28 @@ export function StationMap({
         setStyleVersion((version) => version + 1);
       });
 
-      // One click selects one thing: whatever is drawn on top under the pointer.
-      instance.on("click", (event: MapMouseEvent) => {
-        const [hit] = instance.queryRenderedFeatures(event.point, {
-          layers: DOT_LAYERS.filter((layer) => instance.getLayer(layer)),
-        });
-        const id = hit?.properties?.id;
-        if (typeof id !== "string") return;
-        if (hit?.layer.id === "break-dots") latest.current.onSelectBreak(id);
-        else latest.current.onSelect(id);
+      // One press selects one thing: the dot nearest to it, within the reach of what pressed.
+      const canvas = instance.getCanvas();
+      let reach = MOUSE_REACH;
+      canvas.addEventListener("pointerdown", (event) => {
+        reach = event.pointerType === "mouse" ? MOUSE_REACH : FINGER_REACH;
       });
-      for (const layer of DOT_LAYERS) {
-        instance.on("mouseenter", layer, () => {
-          instance.getCanvas().style.cursor = "pointer";
-        });
-        instance.on("mouseleave", layer, () => {
-          instance.getCanvas().style.cursor = "";
-        });
-      }
+      instance.on("click", (event: MapMouseEvent) => {
+        const hit = nearestDot(instance, event.point, reach);
+        if (!hit) return;
+        if (hit.isBreak) latest.current.onSelectBreak(hit.id);
+        else latest.current.onSelect(hit.id);
+      });
+      // The pointer of a mouse shows what a press would select, and names the break it is on. A
+      // finger points at nothing before it presses.
+      canvas.addEventListener("pointermove", (event) => {
+        // A pointer that is dragging the map is not pointing.
+        if (event.pointerType !== "mouse" || event.buttons !== 0) return;
+        const hit = nearestDot(instance, { x: event.offsetX, y: event.offsetY }, MOUSE_REACH);
+        canvas.style.cursor = hit ? "pointer" : "";
+        setHoveredId(hit?.isBreak ? hit.id : undefined);
+      });
+      canvas.addEventListener("pointerleave", () => setHoveredId(undefined));
 
       instance.on("dragstart", () => {
         dragged.current = true;
@@ -585,7 +724,8 @@ export function StationMap({
     const ink = themeColor("--neutral-10");
     instance.addSource("stations", { type: "geojson", data: stationFeatures([]) });
     instance.addSource("wind", { type: "geojson", data: windFeatures([]) });
-    instance.addSource("breaks", { type: "geojson", data: breakFeatures([]) });
+    // A break is known by its id, so that the one pointed at can be drawn apart.
+    instance.addSource("breaks", { type: "geojson", data: breakFeatures([]), promoteId: "id" });
     instance.addLayer({
       id: "wind-dots",
       type: "circle",
@@ -627,49 +767,79 @@ export function StationMap({
         "circle-stroke-color": ink,
       },
     });
-    // A break measures nothing, so it takes no color of a scale: a small dot in the theme's ink,
-    // above the stations. Where a break and a buoy overlap, the buoy shows as a ring around it.
+    // A break measures nothing, so it takes no color of a scale: it is drawn in the theme's ink,
+    // above the stations. The breaks are many and the map draws them itself. From afar each is a
+    // dot, small enough for a coast full of them to stay a coast. Closer, the dot grows into a
+    // disc, with a wave in it and the break's name beside it.
+    const isHovered: ExpressionSpecification = ["boolean", ["feature-state", "hover"], false];
     instance.addLayer({
       id: "break-dots",
       type: "circle",
       source: "breaks",
       paint: {
-        "circle-radius": 3.5,
+        // The break the pointer is on stands out from its neighbours.
+        "circle-radius": byBreakDisc((disc) => ["case", isHovered, disc.radius + 2, disc.radius]),
         "circle-color": ink,
-        "circle-stroke-width": 1.5,
+        "circle-stroke-width": byBreakDisc((disc) => disc.edge),
         "circle-stroke-color": surface,
       },
     });
-    instance.addLayer({
-      id: "break-selected",
-      type: "circle",
-      source: "breaks",
-      filter: ["==", ["get", "id"], ""],
-      paint: {
-        "circle-radius": 8,
-        "circle-opacity": 0,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": ink,
-      },
-    });
-    // Names come in once the map is close enough for them not to run into one another.
+    // Names come in once the map is close enough for them not to run into one another. The map
+    // leaves out a name that would cover another, and looks for room on each side of the disc.
+    // They are bold, to be told from the names of the towns behind the coast.
     instance.addLayer({
       id: "break-names",
       type: "symbol",
       source: "breaks",
-      minzoom: 8,
+      minzoom: BREAK_NAME_ZOOM,
       layout: {
         "text-field": ["get", "name"],
-        "text-font": ["Noto Sans Regular"],
+        "text-font": ["Noto Sans Bold"],
         "text-size": 11,
-        "text-anchor": "top",
-        "text-offset": [0, 0.7],
-        "text-max-width": 9,
+        "text-variable-anchor": ["top", "bottom", "left", "right"],
+        // Clear of the disc, in letters' heights.
+        "text-radial-offset": byBreakDisc((disc) => (disc.radius + 5) / 11),
+        "text-justify": "auto",
+        "text-max-width": 8,
       },
       paint: {
         "text-color": ink,
         "text-halo-color": surface,
         "text-halo-width": 1.5,
+      },
+    });
+    const icon = wave.current?.querySelector("svg");
+    const drawn = icon && waveImage(icon, surface);
+    if (drawn) {
+      if (instance.hasImage(BREAK_WAVE.image)) instance.removeImage(BREAK_WAVE.image);
+      instance.addImage(BREAK_WAVE.image, drawn.image, { pixelRatio: drawn.pixelRatio });
+    }
+    // The waves are the layer above the names, so the map places them first: a name then finds
+    // every disc taken, and covers none. A wave stands for its disc from the zoom the names come
+    // in at, before it is wide enough to be seen.
+    instance.addLayer({
+      id: "break-waves",
+      type: "symbol",
+      source: "breaks",
+      minzoom: BREAK_NAME_ZOOM,
+      layout: {
+        "icon-image": BREAK_WAVE.image,
+        // The wave fills the disc, less a margin, which the padding gives back to its place.
+        "icon-size": byBreakDisc((disc) => (disc.radius * 1.3) / BREAK_WAVE.size),
+        "icon-padding": 3,
+        // Every disc has its wave.
+        "icon-allow-overlap": true,
+      },
+      paint: {
+        "icon-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          BREAK_WAVE_ZOOM,
+          0,
+          BREAK_WAVE_ZOOM + 0.5,
+          1,
+        ],
       },
     });
   }, [styleVersion]);
@@ -694,7 +864,7 @@ export function StationMap({
     instance.setLayoutProperty("station-dots", "visibility", layers.buoys ? "visible" : "none");
     instance.setLayoutProperty("station-selected", "visibility", layers.buoys ? "visible" : "none");
     instance.setLayoutProperty("wind-dots", "visibility", layers.wind ? "visible" : "none");
-    for (const layer of ["break-dots", "break-selected", "break-names"]) {
+    for (const layer of BREAK_LAYERS) {
       instance.setLayoutProperty(layer, "visibility", layers.breaks ? "visible" : "none");
     }
     layout();
@@ -704,9 +874,27 @@ export function StationMap({
     const instance = map.current;
     if (!instance?.getLayer("station-selected")) return;
     instance.setFilter("station-selected", ["==", ["get", "id"], selectedId ?? ""]);
-    instance.setFilter("break-selected", ["==", ["get", "id"], selectedId ?? ""]);
+    // The selected break is drawn by its pill, which stands where its disc and its name were.
+    for (const layer of BREAK_LAYERS) {
+      instance.setFilter(layer, ["!=", ["get", "id"], selectedBreak?.id ?? ""]);
+    }
     layout();
-  }, [selectedId, styleVersion, layout]);
+  }, [selectedId, selectedBreak?.id, styleVersion, layout]);
+
+  // The dot of the break pointed at grows, so that the name over it is read as its own.
+  const hoveredBreakId = hovered?.id;
+  useEffect(() => {
+    const instance = map.current;
+    if (hoveredBreakId === undefined || !instance?.getSource("breaks")) return;
+    const dot = { source: "breaks", id: hoveredBreakId };
+    instance.setFeatureState(dot, { hover: true });
+    return () => {
+      // A new style, or a map that is gone, has nothing left to undo.
+      if (map.current === instance && instance.getSource("breaks")) {
+        instance.removeFeatureState(dot, "hover");
+      }
+    };
+  }, [hoveredBreakId, styleVersion]);
 
   // Where the basemap's tiles are, which its style leaves to a second document.
   const [basemap, setBasemap] = useState<{ tiles: string; maxZoom: number } | null>(null);
@@ -906,7 +1094,7 @@ export function StationMap({
     const station =
       stations.find((candidate) => candidate.id === selectedId) ??
       windStations.find((candidate) => candidate.id === selectedId) ??
-      breaks.find((candidate) => candidate.id === selectedId);
+      (selectedBreak?.id === selectedId ? selectedBreak : undefined);
     if (!station) return;
     revealed.current = selectedId;
 
@@ -924,17 +1112,22 @@ export function StationMap({
       offset: visibleCenterOffset(padding),
       duration: 500,
     });
-  }, [selectedId, stations, windStations, breaks, padding, styleVersion]);
+  }, [selectedId, selectedBreak, stations, windStations, padding, styleVersion]);
 
-  useEffect(layout, [userLocation, layout]);
-
-  // A marker that has just been drawn takes its place before the browser paints it.
+  // How wide the pill of the selected break is, as it stands when selected: a little larger than
+  // it is laid out.
+  useLayoutEffect(() => {
+    selectedPillWidth.current = (selectedPill.current?.offsetWidth ?? 0) * 1.1;
+  }, [selectedBreak]);
+  // What is pinned to a point takes its place before the browser paints it, and so does a marker
+  // that has just been drawn.
+  useLayoutEffect(layout, [userLocation, selectedBreak, hovered, padding, layout]);
   useLayoutEffect(() => {
     for (const [key, position] of positions.current) {
       const node = nodes.current.get(key);
       if (node) node.style.translate = `${position.x}px ${position.y}px`;
     }
-  }, [markers, userLocation]);
+  }, [markers]);
 
   useImperativeHandle(
     ref,
@@ -1035,9 +1228,51 @@ export function StationMap({
                 />
               </div>
             )}
+            {/* The break in hand, over its disc. Neither pill takes a press: the map does, and
+                finds the break under it. The panel that is open already names the selected one. */}
+            {selectedBreak && (
+              <div
+                ref={register("break:selected")}
+                aria-hidden
+                className="pointer-events-none absolute top-0 left-0 z-20 size-0"
+              >
+                <BreakPill
+                  ref={selectedPill}
+                  // The disc of the pill is on the break, and the pill grows from there.
+                  className={cn(
+                    "absolute -translate-y-1/2",
+                    selectedOpensLeft
+                      ? "-right-3.5 origin-[calc(100%-0.875rem)_50%]"
+                      : "-left-3.5 origin-[0.875rem_50%]",
+                  )}
+                  name={selectedBreak.name}
+                  selected
+                  mirrored={selectedOpensLeft}
+                />
+              </div>
+            )}
+            {hovered && (
+              <div
+                ref={register("break:hovered")}
+                aria-hidden
+                className="pointer-events-none absolute top-0 left-0 z-30 size-0"
+              >
+                {/* Above the disc, which stays in sight with its neighbours. */}
+                <div className="absolute bottom-4 -translate-x-1/2">
+                  <BreakPill
+                    className="animate-in duration-(--motion-duration) ease-theme fade-in zoom-in-95 motion-reduce:animate-none"
+                    name={hovered.name}
+                  />
+                </div>
+              </div>
+            )}
           </div>,
           overlay,
         )}
+      {/* The wave of a break, for the map to draw from. */}
+      <span ref={wave} hidden>
+        <WaveIcon strokeWidth={2} />
+      </span>
     </>
   );
 }
