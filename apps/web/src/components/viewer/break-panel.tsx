@@ -8,19 +8,13 @@ type BreakPanelProps = PointConditionsProps & {
 };
 
 /** The wave forecast and the tide at a surf break of the catalogue. */
-export function BreakPanel({ now, found, forecast, tides, extremes, tideDay }: BreakPanelProps) {
+export function BreakPanel({ now, found, forecast, tides, extremes }: BreakPanelProps) {
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
   return (
     <div className="grid gap-l">
-      <PointConditions
-        now={now}
-        forecast={forecast}
-        tides={tides}
-        extremes={extremes}
-        tideDay={tideDay}
-      />
+      <PointConditions now={now} forecast={forecast} tides={tides} extremes={extremes} />
       <Sources
         origin={found.data && m.source_break({ attribution: found.data.source.attribution })}
         license={found.data?.source.license}

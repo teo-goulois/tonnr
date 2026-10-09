@@ -6,13 +6,23 @@ import {
   useYAxisScale,
   ZIndexLayer,
 } from "@repo/ui/components/evilcharts/charts/recharts-area-chart";
+import { Button } from "@repo/ui/components/ui/button";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useMemo } from "react";
+import {
+  type PointerEvent,
+  type ReactNode,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 
-import { formatClock, formatMeters, formatNumber } from "@/lib/format";
+import { formatClock, formatDay, formatMeters, formatNumber } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
+import { m } from "@/paraglide/messages.js";
 
-import { type ChartPoint, SeaChart } from "./sea-chart";
+import { type ChartPoint, SeaChart, valueTicks } from "./sea-chart";
 import type { TideExtremes } from "./types";
 
 type Row = { time: number; value: number };
@@ -30,12 +40,13 @@ type TideChartProps = {
 
 // Above the rule that follows the pointer, below the dot the chart puts under it.
 const MARKS_LAYER = 1150;
-// Above the figures of the axes.
-const TAG_LAYER = 2100;
 // The room a time takes beside its dot, in pixels.
 const LABEL_WIDTH = 40;
-// How many colors the curve is painted with, to turn pale where the hours are gone.
-const COLOR_STEPS = 96;
+// How many colors a day of the curve is painted with, to turn pale where the hours are gone.
+const COLOR_STEPS_PER_DAY = 96;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// How long a strip let go by the mouse takes to settle on a day, in milliseconds.
+const SETTLE_MS = 400;
 
 // The moments the water stands at a height, each placed between the two predictions around it.
 function crossingsAt(rows: Row[], level: number) {
@@ -108,10 +119,21 @@ function TideMarks({
   rows,
   extremes,
   now,
-}: Pick<TideChartProps, "extremes"> & { rows: Row[]; now?: number }) {
+  axis,
+}: Pick<TideChartProps, "extremes"> & {
+  rows: Row[];
+  now?: number;
+  // Where the figures of the heights are written: beside the strip, so they stay when it scrolls.
+  axis: HTMLElement | null;
+}) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
   const yScale = useYAxisScale();
+  // The figures the chart would write on its own axis, which the strip hides.
+  const ticks = useMemo(() => {
+    const values = rows.map((row) => row.value);
+    return valueTicks(Math.min(0, ...values), Math.max(0, ...values));
+  }, [rows]);
   const isPointed = useIsTooltipActive();
   const pointedTime = useActiveTooltipLabel();
 
@@ -178,30 +200,31 @@ function TideMarks({
     );
   }
 
-  // The height, written on the axis it is read from, over the figure the axis has there.
-  const levelTag = pointed && (
-    <ZIndexLayer zIndex={TAG_LAYER}>
-      <g aria-hidden pointerEvents="none">
-        <rect
-          x={0}
-          y={y(pointed.value) - 9}
-          width={left - 4}
-          height={18}
-          rx={4}
-          className="fill-color-1"
-        />
-        <text
-          x={(left - 4) / 2}
-          y={y(pointed.value) + 4}
-          textAnchor="middle"
-          fontSize={11}
-          className="fill-neutral-1 font-medium tabular-nums"
-        >
-          {formatNumber(pointed.value)}
-        </text>
-      </g>
-    </ZIndexLayer>
-  );
+  const figures =
+    axis &&
+    createPortal(
+      <>
+        {ticks.map((tick) => (
+          <span
+            key={tick}
+            className="absolute inset-x-0 -translate-y-1/2 pr-xs text-right text-xs text-muted-foreground tabular-nums"
+            style={{ top: y(tick) }}
+          >
+            {formatNumber(tick)}
+          </span>
+        ))}
+        {/* The height under the pointer, over the figure the axis has there. */}
+        {pointed && (
+          <span
+            className="absolute inset-x-0 mr-xxs -translate-y-1/2 rounded-(--radius-xs) bg-color-1 text-center text-xs font-medium text-neutral-1 tabular-nums"
+            style={{ top: y(pointed.value) }}
+          >
+            {formatNumber(pointed.value)}
+          </span>
+        )}
+      </>,
+      axis,
+    );
 
   return (
     <>
@@ -255,12 +278,15 @@ function TideMarks({
           {level}
         </g>
       </ZIndexLayer>
-      {levelTag}
+      {figures}
     </>
   );
 }
 
-/** The tide over time, with its high and low waters and the moments it stands at one height. */
+/**
+ * The tide as a strip of days to scroll along, one day wide, with its high and low waters and the
+ * moments it stands at one height. The strip opens on today.
+ */
 export function TideChart({ label, points, extremes, now, isLoading, className }: TideChartProps) {
   const rows = useMemo(
     () =>
@@ -269,31 +295,120 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
       ),
     [points],
   );
+  const start = rows[0]?.time ?? 0;
+  const end = rows.at(-1)?.time ?? 0;
+  const days = Math.max(1, Math.round((end - start) / DAY_MS));
+  const moment = now?.getTime();
+  const today =
+    moment !== undefined && moment > start && moment < end
+      ? Math.floor((moment - start) / DAY_MS)
+      : undefined;
 
-  // Today's curve is pale up to now. Another day has one color: it is all gone, or all to come.
-  const colors = useMemo(() => {
-    const start = rows[0]?.time ?? 0;
-    const end = rows.at(-1)?.time ?? 0;
-    const moment = now?.getTime();
-    if (moment === undefined || moment <= start || moment >= end) return [TIDE_COLOR];
-    return Array.from({ length: COLOR_STEPS }, (_, step) =>
-      start + (step / (COLOR_STEPS - 1)) * (end - start) < moment ? TIDE_PAST_COLOR : TIDE_COLOR,
+  const [axis, setAxis] = useState<HTMLDivElement | null>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; left: number } | null>(null);
+  // The day the strip is scrolled to. Until it has moved, that is today.
+  const [scrolledTo, setScrolledTo] = useState<number>();
+  const shown = Math.min(days - 1, scrolledTo ?? today ?? 0);
+  const shownDay = new Date(start);
+  shownDay.setDate(shownDay.getDate() + shown);
+
+  function scrollToDay(day: number, behavior: ScrollBehavior) {
+    const element = strip.current;
+    element?.scrollTo({ left: day * element.clientWidth, behavior });
+  }
+
+  useLayoutEffect(() => {
+    scrollToDay(today ?? 0, "instant");
+  }, [today, days]);
+
+  // A mouse has no way to scroll sideways, so it drags the strip, which then settles on a day.
+  function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    const element = event.currentTarget;
+    drag.current = { x: event.clientX, left: element.scrollLeft };
+    element.setPointerCapture(event.pointerId);
+    element.style.scrollSnapType = "none";
+  }
+  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    event.currentTarget.scrollLeft = drag.current.left - (event.clientX - drag.current.x);
+  }
+  function onPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    const element = event.currentTarget;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    drag.current = null;
+    scrollToDay(
+      Math.round(element.scrollLeft / element.clientWidth),
+      smooth ? "smooth" : "instant",
     );
-  }, [rows, now]);
+    setTimeout(() => (element.style.scrollSnapType = ""), smooth ? SETTLE_MS : 0);
+  }
+
+  // Today's hours already gone are pale, and so are the days before.
+  const colors = useMemo(() => {
+    if (moment === undefined || moment <= start || moment >= end) return [TIDE_COLOR];
+    const steps = days * COLOR_STEPS_PER_DAY;
+    return Array.from({ length: steps }, (_, step) =>
+      start + (step / (steps - 1)) * (end - start) < moment ? TIDE_PAST_COLOR : TIDE_COLOR,
+    );
+  }, [start, end, days, moment]);
 
   return (
-    <SeaChart
-      label={label}
-      colors={colors}
-      formatValue={formatMeters}
-      points={points}
-      isLoading={isLoading}
-      headroom={36}
-      footroom={32}
-      tooltip={false}
-      className={cn("h-56", className)}
-    >
-      <TideMarks rows={rows} extremes={extremes} now={now?.getTime()} />
-    </SeaChart>
+    <div className="grid gap-xxs">
+      <div className="flex h-8 items-center justify-between gap-xs">
+        <span className="text-s tabular-nums" aria-live="polite">
+          {shown === today ? m.tide_today() : formatDay(shownDay)}
+        </span>
+        {today !== undefined && shown !== today && (
+          <Button variant="secondary" size="xs" onClick={() => scrollToDay(today, "smooth")}>
+            {m.tide_today()}
+          </Button>
+        )}
+      </div>
+      <div className="flex">
+        <div ref={setAxis} aria-hidden className="relative w-[30px] shrink-0" />
+        <div
+          ref={strip}
+          role="group"
+          aria-label={label}
+          tabIndex={0}
+          className="min-w-0 flex-1 cursor-grab snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] active:cursor-grabbing"
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            setScrolledTo(Math.round(element.scrollLeft / element.clientWidth));
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div className="relative" style={{ width: `${days * 100}%` }}>
+            {/* One stop a day for the strip to settle on. */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 flex">
+              {Array.from({ length: days }, (_, day) => (
+                <div key={day} className="flex-1 snap-start" />
+              ))}
+            </div>
+            <SeaChart
+              label={label}
+              colors={colors}
+              formatValue={formatMeters}
+              points={points}
+              isLoading={isLoading}
+              headroom={36}
+              footroom={32}
+              yAxis={false}
+              everyHours={6}
+              tooltip={false}
+              className={cn("h-56", className)}
+            >
+              <TideMarks rows={rows} extremes={extremes} now={moment} axis={axis} />
+            </SeaChart>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

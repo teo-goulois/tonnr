@@ -184,7 +184,6 @@ export function StationPanel({
   forecast,
   tides,
   extremes,
-  tideDay,
 }: StationPanelProps) {
   const station = history.data?.station ?? known;
   const readings = history.data?.readings ?? [];
@@ -243,13 +242,7 @@ export function StationPanel({
         </Section>
       )}
 
-      <PointConditions
-        now={now}
-        forecast={forecast}
-        tides={tides}
-        extremes={extremes}
-        tideDay={tideDay}
-      />
+      <PointConditions now={now} forecast={forecast} tides={tides} extremes={extremes} />
 
       <Sources
         origin={station && m.source_measurements({ attribution: station.attribution })}

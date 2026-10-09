@@ -139,8 +139,6 @@
   "tide_low": "Low",
   "tide_none": "No tide station within 100 km.",
   "tide_today": "Today",
-  "tide_previous_day": "Previous day",
-  "tide_next_day": "Next day",
   "source_measurements": "Measurements: {attribution}. License:",
   "source_forecast": "Forecast: {attribution}.",
   "source_tide": "Tide: computed, heights above {datum}. Source: {source}.",

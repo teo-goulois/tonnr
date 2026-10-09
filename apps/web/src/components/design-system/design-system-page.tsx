@@ -89,6 +89,8 @@ const NEUTRALS = [
 const HOUR_MS = 60 * 60 * 1000;
 // A fixed moment, so the samples below draw the same curves on every visit.
 const SAMPLE_NOW = Date.UTC(2026, 9, 9, 6);
+// The midnight before it, where the reader is.
+const SAMPLE_DAY = new Date(SAMPLE_NOW).setHours(0, 0, 0, 0);
 
 // A swell that builds to three metres and eases, one value every half hour for two days.
 const SAMPLE_HEIGHTS = Array.from({ length: 96 }, (_, index) => ({
@@ -180,8 +182,8 @@ const SAMPLE_TIDE_STATION = {
 const SAMPLE_TIDES: TideTimeline = {
   station: SAMPLE_TIDE_STATION,
   datum: "LAT",
-  timeline: Array.from({ length: 145 }, (_, index) => ({
-    time: new Date(SAMPLE_NOW - 6 * HOUR_MS + index * (HOUR_MS / 6)),
+  timeline: Array.from({ length: 3 * 144 + 1 }, (_, index) => ({
+    time: new Date(SAMPLE_DAY - 24 * HOUR_MS + index * (HOUR_MS / 6)),
     heightMeters: 3.6 + 2.8 * Math.sin((index / 74.5) * 2 * Math.PI),
   })),
 };
@@ -189,17 +191,11 @@ const SAMPLE_EXTREMES: TideExtremes = {
   station: SAMPLE_TIDE_STATION,
   datum: "LAT",
   // The high and low waters of the curve above.
-  extremes: Array.from({ length: 4 }, (_, index) => ({
-    time: new Date(SAMPLE_NOW - 6 * HOUR_MS + (18.625 + index * 37.25) * (HOUR_MS / 6)),
+  extremes: Array.from({ length: 11 }, (_, index) => ({
+    time: new Date(SAMPLE_DAY - 24 * HOUR_MS + (18.625 + index * 37.25) * (HOUR_MS / 6)),
     type: index % 2 === 0 ? ("high" as const) : ("low" as const),
     heightMeters: index % 2 === 0 ? 6.4 : 0.8,
   })),
-};
-const SAMPLE_TIDE_DAY = {
-  start: new Date(SAMPLE_NOW),
-  isToday: true,
-  onStep: () => {},
-  onToday: () => {},
 };
 const LOADED = { isPending: false, isError: false };
 const LOADING = { data: undefined, isPending: true, isError: false };
@@ -496,7 +492,6 @@ export function DesignSystemPage() {
               forecast={LOADING}
               tides={LOADING}
               extremes={LOADING}
-              tideDay={SAMPLE_TIDE_DAY}
             />
           </div>
           <div className="edge rounded-(--radius-xs) p-m">
@@ -507,7 +502,6 @@ export function DesignSystemPage() {
               forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
               tides={{ data: SAMPLE_TIDES, ...LOADED }}
               extremes={{ data: SAMPLE_EXTREMES, ...LOADED }}
-              tideDay={SAMPLE_TIDE_DAY}
             />
           </div>
         </div>

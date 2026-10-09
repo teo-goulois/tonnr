@@ -25,6 +25,11 @@ type SeaChartProps = {
   headroom?: number;
   // Room under the lowest value of the axis, in pixels, for what `children` writes below the curve.
   footroom?: number;
+  // The figures of the heights, on the left. Without them the plot takes the whole width.
+  yAxis?: boolean;
+  // A figure of time every so many hours, whatever the span. Midnight has none: what scrolls
+  // through days names the day itself.
+  everyHours?: number;
   // The box that follows the pointer with the value under it.
   tooltip?: boolean;
   className?: string;
@@ -37,9 +42,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const COLOR_STEPS = 24;
 
 // Midnights when the span covers days, every six hours otherwise.
-function timeTicks(start: number, end: number) {
+function timeTicks(start: number, end: number, everyHours = end - start > 36 * HOUR_MS ? 24 : 6) {
   const ticks: number[] = [];
-  const everyHours = end - start > 36 * HOUR_MS ? 24 : 6;
 
   const cursor = new Date(start);
   cursor.setMinutes(0, 0, 0);
@@ -59,7 +63,7 @@ function niceStep(max: number) {
 }
 
 // Round values from zero, or from below it when the curve goes there, to just above the curve.
-function valueTicks(lowest: number, highest: number) {
+export function valueTicks(lowest: number, highest: number) {
   const step = niceStep(Math.max(highest, -lowest, 0.1));
   const bottom = Math.min(0, Math.floor(lowest / step) * step);
   const top = Math.max(step, Math.ceil(highest / step) * step);
@@ -99,6 +103,8 @@ export function SeaChart({
   isLoading = false,
   headroom = 8,
   footroom = 0,
+  yAxis = true,
+  everyHours,
   tooltip = true,
   className,
   children,
@@ -158,7 +164,7 @@ export function SeaChart({
         curveType="monotone"
         isLoading={isLoading}
         loadingPoints={14}
-        chartProps={{ margin: { top: headroom, right: 8, bottom: 0, left: 0 } }}
+        chartProps={{ margin: { top: headroom, right: yAxis ? 8 : 0, bottom: 0, left: 0 } }}
       >
         <EvilAreaChart.Grid />
         <EvilAreaChart.XAxis
@@ -166,13 +172,16 @@ export function SeaChart({
           type="number"
           scale="time"
           domain={[start, end]}
-          ticks={timeTicks(start, end)}
+          ticks={timeTicks(start, end, everyHours).filter(
+            (time) => !everyHours || new Date(time).getHours() !== 0,
+          )}
           tickFormatter={(time: number) =>
-            spansDays ? formatDay(new Date(time)) : formatClock(new Date(time))
+            spansDays && !everyHours ? formatDay(new Date(time)) : formatClock(new Date(time))
           }
         />
         <EvilAreaChart.YAxis
           width={30}
+          hide={!yAxis}
           padding={{ bottom: footroom }}
           ticks={yTicks}
           domain={[yTicks[0]!, yTicks.at(-1)!]}
