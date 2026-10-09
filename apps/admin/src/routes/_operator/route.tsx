@@ -43,14 +43,19 @@ function OperatorLayout() {
   // that drops what the page loaded for an account when another one is signed in.
   const leaving =
     isRefusal(asked.error) || !account.isOperator || account.id !== context.account.id;
+  // Asked again each time either account changes: the one the API names may be yet another by
+  // the time the guard has answered.
+  const [named, held] = [account.id, context.account.id];
   useEffect(() => {
     if (leaving) void router.invalidate();
-  }, [leaving, router]);
+  }, [leaving, named, held, router]);
 
   // Nothing is drawn meanwhile: the screens of the account before are taken down first.
   if (leaving) return <Loader />;
   return (
-    <AdminShell account={account}>
+    // The screens belong to the account they were drawn for. Another account gets new ones,
+    // which have read nothing: see `readBy`.
+    <AdminShell key={account.id} account={account}>
       <Outlet />
     </AdminShell>
   );

@@ -58,9 +58,12 @@ function ConsoleLayout() {
     isRefusal(mine.error) ||
     account.isOperator ||
     account.id !== context.account.id;
+  // Asked again each time either account changes: the one the API names may be yet another by
+  // the time the guard has answered.
+  const [named, held] = [account.id, context.account.id];
   useEffect(() => {
     if (leaving) void router.invalidate();
-  }, [leaving, router]);
+  }, [leaving, named, held, router]);
 
   // What was read of a developer account does not outlive the reader's place among its
   // members: taken out of one of several, of the last one, or the developer account deleted.
@@ -82,7 +85,9 @@ function ConsoleLayout() {
   if (!mine.data) return <Loader />;
   if (mine.data.developers.length === 0) return <NotOperator account={account} />;
   return (
-    <ConsoleShell account={account} developers={mine.data.developers}>
+    // The screens belong to the account they were drawn for. Another account gets new ones,
+    // which have read nothing: see `readBy`.
+    <ConsoleShell key={account.id} account={account} developers={mine.data.developers}>
       <Outlet />
     </ConsoleShell>
   );

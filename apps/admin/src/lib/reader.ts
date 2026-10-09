@@ -10,6 +10,11 @@ const readers = new WeakMap<QueryClient, string>();
  * answers are kept, they are dropped: what no screen draws is deleted, and what a screen still
  * draws is emptied under it and asked again. `who` names the queries that say who is signed
  * in, which are the new reader's already.
+ *
+ * This empties the client's memory, and not a screen's own: a screen that shows its last
+ * answer while it waits for another keeps that answer itself. So the screens of the reader
+ * before are not handed to the next one. Each layout draws its screens under the reader's
+ * identifier as their `key`, and another reader gets screens that have read nothing.
  */
 export function readBy(queryClient: QueryClient, accountId: string, who: QueryFilters) {
   const before = readers.get(queryClient);

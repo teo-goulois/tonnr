@@ -38,7 +38,7 @@ A developer account is not an account that signs in. Something must say which ac
 - An operator sees the admin as before, adds members from a developer account's page, and is sent to the admin from `/console`.
 - The console has the admin's bar, with a palette and shortcuts of its own: the developer accounts of the reader, the theme, the language. None of an operator's pages, commands or shortcuts is mounted for it.
 - An open page asks every thirty seconds what its account is a member of. A developer account that was taken from it leaves the screen, with what was read of it. The API's 404 for its calls is enough: the page does not wait to be told again what the reader is a member of.
-- What a page of the admin loaded belongs to the account that loaded it. The session is a cookie of the browser's, which another tab changes: the page asks who is signed in every thirty seconds, a minute for an operator, and each time the reader comes back to it. When it is another account, or none, the page drops everything it holds before it draws anything for the new one. This is an operator's pages' rule as much as the console's.
+- What a page of the admin loaded belongs to the account that loaded it. The session is a cookie of the browser's, which another tab changes: the page asks who is signed in every thirty seconds, a minute for an operator, and each time the reader comes back to it. When it is another account, or none, the page drops everything it holds and takes its screens down: the new reader's are drawn anew, and have read nothing. This is an operator's pages' rule as much as the console's.
 
 ## Rejected
 
