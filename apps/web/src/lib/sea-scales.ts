@@ -65,6 +65,20 @@ export const WAVE_ENERGY_SCALE: ScaleStop[] = [
   { value: 4000, color: "#8a0c40" },
 ];
 
+/** Cloud cover, in percent of the sky. One gray that thickens: a clear sky leaves its cell empty. */
+export const CLOUD_COVER_SCALE: ScaleStop[] = [
+  { value: 0, color: "#a8b0ba" },
+  { value: 100, color: "#6b7480" },
+];
+
+/** Precipitation, in millimetres an hour. One blue, from a drizzle to a downpour. */
+export const PRECIPITATION_SCALE: ScaleStop[] = [
+  { value: 0, color: "#9cc3f5" },
+  { value: 1, color: "#5f9cf0" },
+  { value: 4, color: "#2f6fe0" },
+  { value: 10, color: "#1f49b8" },
+];
+
 /** A station without a recent reading. */
 export const NO_READING_COLOR = "#8a8a8a";
 

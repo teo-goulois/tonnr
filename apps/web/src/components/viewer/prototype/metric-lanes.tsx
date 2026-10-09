@@ -376,7 +376,13 @@ function Lane({
             {bearing !== undefined && <DirectionArrow fromDegrees={bearing} className="size-3" />}
             {read.buoy !== null && read.model !== null && (
               <Badge className="min-w-9 tabular-nums">
-                {formatDelta(metric, read.model - read.buoy, false)}
+                {/* The difference of the two figures as they are written, so the three agree. */}
+                {formatDelta(
+                  metric,
+                  Number(read.model.toFixed(metric.digits)) -
+                    Number(read.buoy.toFixed(metric.digits)),
+                  false,
+                )}
               </Badge>
             )}
           </span>

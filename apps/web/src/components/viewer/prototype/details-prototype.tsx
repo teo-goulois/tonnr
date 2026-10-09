@@ -23,13 +23,17 @@
 
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
+import { freshnessOf } from "@/lib/format";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { m } from "@/paraglide/messages.js";
 import { orpc } from "@/utils/orpc";
 
-import type { PointConditionsProps } from "../point-conditions";
+import { type PointConditionsProps, Sources } from "../point-conditions";
+import { ReadingAge } from "../station-actions";
 import type { Reading, Station } from "../types";
+import { ViewerDrawer } from "../viewer-drawer";
 import { HOUR_MS, measuredSamples, modelSamples, t } from "./metrics";
 import { type DetailsProps, nearestBuoy } from "./parts";
 import { VariantA } from "./variant-a";
@@ -47,6 +51,97 @@ type DetailsPrototypeProps = PointConditionsProps & {
   footer: ReactNode;
 };
 
+// What a query gives a panel. A query that is switched off is not loading anything.
+function loadable<Data>(query: { data: Data | undefined; isLoading: boolean; isError: boolean }) {
+  return { data: query.data, isPending: query.isLoading, isError: query.isError };
+}
+
+/**
+ * A buoy opened from a surf break: its panel in a second drawer, over the break's. Closing it
+ * gives the break back, which the map never left. It loads what it shows itself: the route will,
+ * once the panel leaves this folder, with the buoy named in the address.
+ */
+function BuoyDrawer({
+  station,
+  now,
+  open,
+  onOpenChange,
+}: {
+  station: Station | undefined;
+  now: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const at = { latitude: station?.latitude ?? 0, longitude: station?.longitude ?? 0 };
+  const asked = { enabled: open && station !== undefined, retry: false, meta: { quiet: true } };
+  // The tide is a strip of whole days, from yesterday's midnight to the week ahead.
+  const span = useMemo(() => {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    start.setDate(start.getDate() - 1);
+    end.setDate(end.getDate() + 7);
+    return { start, end };
+    // The span changes when the day does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [new Date(now).toDateString()]);
+
+  const history = useQuery(
+    orpc.v1.stations.readings.queryOptions({
+      input: { id: station?.id ?? "", limit: 2000 },
+      ...asked,
+    }),
+  );
+  const forecast = useQuery(
+    orpc.v1.forecasts.get.queryOptions({ input: { ...at, days: 7, pastDays: 2 }, ...asked }),
+  );
+  const tides = useQuery(
+    orpc.v1.tides.timeline.queryOptions({ input: { ...at, ...span, stepMinutes: 10 }, ...asked }),
+  );
+  const extremes = useQuery(
+    orpc.v1.tides.extremes.queryOptions({ input: { ...at, ...span }, ...asked }),
+  );
+  const latest = history.data?.readings[0] ?? station?.latestReading;
+
+  return (
+    <ViewerDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      wide={wide}
+      title={station?.name}
+      description={
+        <ReadingAge
+          observedAt={latest?.observedAt}
+          freshness={freshnessOf(latest?.observedAt, now)}
+          now={now}
+        />
+      }
+    >
+      {station && (
+        <DetailsPrototype
+          now={now}
+          station={station}
+          readings={history.data?.readings}
+          latest={latest}
+          historyPending={history.isLoading}
+          forecast={loadable(forecast)}
+          tides={loadable(tides)}
+          extremes={loadable(extremes)}
+          footer={
+            <Sources
+              origin={m.source_measurements({ attribution: station.attribution })}
+              license={station.license}
+              forecast={forecast.data}
+              tides={tides.data}
+            />
+          }
+        />
+      )}
+    </ViewerDrawer>
+  );
+}
+
 export function DetailsPrototype({
   station,
   readings,
@@ -57,7 +152,7 @@ export function DetailsPrototype({
   ...conditions
 }: DetailsPrototypeProps) {
   const strings = t();
-  const navigate = useNavigate();
+  const [buoyOpen, setBuoyOpen] = useState(false);
   const measured = useMemo(() => measuredSamples(readings ?? []), [readings]);
   const hours = conditions.forecast.data?.hours;
   const model = useMemo(() => modelSamples(hours ?? []), [hours]);
@@ -94,14 +189,7 @@ export function DetailsPrototype({
     measuresWind: station?.measures.includes("wind") ?? false,
     historyPending,
     nearby,
-    onOpenStation: (stationId) =>
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => ({
-          variant: previous.variant,
-          station: stationId,
-        }),
-      } as never),
+    onOpenStation: () => setBuoyOpen(true),
   };
 
   if (!spot) return <VariantA {...props} />;
@@ -116,6 +204,12 @@ export function DetailsPrototype({
       <TabsPanel value="forecast">
         <VariantA {...props} />
       </TabsPanel>
+      <BuoyDrawer
+        station={nearby?.station}
+        now={conditions.now}
+        open={buoyOpen}
+        onOpenChange={setBuoyOpen}
+      />
       <TabsPanel value="guide">
         {/* What draws the guide draws nothing for a break of which only the place is known. */}
         <div className="peer">{guide}</div>

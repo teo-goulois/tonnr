@@ -19,7 +19,7 @@ import { LineGlyph } from "./metric-lanes";
 import {
   HOUR_MS,
   type Metric,
-  type MetricKey,
+  type NumericKey,
   type Sample,
   cellColors,
   directionAt,
@@ -28,6 +28,7 @@ import {
   metrics,
   t,
   valueAt,
+  weatherMetrics,
 } from "./metrics";
 
 type ForecastGridProps = {
@@ -99,6 +100,7 @@ export function ForecastGrid({
 }: ForecastGridProps) {
   const strings = t();
   const all = metrics();
+  const weather = weatherMetrics();
   const step = stepHours * HOUR_MS;
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; left: number } | null>(null);
@@ -165,7 +167,7 @@ export function ForecastGrid({
 
   const width = columns.length * COLUMN;
   const buoy = measured ?? [];
-  const read = (key: MetricKey | "gust", column: Column) =>
+  const read = (key: NumericKey, column: Column) =>
     column.time > now + step / 2 ? undefined : valueAt(buoy, key, column.time, MEASURED_REACH);
   // The columns the buoy has a wave height for: the hours the grid shows as measured.
   const measuredColumns = columns.filter((column) => read("height", column) !== undefined).length;
@@ -175,12 +177,16 @@ export function ForecastGrid({
   );
 
   function valueRows(
-    key: MetricKey,
-    label: ReactNode = all[key].label,
-    numeric: MetricKey | "gust" = key,
+    metric: Metric,
+    label: ReactNode = metric.label,
+    numeric: NumericKey = metric.key,
   ) {
-    const metric: Metric = all[key];
     const compares = buoy.some((sample) => sample[numeric] !== null);
+    // An hour without rain leaves its cell empty, as a clear sky does.
+    const shown = (value: number | undefined) =>
+      value !== undefined && metric.hideZero && Number(value.toFixed(metric.digits)) === 0
+        ? undefined
+        : value;
     return (
       <>
         <tr>
@@ -189,7 +195,7 @@ export function ForecastGrid({
           </RowLabel>
           {columns.map((column) => {
             const measuredValue = read(numeric, column);
-            const value = measuredValue ?? valueAt(model, numeric, column.time, step / 2);
+            const value = shown(measuredValue ?? valueAt(model, numeric, column.time, step / 2));
             return (
               <td
                 key={column.time}
@@ -199,7 +205,7 @@ export function ForecastGrid({
                   measuredValue !== undefined && "font-semibold",
                   column.newDay && DAY_RULE,
                 )}
-                style={value === undefined ? undefined : cellColors(metric, value)}
+                style={value === undefined || metric.plain ? undefined : cellColors(metric, value)}
               >
                 {value === undefined ? "" : formatMetric(metric, value, false)}
               </td>
@@ -375,14 +381,18 @@ export function ForecastGrid({
           </thead>
           <tbody>
             {measuredColumns > 0 && spacer}
-            {valueRows("height")}
-            {valueRows("period")}
-            {valueRows("energy")}
+            {valueRows(all.height)}
+            {valueRows(all.period)}
+            {valueRows(all.energy)}
             {directionRow("waveDirection")}
             {spacer}
-            {valueRows("wind")}
-            {valueRows("wind", strings.gust, "gust")}
+            {valueRows(all.wind)}
+            {valueRows(all.wind, strings.gust, "gust")}
             {directionRow("windDirection")}
+            {spacer}
+            {valueRows(weather.cloud)}
+            {valueRows(weather.rain)}
+            {valueRows(weather.air)}
           </tbody>
         </table>
       </div>

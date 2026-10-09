@@ -14,8 +14,8 @@ import { About, Block, type DetailsProps, NearbyBuoy, NowTiles, ReadingMore } fr
 type Range = "live" | "week";
 
 /**
- * The panel of a buoy or of a surf break. Four tiles for now, then the swell, its period, its
- * energy and the wind as four lanes on one span of time, the buoy drawn over the model, then the
+ * The panel of a buoy or of a surf break. Four tiles for now. At a buoy, the swell, its period, its
+ * energy and the wind as four lanes on one span of time, the buoy drawn over the model. Then the
  * week as a grid, and the tide.
  */
 export function VariantA(props: DetailsProps) {
@@ -48,30 +48,33 @@ export function VariantA(props: DetailsProps) {
 
       {forecast.isPending || forecast.data ? (
         <>
-          <Block
-            title={hasBuoy ? strings.live : strings.ahead}
-            control={
-              <>
-                {hasBuoy && <About {...props} />}
-                <Tabs value={range} onValueChange={(value) => setRange(value as Range)}>
-                  <TabsList variant="segment">
-                    <TabsTab value="live">48 h</TabsTab>
-                    <TabsTab value="week">7 {strings.days}</TabsTab>
-                  </TabsList>
-                </Tabs>
-              </>
-            }
-          >
-            <MetricLanes
-              measured={measured}
-              model={model}
-              start={start}
-              end={end}
-              now={now}
-              nights={nights}
-              isLoading={forecast.isPending}
-            />
-          </Block>
+          {/* A surf break has no buoy to set against the model: its week is read in the grid. */}
+          {hasBuoy && (
+            <Block
+              title={strings.live}
+              control={
+                <>
+                  <About {...props} />
+                  <Tabs value={range} onValueChange={(value) => setRange(value as Range)}>
+                    <TabsList variant="segment">
+                      <TabsTab value="live">48 h</TabsTab>
+                      <TabsTab value="week">7 {strings.days}</TabsTab>
+                    </TabsList>
+                  </Tabs>
+                </>
+              }
+            >
+              <MetricLanes
+                measured={measured}
+                model={model}
+                start={start}
+                end={end}
+                now={now}
+                nights={nights}
+                isLoading={forecast.isPending}
+              />
+            </Block>
+          )}
 
           <Block title={strings.week}>
             <ForecastGrid

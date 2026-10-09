@@ -2,6 +2,8 @@
 
 import { compassPoint, formatNumber, toKnots } from "@/lib/format";
 import {
+  CLOUD_COVER_SCALE,
+  PRECIPITATION_SCALE,
   type ScaleStop,
   WAVE_ENERGY_SCALE,
   WAVE_HEIGHT_SCALE,
@@ -18,6 +20,7 @@ export const HOUR_MS = 60 * 60 * 1000;
 export const DAY_MS = 24 * HOUR_MS;
 
 export type MetricKey = "height" | "period" | "energy" | "wind";
+export type WeatherKey = "cloud" | "rain" | "air";
 
 /** The sea at one moment, as a buoy measured it or as the model computed it. */
 export type Sample = {
@@ -30,6 +33,11 @@ export type Sample = {
   gust: number | null;
   windDirection: number | null;
   waveDirection: number | null;
+  // The sky under cloud in percent, the rain of the hour in millimetres, the air in °C. The
+  // model's alone: a buoy reads none of them.
+  cloud: number | null;
+  rain: number | null;
+  air: number | null;
 };
 
 // The strings of the prototype stay out of the messages until a variant is kept.
@@ -41,6 +49,9 @@ const STRINGS = {
     wind: "Wind",
     gust: "Gusts",
     direction: "Direction",
+    cloud: "Clouds",
+    rain: "Rain",
+    air: "Air",
     model: "model",
     buoy: "buoy",
     gap: "difference",
@@ -71,6 +82,9 @@ const STRINGS = {
     wind: "Vent",
     gust: "Rafales",
     direction: "Direction",
+    cloud: "Nuages",
+    rain: "Pluie",
+    air: "Air",
     model: "modèle",
     buoy: "bouée",
     gap: "écart",
@@ -111,7 +125,7 @@ export function waveEnergy(heightMeters: number | null, periodSeconds: number | 
 }
 
 export type Metric = {
-  key: MetricKey;
+  key: NumericKey;
   label: string;
   unit: string;
   digits: number;
@@ -122,6 +136,10 @@ export type Metric = {
   direction?: "waveDirection" | "windDirection";
   // The lowest value a lane starts from. The others start from zero.
   floor?: number;
+  // A value written without a color: the air's temperature has no scale here.
+  plain?: boolean;
+  // A value of zero leaves its cell empty: an hour without rain says so by saying nothing.
+  hideZero?: boolean;
 };
 
 export function metrics(): Record<MetricKey, Metric> {
@@ -167,6 +185,40 @@ export function metrics(): Record<MetricKey, Metric> {
 
 export const METRIC_KEYS: MetricKey[] = ["height", "period", "energy", "wind"];
 
+/** The weather beside the sea, for the rows under the wind's. */
+export function weatherMetrics(): Record<WeatherKey, Metric> {
+  const strings = t();
+  return {
+    cloud: {
+      key: "cloud",
+      label: strings.cloud,
+      unit: "%",
+      digits: 0,
+      scale: CLOUD_COVER_SCALE,
+      tinted: true,
+      hideZero: true,
+    },
+    rain: {
+      key: "rain",
+      label: strings.rain,
+      unit: "mm",
+      digits: 1,
+      scale: PRECIPITATION_SCALE,
+      tinted: true,
+      hideZero: true,
+    },
+    air: {
+      key: "air",
+      label: strings.air,
+      unit: "°C",
+      digits: 0,
+      scale: CLOUD_COVER_SCALE,
+      tinted: true,
+      plain: true,
+    },
+  };
+}
+
 export function formatMetric(metric: Metric, value: number, withUnit = true) {
   // A period read on a buoy has a decimal worth showing only when it stands alone.
   const figure = formatNumber(value, metric.digits);
@@ -194,6 +246,9 @@ export function measuredSamples(readings: Reading[]): Sample[] {
         gust: toKnots(reading.windGustMetersPerSecond),
         windDirection: reading.windDirectionDegrees,
         waveDirection: reading.peakDirectionDegrees,
+        cloud: null,
+        rain: null,
+        air: null,
       };
     })
     .sort((a, b) => a.time - b.time);
@@ -209,10 +264,13 @@ export function modelSamples(hours: Forecast["hours"]): Sample[] {
     gust: toKnots(hour.windGustMetersPerSecond),
     windDirection: hour.windDirectionDegrees,
     waveDirection: hour.waveDirectionDegrees,
+    cloud: hour.cloudCoverPercent,
+    rain: hour.precipitationMillimeters,
+    air: hour.airTemperatureCelsius,
   }));
 }
 
-type NumericKey = MetricKey | "gust";
+export type NumericKey = MetricKey | WeatherKey | "gust";
 
 /**
  * A value at a moment, between the two samples around it. Undefined when the nearest samples are
