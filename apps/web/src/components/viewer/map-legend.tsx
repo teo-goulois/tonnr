@@ -9,7 +9,6 @@ import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-s
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot } from "./map-markers";
-import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import type { MapLayers } from "./station-map";
 
 type MapLegendProps = {
@@ -18,11 +17,6 @@ type MapLegendProps = {
   // Shows every layer with its switch. Folded, only the scale of the wave heights is left.
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
-  // The instant the sea is shown at, among those it can be. Undefined while the sea's description
-  // loads, or when the provider does not answer.
-  seaTime: Date | undefined;
-  seaTimes: SeaTimes | undefined;
-  onSeaTimeChange: (time: number) => void;
   // Wind stations and breaks are many: when not all of them are loaded, the legend says how to
   // see the rest.
   windTruncated: boolean;
@@ -98,9 +92,6 @@ export function MapLegend({
   onLayersChange,
   expanded,
   onExpandedChange,
-  seaTime,
-  seaTimes,
-  onSeaTimeChange,
   windTruncated,
   breaksTruncated,
   className,
@@ -135,9 +126,6 @@ export function MapLegend({
         onCheckedChange={(sea) => onLayersChange({ ...layers, sea })}
       >
         <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
-        {seaTime && seaTimes && (
-          <SeaTimeline time={seaTime} times={seaTimes} onTimeChange={onSeaTimeChange} />
-        )}
       </LayerRow>
 
       <LayerRow

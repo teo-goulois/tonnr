@@ -1,9 +1,9 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { Slider } from "@repo/ui/components/ui/slider";
-import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
-import { useEffect, useMemo, useState } from "react";
+import { SliderPrimitive } from "@repo/ui/components/ui/slider";
+import { cn } from "@repo/ui/lib/utils";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 
-import { formatDayAndClock } from "@/lib/format";
+import { formatDay, formatDayAndClock } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -24,10 +24,15 @@ type SeaTimelineProps = {
   time: Date;
   times: SeaTimes;
   onTimeChange: (time: number) => void;
+  className?: string;
+  style?: CSSProperties;
 };
 
-/** The instant the sea is shown at, on a line of the days ahead that a thumb runs along. */
-export function SeaTimeline({ time, times, onTimeChange }: SeaTimelineProps) {
+/**
+ * The instant the sea is shown at, on a strip of the days ahead: one bar for each instant of the
+ * model, the days named above them, and a thumb that runs along.
+ */
+export function SeaTimeline({ time, times, onTimeChange, className, style }: SeaTimelineProps) {
   const { present, earliest, latest, stepMs } = times;
   // Where the thumb is while it moves, ahead of the map.
   const [scrubbed, setScrubbed] = useState<number | null>(null);
@@ -42,85 +47,117 @@ export function SeaTimeline({ time, times, onTimeChange }: SeaTimelineProps) {
     return () => clearTimeout(settle);
   }, [scrubbed, onTimeChange]);
 
-  const step = (steps: number) => {
-    setScrubbed(null);
-    onTimeChange(shown + steps * stepMs);
-  };
-  const place = (instant: number) => `${((instant - earliest) / (latest - earliest)) * 100}%`;
+  const instants = useMemo(
+    () =>
+      Array.from(
+        { length: Math.round((latest - earliest) / stepMs) + 1 },
+        (_, index) => earliest + index * stepMs,
+      ),
+    [earliest, latest, stepMs],
+  );
+  // Each instant has a bar as wide as the others, and stands in the middle of its own.
+  const place = (instant: number) =>
+    `${(((instant - earliest) / stepMs + 0.5) / instants.length) * 100}%`;
+  const halfBar = `${50 / instants.length}%`;
   const label = (instant: number) =>
     instant === present ? m.map_sea_now() : formatDayAndClock(new Date(instant));
 
-  // Each midnight of the line, by the clock of the reader.
+  // The days of the strip, each from its midnight by the clock of the reader. The first one starts
+  // with the strip.
   const days = useMemo(() => {
-    const midnights: Date[] = [];
-    const day = new Date(earliest);
-    day.setHours(24, 0, 0, 0);
-    for (; day.getTime() <= latest; day.setTime(day.getTime() + DAY_MS)) {
-      midnights.push(new Date(day));
+    const starts = [new Date(earliest - stepMs / 2)];
+    const midnight = new Date(earliest);
+    midnight.setHours(24, 0, 0, 0);
+    for (; midnight.getTime() <= latest; midnight.setTime(midnight.getTime() + DAY_MS)) {
+      starts.push(new Date(midnight));
     }
-    return midnights;
-  }, [earliest, latest]);
+    return starts;
+  }, [earliest, latest, stepMs]);
 
   return (
-    <div className="grid gap-xxs">
-      <div className="flex items-center gap-xxs">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={m.map_sea_earlier()}
-          disabled={shown - stepMs < earliest}
-          onClick={() => step(-1)}
-        >
-          <ChevronLeftIcon data-slot="icon" aria-hidden />
-        </Button>
-        <span className="flex-1 text-center text-s tabular-nums" aria-live="polite">
-          {label(shown)}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={m.map_sea_later()}
-          disabled={shown + stepMs > latest}
-          onClick={() => step(1)}
-        >
-          <ChevronRightIcon data-slot="icon" aria-hidden />
-        </Button>
-        {shown !== present && (
-          <Button variant="secondary" size="xs" onClick={() => step((present - shown) / stepMs)}>
-            {m.map_sea_now()}
-          </Button>
-        )}
-      </div>
+    <div
+      className={cn(
+        "edge flex items-end gap-xs rounded-(--radius-xs) bg-neutral-1 p-xs text-neutral-10",
+        "[--edge-color:var(--neutral-10-transparent)]",
+        className,
+      )}
+      style={style}
+    >
+      <Button
+        variant="secondary"
+        size="xs"
+        disabled={shown === present}
+        onClick={() => {
+          setScrubbed(null);
+          onTimeChange(present);
+        }}
+      >
+        {m.map_sea_now()}
+      </Button>
 
-      {/* The thumb's middle marks the instant, so the line stops half a thumb short of each end. */}
-      <div className="px-2.5 sm:px-2">
-        <Slider
-          value={shown}
-          min={earliest}
-          max={latest}
-          step={stepMs}
-          largeStep={DAY_MS}
-          thumbAlignment="center"
-          onValueChange={(value) => typeof value === "number" && setScrubbed(value)}
-          getAriaLabel={() => m.map_sea_time()}
-          getAriaValueText={(_formatted, value) => label(value)}
-        />
-        <div className="relative h-(--line-xs) text-xs text-neutral-7 tabular-nums" aria-hidden>
-          <span
-            className="absolute -top-2 h-1 w-px bg-neutral-7"
-            style={{ left: place(present) }}
-          />
-          {days.map((day) => (
+      <SliderPrimitive.Root
+        className="relative min-w-0 flex-1"
+        value={shown}
+        min={earliest}
+        max={latest}
+        step={stepMs}
+        largeStep={DAY_MS}
+        thumbAlignment="center"
+        onValueChange={(value) => typeof value === "number" && setScrubbed(value)}
+      >
+        <div className="relative h-(--line-s) overflow-hidden text-xs text-neutral-7" aria-hidden>
+          {days.map((day, index) => (
             <span
               key={day.getTime()}
-              className="absolute -translate-x-1/2"
+              className={cn(
+                "absolute inset-y-0 pl-xxs whitespace-nowrap",
+                index > 0 && "border-l border-neutral-4",
+              )}
               style={{ left: place(day.getTime()) }}
             >
-              {day.getDate()}
+              {formatDay(new Date(day.getTime() + stepMs))}
             </span>
           ))}
+          {/* The instant shown, over the name of its day. It stays inside the strip at both ends. */}
+          <span
+            className="absolute inset-y-0 -translate-x-1/2 rounded-full bg-neutral-10 px-xs whitespace-nowrap text-neutral-1 tabular-nums"
+            style={{ left: `clamp(3rem, ${place(shown)}, calc(100% - 3rem))` }}
+          >
+            {label(shown)}
+          </span>
         </div>
-      </div>
+
+        <SliderPrimitive.Control className="relative mt-xxs flex h-6 cursor-pointer touch-none select-none">
+          <div className="pointer-events-none absolute inset-0 flex" aria-hidden>
+            {instants.map((instant) => (
+              <span key={instant} className="flex-1 px-px">
+                <span
+                  className={cn(
+                    "block h-full rounded-full",
+                    instant < present && "bg-neutral-3",
+                    instant === present && "bg-neutral-7",
+                    instant > present && "bg-neutral-4",
+                  )}
+                />
+              </span>
+            ))}
+          </div>
+          {/* The thumb's middle runs from the middle of the first bar to the middle of the last. */}
+          <div className="absolute inset-y-0" style={{ left: halfBar, right: halfBar }}>
+            <SliderPrimitive.Track className="size-full">
+              <SliderPrimitive.Thumb
+                className={cn(
+                  "h-full rounded-full bg-neutral-10 outline-none",
+                  "has-focus-visible:[outline:var(--focus-ring-outline)] has-focus-visible:outline-offset-2",
+                )}
+                style={{ width: `calc(${100 / (instants.length - 1)}% - 2px)` }}
+                getAriaLabel={() => m.map_sea_time()}
+                getAriaValueText={(_formatted, value) => label(value)}
+              />
+            </SliderPrimitive.Track>
+          </div>
+        </SliderPrimitive.Control>
+      </SliderPrimitive.Root>
     </div>
   );
 }

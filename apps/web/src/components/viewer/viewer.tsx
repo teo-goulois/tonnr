@@ -23,7 +23,7 @@ import { BreakPanel } from "./break-panel";
 import { MapLegend } from "./map-legend";
 import { PrivateBreakPanel } from "./private-break-panel";
 import { SavedPanel } from "./saved-panel";
-import type { SeaTimes } from "./sea-timeline";
+import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import { ReadingAge, StationActions } from "./station-actions";
 import {
   type Bounds,
@@ -424,12 +424,27 @@ export function Viewer({
         onLayersChange={onLayersChange}
         expanded={legendChoice ?? wide}
         onExpandedChange={setLegendChoice}
-        seaTime={layers.sea ? seaTime : undefined}
-        seaTimes={seaTimes}
-        onSeaTimeChange={onSeaTimeChange}
         windTruncated={windTruncated}
         breaksTruncated={breaksTruncated}
       />
+
+      {/* The sea's timeline runs along the bottom of the map, beside the legend on a wide screen and
+          above the sheet on a phone. It stays clear of the credits in the corner. */}
+      {layers.sea && seaTime && seaTimes && (
+        <SeaTimeline
+          className={cn(
+            "absolute right-s",
+            wide ? "bottom-10 left-[calc(var(--spacing-s)*2+16rem)] max-w-160" : "left-s",
+          )}
+          style={{
+            bottom: wide ? undefined : `calc(${padding.bottom}px + 2.5rem)`,
+            marginRight: padding.right,
+          }}
+          time={seaTime}
+          times={seaTimes}
+          onTimeChange={onSeaTimeChange}
+        />
+      )}
 
       <ViewerDrawer
         open={selection !== undefined}

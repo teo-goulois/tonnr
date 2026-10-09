@@ -33,6 +33,7 @@ import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { MapLegend } from "@/components/viewer/map-legend";
+import { SeaTimeline } from "@/components/viewer/sea-timeline";
 import {
   BuoyPill,
   FreshnessDot,
@@ -458,11 +459,17 @@ export function DesignSystemPage() {
           onLayersChange={setLayers}
           expanded={legendExpanded}
           onExpandedChange={setLegendExpanded}
-          seaTime={new Date(seaTime)}
-          seaTimes={SAMPLE_SEA_TIMES}
-          onSeaTimeChange={setSeaTime}
           windTruncated
           breaksTruncated
+        />
+      </Section>
+
+      <Section title="Sea timeline">
+        <SeaTimeline
+          className="max-w-160"
+          time={new Date(seaTime)}
+          times={SAMPLE_SEA_TIMES}
+          onTimeChange={setSeaTime}
         />
       </Section>
 
