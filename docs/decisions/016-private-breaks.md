@@ -34,7 +34,7 @@ The catalogue cannot hold it. Every row of `surf_break` goes out through `GET /v
 
 ## Consequences
 
-- Whoever imports a list answers for holding it. The label on the row grants nothing.
+- Whoever imports a list answers for holding it. The label on the row grants nothing, and keeping a list private is not a permission from its provider: its terms may forbid collecting it at all.
 - The separation is in the code, not in the database: the tables sit next to the public ones, and whoever can query the database reads them. A dump holds the list, so a backup is as private as the list.
 - A user cannot pick a private break, and `GET /v1/breaks` is what it was. Showing the list to anyone, the operator included, takes a procedure that checks who asks. That is a decision to record first.
 - The private list and the catalogue can hold the same place. Nothing matches them.
