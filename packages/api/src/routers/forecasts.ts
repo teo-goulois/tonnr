@@ -3,12 +3,12 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { FORECAST_SOURCE, getForecast } from "@repo/conditions/forecasts/open-meteo";
-import { publicProcedure } from "../index";
+import { callerProcedure } from "../index";
 
 const measurement = z.number().nullable();
 
 export const forecastsRouter = {
-  get: publicProcedure
+  get: callerProcedure
     .route({
       method: "GET",
       path: "/forecasts",

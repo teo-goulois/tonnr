@@ -118,14 +118,29 @@ jobs:
           test "$(docker inspect --format '{{.State.ExitCode}}' "$(docker compose ps --all --quiet worker)")" = 0
       - name: Start the API on the database the worker migrated
         run: docker compose up --detach --wait --wait-timeout 120 server
-      - name: Check that the API reads that database
+      - name: Check that the API knows its callers and reads that database
         run: |
           docker compose exec -T server node --input-type=module --eval "
-            for (const path of ['/v1/openapi.json', '/v1/stations?bbox=-6,47,-4,49']) {
-              const response = await fetch('http://localhost:3000' + path);
-              if (!response.ok) throw new Error(path + ' answered ' + response.status);
-              console.log(response.status, path);
-            }
+            const api = 'http://localhost:3000';
+            const stations = '/v1/stations?bbox=-6,47,-4,49';
+            const expect = async (what, path, options, status) => {
+              const response = await fetch(api + path, options);
+              if (response.status !== status) throw new Error(what + ' answered ' + response.status);
+              console.log(response.status, what);
+              return response;
+            };
+
+            await expect('the spec, to anyone', '/v1/openapi.json', {}, 200);
+            await expect('the stations, to no one', stations, {}, 401);
+
+            const account = { name: 'CI', email: 'ci@example.org', password: 'made-up-for-this-run' };
+            const signedUp = await expect('a sign-up', '/api/auth/sign-up/email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3001' },
+              body: JSON.stringify(account),
+            }, 200);
+            const cookie = signedUp.headers.getSetCookie().map((set) => set.split(';')[0]).join('; ');
+            await expect('the stations, to that account', stations, { headers: { Cookie: cookie } }, 200);
           "
       - name: Run one job in the worker's image
         run: docker compose run --rm worker node dist/cli.mjs exposure

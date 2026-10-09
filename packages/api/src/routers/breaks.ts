@@ -4,7 +4,7 @@ import { and, asc, eq, gt, ilike } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
-import { publicProcedure } from "../index";
+import { callerProcedure } from "../index";
 
 const breakSchema = z.object({
   id: z.string(),
@@ -41,7 +41,7 @@ function literal(text: string) {
 }
 
 export const breaksRouter = {
-  list: publicProcedure
+  list: callerProcedure
     .route({
       method: "GET",
       path: "/breaks",
@@ -91,7 +91,7 @@ export const breaksRouter = {
       };
     }),
 
-  get: publicProcedure
+  get: callerProcedure
     .route({
       method: "GET",
       path: "/breaks/{id}",

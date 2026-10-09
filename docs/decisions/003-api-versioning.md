@@ -1,6 +1,6 @@
 # 003. API versioning
 
-Status: accepted on 2026-10-08.
+Status: accepted on 2026-10-08. Decision 019 changed who may call: every route asks, and no answer is kept by a shared cache.
 
 ## Context
 

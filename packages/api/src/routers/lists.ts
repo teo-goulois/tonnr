@@ -7,6 +7,7 @@ import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
+import { hasControlCharacter } from "../text";
 
 // The favorites are not counted: they are created on their own, the first time they are used.
 const MAX_LISTS_PER_USER = 50;
@@ -16,14 +17,6 @@ const MAX_STATIONS_PER_LIST = 200;
 const FAVORITES = "favorites";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
-// The database refuses some control characters, and none belongs in a name.
-function hasControlCharacter(text: string) {
-  return Array.from(text).some((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return code < 32 || code === 127;
-  });
-}
 
 const nameSchema = z
   .string()

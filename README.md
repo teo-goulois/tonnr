@@ -2,7 +2,7 @@
 
 # Tonnr
 
-A free, open-source surf-conditions service. Save your spots with the conditions that make them work, get alerted when measurements or forecasts match, and share them. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
+A free, open-source surf-conditions service. Save your spots with the conditions that make them work, get alerted when measurements or forecasts match, and share them. An API serves the data underneath, to accounts and to programs that hold a key: buoy measurements, forecasts, tides, and history.
 
 Tonnr is at an early stage. The API lives under `/v1`, and [decision 003](docs/decisions/003-api-versioning.md) says what may change inside a version.
 

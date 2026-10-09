@@ -10,12 +10,14 @@ import {
 } from "@repo/ui/components/ui/menu";
 import { LogOutIcon, UserIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 
 export default function UserMenu({ name, email }: { name: string; email: string }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   return (
     <Menu>
@@ -34,8 +36,12 @@ export default function UserMenu({ name, email }: { name: string; email: string 
           onClick={() =>
             void authClient.signOut({
               fetchOptions: {
-                // What was loaded for the account must not outlive the session.
-                onSuccess: () => queryClient.clear(),
+                // What was loaded for the account must not outlive the session, and the
+                // product's pages take one: the visitor goes back to the landing page.
+                onSuccess: () => {
+                  queryClient.clear();
+                  void navigate({ to: "/" });
+                },
               },
             })
           }

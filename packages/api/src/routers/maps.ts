@@ -3,10 +3,10 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { getWaveMap, WAVE_MAP_SOURCE } from "@repo/conditions/forecasts/copernicus-wave-map";
-import { publicProcedure } from "../index";
+import { callerProcedure } from "../index";
 
 export const mapsRouter = {
-  waveHeight: publicProcedure
+  waveHeight: callerProcedure
     .route({
       method: "GET",
       path: "/maps/wave-height",

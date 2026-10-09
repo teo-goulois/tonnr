@@ -5,19 +5,12 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { Effect, Result } from "effect";
 import { z } from "zod";
 
-import { protectedProcedure, publicProcedure } from "../index";
+import { type Caller, callerProcedure, protectedProcedure } from "../index";
+import { hasControlCharacter } from "../text";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import { criteriaSchema } from "@repo/conditions/spots/criteria";
 
 const MAX_SPOTS_PER_USER = 100;
-
-// The database refuses some control characters, and none belongs in a name.
-function hasControlCharacter(text: string) {
-  return Array.from(text).some((character) => {
-    const code = character.codePointAt(0) ?? 0;
-    return code < 32 || code === 127;
-  });
-}
 
 const spotFields = {
   name: z
@@ -87,6 +80,11 @@ function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined)
 }
 
 // A private spot that is not the caller's is reported as missing, so its existence stays private.
+// The account a caller is. A key is no account, so it sees a spot as a stranger does.
+function accountOf(caller: Caller) {
+  return caller.via === "session" ? caller.userId : undefined;
+}
+
 function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No spot "${id}".` });
 }
@@ -171,7 +169,7 @@ export const spotsRouter = {
       return { spots: rows.map((row) => describeSpot(row, userId)) };
     }),
 
-  get: publicProcedure
+  get: callerProcedure
     .route({
       method: "GET",
       path: "/spots/{id}",
@@ -181,7 +179,7 @@ export const spotsRouter = {
     .input(z.object({ id: z.string() }))
     .output(spotSchema)
     .handler(async ({ input, context }) => {
-      const userId = context.session?.user.id;
+      const userId = accountOf(context.caller);
       const [row] = await context.db.select().from(spot).where(eq(spot.id, input.id));
       if (!row || (row.visibility === "private" && row.userId !== userId)) throw notFound(input.id);
       return describeSpot(row, userId);
@@ -226,7 +224,7 @@ export const spotsRouter = {
       return deleted;
     }),
 
-  conditions: publicProcedure
+  conditions: callerProcedure
     .route({
       method: "GET",
       path: "/spots/{id}/conditions",
@@ -275,7 +273,7 @@ export const spotsRouter = {
     )
     .handler(async ({ input, context }) => {
       const [row] = await context.db.select().from(spot).where(eq(spot.id, input.id));
-      if (!row || (row.visibility === "private" && row.userId !== context.session?.user.id)) {
+      if (!row || (row.visibility === "private" && row.userId !== accountOf(context.caller))) {
         throw notFound(input.id);
       }
 

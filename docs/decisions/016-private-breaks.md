@@ -1,6 +1,6 @@
 # 016. A private list of surf breaks
 
-Status: asked for by Téo on 2026-10-08, built on 2026-10-09, and amended the same day at his request: the file need not say where its list comes from. No screen and no procedure of the API reads the list.
+Status: asked for by Téo on 2026-10-08, built on 2026-10-09, and amended the same day at his request: the file need not say where its list comes from. An operator's session reads the list, as decision 019 says. No screen shows it yet.
 
 ## Context
 
@@ -12,7 +12,7 @@ The catalogue cannot hold it. Every row of `surf_break` goes out through `GET /v
 
 ## Decision
 
-- A list that may not be republished lives in a table of its own, `private_break`. No procedure of the API reads it, no scheduled job does, and no other table points to it.
+- A list that may not be republished lives in a table of its own, `private_break`. The API gives it to an operator's session and to no one else, no scheduled job reads it, and no other table points to it.
 - A row says which list it belongs to — the short name the file gives it — the reference the file gives the break, and when the list was read. Its `rights` say `not-established`. A list whose rights are established belongs in the catalogue, through a source of decision 015.
 - Saying where the list comes from is the operator's choice, not the table's rule. The file may give the address of each break's page and the terms the list falls under; a row carries them when the file gives them, and carries nothing when it does not. Whoever imports a list this way answers for holding it all the same.
 - The name and the position are columns. Whatever else the file says of a break is kept as the file gives it, in `details`. Tonnr converts nothing in it and reads no unit into it: a size, a rating or a direction stays the provider's value.
@@ -37,7 +37,7 @@ The catalogue cannot hold it. Every row of `surf_break` goes out through `GET /v
 
 - Whoever imports a list answers for holding it. The label on the row grants nothing, and keeping a list private is not a permission from its provider: its terms may forbid collecting it at all.
 - The separation is in the code, not in the database: the tables sit next to the public ones, and whoever can query the database reads them. A dump holds the list, so a backup is as private as the list.
-- A user cannot pick a private break, and `GET /v1/breaks` is what it was. Showing the list to anyone, the operator included, takes a procedure that checks who asks. That is a decision to record first.
+- A user cannot pick a private break, and `GET /v1/breaks` is what it was. Decision 019 gives the list to an operator's session. Showing it to any other account is a decision to record first.
 - The private list and the catalogue can hold the same place. Nothing matches them.
 - A number is kept by its value, not by how it is written: 1.50 comes back as 1.5, and -0 as 0.
 - Of a field that a file's object gives twice, the last one counts, as JSON readers do.

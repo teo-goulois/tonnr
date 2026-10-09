@@ -1,15 +1,15 @@
 # Tonnr
 
-Tonnr is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
+Tonnr is a free, open-source surf-conditions service. Users save spots with the conditions that make them work, get alerted when measurements or forecasts match, and share spots. An API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
 Read `docs/product-vision.md` before product work, `docs/data-sources.md` before touching a data provider, `docs/self-hosting.md` before changing how an instance is deployed, and the relevant record in `docs/decisions/` before structural work. Record a new decision there after making a durable one.
 
 ## Boundaries
 
-- `apps/server` hosts the oRPC router with Hono on Node. It serves the public API at `/v1`, with its spec at `/v1/openapi.json` and reference at `/v1/docs`, the typed RPC transport at `/rpc`, and Better Auth at `/api/auth`. It deploys as a Docker container, and decision 009 says how.
+- `apps/server` hosts the oRPC router with Hono on Node. It serves the API at `/v1`, with its spec at `/v1/openapi.json` and reference at `/v1/docs`, the typed RPC transport at `/rpc`, and Better Auth at `/api/auth`. It deploys as a Docker container, and decision 009 says how.
 - `apps/worker` fetches buoy data on a schedule and writes it to the database. It deploys as a second container, which applies the migrations at its start as the API's does. Each provider is one module that knows its provider's format and nothing about the database. Decision 004 describes the model. It also imports the catalogue of surf breaks, one module per source under `src/breaks`. Decision 015 covers it. `src/private-breaks` is the import by hand of decision 016.
 - `apps/web` is the TanStack Start app. It deploys to Cloudflare through `packages/infra`.
-- `packages/api` holds the procedures. Each user action is one oRPC procedure, and its validation, authorization, and logic live in that procedure. Public procedures belong to a versioned router. Decision 003 says what may change inside a version.
+- `packages/api` holds the procedures. Each user action is one oRPC procedure, and its validation, authorization, and logic live in that procedure. Every procedure asks who calls, and is built on `callerProcedure` for the data everyone shares, `protectedProcedure` for what an account owns, or `operatorProcedure`. Only the health check is built on `publicProcedure`. A test walks every procedure, so a new one is checked without being named. Decision 019 gives the rules. The procedures of the API belong to a versioned router. Decision 003 says what may change inside a version.
 - `packages/db` holds the Drizzle schema and client. Use stock Postgres 18 features and change the schema through Drizzle migrations, so the database stays portable. Decision 001 gives the reason.
 - `packages/conditions` computes what the sea does at a point: tides, forecasts, and whether a spot's criteria are met. The API and the worker both use it, and it knows nothing about HTTP or the database.
 - `packages/upstream` is how the API and the worker call a data provider. It sets the user agent, the timeout, and the retries, so no other code calls `fetch` on a provider.
@@ -42,7 +42,7 @@ To rename the product, change `APP_NAME`, then the prose in `README.md`, this fi
 
 - Fetch from the upstream providers listed in `docs/data-sources.md`.
 - Store each station's license and attribution, and return them in API responses.
-- A list of breaks that may not be republished lives in `private_break`, never in the catalogue. No procedure of the API, no scheduled job, and no page reads that table or `private_break_import`, and nothing fetches such a list. Decision 016 says what changing that takes.
+- A list of breaks that may not be republished lives in `private_break`, never in the catalogue. Only an operator's session reads that table, through the procedures of decision 019. No key, no other account, and no scheduled job does, and nothing fetches such a list.
 - No collected list, and no sample of one, goes into the repository. A test of the private list reads invented breaks.
 
 ## Working with others
@@ -83,7 +83,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 unless `API_PORT` and `POSTGRES_PORT` name others, and belongs to the same Compose project as `db:start`, so stop the development API first.
 - The tests that need Postgres are skipped unless `TEST_DATABASE_URL` names a server on which they may create databases: `TEST_DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres pnpm run test`. Each creates a database of its own and drops it.
 - The API listens on `PORT`, 3000 by default. To try something next to a running app, start a second one with `PORT` and `DATABASE_URL` set in the environment.
-- `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one job once with `pnpm --filter worker run job <provider>`, `... job alerts`, `... job exposure`, or `... job breaks`. `... job private-breaks <file>` and `... job private-breaks-remove <import>` are decision 016's commands. They write only with `--write`.
+- `pnpm run dev` leaves the worker out, so that starting the app does not poll the providers. Start it with `pnpm run dev:worker`, or run one job once with `pnpm --filter worker run job <provider>`, `... job alerts`, `... job exposure`, or `... job breaks`. `... job private-breaks <file>` and `... job private-breaks-remove <import>` are decision 016's commands. They write only with `--write`. So do `... job operator <account id>` and `... job operator-remove <account id>`, which name the operators of decision 019.
 - `pnpm run deploy:api` and `pnpm run deploy:worker` ask Easypanel to build and restart a service of Téo's instance, from what is on `main`. Each calls the service's deploy address, a secret that lives in the root `.env` and nowhere in the repository. `pnpm run deploy` is something else: it sends the web app to Cloudflare.
 - `pnpm run demo` is temporary. It builds the app and serves it through a Cloudflare quick tunnel, with its own web build in `apps/web/.demo-dist`. `pnpm run demo:reload` rebuilds and restarts the app behind the same address. Delete `scripts/demo.mjs` once a real deployment exists.
 - Apply schema changes with `pnpm run db:generate`, then `pnpm run db:migrate`. `db:push` skips the migration files. Turborepo refuses these scripts in a shell without a terminal, as an agent's is: run them in the package, `pnpm --filter @repo/db run db:migrate`.

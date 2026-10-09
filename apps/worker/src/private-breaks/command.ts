@@ -5,26 +5,12 @@ import path from "node:path";
 import type { Database } from "@repo/db";
 import { Effect } from "effect";
 
+import { type Outcome, readArguments, refused } from "../command";
 import { FormatError } from "../providers/format-error";
 import { readPrivateBreaks } from "./file";
 import { importPrivateBreaks, removePrivateImport } from "./import";
 
-// What a command says, and whether it did what was asked.
-type Outcome = { ok: boolean; lines: string[] };
-
-const refused = (...lines: string[]): Outcome => ({ ok: false, lines });
 const breaks = (count: number) => `${count} ${count === 1 ? "break" : "breaks"}`;
-
-/** The one value a command takes, and whether `--write` came with it. Null when the rest is not that. */
-function readArguments(args: string[]) {
-  // pnpm hands over the "--" that some people put before a command's own options.
-  const given = args.filter((arg) => arg !== "--");
-  const values = given.filter((arg) => !arg.startsWith("--"));
-  const flags = given.filter((arg) => arg.startsWith("--"));
-  const [value] = values;
-  if (!value || values.length > 1 || flags.some((flag) => flag !== "--write")) return null;
-  return { value, write: flags.includes("--write") };
-}
 
 /**
  * `job private-breaks <file> [--write]`: checks a file of breaks and says what storing it would

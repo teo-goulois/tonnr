@@ -4,7 +4,7 @@ import { and, between, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
-import { publicProcedure } from "../index";
+import { callerProcedure } from "../index";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HISTORY_DAYS = 2;
@@ -90,7 +90,7 @@ const isLatestReading = and(
 );
 
 export const stationsRouter = {
-  list: publicProcedure
+  list: callerProcedure
     .route({
       method: "GET",
       path: "/stations",
@@ -135,7 +135,7 @@ export const stationsRouter = {
       };
     }),
 
-  get: publicProcedure
+  get: callerProcedure
     .route({
       method: "GET",
       path: "/stations/{id}",
@@ -158,7 +158,7 @@ export const stationsRouter = {
       };
     }),
 
-  readings: publicProcedure
+  readings: callerProcedure
     .route({
       method: "GET",
       path: "/stations/{id}/readings",

@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { publicProcedure } from "../index";
+import { callerProcedure } from "../index";
 import {
   MAX_STATION_DISTANCE_KM,
   predictTideExtremes,
@@ -45,7 +45,7 @@ function noStationNearby() {
 }
 
 export const tidesRouter = {
-  extremes: publicProcedure
+  extremes: callerProcedure
     .route({
       method: "GET",
       path: "/tides/extremes",
@@ -72,7 +72,7 @@ export const tidesRouter = {
       return prediction;
     }),
 
-  timeline: publicProcedure
+  timeline: callerProcedure
     .route({
       method: "GET",
       path: "/tides/timeline",

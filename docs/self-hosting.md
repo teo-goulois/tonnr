@@ -23,7 +23,7 @@ The API then answers on port 3000, or on `API_PORT`. Put a reverse proxy with HT
 
 To check the instance:
 
-- `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference.
+- `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference. `curl http://localhost:3000/v1/stations` answers 401: the API asks who calls.
 - `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings` and `breaks-osm: 340 listed, 340 added, 0 removed, 0 unreadable`.
 - With a web app, signing in from it proves that the three addresses agree.
 
@@ -62,7 +62,7 @@ Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>`
 
 This is optional: an instance runs without it.
 
-You may hold a list of surf breaks from a provider that gave you no right to republish it. The private list keeps it in your database for you alone: the API does not serve it, and the worker never asks the provider for it. Decision 016 gives the rules. You answer to the provider for holding the list.
+You may hold a list of surf breaks from a provider that gave you no right to republish it. The private list keeps it in your database for you alone: the API gives it to an operator's session and to no one else, and the worker never asks the provider for it. Decision 016 gives the rules. You answer to the provider for holding the list.
 
 Write the list as one JSON file, in UTF-8:
 
@@ -114,11 +114,51 @@ docker compose run --rm worker node dist/cli.mjs private-breaks-remove <import> 
 
 It deletes them as they are, with whatever a later file changed in them, and touches nothing else. It does not bring back the values a break had before: store the earlier file again for that.
 
-Whoever can query the database reads the list, and a dump holds it. Keep your backups as private as the list.
+As an operator, signed in, you read the list at `GET /v1/private-breaks`, and one break with its details at `GET /v1/private-breaks/<id>`. No key reads them.
 
-## Accounts
+Whoever can query the database reads the list too, and a dump holds it. Keep your backups as private as the list.
 
-Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet.
+## Accounts, the operator, and API keys
+
+The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. Anyone else gets 401, the health check and the reference aside. Decision 019 gives the rules.
+
+Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet. An account reads the data everyone shares and keeps its own spots and lists.
+
+An operator is an account that runs the instance. It makes the API keys, and it alone reads the private list below. You name the operator from the server, by the account's id. Do it before you give the instance's address to anyone.
+
+Without a web app, with `https://api.example.org` standing for your API's address:
+
+```bash
+# Create your account. The cookie it gets is your session.
+curl --cookie-jar session.txt --header 'Content-Type: application/json' \
+  --header 'Origin: https://api.example.org' \
+  --data '{"name":"You","email":"you@example.org","password":"a long password"}' \
+  https://api.example.org/api/auth/sign-up/email
+
+# Read its id.
+curl --cookie session.txt https://api.example.org/v1/account
+
+# On the server: see which account the id names, then make it an operator.
+docker compose run --rm worker node dist/cli.mjs operator <account id>
+docker compose run --rm worker node dist/cli.mjs operator <account id> --write
+
+# Make a key. The answer shows it once, and nothing shows it again.
+curl --cookie session.txt --header 'Content-Type: application/json' \
+  --header 'Origin: https://api.example.org' \
+  --data '{"name":"my script"}' https://api.example.org/v1/keys
+
+# A program calls with the key.
+curl --header 'Authorization: Bearer <key>' https://api.example.org/v1/stations
+```
+
+Later, `/api/auth/sign-in/email` takes the same address and password and gives a new session.
+
+The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts: the web app's address, or its own. A browser adds it. A script has to, on sign-up, on sign-in, and on anything that writes with the session.
+
+- A key reads the shared data only. It reads nothing of an account and not the private list, so it can be given to a program.
+- `GET /v1/keys` lists the keys you made, and `DELETE /v1/keys/<id>` revokes one. Both take your session, and the second the `Origin` header.
+- `node dist/cli.mjs operator-remove <account id>` takes the operator's rights back, with `--write`, and revokes every key the account made. Those keys never work again.
+- An instance with no operator still serves its accounts. Nobody can make a key, and nobody reads the private list.
 
 ## What an instance owes the data providers
 
