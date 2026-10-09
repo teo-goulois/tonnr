@@ -24,6 +24,10 @@ export const WAVE_HEIGHT_SCALE: ScaleStop[] = [
   { value: 10, color: "#e9d5ff" },
 ];
 
+/** The tide has no scale: one blue for its curve, and a paler one for the hours already gone. */
+export const TIDE_COLOR = "#5f84e6";
+export const TIDE_PAST_COLOR = `${TIDE_COLOR}73`;
+
 /** Wind speed, in knots. */
 export const WIND_SPEED_SCALE: ScaleStop[] = [
   { value: 0, color: "#a9cdf0" },

@@ -43,6 +43,7 @@ import {
   type Station,
   type StationReadings,
   type SurfBreak,
+  type TideDay,
   type TideExtremes,
   type TideTimeline,
   periodOf,
@@ -86,6 +87,7 @@ type ViewerProps = {
     tides: Loadable<TideTimeline>;
     extremes: Loadable<TideExtremes>;
   };
+  tideDay: TideDay;
   panel: ViewerPanel | undefined;
   signedIn: boolean;
   lists: Loadable<SavedList[]>;
@@ -175,6 +177,7 @@ export function Viewer({
   selectedId,
   selectedBreakId,
   selected,
+  tideDay,
   panel,
   signedIn,
   lists,
@@ -455,6 +458,7 @@ export function Viewer({
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}
+            tideDay={tideDay}
           />
         ) : (
           <StationPanel
@@ -466,6 +470,7 @@ export function Viewer({
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}
+            tideDay={tideDay}
           />
         )}
       </ViewerDrawer>

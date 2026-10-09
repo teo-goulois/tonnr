@@ -74,6 +74,7 @@ function ViewerRoute() {
   // Rounded to the hour so the query keys stay the same from one minute to the next.
   const hour = Math.floor(now / HOUR_MS) * HOUR_MS;
   const [bounds, setBounds] = useState<Bounds | null>(null);
+  const [tideView, setTideView] = useState({ of: "", days: 0 });
   const [layers, setLayers] = useStoredState("tonnr:map-layers", DEFAULT_LAYERS, readLayers);
   const session = authClient.useSession();
   const signedIn = Boolean(session.data);
@@ -195,16 +196,42 @@ function ViewerRoute() {
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
   const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
 
-  // The curve and the high and low waters named on it cover the same two days.
-  const tideSpan = { start: new Date(hour - 6 * HOUR_MS), end: new Date(hour + 42 * HOUR_MS) };
+  // The tide is shown one day at a time, from midnight to midnight where the user is. The day
+  // is counted from today, and belongs to what is selected: another selection starts at today.
+  const selection = selectedId ?? selectedBreakId ?? "";
+  const tideDays = tideView.of === selection ? tideView.days : 0;
+  const today = new Date(hour).setHours(0, 0, 0, 0);
+  const tideSpan = useMemo(() => {
+    const start = new Date(today);
+    start.setDate(start.getDate() + tideDays);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }, [today, tideDays]);
+  // Another day of the same point keeps its curve on screen until the new one comes. The point
+  // a query asked for is the input in its key.
+  const keepAtPoint = {
+    placeholderData: <Answer,>(previous: Answer | undefined, asked?: { queryKey: unknown }) => {
+      const key = asked?.queryKey as [unknown, { input?: typeof atPoint }] | undefined;
+      const input = key?.[1].input;
+      return input?.latitude === atPoint.latitude && input.longitude === atPoint.longitude
+        ? previous
+        : undefined;
+    },
+  };
   const tides = useQuery(
     orpc.v1.tides.timeline.queryOptions({
       input: { ...atPoint, ...tideSpan, stepMinutes: 10 },
       ...expected,
+      ...keepAtPoint,
     }),
   );
   const extremes = useQuery(
-    orpc.v1.tides.extremes.queryOptions({ input: { ...atPoint, ...tideSpan }, ...expected }),
+    orpc.v1.tides.extremes.queryOptions({
+      input: { ...atPoint, ...tideSpan },
+      ...expected,
+      ...keepAtPoint,
+    }),
   );
   const forecast = useQuery(
     orpc.v1.forecasts.get.queryOptions({ input: { ...atPoint, days: 4 }, ...expected }),
@@ -314,6 +341,12 @@ function ViewerRoute() {
         forecast: loadable(forecast),
         tides: loadable(tides),
         extremes: loadable(extremes),
+      }}
+      tideDay={{
+        start: tideSpan.start,
+        isToday: tideDays === 0,
+        onStep: (days) => setTideView({ of: selection, days: tideDays + days }),
+        onToday: () => setTideView({ of: selection, days: 0 }),
       }}
       panel={panel}
       signedIn={signedIn}

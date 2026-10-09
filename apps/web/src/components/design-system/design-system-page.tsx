@@ -180,7 +180,7 @@ const SAMPLE_TIDE_STATION = {
 const SAMPLE_TIDES: TideTimeline = {
   station: SAMPLE_TIDE_STATION,
   datum: "LAT",
-  timeline: Array.from({ length: 288 }, (_, index) => ({
+  timeline: Array.from({ length: 145 }, (_, index) => ({
     time: new Date(SAMPLE_NOW - 6 * HOUR_MS + index * (HOUR_MS / 6)),
     heightMeters: 3.6 + 2.8 * Math.sin((index / 74.5) * 2 * Math.PI),
   })),
@@ -189,11 +189,17 @@ const SAMPLE_EXTREMES: TideExtremes = {
   station: SAMPLE_TIDE_STATION,
   datum: "LAT",
   // The high and low waters of the curve above.
-  extremes: Array.from({ length: 8 }, (_, index) => ({
+  extremes: Array.from({ length: 4 }, (_, index) => ({
     time: new Date(SAMPLE_NOW - 6 * HOUR_MS + (18.625 + index * 37.25) * (HOUR_MS / 6)),
     type: index % 2 === 0 ? ("high" as const) : ("low" as const),
     heightMeters: index % 2 === 0 ? 6.4 : 0.8,
   })),
+};
+const SAMPLE_TIDE_DAY = {
+  start: new Date(SAMPLE_NOW),
+  isToday: true,
+  onStep: () => {},
+  onToday: () => {},
 };
 const LOADED = { isPending: false, isError: false };
 const LOADING = { data: undefined, isPending: true, isError: false };
@@ -490,6 +496,7 @@ export function DesignSystemPage() {
               forecast={LOADING}
               tides={LOADING}
               extremes={LOADING}
+              tideDay={SAMPLE_TIDE_DAY}
             />
           </div>
           <div className="edge rounded-(--radius-xs) p-m">
@@ -500,6 +507,7 @@ export function DesignSystemPage() {
               forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
               tides={{ data: SAMPLE_TIDES, ...LOADED }}
               extremes={{ data: SAMPLE_EXTREMES, ...LOADED }}
+              tideDay={SAMPLE_TIDE_DAY}
             />
           </div>
         </div>

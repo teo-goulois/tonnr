@@ -9,6 +9,13 @@ export type StationReadings = Answer<V1["stations"]["readings"]>;
 export type Forecast = Answer<V1["forecasts"]["get"]>;
 export type TideTimeline = Answer<V1["tides"]["timeline"]>;
 export type TideExtremes = Answer<V1["tides"]["extremes"]>;
+/** The day a tide chart shows, and how to show another. */
+export type TideDay = {
+  start: Date;
+  isToday: boolean;
+  onStep: (days: number) => void;
+  onToday: () => void;
+};
 export type SurfBreak = Answer<V1["breaks"]["get"]>;
 export type SavedList = Answer<V1["lists"]["list"]>["lists"][number];
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];

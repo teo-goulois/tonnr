@@ -10,6 +10,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useMemo } from "react";
 
 import { formatClock, formatMeters, formatNumber } from "@/lib/format";
+import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 
 import { type ChartPoint, SeaChart } from "./sea-chart";
 import type { TideExtremes } from "./types";
@@ -33,6 +34,8 @@ const MARKS_LAYER = 1150;
 const TAG_LAYER = 2100;
 // The room a time takes beside its dot, in pixels.
 const LABEL_WIDTH = 40;
+// How many colors the curve is painted with, to turn pale where the hours are gone.
+const COLOR_STEPS = 96;
 
 // The moments the water stands at a height, each placed between the two predictions around it.
 function crossingsAt(rows: Row[], level: number) {
@@ -214,7 +217,7 @@ function TideMarks({
                 strokeDasharray="3 3"
                 className="stroke-neutral-7"
               />
-              <circle cx={x(now)} cy={y(nowHeight)} r={3.5} className="fill-color-1" />
+              <circle cx={x(now)} cy={y(nowHeight)} r={4} fill={TIDE_COLOR} />
             </g>
           )}
           {!pointed &&
@@ -232,7 +235,14 @@ function TideMarks({
                 const tx = Math.min(right - LABEL_WIDTH / 2, Math.max(left + LABEL_WIDTH / 2, cx));
                 return (
                   <g key={extreme.time.getTime()}>
-                    <circle cx={cx} cy={cy} r={2} className="fill-color-1" />
+                    <line
+                      x1={cx}
+                      x2={cx}
+                      y1={cy}
+                      y2={bottom}
+                      stroke={TIDE_COLOR}
+                      strokeOpacity={0.4}
+                    />
                     <Mark x={tx} y={ty} strong>
                       {formatClock(extreme.time)}
                     </Mark>
@@ -260,9 +270,21 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
     [points],
   );
 
+  // Today's curve is pale up to now. Another day has one color: it is all gone, or all to come.
+  const colors = useMemo(() => {
+    const start = rows[0]?.time ?? 0;
+    const end = rows.at(-1)?.time ?? 0;
+    const moment = now?.getTime();
+    if (moment === undefined || moment <= start || moment >= end) return [TIDE_COLOR];
+    return Array.from({ length: COLOR_STEPS }, (_, step) =>
+      start + (step / (COLOR_STEPS - 1)) * (end - start) < moment ? TIDE_PAST_COLOR : TIDE_COLOR,
+    );
+  }, [rows, now]);
+
   return (
     <SeaChart
       label={label}
+      colors={colors}
       formatValue={formatMeters}
       points={points}
       isLoading={isLoading}

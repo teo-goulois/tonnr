@@ -14,6 +14,8 @@ type SeaChartProps = {
   points: ChartPoint[];
   // Colors the curve by its value, as the map does. Without it the curve takes the theme's ink.
   scale?: ScaleStop[];
+  // The colors of the curve from its start to its end, when its value does not choose them.
+  colors?: string[];
   // Writes a value with its unit, for the tooltip.
   formatValue: (value: number) => string;
   // A moment to mark with a vertical rule, such as now.
@@ -91,6 +93,7 @@ export function SeaChart({
   label,
   points,
   scale,
+  colors: givenColors,
   formatValue,
   marker,
   isLoading = false,
@@ -109,9 +112,11 @@ export function SeaChart({
     [data],
   );
   const config = useMemo(() => {
-    const colors = scale && measured.length > 1 ? curveColors(measured, scale) : ["var(--color-1)"];
+    const colors =
+      givenColors ??
+      (scale && measured.length > 1 ? curveColors(measured, scale) : ["var(--color-1)"]);
     return { value: { label, colors: { light: colors, dark: colors } } };
-  }, [label, measured, scale]);
+  }, [label, measured, scale, givenColors]);
 
   const first = measured[0];
   const last = measured.at(-1);

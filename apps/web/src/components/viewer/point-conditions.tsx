@@ -1,10 +1,13 @@
+import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ComponentProps, type ReactNode, Suspense, lazy } from "react";
 
 import {
   compassPoint,
   formatClock,
+  formatDay,
   formatDayAndClock,
   formatKnots,
   formatMeters,
@@ -15,7 +18,7 @@ import {
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import type { Forecast, Loadable, TideExtremes, TideTimeline } from "./types";
+import type { Forecast, Loadable, TideDay, TideExtremes, TideTimeline } from "./types";
 
 // The chart library is heavy and only a panel draws with it, so it loads apart from the map.
 // The viewer asks for it as soon as the map is up, and a box of the chart's size waits for it.
@@ -181,17 +184,46 @@ export type PointConditionsProps = {
   forecast: Loadable<Forecast>;
   tides: Loadable<TideTimeline>;
   extremes: Loadable<TideExtremes>;
+  tideDay: TideDay;
 };
 
+function TideDayStepper({ day }: { day: TideDay }) {
+  return (
+    <div className="flex items-center gap-xxs">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={m.tide_previous_day()}
+        onClick={() => day.onStep(-1)}
+      >
+        <ChevronLeftIcon data-slot="icon" aria-hidden />
+      </Button>
+      <span className="flex-1 text-center text-s tabular-nums" aria-live="polite">
+        {day.isToday ? m.tide_today() : formatDay(day.start)}
+      </span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={m.tide_next_day()}
+        onClick={() => day.onStep(1)}
+      >
+        <ChevronRightIcon data-slot="icon" aria-hidden />
+      </Button>
+      {!day.isToday && (
+        <Button variant="secondary" size="xs" onClick={day.onToday}>
+          {m.tide_today()}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** The wave forecast and the tide at a point, whatever stands there: a buoy or a surf break. */
-export function PointConditions({ now, forecast, tides, extremes }: PointConditionsProps) {
+export function PointConditions({ now, forecast, tides, extremes, tideDay }: PointConditionsProps) {
   const nextHours = (forecast.data?.hours ?? [])
     .filter((hour) => hour.time.getTime() >= now && hour.time.getUTCHours() % 3 === 0)
     .slice(0, FORECAST_ROWS);
-  const allExtremes = extremes.data?.extremes ?? [];
-  const nextExtremes = allExtremes
-    .filter((extreme) => extreme.time.getTime() >= now)
-    .slice(0, TIDE_EXTREMES);
+  const dayExtremes = extremes.data?.extremes ?? [];
 
   return (
     <>
@@ -228,17 +260,18 @@ export function PointConditions({ now, forecast, tides, extremes }: PointConditi
       >
         {tides.isPending || tides.data ? (
           <>
+            <TideDayStepper day={tideDay} />
             <TideChart
               label={m.tide_title()}
               now={new Date(now)}
               isLoading={tides.isPending}
-              extremes={allExtremes}
+              extremes={dayExtremes}
               points={(tides.data?.timeline ?? []).map((entry) => ({
                 time: entry.time,
                 value: entry.heightMeters,
               }))}
             />
-            <TideExtremesList extremes={nextExtremes} loading={extremes.isPending} />
+            <TideExtremesList extremes={dayExtremes} loading={extremes.isPending} />
           </>
         ) : (
           <p className="text-s text-neutral-7">{m.tide_none()}</p>
