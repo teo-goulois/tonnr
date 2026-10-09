@@ -57,6 +57,7 @@ Three facts bound the choice:
 - **State kept on one machine.** Only that machine could deploy again.
 - **`Disallow: /` in `robots.txt`.** It stops a search engine from reading the header, and a page that others link to can still be listed.
 - **Committing the stages' values.** Whoever hosts their own would carry a change to a tracked file.
+- **A Cloudflare account for Tonnr alone.** It would keep the token away from Téo's other projects and give Tonnr a state store of its own. Téo found it too much for now: a second account, the zone to move, and a new token. Moving the zone once `tonnr.app` serves people would cut its DNS for a while.
 
 ## Consequences
 
