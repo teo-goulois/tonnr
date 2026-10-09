@@ -8,14 +8,21 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { LogOutIcon, UserIcon } from "@repo/ui/icon";
+import { MailIcon, LogOutIcon, UserIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 
-export default function UserMenu({ name, email }: { name: string; email: string }) {
+type UserMenuProps = {
+  name: string;
+  email: string;
+  // Given when the account's address is not checked yet, on an instance that checks addresses.
+  check?: { isSending: boolean; onSend: () => void };
+};
+
+export default function UserMenu({ name, email, check }: UserMenuProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -29,9 +36,16 @@ export default function UserMenu({ name, email }: { name: string; email: string 
           <MenuGroupLabel className="grid">
             <span className="truncate text-neutral-10">{name}</span>
             <span className="truncate font-normal">{email}</span>
+            {check && <span className="font-normal">{m.verify_not_checked()}</span>}
           </MenuGroupLabel>
         </MenuGroup>
         <MenuSeparator />
+        {check && (
+          <MenuItem disabled={check.isSending} onClick={check.onSend}>
+            <MailIcon aria-hidden />
+            {m.verify_send_again()}
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() =>
             void authClient.signOut({

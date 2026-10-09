@@ -37,6 +37,13 @@ The instance sends no mail at all today.
 - Everything it does today. The check is not a door: an instance that starts checking has accounts that never were checked, its operator's among them.
 - What is built on a checked address asks for one when it is built.
 
+### The web app
+
+- On an instance that checks addresses, the menu of an account whose address is not checked says so, and offers the mail again. On another instance it says nothing.
+- After a sign-up, the app tells the account to expect a mail at its address, and where to ask for another. It does not say that one was sent: a sign-up succeeds whether its mail left or not, and does not say which.
+- The page at `/verified` tells an account that is signed in about its own address, which it reads from the API: the link may be another account's, and the page can be opened without a link. Without a session it knows only the word the API put in its address. It says that a link was too old or did not work. An address with no word proves nothing, since anyone can write it: the page then says only that the link leads here once the address is checked, and offers to sign in.
+- A new mail is sent when the reader asks for one, never by the page alone.
+
 ### The admin
 
 - An account's page says whether its address is checked, as it does since decision 025.

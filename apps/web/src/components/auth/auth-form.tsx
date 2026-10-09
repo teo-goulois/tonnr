@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
+import { client } from "@/utils/orpc";
 
 export type AuthMode = "sign-in" | "sign-up";
 
@@ -41,6 +42,16 @@ function Field({
   );
 }
 
+/**
+ * Tells a new account to look for the mail that checks its address, on an instance that sends
+ * one. A sign-up does not say whether its mail left, so the words do not either: they say where
+ * to ask for another. The account is signed in either way, so a failure to ask says nothing.
+ */
+async function announceCheck(email: string) {
+  const account = await client.v1.account.get().catch(() => null);
+  if (account?.checksAddresses && !account.emailVerified) toast(m.verify_expect({ email }));
+}
+
 /** Signs a visitor in, or creates their account. One form does both, and a link switches. */
 export function AuthForm({ mode, onModeChange, onSuccess }: AuthFormProps) {
   const isSignUp = mode === "sign-up";
@@ -59,6 +70,7 @@ export function AuthForm({ mode, onModeChange, onSuccess }: AuthFormProps) {
         toast.error(reason || m.auth_failed());
         return;
       }
+      if (isSignUp) void announceCheck(value.email);
       onSuccess();
     },
     validators: {

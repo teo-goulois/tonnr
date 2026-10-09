@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
+import { useOwnAccount } from "@/components/auth/use-own-account";
+import { useSendVerification } from "@/components/auth/use-send-verification";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
@@ -29,6 +31,10 @@ export default function Header() {
     }),
   );
   const unreadCount = session ? (unread.data?.notifications.length ?? 0) : 0;
+  // An instance that checks addresses says so here, and the account menu offers the mail again.
+  const { account } = useOwnAccount();
+  const verification = useSendVerification();
+  const needsCheck = account?.checksAddresses === true && !account.emailVerified;
 
   return (
     <header className="flex h-14 items-center justify-between gap-s px-m shadow-[inset_0_calc(var(--border-s)*-1)_0_var(--neutral-4)]">
@@ -66,7 +72,15 @@ export default function Header() {
         {isPending ? (
           <Skeleton className="size-10 rounded-full" />
         ) : session ? (
-          <UserMenu name={session.user.name} email={session.user.email} />
+          <UserMenu
+            name={session.user.name}
+            email={session.user.email}
+            check={
+              needsCheck
+                ? { isSending: verification.isSending, onSend: verification.send }
+                : undefined
+            }
+          />
         ) : (
           <Button variant="outline" onClick={() => promptAuth()}>
             {m.auth_sign_in()}
