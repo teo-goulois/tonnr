@@ -53,6 +53,15 @@ import { SHEET_SNAP_POINTS, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-draw
 const HOUR_MS = 60 * 60 * 1000;
 // How far back the sea can be shown.
 const SEA_PAST_MS = 24 * HOUR_MS;
+
+// The model's last instants often spill a few hours into one more day, by the clock of the reader.
+// The timeline stops at the end of the day before, so that its last day is a whole one.
+function endOfLastWholeDay(latest: number, stepMs: number) {
+  const midnight = new Date(latest).setHours(0, 0, 0, 0);
+  const nextMidnight = new Date(midnight).setDate(new Date(midnight).getDate() + 1);
+  if (latest + stepMs >= nextMidnight) return latest;
+  return latest - (Math.floor((latest - midnight) / stepMs) + 1) * stepMs;
+}
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
@@ -235,7 +244,7 @@ export function Viewer({
     return {
       present,
       earliest: Math.max(start, onStep(present - SEA_PAST_MS)),
-      latest: onStep(sea.times.end.getTime()),
+      latest: endOfLastWholeDay(onStep(sea.times.end.getTime()), seaStepMs),
       stepMs: seaStepMs,
     };
   }, [sea, seaStepMs, now]);
@@ -437,15 +446,16 @@ export function Viewer({
       />
 
       {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
-          across a phone. A drawer opens over it, and it does not move. */}
+          across a phone. A drawer opens over it, and it does not move. On a wide screen it leaves
+          the corner to the button of the map's credits. */}
       {layers.sea && seaTime && seaTimes && (
         <SeaTimeline
           ref={timelineRef}
           className={cn(
-            "absolute right-s",
+            "absolute",
             wide
-              ? "bottom-10 left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
-              : "bottom-[calc(var(--spacing-s)+env(safe-area-inset-bottom))] left-s",
+              ? "right-[calc(var(--spacing-s)+2.5rem)] bottom-s left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
+              : "inset-x-s bottom-[calc(var(--spacing-s)+env(safe-area-inset-bottom))]",
           )}
           time={seaTime}
           times={seaTimes}

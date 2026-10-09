@@ -505,6 +505,10 @@ export function StationMap({
         pitchWithRotate: false,
         touchPitch: false,
       });
+      // The credits start as their button: the map opens them, which would cover the timeline.
+      const credits = instance.getContainer().querySelector(".maplibregl-ctrl-attrib");
+      credits?.classList.remove("maplibregl-compact-show");
+      credits?.removeAttribute("open");
       instance.touchZoomRotate.disableRotation();
       instance.keyboard.disableRotation();
       created = instance;
