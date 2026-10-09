@@ -19,6 +19,9 @@ import { cadence, countPhrases, failureSentence, STATE_LABELS, STATE_VARIANTS } 
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// The ways out of the instance's mail, by the name each is known by.
+const MAIL_WAYS = { unosend: "Unosend", smtp: "SMTP" } as const;
+
 type ForecastBucket = InstanceState["forecasts"]["calls"][number]["bucket"];
 
 // The counts of requests to the forecast provider, in the order the API gives them.
@@ -146,6 +149,7 @@ export function InstancePage({ state, now }: InstancePageProps) {
   // An API of the version before this page's says nothing of forecasts: the admin and the API
   // are not deployed together, and the section waits rather than fail.
   const forecasts = state?.forecasts as InstanceState["forecasts"] | undefined;
+  const mail = state?.mail as InstanceState["mail"] | undefined;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
@@ -182,6 +186,27 @@ export function InstancePage({ state, now }: InstancePageProps) {
                   {m.usage_lost({ count: formatCount(state.api.usageLostCalls) })}
                 </span>
               )}
+            </span>
+          )}
+        </Fact>
+        <Fact label={m.instance_mail()}>
+          {!mail ? (
+            <Skeleton className="h-6 w-40" />
+          ) : mail.via === null ? (
+            <span className="grid gap-xxs">
+              {m.mail_off()}
+              <span className="text-s text-neutral-7">{m.mail_off_note()}</span>
+            </span>
+          ) : (
+            <span className="grid gap-xxs">
+              <CallsMeter
+                calls={mail.today}
+                limit={mail.dailyLimit}
+                label={m.mail_today({ via: MAIL_WAYS[mail.via] })}
+              />
+              <span className="text-s text-neutral-7">
+                {m.mail_today({ via: MAIL_WAYS[mail.via] })}
+              </span>
             </span>
           )}
         </Fact>

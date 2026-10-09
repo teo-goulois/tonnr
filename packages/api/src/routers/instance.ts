@@ -1,5 +1,7 @@
 import { FORECAST_BUDGET, FORECAST_PROVIDER } from "@repo/conditions/forecasts/open-meteo";
-import { countForecastCells, currentCalls } from "@repo/db/forecasts";
+import { MAIL_PROVIDER } from "@repo/auth/verification";
+import { currentCalls } from "@repo/db/calls";
+import { countForecastCells } from "@repo/db/forecasts";
 import { station } from "@repo/db/schema/buoys";
 import {
   FAILURE_KINDS,
@@ -168,6 +170,14 @@ export const instanceRouter = {
           }),
         ),
         database: z.object({ sizeBytes: z.number() }),
+        // The mail the API sends: through what, and how many mails it counted today, in UTC,
+        // against what it lets out in a day. A mail is counted before it leaves, and stays
+        // counted when it did not. `via` is null on an instance that sends none.
+        mail: z.object({
+          via: z.enum(["unosend", "smtp"]).nullable(),
+          today: z.number(),
+          dailyLimit: z.number(),
+        }),
         forecasts: z.object({
           // The cells that have a forecast kept.
           cells: z.number(),
@@ -187,7 +197,7 @@ export const instanceRouter = {
     .handler(async ({ context }) => {
       const { db } = context;
 
-      const [workers, jobs, providers, sized, cells, calls] = await Promise.all([
+      const [workers, jobs, providers, sized, cells, calls, mails] = await Promise.all([
         db
           .select()
           .from(workerProcess)
@@ -220,6 +230,7 @@ export const instanceRouter = {
         ),
         countForecastCells(db),
         currentCalls(db, FORECAST_PROVIDER),
+        currentCalls(db, MAIL_PROVIDER),
       ]);
 
       const at = new Date(Number(sized.rows[0]?.at));
@@ -242,6 +253,11 @@ export const instanceRouter = {
         jobs: jobs.map((row) => describeJob(row, at)),
         providers,
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
+        mail: {
+          via: context.verification.via,
+          today: mails.get("day") ?? 0,
+          dailyLimit: context.verification.dailyLimit,
+        },
         forecasts: {
           cells,
           calls: BUDGETS.map((budget) => ({ ...budget, calls: calls.get(budget.bucket) ?? 0 })),

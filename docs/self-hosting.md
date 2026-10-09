@@ -229,7 +229,7 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - `GET /v1/actions` lists what the operators did to the developer accounts and the keys: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
 - `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
 - `GET /v1/accounts/{id}` gives one account: whether it is suspended, and how many sessions it has open. `DELETE /v1/accounts/{id}/sessions` closes its sessions, which is what to do with your own when a device is lost. `PATCH /v1/accounts/{id}` with `{"suspended": true}` closes them and keeps the account from signing in, until the same call with `false`. What a suspended account owns stays, and what it shared stays visible. An operator is not suspended: take its rights away first. Decision 025 gives the rules.
-- `GET /v1/instance` gives the state of the instance: whether a worker runs, what each of its jobs last did and when it last worked, each provider's stations, when the API started and which addresses it holds, the size of the database, and the requests sent to the forecast provider this day, this hour and this minute against what the instance lets itself send. A job is late when none of its runs started for the time its schedule leaves between two, and a tenth of it more, ten minutes at least. What failed is given as a kind: the worker's log has the error itself. Decision 022 gives the rules.
+- `GET /v1/instance` gives the state of the instance: whether a worker runs, what each of its jobs last did and when it last worked, each provider's stations, when the API started and which addresses it holds, the size of the database, the requests sent to the forecast provider this day, this hour and this minute against what the instance lets itself send, and the mails counted today. A job is late when none of its runs started for the time its schedule leaves between two, and a tenth of it more, ten minutes at least. What failed is given as a kind: the worker's log has the error itself. Decision 022 gives the rules.
 - `node dist/cli.mjs operator-remove <account id>` takes the operator's rights back, with `--write`, and revokes every key the account made. Those keys never work again.
 - An instance with no operator still serves its accounts. Nobody can make a key.
 - A key made before the developer accounts was given one named after its maker, when the instance was updated.
@@ -251,6 +251,26 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 - Its address and the API's must belong to one site, such as `admin.example.org` and `api.example.org`. The session cookie is the API's, and a browser does not send it from a page of another site. An admin on your machine therefore runs an API on your machine. Do not name an address of your machine in the `ADMIN_ORIGIN` of an instance online: whatever runs there would run the instance.
 - Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
 - Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
+
+## Checking addresses by mail
+
+An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. Decision 026 gives the rules.
+
+Set these in `apps/server/.env`, or in the API's environment on another platform. The worker needs none of them.
+
+| Variable            | Value                                                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `UNOSEND_API_KEY`   | A key of an Unosend account, to send through Unosend.                                                                                    |
+| `SMTP_URL`          | Or any mail server: `smtp://user:password@host:587`, or `smtps://` for one that speaks TLS from the start. Set one of the two, not both. |
+| `EMAIL_FROM`        | The sender, as `Name <address>` or an address alone. Needed with either.                                                                 |
+| `EMAIL_DAILY_LIMIT` | Optional. How many mails the instance lets out in a day. 200 without it.                                                                 |
+
+- The address in `EMAIL_FROM` must be one your provider lets you send from. Set up SPF and DKIM for its domain as the provider says, or the mails end in the spam folder.
+- The link in the mail opens the API, which sends the browser on to the web app at `/verified`. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two.
+- Your provider learns the address of everyone who signs up, when, and the mail itself, link included. Turn off what it offers to track: opened mails and followed links. A provider that tracks links rewrites them, and keeps them.
+- The instance counts its mails and stops at the day's limit. An account is sent three mails an hour at most, and five a day. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
+- The library that sends the mail would report its use to its authors. The instance tells it not to.
+- The log keeps how a mail failed, never to whom it went.
 
 ## What an instance owes the data providers
 

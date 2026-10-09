@@ -14,7 +14,8 @@ Read `docs/product-vision.md` before product work, `docs/data-sources.md` before
 - `packages/db` holds the Drizzle schema and client. Use stock Postgres 18 features and change the schema through Drizzle migrations, so the database stays portable. Decision 001 gives the reason. It also holds `src/forecasts.ts`, the functions that keep a forecast in Postgres and count the requests for it: it knows the tables, and is told the rules.
 - `packages/conditions` computes what the sea does at a point: tides, forecasts, and whether a spot's criteria are met. The API and the worker both use it, and it knows nothing about HTTP or the database. A forecast is kept and its requests are counted through three functions that the program gives it: each program builds its `forecasts` once, with its share of the provider's budget, and passes them on. Decision 023 gives the rules. A test builds them with `testForecasts`, which asks no provider.
 - `packages/upstream` is how the API and the worker call a data provider. It sets the user agent, the timeout, and the retries, so no other code calls `fetch` on a provider.
-- `packages/auth` sets up Better Auth. `packages/ui` holds shared interface primitives.
+- `packages/mail` is how the API sends a mail: through the provider the instance's settings name, once, with nothing logged of a mail but how it failed. Only the API sends mail, and only to check an account's address so far. A test sends none: `testMailer` keeps mails in memory. Decision 026 gives the rules.
+- `packages/auth` sets up Better Auth, with what keeps a suspended account out and what sends the mail that checks an address. `packages/ui` holds shared interface primitives.
 
 ## Interface
 

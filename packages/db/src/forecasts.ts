@@ -1,5 +1,6 @@
-import { and, eq, lt, sql, TransactionRollbackError } from "drizzle-orm";
+import { lt, sql } from "drizzle-orm";
 
+import { type Bucket, spendCalls } from "./calls";
 import type { Database } from "./index";
 import { forecastCell, providerCalls } from "./schema/forecasts";
 
@@ -7,13 +8,6 @@ import { forecastCell, providerCalls } from "./schema/forecasts";
 // `packages/conditions`'s. This knows the tables, and is told the limits.
 
 type Cell = { latStep: number; lonStep: number };
-
-/** A count that a request adds to: its name, the span of time it covers, and its limit. */
-export type Bucket = {
-  bucket: string;
-  span: "day" | "hour" | "minute";
-  limit: number;
-};
 
 // Rows that nothing reads any more: a forecast answers for a day, a count for its span.
 const KEPT_DAYS = 2;
@@ -66,55 +60,8 @@ export function forecastStore(db: Database, provider: string, budget: readonly B
      * Counts one request, in every bucket of the budget or in none. False when one of them is
      * at its limit.
      */
-    spend: async () => {
-      // One row for each bucket, always in the same order, so that two programs that count at
-      // the same moment never wait for each other in a circle.
-      const limitOf = sql.join(
-        budget.map(({ bucket, limit }) => sql`when ${bucket} then ${limit}::integer`),
-        sql` `,
-      );
-      try {
-        await db.transaction(async (tx) => {
-          const counted = await tx
-            .insert(providerCalls)
-            .values(
-              budget.map(({ bucket, span }) => ({
-                provider,
-                bucket,
-                start: sql`date_trunc(${span}::text, now(), 'UTC')`,
-                calls: 1,
-              })),
-            )
-            .onConflictDoUpdate({
-              target: [providerCalls.provider, providerCalls.bucket, providerCalls.start],
-              set: { calls: sql`${providerCalls.calls} + 1` },
-              setWhere: sql`${providerCalls.calls} < (case ${providerCalls.bucket} ${limitOf} end)`,
-            })
-            .returning({ bucket: providerCalls.bucket });
-          // A bucket at its limit takes nothing: the others must not keep this request.
-          if (counted.length < budget.length) tx.rollback();
-        });
-        return true;
-      } catch (error) {
-        if (error instanceof TransactionRollbackError) return false;
-        throw error;
-      }
-    },
+    spend: () => spendCalls(db, provider, budget),
   };
-}
-
-/** The calls counted in the spans that hold the present moment, by bucket. */
-export async function currentCalls(db: Database, provider: string) {
-  const rows = await db
-    .select({ bucket: providerCalls.bucket, calls: providerCalls.calls })
-    .from(providerCalls)
-    .where(
-      and(
-        eq(providerCalls.provider, provider),
-        sql`${providerCalls.start} = date_trunc(split_part(${providerCalls.bucket}, ':', 1), now(), 'UTC')`,
-      ),
-    );
-  return new Map(rows.map((row) => [row.bucket, row.calls]));
 }
 
 /** How many cells have a forecast kept. */

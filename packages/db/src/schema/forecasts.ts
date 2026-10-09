@@ -24,9 +24,10 @@ export const forecastCell = pgTable(
 );
 
 /**
- * The requests the instance sent to a provider that limits them, counted before they are sent.
- * A bucket is a span of time and, for the day, the share of the program that asked:
- * `day:people`, `day:alerts`, `hour`, `minute`. `start` is when the span began, in UTC.
+ * What the instance let out and counted before it did: the requests it sent to a provider that
+ * limits them, and the mails it sent. A bucket is a span of time and, for the forecasts' day,
+ * the share of the program that asked: `day:people`, `day:alerts`, `hour`, `minute`. `start` is
+ * when the span began, in UTC.
  */
 export const providerCalls = pgTable(
   "provider_calls",

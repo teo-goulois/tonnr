@@ -1,4 +1,5 @@
 import type { Session } from "@repo/auth";
+import type { Verification } from "@repo/auth/verification";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
 
@@ -17,6 +18,13 @@ export type Context = {
   adminSites: readonly string[];
   // Where the calls are counted.
   usage: Usage;
+  // What sends an account the mail that checks its address. Decision 026.
+  verification: Verification;
+  // What a procedure says of its answer beyond its body. The program that serves it reads it.
+  reply: {
+    // After how many seconds a caller that was told to wait may ask again.
+    retryAfterSeconds?: number;
+  };
   // The forecasts of this program: kept in its memory, then in the database, and asked of the
   // provider within the instance's budget. Decision 023.
   forecasts: Forecasts;

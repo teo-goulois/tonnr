@@ -27,3 +27,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [023. Forecasts kept in the database, and a budget of calls to their provider](023-forecasts-kept.md)
 - [024. One catalogue of breaks, filled once](024-one-catalogue-of-breaks.md)
 - [025. Closing an account's sessions, and suspending an account](025-account-sessions-and-suspension.md)
+- [026. Checking an account's address by mail](026-checked-addresses.md)

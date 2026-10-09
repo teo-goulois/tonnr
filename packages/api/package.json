@@ -18,6 +18,7 @@
     "@repo/auth": "workspace:*",
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/mail": "workspace:*",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:"

@@ -1,7 +1,9 @@
-import { testForecasts } from "@repo/api/testing";
+import { testForecasts, testVerification } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { suspensionHooks } from "@repo/auth/suspension";
+import { providerCalls } from "@repo/db/schema/forecasts";
+import { createEmailVerificationToken } from "better-auth/api";
 import { accountSuspension, apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
 import { session, user } from "@repo/db/schema/auth";
 import { stationList } from "@repo/db/schema/lists";
@@ -16,7 +18,16 @@ const ADMIN = "http://localhost:3002";
 const ELSEWHERE = "https://elsewhere.example";
 const NOT_CACHED = "private, no-store";
 
-type By = { cookie?: string; key?: string; origin?: string; referer?: string; body?: unknown };
+type By = {
+  cookie?: string;
+  key?: string;
+  origin?: string;
+  referer?: string;
+  // What the request asks for as a language, in `Accept-Language`.
+  language?: string;
+  body?: unknown;
+};
+type Mailing = NonNullable<Parameters<typeof testVerification>[1]>;
 type MadeKey = { id: string; key: string; developerId: string };
 type Spec = {
   components: { securitySchemes: Record<string, unknown> };
@@ -43,14 +54,35 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     CORS_ORIGIN: APP,
   };
 
+  /**
+   * An API with these settings. It sends no mail unless told to: its mail is then kept in
+   * memory, and `sent` and `link` say what left.
+   */
+  function make(
+    settings: typeof env & { ADMIN_ORIGIN?: string },
+    mailing: Mailing = { on: false },
+  ) {
+    const { db } = database;
+    const mail = testVerification(db, { ...mailing, settings });
+    const auth = createAuth(settings, db, [], mail.verification);
+    const made = createApp({
+      env: settings,
+      db,
+      auth,
+      usage,
+      forecasts,
+      verification: mail.verification,
+    });
+    return { app: made, ...mail };
+  }
+
   beforeAll(async () => {
     database = await createTestDatabase();
     const { db } = database;
     // Counted in memory, and written only when a test asks.
     usage = createUsage(db, { every: null });
-    const withAdmin = { ...env, ADMIN_ORIGIN: ADMIN };
-    app = createApp({ env: withAdmin, db, auth: createAuth(withAdmin, db), usage, forecasts });
-    bare = createApp({ env, db, auth: createAuth(env, db), usage, forecasts });
+    app = make({ ...env, ADMIN_ORIGIN: ADMIN }).app;
+    bare = make(env).app;
     // The app logs each request, and each fault as an error.
     logged = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -71,6 +103,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     if (by.key) headers.set("Authorization", `Bearer ${by.key}`);
     if (by.origin) headers.set("Origin", by.origin);
     if (by.referer) headers.set("Referer", by.referer);
+    if (by.language) headers.set("Accept-Language", by.language);
     if (by.body === undefined) return to.request(path, { method, headers });
 
     headers.set("Content-Type", "application/json");
@@ -481,30 +514,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     ])("does not start when the admin's address is %s", (_, addresses) => {
       const same = { ...env, ...addresses };
 
-      expect(() =>
-        createApp({
-          env: same,
-          db: database.db,
-          auth: createAuth(same, database.db),
-          usage,
-          forecasts,
-        }),
-      ).toThrow("ADMIN_ORIGIN must not be the web app's address");
+      expect(() => make(same)).toThrow("ADMIN_ORIGIN must not be the web app's address");
     });
 
     it("starts without a web app, with the admin at an address of its own or with none", () => {
       for (const addresses of [{ CORS_ORIGIN: API }, { CORS_ORIGIN: API, ADMIN_ORIGIN: ADMIN }]) {
         const alone = { ...env, ...addresses };
 
-        expect(() =>
-          createApp({
-            env: alone,
-            db: database.db,
-            auth: createAuth(alone, database.db),
-            usage,
-            forecasts,
-          }),
-        ).not.toThrow();
+        expect(() => make(alone)).not.toThrow();
       }
     });
   });
@@ -703,6 +720,199 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         suspensionHooks(database.db).after({ id: opened!.id, userId: id }, null),
       ).resolves.toBeUndefined();
       expect(await sessionsOf(id)).toHaveLength(1);
+    });
+  });
+
+  describe("an account's address, checked by mail", () => {
+    const password = "made-up-for-these-tests";
+    const cookieOf = (response: Response) =>
+      response.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+    const signUpTo = async (to: ReturnType<typeof createApp>, name: string, language?: string) => {
+      const body = { name, email: `${name}@example.org`, password };
+      const response = await send(
+        "POST",
+        "/api/auth/sign-up/email",
+        { origin: APP, body, language },
+        to,
+      );
+      return { status: response.status, cookie: cookieOf(response) };
+    };
+    const accountOf = async (to: ReturnType<typeof createApp>, cookie: string) =>
+      bodyOf<{ emailVerified: boolean; checksAddresses: boolean }>(
+        await send("GET", "/v1/account", { cookie }, to),
+      );
+    // The link of a mail, as the address the API is asked at.
+    const pathOf = (link: string | null) => {
+      const url = new URL(link ?? "");
+      return `${url.pathname}${url.search}`;
+    };
+    beforeEach(async () => {
+      await database.db.delete(providerCalls);
+    });
+
+    it("sends a mail at sign-up, in the language asked for, and signs the account in all the same", async () => {
+      const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+
+      const signedUp = await signUpTo(mailing.app, "ana", "fr-FR,fr;q=0.9");
+
+      expect(signedUp.status).toBe(200);
+      expect(mailing.sent()).toHaveLength(1);
+      expect(mailing.sent()[0]).toMatchObject({ to: "ana@example.org" });
+      expect(mailing.sent()[0]?.subject).toContain("Vérifie ton adresse");
+      expect(await accountOf(mailing.app, signedUp.cookie)).toMatchObject({
+        emailVerified: false,
+        checksAddresses: true,
+      });
+      // An account that signs in again is sent nothing.
+      const body = { email: "ana@example.org", password };
+      await send("POST", "/api/auth/sign-in/email", { origin: APP, body }, mailing.app);
+      expect(mailing.sent()).toHaveLength(1);
+    });
+
+    it("marks the address as checked when the link is followed, signs no one in, and ends on the web app", async () => {
+      const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+      const { cookie } = await signUpTo(mailing.app, "ana");
+
+      // Followed in another browser, which holds no session.
+      const followed = await send("GET", pathOf(mailing.link()), {}, mailing.app);
+
+      expect(followed.status).toBe(302);
+      expect(followed.headers.get("Location")).toBe(`${APP}/verified`);
+      expect(cookieOf(followed)).not.toContain("session_token");
+      expect(await accountOf(mailing.app, cookie)).toMatchObject({ emailVerified: true });
+
+      // Followed a second time, it changes nothing and ends on the same page.
+      const again = await send("GET", pathOf(mailing.link()), {}, mailing.app);
+      expect(again.headers.get("Location")).toBe(`${APP}/verified`);
+      // And the account is refused another mail.
+      const more = await send(
+        "POST",
+        "/v1/account/verification",
+        { cookie, origin: APP, body: {} },
+        mailing.app,
+      );
+      expect(more.status).toBe(409);
+    });
+
+    it("ends on the web app with what went wrong, for a link that was changed or is too old", async () => {
+      const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+      const { cookie } = await signUpTo(mailing.app, "ana");
+      const link = new URL(mailing.link() ?? "");
+
+      const changed = new URL(link);
+      changed.searchParams.set("token", `${link.searchParams.get("token")}x`);
+      const tampered = await send("GET", pathOf(changed.href), {}, mailing.app);
+      expect(tampered.headers.get("Location")).toBe(`${APP}/verified?error=INVALID_TOKEN`);
+
+      const old = new URL(link);
+      old.searchParams.set(
+        "token",
+        await createEmailVerificationToken(
+          env.BETTER_AUTH_SECRET,
+          "ana@example.org",
+          undefined,
+          -60,
+        ),
+      );
+      const expired = await send("GET", pathOf(old.href), {}, mailing.app);
+      expect(expired.headers.get("Location")).toBe(`${APP}/verified?error=TOKEN_EXPIRED`);
+
+      // A link that would end on another site is refused by the sign-in library, which does not
+      // ask where a link leads while it runs under a test: that is checked on a running API.
+      expect(await accountOf(mailing.app, cookie)).toMatchObject({ emailVerified: false });
+    });
+
+    it("sends the mail again to the account that asks, three times an hour, and says how long to wait", async () => {
+      // The mails of this test are counted in one hour: it does not start as an hour ends.
+      const { rows } = await database.db.$client.query(
+        "select extract(epoch from date_trunc('hour', now(), 'UTC') + interval '1 hour' - now())::float8 as left",
+      );
+      if (rows[0]?.left < 5) await new Promise((resolve) => setTimeout(resolve, 5500));
+      const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+      const { cookie } = await signUpTo(mailing.app, "ana");
+      const again = (by: By = {}) =>
+        send(
+          "POST",
+          "/v1/account/verification",
+          { cookie, origin: APP, body: { locale: "fr" }, ...by },
+          mailing.app,
+        );
+
+      // The mail of the sign-up was the first of the hour.
+      for (const expected of [200, 200, 429]) expect((await again()).status).toBe(expected);
+      expect(mailing.sent()).toHaveLength(3);
+      expect(mailing.sent()[2]?.subject).toContain("Vérifie");
+
+      const refused = await again();
+      const wait = Number(refused.headers.get("Retry-After"));
+      expect(wait).toBeGreaterThan(0);
+      expect(wait).toBeLessThanOrEqual(3600);
+      // Over the other transport too, and for no one without a session or with a key.
+      const overRpc = await send(
+        "POST",
+        "/rpc/v1/account/sendVerification",
+        { cookie, origin: APP, body: { json: {} } },
+        mailing.app,
+      );
+      expect(overRpc.status).toBe(429);
+      expect((await again({ cookie: undefined })).status).toBe(401);
+    });
+
+    it("has no route that mails an address given without a session", async () => {
+      const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+      await signUpTo(mailing.app, "ana");
+
+      const asked = await send(
+        "POST",
+        "/api/auth/send-verification-email",
+        { origin: APP, body: { email: "ana@example.org" } },
+        mailing.app,
+      );
+
+      expect(asked.status).toBe(404);
+      expect(mailing.sent()).toHaveLength(1);
+    });
+
+    it("makes the account whether its mail left or not", async () => {
+      const failing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true, failing: true });
+      const small = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true, dailyLimit: 1 });
+
+      const unsent = await signUpTo(failing.app, "ana");
+      expect(unsent.status).toBe(200);
+      expect(await accountOf(failing.app, unsent.cookie)).toMatchObject({ emailVerified: false });
+
+      await database.db.delete(providerCalls);
+      expect((await signUpTo(small.app, "ben")).status).toBe(200);
+      // The instance has sent its mail for the day: the next account is made without one.
+      const late = await signUpTo(small.app, "cleo");
+      expect(late.status).toBe(200);
+      expect(small.sent().map((mail) => mail.to)).toEqual(["ben@example.org"]);
+      const asked = await send(
+        "POST",
+        "/v1/account/verification",
+        { cookie: late.cookie, origin: APP, body: {} },
+        small.app,
+      );
+      expect(asked.status).toBe(503);
+      expect(asked.headers.get("Retry-After")).toBeNull();
+    });
+
+    it("checks no address on an instance that sends no mail", async () => {
+      const signedUp = await signUpTo(app, "ana");
+
+      expect(signedUp.status).toBe(200);
+      expect(await accountOf(app, signedUp.cookie)).toEqual(
+        expect.objectContaining({ emailVerified: false, checksAddresses: false }),
+      );
+      const asked = await send("POST", "/v1/account/verification", {
+        cookie: signedUp.cookie,
+        origin: APP,
+        body: {},
+      });
+      expect(asked.status).toBe(503);
     });
   });
 

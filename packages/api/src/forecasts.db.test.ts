@@ -8,6 +8,7 @@ import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "./context";
+import { testVerification } from "./testing";
 import { v1Router } from "./routers/index";
 import { createUsage, type Usage } from "./usage";
 
@@ -52,6 +53,8 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
       usage,
       server: { startedAt: AT, webOrigin: "https://app.example.org" },
       forecasts: kept.forecasts,
+      verification: testVerification(database.db, { on: false }).verification,
+      reply: {},
     },
   });
   const here = { latitude: 43.63, longitude: -1.46 };

@@ -5,6 +5,7 @@ import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
 import { suspensionHooks } from "./suspension";
+import { type Verification, VERIFICATION_SECONDS } from "./verification";
 
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
@@ -18,6 +19,9 @@ export function createAuth(
   env: AuthConfig,
   database: Database,
   desktopOrigins: readonly string[] = [],
+  // What sends the mail that checks an address. Without it, or on an instance that sends no
+  // mail, no address is checked.
+  verification?: Verification,
 ) {
   return betterAuth({
     appName: APP_NAME,
@@ -31,6 +35,20 @@ export function createAuth(
       ...desktopOrigins,
     ],
     emailAndPassword: { enabled: true },
+    // An account is sent a mail to check its address when it signs up, and is signed in
+    // whether it follows the link or not. The link signs no one in. Decision 026.
+    ...(verification?.isOn && {
+      emailVerification: {
+        sendVerificationEmail: verification.onSignUp,
+        sendOnSignUp: true,
+        autoSignInAfterVerification: false,
+        expiresIn: VERIFICATION_SECONDS,
+      },
+    }),
+    // The library's own route sends that mail to an address given without a session: anyone
+    // could have it mail the addresses that are not checked yet. The API has its own, for the
+    // account that asks.
+    disabledPaths: ["/send-verification-email"],
     // A suspended account opens no session: decision 025.
     databaseHooks: { session: { create: suspensionHooks(database) } },
     secret: env.BETTER_AUTH_SECRET,

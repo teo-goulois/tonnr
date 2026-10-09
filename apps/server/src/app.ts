@@ -22,6 +22,8 @@ type Services = {
   usage: Usage;
   // Where the forecasts are kept, and their requests counted.
   forecasts: Context["forecasts"];
+  // What sends an account the mail that checks its address.
+  verification: Context["verification"];
   // When the process started. Without it, when this app was made.
   startedAt?: Date;
 };
@@ -43,7 +45,15 @@ function logFault(error: unknown) {
 }
 
 /** The API as a Hono app: every route, and nothing that listens. */
-export function createApp({ env, db, auth, usage, forecasts, startedAt = new Date() }: Services) {
+export function createApp({
+  env,
+  db,
+  auth,
+  usage,
+  forecasts,
+  verification,
+  startedAt = new Date(),
+}: Services) {
   const app = new Hono();
 
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
@@ -147,6 +157,8 @@ export function createApp({ env, db, auth, usage, forecasts, startedAt = new Dat
       adminSites,
       usage,
       forecasts,
+      verification,
+      reply: {} as Context["reply"],
       server: { startedAt, webOrigin },
     };
 
@@ -156,9 +168,12 @@ export function createApp({ env, db, auth, usage, forecasts, startedAt = new Dat
     if (!answered) return next();
 
     answered.headers.set("Cache-Control", NOT_CACHED);
-    // A call over its developer account's limit is taken again when the hour turns.
+    // A call over its developer account's limit is taken again when the hour turns. A
+    // procedure that tells its caller to wait says for how long itself.
     if (answered.status === 429) {
-      const left = HOUR_SECONDS - (Math.floor(Date.now() / 1000) % HOUR_SECONDS);
+      const left =
+        context.reply.retryAfterSeconds ??
+        HOUR_SECONDS - (Math.floor(Date.now() / 1000) % HOUR_SECONDS);
       answered.headers.set("Retry-After", String(left));
     }
     return c.newResponse(answered.body, answered);

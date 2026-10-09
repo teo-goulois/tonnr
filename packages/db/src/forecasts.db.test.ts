@@ -1,13 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  type Bucket,
-  countForecastCells,
-  currentCalls,
-  forecastStore,
-  pruneForecasts,
-} from "./forecasts";
+import { type Bucket, type Count, countCalls, currentCalls } from "./calls";
+import { countForecastCells, forecastStore, pruneForecasts } from "./forecasts";
 import { createDb } from "./index";
 import { forecastCell, providerCalls } from "./schema/forecasts";
 import { createTestDatabase, TEST_DATABASE_URL } from "./testing";
@@ -182,6 +177,53 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept in the database", () => 
 
       expect(await store("people", { hour: 1 }).spend()).toBe(true);
       expect(await counts()).toEqual({ "day:people": 1, hour: 1, minute: 1 });
+    });
+  });
+
+  describe("a count under several names at once", () => {
+    const mails = (hour: number, day: number, instance: number) =>
+      [
+        { provider: "mail:account-1", bucket: "hour", span: "hour", limit: hour },
+        { provider: "mail:account-1", bucket: "day", span: "day", limit: day },
+        { provider: "mail", bucket: "day", span: "day", limit: instance },
+      ] satisfies Count[];
+    const of = async (provider: string) =>
+      Object.fromEntries(await currentCalls(database.db, provider)) as Record<string, number>;
+
+    it("is taken in each of them, or in none, and says which was full and for how long", async () => {
+      expect(await countCalls(database.db, mails(2, 5, 3))).toBeNull();
+      expect(await countCalls(database.db, mails(2, 5, 3))).toBeNull();
+      expect([await of("mail:account-1"), await of("mail")]).toEqual([
+        { hour: 2, day: 2 },
+        { day: 2 },
+      ]);
+
+      // The account's hour is full: nothing more is counted, the instance's day neither.
+      const refused = await countCalls(database.db, mails(2, 5, 3));
+      expect(refused?.map((full) => [full.provider, full.bucket])).toEqual([
+        ["mail:account-1", "hour"],
+      ]);
+      const [hour] = refused ?? [];
+      expect(hour?.retryAfterSeconds).toBeGreaterThan(0);
+      expect(hour?.retryAfterSeconds).toBeLessThanOrEqual(3600);
+      expect(await of("mail")).toEqual({ day: 2 });
+
+      // Another account is stopped by the instance's day, and its own count is not spent.
+      const other = mails(2, 5, 2).map((count) => ({
+        ...count,
+        provider: count.provider === "mail" ? "mail" : "mail:account-2",
+      }));
+      const stopped = await countCalls(database.db, other);
+      expect(stopped?.map((full) => [full.provider, full.bucket])).toEqual([["mail", "day"]]);
+      expect(stopped?.[0]?.retryAfterSeconds).toBeLessThanOrEqual(24 * 3600);
+      expect(await of("mail:account-2")).toEqual({});
+    });
+
+    it("is refused a limit under one, which the first count of a span would pass", async () => {
+      for (const limit of [0, -1, 1.5]) {
+        await expect(countCalls(database.db, mails(limit, 5, 3))).rejects.toThrow("limit");
+      }
+      expect(await of("mail")).toEqual({});
     });
   });
 

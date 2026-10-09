@@ -1,6 +1,8 @@
 import { call, isLazy, isProcedure, lazy, unlazy } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { testForecasts } from "@repo/conditions/forecasts/testing";
+
+import { testVerification } from "./testing";
 import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
@@ -63,6 +65,7 @@ const ANSWERS_AN_ACCOUNT = [
   "preferences.saveShortcuts",
   "privateData",
   "v1.account.get",
+  "v1.account.sendVerification",
   "v1.lists.addStation",
   "v1.lists.create",
   "v1.lists.delete",
@@ -140,6 +143,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     usage,
     server: { startedAt: AT, webOrigin: WEB },
     forecasts,
+    // An instance that sends no mail: no test sends one.
+    verification: testVerification(database.db, { on: false }).verification,
+    reply: {},
   });
   const bySession = (id: string, site?: string | null) => ({
     context: context({ session: id, site }),
@@ -205,6 +211,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         name: "owner",
         email: "owner@example.org",
         isOperator: true,
+        emailVerified: false,
+        checksAddresses: false,
       });
       expect(await call(v1Router.account.get, undefined, bySession("visitor"))).toMatchObject({
         id: "visitor",
