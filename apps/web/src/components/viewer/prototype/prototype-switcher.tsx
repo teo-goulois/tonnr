@@ -1,4 +1,4 @@
-// PROTOTYPE: thrown away once a variant of the details panel has won. See details-prototype.tsx.
+// PROTOTYPE: thrown away once the new details panel is settled. See details-prototype.tsx.
 
 import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -6,10 +6,8 @@ import { type ComponentProps, Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
 
 export const VARIANTS = [
-  { key: undefined, name: "Current" },
-  { key: "a", name: "A · Lanes" },
-  { key: "b", name: "B · Focus" },
-  { key: "c", name: "C · One strip" },
+  { key: undefined, name: "In use" },
+  { key: "a", name: "New panel" },
 ] as const;
 
 export type VariantKey = NonNullable<(typeof VARIANTS)[number]["key"]>;

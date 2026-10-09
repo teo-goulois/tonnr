@@ -1,4 +1,4 @@
-// PROTOTYPE: thrown away once a variant of the details panel has won. See details-prototype.tsx.
+// PROTOTYPE: thrown away once the new details panel is settled. See details-prototype.tsx.
 
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -12,49 +12,36 @@ import {
   useState,
 } from "react";
 
-import { compassPoint, formatClock, formatDay, formatMeters } from "@/lib/format";
-import { TIDE_COLOR } from "@/lib/sea-scales";
+import { compassPoint, formatClock, formatDay } from "@/lib/format";
 
 import { DirectionArrow } from "../map-markers";
-import { LaneCurve } from "./metric-lanes";
+import { LineGlyph } from "./metric-lanes";
 import {
   HOUR_MS,
   type Metric,
   type MetricKey,
   type Sample,
   cellColors,
-  curvePath,
   directionAt,
   formatMetric,
   isNight,
   metrics,
-  nightsBetween,
   t,
   valueAt,
 } from "./metrics";
 
-export type GridTide = {
-  points: { time: number; value: number }[];
-  extremes: { time: number; value: number; high: boolean }[];
-};
-
 type ForecastGridProps = {
   model: Sample[];
-  // What the buoy measured, written under the model's row of the same value.
+  // What the buoy measured. Where it has a reading, the grid shows it in place of the model's
+  // figure, in bold, and writes the model's under it.
   measured?: Sample[];
   start: number;
   end: number;
   now: number;
   stepHours?: number;
   place?: { latitude: number; longitude: number };
-  // The tide as a last row, drawn as a curve on the same hours.
-  tide?: GridTide;
-  // A curve above the rows of the swell and of the wind, on the same hours as the columns.
-  curves?: boolean;
   // How many columns of the past stay in view before the one of now, when the grid opens.
   lead?: number;
-  // What stands before the button that brings now back into view.
-  toolbar?: ReactNode;
   isLoading?: boolean;
 };
 
@@ -62,55 +49,30 @@ const COLUMN = 34;
 const LABELS = 68;
 const ROW = "h-[26px]";
 const MEASURED_REACH = 1.5 * HOUR_MS;
-
-// `day` counts the days from the first one, and `newDay` marks the first column of the others.
-type Column = { time: number; night: boolean; isNow: boolean; day: number; newDay: boolean };
-
 // A hair of the page's color before the first column of a day. A cell draws it: a column cannot.
 const DAY_RULE = "shadow-[inset_1.5px_0_0_var(--neutral-1)]";
 
-function ValueCell({
-  metric,
-  value,
-  strong,
-  rule,
-}: {
-  metric: Metric;
-  value?: number;
-  strong?: boolean;
-  rule: boolean;
-}) {
-  return (
-    <td
-      className={cn(
-        ROW,
-        "p-0 text-center text-xs tabular-nums",
-        strong && "font-medium",
-        rule && DAY_RULE,
-      )}
-      style={value === undefined ? undefined : cellColors(metric, value)}
-    >
-      {value === undefined ? "" : formatMetric(metric, value, false)}
-    </td>
-  );
-}
+// `day` counts the days from the first one, and `newDay` marks the first column of the others.
+type Column = { time: number; night: boolean; isNow: boolean; day: number; newDay: boolean };
 
 function RowLabel({
   children,
   unit,
   quiet,
+  className,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   unit?: string;
   quiet?: boolean;
+  className?: string;
 }) {
   return (
     <th
       scope="row"
       className={cn(
-        ROW,
         "sticky left-0 z-10 bg-neutral-1 py-0 pr-xs pl-0 text-left text-xs font-normal whitespace-nowrap",
         quiet && "text-neutral-7",
+        className,
       )}
     >
       {children}
@@ -121,7 +83,8 @@ function RowLabel({
 
 /**
  * The days ahead as a grid to scroll sideways: a column every few hours, a row for each value,
- * each cell in the color of what it says. The names of the rows stay in view.
+ * each cell in the color of what it says. The names of the rows stay in view. With a buoy, the
+ * hours it measured come first: its figures in bold, the model's written small under them.
  */
 export function ForecastGrid({
   model,
@@ -131,10 +94,7 @@ export function ForecastGrid({
   now,
   stepHours = 3,
   place,
-  tide,
-  curves = false,
   lead = 0,
-  toolbar,
   isLoading = false,
 }: ForecastGridProps) {
   const strings = t();
@@ -204,48 +164,70 @@ export function ForecastGrid({
   }
 
   const width = columns.length * COLUMN;
-  // A curve lies on the same hours as the columns: each column is centered on its hour.
-  const from = columns[0]!.time - step / 2;
-  const to = columns.at(-1)!.time + step / 2;
-  const nights = place ? nightsBetween(from, to, place.latitude, place.longitude) : [];
   const buoy = measured ?? [];
-  const compares = measured !== undefined && measured.length > 0;
+  const read = (key: MetricKey | "gust", column: Column) =>
+    column.time > now + step / 2 ? undefined : valueAt(buoy, key, column.time, MEASURED_REACH);
+  // The columns the buoy has a wave height for: the hours the grid shows as measured.
+  const measuredColumns = columns.filter((column) => read("height", column) !== undefined).length;
+  const lastMeasured = columns.reduce(
+    (last, column, index) => (read("height", column) === undefined ? last : index),
+    -1,
+  );
 
-  function valueRow(
+  function valueRows(
     key: MetricKey,
     label: ReactNode = all[key].label,
     numeric: MetricKey | "gust" = key,
   ) {
-    const metric = all[key];
+    const metric: Metric = all[key];
+    const compares = buoy.some((sample) => sample[numeric] !== null);
     return (
       <>
         <tr>
-          <RowLabel unit={numeric === "gust" ? undefined : metric.unit}>{label}</RowLabel>
-          {columns.map((column) => (
-            <ValueCell
-              key={column.time}
-              metric={metric}
-              rule={column.newDay}
-              value={valueAt(model, numeric, column.time, step / 2)}
-            />
-          ))}
-        </tr>
-        {compares && buoy.some((sample) => sample[numeric] !== null) && (
-          <tr>
-            <RowLabel quiet>{strings.buoy}</RowLabel>
-            {columns.map((column) => (
-              <ValueCell
+          <RowLabel unit={numeric === "gust" ? undefined : metric.unit} className={ROW}>
+            {label}
+          </RowLabel>
+          {columns.map((column) => {
+            const measuredValue = read(numeric, column);
+            const value = measuredValue ?? valueAt(model, numeric, column.time, step / 2);
+            return (
+              <td
                 key={column.time}
-                metric={metric}
-                strong
-                rule={column.newDay}
-                value={
-                  column.time > now + step / 2
-                    ? undefined
-                    : valueAt(buoy, numeric, column.time, MEASURED_REACH)
-                }
-              />
-            ))}
+                className={cn(
+                  ROW,
+                  "p-0 text-center text-xs tabular-nums",
+                  measuredValue !== undefined && "font-semibold",
+                  column.newDay && DAY_RULE,
+                )}
+                style={value === undefined ? undefined : cellColors(metric, value)}
+              >
+                {value === undefined ? "" : formatMetric(metric, value, false)}
+              </td>
+            );
+          })}
+        </tr>
+        {compares && (
+          <tr>
+            <RowLabel quiet className="h-5">
+              <span className="flex items-center gap-xxs">
+                <LineGlyph dashed />
+                {strings.model}
+              </span>
+            </RowLabel>
+            {columns.map((column) => {
+              const modelled =
+                read(numeric, column) === undefined
+                  ? undefined
+                  : valueAt(model, numeric, column.time, step / 2);
+              return (
+                <td
+                  key={column.time}
+                  className="h-5 p-0 text-center text-xs text-neutral-7 tabular-nums"
+                >
+                  {modelled === undefined ? "" : formatMetric(metric, modelled, false)}
+                </td>
+              );
+            })}
           </tr>
         )}
       </>
@@ -255,10 +237,12 @@ export function ForecastGrid({
   function directionRow(key: "waveDirection" | "windDirection") {
     return (
       <tr>
-        <RowLabel quiet>{strings.direction}</RowLabel>
+        <RowLabel quiet className={ROW}>
+          {strings.direction}
+        </RowLabel>
         {columns.map((column) => {
           const bearing =
-            (compares && column.time <= now
+            (column.time <= now + step / 2
               ? directionAt(buoy, key, column.time, MEASURED_REACH)
               : undefined) ?? directionAt(model, key, column.time, step / 2);
           return (
@@ -277,55 +261,32 @@ export function ForecastGrid({
     );
   }
 
-  function curveRow(key: MetricKey) {
-    return (
-      <tr aria-hidden>
-        <th className="sticky left-0 z-10 bg-neutral-1 p-0" />
-        <td colSpan={columns.length} className="p-0 pt-xs">
-          <LaneCurve
-            metric={all[key]}
-            measured={buoy}
-            model={model}
-            start={from}
-            end={to}
-            now={now}
-            nights={nights}
-            width={width}
-            height={48}
-          />
-        </td>
-      </tr>
-    );
-  }
-
   const spacer = (
     <tr aria-hidden>
       <td colSpan={columns.length + 1} className="h-xs p-0" />
     </tr>
   );
+  // The name of a band follows the grid while any of its columns is in view.
+  const bandName = "sticky inline-flex items-center gap-xxs pr-xs whitespace-nowrap";
 
   return (
-    <div className="grid gap-xs">
-      {(toolbar !== undefined || away) && (
-        <div className="flex h-7 items-center justify-between gap-xs">
-          <div className="flex items-center gap-xs">{toolbar}</div>
-          {away && nowIndex >= 0 && (
-            <Button
-              variant="secondary"
-              size="xs"
-              onClick={() => scroller.current?.scrollTo({ left: home, behavior: "smooth" })}
-            >
-              {strings.backToNow}
-            </Button>
-          )}
-        </div>
+    // A grid's track grows to what it holds: `min-w-0` keeps the table inside the panel.
+    <div className="relative min-w-0">
+      {away && nowIndex >= 0 && (
+        <Button
+          variant="secondary"
+          size="xs"
+          // In the corner the names of the rows leave empty, over the days and the hours.
+          className="absolute top-0 left-0 z-20"
+          onClick={() => scroller.current?.scrollTo({ left: home, behavior: "smooth" })}
+        >
+          {strings.backToNow}
+        </Button>
       )}
       <div
         ref={scroller}
         className="cursor-grab overflow-x-auto overscroll-x-contain [scrollbar-width:none] active:cursor-grabbing"
-        style={{
-          maskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)",
-        }}
+        style={{ maskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)" }}
         onScroll={(event) => setAway(Math.abs(event.currentTarget.scrollLeft - home) > COLUMN * 2)}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -354,11 +315,7 @@ export function ForecastGrid({
                     index % 2 === 1 && "bg-neutral-2",
                   )}
                 >
-                  {/* The name of a day follows the grid while any of its hours is in view. */}
-                  <span
-                    className="sticky inline-block px-xxs whitespace-nowrap"
-                    style={{ left: LABELS }}
-                  >
+                  <span className={cn(bandName, "px-xxs")} style={{ left: LABELS }}>
                     {day.count > 1 ? formatDay(new Date(day.time)) : ""}
                   </span>
                 </th>
@@ -389,95 +346,46 @@ export function ForecastGrid({
                 </th>
               ))}
             </tr>
+            {measuredColumns > 0 && (
+              // Which hours are the buoy's and which the model's, said once above the figures.
+              <tr>
+                <th className="sticky left-0 z-10 bg-neutral-1 p-0" />
+                <th
+                  colSpan={lastMeasured + 1}
+                  className="h-5 p-0 text-left text-xs font-medium shadow-[inset_0_calc(-1*var(--border-l))_0_var(--neutral-10)]"
+                >
+                  <span className={bandName} style={{ left: LABELS }}>
+                    <LineGlyph />
+                    {strings.buoy}
+                  </span>
+                </th>
+                {lastMeasured + 1 < columns.length && (
+                  <th
+                    colSpan={columns.length - lastMeasured - 1}
+                    className="h-5 border-b border-dashed border-neutral-6 p-0 pl-xs text-left text-xs font-normal text-neutral-7"
+                  >
+                    <span className={bandName} style={{ left: LABELS + 8 }}>
+                      <LineGlyph dashed />
+                      {strings.model}
+                    </span>
+                  </th>
+                )}
+              </tr>
+            )}
           </thead>
           <tbody>
-            {curves && curveRow("height")}
-            {valueRow("height")}
-            {valueRow("period")}
-            {valueRow("energy")}
+            {measuredColumns > 0 && spacer}
+            {valueRows("height")}
+            {valueRows("period")}
+            {valueRows("energy")}
             {directionRow("waveDirection")}
             {spacer}
-            {curves && curveRow("wind")}
-            {valueRow("wind")}
-            {valueRow("wind", strings.gust, "gust")}
+            {valueRows("wind")}
+            {valueRows("wind", strings.gust, "gust")}
             {directionRow("windDirection")}
-            {tide && tide.points.length > 1 && (
-              <>
-                {spacer}
-                <tr>
-                  <RowLabel unit="m">{strings.tide}</RowLabel>
-                  <td colSpan={columns.length} className="p-0">
-                    <TideRow tide={tide} from={from} to={to} now={now} width={width} />
-                  </td>
-                </tr>
-              </>
-            )}
           </tbody>
         </table>
       </div>
     </div>
-  );
-}
-
-const TIDE_HEIGHT = 56;
-
-/** The tide under the grid: its curve on the hours of the columns, with its high and low waters. */
-function TideRow({
-  tide,
-  from,
-  to,
-  now,
-  width,
-}: {
-  tide: GridTide;
-  from: number;
-  to: number;
-  now: number;
-  width: number;
-}) {
-  const points = tide.points.filter((point) => point.time >= from && point.time <= to);
-  if (points.length < 2) return null;
-  const values = points.map((point) => point.value);
-  const lowest = Math.min(...values);
-  const highest = Math.max(...values);
-  const x = (time: number) => ((time - from) / (to - from)) * width;
-  const y = (value: number) =>
-    TIDE_HEIGHT - 14 - ((value - lowest) / (highest - lowest || 1)) * (TIDE_HEIGHT - 28);
-  const line = curvePath(points.map((point) => ({ x: x(point.time), y: y(point.value) })));
-
-  return (
-    <svg width={width} height={TIDE_HEIGHT} className="block" aria-hidden>
-      <path
-        d={`${line}L${x(points.at(-1)!.time)},${TIDE_HEIGHT}L${x(points[0]!.time)},${TIDE_HEIGHT}Z`}
-        fill={TIDE_COLOR}
-        fillOpacity={0.14}
-      />
-      <path d={line} fill="none" stroke={TIDE_COLOR} strokeWidth={1.5} />
-      {now > from && now < to && (
-        <line
-          x1={x(now)}
-          x2={x(now)}
-          y1={0}
-          y2={TIDE_HEIGHT}
-          className="stroke-neutral-7"
-          strokeDasharray="3 3"
-        />
-      )}
-      {tide.extremes
-        .filter((extreme) => extreme.time > from && extreme.time < to)
-        .map((extreme) => (
-          <text
-            key={extreme.time}
-            x={Math.min(width - 16, Math.max(16, x(extreme.time)))}
-            y={extreme.high ? y(extreme.value) - 4 : y(extreme.value) + 12}
-            textAnchor="middle"
-            fontSize={10}
-            className={cn("tabular-nums", extreme.high ? "fill-neutral-10" : "fill-neutral-7")}
-          >
-            <title>{formatMeters(extreme.value)}</title>
-            {formatClock(new Date(extreme.time))}
-          </text>
-        ))}
-    </svg>
   );
 }

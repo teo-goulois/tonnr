@@ -211,7 +211,6 @@ export function StationPanel({
           </p>
         )}
         <DetailsPrototype
-          variant={variant}
           now={now}
           station={station}
           readings={history.data?.readings}

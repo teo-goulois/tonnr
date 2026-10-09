@@ -27,7 +27,7 @@ export const Route = createFileRoute("/app/")({
     break: z.string().optional(),
     panel: z.enum(["saved", "alerts"]).optional(),
     // PROTOTYPE: a variant of the details panel. See components/viewer/prototype.
-    variant: z.enum(["a", "b", "c"]).optional(),
+    variant: z.enum(["a"]).optional(),
   }),
   component: ViewerRoute,
 });

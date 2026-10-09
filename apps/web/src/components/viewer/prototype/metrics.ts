@@ -41,33 +41,28 @@ const STRINGS = {
     wind: "Wind",
     gust: "Gusts",
     direction: "Direction",
-    tide: "Tide",
     model: "model",
     buoy: "buoy",
-    forecast: "forecast",
+    gap: "difference",
     now: "now",
-    chart: "Charts",
-    table: "Table",
     live: "Buoy and model",
-    liveNote: "48 h back, 48 h ahead",
-    liveBreak: "Next 48 hours",
-    longRange: "Forecast",
-    longRangeNote: "7 days",
-    time: "Time",
-    max: "Max",
+    ahead: "Forecast",
+    week: "7 days",
+    days: "d",
+    more: "More",
+    max: "Max height",
     water: "Water",
-    compare: "Buoy",
+    about: "About these figures",
     backToNow: "Now",
     noWindSensor: "This buoy has no wind sensor: the wind is the model's.",
     biasHigh: "Over 24 h the model reads {value} above the buoy.",
     biasLow: "Over 24 h the model reads {value} under the buoy.",
     biasNone: "Over 24 h the model and the buoy agree on the height.",
     modelNote: "The model's past hours are its latest run, not the forecast as first issued.",
-    days: "days",
-    showHours: "Show the hours",
-    hideHours: "Hide the hours",
-    high: "High",
-    low: "Low",
+    nearestBuoy: "Buoy, {distance} km away",
+    forecastTab: "Forecast",
+    guideTab: "Guide",
+    guideEmpty: "Nothing written about this spot yet.",
   },
   fr: {
     height: "Houle",
@@ -76,48 +71,30 @@ const STRINGS = {
     wind: "Vent",
     gust: "Rafales",
     direction: "Direction",
-    tide: "Marée",
     model: "modèle",
     buoy: "bouée",
-    forecast: "prévision",
-    now: "maint.",
-    chart: "Courbes",
-    table: "Tableau",
+    gap: "écart",
+    now: "maintenant",
     live: "Bouée et modèle",
-    liveNote: "48 h avant, 48 h après",
-    liveBreak: "48 prochaines heures",
-    longRange: "Prévisions",
-    longRangeNote: "7 jours",
-    time: "Heure",
-    max: "Max",
+    ahead: "Prévisions",
+    week: "7 jours",
+    days: "j",
+    more: "Plus",
+    max: "Hauteur max",
     water: "Eau",
-    compare: "Bouée",
+    about: "À propos de ces chiffres",
     backToNow: "Maintenant",
     noWindSensor: "Cette bouée ne mesure pas le vent : le vent est celui du modèle.",
     biasHigh: "Sur 24 h, le modèle donne {value} de plus que la bouée.",
     biasLow: "Sur 24 h, le modèle donne {value} de moins que la bouée.",
     biasNone: "Sur 24 h, le modèle et la bouée s'accordent sur la hauteur.",
     modelNote: "Les heures passées du modèle sont son dernier calcul, pas la prévision d'origine.",
-    days: "jours",
-    showHours: "Voir les heures",
-    hideHours: "Masquer les heures",
-    high: "Pleine",
-    low: "Basse",
+    nearestBuoy: "Bouée à {distance} km",
+    forecastTab: "Prévisions",
+    guideTab: "Guide",
+    guideEmpty: "Rien d'écrit sur ce spot pour l'instant.",
   },
 };
-
-const hourFormats = new Map<string, Intl.DateTimeFormat>();
-
-/** An hour without its minutes, short enough for a column: "3 PM", "15 h". */
-export function formatHour(time: number) {
-  const locale = getLocale();
-  let format = hourFormats.get(locale);
-  if (!format) {
-    format = new Intl.DateTimeFormat(locale, { hour: "numeric" });
-    hourFormats.set(locale, format);
-  }
-  return format.format(time);
-}
 
 export function t() {
   return getLocale() === "fr" ? STRINGS.fr : STRINGS.en;
@@ -197,10 +174,10 @@ export function formatMetric(metric: Metric, value: number, withUnit = true) {
 }
 
 /** A difference written with its sign, such as "+0.6 m". */
-export function formatDelta(metric: Metric, delta: number) {
+export function formatDelta(metric: Metric, delta: number, withUnit = true) {
   const rounded = Number(delta.toFixed(metric.digits));
   const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "±";
-  return `${sign}${formatMetric(metric, Math.abs(rounded))}`;
+  return `${sign}${formatMetric(metric, Math.abs(rounded), withUnit)}`;
 }
 
 export function measuredSamples(readings: Reading[]): Sample[] {
@@ -350,60 +327,17 @@ export function nightsBetween(start: number, end: number, latitude: number, long
   return nights;
 }
 
-/** A curve through points that never overshoots them, as an SVG path. */
-export function curvePath(points: { x: number; y: number }[]) {
-  const count = points.length;
-  const first = points[0];
-  if (!first) return "";
-  if (count < 3) return points.map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`).join("");
-
-  const slopes = points.slice(1).map((point, i) => {
-    const previous = points[i]!;
-    return (point.y - previous.y) / (point.x - previous.x || 1);
-  });
-  const tangents = points.map((_, i) => {
-    const left = slopes[i - 1];
-    const right = slopes[i];
-    if (left === undefined) return right!;
-    if (right === undefined) return left;
-    if (left * right <= 0) return 0;
-    // The harmonic mean keeps the curve inside the two segments it joins.
-    return (2 * left * right) / (left + right);
-  });
-
-  let path = `M${first.x},${first.y}`;
-  for (let i = 0; i < count - 1; i++) {
-    const from = points[i]!;
-    const to = points[i + 1]!;
-    const third = (to.x - from.x) / 3;
-    path += `C${from.x + third},${from.y + third * tangents[i]!} ${to.x - third},${
-      to.y - third * tangents[i + 1]!
-    } ${to.x},${to.y}`;
-  }
-  return path;
-}
-
-/** The runs of a series with a value, cut where two samples stand further apart than `gap`. */
-export function runsOf(samples: Sample[], key: NumericKey, gap = 3 * HOUR_MS) {
-  const runs: { time: number; value: number }[][] = [];
-  let run: { time: number; value: number }[] = [];
-  for (const sample of samples) {
-    const value = sample[key];
-    if (value === null) continue;
-    if (run.length > 0 && sample.time - run.at(-1)!.time > gap) {
-      runs.push(run);
-      run = [];
-    }
-    run.push({ time: sample.time, value });
-  }
-  if (run.length > 0) runs.push(run);
-  return runs;
-}
-
-/** A round top for an axis that holds a value. */
-export function niceTop(value: number) {
-  if (value <= 0) return 1;
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  const step = [1, 1.5, 2, 3, 4, 5, 6, 8, 10].find((candidate) => candidate * magnitude >= value);
-  return (step ?? 10) * magnitude;
+/** The distance between two points of the globe, in kilometres. */
+export function distanceKm(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+) {
+  const latitude = (to.latitude - from.latitude) * RADIANS;
+  const longitude = (to.longitude - from.longitude) * RADIANS;
+  const chord =
+    Math.sin(latitude / 2) ** 2 +
+    Math.cos(from.latitude * RADIANS) *
+      Math.cos(to.latitude * RADIANS) *
+      Math.sin(longitude / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(chord));
 }

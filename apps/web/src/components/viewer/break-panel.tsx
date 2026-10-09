@@ -31,16 +31,14 @@ export function BreakPanel({
       : attribution
         ? m.source_break_unlicensed({ attribution })
         : attribution;
+  const characteristics = found.data && <BreakCharacteristics found={found.data} />;
   const sources = (
-    <>
-      {found.data && <BreakCharacteristics found={found.data} />}
-      <Sources
-        origin={origin}
-        license={source?.license}
-        forecast={forecast.data}
-        tides={tides.data}
-      />
-    </>
+    <Sources
+      origin={origin}
+      license={source?.license}
+      forecast={forecast.data}
+      tides={tides.data}
+    />
   );
 
   // PROTOTYPE: a variant of the panel, chosen in the address. See prototype/details-prototype.tsx.
@@ -48,12 +46,13 @@ export function BreakPanel({
     return (
       <div className="grid gap-l">
         <DetailsPrototype
-          variant={variant}
+          spot={found.data}
           now={now}
           forecast={forecast}
           tides={tides}
           extremes={extremes}
           onTideExtend={onTideExtend}
+          guide={characteristics}
           footer={sources}
         />
         <PrototypeSwitcher />
@@ -71,6 +70,7 @@ export function BreakPanel({
         extremes={extremes}
         onTideExtend={onTideExtend}
       />
+      {characteristics}
       {sources}
     </div>
   );
