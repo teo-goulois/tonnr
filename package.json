@@ -11,7 +11,7 @@
     "dev": "turbo run dev --filter=!worker",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "dev:web": "turbo run dev:bare -F web --",
+    "dev:web": "pnpm --filter web run dev:bare",
     "dev:admin": "pnpm --filter admin run dev:bare",
     "dev:server": "turbo run dev -F server --",
     "dev:worker": "turbo run dev -F worker --",
