@@ -4,6 +4,7 @@ import { protectedProcedure, publicProcedure } from "../index";
 import { breaksRouter } from "./breaks";
 import { forecastsRouter } from "./forecasts";
 import { listsRouter } from "./lists";
+import { mapsRouter } from "./maps";
 import { notificationsRouter } from "./notifications";
 import { preferencesRouter } from "./preferences";
 import { spotsRouter } from "./spots";
@@ -15,6 +16,7 @@ export const v1Router = {
   breaks: breaksRouter,
   forecasts: forecastsRouter,
   lists: listsRouter,
+  maps: mapsRouter,
   notifications: notificationsRouter,
   spots: spotsRouter,
   stations: stationsRouter,

@@ -19,3 +19,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [015. A catalogue of surf breaks](015-surf-breaks.md)
 - [016. A private list of surf breaks](016-private-breaks.md)
 - [017. Station lists](017-station-lists.md)
+- [018. The swell map](018-swell-map.md)

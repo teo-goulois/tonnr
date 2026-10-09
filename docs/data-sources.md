@@ -71,6 +71,19 @@ Integrated through `GET /v1/forecasts`. Decision 005 records the choice.
 
 Open-Meteo's marine API serves wave and swell forecasts as JSON from several models, down to 5 km resolution over Europe. Its weather API serves the wind. The free tier is for non-commercial use, which its terms define as private or non-profit sites and apps without subscriptions or advertising. It allows 10,000 calls a day, 5,000 an hour, and 600 a minute, and requires attribution under CC BY 4.0. Its documentation says accuracy near the coast is limited.
 
+### The map of the wave height
+
+Described by `GET /v1/maps/wave-height`. Decision 018 records the choice.
+
+The Copernicus Marine Service draws its product `GLOBAL_ANALYSISFORECAST_WAV_001_027` as map tiles. The product is MFWAM, Météo-France's global wave model, on a 1/12° grid, with a field every three hours up to ten days ahead. Its record says it is updated twice a day. The WMTS at `wmts.marine.copernicus.eu/teroWmts` needs no account and answers any origin, so the browser reads the tiles itself. The host has no `robots.txt`. Help article 6478168 on `help.marine.copernicus.eu` documents the requests and the styles, and states no limit on requests.
+
+- The API reads two documents once an hour, and no tile. The product's capabilities, 90 KB of XML, name the layer of the significant wave height (`VHM0`), list the matrices 0 to 10 of `EPSG:3857`, and give the times as one range, from 2022-11-01 03:00 UTC to ten days ahead, every 10,800 seconds. The layer's name carries the dataset's version, `_202411` that day. The capabilities give addresses with parameters only, no path template. The legend of the style, in JSON, gives the 256 colors of the ramp.
+- A tile is asked with the style `cmap:gray,range:0/10`. The help article lists that ramp and the capabilities do not. A ramp the service does not know gives the variable's default colors with no error. The legend names the ramp that was used.
+- A gray level is not a share of the range. The service cuts the range into 256 equal bins and gives each bin a color of its gray ramp, which is even to the eye and not in its numbers. Red 114 stands for 5.02 m, where a linear reading says 4.47 m. GetFeatureInfo gave the height at 45 pixels of three tiles, from 0.72 m to 9.98 m. The bin was `floor(256 × height / 10)` every time, and a linear reading of the level was wrong by up to 0.52 m. Red, green, and blue differ by two levels at most.
+- A height of 10 m or more takes the last color, (255, 255, 253), and a height under the range takes black. That day the model had more than 10.5 m in the southern Indian Ocean. On the tiles checked, at zooms 4 to 10, a pixel was fully opaque at sea and fully transparent on land.
+- A tile asked with a time is marked to be kept thirty days, though the field of a coming moment changes at each update. The service's own cache answered a second request for the same tile. The capabilities are marked five minutes and the legend an hour. The service ignores a parameter it does not know, and answers 400 for a time outside the range.
+- The licence is the Copernicus Marine licence, as for the in-situ product above: any purpose, with the credit and the product's DOI, and with section 2.6 on keeping records. The product's record on `stac.marine.copernicus.eu` gives the DOI `10.48670/moi-00017` and links that licence. A map in the client's own palette is a product that was changed, so the credit reads "Generated using E.U. Copernicus Marine Service Information".
+
 ## Tides
 
 Tonnr computes tides from open harmonic constants. Decision 002 records that choice and the plan to ask SHOM for a contract after release.

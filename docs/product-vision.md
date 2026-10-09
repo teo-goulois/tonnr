@@ -13,6 +13,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - Tonnr alerts the user when measurements or forecasts match those conditions.
 - A spot is private, public, or shared with chosen people.
 - A user keeps buoys and wind stations as favorites and sorts them into lists. Decision 017 gives the model.
+- The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
 - A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
 Tonnr lives at `tonnr.app`. Decision 013 records the name.

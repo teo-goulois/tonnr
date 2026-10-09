@@ -126,6 +126,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 - Read [Data sources](data-sources.md) before you open an instance to other people. It says what each provider allows.
 - Show a station's attribution wherever you show its data. The API returns it with every station.
 - The catalogue of surf breaks comes from OpenStreetMap, through one request a week to the public Overpass servers. Show "© OpenStreetMap contributors" wherever you show a break. The API returns it with every break.
+- The map colors the sea with tiles that each visitor's browser fetches from the Copernicus Marine Service. Your API reads only their description, two documents an hour. Keep the credit the map shows for them. Decision 018 says what that provider sees.
 - A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid.
 - The code's licence covers the code. The measurements stay under their providers' terms.
 
