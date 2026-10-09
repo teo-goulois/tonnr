@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { Developer, Key } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
-import { client, orpc } from "@/utils/orpc";
+import { client, refreshLists } from "@/utils/orpc";
 
 import { CallsMeter } from "./calls-meter";
 import { DeveloperFormDialog } from "./developer-form-dialog";
@@ -34,7 +34,7 @@ export function DeveloperPage({ developer, keys, now, onDeleted, children }: Dev
   const close = (open: boolean) => !open && setDialog(null);
   const suspended = developer.suspendedAt !== null;
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() });
+  const refresh = () => refreshLists(queryClient);
   const suspend = useMutation({
     mutationFn: (to: boolean) => client.v1.developers.update({ id: developer.id, suspended: to }),
     onSuccess: refresh,
@@ -44,10 +44,7 @@ export function DeveloperPage({ developer, keys, now, onDeleted, children }: Dev
     mutationFn: () => client.v1.developers.delete({ id: developer.id }),
     onSuccess: async () => {
       onDeleted();
-      await Promise.all([
-        refresh(),
-        queryClient.invalidateQueries({ queryKey: orpc.v1.keys.key() }),
-      ]);
+      await refresh();
     },
     onError: (error) => toast.error(error.message),
   });

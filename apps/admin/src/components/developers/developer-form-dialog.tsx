@@ -10,7 +10,7 @@ import { z } from "zod";
 import { Field } from "@/components/shared/field";
 import type { Developer } from "@/lib/api";
 import { m } from "@/paraglide/messages.js";
-import { client, orpc } from "@/utils/orpc";
+import { client, refreshLists } from "@/utils/orpc";
 
 // What the admin proposes for a new account: decision 020.
 const PROPOSED_LIMIT = "100";
@@ -49,7 +49,7 @@ function DeveloperForm({ onOpenChange, developer, onSaved }: DeveloperFormDialog
         ? client.v1.developers.update({ id: developer.id, ...values })
         : client.v1.developers.create(values),
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() });
+      await refreshLists(queryClient);
       onOpenChange(false);
       onSaved?.(saved);
     },

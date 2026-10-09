@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
+import { ActionsTable } from "@/components/activity/actions-table";
 import { DeveloperPage } from "@/components/developers/developer-page";
 import { Loader } from "@/components/shared/loader";
 import { NotFound } from "@/components/shared/not-found";
@@ -43,6 +44,11 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
   const series = useUsageSeries(range, filter);
   const byKey = useUsageBreakdown(range, "key", filter);
   const byProcedure = useUsageBreakdown(range, "procedure", filter);
+  // What was done to the account and to its keys, the latest first. The page of the activity
+  // has all of it.
+  const history = useQuery(
+    orpc.v1.actions.list.queryOptions({ input: { developerId, limit: 20 } }),
+  );
 
   const developer = developers.data?.developers.find((found) => found.id === developerId);
   if (!developers.data) return <Loader />;
@@ -79,6 +85,11 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
             empty={m.usage_empty()}
           />
         </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-s">
+        <h2 className="text-m font-medium">{m.developer_history()}</h2>
+        <ActionsTable actions={history.data?.actions} empty={m.activity_empty()} />
       </section>
     </DeveloperPage>
   );

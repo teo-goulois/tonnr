@@ -17,7 +17,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { Key } from "@/lib/api";
 import { formatAgo, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
-import { client, orpc } from "@/utils/orpc";
+import { client, refreshLists } from "@/utils/orpc";
 
 type KeysTableProps = {
   // Undefined while they load.
@@ -35,11 +35,7 @@ export function KeysTable({ keys, suspended = false, now }: KeysTableProps) {
   const [asking, setAsking] = useState(false);
   const revoke = useMutation({
     mutationFn: (id: string) => client.v1.keys.revoke({ id }),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: orpc.v1.keys.key() }),
-        queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() }),
-      ]),
+    onSuccess: () => refreshLists(queryClient),
     onError: (error) => toast.error(error.message),
   });
 

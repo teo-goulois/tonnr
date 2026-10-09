@@ -68,3 +68,16 @@ const link = new RPCLink({
 export const client: AppRouterClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
+
+/**
+ * After a change: the developer accounts, their keys and the record of what was done are asked
+ * again. A change to one shows in the others: a key in its account's count, each of them in
+ * the record.
+ */
+export function refreshLists(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.v1.keys.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.v1.actions.key() }),
+  ]);
+}

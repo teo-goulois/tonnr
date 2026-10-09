@@ -11,7 +11,7 @@ import { CopyButton } from "@/components/shared/copy-button";
 import { Field } from "@/components/shared/field";
 import type { MadeKey } from "@/lib/api";
 import { m } from "@/paraglide/messages.js";
-import { client, orpc } from "@/utils/orpc";
+import { client, refreshLists } from "@/utils/orpc";
 
 type NewKeyDialogProps = {
   open: boolean;
@@ -60,10 +60,7 @@ function NewKey({ developer, onHeld, onDone }: NewKeyProps) {
     gcTime: 0,
     onSuccess: async (key) => {
       setMade(key);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: orpc.v1.keys.key() }),
-        queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() }),
-      ]);
+      await refreshLists(queryClient);
     },
     onError: (error) => toast.error(error.message),
   });

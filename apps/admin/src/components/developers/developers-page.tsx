@@ -11,7 +11,6 @@ import {
 } from "@repo/ui/components/ui/table";
 import { PlusIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 
 import type { Developer, Key } from "@/lib/api";
 import { formatAgo } from "@/lib/format";
@@ -27,18 +26,27 @@ type DevelopersPageProps = {
   // The keys that have no developer account: an older version of the instance made them.
   orphanKeys: Key[];
   now: number;
+  // Whether the dialog that creates an account is open. The address holds it, so that the
+  // command palette and its shortcut open it from any page.
+  creating: boolean;
+  onCreatingChange: (creating: boolean) => void;
   onCreated: (developer: Developer) => void;
 };
 
 /** The developer accounts of the instance, with what each one called this hour. */
-export function DevelopersPage({ developers, orphanKeys, now, onCreated }: DevelopersPageProps) {
-  const [creating, setCreating] = useState(false);
-
+export function DevelopersPage({
+  developers,
+  orphanKeys,
+  now,
+  creating,
+  onCreatingChange,
+  onCreated,
+}: DevelopersPageProps) {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-s">
         <h1 className="text-l font-medium">{m.nav_developers()}</h1>
-        <Button onClick={() => setCreating(true)}>
+        <Button onClick={() => onCreatingChange(true)}>
           <PlusIcon aria-hidden />
           {m.developer_new()}
         </Button>
@@ -111,7 +119,7 @@ export function DevelopersPage({ developers, orphanKeys, now, onCreated }: Devel
         </section>
       )}
 
-      <DeveloperFormDialog open={creating} onOpenChange={setCreating} onSaved={onCreated} />
+      <DeveloperFormDialog open={creating} onOpenChange={onCreatingChange} onSaved={onCreated} />
     </>
   );
 }
