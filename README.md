@@ -8,10 +8,10 @@ Tonnr is at an early stage. The API lives under `/v1`, and [decision 003](docs/d
 
 ## Run it
 
-You need Node 26, pnpm, and Docker.
+You need Node 26, pnpm, and Docker. The interface uses the Nucleo icons, whose packages check a licence when they install: give your key to the install, as below.
 
 ```bash
-pnpm install
+NUCLEO_LICENSE_KEY=your-key pnpm install
 cp apps/server/.env.example apps/server/.env   # then fill in the secret
 cp apps/web/.env.example apps/web/.env
 pnpm run db:start   # Postgres in Docker

@@ -1,6 +1,6 @@
 # 012. Open source
 
-Status: decided by Téo on 2026-10-08, with the licence. The repository goes public without an announcement, and he may make it private again later.
+Status: decided by Téo on 2026-10-08, with the licence. The repository goes public without an announcement, and he may make it private again later. Amended by him on 2026-10-09: CI reads one secret, the licence key of the icons.
 
 ## Context
 
@@ -15,7 +15,7 @@ A public repository changes three things. Its history is published with it. Peop
 - Any container brings the schema up to date when it starts, the worker's as well as the API's. They lock the database while they do, so the services may start in any order and together.
 - CI runs on every push to `main` and on every pull request: lint, the format check, the type check, and the tests, with Postgres 18 for those that need it. It fails when the schema has no migration, when a database built by the migrations differs from the schema, and when a pull request edits a migration already merged.
 - It also builds the two images, on amd64, and starts them on an empty database: the worker first, then the API.
-- CI reads no secret, so a pull request from a fork gets the same checks, and nothing can leak through them.
+- CI reads one secret: the licence key of the Nucleo icons, which their packages check when they install. Only the step that installs, in the check job, is given it. No other step and no other job reads a secret.
 - Tests and CI never call a data provider. The images start in CI in a network with no way out.
 - Whoever runs an instance answers to the providers for it: its traffic, the attribution it shows, and the stations it may not use commercially.
 - The code is under the GNU Affero General Public License, version 3 and no later one. Whoever lets people use a changed version over a network owes them its source, so a hosted fork cannot close what it took. Téo may want paid parts one day, and this keeps them from being built on Tonnr by someone else without giving back.
@@ -27,5 +27,8 @@ A public repository changes three things. Its history is published with it. Peop
 - Téo wrote all of the code, so he may also offer it under other terms. Once it holds other people's contributions, that takes their agreement.
 - The history carries on each commit the address that Téo's other public repositories already show, and a scan of it found no secret. It holds the Cefas provider that was taken out the same day, whose test carries one reading of a buoy that may not be redistributed. Téo chose to publish the history as it is rather than rewrite it.
 - A private repository has a monthly allowance of CI minutes, which a public one has not. A push uses about four of them.
+- Installing the whole workspace takes a Nucleo licence: the key goes in `NUCLEO_LICENSE_KEY`, in the environment of the install. Whoever has none can still work on the API and the worker, whose images are built without the icons.
+- A pull request from a fork is not given the key, so its install fails and its checks do not run. A maintainer runs them from a branch of the repository.
+- The install scripts that the workspace allows run in the step that holds the key, and could read it. They are the ones `pnpm-workspace.yaml` lists.
 - The workflows pin each action to a commit, and Dependabot proposes the next one once a month.
 - Not done yet: the web app as a container, a way for an instance to name its operator to the providers, images published for each release, and updates of the npm dependencies.

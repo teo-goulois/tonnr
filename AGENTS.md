@@ -59,7 +59,7 @@ The repository is public, and so is its history. Decision 012 says what follows.
 
 - Keep secrets, personal data, and paths of one machine out of code, tests, docs, and commit messages.
 - Tests and CI never call a data provider. A test reads a saved sample, as small as the test needs.
-- CI reads no secret. A workflow that needs one is a decision to record first.
+- CI reads one secret, the licence key of the icons, in the step that installs. A workflow that needs another is a decision to record first.
 - What a deployment needs goes into `docs/self-hosting.md` in the same change: other people follow it.
 
 ## Environment files
@@ -69,7 +69,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - Each app's `.env.schema` declares its variables and is committed. Varlock validates them at startup and generates `src/env.ts`.
 - Each app's `.env.example` lists the same variables with fake values. Update it in the change that starts reading a variable, and tell Téo which value goes in which file.
 - Real values live in `apps/server/.env` and `apps/web/.env`, which Git ignores. The worker and `packages/db` read the server's values through their schema's `@import`.
-- The `.env.example` at the root lists what `docker-compose.yml` and the deploy commands read. `TEST_DATABASE_URL` is set in the shell and in CI, in no file.
+- The `.env.example` at the root lists what `docker-compose.yml` and the deploy commands read, and the licence key of the icons. `TEST_DATABASE_URL` is set in the shell and in CI, in no file.
 - Show a file's variable names, never its contents. `envsync push` is Téo's to run.
 
 ## Commands
@@ -77,6 +77,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 `package.json` lists the scripts. These have a catch:
 
 - Localify serves the web app at `https://tonnr.localify` and the API at `https://api.tonnr.localify`. Start each with `localify dev web` and `localify dev server`: Localify picks the port. The local `.env` files name these two addresses, so the API's CORS and the auth cookies match them.
+- `pnpm install` needs `NUCLEO_LICENSE_KEY` in its environment: the icon packages check the licence when they install, and stop the install without it. The root `.env` holds the key, and pnpm does not read that file: `export $(grep NUCLEO_LICENSE_KEY .env) && pnpm install`. Any pnpm command installs first when the dependencies changed, and stops the same way. The API's and the worker's images do not install them.
 - `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing. `pnpm run format` writes.
 - `pnpm run db:start` needs Docker.
 - `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 unless `API_PORT` and `POSTGRES_PORT` name others, and belongs to the same Compose project as `db:start`, so stop the development API first.

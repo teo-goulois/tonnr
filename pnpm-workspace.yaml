@@ -6,8 +6,9 @@ allowBuilds:
   sharp: true
   msgpackr-extract: true
   workerd: true
-  nucleo-ui-fill-18: set this to true or false
-  nucleo-ui-outline-18: set this to true or false
+  # The Nucleo icons check the licence in NUCLEO_LICENSE_KEY when they install: decision 012.
+  nucleo-ui-fill-18: true
+  nucleo-ui-outline-18: true
 catalog:
   zod: ^4.5.4
   typescript: ^7.0.2

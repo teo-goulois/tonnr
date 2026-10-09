@@ -10,7 +10,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# No job reads a secret, so a pull request from a fork gets the same checks.
+# One step reads a secret: the install of the check job, for the icons' licence. A pull request
+# from a fork does not get it, so its install fails. Decision 012 says why.
 permissions:
   contents: read
 
@@ -42,7 +43,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      # The Nucleo icon packages check the licence when they install.
       - run: pnpm install --frozen-lockfile
+        env:
+          NUCLEO_LICENSE_KEY: ${{ secrets.NUCLEO_LICENSE_KEY }}
       - run: pnpm run check
       - name: Check that the schema has its migration
         env:
