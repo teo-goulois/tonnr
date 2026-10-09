@@ -49,6 +49,8 @@ lerna-debug.log*
 
 # local db
 *.db*
+# The tests that need Postgres are named this way, and are not database files.
+!*.db.test.ts
 
 # typescript
 *.tsbuildinfo
