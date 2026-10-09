@@ -15,6 +15,7 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const dev = yield* Alchemy.ALCHEMY_DEV;
     const domain = Option.getOrUndefined(yield* Config.option(Config.String("WEB_DOMAIN")));
+    const adminDomain = Option.getOrUndefined(yield* Config.option(Config.String("ADMIN_DOMAIN")));
 
     // A stage is deployed with its values, by `pnpm run deploy:web <stage>`: decision 021.
     // Without them the web app would get the address of the local API, and an address on
@@ -41,8 +42,29 @@ export default Alchemy.Stack(
       },
     });
 
+    // The admin app of decision 020 is a part of the stages that name a host for it, and of no
+    // other: a stage without one deploys as it did before the admin existed. It is not started
+    // by `alchemy dev` either: `pnpm run dev:admin` runs it.
+    if (adminDomain === undefined) {
+      return {
+        web: webWorker.url,
+      };
+    }
+
+    const adminWorker = yield* Cloudflare.Website.Vite("admin", {
+      rootDir: "../../apps/admin",
+      domain: adminDomain,
+      compatibility: {
+        flags: ["nodejs_compat"],
+      },
+      env: {
+        VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
+      },
+    });
+
     return {
       web: webWorker.url,
+      admin: adminWorker.url,
     };
   }),
 );

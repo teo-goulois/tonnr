@@ -1,4 +1,5 @@
-// Deploys one app of the Cloudflare stack for one stage: `pnpm run deploy:web dev`.
+// Deploys one app of the Cloudflare stack for one stage: `pnpm run deploy:web dev`, or
+// `pnpm run deploy:admin dev` for the admin app of a stage that names a host for it.
 //
 // It builds what `main` holds on the remote, in a checkout of its own, so that work in progress
 // in this checkout never goes online. The access to Cloudflare comes from `packages/infra/.env`
@@ -15,7 +16,10 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const infra = path.join(root, "packages", "infra");
 
 // The apps of the stack, by the name `packages/infra/alchemy.run.ts` gives each.
-const APPS = ["web"];
+const APPS = ["web", "admin"];
+// The value of a stage that gives each app its host name.
+const DOMAINS = { web: "WEB_DOMAIN", admin: "ADMIN_DOMAIN" };
+const HOST_NAME = /^([a-z0-9-]+\.)+[a-z]{2,}$/;
 const FLAGS = ["--yes", "--dry-run"];
 
 // What the install and Alchemy keep of the shell: what their tools need to run. They run code
@@ -142,8 +146,16 @@ if (!access.CLOUDFLARE_API_TOKEN) faults.push("CLOUDFLARE_API_TOKEN is not set i
 if (!/^[0-9a-f]{32}$/.test(access.CLOUDFLARE_ACCOUNT_ID ?? "")) {
   faults.push("CLOUDFLARE_ACCOUNT_ID in .env is not an account id, 32 characters from 0-9a-f");
 }
-if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(values.WEB_DOMAIN ?? "")) {
+if (!HOST_NAME.test(values.WEB_DOMAIN ?? "")) {
   faults.push(`WEB_DOMAIN in .env.${stage} is not a host name, such as dev.example.org`);
+}
+// The admin app is a part of a stage only when the stage names its host: decision 020.
+if (app === "admin" && values.ADMIN_DOMAIN === undefined) {
+  faults.push(`ADMIN_DOMAIN is not set in .env.${stage}: this stage has no admin app`);
+} else if (values.ADMIN_DOMAIN !== undefined && !HOST_NAME.test(values.ADMIN_DOMAIN)) {
+  faults.push(`ADMIN_DOMAIN in .env.${stage} is not a host name, such as admin.example.org`);
+} else if (values.ADMIN_DOMAIN !== undefined && values.ADMIN_DOMAIN === values.WEB_DOMAIN) {
+  faults.push(`ADMIN_DOMAIN in .env.${stage} is the web app's host name: the API tells them apart`);
 }
 if (!URL.canParse(values.VITE_SERVER_URL ?? "") || !values.VITE_SERVER_URL.startsWith("https:")) {
   faults.push(`VITE_SERVER_URL in .env.${stage} is not an HTTPS address`);
@@ -166,7 +178,7 @@ let refused = null;
 try {
   await git(["fetch", "--quiet", "--no-tags", "origin", `+refs/heads/main:${fetched}`]);
   await git(["worktree", "add", "--quiet", "--detach", checkout, fetched]);
-  console.log(`Deploying ${app} to "${stage}", at https://${values.WEB_DOMAIN}`);
+  console.log(`Deploying ${app} to "${stage}", at https://${values[DOMAINS[app]]}`);
   console.log(`from ${await git(["log", "-1", "--format=%h %s", fetched])}`);
   console.log(`in ${checkout}\n`);
 } catch (error) {
@@ -204,6 +216,9 @@ const deployed =
         WEB_DOMAIN: values.WEB_DOMAIN,
         VITE_SERVER_URL: values.VITE_SERVER_URL,
         WEB_INDEXED: values.WEB_INDEXED ?? "false",
+        // The stack declares the admin app whenever the stage has one, whichever app is
+        // deployed: a deployment of the web app alone must not find the admin gone from it.
+        ...(values.ADMIN_DOMAIN !== undefined && { ADMIN_DOMAIN: values.ADMIN_DOMAIN }),
       },
     },
   ));
