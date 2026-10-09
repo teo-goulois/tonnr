@@ -31,7 +31,8 @@ Three facts bound the choice:
 - It builds the commit that `main` has on the remote, in a checkout of its own that it makes and removes. It never builds the working tree.
 - It deploys the web app and leaves any other app of the stack as it is.
 - It shows what it will change and asks. `--yes` skips the question. `--dry-run` stops after showing, and changes nothing: it fails where the state store is missing or out of date, rather than make or change it.
-- Each step it runs gets the secret it needs and nothing else of the shell: the install gets the licence key of the icons, and Alchemy the access to Cloudflare.
+- The install and Alchemy run code that other people wrote. Each gets the one secret it needs, and of the shell only what its tools need to run. The install gets the licence key of the icons, and Alchemy the access to Cloudflare.
+- Stopping the command stops the step under way.
 - The scripts `deploy` and `destroy` are removed. They deployed to a stage named after the user, with the address of the local API.
 - CI deploys nothing, and still reads one secret: decision 012.
 
@@ -62,7 +63,8 @@ Three facts bound the choice:
 - The command deploys what `main` holds, whether or not its checks have passed. Wait for CI first.
 - Nothing checks that the API has what the web app calls. When a change needs both, deploy the API first.
 - Every deployment installs the dependencies in its checkout, about twenty seconds, so it needs the licence key of the icons.
-- A deployment that fails, or that is interrupted, leaves its checkout in the temporary directory, and says where.
+- A deployment that fails, or that is stopped, leaves its checkout in the temporary directory, and says where.
+- A variable of the shell that the build needs and that the command does not pass on has to be added to the list in `scripts/cloudflare-deploy.mjs`.
 - The token can change every Worker of the account, not only Tonnr's: Cloudflare does not narrow that right to one Worker.
 - The first deployment from a machine reads the state store's own token and keeps it in `~/.alchemy`.
 - A newer Alchemy may expect another version of the state store, and brings the store to it. That changes it for every project of the account, and `--yes` does it without asking. Check the other projects before changing Alchemy's version here.
