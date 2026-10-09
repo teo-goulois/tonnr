@@ -168,6 +168,16 @@ export function useShortcutRecorder(action: ShortcutAction, bindings: ShortcutBi
     error,
     toggle: () => (recorder.isRecording ? recorder.cancelRecording() : recorder.startRecording()),
     reset: () => {
+      // The default may be another action's keys by now: one press must not run both.
+      const conflict = conflictingAction(
+        bindings,
+        action.id,
+        normalizeHotkey(action.defaultHotkey),
+      );
+      if (conflict) {
+        setError(m.shortcuts_conflict({ label: conflict.label() }));
+        return;
+      }
       setError(null);
       resetShortcut(action.id);
     },
