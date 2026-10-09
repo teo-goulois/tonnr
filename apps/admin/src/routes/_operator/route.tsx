@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { NotOperator } from "@/components/auth/not-operator";
 import { AdminShell } from "@/components/shared/admin-shell";
 import { Loader } from "@/components/shared/loader";
+import { pageOf } from "@/lib/page";
 import { isRefusal, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_operator")({
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/_operator")({
   ssr: false,
   // The API says who is signed in, and whether that account runs the instance. It is the API
   // that keeps anyone else out: this only chooses what to show.
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     try {
       const account = await context.queryClient.fetchQuery(
         context.orpc.v1.account.get.queryOptions({ staleTime: 30 * 1000, meta: { quiet: true } }),
@@ -21,7 +22,9 @@ export const Route = createFileRoute("/_operator")({
       return { account };
     } catch (error) {
       if (error instanceof ORPCError && error.code === "UNAUTHORIZED") {
-        throw redirect({ to: "/login" });
+        // The page that was asked for is where the sign-in leads back to.
+        const asked = pageOf(location.href);
+        throw redirect({ to: "/login", search: asked === "/" ? {} : { to: asked } });
       }
       throw error;
     }
