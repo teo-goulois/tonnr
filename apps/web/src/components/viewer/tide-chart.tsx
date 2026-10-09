@@ -48,6 +48,32 @@ const MARKS_LAYER = 1150;
 const DAYS_LAYER = -150;
 // The room a character of a mark takes, in pixels, to keep a mark whole inside what is in view.
 const CHARACTER_WIDTH = 6.5;
+// The height of the chart, in pixels: the `h-48` of its box and of its skeleton.
+const CHART_HEIGHT = 192;
+// The room the name of a high water takes above its point, and that of a low water below it.
+const HIGH_MARK_ROOM = 34;
+const LOW_MARK_ROOM = 31;
+
+// The room to leave above the plot and under its lowest figure, in pixels: only what the names
+// of the high and low waters lack between the curve and the ends of the axis. The room changes
+// the scale, which changes the room, so it is settled in a few rounds.
+function marksRoom(rows: Row[]) {
+  if (rows.length === 0) return { head: 8, foot: 0 };
+  const values = rows.map((row) => row.value);
+  const lowest = Math.min(0, ...values);
+  const highest = Math.max(0, ...values);
+  const ticks = valueTicks(lowest, highest);
+  const span = ticks.at(-1)! - ticks[0]!;
+  let head = 8;
+  let foot = 0;
+  for (let round = 0; round < 4; round++) {
+    const scale = (CHART_HEIGHT - X_AXIS_HEIGHT - head - foot) / span;
+    head = Math.max(8, HIGH_MARK_ROOM - (ticks.at(-1)! - Math.max(...values)) * scale);
+    foot = Math.max(0, LOW_MARK_ROOM - (Math.min(...values) - ticks[0]!) * scale);
+  }
+  return { head: Math.ceil(head), foot: Math.ceil(foot) };
+}
+
 // How near the curve the pointer must come, in pixels, for the level line to show.
 const CURVE_REACH = 24;
 // The height the chart gives the figures of time under the plot, in pixels.
@@ -462,6 +488,8 @@ export function TideChart({
     );
   }, [start, end, days, moment]);
 
+  const room = useMemo(() => marksRoom(rows), [rows]);
+
   if (isLoading) return <TideChartSkeleton className={className} />;
 
   return (
@@ -510,12 +538,12 @@ export function TideChart({
               colors={colors}
               formatValue={formatMeters}
               points={points}
-              headroom={36}
-              footroom={32}
+              headroom={room.head}
+              footroom={room.foot}
               yAxis={false}
               everyHours={6}
               tooltip={false}
-              className={cn("h-56", className)}
+              className={cn("h-48", className)}
             >
               <TideMarks rows={rows} extremes={extremes} now={moment} axis={axis} strip={strip} />
             </SeaChart>
