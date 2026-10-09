@@ -214,6 +214,8 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 3. Update the API to a version that has the admin's procedures, set its `ADMIN_ORIGIN` to `https://` and that host name, and restart it.
 4. Run `pnpm run deploy:admin <stage>`. It works as `pnpm run deploy:web` does, and takes the same `--dry-run` and `--yes`.
 
+Open the admin's address only once the command has said it is done. Cloudflare makes the host name's DNS record at the first deployment, and a browser or a resolver that asked for the name before that remembers for up to thirty minutes that there is none: the page then says the site cannot be found while everyone else reaches it. Clearing the DNS cache of the browser and of the machine ends the wait.
+
 To run it on your machine instead, against an API on your machine, set `VITE_SERVER_URL` in `apps/admin/.env` and run `pnpm run dev:admin`: it answers at `http://localhost:3002`, which the API's `ADMIN_ORIGIN` then names.
 
 - The admin signs in with an account's address and password, as the web app does. It creates no account.
