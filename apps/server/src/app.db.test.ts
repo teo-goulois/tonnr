@@ -101,7 +101,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
   });
 
   it("refuses the other transport the same way", async () => {
-    for (const path of ["/rpc/v1/stations/list", "/rpc/v1/privateBreaks/list", "/rpc/privateData"]) {
+    for (const path of [
+      "/rpc/v1/stations/list",
+      "/rpc/v1/privateBreaks/list",
+      "/rpc/privateData",
+    ]) {
       const response = await send("POST", path, { body: { json: {} } });
 
       expect([response.status, response.headers.get("Cache-Control")]).toEqual([401, NOT_CACHED]);
@@ -126,28 +130,41 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
 
     const account = await send("GET", "/v1/account", { cookie });
     expect(await account.json()).toMatchObject({ email: "visitor@example.org", isOperator: false });
-    expect((await send("POST", "/rpc/v1/stations/list", { cookie, origin: APP, body: { json: {} } })).status).toBe(200);
+    expect(
+      (await send("POST", "/rpc/v1/stations/list", { cookie, origin: APP, body: { json: {} } }))
+        .status,
+    ).toBe(200);
   });
 
   it("answers a program by the key an operator made, on both transports", async () => {
     const cookie = await signUpOperator();
 
-    const made = await send("POST", "/v1/keys", { cookie, origin: APP, body: { name: "a program" } });
+    const made = await send("POST", "/v1/keys", {
+      cookie,
+      origin: APP,
+      body: { name: "a program" },
+    });
     expect([made.status, made.headers.get("Cache-Control")]).toEqual([201, NOT_CACHED]);
     const { key } = await bodyOf<MadeKey>(made);
 
     expect((await send("GET", "/v1/stations", { key })).status).toBe(200);
-    expect((await send("POST", "/rpc/v1/stations/list", { key, body: { json: {} } })).status).toBe(200);
+    expect((await send("POST", "/rpc/v1/stations/list", { key, body: { json: {} } })).status).toBe(
+      200,
+    );
     expect((await send("GET", "/v1/account", { key })).status).toBe(403);
     expect((await send("GET", "/v1/private-breaks", { key })).status).toBe(403);
     expect((await send("GET", "/v1/private-breaks", { key, cookie })).status).toBe(403);
-    expect((await send("GET", "/v1/stations", { key: `key_${"a".repeat(43)}`, cookie })).status).toBe(401);
+    expect(
+      (await send("GET", "/v1/stations", { key: `key_${"a".repeat(43)}`, cookie })).status,
+    ).toBe(401);
   });
 
   it("refuses an account that is no operator the keys and the private list", async () => {
     const cookie = await signUp("visitor");
 
-    expect((await send("POST", "/v1/keys", { cookie, origin: APP, body: { name: "mine" } })).status).toBe(403);
+    expect(
+      (await send("POST", "/v1/keys", { cookie, origin: APP, body: { name: "mine" } })).status,
+    ).toBe(403);
     expect((await send("GET", "/v1/keys", { cookie })).status).toBe(403);
     expect((await send("GET", "/v1/private-breaks", { cookie })).status).toBe(403);
     expect(await keys()).toEqual([]);
@@ -166,7 +183,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const cookie = await signUpOperator();
 
       const response = await send("POST", "/v1/keys", { cookie, body, ...from });
-      const overRpc = await send("POST", "/rpc/v1/keys/create", { cookie, body: { json: body }, ...from });
+      const overRpc = await send("POST", "/rpc/v1/keys/create", {
+        cookie,
+        body: { json: body },
+        ...from,
+      });
 
       expect([response.status, response.headers.get("Cache-Control")]).toEqual([403, NOT_CACHED]);
       expect(overRpc.status).toBe(403);
@@ -177,7 +198,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const cookie = await signUpOperator();
       const headers = { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" };
 
-      const response = await app.request("/v1/keys", { method: "POST", headers, body: "name=evil" });
+      const response = await app.request("/v1/keys", {
+        method: "POST",
+        headers,
+        body: "name=evil",
+      });
 
       expect(response.status).toBe(403);
       expect(await keys()).toEqual([]);
@@ -211,7 +236,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       await send("POST", "/v1/keys", { cookie, origin: APP, body: { name: "short-lived" } }),
     );
 
-    expect((await send("DELETE", `/v1/keys/${made.id}`, { cookie, origin: ELSEWHERE })).status).toBe(403);
+    expect(
+      (await send("DELETE", `/v1/keys/${made.id}`, { cookie, origin: ELSEWHERE })).status,
+    ).toBe(403);
     expect((await send("GET", "/v1/stations", { key: made.key })).status).toBe(200);
 
     expect((await send("DELETE", `/v1/keys/${made.id}`, { cookie, origin: APP })).status).toBe(200);
