@@ -16,7 +16,11 @@ export type Database = NodePgDatabase<typeof relations> & { $client: Pool };
  * where the database lets them win.
  */
 export function connectionOf(address: string, pool: PoolConfig): PoolConfig {
-  const read = parseAddress(address);
+  // An address may name another address inside itself, which the driver would read in turn,
+  // over everything given here. It is left out: the address that was given is the one used.
+  const { connectionString: _inner, ...read } = parseAddress(address) as ReturnType<
+    typeof parseAddress
+  > & { connectionString?: unknown };
   // A backslash that ends the address's options would take the space that follows for its own.
   const theirs = read.options?.replace(/(?<!\\)((?:\\\\)*)\\$/, "$1");
   const options = [theirs, pool.options].filter(Boolean).join(" ");

@@ -23,6 +23,22 @@ describe("what a pool is opened with, from an address and a program's settings",
     expect(opened.connectionString).toBeUndefined();
   });
 
+  it("takes no other address from inside the address", () => {
+    const inner = "postgresql://other:secret@elsewhere.example.org/other?statement_timeout=0";
+    const address = new URL("postgresql://someone:secret@db.example.org/app");
+    address.searchParams.set("connectionString", inner);
+
+    const opened = connectionOf(address.href, { statement_timeout: 5000 });
+
+    expect(opened).toMatchObject({
+      host: "db.example.org",
+      database: "app",
+      user: "someone",
+      statement_timeout: 5000,
+    });
+    expect(opened.connectionString).toBeUndefined();
+  });
+
   it("reads an address that names a socket, as the driver does", () => {
     const opened = connectionOf(
       "postgresql://someone:secret@/app?host=/var/run/postgresql&options=-c%20statement_timeout%3D0",
