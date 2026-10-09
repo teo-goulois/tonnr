@@ -195,16 +195,22 @@ function ViewerRoute() {
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
   const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
 
-  // The curve and the high and low waters named on it cover the same two days.
-  const tideSpan = { start: new Date(hour - 6 * HOUR_MS), end: new Date(hour + 42 * HOUR_MS) };
   const tides = useQuery(
     orpc.v1.tides.timeline.queryOptions({
-      input: { ...atPoint, ...tideSpan, stepMinutes: 10 },
+      input: {
+        ...atPoint,
+        start: new Date(hour - 6 * HOUR_MS),
+        end: new Date(hour + 42 * HOUR_MS),
+        stepMinutes: 10,
+      },
       ...expected,
     }),
   );
   const extremes = useQuery(
-    orpc.v1.tides.extremes.queryOptions({ input: { ...atPoint, ...tideSpan }, ...expected }),
+    orpc.v1.tides.extremes.queryOptions({
+      input: { ...atPoint, start: new Date(hour), end: new Date(hour + 26 * HOUR_MS) },
+      ...expected,
+    }),
   );
   const forecast = useQuery(
     orpc.v1.forecasts.get.queryOptions({ input: { ...atPoint, days: 4 }, ...expected }),

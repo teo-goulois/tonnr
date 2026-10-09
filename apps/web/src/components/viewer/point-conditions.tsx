@@ -31,18 +31,6 @@ export function SeaChart(props: ComponentProps<typeof LazySeaChart>) {
   );
 }
 
-const LazyTideChart = lazy(() =>
-  import("./tide-chart").then((module) => ({ default: module.TideChart })),
-);
-
-export function TideChart(props: ComponentProps<typeof LazyTideChart>) {
-  return (
-    <Suspense fallback={<Skeleton className="h-56 w-full rounded-(--radius-xs)" />}>
-      <LazyTideChart {...props} />
-    </Suspense>
-  );
-}
-
 // Every third hour of the next day, enough to read the trend at a glance.
 const FORECAST_ROWS = 8;
 const TIDE_EXTREMES = 4;
@@ -188,10 +176,7 @@ export function PointConditions({ now, forecast, tides, extremes }: PointConditi
   const nextHours = (forecast.data?.hours ?? [])
     .filter((hour) => hour.time.getTime() >= now && hour.time.getUTCHours() % 3 === 0)
     .slice(0, FORECAST_ROWS);
-  const allExtremes = extremes.data?.extremes ?? [];
-  const nextExtremes = allExtremes
-    .filter((extreme) => extreme.time.getTime() >= now)
-    .slice(0, TIDE_EXTREMES);
+  const nextExtremes = (extremes.data?.extremes ?? []).slice(0, TIDE_EXTREMES);
 
   return (
     <>
@@ -228,11 +213,11 @@ export function PointConditions({ now, forecast, tides, extremes }: PointConditi
       >
         {tides.isPending || tides.data ? (
           <>
-            <TideChart
+            <SeaChart
               label={m.tide_title()}
-              now={new Date(now)}
+              formatValue={formatMeters}
+              marker={new Date(now)}
               isLoading={tides.isPending}
-              extremes={allExtremes}
               points={(tides.data?.timeline ?? []).map((entry) => ({
                 time: entry.time,
                 value: entry.heightMeters,

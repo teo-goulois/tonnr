@@ -1147,14 +1147,3 @@ EvilAreaChart.Legend = Legend;
 EvilAreaChart.Brush = Brush;
 // Not in the registry: Recharts' own rule across the plot, for a moment such as now.
 EvilAreaChart.ReferenceLine = ReferenceLine;
-
-// Not in the registry: what a part drawn by hand over the plot reads to place itself, and the
-// layer that puts it above the curve.
-export {
-  useActiveTooltipLabel,
-  useIsTooltipActive,
-  usePlotArea,
-  useXAxisScale,
-  useYAxisScale,
-  ZIndexLayer,
-} from "recharts";

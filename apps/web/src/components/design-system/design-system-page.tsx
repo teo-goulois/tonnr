@@ -40,7 +40,6 @@ import {
   WindBadge,
 } from "@/components/viewer/map-markers";
 import { SeaChart } from "@/components/viewer/sea-chart";
-import { TideChart } from "@/components/viewer/tide-chart";
 import type { MapLayers } from "@/components/viewer/station-map";
 import { StationPanel } from "@/components/viewer/station-panel";
 import type {
@@ -188,9 +187,8 @@ const SAMPLE_TIDES: TideTimeline = {
 const SAMPLE_EXTREMES: TideExtremes = {
   station: SAMPLE_TIDE_STATION,
   datum: "LAT",
-  // The high and low waters of the curve above.
-  extremes: Array.from({ length: 8 }, (_, index) => ({
-    time: new Date(SAMPLE_NOW - 6 * HOUR_MS + (18.625 + index * 37.25) * (HOUR_MS / 6)),
+  extremes: [0, 1, 2, 3].map((index) => ({
+    time: new Date(SAMPLE_NOW + (2 + index * 6.2) * HOUR_MS),
     type: index % 2 === 0 ? ("high" as const) : ("low" as const),
     heightMeters: index % 2 === 0 ? 6.4 : 0.8,
   })),
@@ -466,10 +464,9 @@ export function DesignSystemPage() {
             formatValue={formatKnots}
             points={SAMPLE_WIND}
           />
-          <TideChart
+          <SeaChart
             label="Tide"
-            now={new Date(SAMPLE_NOW)}
-            extremes={SAMPLE_EXTREMES.extremes}
+            formatValue={formatMeters}
             points={SAMPLE_TIDES.timeline.map((entry) => ({
               time: entry.time,
               value: entry.heightMeters,

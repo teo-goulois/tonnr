@@ -1,6 +1,6 @@
 import { EvilAreaChart } from "@repo/ui/components/evilcharts/charts/recharts-area-chart";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useMemo } from "react";
+import { useMemo } from "react";
 
 import { formatClock, formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { type ScaleStop, scaleColor } from "@/lib/sea-scales";
@@ -19,15 +19,7 @@ type SeaChartProps = {
   // A moment to mark with a vertical rule, such as now.
   marker?: Date;
   isLoading?: boolean;
-  // Room above the plot, in pixels, for what `children` writes over the top of the curve.
-  headroom?: number;
-  // Room under the lowest value of the axis, in pixels, for what `children` writes below the curve.
-  footroom?: number;
-  // The box that follows the pointer with the value under it.
-  tooltip?: boolean;
   className?: string;
-  // Parts drawn over the plot once the curve is there.
-  children?: ReactNode;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -94,11 +86,7 @@ export function SeaChart({
   formatValue,
   marker,
   isLoading = false,
-  headroom = 8,
-  footroom = 0,
-  tooltip = true,
   className,
-  children,
 }: SeaChartProps) {
   const data = useMemo(
     () => points.map((point) => ({ time: point.time.getTime(), value: point.value })),
@@ -153,7 +141,7 @@ export function SeaChart({
         curveType="monotone"
         isLoading={isLoading}
         loadingPoints={14}
-        chartProps={{ margin: { top: headroom, right: 8, bottom: 0, left: 0 } }}
+        chartProps={{ margin: { top: 8, right: 8, bottom: 0, left: 0 } }}
       >
         <EvilAreaChart.Grid />
         <EvilAreaChart.XAxis
@@ -168,21 +156,18 @@ export function SeaChart({
         />
         <EvilAreaChart.YAxis
           width={30}
-          padding={{ bottom: footroom }}
           ticks={yTicks}
           domain={[yTicks[0]!, yTicks.at(-1)!]}
           tickFormatter={(value: number) => formatNumber(value)}
         />
-        {tooltip && (
-          <EvilAreaChart.Tooltip
-            hideIndicator
-            valueFormatter={formatValue}
-            labelFormatter={(_, payload) => {
-              const time: unknown = payload?.[0]?.payload?.time;
-              return typeof time === "number" ? formatDayAndClock(new Date(time)) : null;
-            }}
-          />
-        )}
+        <EvilAreaChart.Tooltip
+          hideIndicator
+          valueFormatter={formatValue}
+          labelFormatter={(_, payload) => {
+            const time: unknown = payload?.[0]?.payload?.time;
+            return typeof time === "number" ? formatDayAndClock(new Date(time)) : null;
+          }}
+        />
         {markerTime !== undefined && markerTime > start && markerTime < end && (
           <EvilAreaChart.ReferenceLine
             x={markerTime}
@@ -199,7 +184,6 @@ export function SeaChart({
         <EvilAreaChart.Area dataKey="value" strokeVariant="solid" strokeWidth={2}>
           <EvilAreaChart.ActiveDot variant="border" />
         </EvilAreaChart.Area>
-        {!isLoading && children}
       </EvilAreaChart>
     </figure>
   );

@@ -5,8 +5,6 @@ import type { ComponentProps } from "react";
 import { type Freshness, formatMeters, formatNumber, formatSeconds } from "@/lib/format";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@/lib/sea-scales";
 
-import { PrototypeBuoyPill, useFreshnessVariant } from "./freshness-prototype";
-
 /** An arrow that points where the waves or the wind are going, from the bearing they come from. */
 export function DirectionArrow({
   fromDegrees,
@@ -95,24 +93,6 @@ export function BuoyPill({
   className,
   ...props
 }: BuoyPillProps) {
-  // PROTOTYPE: other ways to say the freshness, in freshness-prototype.tsx.
-  const variant = useFreshnessVariant();
-  if (variant !== "A") {
-    return (
-      <PrototypeBuoyPill
-        variant={variant}
-        heightMeters={heightMeters}
-        periodSeconds={periodSeconds}
-        directionDegrees={directionDegrees}
-        freshness={freshness}
-        selected={selected}
-        saved={saved}
-        className={className}
-        {...props}
-      />
-    );
-  }
-
   return (
     <button
       type="button"
