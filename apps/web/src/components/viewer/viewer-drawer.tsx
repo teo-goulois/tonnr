@@ -30,6 +30,8 @@ type ViewerDrawerProps = {
   description?: ReactNode;
   // Buttons shown before the one that closes the drawer.
   actions?: ReactNode;
+  // Told once the drawer has come to rest, open or closed.
+  onRest?: (open: boolean) => void;
   children: ReactNode;
 };
 
@@ -42,6 +44,7 @@ export function ViewerDrawer({
   title,
   description,
   actions,
+  onRest,
   children,
 }: ViewerDrawerProps) {
   const isSheet = !wide;
@@ -50,6 +53,7 @@ export function ViewerDrawer({
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
+      onOpenChangeComplete={onRest}
       modal={!alongside}
       disablePointerDismissal={alongside}
       swipeDirection={wide ? "right" : "down"}

@@ -3,7 +3,15 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import { LocateIcon, MinusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
@@ -20,6 +28,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
+import { ChartsAtRest } from "./chart-turns";
 import { MapLegend } from "./map-legend";
 import { SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
@@ -64,6 +73,8 @@ function endOfLastWholeDay(latest: number, stepMs: number) {
   if (latest + stepMs >= nextMidnight) return latest;
   return latest - (Math.floor((latest - midnight) / stepMs) + 1) * stepMs;
 }
+// How long a drawer may take to open before its charts stop waiting for it.
+const DRAWER_REST_MS = 600;
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
@@ -177,6 +188,32 @@ function describeWindStation(station: Station, now: number): WindStation[] {
   ];
 }
 
+type Selection = ViewerProps["selected"] & { id: string | undefined; breakId: string | undefined };
+
+function sameLoadable<T>(one: Loadable<T>, other: Loadable<T>) {
+  return (
+    one.data === other.data &&
+    one.isPending === other.isPending &&
+    one.isError === other.isError &&
+    one.isUnavailable === other.isUnavailable
+  );
+}
+
+// Whether two renders show the same selection in the same state. The route describes it anew at
+// each render, and a description that says nothing new must not draw the panel again.
+function sameSelection(one: Selection, other: Selection) {
+  return (
+    one.id === other.id &&
+    one.breakId === other.breakId &&
+    one.station === other.station &&
+    sameLoadable(one.history, other.history) &&
+    sameLoadable(one.found, other.found) &&
+    sameLoadable(one.forecast, other.forecast) &&
+    sameLoadable(one.tides, other.tides) &&
+    sameLoadable(one.extremes, other.extremes)
+  );
+}
+
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
 export function Viewer({
   now,
@@ -222,6 +259,7 @@ export function Viewer({
   // there by the time a station is opened.
   useEffect(() => {
     void import("./sea-chart");
+    void import("./tide-chart");
   }, []);
 
   const savedIds = useMemo(
@@ -306,8 +344,28 @@ export function Viewer({
   // The panel of a station or of a break keeps its content while it slides away.
   const ids = { id: selectedId, breakId: selectedBreakId };
   const lastSelection = useRef({ ...ids, ...selected });
-  if (selection) lastSelection.current = { ...ids, ...selected };
+  if (selection && !sameSelection(lastSelection.current, { ...ids, ...selected })) {
+    lastSelection.current = { ...ids, ...selected };
+  }
   const shown = lastSelection.current;
+  // The charts of a panel take long to draw, and each answer of the API draws them again. Drawn
+  // at once, they stop the drawer and the map while these move. The panel's content is drawn
+  // behind, a little at a time, and the drawer does not wait for it.
+  const drawn = useDeferredValue(shown);
+  // Until the content of a new selection is drawn, the panel is empty: not the one before.
+  const isDrawn = drawn.id === shown.id && drawn.breakId === shown.breakId;
+  // The charts wait for the drawer to come to rest. The drawer says when, and a drawer that opens
+  // with the page says nothing: the wait then ends by itself.
+  const [atRest, setAtRest] = useState(false);
+  const isOpen = selection !== undefined;
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => setAtRest(true), DRAWER_REST_MS);
+    return () => {
+      clearTimeout(timer);
+      setAtRest(false);
+    };
+  }, [isOpen]);
   const shownBreak = shown.breakId ? shown.found : undefined;
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
@@ -490,6 +548,9 @@ export function Viewer({
         }}
         wide={wide}
         alongside
+        onRest={(open) => {
+          if (open) setAtRest(true);
+        }}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
           shown.breakId ? (
@@ -532,29 +593,31 @@ export function Viewer({
           )
         }
       >
-        {shown.breakId ? (
-          <BreakPanel
-            key={shown.breakId}
-            now={now}
-            found={shown.found}
-            forecast={shown.forecast}
-            tides={shown.tides}
-            extremes={shown.extremes}
-            onTideExtend={onTideExtend}
-          />
-        ) : (
-          <StationPanel
-            // A new station starts at the top, with its own charts.
-            key={shown.id}
-            now={now}
-            station={shown.station}
-            history={shown.history}
-            forecast={shown.forecast}
-            tides={shown.tides}
-            extremes={shown.extremes}
-            onTideExtend={onTideExtend}
-          />
-        )}
+        <ChartsAtRest value={atRest}>
+          {!isDrawn ? null : drawn.breakId ? (
+            <BreakPanel
+              key={drawn.breakId}
+              now={now}
+              found={drawn.found}
+              forecast={drawn.forecast}
+              tides={drawn.tides}
+              extremes={drawn.extremes}
+              onTideExtend={onTideExtend}
+            />
+          ) : (
+            <StationPanel
+              // A new station starts at the top, with its own charts.
+              key={drawn.id}
+              now={now}
+              station={drawn.station}
+              history={drawn.history}
+              forecast={drawn.forecast}
+              tides={drawn.tides}
+              extremes={drawn.extremes}
+              onTideExtend={onTideExtend}
+            />
+          )}
+        </ChartsAtRest>
       </ViewerDrawer>
 
       <ViewerDrawer

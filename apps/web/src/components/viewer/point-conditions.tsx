@@ -15,6 +15,7 @@ import {
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
+import { useChartTurn } from "./chart-turns";
 import { TideChartSkeleton } from "./tide-chart-skeleton";
 import type { Forecast, Loadable, TideExtremes, TideTimeline } from "./types";
 
@@ -25,8 +26,10 @@ const LazySeaChart = lazy(() =>
 );
 
 export function SeaChart(props: ComponentProps<typeof LazySeaChart>) {
+  const skeleton = <Skeleton className="h-44 w-full rounded-(--radius-xs)" />;
+  if (!useChartTurn()) return skeleton;
   return (
-    <Suspense fallback={<Skeleton className="h-44 w-full rounded-(--radius-xs)" />}>
+    <Suspense fallback={skeleton}>
       <LazySeaChart {...props} />
     </Suspense>
   );
@@ -37,8 +40,10 @@ const LazyTideChart = lazy(() =>
 );
 
 export function TideChart(props: ComponentProps<typeof LazyTideChart>) {
+  const skeleton = <TideChartSkeleton className={props.className} />;
+  if (!useChartTurn()) return skeleton;
   return (
-    <Suspense fallback={<TideChartSkeleton className={props.className} />}>
+    <Suspense fallback={skeleton}>
       <LazyTideChart {...props} />
     </Suspense>
   );
