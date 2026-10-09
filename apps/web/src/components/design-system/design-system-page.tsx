@@ -28,6 +28,13 @@ import {
   MeterTrack,
   MeterValue,
 } from "@repo/ui/components/ui/meter";
+import {
+  Popover,
+  PopoverDescription,
+  PopoverPopup,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@repo/ui/components/ui/popover";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import { Slider } from "@repo/ui/components/ui/slider";
@@ -41,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@repo/ui/components/ui/table";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
@@ -365,6 +373,46 @@ export function DesignSystemPage() {
             Command palette
             <ShortcutKeys hotkey={bindings["command-palette"]} />
           </span>
+        </Row>
+      </Section>
+
+      <Section title="Popover">
+        <Row>
+          <Popover>
+            <PopoverTrigger render={<Button variant="outline" />}>Open a popover</PopoverTrigger>
+            <PopoverPopup className="w-72">
+              <PopoverTitle>Buoy and model</PopoverTitle>
+              <PopoverDescription>
+                The model's past hours are its latest run, not the forecast as first issued.
+              </PopoverDescription>
+            </PopoverPopup>
+          </Popover>
+        </Row>
+      </Section>
+
+      <Section title="Tabs">
+        <Row>
+          <Tabs defaultValue="forecast" className="w-64">
+            <TabsList>
+              <TabsTab value="forecast">Forecast</TabsTab>
+              <TabsTab value="guide">Guide</TabsTab>
+              <TabsTab value="later" disabled>
+                Later
+              </TabsTab>
+            </TabsList>
+            <TabsPanel value="forecast" className="text-neutral-7">
+              The week ahead.
+            </TabsPanel>
+            <TabsPanel value="guide" className="text-neutral-7">
+              What is known of the spot.
+            </TabsPanel>
+          </Tabs>
+          <Tabs defaultValue="live">
+            <TabsList variant="segment">
+              <TabsTab value="live">48 h</TabsTab>
+              <TabsTab value="week">7 d</TabsTab>
+            </TabsList>
+          </Tabs>
         </Row>
       </Section>
 
