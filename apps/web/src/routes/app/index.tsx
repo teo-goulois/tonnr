@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import type { Bounds, MapLayers } from "@/components/viewer/station-map";
-import type { SavedList, Station } from "@/components/viewer/types";
+import type { SavedBreak, SavedItem, SavedList, Station } from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
 import { authClient } from "@/lib/auth-client";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -185,6 +185,32 @@ function ViewerRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedIds, loaded, missing.map((query) => query.dataUpdatedAt).join()]);
 
+  // A saved break that is not among those in view is fetched on its own, as a saved station is.
+  const savedBreakIds = useMemo(
+    () => [...new Set((lists.data ?? []).flatMap((list) => list.breakIds))],
+    [lists.data],
+  );
+  const breaksInView = breaks.data?.breaks;
+  const missingBreaks = useQueries({
+    queries: savedBreakIds
+      .filter((id) => !breaksInView?.some((candidate) => candidate.id === id))
+      .map((id) =>
+        orpc.v1.breaks.get.queryOptions({ input: { id }, retry: false, meta: { quiet: true } }),
+      ),
+  });
+  const savedBreaks = useMemo(() => {
+    const byId = new Map<string, SavedBreak>();
+    for (const candidate of breaksInView ?? []) {
+      if (savedBreakIds.includes(candidate.id)) byId.set(candidate.id, candidate);
+    }
+    for (const query of missingBreaks) {
+      if (query.data) byId.set(query.data.id, query.data);
+    }
+    return byId;
+    // The answers themselves say when the list of queries has something new.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedBreakIds, breaksInView, missingBreaks.map((query) => query.dataUpdatedAt).join()]);
+
   const history = useQuery(
     orpc.v1.stations.readings.queryOptions({
       input: { id: selectedId ?? "", limit: 2000 },
@@ -291,6 +317,24 @@ function ViewerRoute() {
       },
     }),
   );
+  const addBreak = useMutation(
+    orpc.v1.lists.addBreak.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
+  const removeBreak = useMutation(
+    orpc.v1.lists.removeBreak.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
   const createList = useMutation(
     orpc.v1.lists.create.mutationOptions({
       onSuccess: (list) => setLists((all) => [...all, list]),
@@ -311,7 +355,14 @@ function ViewerRoute() {
   );
 
   // The star answers at once: the list changes on the screen, then the API confirms it.
-  function save(listId: string, stationId: string, add: boolean) {
+  function save(listId: string, item: SavedItem, add: boolean) {
+    // The ids of the item's kind once it is added to them or taken out.
+    const changed = (ids: string[], id: string) =>
+      add ? [...ids.filter((other) => other !== id), id] : ids.filter((other) => other !== id);
+    const withItem = (list: Pick<SavedList, "stationIds" | "breakIds">) =>
+      "breakId" in item
+        ? { breakIds: changed(list.breakIds, item.breakId) }
+        : { stationIds: changed(list.stationIds, item.stationId) };
     setLists((all) => {
       const isTarget = (list: SavedList) =>
         listId === "favorites" ? list.isDefault : list.id === listId;
@@ -322,25 +373,22 @@ function ViewerRoute() {
             id: "favorites",
             name: "",
             isDefault: true,
-            stationIds: [stationId],
+            stationIds: [],
+            breakIds: [],
+            ...withItem({ stationIds: [], breakIds: [] }),
             createdAt: today,
             updatedAt: today,
           },
           ...all,
         ];
       }
-      return all.map((list) =>
-        isTarget(list)
-          ? {
-              ...list,
-              stationIds: add
-                ? [...list.stationIds.filter((id) => id !== stationId), stationId]
-                : list.stationIds.filter((id) => id !== stationId),
-            }
-          : list,
-      );
+      return all.map((list) => (isTarget(list) ? { ...list, ...withItem(list) } : list));
     });
-    (add ? addStation : removeStation).mutate({ id: listId, stationId });
+    if ("breakId" in item) {
+      (add ? addBreak : removeBreak).mutate({ id: listId, breakId: item.breakId });
+    } else {
+      (add ? addStation : removeStation).mutate({ id: listId, stationId: item.stationId });
+    }
     if (listId === "favorites" && add) toast.success(m.saved_added_to_favorites());
   }
 
@@ -380,6 +428,7 @@ function ViewerRoute() {
       signedIn={signedIn}
       lists={loadable(lists)}
       savedStations={savedStations}
+      savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
       onSelect={(station) => void navigate({ search: { station, variant: search.variant } })}

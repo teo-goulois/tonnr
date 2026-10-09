@@ -2,7 +2,8 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
-import { stationList, stationListItem } from "@repo/db/schema/lists";
+import { stationList, stationListBreak, stationListItem } from "@repo/db/schema/lists";
+import { surfBreak } from "@repo/db/schema/spots";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -12,6 +13,7 @@ import { hasControlCharacter } from "../text";
 // The favorites are not counted: they are created on their own, the first time they are used.
 const MAX_LISTS_PER_USER = 50;
 const MAX_STATIONS_PER_LIST = 200;
+const MAX_BREAKS_PER_LIST = 200;
 
 // In place of a list's id, the caller's default list. No list has it as its id: ids are UUIDs.
 const FAVORITES = "favorites";
@@ -36,16 +38,23 @@ const listSchema = z.object({
   isDefault: z.boolean(),
   // In the order the stations were added.
   stationIds: z.array(z.string()),
+  // The surf breaks of the catalogue the list holds, in the order they were added.
+  breakIds: z.array(z.string()),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-function describeList(row: typeof stationList.$inferSelect, stationIds: string[]) {
+function describeList(
+  row: typeof stationList.$inferSelect,
+  stationIds: string[],
+  breakIds: string[],
+) {
   return {
     id: row.id,
     name: row.name,
     isDefault: row.isDefault,
     stationIds,
+    breakIds,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -63,8 +72,8 @@ function isCallersList(userId: string, id: string) {
   );
 }
 
-// Locking the list makes the changes to its stations run one after the other, so two requests at
-// once cannot both pass the limit, and each answers with the list as it left it.
+// Locking the list makes the changes to what it holds run one after the other, so two requests at
+// once cannot both pass a limit, and each answers with the list as it left it.
 async function lockList(tx: Transaction, userId: string, id: string) {
   const [row] = await tx.select().from(stationList).where(isCallersList(userId, id)).for("update");
   return row;
@@ -79,7 +88,28 @@ async function stationIdsOf(db: Database | Transaction, listId: string) {
   return items.map((item) => item.stationId);
 }
 
-// A list changes when its stations do.
+async function breakIdsOf(db: Database | Transaction, listId: string) {
+  const items = await db
+    .select({ breakId: stationListBreak.breakId })
+    .from(stationListBreak)
+    .where(eq(stationListBreak.listId, listId))
+    .orderBy(asc(stationListBreak.createdAt), asc(stationListBreak.breakId));
+  return items.map((item) => item.breakId);
+}
+
+// The list to add to, locked. The favorites exist from the first thing saved: of two requests at
+// once, the unique index lets one create them, and the other waits for it, then finds them.
+async function lockListToFill(tx: Transaction, userId: string, id: string) {
+  const list = await lockList(tx, userId, id);
+  if (list || id !== FAVORITES) return list;
+  await tx
+    .insert(stationList)
+    .values({ id: crypto.randomUUID(), userId, name: "Favorites", isDefault: true })
+    .onConflictDoNothing();
+  return lockList(tx, userId, id);
+}
+
+// A list changes when what it holds does.
 async function touch(tx: Transaction, list: typeof stationList.$inferSelect) {
   const [touched] = await tx
     .update(stationList)
@@ -94,7 +124,7 @@ export const listsRouter = {
     .route({
       method: "GET",
       path: "/lists",
-      summary: "The caller's lists of stations, the favorites first",
+      summary: "The caller's lists of stations and surf breaks, the favorites first",
       tags: ["Lists"],
     })
     .output(z.object({ lists: z.array(listSchema) }))
@@ -112,12 +142,21 @@ export const listsRouter = {
         .where(eq(stationList.userId, userId))
         .orderBy(asc(stationListItem.createdAt), asc(stationListItem.stationId));
 
+      const breaks = await context.db
+        .select({ listId: stationListBreak.listId, breakId: stationListBreak.breakId })
+        .from(stationListBreak)
+        .innerJoin(stationList, eq(stationList.id, stationListBreak.listId))
+        .where(eq(stationList.userId, userId))
+        .orderBy(asc(stationListBreak.createdAt), asc(stationListBreak.breakId));
+
       const itemsByList = Map.groupBy(items, (item) => item.listId);
+      const breaksByList = Map.groupBy(breaks, (item) => item.listId);
       return {
         lists: rows.map((row) =>
           describeList(
             row,
             (itemsByList.get(row.id) ?? []).map((item) => item.stationId),
+            (breaksByList.get(row.id) ?? []).map((item) => item.breakId),
           ),
         ),
       };
@@ -128,7 +167,7 @@ export const listsRouter = {
       method: "POST",
       path: "/lists",
       successStatus: 201,
-      summary: "Create a list of stations",
+      summary: "Create a list",
       tags: ["Lists"],
     })
     .input(z.object({ name: nameSchema }))
@@ -159,7 +198,7 @@ export const listsRouter = {
         });
       }
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
-      return describeList(created, []);
+      return describeList(created, [], []);
     }),
 
   update: protectedProcedure
@@ -189,7 +228,11 @@ export const listsRouter = {
         .where(eq(stationList.id, row.id))
         .returning();
       if (!updated) throw notFound(input.id);
-      return describeList(updated, await stationIdsOf(context.db, updated.id));
+      return describeList(
+        updated,
+        await stationIdsOf(context.db, updated.id),
+        await breakIdsOf(context.db, updated.id),
+      );
     }),
 
   delete: protectedProcedure
@@ -234,21 +277,13 @@ export const listsRouter = {
       if (!known) throw new ORPCError("NOT_FOUND", { message: `No station "${input.stationId}".` });
 
       return context.db.transaction(async (tx) => {
-        let list = await lockList(tx, userId, input.id);
-        if (!list && input.id === FAVORITES) {
-          // The favorites exist from the first station saved. Of two requests at once, the unique
-          // index lets one create them, and the other waits for it, then finds them.
-          await tx
-            .insert(stationList)
-            .values({ id: crypto.randomUUID(), userId, name: "Favorites", isDefault: true })
-            .onConflictDoNothing();
-          list = await lockList(tx, userId, input.id);
-        }
+        const list = await lockListToFill(tx, userId, input.id);
         if (!list) throw notFound(input.id);
 
         const stationIds = await stationIdsOf(tx, list.id);
+        const breakIds = await breakIdsOf(tx, list.id);
         // Adding a station twice changes nothing, even in a full list.
-        if (stationIds.includes(input.stationId)) return describeList(list, stationIds);
+        if (stationIds.includes(input.stationId)) return describeList(list, stationIds, breakIds);
         if (stationIds.length >= MAX_STATIONS_PER_LIST) {
           throw new ORPCError("FORBIDDEN", {
             message: `A list holds at most ${MAX_STATIONS_PER_LIST} stations.`,
@@ -262,7 +297,7 @@ export const listsRouter = {
           stationId: input.stationId,
           createdAt: sql`clock_timestamp()`,
         });
-        return describeList(await touch(tx, list), [...stationIds, input.stationId]);
+        return describeList(await touch(tx, list), [...stationIds, input.stationId], breakIds);
       });
     }),
 
@@ -295,6 +330,81 @@ export const listsRouter = {
         return describeList(
           removed ? await touch(tx, list) : list,
           await stationIdsOf(tx, list.id),
+          await breakIdsOf(tx, list.id),
+        );
+      });
+    }),
+
+  addBreak: protectedProcedure
+    .route({
+      method: "PUT",
+      path: "/lists/{id}/breaks/{breakId}",
+      summary: "Add a surf break of the catalogue to one of the caller's lists",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema, breakId: z.string() }))
+    .output(listSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      // Checked first, so that an unknown break does not create the favorites.
+      const [known] = await context.db
+        .select({ id: surfBreak.id })
+        .from(surfBreak)
+        .where(eq(surfBreak.id, input.breakId));
+      if (!known) throw new ORPCError("NOT_FOUND", { message: `No break "${input.breakId}".` });
+
+      return context.db.transaction(async (tx) => {
+        const list = await lockListToFill(tx, userId, input.id);
+        if (!list) throw notFound(input.id);
+
+        const stationIds = await stationIdsOf(tx, list.id);
+        const breakIds = await breakIdsOf(tx, list.id);
+        // Adding a break twice changes nothing, even in a full list.
+        if (breakIds.includes(input.breakId)) return describeList(list, stationIds, breakIds);
+        if (breakIds.length >= MAX_BREAKS_PER_LIST) {
+          throw new ORPCError("FORBIDDEN", {
+            message: `A list holds at most ${MAX_BREAKS_PER_LIST} surf breaks.`,
+          });
+        }
+
+        // The time of the insertion, as for a station: the break of a request that got the lock
+        // later comes after.
+        await tx.insert(stationListBreak).values({
+          listId: list.id,
+          breakId: input.breakId,
+          createdAt: sql`clock_timestamp()`,
+        });
+        return describeList(await touch(tx, list), stationIds, [...breakIds, input.breakId]);
+      });
+    }),
+
+  removeBreak: protectedProcedure
+    .route({
+      method: "DELETE",
+      path: "/lists/{id}/breaks/{breakId}",
+      summary: "Remove a surf break from one of the caller's lists",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema, breakId: z.string() }))
+    .output(listSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+
+      return context.db.transaction(async (tx) => {
+        const list = await lockList(tx, userId, input.id);
+        if (!list) throw notFound(input.id);
+
+        // Removing a break that is not in the list changes nothing.
+        const [removed] = await tx
+          .delete(stationListBreak)
+          .where(
+            and(eq(stationListBreak.listId, list.id), eq(stationListBreak.breakId, input.breakId)),
+          )
+          .returning({ breakId: stationListBreak.breakId });
+        return describeList(
+          removed ? await touch(tx, list) : list,
+          await stationIdsOf(tx, list.id),
+          await breakIdsOf(tx, list.id),
         );
       });
     }),

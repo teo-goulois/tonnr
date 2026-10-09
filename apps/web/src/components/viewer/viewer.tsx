@@ -23,7 +23,7 @@ import { BreakPanel } from "./break-panel";
 import { MapLegend } from "./map-legend";
 import { SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
-import { ReadingAge, StationActions } from "./station-actions";
+import { ReadingAge, StationActions, holds } from "./station-actions";
 import {
   type Bounds,
   type MapBreak,
@@ -40,6 +40,8 @@ import {
   type AlertNotification,
   type Forecast,
   type Loadable,
+  type SavedBreak,
+  type SavedItem,
   type SavedList,
   type Station,
   type StationReadings,
@@ -103,8 +105,9 @@ type ViewerProps = {
   panel: ViewerPanel | undefined;
   signedIn: boolean;
   lists: Loadable<SavedList[]>;
-  // The stations the lists name, by id.
+  // The stations and the surf breaks the lists name, by id.
   savedStations: Map<string, Station>;
+  savedBreaks: Map<string, SavedBreak>;
   notifications: Loadable<AlertNotification[]>;
   onLayersChange: (layers: MapLayers) => void;
   onSelect: (stationId: string | undefined) => void;
@@ -112,7 +115,7 @@ type ViewerProps = {
   onPanelChange: (panel: ViewerPanel | undefined) => void;
   onBoundsChange: (bounds: Bounds) => void;
   // `listId` is a list's id, or "favorites".
-  onSave: (listId: string, stationId: string, add: boolean) => void;
+  onSave: (listId: string, item: SavedItem, add: boolean) => void;
   onCreateList: (name: string) => void;
   onDeleteList: (list: SavedList) => void;
   onReadNotification: (notification: AlertNotification) => void;
@@ -194,6 +197,7 @@ export function Viewer({
   signedIn,
   lists,
   savedStations,
+  savedBreaks,
   notifications,
   onLayersChange,
   onSelect,
@@ -315,19 +319,24 @@ export function Viewer({
     promptAuth({ reason, onSignedIn: then });
   }
 
+  // What the star and the menu of the panel save: the station, or the break when it is known.
+  const shownItem: SavedItem | undefined = shown.breakId
+    ? shown.found.data && { breakId: shown.breakId }
+    : shown.id
+      ? { stationId: shown.id }
+      : undefined;
+
   function toggleFavorite() {
-    if (!shown.id) return;
-    const stationId = shown.id;
+    if (!shownItem) return;
+    const item = shownItem;
     if (!signedIn) {
-      requireAccount(m.auth_reason_save({ name: shownName ?? m.auth_reason_this_station() }), () =>
-        onSave("favorites", stationId, true),
+      requireAccount(m.auth_reason_save({ name: shownTitle ?? m.auth_reason_this_station() }), () =>
+        onSave("favorites", item, true),
       );
       return;
     }
-    const isFavorite = (lists.data ?? []).some(
-      (list) => list.isDefault && list.stationIds.includes(stationId),
-    );
-    onSave("favorites", stationId, !isFavorite);
+    const isFavorite = (lists.data ?? []).some((list) => list.isDefault && holds(list, item));
+    onSave("favorites", item, !isFavorite);
   }
 
   function locate() {
@@ -512,12 +521,12 @@ export function Viewer({
           )
         }
         actions={
-          shown.id && (
+          shownItem && (
             <StationActions
-              stationId={shown.id}
+              item={shownItem}
               lists={signedIn ? (lists.data ?? []) : undefined}
               onToggleFavorite={toggleFavorite}
-              onToggleList={(list, add) => shown.id && onSave(list.id, shown.id, add)}
+              onToggleList={(list, add) => onSave(list.id, shownItem, add)}
               onManageLists={() => onPanelChange("saved")}
             />
           )
@@ -561,9 +570,11 @@ export function Viewer({
           signedIn={signedIn}
           lists={lists}
           stations={savedStations}
-          {...accountPrompt}
+          breaks={savedBreaks}
           onSelect={onSelect}
-          onRemove={(list, stationId) => onSave(list.id, stationId, false)}
+          {...accountPrompt}
+          onSelectBreak={onSelectBreak}
+          onRemove={(list, item) => onSave(list.id, item, false)}
           onCreateList={onCreateList}
           onDeleteList={onDeleteList}
         />

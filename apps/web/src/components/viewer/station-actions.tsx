@@ -15,11 +15,18 @@ import { type Freshness, formatAgo } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot } from "./map-markers";
-import type { SavedList } from "./types";
+import type { SavedItem, SavedList } from "./types";
 
 /** The name a list goes by. The favorites take the reader's language, the others their own name. */
 export function listName(list: Pick<SavedList, "name" | "isDefault">) {
   return list.isDefault ? m.saved_favorites() : list.name;
+}
+
+/** Whether a list holds a station or a surf break. */
+export function holds(list: SavedList, item: SavedItem) {
+  return "breakId" in item
+    ? list.breakIds.includes(item.breakId)
+    : list.stationIds.includes(item.stationId);
 }
 
 /** How recent a station's latest reading is, in words and with its dot. */
@@ -41,7 +48,8 @@ export function ReadingAge({
 }
 
 type StationActionsProps = {
-  stationId: string;
+  // The station or the surf break to save.
+  item: SavedItem;
   // Undefined for a visitor without an account, who only sees the star: it offers to sign in.
   lists: SavedList[] | undefined;
   onToggleFavorite: () => void;
@@ -49,16 +57,15 @@ type StationActionsProps = {
   onManageLists: () => void;
 };
 
-/** Saves a station: the star for the favorites, the menu for the other lists. */
+/** Saves a station or a surf break: the star for the favorites, the menu for the other lists. */
 export function StationActions({
-  stationId,
+  item,
   lists,
   onToggleFavorite,
   onToggleList,
   onManageLists,
 }: StationActionsProps) {
-  const isFavorite =
-    lists?.some((list) => list.isDefault && list.stationIds.includes(stationId)) ?? false;
+  const isFavorite = lists?.some((list) => list.isDefault && holds(list, item)) ?? false;
 
   return (
     <>
@@ -88,7 +95,7 @@ export function StationActions({
               {lists.map((list) => (
                 <MenuCheckboxItem
                   key={list.id}
-                  checked={list.stationIds.includes(stationId)}
+                  checked={holds(list, item)}
                   onCheckedChange={(checked) => onToggleList(list, checked)}
                   // Several lists can be ticked in a row.
                   closeOnClick={false}

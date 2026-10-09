@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { PlusIcon, TrashIcon, XIcon } from "@repo/ui/icon";
+import { PlusIcon, TrashIcon, WaveIcon, XIcon } from "@repo/ui/icon";
 import { useState } from "react";
 
 import { formatMeters, formatSeconds, freshnessOf } from "@/lib/format";
@@ -9,7 +9,14 @@ import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot, HeightChip } from "./map-markers";
 import { listName } from "./station-actions";
-import { type Loadable, type SavedList, type Station, periodOf } from "./types";
+import {
+  type Loadable,
+  type SavedBreak,
+  type SavedItem,
+  type SavedList,
+  type Station,
+  periodOf,
+} from "./types";
 
 /** What a visitor without an account sees where saved things would be. */
 export function AccountPrompt({
@@ -99,29 +106,70 @@ function StationRow({
   );
 }
 
+/** A surf break in a list: its name, where a station also says what it reads. */
+function BreakRow({
+  found,
+  onSelect,
+  onRemove,
+}: {
+  found: SavedBreak;
+  onSelect: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-xxs">
+      <button
+        type="button"
+        className={`${rowLayout} focus-ring cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
+        onClick={onSelect}
+      >
+        <span
+          aria-hidden
+          className="grid size-6 shrink-0 place-items-center rounded-full bg-neutral-10 text-neutral-1"
+        >
+          <WaveIcon strokeWidth={1.75} className="size-3.5" />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{found.name}</span>
+      </button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={m.saved_remove_station({ name: found.name })}
+        onClick={onRemove}
+      >
+        <XIcon data-slot="icon" aria-hidden />
+      </Button>
+    </li>
+  );
+}
+
 type SavedPanelProps = {
   now: number;
   signedIn: boolean;
   lists: Loadable<SavedList[]>;
-  // The stations the lists name, by id. One that is still loading is missing.
+  // The stations and the surf breaks the lists name, by id. One that is still loading is missing.
   stations: Map<string, Station>;
+  breaks: Map<string, SavedBreak>;
   onSignIn: () => void;
   onCreateAccount: () => void;
   onSelect: (stationId: string) => void;
-  onRemove: (list: SavedList, stationId: string) => void;
+  onSelectBreak: (breakId: string) => void;
+  onRemove: (list: SavedList, item: SavedItem) => void;
   onCreateList: (name: string) => void;
   onDeleteList: (list: SavedList) => void;
 };
 
-/** The visitor's lists of stations, the favorites first. */
+/** The visitor's lists of stations and surf breaks, the favorites first. */
 export function SavedPanel({
   now,
   signedIn,
   lists,
   stations,
+  breaks,
   onSignIn,
   onCreateAccount,
   onSelect,
+  onSelectBreak,
   onRemove,
   onCreateList,
   onDeleteList,
@@ -154,7 +202,7 @@ export function SavedPanel({
   }
 
   const all = lists.data ?? [];
-  const isEmpty = all.every((list) => list.stationIds.length === 0);
+  const isEmpty = all.every((list) => list.stationIds.length + list.breakIds.length === 0);
 
   return (
     <div className="grid gap-l">
@@ -167,7 +215,7 @@ export function SavedPanel({
             <h3 className="min-w-0 truncate font-medium">
               {listName(list)}
               <span className="ml-xs text-s font-normal text-neutral-7 tabular-nums">
-                {list.stationIds.length}
+                {list.stationIds.length + list.breakIds.length}
               </span>
             </h3>
             {!list.isDefault &&
@@ -199,7 +247,7 @@ export function SavedPanel({
                 </Button>
               ))}
           </div>
-          {list.stationIds.length === 0 ? (
+          {list.stationIds.length + list.breakIds.length === 0 ? (
             <p className="text-s text-neutral-7">{m.saved_list_empty()}</p>
           ) : (
             <ul className="-mx-xs grid gap-xxs">
@@ -211,10 +259,23 @@ export function SavedPanel({
                     station={station}
                     now={now}
                     onSelect={() => onSelect(stationId)}
-                    onRemove={() => onRemove(list, stationId)}
+                    onRemove={() => onRemove(list, { stationId })}
                   />
                 ) : (
                   <StationRowSkeleton key={stationId} />
+                );
+              })}
+              {list.breakIds.map((breakId) => {
+                const found = breaks.get(breakId);
+                return found ? (
+                  <BreakRow
+                    key={breakId}
+                    found={found}
+                    onSelect={() => onSelectBreak(breakId)}
+                    onRemove={() => onRemove(list, { breakId })}
+                  />
+                ) : (
+                  <StationRowSkeleton key={breakId} />
                 );
               })}
             </ul>
