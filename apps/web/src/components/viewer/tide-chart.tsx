@@ -48,6 +48,8 @@ const MARKS_LAYER = 1150;
 const DAYS_LAYER = -150;
 // The room a character of a mark takes, in pixels, to keep a mark whole inside what is in view.
 const CHARACTER_WIDTH = 6.5;
+// How near the curve the pointer must come, in pixels, for the level line to show.
+const CURVE_REACH = 24;
 // The height the chart gives the figures of time under the plot, in pixels.
 const X_AXIS_HEIGHT = 30;
 // How many colors a day of the curve is painted with, to turn pale where the hours are gone.
@@ -162,6 +164,23 @@ function TideMarks({
       resized.disconnect();
     };
   }, [strip]);
+  // How far down the chart the pointer is, in its pixels. The level line waits for it to come
+  // to the curve: anywhere else, the chart is only being read or scrolled.
+  const [pointerY, setPointerY] = useState<number>();
+  useEffect(() => {
+    if (!strip) return;
+    const move = (event: globalThis.PointerEvent) =>
+      setPointerY(event.clientY - strip.getBoundingClientRect().top);
+    const leave = () => setPointerY(undefined);
+    strip.addEventListener("pointerdown", move);
+    strip.addEventListener("pointermove", move);
+    strip.addEventListener("pointerleave", leave);
+    return () => {
+      strip.removeEventListener("pointerdown", move);
+      strip.removeEventListener("pointermove", move);
+      strip.removeEventListener("pointerleave", leave);
+    };
+  }, [strip]);
 
   const first = rows[0];
   const last = rows.at(-1);
@@ -176,7 +195,12 @@ function TideMarks({
   const x = (time: number) => xScale(time) ?? left;
   const y = (value: number) => yScale(value) ?? bottom;
 
-  const pointedIndex = isPointed ? rows.findIndex((row) => row.time === Number(pointedTime)) : -1;
+  const underPointer = isPointed ? rows.findIndex((row) => row.time === Number(pointedTime)) : -1;
+  const onCurve =
+    underPointer >= 0 &&
+    pointerY !== undefined &&
+    Math.abs(y(rows[underPointer]!.value) - pointerY) <= CURVE_REACH;
+  const pointedIndex = onCurve ? underPointer : -1;
   const pointed = rows[pointedIndex];
   const nowHeight = now === undefined ? undefined : heightAt(rows, now);
 
@@ -236,10 +260,11 @@ function TideMarks({
     axis &&
     createPortal(
       <>
+        {/* As far from the plot as the figures the other charts write on their own axis. */}
         {ticks.map((tick) => (
           <span
             key={tick}
-            className="absolute inset-x-0 -translate-y-1/2 pr-xs text-right text-xs text-muted-foreground tabular-nums"
+            className="absolute inset-x-0 -translate-y-1/2 pr-[14px] text-right text-xs text-muted-foreground tabular-nums"
             style={{ top: y(tick) }}
           >
             {formatNumber(tick)}
