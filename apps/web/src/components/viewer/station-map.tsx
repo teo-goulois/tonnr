@@ -24,16 +24,25 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import type { Freshness } from "@/lib/format";
+import { formatNumber, type Freshness } from "@/lib/format";
 import {
   NO_READING_COLOR,
   WAVE_HEIGHT_SCALE,
   WIND_SPEED_SCALE,
+  scaleInk,
   seaColorTable,
 } from "@/lib/sea-scales";
 
 import { BuoyPill, UserDot, WindBadge } from "./map-markers";
-import { addLandProtocol, LAND_TILE_SIZE, landTiles, spreadSea } from "./sea-tiles";
+import {
+  addLandProtocol,
+  LAND_TILE_SIZE,
+  landTiles,
+  rememberSea,
+  seaHeights,
+  seaTileKey,
+  spreadSea,
+} from "./sea-tiles";
 
 export type MapStation = {
   id: string;
@@ -127,9 +136,10 @@ const DEFAULT_VIEW = { center: [-2.5, 46.3] as [number, number], zoom: 4.8 };
 const VIEW_STORAGE_KEY = "tonnr:map-view";
 // Sea tiles go through this protocol, which gives each gray level its color.
 const SEA_PROTOCOL = "seatile";
-// The model's cells are about nine kilometres wide, and a tile of this zoom already draws each
-// over several pixels. A closer one says nothing more, and leaves wider gaps along the coast.
-const SEA_MAX_ZOOM = 7;
+// The model's cells are about nine kilometres wide, and a tile of this zoom gives each about one
+// pixel. The map then blends a pixel into the next, and the sea shades evenly. A closer tile says
+// nothing more, and draws each cell as a square.
+const SEA_MAX_ZOOM = 4;
 // The source of the basemap, whose tiles say where the water is.
 const BASEMAP_SOURCE = "openmaptiles";
 // More markers than this hide the map, and the dots under them still say where the stations are.
@@ -169,6 +179,7 @@ function addSeaProtocol(maplibre: typeof import("maplibre-gl")) {
     context.drawImage(tile, 0, 0);
     const image = context.getImageData(0, 0, tile.width, tile.height);
     const pixels = image.data;
+    rememberSea(request.url, pixels, tile.width);
     spreadSea(pixels, tile.width, tile.height);
     for (let index = 0; index < pixels.length; index += 4) {
       // A tile with no sea in it is transparent, and stays so.
@@ -188,7 +199,7 @@ function seaTiles(layer: SeaLayer, time: Date) {
   return [
     layer.tileUrlTemplate
       .replace("{time}", encodeURIComponent(time.toISOString()))
-      .replace(/^https:/, `${SEA_PROTOCOL}:`),
+      .replace(/^https:/, `${SEA_PROTOCOL}:`) + seaTileKey(time),
   ];
 }
 
@@ -265,6 +276,26 @@ function breakFeatures(breaks: MapBreak[]) {
       geometry: { type: "Point" as const, coordinates: [found.longitude, found.latitude] },
       properties: { id: found.id, name: found.name },
     })),
+  };
+}
+
+// A height written on the sea, in the ink that reads on the color the sea has there. The basemap
+// shows through that color, so a faint edge of the other ink keeps the figure legible.
+function seaHeightFeatures(heights: ReturnType<typeof seaHeights>) {
+  return {
+    type: "FeatureCollection" as const,
+    features: heights.map((height) => {
+      const ink = scaleInk(WAVE_HEIGHT_SCALE, height.meters);
+      return {
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [height.longitude, height.latitude] },
+        properties: {
+          label: formatNumber(height.meters),
+          ink,
+          edge: ink === "#ffffff" ? "rgba(0, 0, 0, 0.45)" : "rgba(255, 255, 255, 0.55)",
+        },
+      };
+    }),
   };
 }
 
@@ -697,7 +728,7 @@ export function StationMap({
     const water = instance.getPaintProperty("water", "fill-color");
     const hasBasemapColors = typeof land === "string" && typeof water === "string";
     if (!layers.sea || !seaLayer || !seaTime || !basemap || !hasBasemapColors) {
-      for (const id of ["sea", "land"]) {
+      for (const id of ["sea", "land", "sea-heights"]) {
         if (instance.getLayer(id)) instance.removeLayer(id);
         if (instance.getSource(id)) instance.removeSource(id);
       }
@@ -742,6 +773,69 @@ export function StationMap({
       },
       "land",
     );
+    instance.addSource("sea-heights", { type: "geojson", data: seaHeightFeatures([]) });
+    // Under the names of the basemap, which hide a height that runs into them.
+    instance.addLayer(
+      {
+        id: "sea-heights",
+        type: "symbol",
+        source: "sea-heights",
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 12,
+          "text-padding": 12,
+        },
+        paint: {
+          "text-color": ["get", "ink"],
+          "text-halo-color": ["get", "edge"],
+          "text-halo-width": 1,
+        },
+      },
+      above,
+    );
+  }, [layers.sea, seaLayer, seaTime, basemap, styleVersion]);
+
+  // Heights written on the sea, here and there, once the map has the tiles to read them from.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || styleVersion === 0 || !layers.sea || !seaLayer || !seaTime) return;
+
+    let written = "";
+    const write = () => {
+      const source = instance.getSource<GeoJSONSource>("sea-heights");
+      if (!source) return;
+      const bounds = instance.getBounds();
+      const features = seaHeightFeatures(
+        seaHeights(
+          {
+            west: bounds.getWest(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            north: bounds.getNorth(),
+            zoom: instance.getZoom(),
+          },
+          seaTime,
+          seaLayer.encoding.metersByLevel,
+          // An island smaller than a cell of the model is sea to it, and land on the map.
+        ).filter(
+          (height) =>
+            instance.queryRenderedFeatures(instance.project([height.longitude, height.latitude]), {
+              layers: ["water"],
+            }).length > 0,
+        ),
+      );
+      // Writing redraws the map, which then rests again: the same heights are not written twice.
+      const signature = JSON.stringify(features);
+      if (signature === written) return;
+      written = signature;
+      source.setData(features);
+    };
+    instance.on("idle", write);
+    write();
+    return () => {
+      instance.off("idle", write);
+    };
   }, [layers.sea, seaLayer, seaTime, basemap, styleVersion]);
 
   // The selected station comes into view when it is off the map or under a drawer. One that is

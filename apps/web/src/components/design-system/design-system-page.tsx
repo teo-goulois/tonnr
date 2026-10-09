@@ -478,6 +478,7 @@ export function DesignSystemPage() {
             }))}
           />
           <SeaChart label="Loading" formatValue={formatMeters} points={[]} isLoading />
+          <TideChart label="Tide, loading" extremes={[]} points={[]} isLoading />
           <SeaChart label="Empty" formatValue={formatMeters} points={[]} />
         </div>
       </Section>

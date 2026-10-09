@@ -37,6 +37,99 @@ export function spreadSea(pixels: Uint8ClampedArray, width: number, height: numb
   }
 }
 
+// What the model says in each sea tile the map has drawn, by the tile's time and place: a gray
+// level, or -1 where it says nothing. The heights written on the sea are read here.
+const seaLevels = new Map<string, { levels: Int16Array; width: number; height: number }>();
+const REMEMBERED_SEA_TILES = 64;
+// The closest zoom a sea tile is looked for at.
+const SEA_LEVELS_MAX_ZOOM = 10;
+// How many heights are written across one tile of the basemap, each way.
+const HEIGHTS_PER_TILE = 3;
+
+/** The end of a sea tile's address, which says its time and its place and is not sent. */
+export function seaTileKey(time: Date) {
+  return `#${time.toISOString()}/{z}/{x}/{y}`;
+}
+
+/** Keeps what a sea tile says, before `spreadSea` fills what the model left blank. */
+export function rememberSea(address: string, pixels: Uint8ClampedArray, width: number) {
+  const levels = new Int16Array(pixels.length / 4);
+  for (let pixel = 0; pixel < levels.length; pixel++) {
+    levels[pixel] = pixels[pixel * 4 + 3] === 0 ? -1 : pixels[pixel * 4]!;
+  }
+  const key = address.slice(address.indexOf("#"));
+  seaLevels.delete(key);
+  seaLevels.set(key, { levels, width, height: levels.length / width });
+  // The oldest goes first: a map keeps its keys in the order they came.
+  for (const oldest of seaLevels.keys()) {
+    if (seaLevels.size <= REMEMBERED_SEA_TILES) break;
+    seaLevels.delete(oldest);
+  }
+}
+
+// The gray level at a point of the world, from the closest tile that holds it. Null on land, where
+// no tile is loaded, and next to a blank: a height is written only where the model is sure of the
+// sea all around.
+function seaLevelAt(time: Date, x: number, y: number) {
+  for (let zoom = SEA_LEVELS_MAX_ZOOM; zoom >= 0; zoom--) {
+    const tiles = 2 ** zoom;
+    const tile = seaLevels.get(
+      `#${time.toISOString()}/${zoom}/${Math.floor(x * tiles)}/${Math.floor(y * tiles)}`,
+    );
+    if (!tile) continue;
+
+    const column = Math.floor(((x * tiles) % 1) * tile.width);
+    const row = Math.floor(((y * tiles) % 1) * tile.height);
+    const at = (c: number, r: number) =>
+      tile.levels[
+        Math.min(tile.height - 1, Math.max(0, r)) * tile.width +
+          Math.min(tile.width - 1, Math.max(0, c))
+      ]!;
+    const around = [
+      at(column - 1, row),
+      at(column + 1, row),
+      at(column, row - 1),
+      at(column, row + 1),
+    ];
+    return around.every((level) => level >= 0) ? at(column, row) : null;
+  }
+  return null;
+}
+
+/**
+ * Where to write a height on the sea, and which: points of a grid that holds still while the map
+ * moves, and tightens as it comes closer.
+ */
+export function seaHeights(
+  view: { west: number; south: number; east: number; north: number; zoom: number },
+  time: Date,
+  metersByLevel: readonly number[],
+) {
+  const cells = 2 ** Math.max(0, Math.floor(view.zoom)) * HEIGHTS_PER_TILE;
+  // Mercator, from 0 at the north to 1 at the south.
+  const toY = (latitude: number) =>
+    (1 - Math.asinh(Math.tan((latitude * Math.PI) / 180)) / Math.PI) / 2;
+  const toLatitude = (y: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
+
+  const heights: { longitude: number; latitude: number; meters: number }[] = [];
+  const firstColumn = Math.floor(((view.west + 180) / 360) * cells);
+  const lastColumn = Math.floor(((view.east + 180) / 360) * cells);
+  const firstRow = Math.max(0, Math.floor(toY(view.north) * cells));
+  const lastRow = Math.min(cells - 1, Math.floor(toY(view.south) * cells));
+  for (let column = firstColumn; column <= lastColumn; column++) {
+    for (let row = firstRow; row <= lastRow; row++) {
+      const x = (column + 0.5) / cells;
+      const y = (row + 0.5) / cells;
+      // A map that shows the date line counts longitudes past 180.
+      const level = seaLevelAt(time, ((x % 1) + 1) % 1, y);
+      const meters = level === null ? undefined : metersByLevel[level];
+      if (meters === undefined) continue;
+      heights.push({ longitude: x * 360 - 180, latitude: toLatitude(y), meters });
+    }
+  }
+  return heights;
+}
+
 /** The address of the land tiles, for a basemap whose land and water have these colors. */
 export function landTiles(basemapTiles: string, colors: { land: string; water: string }) {
   const query = new URLSearchParams(colors).toString();
