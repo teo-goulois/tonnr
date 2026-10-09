@@ -204,7 +204,15 @@ export function PointConditions({
 
   return (
     <>
-      <Section title={m.forecast_title()} note={m.forecast_note()}>
+      <Section
+        title={m.forecast_title()}
+        // A forecast the instance could not renew says so, with when it was fetched.
+        note={
+          forecast.data?.stale
+            ? m.forecast_older({ time: formatDayAndClock(forecast.data.fetchedAt) })
+            : m.forecast_note()
+        }
+      >
         {forecast.isPending || forecast.data ? (
           <>
             <SeaChart

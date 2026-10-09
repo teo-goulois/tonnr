@@ -129,6 +129,7 @@
   "station_last_48h": "last 48 hours",
   "forecast_title": "Wave forecast",
   "forecast_note": "next 4 days",
+  "forecast_older": "forecast of {time}",
   "forecast_time": "Time",
   "forecast_waves": "Waves",
   "forecast_swell": "Swell",

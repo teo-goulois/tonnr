@@ -129,6 +129,7 @@
   "station_last_48h": "48 dernières heures",
   "forecast_title": "Prévision de vagues",
   "forecast_note": "4 prochains jours",
+  "forecast_older": "prévision de {time}",
   "forecast_time": "Heure",
   "forecast_waves": "Vagues",
   "forecast_swell": "Houle",
