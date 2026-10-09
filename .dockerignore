@@ -11,8 +11,6 @@
 **/.turbo
 .turbo
 
-**/.demo-dist
-.demo.pid
 .claude
 
 **/.wrangler

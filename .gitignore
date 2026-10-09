@@ -59,6 +59,5 @@ coverage
 tmp
 temp
 
-# The running demo, see scripts/demo.mjs
-.demo.pid
+# Written by Localify
 .localify/project.json

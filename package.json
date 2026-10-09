@@ -15,8 +15,6 @@
     "dev:admin": "pnpm --filter admin run dev:bare",
     "dev:server": "turbo run dev -F server --",
     "dev:worker": "turbo run dev -F worker --",
-    "demo": "node scripts/demo.mjs",
-    "demo:reload": "kill -HUP $(cat .demo.pid)",
     "db:push": "turbo run db:push -F @repo/db --",
     "db:studio": "turbo run db:studio -F @repo/db --",
     "db:generate": "turbo run db:generate -F @repo/db --",

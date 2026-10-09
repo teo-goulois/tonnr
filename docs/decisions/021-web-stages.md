@@ -69,5 +69,5 @@ Three facts bound the choice:
 - The token can change every Worker of the account, not only Tonnr's. Cloudflare does not narrow that right to one Worker.
 - The first deployment from a machine reads the state store's own token and keeps it in `~/.alchemy`.
 - A newer Alchemy may expect another version of the state store, and brings the store to it. That changes it for every project of the account, and `--yes` does it without asking. Check the other projects before changing Alchemy's version here.
-- The pre-production does what `scripts/demo.mjs` was written for. The script stays until Téo removes it.
+- The pre-production does what the temporary script was written for. Téo had `scripts/demo.mjs` removed on 2026-10-09, and Git's history keeps it.
 - Not decided: whether production gets an API and a database of its own. `api.tonnr.app` is the development instance's today.
