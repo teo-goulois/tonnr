@@ -9,6 +9,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// Retired by decision 024: nothing reads or writes these two tables any more. They stay for
+// one release, so that the version a deployment replaces keeps working while it stops, and the
+// next migration drops them.
+
 /**
  * One file of breaks that the instance's operator imported by hand, and that changed
  * `private_break`. Its counts say what the import did then, whatever happened since.
@@ -29,9 +33,7 @@ export const privateBreakImport = pgTable("private_break_import", {
 });
 
 /**
- * A surf break the instance keeps for its operator alone. It was read from a provider that gave
- * no right to republish its list, so it is not part of the catalogue: no procedure of the API
- * reads this table.
+ * A surf break the instance kept for its operator alone, before the catalogue took them all.
  */
 export const privateBreak = pgTable(
   "private_break",

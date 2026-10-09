@@ -22,11 +22,9 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/app/")({
   validateSearch: z.object({
-    // The station or the surf break whose panel is open. One is selected, never both. A break
-    // is the catalogue's, or one of the instance's private list.
+    // The station or the surf break whose panel is open. One is selected, never both.
     station: z.string().optional(),
     break: z.string().optional(),
-    privateBreak: z.string().optional(),
     panel: z.enum(["saved", "alerts"]).optional(),
     // PROTOTYPE: a variant of the details panel. See components/viewer/prototype.
     variant: z.enum(["a", "b", "c"]).optional(),
@@ -74,9 +72,6 @@ function ViewerRoute() {
   // An empty value selects nothing, and a station wins over a break given with it.
   const selectedId = search.station || undefined;
   const selectedBreakId = selectedId ? undefined : search.break || undefined;
-  // What the address asks for. It selects a break only for an account that may read the list.
-  const requestedPrivateBreakId =
-    selectedId || selectedBreakId ? undefined : search.privateBreak || undefined;
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
@@ -108,44 +103,12 @@ function ViewerRoute() {
       select: (answer) => answer.stations,
     }),
   );
-  // The instance's private list is given to its operators and to no one else, so the map asks
-  // for it only once the account is known to be one.
-  const account = useQuery(
-    orpc.v1.account.get.queryOptions({
-      enabled: signedIn,
-      // Asked again every few minutes, so that the page learns when the account stops being one.
-      staleTime: 5 * MINUTE_MS,
-      meta: { quiet: true },
-    }),
-  );
-  // An operator as far as the page knows: the account of the session in force, as the API last
-  // described it. The API decides at each call, whatever the page believes.
-  const isOperator =
-    signedIn &&
-    !account.isError &&
-    account.data?.isOperator === true &&
-    account.data.id === session.data?.user.id;
-  const selectedPrivateBreakId = isOperator ? requestedPrivateBreakId : undefined;
-  // An operator is shown the private list in place of the catalogue: most places are in both,
-  // and would stand twice on the map. So the map waits to know whom it is shown to.
-  const isRoleKnown = !session.isPending && (!signedIn || account.isFetched);
-  const privateBreaks = useQuery(
-    orpc.v1.privateBreaks.list.queryOptions({
-      input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
-      enabled: isOperator && layers.breaks && bounds !== null,
-      placeholderData: keepPreviousData,
-      staleTime: 60 * MINUTE_MS,
-      // A refusal is not asked again: it is acted on at once, below.
-      retry: false,
-      meta: { quiet: true },
-    }),
-  );
   const breaks = useQuery(
     orpc.v1.breaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
-      enabled: layers.breaks && bounds !== null && isRoleKnown && !isOperator,
+      enabled: layers.breaks && bounds !== null,
       placeholderData: keepPreviousData,
-      // The catalogue changes once a week.
+      // The catalogue changes when its operator adds to it by hand.
       staleTime: 60 * MINUTE_MS,
       // Without them the map shows the stations alone, which needs no message.
       meta: { quiet: true },
@@ -228,33 +191,11 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
-  const foundPrivate = useQuery(
-    orpc.v1.privateBreaks.get.queryOptions({
-      input: { id: selectedPrivateBreakId ?? "" },
-      enabled: selectedPrivateBreakId !== undefined && isOperator,
-      retry: false,
-      meta: { quiet: true },
-    }),
-  );
-  // What was loaded of the list goes with the right to read it.
-  useEffect(() => {
-    if (!isOperator) queryClient.removeQueries({ queryKey: orpc.v1.privateBreaks.key() });
-  }, [isOperator, queryClient]);
-  // A refusal says that the account may no longer be what the page believes, so it asks again.
-  const isRefused = privateBreaks.isError || foundPrivate.isError;
-  useEffect(() => {
-    if (isRefused) void queryClient.invalidateQueries({ queryKey: orpc.v1.account.get.key() });
-  }, [isRefused, queryClient]);
-  const isSelected = (candidate: { id: string }) =>
-    candidate.id === (selectedBreakId ?? selectedPrivateBreakId);
+  const isSelected = (candidate: { id: string }) => candidate.id === selectedBreakId;
   const placed =
     known ??
     history.data?.station ??
-    (selectedBreakId
-      ? (breaks.data?.breaks.find(isSelected) ?? found.data)
-      : selectedPrivateBreakId
-        ? (privateBreaks.data?.breaks.find(isSelected) ?? foundPrivate.data)
-        : undefined);
+    (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : undefined);
   const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
@@ -262,7 +203,7 @@ function ViewerRoute() {
 
   // The tide is a strip of whole days to scroll along, from midnight where the user is.
   // The days asked for belong to what is selected: another selection opens on its first days.
-  const selection = selectedId ?? selectedBreakId ?? selectedPrivateBreakId ?? "";
+  const selection = selectedId ?? selectedBreakId ?? "";
   const tideDays = tideReach.of === selection ? tideReach : TIDE_DAYS;
   const tideSpan = useMemo(() => {
     const start = new Date(hour);
@@ -390,20 +331,8 @@ function ViewerRoute() {
     if (listId === "favorites" && add) toast.success(m.saved_added_to_favorites());
   }
 
-  // The catalogue's breaks, or the private list's for an operator. The map redraws them when
-  // the list changes, so the list changes only with its source.
-  // A list that the API has just refused is not shown from what an earlier answer left.
-  const privateInView =
-    isOperator && !privateBreaks.isError ? privateBreaks.data?.breaks : undefined;
-  const privateIds = useMemo(
-    () => new Set(privateInView?.map((found) => found.id)),
-    [privateInView],
-  );
-  const catalogueInView = isOperator ? undefined : breaks.data?.breaks;
-  const mapBreaks = useMemo(
-    () => catalogueInView ?? (privateInView ?? []).map((found) => ({ ...found, isPrivate: true })),
-    [catalogueInView, privateInView],
-  );
+  // The map redraws the breaks when the list changes, so it is given the same one until then.
+  const mapBreaks = useMemo(() => breaks.data?.breaks ?? [], [breaks.data]);
 
   return (
     <Viewer
@@ -414,21 +343,15 @@ function ViewerRoute() {
       windStations={wind.data ?? []}
       windTruncated={wind.data?.length === WIND_LIMIT}
       breaks={mapBreaks}
-      breaksTruncated={
-        isOperator
-          ? privateInView !== undefined && privateBreaks.data?.next != null
-          : breaks.data?.next != null
-      }
+      breaksTruncated={breaks.data?.next != null}
       sea={sea.data}
       layers={layers}
       selectedId={selectedId}
       selectedBreakId={selectedBreakId}
-      selectedPrivateBreakId={selectedPrivateBreakId}
       selected={{
         station: known,
         history: loadable(history),
         found: loadable(found),
-        foundPrivate: isOperator ? loadable(foundPrivate) : null,
         forecast: loadable(forecast),
         tides: loadable(tides),
         extremes: loadable(extremes),
@@ -447,13 +370,7 @@ function ViewerRoute() {
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
       onSelect={(station) => void navigate({ search: { station, variant: search.variant } })}
-      onSelectBreak={(id) =>
-        void navigate({
-          search: privateIds.has(id)
-            ? { privateBreak: id, variant: search.variant }
-            : { break: id, variant: search.variant },
-        })
-      }
+      onSelectBreak={(id) => void navigate({ search: { break: id, variant: search.variant } })}
       // A panel opens over the station's and gives it back when it closes.
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({ search: (previous) => ({ ...previous, panel: next }) })

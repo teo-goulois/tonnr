@@ -268,8 +268,8 @@ export function Sources({
   forecast,
   tides,
 }: {
-  // Undefined while the station or the break loads.
-  origin: string | undefined;
+  // Undefined while the station or the break loads. Null when nothing says where it comes from.
+  origin: string | null | undefined;
   // Null when what stands at the point has no licence to name.
   license: { type: string; url: string } | null | undefined;
   forecast: Forecast | undefined;
@@ -277,7 +277,7 @@ export function Sources({
 }) {
   return (
     <footer className="grid gap-xxs text-xs text-neutral-7">
-      {origin && license === null ? (
+      {origin === null ? null : origin && license === null ? (
         <p>{origin}</p>
       ) : origin && license ? (
         <p>

@@ -84,7 +84,7 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 - A request that names the web app's site is refused there, the operator's too. A fault in the web app's pages, which draw what data providers and users wrote, then cannot make a key or read the accounts with the operator's session.
 - A request that names no site is refused as well. A script holds its cookie itself, and sends `Origin` on these calls as it already does on a write.
 - This rests on what a browser does: it names the site on every call whose answer a page of another site can read, and on every write. And on the transports: the one the apps use takes a write by `POST` only.
-- The private list of decision 016 stays on `operatorProcedure`: the web app shows it to its operator.
+- The private list of decision 016 stays on `operatorProcedure`: the web app shows it to its operator. Decision 024 removed that list, and `operatorProcedure` builds nothing until the instance keeps something else to its operator.
 
 ## Rejected
 

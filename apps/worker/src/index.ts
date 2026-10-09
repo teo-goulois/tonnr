@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { PgBoss } from "pg-boss";
 
 import { evaluateAlerts } from "./alerts";
-import { breakSources, importBreaks, isDue } from "./breaks/import";
+import { breakSources } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { ingest, providers, retiredProviderIds } from "./ingest";
@@ -83,23 +83,19 @@ await boss.work(ALERTS_QUEUE, async () => {
 });
 await boss.send(ALERTS_QUEUE);
 
+// The catalogue of breaks is filled once, by hand, and no longer on a schedule. The queue an
+// earlier version scheduled for each source would keep queueing runs that nothing works.
 for (const source of breakSources) {
   const queue = `import-breaks-${source.id}`;
-  // "exclusive" keeps one run at most, waiting, retrying or running: the weekly schedule and a
-  // restart add nothing while a failed run waits for its next try. A shared public server is
-  // often busy, so a run that fails is tried again ten minutes later, five times at most.
-  const retries = { retryLimit: 5, retryDelay: 600 };
-  await boss.createQueue(queue, { policy: "exclusive", ...retries });
-  await boss.updateQueue(queue, retries);
-  await boss.schedule(queue, source.schedule);
-  await boss.work(queue, async () => {
-    await Effect.runPromise(importBreaks(source, db));
-  });
-  // A list of breaks changes over months, so a restart does not ask for it again. A first
-  // start does, and so does one after the schedule was missed.
-  if (await Effect.runPromise(isDue(source, db))) await boss.send(queue);
-
-  console.log(`Scheduled ${queue} (${source.schedule})`);
+  try {
+    if (await boss.getQueue(queue)) {
+      await boss.deleteQueue(queue);
+      console.log(`Removed ${queue}: breaks are no longer imported on a schedule`);
+    }
+  } catch (error) {
+    // The next start tries again, and the other jobs must still run.
+    console.error(`Could not remove ${queue}`, error);
+  }
 }
 
 async function shutdown() {

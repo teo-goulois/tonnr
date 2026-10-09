@@ -1,22 +1,54 @@
 import { ORPCError } from "@orpc/server";
-import { surfBreak } from "@repo/db/schema/spots";
+import {
+  ABILITY_LEVELS,
+  BOARD_TYPES,
+  BOTTOM_TYPES,
+  BREAK_TYPES,
+  COMPASS_POINTS,
+  SEASONS,
+  surfBreak,
+  TIDE_STAGES,
+  WAVE_DIRECTIONS,
+} from "@repo/db/schema/spots";
 import { and, asc, eq, gt, ilike } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
 import { callerProcedure } from "../index";
 
+// Null where nobody has said: a break of which only the place is known has nine nulls here.
+const characteristicsSchema = z.object({
+  breakTypes: z.array(z.enum(BREAK_TYPES)).nullable(),
+  waveDirections: z.array(z.enum(WAVE_DIRECTIONS)).nullable(),
+  bottomTypes: z.array(z.enum(BOTTOM_TYPES)).nullable(),
+  abilityLevels: z.array(z.enum(ABILITY_LEVELS)).nullable(),
+  boardTypes: z.array(z.enum(BOARD_TYPES)).nullable(),
+  bestSeasons: z.array(z.enum(SEASONS)).nullable(),
+  bestTides: z.array(z.enum(TIDE_STAGES)).nullable(),
+  // Where the swell and the wind come from when the break works, as points of the compass.
+  bestSwellDirections: z.array(z.enum(COMPASS_POINTS)).nullable(),
+  bestWindDirections: z.array(z.enum(COMPASS_POINTS)).nullable(),
+  // Where the wind blows from when it blows off the shore, clockwise from north.
+  offshoreDirectionDegrees: z.number().nullable(),
+});
+
 const breakSchema = z.object({
   id: z.string(),
   name: z.string(),
   latitude: z.number(),
   longitude: z.number(),
+  characteristics: characteristicsSchema,
+  // The places the break lies in, from the widest to the nearest.
+  location: z.array(z.string()).nullable(),
+  // The IANA name of the time zone.
+  timezone: z.string().nullable(),
+  // Where the break was read. Each field is null when the instance does not say.
   source: z.object({
-    provider: z.string(),
-    // The provider's page that shows the break.
-    url: z.string(),
-    attribution: z.string(),
-    license: z.object({ type: z.string(), url: z.string() }),
+    provider: z.string().nullable(),
+    // The page that shows the break.
+    url: z.string().nullable(),
+    attribution: z.string().nullable(),
+    license: z.object({ type: z.string(), url: z.string() }).nullable(),
   }),
 });
 
@@ -26,11 +58,26 @@ function describeBreak(row: typeof surfBreak.$inferSelect) {
     name: row.name,
     latitude: row.latitude,
     longitude: row.longitude,
+    characteristics: {
+      breakTypes: row.breakTypes,
+      waveDirections: row.waveDirections,
+      bottomTypes: row.bottomTypes,
+      abilityLevels: row.abilityLevels,
+      boardTypes: row.boardTypes,
+      bestSeasons: row.bestSeasons,
+      bestTides: row.bestTides,
+      bestSwellDirections: row.bestSwellDirections,
+      bestWindDirections: row.bestWindDirections,
+      offshoreDirectionDegrees: row.offshoreDirectionDegrees,
+    },
+    location: row.location,
+    timezone: row.timezone,
     source: {
       provider: row.provider,
       url: row.sourceUrl,
       attribution: row.attribution,
-      license: { type: row.licenseType, url: row.licenseUrl },
+      license:
+        row.licenseType && row.licenseUrl ? { type: row.licenseType, url: row.licenseUrl } : null,
     },
   };
 }
@@ -47,9 +94,9 @@ export const breaksRouter = {
       path: "/breaks",
       summary: "The catalogue of surf breaks, in an area or by name",
       description:
-        "The breaks an open source lists, to pick a spot from. The catalogue holds no spot a " +
-        "user created. Pages follow one another through `after`, so the whole catalogue can be " +
-        "read.",
+        "The breaks the instance knows, to pick a spot from, each with what is known of it. " +
+        "The catalogue holds no spot a user created. Pages follow one another through `after`, " +
+        "so the whole catalogue can be read.",
       tags: ["Breaks"],
     })
     .input(

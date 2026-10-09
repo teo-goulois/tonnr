@@ -28,27 +28,102 @@ export type SpotCriteria = {
   tideTrend?: "rising" | "falling";
 };
 
+// What a break is said to be. Each list is the whole vocabulary of its column: the import refuses
+// any other word, and the API answers with these.
+export const BREAK_TYPES = [
+  "beach",
+  "reef",
+  "point",
+  "jetty",
+  "pier",
+  "offshore",
+  "slab",
+  "canyon",
+] as const;
+export const WAVE_DIRECTIONS = ["left", "right"] as const;
+export const BOTTOM_TYPES = ["sand", "rock", "coral", "lava"] as const;
+export const ABILITY_LEVELS = ["beginner", "intermediate", "advanced", "pro"] as const;
+export const BOARD_TYPES = [
+  "shortboard",
+  "fish",
+  "funboard",
+  "longboard",
+  "gun",
+  "bodyboard",
+  "bodysurf",
+  "skimboard",
+  "sup",
+  "foil",
+  "kite",
+  "tow",
+] as const;
+export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
+export const TIDE_STAGES = ["low", "mid_low", "mid", "mid_high", "high"] as const;
+// The sixteen points of the compass, clockwise from north.
+export const COMPASS_POINTS = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+] as const;
+
+type CompassPoint = (typeof COMPASS_POINTS)[number];
+
 /**
- * A place where the sea is surfed, as an open source lists it. The catalogue is what a user
- * picks a spot from, and it holds nothing a user wrote.
+ * A place where the sea is surfed. The catalogue is what a user picks a spot from, and it holds
+ * nothing a user wrote. A break is added once, by hand, and belongs to the instance from then
+ * on: nothing brings it back in line with the list it came from.
  */
 export const surfBreak = pgTable(
   "surf_break",
   {
     id: text("id").primaryKey(),
-    provider: text("provider").notNull(),
-    // The break's identifier at the provider, for example "node/123".
-    providerRef: text("provider_ref").notNull(),
     name: text("name").notNull(),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
-    // The provider's page that shows the break.
-    sourceUrl: text("source_url").notNull(),
-    licenseType: text("license_type").notNull(),
-    licenseUrl: text("license_url").notNull(),
-    attribution: text("attribution").notNull(),
-    // When an import last found the break in the provider's list.
-    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+
+    // What the break is like. A column left null says that nobody has said.
+    breakTypes: text("break_types").$type<(typeof BREAK_TYPES)[number]>().array(),
+    waveDirections: text("wave_directions").$type<(typeof WAVE_DIRECTIONS)[number]>().array(),
+    bottomTypes: text("bottom_types").$type<(typeof BOTTOM_TYPES)[number]>().array(),
+    abilityLevels: text("ability_levels").$type<(typeof ABILITY_LEVELS)[number]>().array(),
+    boardTypes: text("board_types").$type<(typeof BOARD_TYPES)[number]>().array(),
+    bestSeasons: text("best_seasons").$type<(typeof SEASONS)[number]>().array(),
+    bestTides: text("best_tides").$type<(typeof TIDE_STAGES)[number]>().array(),
+    // Where the swell and the wind come from when the break works.
+    bestSwellDirections: text("best_swell_directions").$type<CompassPoint>().array(),
+    bestWindDirections: text("best_wind_directions").$type<CompassPoint>().array(),
+    // Where the wind blows from when it blows off the shore, clockwise from north.
+    offshoreDirectionDegrees: integer("offshore_direction_degrees"),
+    // The places the break lies in, from the widest to the nearest.
+    location: text("location").array(),
+    // The IANA name of the time zone, such as "Europe/Paris".
+    timezone: text("timezone"),
+
+    // Where the break was read, when the list it came from says so. An import knows a break
+    // again by the first two.
+    provider: text("provider"),
+    // The break's identifier in that list, for example "node/123".
+    providerRef: text("provider_ref"),
+    // The page that shows the break.
+    sourceUrl: text("source_url"),
+    licenseType: text("license_type"),
+    licenseUrl: text("license_url"),
+    attribution: text("attribution"),
+    // When the break was read in its list. The weekly import of decision 015 wrote it.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -56,6 +131,19 @@ export const surfBreak = pgTable(
     index("surf_break_position_idx").on(table.latitude, table.longitude),
   ],
 );
+
+/**
+ * What the list a break came from says of it beyond what the catalogue holds, as the list gave
+ * it. It is kept for the day the model of a break grows, and nothing reads it until then: no
+ * procedure of the API, and no scheduled job.
+ */
+export const surfBreakRecord = pgTable("surf_break_record", {
+  breakId: text("break_id")
+    .primaryKey()
+    .references(() => surfBreak.id, { onDelete: "cascade" }),
+  details: jsonb("details").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const spot = pgTable(
   "spot",

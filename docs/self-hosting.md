@@ -88,20 +88,32 @@ docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-
 
 ## Running one job
 
-Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `exposure`, or `breaks`. The two jobs of the private list take a value, and the next section gives them.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, or `exposure`. The jobs of the catalogue of breaks take a value, and the next section gives them.
 
-## Keeping a list of breaks you may not publish
+## Filling the catalogue of surf breaks
 
-This is optional: an instance runs without it.
+An instance starts with no surf break. You add them once, by hand, and they are the instance's from then on: nothing renames, moves or deletes a break afterwards because its source changed. Decision 024 gives the rules.
 
-You may hold a list of surf breaks from a provider that gave you no right to republish it. The private list keeps it in your database for you alone: the API gives it to an operator's session and to no one else, and the worker never asks the provider for it. Decision 016 gives the rules. You answer to the provider for holding the list.
+Every account and every key reads the catalogue. You answer for the lists you add, towards whoever published them and towards the people you serve.
+
+### From OpenStreetMap
+
+```bash
+docker compose run --rm worker node dist/cli.mjs breaks-fetch osm
+docker compose run --rm worker node dist/cli.mjs breaks-fetch osm --write
+```
+
+The first line asks the public Overpass servers for the list, once, and says how many breaks it gives: 340 on 2026-10-08. The second stores them, with the ODbL and the credit that the API then returns with each break. It adds only to a catalogue that holds no break, so that a place another list already gave does not stand twice. The servers are shared and often answer 504: try again later.
+
+### From a file
 
 Write the list as one JSON file, in UTF-8:
 
 ```json
 {
   "provider": "example",
-  "termsUrl": "https://example.org/terms",
+  "license": { "type": "CC-BY-4.0", "url": "https://example.org/licence" },
+  "attribution": "Example contributors",
   "breaks": [
     {
       "ref": "a1",
@@ -109,46 +121,60 @@ Write the list as one JSON file, in UTF-8:
       "latitude": 48.0,
       "longitude": -4.5,
       "url": "https://example.org/breaks/a1",
-      "collectedAt": "2026-10-08T10:00:00Z",
-      "details": { "bottom": "sand" }
+      "characteristics": {
+        "breakTypes": ["beach", "jetty"],
+        "waveDirections": ["left", "right"],
+        "bottomTypes": ["sand"],
+        "abilityLevels": ["beginner", "intermediate"],
+        "boardTypes": ["longboard", "fish"],
+        "bestSeasons": ["autumn", "winter"],
+        "bestTides": ["mid_low", "mid"],
+        "bestSwellDirections": ["W", "WNW"],
+        "bestWindDirections": ["E", "ENE"],
+        "offshoreDirectionDegrees": 90
+      },
+      "location": ["France", "Finistère"],
+      "timezone": "Europe/Paris",
+      "details": { "anything": "else" }
     }
   ]
 }
 ```
 
-- `provider` is a short name in lower case that keys the list in your database. It is yours to choose, and need not name the list's origin.
-- `termsUrl` and `url` are yours to give or to leave out: the terms the list falls under, and the page that shows a break. A row carries a source only when the file gives one.
-- `ref` is the break's identifier in the list. A file gives each one once.
-- `collectedAt` is when you read the list, with its offset and no finer than a millisecond.
-- `details` holds whatever else the list says of the break. It is stored as it is, and may be left out.
+- `provider` is a short name in lower case for the list. With `ref`, the break's identifier in the list, it tells a break the catalogue already holds. A file gives each `ref` once.
+- Only `provider`, and a break's `ref`, `name`, `latitude` and `longitude`, are required.
+- `license`, `attribution` and `url` say where the list comes from and on what terms. Give them when the list has them: the API returns them with each break, and null when the file gave none.
+- `characteristics` takes the catalogue's own words, listed in `packages/db/src/schema/spots.ts`, and no others. Translate your list's words into them, and leave out what your list does not say. A direction of swell or wind is one of the sixteen points of the compass, in English letters. `offshoreDirectionDegrees` is where the wind blows from when it blows off the shore, from 0 to 359.
+- `location` names the places the break lies in, from the widest to the nearest.
+- `details` holds whatever else the list says of the break. It is kept aside as it is, in a table that the API does not read.
 - Any other field refuses the file, and so does one faulty line: nothing of a file is stored unless all of it can be.
 - A number is refused when JavaScript cannot hold it as it is written, such as an integer past 2^53.
 
-Keep the file outside the clone. A build copies the clone into the image, and Git must never see the file.
+Keep the file outside the clone when it is not yours to publish. A build copies the clone into the image, and Git must never see such a file.
 
-The instance must run a version that has the two tables, so update it first. The command then takes the path of the file and says what storing it would change. It stores it only with `--write`:
-
-```bash
-docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs private-breaks /tmp/breaks.json
-docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs private-breaks /tmp/breaks.json --write
-```
-
-From a clone, with `DATABASE_URL` naming the instance's database, `pnpm --filter worker run job private-breaks /path/to/breaks.json` does the same.
-
-A break already stored keeps its id and takes the file's values. A break the file leaves out stays. Storing the same file twice changes nothing.
-
-When it stores something, the command prints the id of the import. With that id, this says how many breaks the import added, and deletes them only with `--write`:
+The command takes the path of the file and says what storing it would add. It stores it only with `--write`:
 
 ```bash
-docker compose run --rm worker node dist/cli.mjs private-breaks-remove <import>
-docker compose run --rm worker node dist/cli.mjs private-breaks-remove <import> --write
+docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs breaks /tmp/breaks.json
+docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs breaks /tmp/breaks.json --write
 ```
 
-It deletes them as they are, with whatever a later file changed in them, and touches nothing else. It does not bring back the values a break had before: store the earlier file again for that.
+From a clone, with `DATABASE_URL` naming the instance's database, `pnpm --filter worker run job breaks /path/to/breaks.json` does the same.
 
-As an operator, signed in, you read the list at `GET /v1/private-breaks`, and one break with its details at `GET /v1/private-breaks/<id>`. No key reads them.
+A break the catalogue already holds from the same list is left as it is, whatever the file now says of it. Storing the same file twice changes nothing. Nothing matches one list against another: the same place under two list names is added twice.
 
-Whoever can query the database reads the list too, and a dump holds it. Keep your backups as private as the list.
+### Removing a list
+
+```bash
+docker compose run --rm worker node dist/cli.mjs breaks-remove <list>
+docker compose run --rm worker node dist/cli.mjs breaks-remove <list> --write
+```
+
+The first line says how many breaks the catalogue holds from the list, and how many spots were made from them. The second deletes the breaks. Those spots keep their name and their point, and lose only the link.
+
+### Coming from an earlier version
+
+Update the API and the worker before you add a file: the version before this one cannot answer for a break that names no source. An instance that ran the weekly import keeps the breaks it had, and the worker stops asking for more. An instance that kept a private list keeps its two tables for one release, and nothing reads them: write the list again in the format above, add it with `breaks`, and remove the breaks of `osm` first if the two lists give the same places.
 
 ## Accounts, the operator, and API keys
 
@@ -156,7 +182,7 @@ The API asks who calls. It answers an account, by the session of a sign-in, or a
 
 Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet. An account reads the data everyone shares and keeps its own spots and lists.
 
-An operator is an account that runs the instance. It creates the developer accounts and makes their keys, sees how much they call, reads the list of the accounts that signed up, and alone reads the private list above. You name the operator from the server, by the account's id. Do it before you give the instance's address to anyone.
+An operator is an account that runs the instance. It creates the developer accounts and makes their keys, sees how much they call, and reads the list of the accounts that signed up. You name the operator from the server, by the account's id. Do it before you give the instance's address to anyone.
 
 A developer account is whoever consumes the API with keys: a person, a team, or a program of your own. It is not an account that signs in. You create it, you make its keys, and you hand them over.
 
@@ -194,7 +220,7 @@ Later, `/api/auth/sign-in/email` takes the same address and password and gives a
 
 The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts. A browser adds it. A script has to, on sign-up, on sign-in, on anything that writes with the session, and on every call to what runs the instance, a read too: the developer accounts, the keys, the counts and the list of accounts.
 
-- A key reads the shared data only. It reads nothing of an account and not the private list, so it can be given to a program.
+- A key reads the shared data only. It reads nothing of an account, so it can be given to a program.
 - The keys are the instance's: every operator lists them at `GET /v1/keys` and revokes any of them at `DELETE /v1/keys/<id>`. A revoked key never works again.
 - `PATCH /v1/developers/<id>` changes a developer account, and suspends it with `{"suspended":true}`: none of its keys works until it is resumed. `DELETE /v1/developers/<id>` deletes it with its keys and their counts.
 - A developer account's limit is a number of calls in an hour of the clock, UTC's, shared by its keys. A call over it gets 429, with `Retry-After`. Leave `callsPerHour` out for no limit. An account calls with its session without a limit.
@@ -202,7 +228,7 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - `GET /v1/actions` lists what the operators did to the developer accounts and the keys: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
 - `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
 - `node dist/cli.mjs operator-remove <account id>` takes the operator's rights back, with `--write`, and revokes every key the account made. Those keys never work again.
-- An instance with no operator still serves its accounts. Nobody can make a key, and nobody reads the private list.
+- An instance with no operator still serves its accounts. Nobody can make a key.
 - A key made before the developer accounts was given one named after its maker, when the instance was updated.
 
 ### The admin app
@@ -229,7 +255,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 
 - Read [Data sources](data-sources.md) before you open an instance to other people. It says what each provider allows.
 - Show a station's attribution wherever you show its data. The API returns it with every station.
-- The catalogue of surf breaks comes from OpenStreetMap, through one request a week to the public Overpass servers. Show "© OpenStreetMap contributors" wherever you show a break. The API returns it with every break.
+- A catalogue of surf breaks filled from OpenStreetMap is under the ODbL. Show "© OpenStreetMap contributors" wherever you show one of its breaks. The API returns the credit with each of them.
 - The map colors the sea with tiles that each visitor's browser fetches from the Copernicus Marine Service. Your API reads only their description, two documents an hour. Keep the credit the map shows for them. Decision 018 says what that provider sees.
 - A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid.
 - The code's licence covers the code. The measurements stay under their providers' terms.

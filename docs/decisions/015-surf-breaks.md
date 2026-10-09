@@ -1,6 +1,6 @@
 # 015. A catalogue of surf breaks
 
-Status: the catalogue and its import have been in use since 2026-10-08. Téo proposed to build the list from Surfline's map. The catalogue does not hold that list, for the reason under "Rejected", and decision 016 says where a list of that kind is kept. Publishing a user's spot after moderation is not built.
+Status: superseded in part by [decision 024](024-one-catalogue-of-breaks.md) on 2026-10-09. The table, the two routes and the OpenStreetMap source stay. The weekly import does not: a break is now added once, by hand, and its source is secondary. What follows is the record as it was. The catalogue and its import had been in use since 2026-10-08. Téo proposed to build the list from Surfline's map. The catalogue does not hold that list, for the reason under "Rejected", and decision 016 says where a list of that kind is kept. Publishing a user's spot after moderation is not built.
 
 ## Context
 

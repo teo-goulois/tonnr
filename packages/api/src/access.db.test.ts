@@ -2,8 +2,7 @@ import { call, isLazy, isProcedure, lazy, unlazy } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
-import { privateBreak, privateBreakImport } from "@repo/db/schema/private-breaks";
-import { spot, surfBreak } from "@repo/db/schema/spots";
+import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -77,8 +76,8 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.spots.update",
 ];
 // The procedures that take an operator's session, from the web app as well: what the instance
-// keeps to its operator.
-const ANSWERS_AN_OPERATOR = ["v1.privateBreaks.get", "v1.privateBreaks.list"];
+// keeps to its operator. None does since decision 024 gave the catalogue every break.
+const ANSWERS_AN_OPERATOR: string[] = [];
 // Every other procedure runs the instance, and takes an operator's session from the admin's
 // site. None is named: a procedure added later is held to that until someone names it above.
 const named = ["healthCheck", ...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT, ...ANSWERS_AN_OPERATOR];
@@ -104,8 +103,6 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
   afterAll(() => database?.drop());
   beforeEach(async () => {
     const { db } = database;
-    await db.delete(privateBreak);
-    await db.delete(privateBreakImport);
     await db.delete(surfBreak);
     // Their keys and their counts go with the developer accounts.
     await db.delete(developer);
@@ -356,9 +353,6 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       const both = { context: context({ session: "owner", authorization: `Bearer ${key}` }) };
 
       await expect(call(v1Router.keys.list, {}, both)).rejects.toEqual(refusal("FORBIDDEN"));
-      await expect(call(v1Router.privateBreaks.list, {}, both)).rejects.toEqual(
-        refusal("FORBIDDEN"),
-      );
     });
 
     it("sees a spot as a stranger does, its maker's too", async () => {
@@ -588,166 +582,120 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     });
   });
 
-  describe("the private list of breaks", () => {
-    const privateIds = {
+  describe("the catalogue of breaks", () => {
+    // Invented breaks: no list's data is in the tests.
+    const ids = {
       north: "11111111-1111-4111-8111-111111111111",
       south: "22222222-2222-4222-8222-222222222222",
     };
-    const openId = "33333333-3333-4333-8333-333333333333";
+    const unknown = {
+      breakTypes: null,
+      waveDirections: null,
+      bottomTypes: null,
+      abilityLevels: null,
+      boardTypes: null,
+      bestSeasons: null,
+      bestTides: null,
+      bestSwellDirections: null,
+      bestWindDirections: null,
+      offshoreDirectionDegrees: null,
+    };
 
     beforeEach(async () => {
       const { db } = database;
-      await db.insert(privateBreakImport).values({
-        id: "lot",
-        provider: "collected",
-        fileSha256: "0".repeat(64),
-        listed: 2,
-        added: 2,
-        changed: 0,
-        unchanged: 0,
-        absent: 0,
-      });
-      const row = { provider: "collected", collectedAt: AT, importId: "lot" };
-      await db.insert(privateBreak).values([
+      await db.insert(surfBreak).values([
         {
-          ...row,
-          id: privateIds.north,
+          id: ids.north,
+          provider: "example",
           providerRef: "a1",
-          name: "Kept north jetty",
+          name: "North jetty",
           latitude: 48,
           longitude: -4.5,
-          details: { bottom: "sand" },
+          breakTypes: ["beach", "jetty"],
+          waveDirections: ["left"],
+          bestSwellDirections: ["W", "WNW"],
+          offshoreDirectionDegrees: 90,
+          location: ["France", "Finistère"],
+          timezone: "Europe/Paris",
+          sourceUrl: "https://example.org/a1",
+          licenseType: "test",
+          licenseUrl: "https://example.org/licence",
+          attribution: "Test",
         },
-        {
-          ...row,
-          id: privateIds.south,
-          providerRef: "a2",
-          name: "Kept south reef",
-          latitude: -33.9,
-          longitude: 151.3,
-          sourceUrl: "https://example.org/a2",
-          termsUrl: "https://example.org/terms",
-          details: {},
-        },
+        // A break of which only the place is known, from a list that names no source.
+        { id: ids.south, name: "South reef", latitude: -33.9, longitude: 151.3 },
       ]);
-      await db.insert(surfBreak).values({
-        id: openId,
-        provider: "open",
-        providerRef: "node/1",
-        name: "Open jetty",
-        latitude: 48,
-        longitude: -4.5,
-        sourceUrl: "https://example.org/node/1",
-        licenseType: "test",
-        licenseUrl: "https://example.org/licence",
-        attribution: "Test",
-        lastSeenAt: AT,
-      });
+      await db.insert(surfBreakRecord).values({ breakId: ids.north, details: { crowd: "kept" } });
     });
 
-    it("gives an operator the list, in a box, by name, and page after page", async () => {
-      const list = (input: object) => call(v1Router.privateBreaks.list, input, bySession("owner"));
-
-      expect(await list({})).toEqual({
-        breaks: [
-          {
-            id: privateIds.north,
-            provider: "collected",
-            ref: "a1",
-            name: "Kept north jetty",
-            latitude: 48,
-            longitude: -4.5,
-          },
-          {
-            id: privateIds.south,
-            provider: "collected",
-            ref: "a2",
-            name: "Kept south reef",
-            latitude: -33.9,
-            longitude: 151.3,
-          },
-        ],
-        next: null,
-      });
-      expect((await list({ bbox: "-6,47,-4,49" })).breaks.map((found) => found.ref)).toEqual([
-        "a1",
-      ]);
-      expect((await list({ q: "REEF" })).breaks.map((found) => found.ref)).toEqual(["a2"]);
-      expect((await list({ q: "open" })).breaks).toEqual([]);
-
-      const first = await list({ limit: 1 });
-      expect(first).toMatchObject({ breaks: [{ ref: "a1" }], next: privateIds.north });
-      expect(await list({ limit: 1, after: first.next })).toMatchObject({
-        breaks: [{ ref: "a2" }],
-        next: null,
-      });
-    });
-
-    it("gives an operator one break with its details, and its source when the file gave one", async () => {
-      const get = (id: string) => call(v1Router.privateBreaks.get, { id }, bySession("owner"));
-
-      expect(await get(privateIds.north)).toEqual({
-        id: privateIds.north,
-        provider: "collected",
-        ref: "a1",
-        name: "Kept north jetty",
-        latitude: 48,
-        longitude: -4.5,
-        sourceUrl: null,
-        termsUrl: null,
-        rights: "not-established",
-        collectedAt: AT,
-        details: { bottom: "sand" },
-      });
-      expect(await get(privateIds.south)).toMatchObject({
-        sourceUrl: "https://example.org/a2",
-        termsUrl: "https://example.org/terms",
-      });
-      await expect(get(openId)).rejects.toEqual(refusal("NOT_FOUND"));
-    });
-
-    it("refuses an account that is no operator", async () => {
-      await expect(call(v1Router.privateBreaks.list, {}, bySession("visitor"))).rejects.toEqual(
-        refusal("FORBIDDEN"),
-      );
-      await expect(
-        call(v1Router.privateBreaks.get, { id: privateIds.north }, bySession("visitor")),
-      ).rejects.toEqual(refusal("FORBIDDEN"));
-    });
-
-    it("refuses a key, an operator's too", async () => {
+    it("gives an account and a key each break with what is known of it", async () => {
       const { key } = await makeKey();
+      const north = {
+        id: ids.north,
+        name: "North jetty",
+        latitude: 48,
+        longitude: -4.5,
+        characteristics: {
+          ...unknown,
+          breakTypes: ["beach", "jetty"],
+          waveDirections: ["left"],
+          bestSwellDirections: ["W", "WNW"],
+          offshoreDirectionDegrees: 90,
+        },
+        location: ["France", "Finistère"],
+        timezone: "Europe/Paris",
+        source: {
+          provider: "example",
+          url: "https://example.org/a1",
+          attribution: "Test",
+          license: { type: "test", url: "https://example.org/licence" },
+        },
+      };
+      const south = {
+        id: ids.south,
+        name: "South reef",
+        latitude: -33.9,
+        longitude: 151.3,
+        characteristics: unknown,
+        location: null,
+        timezone: null,
+        source: { provider: null, url: null, attribution: null, license: null },
+      };
 
-      await expect(call(v1Router.privateBreaks.list, {}, byKey(key))).rejects.toEqual(
-        refusal("FORBIDDEN"),
-      );
-      await expect(
-        call(v1Router.privateBreaks.get, { id: privateIds.north }, byKey(key)),
-      ).rejects.toEqual(refusal("FORBIDDEN"));
+      for (const caller of [bySession("visitor"), byKey(key)]) {
+        expect(await call(v1Router.breaks.list, {}, caller)).toEqual({
+          breaks: [north, south],
+          next: null,
+        });
+        expect(await call(v1Router.breaks.get, { id: ids.south }, caller)).toEqual(south);
+
+        const boxed = await call(v1Router.breaks.list, { bbox: "-6,47,-4,49" }, caller);
+        expect(boxed.breaks.map((found) => found.id)).toEqual([ids.north]);
+        const named = await call(v1Router.breaks.list, { q: "REEF" }, caller);
+        expect(named.breaks.map((found) => found.id)).toEqual([ids.south]);
+
+        const first = await call(v1Router.breaks.list, { limit: 1 }, caller);
+        expect(first).toMatchObject({ breaks: [{ id: ids.north }], next: ids.north });
+        expect(
+          await call(v1Router.breaks.list, { limit: 1, after: ids.north }, caller),
+        ).toMatchObject({ breaks: [{ id: ids.south }], next: null });
+      }
     });
 
-    it("stays out of the catalogue, for every caller and every way of asking", async () => {
+    it("keeps to itself what a list said besides, for every caller", async () => {
       const { key } = await makeKey();
 
       for (const caller of [bySession("visitor"), bySession("owner"), byKey(key)]) {
         const whole = await call(v1Router.breaks.list, { limit: 2000 }, caller);
-        expect(whole.breaks.map((found) => found.id)).toEqual([openId]);
-        expect(JSON.stringify(whole)).not.toContain("Kept");
-
-        expect((await call(v1Router.breaks.list, { q: "Kept" }, caller)).breaks).toEqual([]);
-        expect((await call(v1Router.breaks.list, { q: "jetty" }, caller)).breaks).toHaveLength(1);
-        const boxed = await call(v1Router.breaks.list, { bbox: "-180,-90,180,90" }, caller);
-        expect(boxed.breaks.map((found) => found.id)).toEqual([openId]);
-
-        for (const id of Object.values(privateIds)) {
-          await expect(call(v1Router.breaks.get, { id }, caller)).rejects.toEqual(
-            refusal("NOT_FOUND"),
-          );
-        }
-        await expect(
-          call(v1Router.spots.create, { breakId: privateIds.north }, bySession("owner")),
-        ).rejects.toEqual(refusal("NOT_FOUND"));
+        const one = await call(v1Router.breaks.get, { id: ids.north }, caller);
+        expect(JSON.stringify([whole, one])).not.toContain("kept");
       }
+    });
+
+    it("lets an account make a spot from a break", async () => {
+      const made = await call(v1Router.spots.create, { breakId: ids.north }, bySession("visitor"));
+
+      expect(made).toMatchObject({ breakId: ids.north, name: "North jetty", latitude: 48 });
     });
   });
 });

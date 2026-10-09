@@ -13,7 +13,6 @@ import { listsRouter } from "./lists";
 import { mapsRouter } from "./maps";
 import { notificationsRouter } from "./notifications";
 import { preferencesRouter } from "./preferences";
-import { privateBreaksRouter } from "./private-breaks";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
 import { tidesRouter } from "./tides";
@@ -33,7 +32,6 @@ export const v1Router = {
   lists: listsRouter,
   maps: mapsRouter,
   notifications: notificationsRouter,
-  privateBreaks: privateBreaksRouter,
   spots: spotsRouter,
   stations: stationsRouter,
   tides: tidesRouter,

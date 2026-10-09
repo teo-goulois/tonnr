@@ -90,8 +90,6 @@ export type MapBreak = {
   name: string;
   latitude: number;
   longitude: number;
-  // A break of the instance's private list, which only an operator is given.
-  isPrivate?: boolean;
 };
 
 export type MapLayers = { sea: boolean; buoys: boolean; wind: boolean; breaks: boolean };
@@ -282,7 +280,7 @@ function breakFeatures(breaks: MapBreak[]) {
     features: breaks.map((found) => ({
       type: "Feature" as const,
       geometry: { type: "Point" as const, coordinates: [found.longitude, found.latitude] },
-      properties: { id: found.id, name: found.name, isPrivate: found.isPrivate === true },
+      properties: { id: found.id, name: found.name },
     })),
   };
 }
@@ -627,16 +625,15 @@ export function StationMap({
     });
     // A break measures nothing, so it takes no color of a scale: a small dot in the theme's ink,
     // above the stations. Where a break and a buoy overlap, the buoy shows as a ring around it.
-    // A break of the private list is the same dot, hollow, so that it is told from the catalogue's.
     instance.addLayer({
       id: "break-dots",
       type: "circle",
       source: "breaks",
       paint: {
         "circle-radius": 3.5,
-        "circle-color": ["case", ["get", "isPrivate"], surface, ink],
+        "circle-color": ink,
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": ["case", ["get", "isPrivate"], ink, surface],
+        "circle-stroke-color": surface,
       },
     });
     instance.addLayer({

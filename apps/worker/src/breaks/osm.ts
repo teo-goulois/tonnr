@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { cleanText } from "../clean-text";
 import { FormatError } from "../providers/format-error";
 import { isPosition } from "../providers/plausible";
-import type { BreakList, BreakSource, ListedBreak } from "./source";
+import type { BreakSource, ListedBreak } from "./source";
 
 // Every object tagged for surfing, with its tags. A line or an area comes with the centre of
 // the box around it, which for a long beach can lie a few hundred metres from the peak.
@@ -94,12 +94,14 @@ function numberOrNull(value: unknown) {
 }
 
 /** Reads an Overpass answer and keeps the objects that are surf breaks. */
-export function parseSurfingObjects(json: unknown): BreakList | FormatError {
+export function parseSurfingObjects(
+  json: unknown,
+): { breaks: ListedBreak[]; unreadable: string[] } | FormatError {
   if (!isRecord(json) || !Array.isArray(json.elements)) {
     return new FormatError({ provider: "osm", message: "the answer has no list of objects" });
   }
   // Overpass answers 200 with what it had found when it ran out of time or memory. Such a
-  // list is short of breaks, and whoever stores it would take them for gone.
+  // list is short of breaks, and the catalogue is filled from it once.
   if (typeof json.remark === "string") {
     return new FormatError({ provider: "osm", message: `Overpass gave up: ${json.remark}` });
   }
@@ -141,10 +143,7 @@ export function parseSurfingObjects(json: unknown): BreakList | FormatError {
 
 export const osm: BreakSource = {
   id: "osm",
-  // Once a week: mappers add a few breaks a month, and the public Overpass servers are shared.
-  schedule: "37 4 * * 1",
-  licenseType: "ODbL-1.0",
-  licenseUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
+  license: { type: "ODbL-1.0", url: "https://opendatacommons.org/licenses/odbl/1-0/" },
   attribution: "(c) OpenStreetMap contributors <https://www.openstreetmap.org/copyright>",
   // One request, with no second try: Overpass asks a refused caller to wait half a minute.
   fetchBreaks: Effect.gen(function* () {

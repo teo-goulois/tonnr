@@ -1,6 +1,6 @@
 # 019. An API that asks who calls
 
-Status: decided by Téo on 2026-10-09 and built the same day. Amended the same day by [decision 020](020-admin-and-developer-accounts.md) on four points: a key belongs to a developer account, the keys are the instance's and not their maker's, what runs the instance takes a request from the admin's site, and a key's last use is written with the counts of calls. Decision 020 also gives a developer account a limit. Not built: a limit on what an account calls with its session, a way for a phone app to sign in, and a way to close sign-up.
+Status: decided by Téo on 2026-10-09 and built the same day. [Decision 024](024-one-catalogue-of-breaks.md) removed the private list the same day, so no procedure is kept to an operator's session from the web app any more. Amended the same day by [decision 020](020-admin-and-developer-accounts.md) on four points: a key belongs to a developer account, the keys are the instance's and not their maker's, what runs the instance takes a request from the admin's site, and a key's last use is written with the counts of calls. Decision 020 also gives a developer account a limit. Not built: a limit on what an account calls with its session, a way for a phone app to sign in, and a way to close sign-up.
 
 ## Context
 

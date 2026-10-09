@@ -121,7 +121,6 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     "/v1/stations",
     "/v1/breaks",
     "/v1/maps/wave-height",
-    "/v1/private-breaks",
     "/v1/keys",
     "/v1/developers",
     "/v1/accounts",
@@ -135,11 +134,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
   });
 
   it("refuses the other transport the same way", async () => {
-    for (const path of [
-      "/rpc/v1/stations/list",
-      "/rpc/v1/privateBreaks/list",
-      "/rpc/privateData",
-    ]) {
+    for (const path of ["/rpc/v1/stations/list", "/rpc/v1/breaks/list", "/rpc/privateData"]) {
       const response = await send("POST", path, { body: { json: {} } });
 
       expect([response.status, response.headers.get("Cache-Control")]).toEqual([401, NOT_CACHED]);
@@ -179,14 +174,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       200,
     );
     expect((await send("GET", "/v1/account", { key })).status).toBe(403);
-    expect((await send("GET", "/v1/private-breaks", { key })).status).toBe(403);
-    expect((await send("GET", "/v1/private-breaks", { key, cookie })).status).toBe(403);
+    expect((await send("GET", "/v1/account", { key, cookie })).status).toBe(403);
     expect(
       (await send("GET", "/v1/stations", { key: `key_${"a".repeat(43)}`, cookie })).status,
     ).toBe(401);
   });
 
-  it("refuses an account that is no operator what runs the instance, and the private list", async () => {
+  it("refuses an account that is no operator what runs the instance", async () => {
     const operatorCookie = await signUpOperator();
     const developerId = await makeDeveloper(operatorCookie);
     const cookie = await signUp("visitor");
@@ -198,7 +192,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     expect((await send("POST", "/v1/developers", { ...from, body: { name: "mine" } })).status).toBe(
       403,
     );
-    for (const path of ["/v1/keys", "/v1/developers", "/v1/accounts", "/v1/private-breaks"]) {
+    for (const path of ["/v1/keys", "/v1/developers", "/v1/accounts"]) {
       expect((await send("GET", path, from)).status, path).toBe(403);
     }
     expect(await keys()).toEqual([]);
@@ -303,8 +297,6 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/usage/breakdown", "get"],
       ["/accounts", "get"],
       ["/actions", "get"],
-      ["/private-breaks", "get"],
-      ["/private-breaks/{id}", "get"],
       ["/lists", "get"],
       ["/spots", "post"],
       ["/notifications", "get"],
