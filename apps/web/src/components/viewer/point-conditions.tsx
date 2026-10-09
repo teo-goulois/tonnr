@@ -15,6 +15,7 @@ import {
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
+import { TideChartSkeleton } from "./tide-chart-skeleton";
 import type { Forecast, Loadable, TideExtremes, TideTimeline } from "./types";
 
 // The chart library is heavy and only a panel draws with it, so it loads apart from the map.
@@ -37,7 +38,7 @@ const LazyTideChart = lazy(() =>
 
 export function TideChart(props: ComponentProps<typeof LazyTideChart>) {
   return (
-    <Suspense fallback={<Skeleton className="h-64 w-full rounded-(--radius-xs)" />}>
+    <Suspense fallback={<TideChartSkeleton className={props.className} />}>
       <LazyTideChart {...props} />
     </Suspense>
   );

@@ -24,6 +24,7 @@ import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
 import { type ChartPoint, SeaChart, valueTicks } from "./sea-chart";
+import { TideChartSkeleton } from "./tide-chart-skeleton";
 import type { TideExtremes } from "./types";
 
 type Row = { time: number; value: number };
@@ -436,6 +437,8 @@ export function TideChart({
     );
   }, [start, end, days, moment]);
 
+  if (isLoading) return <TideChartSkeleton className={className} />;
+
   return (
     <div className="grid gap-xxs">
       <div className="flex h-8 items-center justify-between gap-xs">
@@ -482,7 +485,6 @@ export function TideChart({
               colors={colors}
               formatValue={formatMeters}
               points={points}
-              isLoading={isLoading}
               headroom={36}
               footroom={32}
               yAxis={false}
