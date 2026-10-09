@@ -175,7 +175,7 @@ The first line says how many breaks the catalogue holds from the list, and how m
 
 ### Coming from an earlier version
 
-Update the API and the worker before you add a file: the version before this one cannot answer for a break that names no source. An instance that ran the weekly import keeps the breaks it had, and the worker stops asking for more. An instance that kept a private list keeps its two tables for one release, and nothing reads them: write the list again in the format above, add it with `breaks`, and remove the breaks of `osm` first if the two lists give the same places.
+Update the API and the worker before you add a file: the version before this one cannot answer for a break that names no source. An instance that ran the weekly import keeps the breaks it had, and the worker stops asking for more. An instance that kept a private list loses its two tables, and their rows, at the update after the one that stopped reading them. Keep the file you imported: write the list again in the format above, add it with `breaks`, and remove the breaks of `osm` first if the two lists give the same places.
 
 ## Accounts, the operator, and API keys
 

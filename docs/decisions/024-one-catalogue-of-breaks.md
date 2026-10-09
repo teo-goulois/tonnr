@@ -1,6 +1,6 @@
 # 024. One catalogue of breaks, filled once
 
-Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: a way to change a break from the app, the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. Not done: the migration that drops the two tables of the private list, which has to wait one release.
+Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: a way to change a break from the app, the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. The two tables of the private list were dropped one release later, the same day.
 
 ## Context
 
@@ -30,7 +30,7 @@ Téo wants one list that belongs to the instance. A break enters it once. Nothin
 - **Keeping the provider's words in a column of the catalogue.** Every reader of the catalogue would have to remember not to return it. A table that no procedure reads cannot be returned by mistake, which was decision 016's reasoning.
 - **A table of characteristics, one row per break and word.** Nothing asks for the breaks that have a word yet. Lists in columns are read with the break, in one row.
 - **An arc of degrees for the swell and the wind**, as a spot's criteria have. The points a list gives need not be next to one another, and an arc would add the ones between. Turning them into an arc is for the day they fill a spot's criteria.
-- **Dropping the tables of the private list now.** Decision 009 asks that the version a deployment replaces keeps working while it stops, and that version reads them.
+- **Dropping the tables of the private list in the release that stopped reading them.** Decision 009 asks that the version a deployment replaces keeps working while it stops, and that version reads them.
 
 ## Consequences
 
@@ -43,5 +43,5 @@ Téo wants one list that belongs to the instance. A break enters it once. Nothin
 - A break cannot be corrected from the app yet. Until then a correction is a statement on the database.
 - `last_seen_at` is no longer written. It keeps what the weekly import wrote, and is null for a break added since.
 - `operatorProcedure` builds no procedure today. It stays for what the instance will next keep to its operator.
-- The private list's tables stay one release, empty of readers. Their rows are deleted with them: an operator who wants them in the catalogue adds the file again in the new format.
+- The private list's tables stayed one release, empty of readers, and the next migration dropped them. Their rows went with them: an operator who wants them in the catalogue adds the file again in the new format.
 - A break's best size came as text without a unit in the lists seen so far. No column holds it: it stays in what is kept aside.

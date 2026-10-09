@@ -5,4 +5,3 @@ export * from "./spots";
 export * from "./preferences";
 export * from "./lists";
 export * from "./instance";
-export * from "./private-breaks";
