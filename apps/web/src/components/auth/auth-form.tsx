@@ -52,7 +52,11 @@ export function AuthForm({ mode, onModeChange, onSuccess }: AuthFormProps) {
         ? await authClient.signUp.email(value)
         : await authClient.signIn.email({ email: value.email, password: value.password });
       if (answer.error) {
-        toast.error(answer.error.message || m.auth_failed());
+        // The API says in English why it refuses. A suspended account is told in its own
+        // language: the other reasons are the sign-in library's, as it words them.
+        const reason =
+          answer.error.code === "ACCOUNT_SUSPENDED" ? m.auth_suspended() : answer.error.message;
+        toast.error(reason || m.auth_failed());
         return;
       }
       onSuccess();

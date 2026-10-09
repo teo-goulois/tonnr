@@ -82,6 +82,7 @@
   "auth_email_invalid": "Enter a valid email address.",
   "auth_password_too_short": "Use at least 8 characters.",
   "auth_failed": "That did not work. Try again.",
+  "auth_suspended": "This account is suspended.",
   "auth_have_account": "Already have an account?",
   "auth_no_account": "No account yet?",
   "auth_reason_save": "Sign in to save {name}.",
