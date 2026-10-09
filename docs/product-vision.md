@@ -12,6 +12,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - The user picks the spot from a catalogue of known surf breaks, or places a point of their own. Their own point stays private. It joins the catalogue only after moderation, so that nobody publishes a secret spot by accident.
 - Tonnr alerts the user when measurements or forecasts match those conditions.
 - A spot is private, public, or shared with chosen people.
+- A user keeps buoys and wind stations as favorites and sorts them into lists. Decision 017 gives the model.
 - A public API serves the data underneath: buoy measurements, forecasts, tides, and history.
 
 Tonnr lives at `tonnr.app`. Decision 013 records the name.

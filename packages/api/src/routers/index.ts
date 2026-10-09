@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { breaksRouter } from "./breaks";
 import { forecastsRouter } from "./forecasts";
+import { listsRouter } from "./lists";
 import { notificationsRouter } from "./notifications";
 import { preferencesRouter } from "./preferences";
 import { spotsRouter } from "./spots";
@@ -13,6 +14,7 @@ import { tidesRouter } from "./tides";
 export const v1Router = {
   breaks: breaksRouter,
   forecasts: forecastsRouter,
+  lists: listsRouter,
   notifications: notificationsRouter,
   spots: spotsRouter,
   stations: stationsRouter,

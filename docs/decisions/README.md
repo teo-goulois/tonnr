@@ -18,3 +18,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [014. One design for the web app and the mobile app](014-web-app-as-mobile-reference.md)
 - [015. A catalogue of surf breaks](015-surf-breaks.md)
 - [016. A private list of surf breaks](016-private-breaks.md)
+- [017. Station lists](017-station-lists.md)
