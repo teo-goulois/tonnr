@@ -3,7 +3,7 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import { LocateIcon, MinusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
@@ -256,6 +256,17 @@ export function Viewer({
     () => (seaTimestamp === undefined ? undefined : new Date(seaTimestamp)),
     [seaTimestamp],
   );
+  // How tall the timeline is, and zero while it is not shown.
+  const [timelineHeight, setTimelineHeight] = useState(0);
+  const timelineRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const observer = new ResizeObserver(() => setTimelineHeight(node.offsetHeight));
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      setTimelineHeight(0);
+    };
+  }, []);
   const seaPresent = seaTimes?.present;
   const onSeaTimeChange = useCallback(
     (time: number) => {
@@ -346,7 +357,17 @@ export function Viewer({
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
 
   return (
-    <div className="relative min-h-0 overflow-hidden">
+    <div
+      className="relative min-h-0 overflow-hidden"
+      // On a phone the timeline takes the bottom of the map, and the map's credits sit above it.
+      style={
+        !wide && timelineHeight > 0
+          ? ({
+              "--map-credits-lift": `calc(${timelineHeight}px + var(--spacing-s) + env(safe-area-inset-bottom))`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
       <StationMap
         ref={map}
         stations={mapStations}
@@ -428,18 +449,17 @@ export function Viewer({
         breaksTruncated={breaksTruncated}
       />
 
-      {/* The sea's timeline runs along the bottom of the map, beside the legend on a wide screen and
-          above the sheet on a phone. It stays clear of the credits in the corner. */}
+      {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
+          across a phone. A drawer opens over it, and it does not move. */}
       {layers.sea && seaTime && seaTimes && (
         <SeaTimeline
+          ref={timelineRef}
           className={cn(
             "absolute right-s",
-            wide ? "bottom-10 left-[calc(var(--spacing-s)*2+16rem)] max-w-160" : "left-s",
+            wide
+              ? "bottom-10 left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
+              : "bottom-[calc(var(--spacing-s)+env(safe-area-inset-bottom))] left-s",
           )}
-          style={{
-            bottom: wide ? undefined : `calc(${padding.bottom}px + 2.5rem)`,
-            marginRight: padding.right,
-          }}
           time={seaTime}
           times={seaTimes}
           onTimeChange={onSeaTimeChange}

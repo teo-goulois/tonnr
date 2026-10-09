@@ -1,9 +1,9 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { SliderPrimitive } from "@repo/ui/components/ui/slider";
 import { cn } from "@repo/ui/lib/utils";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type Ref, useEffect, useMemo, useState } from "react";
 
-import { formatDay, formatDayAndClock } from "@/lib/format";
+import { formatDay, formatDayAndClock, formatWeekday } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,14 +25,14 @@ type SeaTimelineProps = {
   times: SeaTimes;
   onTimeChange: (time: number) => void;
   className?: string;
-  style?: CSSProperties;
+  ref?: Ref<HTMLDivElement>;
 };
 
 /**
  * The instant the sea is shown at, on a strip of the days ahead: one bar for each instant of the
  * model, the days named above them, and a thumb that runs along.
  */
-export function SeaTimeline({ time, times, onTimeChange, className, style }: SeaTimelineProps) {
+export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTimelineProps) {
   const { present, earliest, latest, stepMs } = times;
   // Where the thumb is while it moves, ahead of the map.
   const [scrubbed, setScrubbed] = useState<number | null>(null);
@@ -65,9 +65,11 @@ export function SeaTimeline({ time, times, onTimeChange, className, style }: Sea
   // The days of the strip, each from its midnight by the clock of the reader. The first one starts
   // with the strip.
   const days = useMemo(() => {
-    const starts = [new Date(earliest - stepMs / 2)];
     const midnight = new Date(earliest);
     midnight.setHours(24, 0, 0, 0);
+    // What is left of the first day is named when it is long enough to hold a name.
+    const starts =
+      midnight.getTime() - earliest > DAY_MS / 2 ? [new Date(earliest - stepMs / 2)] : [];
     for (; midnight.getTime() <= latest; midnight.setTime(midnight.getTime() + DAY_MS)) {
       starts.push(new Date(midnight));
     }
@@ -81,7 +83,7 @@ export function SeaTimeline({ time, times, onTimeChange, className, style }: Sea
         "[--edge-color:var(--neutral-10-transparent)]",
         className,
       )}
-      style={style}
+      ref={ref}
     >
       <Button
         variant="secondary"
@@ -106,16 +108,18 @@ export function SeaTimeline({ time, times, onTimeChange, className, style }: Sea
         onValueChange={(value) => typeof value === "number" && setScrubbed(value)}
       >
         <div className="relative h-(--line-s) overflow-hidden text-xs text-neutral-7" aria-hidden>
-          {days.map((day, index) => (
+          {days.map((day) => (
             <span
               key={day.getTime()}
               className={cn(
                 "absolute inset-y-0 pl-xxs whitespace-nowrap",
-                index > 0 && "border-l border-neutral-4",
+                day.getTime() > earliest && "border-l border-neutral-4",
               )}
               style={{ left: place(day.getTime()) }}
             >
-              {formatDay(new Date(day.getTime() + stepMs))}
+              {/* A phone has room for the day's name alone. */}
+              <span className="lg:hidden">{formatWeekday(new Date(day.getTime() + stepMs))}</span>
+              <span className="max-lg:hidden">{formatDay(new Date(day.getTime() + stepMs))}</span>
             </span>
           ))}
           {/* The instant shown, over the name of its day. It stays inside the strip at both ends. */}
@@ -127,7 +131,7 @@ export function SeaTimeline({ time, times, onTimeChange, className, style }: Sea
           </span>
         </div>
 
-        <SliderPrimitive.Control className="relative mt-xxs flex h-6 cursor-pointer touch-none select-none">
+        <SliderPrimitive.Control className="relative mt-xxs flex h-4 cursor-pointer lg:h-6 touch-none select-none">
           <div className="pointer-events-none absolute inset-0 flex" aria-hidden>
             {instants.map((instant) => (
               <span key={instant} className="flex-1 px-px">

@@ -3,6 +3,8 @@
 /* The map's credits, on the theme's surface and in its type. They leave the legend its corner.
    The map's own stylesheet loads after this one, so each rule names the map to outrank it. */
 .maplibregl-map .maplibregl-ctrl-bottom-right {
+  /* Above the sea's timeline, where a phone shows it across the bottom of the map. */
+  bottom: var(--map-credits-lift, 0px);
   max-width: calc(100% - 18rem);
 }
 .maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
