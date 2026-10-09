@@ -85,7 +85,8 @@ function attemptOf<Result>(
         workerId: worker.id,
         startedAt: asked.startedOn,
         // The scheduler stops a run that took too long, and every run when the worker stops.
-        givenUp: () => (isStopping ? "stopped" : asked.signal.aborted ? "expired" : null),
+        // A run that it did not stop failed on its own, a stop under way or not.
+        givenUp: () => (asked.signal.aborted ? (isStopping ? "stopped" : "expired") : null),
       },
       async () =>
         done(
