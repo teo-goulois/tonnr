@@ -64,6 +64,7 @@ import {
   BreakPill,
   BuoyPill,
   FreshnessDot,
+  FreshnessGauge,
   HeightChip,
   UserDot,
   WindBadge,
@@ -593,6 +594,11 @@ export function DesignSystemPage() {
           <FreshnessDot freshness="fresh" />
           <FreshnessDot freshness="aging" />
           <FreshnessDot freshness="old" />
+          {(["fresh", "aging", "old"] as const).map((freshness) => (
+            <span key={freshness} className="relative size-6">
+              <FreshnessGauge freshness={freshness} />
+            </span>
+          ))}
           <span className="relative ml-s size-4">
             <UserDot className="absolute" />
           </span>

@@ -1,6 +1,6 @@
 import { ArrowUpIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import type { ComponentProps } from "react";
+import type { ComponentProps, CSSProperties } from "react";
 
 import { type Freshness, formatMeters, formatNumber, formatSeconds } from "@/lib/format";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@/lib/sea-scales";
@@ -23,7 +23,7 @@ export function DirectionArrow({
   );
 }
 
-/** How recent a reading is: a green dot that beats, an amber one, then a gray one. */
+/** How recent a reading is, in a panel or a list: a green dot that beats, an amber one, then a gray one. */
 export function FreshnessDot({
   freshness,
   className,
@@ -49,15 +49,85 @@ export function FreshnessDot({
   );
 }
 
+// The gauge of a buoy's pill is drawn in a box of 24 px, with the chip in its middle. To change its
+// look, change these four numbers:
+// - GAUGE_BARS: how many bars the ring has. Six matches the six hours a reading stays on the map.
+// - GAUGE_STROKE: how thick a bar is, in px. 2 is bold, 1 is a hairline.
+// - GAUGE_INSET: the room between the ring and the chip, in px. The chip takes what is left, so a
+//   thinner ring or a smaller inset gives a bigger chip.
+// - GAUGE_BAR_GAP: the gap between two bars, as a share of one bar's slot. 0.15 is tight, 0.3 airy.
+// GAUGE_BARS_LIT says how many bars each freshness lights.
+const GAUGE_BOX = 24;
+const GAUGE_BARS = 6;
+const GAUGE_STROKE = 1.25;
+const GAUGE_INSET = 1.25;
+const GAUGE_BAR_GAP = 0.15;
+const GAUGE_BARS_LIT: Record<Freshness, number> = { fresh: 6, aging: 4, old: 2, none: 0 };
+const GAUGE_CHIP = GAUGE_BOX - 2 * (GAUGE_STROKE + GAUGE_INSET);
+
+/**
+ * How recent a reading is, as a ring of bars around the chip of a pill: full when the reading is
+ * fresh, and emptier as it ages. It fills a box of 24 px, which its parent positions.
+ */
+export function FreshnessGauge({
+  freshness,
+  color = "currentColor",
+  onDark = false,
+  className,
+}: {
+  freshness: Freshness;
+  // The color of the lit bars: the pill gives its wave height's.
+  color?: string;
+  onDark?: boolean;
+  className?: string;
+}) {
+  const lit = GAUGE_BARS_LIT[freshness];
+  // The circle is measured in slots, one per bar, so the dashes do not depend on its radius.
+  const bar = 1 - GAUGE_BAR_GAP;
+  const circle = {
+    cx: GAUGE_BOX / 2,
+    cy: GAUGE_BOX / 2,
+    r: (GAUGE_BOX - GAUGE_STROKE) / 2,
+    pathLength: GAUGE_BARS,
+    strokeWidth: GAUGE_STROKE,
+    // Half a gap back, so the first bar starts just right of the top.
+    strokeDashoffset: -GAUGE_BAR_GAP / 2,
+  };
+  return (
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${GAUGE_BOX} ${GAUGE_BOX}`}
+      fill="none"
+      className={cn("absolute inset-0 size-6 -rotate-90", className)}
+    >
+      <circle
+        {...circle}
+        strokeDasharray={`${bar} ${GAUGE_BAR_GAP}`}
+        className={onDark ? "stroke-neutral-1/25" : "stroke-neutral-4"}
+      />
+      {lit > 0 && (
+        <circle
+          {...circle}
+          // The lit bars, then one gap as long as the bars that are out.
+          strokeDasharray={`${`${bar} ${GAUGE_BAR_GAP} `.repeat(lit - 1)}${bar} ${GAUGE_BARS - lit + GAUGE_BAR_GAP}`}
+          stroke={color}
+        />
+      )}
+    </svg>
+  );
+}
+
 /** The disc that says a wave height by its color, with the direction of the waves when known. */
 export function HeightChip({
   heightMeters,
   directionDegrees,
   className,
+  style,
 }: {
   heightMeters: number;
   directionDegrees: number | null;
   className?: string;
+  style?: CSSProperties;
 }) {
   return (
     <span
@@ -66,6 +136,7 @@ export function HeightChip({
       style={{
         background: scaleColor(WAVE_HEIGHT_SCALE, heightMeters),
         color: scaleInk(WAVE_HEIGHT_SCALE, heightMeters),
+        ...style,
       }}
     >
       {directionDegrees !== null && <DirectionArrow fromDegrees={directionDegrees} />}
@@ -115,7 +186,19 @@ export function BuoyPill({
       )}
       {...props}
     >
-      <HeightChip heightMeters={heightMeters} directionDegrees={directionDegrees} />
+      <span aria-hidden className="relative grid size-6 shrink-0 place-items-center">
+        <FreshnessGauge
+          freshness={freshness}
+          color={scaleColor(WAVE_HEIGHT_SCALE, heightMeters)}
+          onDark={selected}
+        />
+        <HeightChip
+          heightMeters={heightMeters}
+          directionDegrees={directionDegrees}
+          className="[&>svg]:size-3"
+          style={{ width: GAUGE_CHIP, height: GAUGE_CHIP }}
+        />
+      </span>
       <span>{formatMeters(heightMeters)}</span>
       {periodSeconds !== null && (
         <span className={cn("text-xs font-normal", selected ? "text-neutral-4" : "text-neutral-7")}>
@@ -123,7 +206,6 @@ export function BuoyPill({
         </span>
       )}
       {saved && <StarBoldIcon aria-hidden className="size-2.5 shrink-0" />}
-      <FreshnessDot freshness={freshness} />
     </button>
   );
 }

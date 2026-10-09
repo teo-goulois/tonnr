@@ -515,6 +515,7 @@ export function Viewer({
       <MapLegend
         // At the top on a phone: the bottom is where the sheets rise and where the credits are.
         className={cn("absolute left-s", wide ? "bottom-s" : "top-s")}
+        opens={wide ? "up" : "down"}
         layers={layers}
         onLayersChange={onLayersChange}
         expanded={legendChoice ?? wide}

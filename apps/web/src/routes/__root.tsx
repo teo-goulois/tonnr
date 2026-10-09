@@ -1,6 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRouteWithContext,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { APP_NAME } from "@repo/config/app";
 import { Toaster } from "@repo/ui/components/ui/sonner";
@@ -72,6 +77,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootDocument,
 });
 
+const isDevtoolsEnabled = false;
+
 function RootDocument() {
   return (
     // next-themes sets the theme class on <html> before React hydrates.
@@ -92,8 +99,10 @@ function RootDocument() {
           <Outlet />
           <Toaster />
         </ThemeProvider>
-        <TanStackRouterDevtools position="bottom-left" />
-        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        {isDevtoolsEnabled && <TanStackRouterDevtools position="bottom-left" />}
+        {isDevtoolsEnabled && (
+          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        )}
         <Scripts />
       </body>
     </html>

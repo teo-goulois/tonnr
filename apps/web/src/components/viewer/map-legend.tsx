@@ -1,4 +1,3 @@
-import { Button } from "@repo/ui/components/ui/button";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { ChevronDownIcon, LayersIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
@@ -8,15 +7,17 @@ import { formatNumber } from "@/lib/format";
 import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { FreshnessDot } from "./map-markers";
+import { FreshnessGauge } from "./map-markers";
 import type { MapLayers } from "./station-map";
 
 type MapLegendProps = {
   layers: MapLayers;
   onLayersChange: (layers: MapLayers) => void;
-  // Shows every layer with its switch. Folded, only the scale of the wave heights is left.
+  // Shows every layer with its switch. Folded, only the title is left.
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  // The way the legend grows: down from the top of the map, or up from its bottom.
+  opens?: "down" | "up";
   // Wind stations and breaks are many: when not all of them are loaded, the legend says how to
   // see the rest.
   windTruncated: boolean;
@@ -92,90 +93,97 @@ export function MapLegend({
   onLayersChange,
   expanded,
   onExpandedChange,
+  opens = "down",
   windTruncated,
   breaksTruncated,
   className,
 }: MapLegendProps) {
-  const surface =
-    "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)] rounded-(--radius-xs)";
-
-  if (!expanded) {
-    return (
-      <div className={cn(surface, "flex w-56 items-center gap-xs py-xs pr-s pl-xs", className)}>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={m.map_layers()}
-          aria-expanded={false}
-          onClick={() => onExpandedChange(true)}
-        >
-          <LayersIcon data-slot="icon" aria-hidden />
-        </Button>
-        <div className="min-w-0 flex-1" title={m.map_wave_height()}>
-          <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
-        </div>
-      </div>
-    );
-  }
+  const bodyId = useId();
 
   return (
-    <section aria-label={m.map_layers()} className={cn(surface, "grid w-64 gap-s p-s", className)}>
-      <LayerRow
-        label={m.map_wave_height()}
-        checked={layers.sea}
-        onCheckedChange={(sea) => onLayersChange({ ...layers, sea })}
+    <section
+      aria-label={m.map_layers()}
+      className={cn(
+        "edge rounded-(--radius-xs) bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
+        expanded ? "w-64" : "w-fit",
+        className,
+      )}
+    >
+      {/* The title is the button that opens and folds the legend. */}
+      <button
+        type="button"
+        className="focus-ring flex min-h-10 w-full cursor-pointer items-center gap-xs rounded-[inherit] px-s text-s font-medium"
+        aria-expanded={expanded}
+        aria-controls={expanded ? bodyId : undefined}
+        onClick={() => onExpandedChange(!expanded)}
       >
-        <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
-      </LayerRow>
+        <LayersIcon aria-hidden className="size-4 text-neutral-7" />
+        {m.map_legend()}
+        <ChevronDownIcon
+          aria-hidden
+          // The arrow points where the legend will go: it opens away from the edge it sits on.
+          className={cn(
+            "ml-auto size-4 text-neutral-7 transition-transform duration-(--motion-duration) ease-theme motion-reduce:transition-none",
+            expanded === (opens === "down") && "rotate-180",
+          )}
+        />
+      </button>
 
-      <LayerRow
-        label={m.map_buoys()}
-        checked={layers.buoys}
-        onCheckedChange={(buoys) => onLayersChange({ ...layers, buoys })}
-      >
-        <ul className="flex flex-wrap gap-x-s gap-y-xxs text-xs text-neutral-7">
-          <li className="flex items-center gap-xxs">
-            <FreshnessDot freshness="fresh" />
-            {m.map_fresh()}
-          </li>
-          <li className="flex items-center gap-xxs">
-            <FreshnessDot freshness="aging" />
-            {m.map_aging()}
-          </li>
-          <li className="flex items-center gap-xxs">
-            <FreshnessDot freshness="old" />
-            {m.map_old()}
-          </li>
-        </ul>
-      </LayerRow>
+      {expanded && (
+        <div id={bodyId} className="grid gap-s px-s pb-s">
+          <LayerRow
+            label={m.map_wave_height()}
+            checked={layers.sea}
+            onCheckedChange={(sea) => onLayersChange({ ...layers, sea })}
+          >
+            <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
+          </LayerRow>
 
-      <LayerRow
-        label={m.map_wind()}
-        checked={layers.wind}
-        onCheckedChange={(wind) => onLayersChange({ ...layers, wind })}
-      >
-        <ScaleBar scale={WIND_SPEED_SCALE} ticks={WIND_TICKS} />
-        {windTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
-      </LayerRow>
+          <LayerRow
+            label={m.map_buoys()}
+            checked={layers.buoys}
+            onCheckedChange={(buoys) => onLayersChange({ ...layers, buoys })}
+          >
+            <ul className="flex flex-wrap gap-x-s gap-y-xxs text-xs text-neutral-7">
+              <li className="flex items-center gap-xxs">
+                <span className="relative -m-1 size-6 scale-[0.67] text-neutral-10">
+                  <FreshnessGauge freshness="fresh" />
+                </span>
+                {m.map_fresh()}
+              </li>
+              <li className="flex items-center gap-xxs">
+                <span className="relative -m-1 size-6 scale-[0.67] text-neutral-10">
+                  <FreshnessGauge freshness="aging" />
+                </span>
+                {m.map_aging()}
+              </li>
+              <li className="flex items-center gap-xxs">
+                <span className="relative -m-1 size-6 scale-[0.67] text-neutral-10">
+                  <FreshnessGauge freshness="old" />
+                </span>
+                {m.map_old()}
+              </li>
+            </ul>
+          </LayerRow>
 
-      <LayerRow
-        label={m.map_breaks()}
-        checked={layers.breaks}
-        onCheckedChange={(breaks) => onLayersChange({ ...layers, breaks })}
-      >
-        {breaksTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
-      </LayerRow>
+          <LayerRow
+            label={m.map_wind()}
+            checked={layers.wind}
+            onCheckedChange={(wind) => onLayersChange({ ...layers, wind })}
+          >
+            <ScaleBar scale={WIND_SPEED_SCALE} ticks={WIND_TICKS} />
+            {windTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
+          </LayerRow>
 
-      <Button
-        variant="ghost"
-        size="xs"
-        className="justify-self-start"
-        aria-expanded
-        onClick={() => onExpandedChange(false)}
-      >
-        <ChevronDownIcon data-slot="icon" aria-hidden />
-        {m.map_legend_fold()}
-      </Button>
+          <LayerRow
+            label={m.map_breaks()}
+            checked={layers.breaks}
+            onCheckedChange={(breaks) => onLayersChange({ ...layers, breaks })}
+          >
+            {breaksTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
+          </LayerRow>
+        </div>
+      )}
     </section>
   );
 }

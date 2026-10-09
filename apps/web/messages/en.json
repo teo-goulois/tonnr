@@ -117,7 +117,7 @@
   "map_fresh": "Under 1.5 h",
   "map_aging": "Under 3 h",
   "map_old": "Older",
-  "map_legend_fold": "Hide",
+  "map_legend": "Legend",
   "map_sea_now": "Now",
   "map_sea_earlier": "Earlier",
   "map_sea_later": "Later",
