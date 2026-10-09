@@ -16,4 +16,7 @@ export type Context = {
   adminSites: readonly string[];
   // Where the calls are counted.
   usage: Usage;
+  // The process that answers, as the state of the instance shows it: when it started, and the
+  // web app's address as it holds it. Both are the server's to say.
+  server: { startedAt: Date; webOrigin: string };
 };

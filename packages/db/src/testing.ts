@@ -95,6 +95,8 @@ export async function createTestDatabase() {
 
   return {
     db,
+    // For a test that opens a client of its own, with other settings. It closes it itself.
+    url,
     drop: async () => {
       // A connection that the server ends while it closes tells its pool. Nothing is wrong
       // then, and an error that nobody listens to would fail the run.

@@ -4,7 +4,10 @@ import { createApp } from "./app";
 import { ENV } from "./env.server";
 import { auth, db, usage } from "./services";
 
-const app = createApp({ env: ENV, db, auth, usage });
+// The moment the process started, which the migrations may have followed by minutes: the state
+// of the instance shows it, to tell whether a deployment took.
+const startedAt = new Date(Date.now() - process.uptime() * 1000);
+const app = createApp({ env: ENV, db, auth, usage, startedAt });
 
 const server = serve(
   {

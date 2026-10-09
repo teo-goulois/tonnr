@@ -19,6 +19,8 @@ type Services = {
   auth: ReturnType<typeof createAuth>;
   // Where the calls are counted.
   usage: Usage;
+  // When the process started. Without it, when this app was made.
+  startedAt?: Date;
 };
 
 // An answer was given to one caller, so no cache between the API and its callers may keep it.
@@ -38,7 +40,7 @@ function logFault(error: unknown) {
 }
 
 /** The API as a Hono app: every route, and nothing that listens. */
-export function createApp({ env, db, auth, usage }: Services) {
+export function createApp({ env, db, auth, usage, startedAt = new Date() }: Services) {
   const app = new Hono();
 
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
@@ -141,6 +143,7 @@ export function createApp({ env, db, auth, usage }: Services) {
       site: siteOf(request),
       adminSites,
       usage,
+      server: { startedAt, webOrigin },
     };
 
     const answered =

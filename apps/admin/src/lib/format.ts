@@ -65,3 +65,28 @@ export function formatAgo(date: Date, now: number) {
   const hours = Math.round(minutes / 60);
   return hours < 48 ? format.format(-hours, "hour") : format.format(-Math.round(hours / 24), "day");
 }
+
+/** "1.4 GB", in the unit that keeps the figure short. */
+export function formatBytes(bytes: number) {
+  const units = ["kilobyte", "megabyte", "gigabyte", "terabyte"] as const;
+  let value = bytes / 1000;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return new Intl.NumberFormat(getLocale(), {
+    style: "unit",
+    unit: units[unit],
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value);
+}
+
+/** How long something lasted, such as "42 s" or "3 min". */
+export function formatDuration(milliseconds: number) {
+  const seconds = Math.max(0, Math.round(milliseconds / 1000));
+  const [value, unit] = seconds < 90 ? [seconds, "second"] : [Math.round(seconds / 60), "minute"];
+  return new Intl.NumberFormat(getLocale(), { style: "unit", unit, unitDisplay: "short" }).format(
+    value,
+  );
+}

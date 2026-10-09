@@ -41,6 +41,11 @@ export type Usage = {
   flush(): Promise<void>;
   /** Stops writing on a timer, and writes what is left. */
   stop(): Promise<void>;
+  /**
+   * How the writing goes, for whoever runs the instance: when the counts were last written,
+   * and how many calls this process counted and could not write since it started.
+   */
+  state(): { lastWrittenAt: Date | null; lostCalls: number };
 };
 
 type Options = {
@@ -95,6 +100,8 @@ export function createUsage(db: Database, options: Options = {}): Usage {
   let prunedAt: number | null = null;
   // One write at a time: the timer, a stop and a caller of `flush` may all ask for one.
   let writing = Promise.resolve();
+  let lastWrittenAt: Date | null = null;
+  let lostCalls = 0;
 
   async function write(batch: Counted[], used: Map<string, number>) {
     // A key that was deleted since its call would have the database refuse the whole write.
@@ -155,9 +162,11 @@ export function createUsage(db: Database, options: Options = {}): Usage {
     if (batch.length > 0) {
       try {
         await write(batch, used);
+        lastWrittenAt = now();
       } catch (error) {
         // Not sent again: the database may have kept it, and a second time would count it twice.
         const lost = batch.reduce((sum, row) => sum + row.calls, 0);
+        lostCalls += lost;
         console.error(`usage: ${lost} calls were counted and could not be written`, error);
       }
     }
@@ -199,5 +208,6 @@ export function createUsage(db: Database, options: Options = {}): Usage {
       if (timer) clearInterval(timer);
       await flush();
     },
+    state: () => ({ lastWrittenAt, lostCalls }),
   };
 }

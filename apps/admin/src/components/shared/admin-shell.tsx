@@ -76,6 +76,7 @@ export function AdminShell({ account, children }: AdminShellProps) {
           <NavLink to="/developers">{m.nav_developers()}</NavLink>
           <NavLink to="/activity">{m.nav_activity()}</NavLink>
           <NavLink to="/accounts">{m.nav_accounts()}</NavLink>
+          <NavLink to="/instance">{m.nav_instance()}</NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-xxs">
           {/* Every page, action and developer account, by its name. The keys are shown to

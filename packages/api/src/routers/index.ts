@@ -8,6 +8,7 @@ import { actionsRouter } from "./actions";
 import { breaksRouter } from "./breaks";
 import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
+import { instanceRouter } from "./instance";
 import { keysRouter } from "./keys";
 import { listsRouter } from "./lists";
 import { mapsRouter } from "./maps";
@@ -28,6 +29,7 @@ export const v1Router = {
   breaks: breaksRouter,
   developers: developersRouter,
   forecasts: forecastsRouter,
+  instance: instanceRouter,
   keys: keysRouter,
   lists: listsRouter,
   maps: mapsRouter,

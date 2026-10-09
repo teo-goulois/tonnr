@@ -135,6 +135,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     site: by.site === undefined ? ADMIN : by.site,
     adminSites: [ADMIN],
     usage,
+    server: { startedAt: AT, webOrigin: WEB },
   });
   const bySession = (id: string, site?: string | null) => ({
     context: context({ session: id, site }),
@@ -254,6 +255,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.developers.create",
         "v1.developers.update",
         "v1.developers.delete",
+        "v1.instance.state",
         "v1.keys.list",
         "v1.keys.create",
         "v1.keys.revoke",

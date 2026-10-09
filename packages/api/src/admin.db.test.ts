@@ -9,6 +9,8 @@ import {
   operatorAction,
 } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
+import { station } from "@repo/db/schema/buoys";
+import { job, workerProcess } from "@repo/db/schema/instance";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +18,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Context } from "./context";
 import { newKey } from "./keys";
 import { v1Router } from "./routers/index";
+import { jobState } from "./routers/instance";
 import { createUsage, monthsBefore, outcomeOf, type Usage } from "./usage";
 
 const AT = new Date("2026-10-09T08:00:00Z");
@@ -64,6 +67,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
     site: ADMIN,
     adminSites: [ADMIN],
     usage,
+    server: { startedAt: AT, webOrigin: "https://app.example.org" },
   });
   const asOwner = () => ({ context: context({ session: "owner" }) });
   const byKey = (key: string) => ({ context: context({ authorization: `Bearer ${key}` }) });
@@ -625,6 +629,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
         },
         flush: () => Promise.resolve(),
         stop: () => Promise.resolve(),
+        state: () => ({ lastWrittenAt: null, lostCalls: 0 }),
       };
 
       expect(
@@ -1169,6 +1174,312 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       expect((await database.db.select().from(operatorAction)).map((found) => found.id)).toEqual([
         "kept",
       ]);
+    });
+  });
+
+  describe("the state of the instance", () => {
+    const state = () => call(v1Router.instance.state, undefined, asOwner());
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60 * 1000);
+    type JobRow = typeof job.$inferSelect;
+    const listed: JobRow = {
+      name: "ingest-ndbc",
+      schedule: "*/10 * * * *",
+      everySeconds: 600,
+      expiresSeconds: 900,
+      firstSeenAt: ago(60 * 24),
+      attemptId: null,
+      workerId: null,
+      startedAt: null,
+      deadlineAt: null,
+      finishedAt: null,
+      outcome: null,
+      counts: null,
+      failure: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      lastFailure: null,
+      failuresInARow: 0,
+    };
+
+    beforeEach(async () => {
+      await database.db.delete(job);
+      await database.db.delete(workerProcess);
+      await database.db.delete(station);
+    });
+
+    it("says where a job is from its last attempt and from what its schedule asks", () => {
+      const now = new Date();
+      const where = (row: Partial<JobRow>) => jobState({ ...listed, ...row }, now);
+      const attempt = { attemptId: "a", startedAt: ago(5), deadlineAt: ago(-10) };
+
+      // Never ran: waiting while the worker is new, late once its schedule should have run it.
+      expect(where({ firstSeenAt: ago(5) })).toBe("waiting");
+      expect(where({ firstSeenAt: ago(21) })).toBe("late");
+      // An attempt that has not ended runs, until its deadline.
+      expect(where(attempt)).toBe("running");
+      expect(where({ ...attempt, startedAt: ago(16), deadlineAt: ago(1) })).toBe("expired");
+      for (const outcome of ["succeeded", "degraded", "failed", "expired"] as const) {
+        expect(where({ ...attempt, finishedAt: ago(4), outcome })).toBe(outcome);
+      }
+      // Ten minutes between two runs, and ten more: late after twenty, whatever the last one was.
+      expect(
+        where({ ...attempt, startedAt: ago(19), finishedAt: ago(18), outcome: "failed" }),
+      ).toBe("failed");
+      expect(
+        where({ ...attempt, startedAt: ago(21), finishedAt: ago(20), outcome: "succeeded" }),
+      ).toBe("late");
+      // A weekly job is given a tenth of its week more.
+      const weekly = {
+        everySeconds: 7 * 24 * 3600,
+        finishedAt: ago(1),
+        outcome: "succeeded",
+      } as const;
+      expect(where({ ...weekly, attemptId: "a", startedAt: ago(7.5 * 24 * 60) })).toBe("succeeded");
+      expect(where({ ...weekly, attemptId: "a", startedAt: ago(7.8 * 24 * 60) })).toBe("late");
+    });
+
+    it("gives the process that answers, and an instance where nothing has run yet", async () => {
+      const found = await state();
+
+      expect(found).toMatchObject({
+        api: {
+          startedAt: AT,
+          webOrigin: "https://app.example.org",
+          adminSites: [ADMIN],
+          usageWrittenAt: null,
+          usageLostCalls: 0,
+        },
+        workers: [],
+        jobs: [],
+        providers: [],
+      });
+      expect(found.at).toBeInstanceOf(Date);
+      expect(found.database.sizeBytes).toBeGreaterThan(1_000_000);
+    });
+
+    it("gives the workers seen in the last day, and which of them run", async () => {
+      await database.db.insert(workerProcess).values([
+        { id: "running", startedAt: ago(90), readyAt: ago(89), seenAt: ago(0.2) },
+        { id: "stopped", startedAt: ago(300), readyAt: ago(299), seenAt: ago(95) },
+        // Started and died before it was ready.
+        { id: "failed-to-start", startedAt: ago(96), readyAt: null, seenAt: ago(96) },
+        { id: "long-gone", startedAt: ago(3000), readyAt: ago(2999), seenAt: ago(25 * 60) },
+      ]);
+
+      const { workers } = await state();
+
+      expect(workers.map((worker) => [worker.id, worker.running, worker.readyAt !== null])).toEqual(
+        [
+          ["running", true, true],
+          ["failed-to-start", false, false],
+          ["stopped", false, true],
+        ],
+      );
+    });
+
+    it("keeps the worker that runs in sight, whatever the number of starts that failed since", async () => {
+      await database.db.insert(workerProcess).values([
+        { id: "running", startedAt: ago(600), readyAt: ago(599), seenAt: ago(0.2) },
+        // A newer version that never gets as far as being ready, and tries again and again.
+        ...Array.from({ length: 60 }, (_, index) => ({
+          id: `failed-${String(index).padStart(2, "0")}`,
+          startedAt: ago(63 - index),
+          readyAt: null,
+          seenAt: ago(63 - index),
+        })),
+      ]);
+
+      const { workers } = await state();
+
+      expect(workers).toHaveLength(50);
+      expect(workers.filter((worker) => worker.running).map((worker) => worker.id)).toEqual([
+        "running",
+      ]);
+      // The latest to start first, and the one that runs, which started long before, last.
+      expect(workers.map((worker) => worker.id).slice(0, 2)).toEqual(["failed-59", "failed-58"]);
+      expect(workers.at(-1)?.id).toBe("running");
+    });
+
+    it("counts an attempt that passed its deadline without an end as a failure of its own", async () => {
+      const failure = { kind: "format" as const };
+      await database.db.insert(job).values({
+        ...listed,
+        attemptId: "a",
+        startedAt: ago(18),
+        deadlineAt: ago(3),
+        lastFailureAt: ago(40),
+        lastFailure: failure,
+        failuresInARow: 2,
+      });
+
+      const [lost] = (await state()).jobs;
+
+      expect(lost).toMatchObject({
+        state: "expired",
+        finishedAt: null,
+        failure: { kind: "expired" },
+        lastFailure: { kind: "expired" },
+        failuresInARow: 3,
+      });
+      expect(Date.now() - lost!.lastFailureAt!.getTime()).toBeLessThan(4 * 60 * 1000);
+
+      // One that still has time is told as the worker wrote it.
+      await database.db.update(job).set({ deadlineAt: ago(-5) });
+      expect((await state()).jobs[0]).toMatchObject({
+        state: "running",
+        failure: null,
+        lastFailure: failure,
+        failuresInARow: 2,
+      });
+    });
+
+    it("gives a kind of failure that a newer worker wrote, and that it does not know, as another reason", async () => {
+      const newer = { kind: "struck-by-lightning", host: "data.example.org" } as never;
+      await database.db.insert(job).values({
+        ...listed,
+        attemptId: "a",
+        startedAt: ago(3),
+        deadlineAt: ago(-12),
+        finishedAt: ago(2),
+        outcome: "failed",
+        failure: newer,
+        lastFailure: newer,
+      });
+
+      expect((await state()).jobs[0]).toMatchObject({
+        state: "failed",
+        failure: { kind: "other" },
+        lastFailure: { kind: "other" },
+      });
+    });
+
+    it("gives each job with its last attempt, what failed, and what it keeps across attempts", async () => {
+      const failure = { kind: "provider" as const, status: 503, host: "data.example.org" };
+      await database.db.insert(job).values([
+        {
+          ...listed,
+          attemptId: "a",
+          startedAt: ago(3),
+          deadlineAt: ago(-12),
+          finishedAt: ago(2.9),
+          outcome: "failed",
+          failure,
+          lastSuccessAt: ago(13),
+          lastFailureAt: ago(2.9),
+          lastFailure: failure,
+          failuresInARow: 1,
+        },
+        {
+          ...listed,
+          name: "evaluate-alerts",
+          schedule: "20 */3 * * *",
+          everySeconds: 10800,
+          attemptId: "b",
+          startedAt: ago(30),
+          deadlineAt: ago(15),
+          finishedAt: ago(29),
+          outcome: "degraded",
+          counts: { spots: 4, created: 1, failed: 1 },
+          lastSuccessAt: ago(29),
+        },
+      ]);
+
+      const { jobs } = await state();
+
+      expect(jobs).toEqual([
+        {
+          name: "evaluate-alerts",
+          schedule: "20 */3 * * *",
+          everySeconds: 10800,
+          state: "degraded",
+          startedAt: expect.any(Date),
+          finishedAt: expect.any(Date),
+          counts: { spots: 4, created: 1, failed: 1 },
+          failure: null,
+          lastSuccessAt: expect.any(Date),
+          lastFailureAt: null,
+          lastFailure: null,
+          failuresInARow: 0,
+        },
+        {
+          name: "ingest-ndbc",
+          schedule: "*/10 * * * *",
+          everySeconds: 600,
+          state: "failed",
+          startedAt: expect.any(Date),
+          finishedAt: expect.any(Date),
+          counts: null,
+          failure,
+          lastSuccessAt: expect.any(Date),
+          lastFailureAt: expect.any(Date),
+          lastFailure: failure,
+          failuresInARow: 1,
+        },
+      ]);
+    });
+
+    it("gives each provider's stations, and how many have a reading under six hours old", async () => {
+      const row = (provider: string, id: string, latestObservedAt: Date | null) => ({
+        id: `${provider}-${id}`,
+        provider,
+        providerStationId: id,
+        name: id,
+        latitude: 48,
+        longitude: -4.5,
+        licenseType: "test",
+        licenseUrl: "https://example.org/licence",
+        attribution: "Test",
+        latestObservedAt,
+      });
+      await database.db
+        .insert(station)
+        .values([
+          row("ndbc", "a", ago(20)),
+          row("ndbc", "b", ago(5 * 60 + 50)),
+          row("ndbc", "c", ago(6 * 60 + 10)),
+          row("ndbc", "d", null),
+          row("late", "e", ago(30 * 60)),
+        ]);
+
+      const { providers } = await state();
+
+      expect(providers).toEqual([
+        { id: "late", stations: 1, recent: 0, latestReadingAt: expect.any(Date) },
+        { id: "ndbc", stations: 4, recent: 2, latestReadingAt: expect.any(Date) },
+      ]);
+      expect(Date.now() - providers[1]!.latestReadingAt!.getTime()).toBeLessThan(21 * 60 * 1000);
+    });
+
+    it("says when the counts of calls were last written, and how many were lost", async () => {
+      const said = vi.spyOn(console, "error").mockImplementation(() => {});
+      let broken = false;
+      const db = new Proxy(database.db, {
+        get(target, property) {
+          if (property !== "transaction" || !broken) return Reflect.get(target, property);
+          return () => Promise.reject(new Error("This database takes no write"));
+        },
+      });
+      const watched = createUsage(db, { every: null, now: () => clock });
+      const told = async () =>
+        (
+          await call(v1Router.instance.state, undefined, {
+            context: { ...asOwner().context, usage: watched },
+          })
+        ).api;
+      const count = () =>
+        watched.count({ via: "session", keyId: null, procedure: "p", outcome: "answered" });
+
+      clock = new Date("2026-10-09T08:00:00Z");
+      count();
+      await watched.flush();
+      expect(await told()).toMatchObject({ usageWrittenAt: clock, usageLostCalls: 0 });
+
+      broken = true;
+      count();
+      count();
+      await watched.flush();
+      said.mockRestore();
+      expect(await told()).toMatchObject({ usageWrittenAt: clock, usageLostCalls: 2 });
     });
   });
 });

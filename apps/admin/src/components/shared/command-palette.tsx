@@ -111,6 +111,11 @@ export function CommandPalette() {
           label: m.nav_accounts(),
           run: () => void navigate({ to: "/accounts" }),
         },
+        {
+          value: `${m.nav_instance()} instance state status worker jobs providers health`,
+          label: m.nav_instance(),
+          run: () => void navigate({ to: "/instance" }),
+        },
       ],
     },
     {

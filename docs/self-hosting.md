@@ -24,8 +24,9 @@ The API then answers on port 3000, or on `API_PORT`. Put a reverse proxy with HT
 To check the instance:
 
 - `curl http://localhost:3000/` answers `OK`, and `/v1/docs` shows the API reference. `curl http://localhost:3000/v1/stations` answers 401: the API asks who calls.
-- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings` and `breaks-osm: 340 listed, 340 added, 0 removed, 0 unreadable`.
+- `docker compose logs worker` shows `Migrations applied`, one `Scheduled ingest-…` line per provider, then lines such as `ndbc: 765 stations, 1210 new readings`.
 - With a web app, signing in from it proves that the three addresses agree.
+- Signed in to the admin app as an operator, the page "Instance" says whether the worker runs and what each job last did. It is the way to see that a deployment of the worker took: its start is there, and so is the API's.
 
 ## On another platform
 
@@ -227,6 +228,7 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - `GET /v1/usage/series` and `GET /v1/usage/breakdown` give the calls by hour or by day, by developer account, by key and by procedure. The API keeps no address and no record of a call: it counts them, writes the counts every thirty seconds, and deletes them after thirteen months. A key's counts show when its developer account calls and what it asks for.
 - `GET /v1/actions` lists what the operators did to the developer accounts and the keys: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
 - `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
+- `GET /v1/instance` gives the state of the instance: whether a worker runs, what each of its jobs last did and when it last worked, each provider's stations, when the API started and which addresses it holds, and the size of the database. A job is late when none of its runs started for the time its schedule leaves between two, and a tenth of it more, ten minutes at least. What failed is given as a kind: the worker's log has the error itself. Decision 022 gives the rules.
 - `node dist/cli.mjs operator-remove <account id>` takes the operator's rights back, with `--write`, and revokes every key the account made. Those keys never work again.
 - An instance with no operator still serves its accounts. Nobody can make a key.
 - A key made before the developer accounts was given one named after its maker, when the instance was updated.

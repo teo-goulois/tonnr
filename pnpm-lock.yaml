@@ -533,6 +533,9 @@ importers:
       '@repo/upstream':
         specifier: workspace:*
         version: link:../../packages/upstream
+      cron-parser:
+        specifier: ^5.10.1
+        version: 5.10.1
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@cloudflare/workers-types@5.20261007.1)(@effect/sql-d1@4.0.1(effect@4.0.0))(@effect/sql-sqlite-do@4.0.1(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(effect@4.0.0)(pg@8.23.1)(valibot@1.2.0(typescript@7.0.2))(zod@4.6.5)
@@ -680,6 +683,9 @@ importers:
       pg:
         specifier: ^8.23.0
         version: 8.23.1
+      pg-connection-string:
+        specifier: ^2.14.1
+        version: 2.14.1
       zod:
         specifier: 'catalog:'
         version: 4.6.5

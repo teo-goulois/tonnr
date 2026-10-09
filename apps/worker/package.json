@@ -16,6 +16,7 @@
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/upstream": "workspace:*",
+    "cron-parser": "^5.10.1",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "pg-boss": "^12.37.0",

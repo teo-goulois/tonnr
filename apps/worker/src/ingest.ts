@@ -42,5 +42,6 @@ export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Dat
       `${provider.id}: the database refused ${saved.failedStations} stations`,
     );
   }
-  return saved;
+  // The rows the parser dropped go with the rest: the state of the instance shows them.
+  return { ...saved, rejected: snapshot.rejected };
 });

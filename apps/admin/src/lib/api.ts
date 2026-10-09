@@ -10,3 +10,6 @@ export type MadeKey = Answer<V1["keys"]["create"]>;
 export type Account = Answer<V1["accounts"]["list"]>["accounts"][number];
 export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
+export type InstanceState = Answer<V1["instance"]["state"]>;
+export type Job = InstanceState["jobs"][number];
+export type JobFailure = NonNullable<Job["failure"]>;
