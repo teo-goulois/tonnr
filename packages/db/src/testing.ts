@@ -42,7 +42,24 @@ export async function createEmptyTestDatabase() {
 
   await query(server, `create database ${name}`);
   const drop = async () => {
-    await query(server, `drop database if exists ${name} with (force)`);
+    const db = createDb({ DATABASE_URL: server });
+    try {
+      // A pool says it has ended before the server has let its connections go, and dropping
+      // the database under one of them ends it with an error. A test that opened a pool of its
+      // own has closed it by now: its connections are given a second to go, and what is left
+      // after it is ended by force.
+      for (let tries = 0; tries < 40; tries += 1) {
+        const { rows } = await db.$client.query(
+          "select count(*)::int as open from pg_stat_activity where datname = $1",
+          [name],
+        );
+        if (rows[0]?.open === 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      await db.$client.query(`drop database if exists ${name} with (force)`);
+    } finally {
+      await db.$client.end();
+    }
   };
 
   try {
@@ -67,10 +84,25 @@ export async function createTestDatabase() {
   }
 
   const db = createDb({ DATABASE_URL: url });
+  // Each connection the pool opens, until the connection itself says it is closed. The pool
+  // says it has ended before that.
+  const closing = new Set<Promise<void>>();
+  db.$client.on("connect", (client) => {
+    const closed = new Promise<void>((resolve) => client.once("end", () => resolve()));
+    closing.add(closed);
+    void closed.then(() => closing.delete(closed));
+  });
+
   return {
     db,
     drop: async () => {
+      // A connection that the server ends while it closes tells its pool. Nothing is wrong
+      // then, and an error that nobody listens to would fail the run.
+      db.$client.on("error", () => {});
       await db.$client.end();
+      // Closed for good, or five seconds: the drop below ends by force what is left.
+      const patience = new Promise<void>((resolve) => setTimeout(resolve, 5000).unref());
+      await Promise.race([Promise.all(closing), patience]);
       await drop();
     },
   };
