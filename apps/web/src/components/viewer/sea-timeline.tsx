@@ -1,15 +1,28 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { SliderPrimitive } from "@repo/ui/components/ui/slider";
 import { cn } from "@repo/ui/lib/utils";
-import { type Ref, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type Ref,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { formatDay, formatDayAndClock, formatWeekday } from "@/lib/format";
+import { formatDay, formatDayAndClock } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // How long the thumb rests on an instant before the map shows it. Dragging across a week passes
 // over dozens of instants, and the map asks the provider for none of those it only crosses.
 const SETTLE_MS = 80;
+// How wide an instant is on a phone, in rem. The strip is then wider than the screen, and slides
+// under the finger.
+const PHONE_INSTANT_WIDTH = 0.5;
+// How far from an edge of what is in view the thumb may come before the strip slides, in pixels.
+const THUMB_MARGIN = 32;
 
 /** The instants the sea can be shown at: a day back, and as far ahead as the model goes. */
 export type SeaTimes = {
@@ -76,10 +89,30 @@ export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTi
     return starts;
   }, [earliest, latest, stepMs]);
 
+  // On a phone the strip slides sideways. It opens a little before the present, and follows the
+  // thumb when the keyboard or the button takes it out of view.
+  const scroller = useRef<HTMLDivElement>(null);
+  const fraction = ((shown - earliest) / stepMs + 0.5) / instants.length;
+  const opened = useRef(false);
+  useLayoutEffect(() => {
+    const strip = scroller.current;
+    if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+    const thumb = fraction * strip.scrollWidth;
+    if (!opened.current) {
+      opened.current = true;
+      strip.scrollLeft = thumb - THUMB_MARGIN * 2;
+    } else if (
+      thumb < strip.scrollLeft + THUMB_MARGIN ||
+      thumb > strip.scrollLeft + strip.clientWidth - THUMB_MARGIN
+    ) {
+      strip.scrollTo({ left: thumb - strip.clientWidth / 2, behavior: "smooth" });
+    }
+  }, [fraction]);
+
   return (
     <div
       className={cn(
-        "edge flex items-end gap-xs rounded-(--radius-xs) bg-neutral-1 p-xs text-neutral-10",
+        "edge flex min-w-0 items-end gap-xs rounded-(--radius-xs) bg-neutral-1 p-xs text-neutral-10",
         "[--edge-color:var(--neutral-10-transparent)]",
         className,
       )}
@@ -97,71 +130,90 @@ export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTi
         {m.map_sea_now()}
       </Button>
 
-      <SliderPrimitive.Root
-        className="relative min-w-0 flex-1"
-        value={shown}
-        min={earliest}
-        max={latest}
-        step={stepMs}
-        largeStep={DAY_MS}
-        thumbAlignment="center"
-        onValueChange={(value) => typeof value === "number" && setScrubbed(value)}
+      <div
+        ref={scroller}
+        className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:overflow-visible"
       >
-        <div className="relative h-(--line-s) overflow-hidden text-xs text-neutral-7" aria-hidden>
-          {days.map((day) => (
-            <span
-              key={day.getTime()}
-              className={cn(
-                "absolute inset-y-0 pl-xxs whitespace-nowrap",
-                day.getTime() > earliest && "border-l border-neutral-4",
-              )}
-              style={{ left: place(day.getTime()) }}
-            >
-              {/* A phone has room for the day's name alone. */}
-              <span className="lg:hidden">{formatWeekday(new Date(day.getTime() + stepMs))}</span>
-              <span className="max-lg:hidden">{formatDay(new Date(day.getTime() + stepMs))}</span>
-            </span>
-          ))}
-          {/* The instant shown, over the name of its day. It stays inside the strip at both ends. */}
-          <span
-            className="absolute inset-y-0 -translate-x-1/2 rounded-full bg-neutral-10 px-xs whitespace-nowrap text-neutral-1 tabular-nums"
-            style={{ left: `clamp(3rem, ${place(shown)}, calc(100% - 3rem))` }}
-          >
-            {label(shown)}
-          </span>
-        </div>
-
-        <SliderPrimitive.Control className="relative mt-xxs flex h-4 cursor-pointer lg:h-6 touch-none select-none">
-          <div className="pointer-events-none absolute inset-0 flex" aria-hidden>
-            {instants.map((instant) => (
-              <span key={instant} className="flex-1 px-px">
-                <span
-                  className={cn(
-                    "block h-full rounded-full",
-                    instant < present && "bg-neutral-3",
-                    instant === present && "bg-neutral-7",
-                    instant > present && "bg-neutral-4",
-                  )}
-                />
+        <SliderPrimitive.Root
+          className="relative max-lg:min-w-(--strip)"
+          style={{ "--strip": `${instants.length * PHONE_INSTANT_WIDTH}rem` } as CSSProperties}
+          value={shown}
+          min={earliest}
+          max={latest}
+          step={stepMs}
+          largeStep={DAY_MS}
+          thumbAlignment="center"
+          onValueChange={(value) => typeof value === "number" && setScrubbed(value)}
+        >
+          <div className="relative h-(--line-s) overflow-hidden text-xs text-neutral-7" aria-hidden>
+            {days.map((day) => (
+              <span
+                key={day.getTime()}
+                className={cn(
+                  "absolute inset-y-0 pl-xxs whitespace-nowrap",
+                  day.getTime() > earliest && "border-l border-neutral-4",
+                )}
+                style={{ left: place(day.getTime()) }}
+              >
+                {formatDay(new Date(day.getTime() + stepMs))}
               </span>
             ))}
+            {/* The instant shown, over the name of its day. It stays inside the strip at both ends. */}
+            <span
+              className="absolute inset-y-0 -translate-x-1/2 rounded-full bg-neutral-10 px-xs whitespace-nowrap text-neutral-1 tabular-nums"
+              style={{ left: `clamp(3rem, ${place(shown)}, calc(100% - 3rem))` }}
+            >
+              {label(shown)}
+            </span>
           </div>
-          {/* The thumb's middle runs from the middle of the first bar to the middle of the last. */}
-          <div className="absolute inset-y-0" style={{ left: halfBar, right: halfBar }}>
-            <SliderPrimitive.Track className="size-full">
-              <SliderPrimitive.Thumb
-                className={cn(
-                  "h-full rounded-full bg-neutral-10 outline-none",
-                  "has-focus-visible:[outline:var(--focus-ring-outline)] has-focus-visible:outline-offset-2",
-                )}
-                style={{ width: `calc(${100 / (instants.length - 1)}% - 2px)` }}
-                getAriaLabel={() => m.map_sea_time()}
-                getAriaValueText={(_formatted, value) => label(value)}
-              />
-            </SliderPrimitive.Track>
-          </div>
-        </SliderPrimitive.Control>
-      </SliderPrimitive.Root>
+
+          {/* A finger that drags slides the strip, so the thumb goes where a finger taps. The base
+            control would take the thumb to wherever a slide begins. */}
+          <SliderPrimitive.Control
+            className="relative mt-xxs flex h-4 cursor-pointer touch-pan-x select-none lg:h-6 lg:touch-none"
+            onPointerDown={(event) => {
+              if (event.pointerType === "touch") event.preventBaseUIHandler();
+            }}
+            onClick={(event) => {
+              const bars = event.currentTarget.getBoundingClientRect();
+              const index = Math.floor(
+                ((event.clientX - bars.left) / bars.width) * instants.length,
+              );
+              const instant = instants[Math.min(instants.length - 1, Math.max(0, index))];
+              if (instant !== undefined) setScrubbed(instant);
+            }}
+          >
+            <div className="pointer-events-none absolute inset-0 flex" aria-hidden>
+              {instants.map((instant) => (
+                <span key={instant} className="flex-1 px-px">
+                  <span
+                    className={cn(
+                      "block h-full rounded-full",
+                      instant < present && "bg-neutral-3",
+                      instant === present && "bg-neutral-7",
+                      instant > present && "bg-neutral-4",
+                    )}
+                  />
+                </span>
+              ))}
+            </div>
+            {/* The thumb's middle runs from the middle of the first bar to the middle of the last. */}
+            <div className="absolute inset-y-0" style={{ left: halfBar, right: halfBar }}>
+              <SliderPrimitive.Track className="size-full">
+                <SliderPrimitive.Thumb
+                  className={cn(
+                    "h-full rounded-full bg-neutral-10 outline-none",
+                    "has-focus-visible:[outline:var(--focus-ring-outline)] has-focus-visible:outline-offset-2",
+                  )}
+                  style={{ width: `calc(${100 / (instants.length - 1)}% - 2px)` }}
+                  getAriaLabel={() => m.map_sea_time()}
+                  getAriaValueText={(_formatted, value) => label(value)}
+                />
+              </SliderPrimitive.Track>
+            </div>
+          </SliderPrimitive.Control>
+        </SliderPrimitive.Root>
+      </div>
     </div>
   );
 }

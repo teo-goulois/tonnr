@@ -69,11 +69,6 @@ export function formatDayAndClock(date: Date) {
   );
 }
 
-/** "Fri" */
-export function formatWeekday(date: Date) {
-  return dateFormat("weekday", { weekday: "short" }).format(date);
-}
-
 /** "Fri 9" */
 export function formatDay(date: Date) {
   return dateFormat("day", { weekday: "short", day: "numeric" }).format(date);
