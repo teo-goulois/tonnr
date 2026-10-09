@@ -18,6 +18,9 @@ const KEPT_DAYS = 7;
 // What a write of the worker's own state may take: this long to get a connection, and this
 // long to run.
 const PATIENCE_MS = 5000;
+// How much longer the driver waits for the database to say that it ended a write. A driver
+// that gave up first would leave the database free to finish the write a moment later.
+const ANSWER_MS = 1000;
 
 // What the database is asked to enforce on a connection, given as the connection opens.
 // `createDb` reads the settings an address carries of its own and puts these after them.
@@ -76,17 +79,18 @@ export function stoppable(db: Database, signal: AbortSignal): Database {
 
 /**
  * The database as the worker writes its own state to it: two connections of its own. A write
- * waits five seconds at most for one of them, the database ends a write that runs for five,
- * and one that got no answer in five is given up with its connection. So a write holds a job
- * for ten seconds at most.
+ * waits five seconds at most for one of them, and the database ends a write that runs for
+ * five: the worker hears of it and knows the write did not happen. A write that got no answer
+ * a second later is given up with its connection, which is a network that carries nothing. So
+ * a write holds a job for eleven seconds at most.
  */
 export function stateDatabase(env: DatabaseConfig, patience = PATIENCE_MS): Database {
   return createDb(env, {
     max: 2,
     connectionTimeoutMillis: patience,
     // The driver's own limit, for a connection that no longer carries anything: the pool lets
-    // go of a connection whose statement failed.
-    query_timeout: patience,
+    // go of a connection whose statement failed. It comes after the database's, never before.
+    query_timeout: patience + ANSWER_MS,
     statement_timeout: patience,
     lock_timeout: patience,
     options: enforced({ statement_timeout: patience, lock_timeout: patience }),

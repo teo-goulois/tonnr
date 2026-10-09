@@ -658,7 +658,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what the worker says of itself", () => {
           lock: "3s",
           name: "example",
         });
-        // The driver's own wait for an answer is the worker's too, whatever the address says.
+        // A write that runs past the limit is ended, whatever the address says.
         await expect(state.execute(sql`select pg_sleep(4)`)).rejects.toThrow();
       } finally {
         await jobs.$client.end();
@@ -689,7 +689,8 @@ describe.skipIf(!TEST_DATABASE_URL)("what the worker says of itself", () => {
 
         release.resolve();
         await holding;
-        // The writes that were given up do not come in once the row is free.
+        // The database ended both writes before the worker let go of them, so neither comes
+        // in once the row is free.
         await new Promise((resolve) => setTimeout(resolve, 500));
         expect(await theJob()).toMatchObject({ attemptId: null, outcome: null, counts: null });
       } finally {
