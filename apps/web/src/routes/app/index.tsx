@@ -62,8 +62,21 @@ function useNow() {
 }
 
 // What a query gives a screen. A query that is switched off is not loading anything.
-function loadable<Data>(query: { data: Data | undefined; isLoading: boolean; isError: boolean }) {
-  return { data: query.data, isPending: query.isLoading, isError: query.isError };
+function loadable<Data>(query: {
+  data: Data | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}) {
+  // "Not found" is the API's answer when there is nothing to give. Anything else is a failure
+  // to answer: the provider is down, or the network is.
+  const code = (query.error as { code?: unknown } | null)?.code;
+  return {
+    data: query.data,
+    isPending: query.isLoading,
+    isError: query.isError,
+    isUnavailable: query.isError && code !== "NOT_FOUND",
+  };
 }
 
 function ViewerRoute() {

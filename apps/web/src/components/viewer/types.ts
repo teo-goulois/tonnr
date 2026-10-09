@@ -18,6 +18,9 @@ export type Loadable<Data> = {
   data: Data | undefined;
   isPending: boolean;
   isError: boolean;
+  // True when the answer could not be had. An error without it can also be the API saying that
+  // there is nothing to give, as for the forecast of a point on land.
+  isUnavailable?: boolean;
 };
 
 /** The wave period a buoy gives: the peak one when it has it, then the significant, then the mean. */

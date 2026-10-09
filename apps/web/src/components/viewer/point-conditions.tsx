@@ -221,7 +221,9 @@ export function PointConditions({
             <ForecastTable hours={nextHours} loading={forecast.isPending} />
           </>
         ) : (
-          <p className="text-s text-neutral-7">{m.forecast_none()}</p>
+          <p className="text-s text-neutral-7">
+            {forecast.isUnavailable ? m.forecast_unavailable() : m.forecast_none()}
+          </p>
         )}
       </Section>
 
@@ -251,7 +253,9 @@ export function PointConditions({
             <TideExtremesList extremes={nextExtremes} loading={extremes.isPending} />
           </>
         ) : (
-          <p className="text-s text-neutral-7">{m.tide_none()}</p>
+          <p className="text-s text-neutral-7">
+            {tides.isUnavailable ? m.tide_unavailable() : m.tide_none()}
+          </p>
         )}
       </Section>
     </>
