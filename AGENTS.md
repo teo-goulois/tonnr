@@ -38,7 +38,7 @@ For UI work, follow `GUI.md` and use `graphical-ui`, `graphical-convert`, or `gr
 
 The name may change. Read it from `APP_NAME` in `@repo/config/app` wherever a user sees it, and keep it out of identifiers. Packages use the neutral `@repo` scope for that reason.
 
-To rename the product, change `APP_NAME`, then the name in `apps/web/public/site.webmanifest`, and the prose in `README.md`, this file, and `docs/`. `APP_SLUG`, the `name` in `docker-compose.yml`, and the `name` in the root `package.json` identify infrastructure. Change them only before the first deploy. Compose names the images after its project, and `.github/workflows/images.yml` starts the worker's by that name.
+To rename the product, change `APP_NAME`, then the name in `apps/web/public/site.webmanifest`, and the prose in `README.md`, this file, and `docs/`. `APP_SLUG`, the `name` in `docker-compose.yml`, and the `name` in the root `package.json` identify infrastructure. Change them only before the first deploy. Compose names the images after its project, and `.github/workflows/ci.yml` starts the worker's by that name.
 
 ## Data rules
 
