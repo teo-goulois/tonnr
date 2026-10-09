@@ -362,3 +362,14 @@
     @apply bg-background text-m text-foreground;
   }
 }
+
+/* iOS zooms the page in when a field whose text is under 16px takes the focus, and leaves it
+   zoomed: every screen after it then scrolls sideways. A field on a touch screen is 16px. Outside
+   a layer, so that a field's own size does not win. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(1em, 16px);
+  }
+}
