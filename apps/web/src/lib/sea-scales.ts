@@ -41,6 +41,30 @@ export const WIND_SPEED_SCALE: ScaleStop[] = [
   { value: 50, color: "#7d3ac1" },
 ];
 
+/**
+ * Wave period, in seconds. One hue that deepens with the period, so that a table colored by the
+ * height and the wind as well stays readable: a short chop is pale, a long swell is saturated.
+ */
+export const WAVE_PERIOD_SCALE: ScaleStop[] = [
+  { value: 4, color: "#c9c5f3" },
+  { value: 7, color: "#a99ff1" },
+  { value: 10, color: "#8b70ee" },
+  { value: 13, color: "#7647ea" },
+  { value: 16, color: "#6a2be0" },
+  { value: 20, color: "#5b16c9" },
+];
+
+/** Wave energy, in kilojoules per metre of crest. One hue too, from a ripple to a heavy swell. */
+export const WAVE_ENERGY_SCALE: ScaleStop[] = [
+  { value: 0, color: "#f6cdd9" },
+  { value: 100, color: "#f3a3bb" },
+  { value: 250, color: "#ee769c" },
+  { value: 500, color: "#e64b80" },
+  { value: 1000, color: "#d62667" },
+  { value: 2000, color: "#b51252" },
+  { value: 4000, color: "#8a0c40" },
+];
+
 /** A station without a recent reading. */
 export const NO_READING_COLOR = "#8a8a8a";
 

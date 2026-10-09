@@ -21,6 +21,8 @@ type SeaChartProps = {
   // A moment to mark with a vertical rule, such as now.
   marker?: Date;
   isLoading?: boolean;
+  // Values the axis must reach beside the curve's own, for what `children` draws over the plot.
+  include?: number[];
   // Room above the plot, in pixels, for what `children` writes over the top of the curve.
   headroom?: number;
   // Room under the lowest value of the axis, in pixels, for what `children` writes below the curve.
@@ -101,6 +103,7 @@ export function SeaChart({
   formatValue,
   marker,
   isLoading = false,
+  include = [],
   headroom = 8,
   footroom = 0,
   yAxis = true,
@@ -139,7 +142,7 @@ export function SeaChart({
 
   const start = first?.time ?? 0;
   const end = last?.time ?? 0;
-  const values = measured.map((row) => row.value);
+  const values = [...measured.map((row) => row.value), ...include];
   const yTicks = valueTicks(Math.min(0, ...values), Math.max(0, ...values));
   const spansDays = end - start > 36 * HOUR_MS;
   const markerTime = marker?.getTime();

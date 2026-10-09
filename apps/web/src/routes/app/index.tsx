@@ -28,6 +28,8 @@ export const Route = createFileRoute("/app/")({
     break: z.string().optional(),
     privateBreak: z.string().optional(),
     panel: z.enum(["saved", "alerts"]).optional(),
+    // PROTOTYPE: a variant of the details panel. See components/viewer/prototype.
+    variant: z.enum(["a", "b", "c"]).optional(),
   }),
   component: ViewerRoute,
 });
@@ -298,7 +300,11 @@ function ViewerRoute() {
     }),
   );
   const forecast = useQuery(
-    orpc.v1.forecasts.get.queryOptions({ input: { ...atPoint, days: 4 }, ...expected }),
+    orpc.v1.forecasts.get.queryOptions({
+      // PROTOTYPE: a variant reads the week ahead, and the model's last two days beside the buoy.
+      input: search.variant ? { ...atPoint, days: 7, pastDays: 2 } : { ...atPoint, days: 4 },
+      ...expected,
+    }),
   );
 
   const listsKey = orpc.v1.lists.list.queryKey();
@@ -440,9 +446,13 @@ function ViewerRoute() {
       savedStations={savedStations}
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
-      onSelect={(station) => void navigate({ search: { station } })}
+      onSelect={(station) => void navigate({ search: { station, variant: search.variant } })}
       onSelectBreak={(id) =>
-        void navigate({ search: privateIds.has(id) ? { privateBreak: id } : { break: id } })
+        void navigate({
+          search: privateIds.has(id)
+            ? { privateBreak: id, variant: search.variant }
+            : { break: id, variant: search.variant },
+        })
       }
       // A panel opens over the station's and gives it back when it closes.
       onPanelChange={(next: ViewerPanel | undefined) =>

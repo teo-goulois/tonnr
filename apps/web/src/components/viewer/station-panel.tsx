@@ -13,6 +13,7 @@ import {
   Section,
   Sources,
 } from "./point-conditions";
+import { DetailsPrototype, PrototypeSwitcher, useVariant } from "./prototype/prototype-switcher";
 import { type Loadable, type Reading, type Station, type StationReadings, periodOf } from "./types";
 
 type StationPanelProps = PointConditionsProps & {
@@ -186,6 +187,7 @@ export function StationPanel({
   extremes,
   onTideExtend,
 }: StationPanelProps) {
+  const variant = useVariant();
   const station = history.data?.station ?? known;
   const readings = history.data?.readings ?? [];
   const latest = readings[0] ?? known?.latestReading;
@@ -199,8 +201,43 @@ export function StationPanel({
   const measuresWaves = station?.measures.includes("waves") ?? true;
   const measuresWind = station?.measures.includes("wind") ?? false;
 
+  // PROTOTYPE: a variant of the panel, chosen in the address. See prototype/details-prototype.tsx.
+  if (variant) {
+    return (
+      <div className="grid gap-l">
+        {station?.exposure === "sheltered" && (
+          <p className="rounded-(--radius-xs) bg-warning-transparent px-s py-xs text-s">
+            {m.station_sheltered_note()}
+          </p>
+        )}
+        <DetailsPrototype
+          variant={variant}
+          now={now}
+          station={station}
+          readings={history.data?.readings}
+          latest={latest}
+          historyPending={history.isPending}
+          forecast={forecast}
+          tides={tides}
+          extremes={extremes}
+          onTideExtend={onTideExtend}
+          footer={
+            <Sources
+              origin={station && m.source_measurements({ attribution: station.attribution })}
+              license={station?.license}
+              forecast={forecast.data}
+              tides={tides.data}
+            />
+          }
+        />
+        <PrototypeSwitcher />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-l">
+      <PrototypeSwitcher />
       {station?.exposure === "sheltered" && (
         <p className="rounded-(--radius-xs) bg-warning-transparent px-s py-xs text-s">
           {m.station_sheltered_note()}
