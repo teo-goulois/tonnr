@@ -140,6 +140,9 @@ const SEA_PROTOCOL = "seatile";
 // pixel. The map then blends a pixel into the next, and the sea shades evenly. A closer tile says
 // nothing more, and draws each cell as a square.
 const SEA_MAX_ZOOM = 4;
+// Heights can be written on the sea in figures. They are hidden for now, as Téo asked on
+// 2026-10-09 after trying them.
+const SEA_HEIGHTS_SHOWN: boolean = false;
 // The source of the basemap, whose tiles say where the water is.
 const BASEMAP_SOURCE = "openmaptiles";
 // More markers than this hide the map, and the dots under them still say where the stations are.
@@ -773,6 +776,7 @@ export function StationMap({
       },
       "land",
     );
+    if (!SEA_HEIGHTS_SHOWN) return;
     instance.addSource("sea-heights", { type: "geojson", data: seaHeightFeatures([]) });
     // Under the names of the basemap, which hide a height that runs into them.
     instance.addLayer(
@@ -799,6 +803,7 @@ export function StationMap({
   // Heights written on the sea, here and there, once the map has the tiles to read them from.
   useEffect(() => {
     const instance = map.current;
+    if (!SEA_HEIGHTS_SHOWN) return;
     if (!instance || styleVersion === 0 || !layers.sea || !seaLayer || !seaTime) return;
 
     let written = "";
