@@ -286,11 +286,11 @@ function TideMarks({
     axis &&
     createPortal(
       <>
-        {/* As far from the plot as the figures the other charts write on their own axis. */}
+        {/* From the edge the day above starts at, in a column no wider than they need. */}
         {ticks.map((tick) => (
           <span
             key={tick}
-            className="absolute inset-x-0 -translate-y-1/2 pr-[14px] text-right text-xs text-muted-foreground tabular-nums"
+            className="absolute inset-x-0 -translate-y-1/2 text-xs text-muted-foreground tabular-nums"
             style={{ top: y(tick) }}
           >
             {formatNumber(tick)}
@@ -505,7 +505,7 @@ export function TideChart({
         )}
       </div>
       <div className="flex">
-        <div ref={setAxis} aria-hidden className="relative w-[30px] shrink-0" />
+        <div ref={setAxis} aria-hidden className="relative w-6 shrink-0" />
         <div
           ref={setStrip}
           role="group"
