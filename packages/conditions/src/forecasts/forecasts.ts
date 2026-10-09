@@ -71,6 +71,9 @@ export class ProviderLeftAlone extends Schema.TaggedError<ProviderLeftAlone>()(
   {},
 ) {}
 
+/** The forecast that is kept is too old to answer, and no other could be had. */
+export class ForecastExpired extends Schema.TaggedError<ForecastExpired>()("ForecastExpired", {}) {}
+
 /** The forecast that is kept does not reach the days asked for. */
 export class ForecastTooShort extends Schema.TaggedError<ForecastTooShort>()(
   "ForecastTooShort",
@@ -232,7 +235,10 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
       // fetch started when the store was read, and it is as old as the time that passed since.
       return winner ?? { ...fresh, stale: false, age: 0, seenAt: readAt };
     }
-    if (kept && kept.age < USABLE_MS) return { ...kept, stale: true };
+    // The older forecast answers while its day lasts, counted to this moment: asking the
+    // provider took time.
+    const older = kept && { ...kept, stale: true };
+    if (older && lifeLeft(older) > 0) return older;
     return yield* Effect.fail(fetched.failure);
   });
 
@@ -258,8 +264,12 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
       // The memory lets go of a forecast when its time is up, by the machine's clock. This
       // checks it by the time that passed, which no setting of that clock changes.
       if (memoryLeft(found) <= 0) {
-        yield* Cache.invalidate(memory, key);
+        const expired = found;
+        // Only the forecast that was read is let go. Questions that arrived together read
+        // the same one, and share the one that takes its place.
+        yield* Cache.invalidateWhen(memory, key, (held) => held === expired);
         found = yield* Cache.get(memory, key);
+        if (lifeLeft(found) <= 0) return yield* new ForecastExpired();
       }
 
       const hours = hoursFor(found.data, query, found.fetchedAt.getTime() + ageOf(found));
@@ -285,4 +295,5 @@ export type ForecastFailure =
   | BudgetSpent
   | ForecastStoreError
   | ProviderLeftAlone
+  | ForecastExpired
   | ForecastTooShort;

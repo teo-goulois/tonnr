@@ -451,6 +451,51 @@ describe("the forecasts of a program", () => {
     expect((await got(forecasts.get(here))).stale).toBe(false);
   });
 
+  it("share the forecast that takes the place of one that came out too old", async () => {
+    const { store, rows } = memoryStore();
+    const { state } = provider();
+    rows.set("873,-29", {
+      fetchedAt: new Date(Date.now() - 3 * HOUR_MS),
+      data: answer(Date.now()),
+    });
+    // The provider takes more than a minute, once, then gives an answer that cannot be read:
+    // the older forecast that stands in for it has already spent its minute in memory.
+    const slow: Parameters<typeof makeForecasts>[1] = (_cell, spend) =>
+      Effect.gen(function* () {
+        yield* spend;
+        state.asked += 1;
+        if (state.asked === 1) later(60_500);
+        return yield* new ForecastFormatError({ message: "changed" });
+      });
+    const forecasts = makeForecasts(store, slow);
+
+    const answers = await Promise.all([1, 2, 3, 4].map(() => got(forecasts.get(here))));
+
+    expect(answers.map((found) => found.stale)).toEqual([true, true, true, true]);
+    // The four waited for one fetch, then for the one that was asked in its place.
+    expect(state.asked).toBe(2);
+  });
+
+  it("give no forecast whose day ended while the provider was being asked", async () => {
+    const { store, rows } = memoryStore();
+    const { state } = provider();
+    rows.set("873,-29", {
+      fetchedAt: new Date(Date.now() - 24 * HOUR_MS + 1000),
+      data: answer(Date.now() - 24 * HOUR_MS),
+    });
+    const slow: Parameters<typeof makeForecasts>[1] = (_cell, spend) =>
+      Effect.gen(function* () {
+        yield* spend;
+        state.asked += 1;
+        later(2000);
+        return yield* Effect.fail(down());
+      });
+
+    expect(await failed(makeForecasts(store, slow).get(here))).toMatchObject({
+      _tag: "UpstreamError",
+    });
+  });
+
   it("say that a point has no sea over the hours asked for", async () => {
     const { store, rows } = memoryStore();
     const { fetch, state } = provider();
