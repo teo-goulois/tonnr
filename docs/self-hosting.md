@@ -56,7 +56,64 @@ docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-
 
 ## Running one job
 
-Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `exposure`, or `breaks`.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `exposure`, or `breaks`. The two jobs of the private list take a value, and the next section gives them.
+
+## Keeping a list of breaks you may not publish
+
+This is optional: an instance runs without it.
+
+You may hold a list of surf breaks from a provider that gave you no right to republish it. The private list keeps it in your database for you alone: the API does not serve it, and the worker never asks the provider for it. Decision 016 gives the rules. You answer to the provider for holding the list.
+
+Write the list as one JSON file, in UTF-8:
+
+```json
+{
+  "provider": "example",
+  "termsUrl": "https://example.org/terms",
+  "breaks": [
+    {
+      "ref": "a1",
+      "name": "North jetty",
+      "latitude": 48.0,
+      "longitude": -4.5,
+      "url": "https://example.org/breaks/a1",
+      "collectedAt": "2026-10-08T10:00:00Z",
+      "details": { "bottom": "sand" }
+    }
+  ]
+}
+```
+
+- `provider` is a short name in lower case, and `termsUrl` the address of the provider's terms.
+- `ref` is the break's identifier at the provider. A file gives each one once.
+- `url` is the provider's page for the break. `collectedAt` is when you read it, with its offset and no finer than a millisecond.
+- `details` holds whatever else the provider says of the break. It is stored as it is, and may be left out.
+- Any other field refuses the file, and so does one faulty line: nothing of a file is stored unless all of it can be.
+- A number is refused when JavaScript cannot hold it as it is written, such as an integer past 2^53.
+
+Keep the file outside the clone. A build copies the clone into the image, and Git must never see the file.
+
+The instance must run a version that has the two tables, so update it first. The command then takes the path of the file and says what storing it would change. It stores it only with `--write`:
+
+```bash
+docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs private-breaks /tmp/breaks.json
+docker compose run --rm --volume /path/to/breaks.json:/tmp/breaks.json:ro worker node dist/cli.mjs private-breaks /tmp/breaks.json --write
+```
+
+From a clone, with `DATABASE_URL` naming the instance's database, `pnpm --filter worker run job private-breaks /path/to/breaks.json` does the same.
+
+A break already stored keeps its id and takes the file's values. A break the file leaves out stays. Storing the same file twice changes nothing.
+
+When it stores something, the command prints the id of the import. With that id, this says how many breaks the import added, and deletes them only with `--write`:
+
+```bash
+docker compose run --rm worker node dist/cli.mjs private-breaks-remove <import>
+docker compose run --rm worker node dist/cli.mjs private-breaks-remove <import> --write
+```
+
+It deletes them as they are, with whatever a later file changed in them, and touches nothing else. It does not bring back the values a break had before: store the earlier file again for that.
+
+Whoever can query the database reads the list, and a dump holds it. Keep your backups as private as the list.
 
 ## Accounts
 

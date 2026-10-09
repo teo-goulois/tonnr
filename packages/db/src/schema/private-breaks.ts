@@ -1,0 +1,70 @@
+import {
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+/**
+ * One file of breaks that the instance's operator imported by hand, and that changed
+ * `private_break`. Its counts say what the import did then, whatever happened since.
+ */
+export const privateBreakImport = pgTable("private_break_import", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull(),
+  // The SHA-256 of the file, to tell which one it was. A path would be one machine's.
+  fileSha256: text("file_sha256").notNull(),
+  // How many breaks the file listed.
+  listed: integer("listed").notNull(),
+  added: integer("added").notNull(),
+  changed: integer("changed").notNull(),
+  unchanged: integer("unchanged").notNull(),
+  // The provider's breaks that the file did not list. They were kept.
+  absent: integer("absent").notNull(),
+  importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A surf break the instance keeps for its operator alone. It was read from a provider that gave
+ * no right to republish its list, so it is not part of the catalogue: no procedure of the API
+ * reads this table.
+ */
+export const privateBreak = pgTable(
+  "private_break",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(),
+    // The break's identifier at the provider.
+    providerRef: text("provider_ref").notNull(),
+    name: text("name").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    // The provider's page that shows the break.
+    sourceUrl: text("source_url").notNull(),
+    // Nobody has the provider's word that the row may be shown or shared. A row that has it
+    // belongs in the catalogue, with its licence.
+    rights: text("rights", { enum: ["not-established"] })
+      .default("not-established")
+      .notNull(),
+    // The provider's terms, which the row falls under.
+    termsUrl: text("terms_url").notNull(),
+    // What else the file said of the break, as the file gave it.
+    details: jsonb("details").$type<Record<string, unknown>>().notNull(),
+    // When the provider was read.
+    collectedAt: timestamp("collected_at", { withTimezone: true }).notNull(),
+    // The import that added the row. Removing that import deletes the row.
+    importId: text("import_id")
+      .notNull()
+      .references(() => privateBreakImport.id),
+    // When an import last wrote the row.
+    importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("private_break_provider_ref_idx").on(table.provider, table.providerRef),
+    index("private_break_importId_idx").on(table.importId),
+  ],
+);

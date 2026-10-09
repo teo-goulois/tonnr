@@ -1,6 +1,6 @@
 # 015. A catalogue of surf breaks
 
-Status: the catalogue and its import have been in use since 2026-10-08. Téo proposed to build the list from Surfline's map. This record does not, for the reasons under "Rejected", and he has not confirmed that yet. Publishing a user's spot after moderation is not built.
+Status: the catalogue and its import have been in use since 2026-10-08. Téo proposed to build the list from Surfline's map. The catalogue does not hold that list, for the reason under "Rejected", and decision 016 says where a list of that kind is kept. Publishing a user's spot after moderation is not built.
 
 ## Context
 
@@ -35,7 +35,7 @@ No open list of the world's surf breaks exists. What was measured on 2026-10-08:
 
 ## Rejected
 
-- **Reading Surfline's map.** Both `www.surfline.com` and the service behind its map answer a script with a Cloudflare challenge. Reading them means getting around that challenge, which is no longer fetching a public file. The terms could not be read for the same reason. And this repository is public, with an API that states a licence for every record: a list copied from Surfline has none that could be stated. The same holds for the other proprietary lists.
+- **Surfline's list in the catalogue.** This repository is public, with an API that states a licence for every record, and a list copied from Surfline has none that could be stated. Its terms restrict republishing, and nobody has Surfline's word that the list may be shared. The same holds for the other proprietary lists. Both `www.surfline.com` and the service behind its map refuse a script with a Cloudflare challenge, and answer a browser. A list of that kind stays out of the catalogue: decision 016.
 - **One table for the catalogue and the users' spots, with a status on each row.** This was the first draft, with criteria moved to an `alert` table. A review found three faults. The migration removed columns that the running version reads, against decision 009. An owner could move a proposed spot after the moderator had looked at it and before the decision. And one answer mixed public breaks with the caller's own spots, which a cache keyed by address would serve to someone else.
 - **Overture's places.** Too many are businesses or vague areas, and telling them apart needs a person. They could later feed a moderation queue.
 - **Wikidata.** Thirty-seven breaks do not pay for merging two sources.
