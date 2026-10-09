@@ -1,4 +1,5 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { ScrollArea } from "@repo/ui/components/ui/scroll-area";
 import { SliderPrimitive } from "@repo/ui/components/ui/slider";
 import { cn } from "@repo/ui/lib/utils";
 import {
@@ -95,7 +96,7 @@ export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTi
   const fraction = ((shown - earliest) / stepMs + 0.5) / instants.length;
   const opened = useRef(false);
   useLayoutEffect(() => {
-    const strip = scroller.current;
+    const strip = scroller.current?.querySelector<HTMLElement>("[data-slot=scroll-area-viewport]");
     if (!strip || strip.scrollWidth <= strip.clientWidth) return;
     const thumb = fraction * strip.scrollWidth;
     if (!opened.current) {
@@ -130,9 +131,12 @@ export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTi
         {m.map_sea_now()}
       </Button>
 
-      <div
+      {/* The strip fades at an edge it goes on past. Its bars leave no room for a scrollbar. */}
+      <ScrollArea
         ref={scroller}
-        className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:overflow-visible"
+        className="size-auto min-w-0 flex-1 [&_[data-slot=scroll-area-scrollbar]]:hidden"
+        scrollFade
+        clampContentMinWidth={false}
       >
         <SliderPrimitive.Root
           className="relative max-lg:min-w-(--strip)"
@@ -213,7 +217,7 @@ export function SeaTimeline({ time, times, onTimeChange, className, ref }: SeaTi
             </div>
           </SliderPrimitive.Control>
         </SliderPrimitive.Root>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
