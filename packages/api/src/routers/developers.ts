@@ -1,9 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
-import { apiKey, developer, developerCalls } from "@repo/db/schema/access";
+import { apiKey, developer, developerCalls, type OperatorChanges } from "@repo/db/schema/access";
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { recordAction } from "../actions";
 import { adminProcedure } from "../index";
 import { hasControlCharacter } from "../text";
 
@@ -134,7 +135,17 @@ export const developersRouter = {
     .output(developerSchema)
     .handler(async ({ input, context }) => {
       const id = crypto.randomUUID();
-      await context.db.insert(developer).values({ id, ...input });
+      await context.db.transaction(async (tx) => {
+        await tx.insert(developer).values({ id, ...input });
+        await recordAction(tx, {
+          operatorId: context.session.user.id,
+          action: "developer.create",
+          developer: { id, name: input.name },
+          ...(input.callsPerHour !== null && {
+            changes: { callsPerHour: { from: null, to: input.callsPerHour } },
+          }),
+        });
+      });
 
       const [made] = await described(context.db, id);
       if (!made) throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -170,19 +181,57 @@ export const developersRouter = {
     .output(developerSchema)
     .handler(async ({ input, context }) => {
       const { id, suspended, ...values } = input;
-      const changed = await context.db
-        .update(developer)
-        .set({
-          ...values,
-          // Suspending an account that already is keeps the time it was first suspended.
-          ...(suspended === true && {
-            suspendedAt: sql`coalesce(${developer.suspendedAt}, now())`,
-          }),
-          ...(suspended === false && { suspendedAt: null }),
-        })
-        .where(eq(developer.id, id))
-        .returning({ id: developer.id });
-      if (changed.length === 0) throw missing(id);
+      const operatorId = context.session.user.id;
+
+      const found = await context.db.transaction(async (tx) => {
+        // The account as it is, held until the change is made: the record says what it changed.
+        const [before] = await tx
+          .select()
+          .from(developer)
+          .where(eq(developer.id, id))
+          .for("update");
+        if (!before) return false;
+
+        const changes: OperatorChanges = {};
+        if (values.name !== undefined && values.name !== before.name) {
+          changes.name = { from: before.name, to: values.name };
+        }
+        if (values.callsPerHour !== undefined && values.callsPerHour !== before.callsPerHour) {
+          changes.callsPerHour = { from: before.callsPerHour, to: values.callsPerHour };
+        }
+        if (values.contact !== undefined && values.contact !== before.contact)
+          changes.contact = true;
+        if (values.note !== undefined && values.note !== before.note) changes.note = true;
+        const isSuspended = before.suspendedAt !== null;
+        const turns = suspended !== undefined && suspended !== isSuspended;
+        const changed = Object.keys(changes).length > 0;
+        // Asking for what is already so changes nothing, and is not recorded.
+        if (!changed && !turns) return true;
+
+        await tx
+          .update(developer)
+          .set({
+            ...values,
+            ...(turns && { suspendedAt: suspended ? sql`now()` : null }),
+          })
+          .where(eq(developer.id, id));
+        // The record names the account as it is called once the change is made.
+        const named = { id, name: values.name ?? before.name };
+        if (changed) {
+          await recordAction(tx, {
+            operatorId,
+            action: "developer.update",
+            developer: named,
+            changes,
+          });
+        }
+        if (turns) {
+          const action = suspended ? "developer.suspend" : "developer.resume";
+          await recordAction(tx, { operatorId, action, developer: named });
+        }
+        return true;
+      });
+      if (!found) throw missing(id);
 
       const [now] = await described(context.db, id);
       if (!now) throw missing(id);
@@ -202,10 +251,20 @@ export const developersRouter = {
     .input(z.object({ id: z.uuid() }))
     .output(z.object({ id: z.string(), name: z.string() }))
     .handler(async ({ input, context }) => {
-      const [deleted] = await context.db
-        .delete(developer)
-        .where(eq(developer.id, input.id))
-        .returning({ id: developer.id, name: developer.name });
+      const deleted = await context.db.transaction(async (tx) => {
+        const [gone] = await tx
+          .delete(developer)
+          .where(eq(developer.id, input.id))
+          .returning({ id: developer.id, name: developer.name });
+        if (!gone) return null;
+
+        await recordAction(tx, {
+          operatorId: context.session.user.id,
+          action: "developer.delete",
+          developer: gone,
+        });
+        return gone;
+      });
       if (!deleted) throw missing(input.id);
       return deleted;
     }),

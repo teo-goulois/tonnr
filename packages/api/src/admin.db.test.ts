@@ -1,6 +1,13 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
-import { apiKey, apiUsage, developer, developerCalls, operator } from "@repo/db/schema/access";
+import {
+  apiKey,
+  apiUsage,
+  developer,
+  developerCalls,
+  operator,
+  operatorAction,
+} from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
@@ -28,6 +35,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
   beforeEach(async () => {
     const { db } = database;
     await db.delete(apiUsage);
+    await db.delete(operatorAction);
     await db.delete(developer);
     await db.delete(user);
     await db.insert(user).values([
@@ -947,6 +955,220 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
     it("refuse a page of no account, or of too many", async () => {
       await expect(list({ limit: 0 })).rejects.toEqual(refusal("BAD_REQUEST"));
       await expect(list({ limit: 201 })).rejects.toEqual(refusal("BAD_REQUEST"));
+    });
+  });
+
+  describe("what an operator did", () => {
+    const done = async (input: object = {}) =>
+      (await call(v1Router.actions.list, input as never, asOwner())).actions;
+    // What a record says, without its id and its moment.
+    const said = async (input: object = {}) =>
+      (await done(input)).map(({ id: _id, at: _at, ...rest }) => rest).reverse();
+    const record = {
+      operatorName: "Owner",
+      developerName: "Harbour screens",
+      keyName: null,
+      changes: null,
+    };
+
+    it("is recorded with each change, by whom, to what, and with what it changed", async () => {
+      const made = await makeDeveloper({ contact: "ana@example.org", callsPerHour: 100 });
+      const update = (changes: object) =>
+        call(v1Router.developers.update, { id: made.id, ...changes } as never, asOwner());
+      await update({ name: "Quay screens", callsPerHour: 300 });
+      await update({ contact: "ben@example.org", note: "Asked on the quay." });
+      await update({ callsPerHour: null });
+      await update({ suspended: true });
+      await update({ suspended: false });
+      const key = await makeKey(made.id, "tide clock", "second");
+      await call(v1Router.keys.revoke, { id: key.id }, asOwner());
+      await call(v1Router.developers.delete, { id: made.id }, asOwner());
+
+      const developerId = made.id;
+      const quay = { ...record, developerId, developerName: "Quay screens" };
+      expect(await said()).toEqual([
+        {
+          ...record,
+          developerId,
+          action: "developer.create",
+          changes: { callsPerHour: { from: null, to: 100 } },
+        },
+        {
+          ...quay,
+          action: "developer.update",
+          changes: {
+            name: { from: "Harbour screens", to: "Quay screens" },
+            callsPerHour: { from: 100, to: 300 },
+          },
+        },
+        // A contact and a note are said to have changed, and are not copied.
+        { ...quay, action: "developer.update", changes: { contact: true, note: true } },
+        { ...quay, action: "developer.update", changes: { callsPerHour: { from: 300, to: null } } },
+        { ...quay, action: "developer.suspend" },
+        { ...quay, action: "developer.resume" },
+        { ...quay, action: "key.create", keyName: "tide clock", operatorName: "Second" },
+        { ...quay, action: "key.revoke", keyName: "tide clock" },
+        // The account is gone, and the record of its deletion still names it.
+        { ...quay, action: "developer.delete" },
+      ]);
+    });
+
+    it("never holds a key, a contact or a note", async () => {
+      const made = await makeDeveloper({ contact: "ana@example.org", note: "A secret note." });
+      const { key } = await makeKey(made.id);
+      await call(
+        v1Router.developers.update,
+        { id: made.id, contact: "ben@example.org", note: "Another note." },
+        asOwner(),
+      );
+
+      const stored = JSON.stringify(await database.db.select().from(operatorAction));
+      for (const kept of [key, key.slice(8), "ana@", "ben@", "secret", "Another"]) {
+        expect(stored).not.toContain(kept);
+      }
+    });
+
+    it("says nothing of what changed nothing, nor of what was refused", async () => {
+      const made = await makeDeveloper({ callsPerHour: 100 });
+      const update = (changes: object, by = asOwner()) =>
+        outcome(call(v1Router.developers.update, { id: made.id, ...changes } as never, by));
+      const before = await said();
+      const visitor = { context: context({ session: "visitor" }) };
+
+      // The values the account already has, and a state it is already in.
+      expect(await update({ name: "Harbour screens", callsPerHour: 100 })).toBe("answered");
+      expect(await update({ suspended: false })).toBe("answered");
+      expect(await update({ name: "" })).toBe("BAD_REQUEST");
+      expect(await update({ name: "Taken over" }, visitor)).toBe("FORBIDDEN");
+      expect(await outcome(call(v1Router.developers.delete, { id: made.id }, visitor))).toBe(
+        "FORBIDDEN",
+      );
+      expect(
+        await outcome(
+          call(v1Router.keys.create, { name: "k", developerId: crypto.randomUUID() }, asOwner()),
+        ),
+      ).toBe("NOT_FOUND");
+      expect(
+        await outcome(call(v1Router.keys.revoke, { id: crypto.randomUUID() }, asOwner())),
+      ).toBe("NOT_FOUND");
+
+      expect(await said()).toEqual(before);
+    });
+
+    it("is recorded once for a suspension asked for twice, and keeps the first moment", async () => {
+      const made = await makeDeveloper();
+      const suspend = () =>
+        call(v1Router.developers.update, { id: made.id, suspended: true }, asOwner());
+
+      const first = await suspend();
+      const second = await suspend();
+
+      expect(second.suspendedAt).toEqual(first.suspendedAt);
+      expect((await said()).map((found) => found.action)).toEqual([
+        "developer.create",
+        "developer.suspend",
+      ]);
+    });
+
+    it("is not kept when what it records is not done", async () => {
+      const made = await makeDeveloper();
+      // A database that refuses the record: the change it goes with is undone.
+      await database.db.execute(sql`
+        alter table operator_action add constraint no_deletion check (action <> 'developer.delete')
+      `);
+      try {
+        await expect(
+          call(v1Router.developers.delete, { id: made.id }, asOwner()),
+        ).rejects.toBeDefined();
+      } finally {
+        await database.db.execute(sql`alter table operator_action drop constraint no_deletion`);
+      }
+
+      expect((await developers()).map((found) => found.id)).toEqual([made.id]);
+      expect((await said()).map((found) => found.action)).toEqual(["developer.create"]);
+    });
+
+    it("keeps the record of an operator whose account is deleted, without their name", async () => {
+      const made = await makeDeveloper();
+      await call(
+        v1Router.developers.update,
+        { id: made.id, name: "Renamed" },
+        { context: context({ session: "second" }) },
+      );
+      await database.db.delete(user).where(eq(user.id, "second"));
+
+      expect((await said()).map((found) => [found.action, found.operatorName])).toEqual([
+        ["developer.create", "Owner"],
+        ["developer.update", null],
+      ]);
+    });
+
+    it("names no developer account for a key that had none", async () => {
+      const { prefix, keyHash } = newKey();
+      const id = crypto.randomUUID();
+      await database.db
+        .insert(apiKey)
+        .values({ id, userId: "owner", name: "older", prefix, keyHash });
+
+      await call(v1Router.keys.revoke, { id }, asOwner());
+
+      expect(await said()).toEqual([
+        {
+          ...record,
+          action: "key.revoke",
+          developerId: null,
+          developerName: null,
+          keyName: "older",
+        },
+      ]);
+    });
+
+    it("is listed the latest first, for one developer account, and page after page", async () => {
+      const first = await makeDeveloper({ name: "first" });
+      const second = await makeDeveloper({ name: "second" });
+      await makeKey(first.id, "a");
+      await makeKey(second.id, "b");
+      await makeKey(first.id, "c");
+
+      expect((await done()).map((found) => found.keyName ?? found.developerName)).toEqual([
+        "c",
+        "b",
+        "a",
+        "second",
+        "first",
+      ]);
+      expect((await done({ developerId: first.id })).map((found) => found.action)).toEqual([
+        "key.create",
+        "key.create",
+        "developer.create",
+      ]);
+
+      const seen: string[] = [];
+      let after: string | undefined;
+      for (let page = 0; page < 5; page += 1) {
+        const found = await call(v1Router.actions.list, { limit: 2, after }, asOwner());
+        seen.push(...found.actions.map((action) => action.id));
+        if (found.next === null) break;
+        after = found.next;
+      }
+      expect(seen).toEqual((await done()).map((found) => found.id));
+      await expect(done({ limit: 0 })).rejects.toEqual(refusal("BAD_REQUEST"));
+      await expect(done({ developerId: "first" })).rejects.toEqual(refusal("BAD_REQUEST"));
+    });
+
+    it("is deleted thirteen months after its day, with the counts", async () => {
+      const row = { operatorId: "owner", action: "developer.suspend" as const };
+      await database.db.insert(operatorAction).values([
+        { ...row, id: "kept", at: new Date("2025-09-09T08:00:00Z") },
+        { ...row, id: "old", at: new Date("2025-09-09T07:59:59Z") },
+      ]);
+
+      clock = new Date("2026-10-09T08:30:00Z");
+      await usage.flush();
+
+      expect((await database.db.select().from(operatorAction)).map((found) => found.id)).toEqual([
+        "kept",
+      ]);
     });
   });
 });

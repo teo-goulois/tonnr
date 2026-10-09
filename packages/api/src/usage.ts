@@ -4,6 +4,7 @@ import {
   apiKey,
   apiUsage,
   developerCalls,
+  operatorAction,
   type USAGE_OUTCOMES,
   type USAGE_VIA,
 } from "@repo/db/schema/access";
@@ -14,7 +15,7 @@ export type Outcome = (typeof USAGE_OUTCOMES)[number];
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
-// How long a count is kept after its hour.
+// How long a count is kept after its hour, and the record of an operator's action after it.
 const KEPT_MONTHS = 13;
 // How many rows one statement writes: six values a row, and a statement takes 65,535 of them.
 const ROWS_A_WRITE = 5000;
@@ -140,6 +141,8 @@ export function createUsage(db: Database, options: Options = {}): Usage {
     const before = monthsBefore(new Date(hour), KEPT_MONTHS);
     await db.delete(apiUsage).where(lt(apiUsage.hour, before));
     await db.delete(developerCalls).where(lt(developerCalls.hour, before));
+    // The record of what the operators did is kept as long, and no longer.
+    await db.delete(operatorAction).where(lt(operatorAction.at, before));
     prunedAt = hour;
   }
 

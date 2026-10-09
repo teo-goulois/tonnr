@@ -2,7 +2,7 @@
 
 Status: decided by Téo on 2026-10-09. It amends decision 019 on four points, named below.
 
-Not deployed: no stage has an admin app yet. Not built: a console where a developer reads their own keys and calls, a record of what each operator changed, a limit on what an account calls with its session, a limit on calls made with a key that no longer works, and a budget of calls to the forecast provider. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
+Not deployed: no stage has an admin app yet. Not built: a console where a developer reads their own keys and calls, a limit on what an account calls with its session, a limit on calls made with a key that no longer works, and a budget of calls to the forecast provider. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
 
 ## Context
 
@@ -48,6 +48,15 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 - That same write notes the minute each key was last used while it worked. This replaces the write that decision 019 made on a key's call.
 - A row is deleted thirteen months after its hour. The API does it when it starts and each time the hour turns.
 
+### What an operator did
+
+- Each change an operator makes to a developer account or to a key is recorded: who made it, when, to which account or key, and what it changed. The record is written in the transaction that makes the change, so neither exists without the other.
+- A name and a limit are recorded as they were and as they are. A contact and a note are only said to have changed, and a key is named and never held: what the record keeps outlives the account it is about.
+- Asking for what is already so changes nothing and records nothing. Neither does a request that is refused: the counts hold those.
+- The record names the operator by their account. It stays when that account is deleted, without a name.
+- A record is deleted thirteen months after its day, with the counts.
+- The commands run on the server are not recorded: `job operator` and `job operator-remove`, which revokes keys. Whoever runs them is no account.
+
 ### The limit
 
 - A developer account has a limit of calls in an hour, shared by its keys, or none. The hour is UTC's.
@@ -61,7 +70,7 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 ### The admin app
 
 - The admin is an app of its own, `apps/admin`, at an address of its own. It has the web app's stack: TanStack Start, the components of `packages/ui`, the Tonnr theme, and its messages in English and in French. It deploys to Cloudflare as the second app of a stage of decision 021: `pnpm run deploy:admin <stage>`, for a stage that names a host for it in `ADMIN_DOMAIN`. A stage that names none has no admin app, and deploys as it did before.
-- It shows the developer accounts with their keys, the calls by hour and by day, by developer account, by key and by procedure, and the accounts that signed up, with their name and address. It only reads those accounts.
+- It shows the developer accounts with their keys, the calls by hour and by day, by developer account, by key and by procedure, what the operators did, and the accounts that signed up, with their name and address. It only reads those accounts.
 - A day is the reader's. The counts are by UTC's hour, so a day is exact where the clock is a whole number of hours from UTC, and off by part of an hour elsewhere.
 - It is built for a wide screen first and stays usable on a phone. Decision 014's rule of the phone screen is for `/app`, which a mobile app will follow: the admin has no mobile app to come.
 - An operator signs in to it with the account and the session of the web app. The admin creates no account. To an account that is no operator it shows the account's id and the command that makes it one.
@@ -70,7 +79,7 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 
 ### Who may run the instance
 
-- What runs the instance is built on `adminProcedure`: the developer accounts, the keys, the counts, and the list of accounts. It takes an operator's session, as `operatorProcedure` does, and one thing more: the request must say that it comes from the admin's site, in `Origin` or else in `Referer`.
+- What runs the instance is built on `adminProcedure`: the developer accounts, the keys, the counts, the record of what the operators did, and the list of accounts. It takes an operator's session, as `operatorProcedure` does, and one thing more: the request must say that it comes from the admin's site, in `Origin` or else in `Referer`.
 - The admin's site is `ADMIN_ORIGIN`. An instance that sets none has no admin app, and its admin's site is the API's own address.
 - A request that names the web app's site is refused there, the operator's too. A fault in the web app's pages, which draw what data providers and users wrote, then cannot make a key or read the accounts with the operator's session.
 - A request that names no site is refused as well. A script holds its cookie itself, and sends `Origin` on these calls as it already does on a write.
@@ -99,7 +108,7 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 - A key's hourly counts show when a developer account calls and what it asks for. They are the operator's to read, and they are not anonymous.
 - An operator reads the name and the address of every account. `docs/self-hosting.md` says so.
 - The log of the API no longer writes what follows `?` in an address, nor the request that a procedure refused: both could hold an address someone typed.
-- Nothing records which operator changed a limit, suspended an account or deleted one. A key records who made it and when it was revoked.
+- The record of what the operators did names a developer account that was deleted since, for thirteen months. Deleting the account erases its contact and its note, and not its name.
 - A key that no longer works still costs the instance a read at each call, and nothing limits those.
 - Deleting the account of an operator still deletes the keys it made, and their counts with them.
 - The admin is a second site to deploy and to name in the API's settings. Decision 021 gave the API one web origin and refused a list of them: the admin's is a second address, one, named by whoever hosts the instance, and on the API's site. It is not a way to let a page on a developer's machine call an instance online, and decision 021's reason against that holds for the admin too.

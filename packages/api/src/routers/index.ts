@@ -4,6 +4,7 @@ import { protectedProcedure, publicProcedure } from "../index";
 import { nameProcedures } from "../procedures";
 import { accountRouter } from "./account";
 import { accountsRouter } from "./accounts";
+import { actionsRouter } from "./actions";
 import { breaksRouter } from "./breaks";
 import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
@@ -24,6 +25,7 @@ import { usageRouter } from "./usage";
 export const v1Router = {
   account: accountRouter,
   accounts: accountsRouter,
+  actions: actionsRouter,
   breaks: breaksRouter,
   developers: developersRouter,
   forecasts: forecastsRouter,

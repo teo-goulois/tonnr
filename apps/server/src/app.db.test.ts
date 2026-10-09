@@ -302,6 +302,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/usage/series", "get"],
       ["/usage/breakdown", "get"],
       ["/accounts", "get"],
+      ["/actions", "get"],
       ["/private-breaks", "get"],
       ["/private-breaks/{id}", "get"],
       ["/lists", "get"],

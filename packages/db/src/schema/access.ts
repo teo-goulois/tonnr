@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -126,5 +127,58 @@ export const apiUsage = pgTable(
       .nullsNotDistinct(),
     index("api_usage_keyId_hour_idx").on(table.keyId, table.hour),
     check("api_usage_via_key", sql`(${table.via} = 'key') = (${table.keyId} is not null)`),
+  ],
+);
+
+// What an operator can do to what runs the instance, as the record of it names it.
+export const OPERATOR_ACTIONS = [
+  "developer.create",
+  "developer.update",
+  "developer.suspend",
+  "developer.resume",
+  "developer.delete",
+  "key.create",
+  "key.revoke",
+] as const;
+
+/**
+ * What an action changed. A name and a limit are given as they were and as they are. A contact
+ * and a note are only said to have changed: what they held is not copied into a record that
+ * outlives the account.
+ */
+export type OperatorChanges = {
+  name?: { from: string; to: string };
+  callsPerHour?: { from: number | null; to: number | null };
+  contact?: true;
+  note?: true;
+};
+
+/**
+ * What an operator did to a developer account or to a key, and when. It is written in the
+ * transaction that does it, so that nothing is done without its record, and no record says what
+ * was not done. A key is named and never held here. The record of an account outlives the
+ * account: it is deleted thirteen months after its day, with the counts.
+ */
+export const operatorAction = pgTable(
+  "operator_action",
+  {
+    id: text("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+    // The operator who did it. Null once their account is deleted.
+    operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
+    action: text("action", { enum: OPERATOR_ACTIONS }).notNull(),
+    // The developer account it was done to, or whose key it was, with the name it had then.
+    // Neither points to the account: the record of a deletion names what was deleted. Null for
+    // a key that had no developer account.
+    developerId: text("developer_id"),
+    developerName: text("developer_name"),
+    // The key that was made or revoked, by its name. Null for what was done to an account.
+    keyId: text("key_id"),
+    keyName: text("key_name"),
+    changes: jsonb("changes").$type<OperatorChanges>(),
+  },
+  (table) => [
+    index("operator_action_at_idx").on(table.at),
+    index("operator_action_developerId_at_idx").on(table.developerId, table.at),
   ],
 );

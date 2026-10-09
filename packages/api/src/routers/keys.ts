@@ -3,6 +3,7 @@ import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { recordAction } from "../actions";
 import { adminProcedure } from "../index";
 import { newKey } from "../keys";
 import { hasControlCharacter } from "../text";
@@ -96,7 +97,7 @@ export const keysRouter = {
 
         // The same for the account the key goes to: it is not deleted under the key.
         const [owner] = await tx
-          .select({ id: developer.id })
+          .select({ id: developer.id, name: developer.name })
           .from(developer)
           .where(eq(developer.id, input.developerId))
           .for("share");
@@ -117,6 +118,15 @@ export const keysRouter = {
             keyHash,
           })
           .returning(described);
+        if (row) {
+          // The record names the key. The key itself is in the answer below, and nowhere else.
+          await recordAction(tx, {
+            operatorId: userId,
+            action: "key.create",
+            developer: owner,
+            key: { id: row.id, name: row.name },
+          });
+        }
         return row;
       });
       if (!made) throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -134,11 +144,30 @@ export const keysRouter = {
     .input(z.object({ id: z.uuid() }))
     .output(keySchema)
     .handler(async ({ input, context }) => {
-      const [revoked] = await context.db
-        .update(apiKey)
-        .set({ revokedAt: new Date() })
-        .where(and(eq(apiKey.id, input.id), isNull(apiKey.revokedAt)))
-        .returning(described);
+      const revoked = await context.db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(apiKey)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(apiKey.id, input.id), isNull(apiKey.revokedAt)))
+          .returning(described);
+        if (!row) return null;
+
+        // The account the key belongs to, by the name it has now. A key of before decision 020
+        // may have none.
+        const [owner] = row.developerId
+          ? await tx
+              .select({ id: developer.id, name: developer.name })
+              .from(developer)
+              .where(eq(developer.id, row.developerId))
+          : [];
+        await recordAction(tx, {
+          operatorId: context.session.user.id,
+          action: "key.revoke",
+          developer: owner ?? null,
+          key: { id: row.id, name: row.name },
+        });
+        return row;
+      });
       if (!revoked)
         throw new ORPCError("NOT_FOUND", { message: `No key "${input.id}" to revoke.` });
       return revoked;
