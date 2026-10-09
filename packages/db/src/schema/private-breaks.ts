@@ -43,18 +43,19 @@ export const privateBreak = pgTable(
     name: text("name").notNull(),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
-    // The provider's page that shows the break.
-    sourceUrl: text("source_url").notNull(),
+    // The page that shows the break, when the file gave one: naming the source is the
+    // operator's to do or to leave out.
+    sourceUrl: text("source_url"),
     // Nobody has the provider's word that the row may be shown or shared. A row that has it
     // belongs in the catalogue, with its licence.
     rights: text("rights", { enum: ["not-established"] })
       .default("not-established")
       .notNull(),
-    // The provider's terms, which the row falls under.
-    termsUrl: text("terms_url").notNull(),
+    // The terms the list falls under, when the file gave them.
+    termsUrl: text("terms_url"),
     // What else the file said of the break, as the file gave it.
     details: jsonb("details").$type<Record<string, unknown>>().notNull(),
-    // When the provider was read.
+    // When the file says the break was read.
     collectedAt: timestamp("collected_at", { withTimezone: true }).notNull(),
     // The import that added the row. Removing that import deletes the row.
     importId: text("import_id")

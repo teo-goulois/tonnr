@@ -3,23 +3,24 @@ import { isPosition } from "../providers/plausible";
 
 /** A break as a file for the private list gives it. */
 export type PrivateBreak = {
-  // The break's identifier at the provider.
+  // The break's identifier in the list.
   ref: string;
   name: string;
   latitude: number;
   longitude: number;
-  // The provider's page that shows the break.
-  url: string;
-  // When the provider was read.
+  // The page that shows the break, when the file names one.
+  url?: string;
+  // When the list was read.
   collectedAt: Date;
-  // What else the provider says of the break. It is stored as it is.
+  // What else the file says of the break. It is stored as it is.
   details: Record<string, unknown>;
 };
 
 export type PrivateBreakList = {
+  // The short name the file gives its list.
   provider: string;
-  // The provider's terms, which the breaks fall under.
-  termsUrl: string;
+  // The terms the list falls under, when the file gives them.
+  termsUrl?: string;
   breaks: PrivateBreak[];
 };
 
@@ -115,7 +116,7 @@ function readBreak(line: Record<string, unknown>): PrivateBreak | string[] {
     typeof latitude === "number" &&
     typeof longitude === "number" &&
     isPosition(latitude, longitude);
-  const hasUrl = isWebAddress(url);
+  const hasUrl = url === undefined || isWebAddress(url);
   const hasInstant = isInstant(collectedAt);
   const hasDetails = isRecord(details);
 
@@ -124,7 +125,7 @@ function readBreak(line: Record<string, unknown>): PrivateBreak | string[] {
   }
   if (!hasName) faults.push('"name" must be a text');
   if (!hasPoint) faults.push('"latitude" and "longitude" must be numbers on the globe');
-  if (!hasUrl) faults.push('"url" must be an http or https address');
+  if (!hasUrl) faults.push('"url", when given, must be an http or https address');
   if (!hasInstant) {
     faults.push(
       '"collectedAt" must be a date and time that exist, with their offset and no finer than a millisecond, as 2026-10-08T10:00:00Z',
@@ -154,9 +155,11 @@ export function parsePrivateBreaks(json: unknown): PrivateBreakList | FormatErro
   const problems: string[] = [];
 
   const hasProvider = typeof provider === "string" && PROVIDER.test(provider);
-  const hasTerms = isWebAddress(termsUrl) && unstorable(termsUrl) === null;
+  // A file that names no terms is taken as one whose operator does not say where it is from.
+  const hasTerms =
+    termsUrl === undefined || (isWebAddress(termsUrl) && unstorable(termsUrl) === null);
   if (!hasProvider) problems.push('"provider" must be a short name in lower case, as "example"');
-  if (!hasTerms) problems.push('"termsUrl" must be an http or https address');
+  if (!hasTerms) problems.push('"termsUrl", when given, must be an http or https address');
   if (lines.length === 0) problems.push('"breaks" must be a list of one break or more');
   const unknown = unknownKeys(json, FILE_KEYS);
   if (unknown.length > 0) problems.push(`unknown fields: ${unknown.join(", ")}`);

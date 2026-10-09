@@ -1,6 +1,6 @@
 # 016. A private list of surf breaks
 
-Status: asked for by Téo on 2026-10-08, built on 2026-10-09. No screen and no procedure of the API reads the list.
+Status: asked for by Téo on 2026-10-08, built on 2026-10-09, and amended the same day at his request: the file need not say where its list comes from. No screen and no procedure of the API reads the list.
 
 ## Context
 
@@ -13,7 +13,8 @@ The catalogue cannot hold it. Every row of `surf_break` goes out through `GET /v
 ## Decision
 
 - A list that may not be republished lives in a table of its own, `private_break`. No procedure of the API reads it, no scheduled job does, and no other table points to it.
-- A row says where it comes from: the provider, the provider's reference, the address of its page, the provider's terms, and when the provider was read. Its `rights` say `not-established`. A list whose rights are established belongs in the catalogue, through a source of decision 015.
+- A row says which list it belongs to — the short name the file gives it — the reference the file gives the break, and when the list was read. Its `rights` say `not-established`. A list whose rights are established belongs in the catalogue, through a source of decision 015.
+- Saying where the list comes from is the operator's choice, not the table's rule. The file may give the address of each break's page and the terms the list falls under; a row carries them when the file gives them, and carries nothing when it does not. Whoever imports a list this way answers for holding it all the same.
 - The name and the position are columns. Whatever else the file says of a break is kept as the file gives it, in `details`. Tonnr converts nothing in it and reads no unit into it: a size, a rating or a direction stays the provider's value.
 - The list comes from a file, by hand: `job private-breaks <file>`. Tonnr fetches nothing. No module, no queue and no schedule asks the provider, on this instance or on anyone else's.
 - The command checks the whole file before it writes. One fault refuses the file, and the command names the line.

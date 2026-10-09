@@ -84,10 +84,11 @@ Write the list as one JSON file, in UTF-8:
 }
 ```
 
-- `provider` is a short name in lower case, and `termsUrl` the address of the provider's terms.
-- `ref` is the break's identifier at the provider. A file gives each one once.
-- `url` is the provider's page for the break. `collectedAt` is when you read it, with its offset and no finer than a millisecond.
-- `details` holds whatever else the provider says of the break. It is stored as it is, and may be left out.
+- `provider` is a short name in lower case that keys the list in your database. It is yours to choose, and need not name the list's origin.
+- `termsUrl` and `url` are yours to give or to leave out: the terms the list falls under, and the page that shows a break. A row carries a source only when the file gives one.
+- `ref` is the break's identifier in the list. A file gives each one once.
+- `collectedAt` is when you read the list, with its offset and no finer than a millisecond.
+- `details` holds whatever else the list says of the break. It is stored as it is, and may be left out.
 - Any other field refuses the file, and so does one faulty line: nothing of a file is stored unless all of it can be.
 - A number is refused when JavaScript cannot hold it as it is written, such as an integer past 2^53.
 

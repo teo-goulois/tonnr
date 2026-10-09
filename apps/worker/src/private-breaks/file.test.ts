@@ -61,6 +61,23 @@ describe("parsePrivateBreaks", () => {
     });
   });
 
+  it("takes a break that names no page", () => {
+    const { url: _, ...unnamed } = line();
+
+    expect(parsePrivateBreaks(file([unnamed]))).toMatchObject({
+      breaks: [{ ref: "a1", url: undefined }],
+    });
+  });
+
+  it("takes a file that names no terms and keeps the page the breaks give", () => {
+    const { termsUrl: _, ...untermed } = file([line()]);
+
+    expect(parsePrivateBreaks(untermed)).toMatchObject({
+      termsUrl: undefined,
+      breaks: [{ ref: "a1", url: "https://example.org/breaks/a1" }],
+    });
+  });
+
   it("reads the instant with the offset the file gives", () => {
     const read = parsePrivateBreaks(file([line({ collectedAt: "2026-10-08T12:00:00.5+02:00" })]));
 
@@ -77,8 +94,8 @@ describe("parsePrivateBreaks", () => {
     ["a longitude off the globe", { longitude: -180.5 }, '"latitude" and "longitude"'],
     ["a position written as text", { latitude: "48" }, '"latitude" and "longitude"'],
     ["a missing position", { longitude: undefined }, '"latitude" and "longitude"'],
-    ["an address that is not one", { url: "example.org/a1" }, '"url" must be'],
-    ["an address that is not the web's", { url: "file:///tmp/a1" }, '"url" must be'],
+    ["an address that is not one", { url: "example.org/a1" }, '"url", when given'],
+    ["an address that is not the web's", { url: "file:///tmp/a1" }, '"url", when given'],
     [
       "an address with a character Postgres cannot store",
       { url: "https://example.org/\u0000" },
@@ -214,17 +231,16 @@ describe("parsePrivateBreaks", () => {
       { provider: "e".repeat(41) },
       '"provider" must be',
     ],
-    ["no terms", { termsUrl: undefined }, '"termsUrl" must be'],
-    ["terms that are not an address", { termsUrl: "see the site" }, '"termsUrl" must be'],
+    ["terms that are not an address", { termsUrl: "see the site" }, '"termsUrl", when given'],
     [
       "terms that are not on the web",
       { termsUrl: "ftp://example.org/terms" },
-      '"termsUrl" must be',
+      '"termsUrl", when given',
     ],
     [
       "terms with a character Postgres cannot store",
       { termsUrl: "https://example.org/\u0000" },
-      '"termsUrl" must be',
+      '"termsUrl", when given',
     ],
     ["a field the format does not have", { license: "open" }, "unknown fields: license"],
   ])("refuses a file with %s", (_, overrides, expected) => {
@@ -252,7 +268,7 @@ describe("parsePrivateBreaks", () => {
 
     expect(problems).toEqual([
       'break 1 (a1): "name" must be a text',
-      'break 1 (a1): "url" must be an http or https address',
+      'break 1 (a1): "url", when given, must be an http or https address',
       'break 2 (a2): "latitude" and "longitude" must be numbers on the globe',
     ]);
   });

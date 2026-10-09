@@ -61,8 +61,9 @@ export const importPrivateBreaks = Effect.fn("importPrivateBreaks")(function* (
     name: found.name,
     latitude: found.latitude,
     longitude: found.longitude,
-    sourceUrl: found.url,
-    termsUrl: list.termsUrl,
+    // The page and the terms, when the file names them; otherwise the row carries no source.
+    sourceUrl: found.url ?? null,
+    termsUrl: list.termsUrl ?? null,
     details: found.details,
     collectedAt: found.collectedAt,
     importId,

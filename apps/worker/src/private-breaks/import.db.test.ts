@@ -56,6 +56,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the private list of breaks", () => {
         { fileSha256: "0".repeat(64), write },
       ),
     );
+  // Stores a list that names no source: no page on the breaks, and no terms.
+  const storeSourceless = (provider: string, breaks: PrivateBreak[], write = true) =>
+    Effect.runPromise(
+      importPrivateBreaks(database.db, { provider, breaks }, { fileSha256: "0".repeat(64), write }),
+    );
   // Stores a list that changes something, and gives the import's id.
   const storeAs = async (provider: string, breaks: PrivateBreak[]) => {
     const { importId } = await store(provider, breaks);
@@ -193,6 +198,39 @@ describe.skipIf(!TEST_DATABASE_URL)("the private list of breaks", () => {
     expect(await rowsOf("terms")).toMatchObject([
       { termsUrl: "https://example.org/terms-of-2027" },
     ]);
+  });
+
+  it("stores a list that names no source", async () => {
+    const stored = await storeSourceless("unnamed", [found("a1", { url: undefined })]);
+
+    expect(stored).toMatchObject({ listed: 1, added: 1 });
+    expect(await rowsOf("unnamed")).toEqual([
+      {
+        id: expect.any(String),
+        provider: "unnamed",
+        providerRef: "a1",
+        name: "a1",
+        latitude: 48,
+        longitude: -4.5,
+        // No source: the file gave no page and no terms.
+        sourceUrl: null,
+        rights: "not-established",
+        termsUrl: null,
+        details: { bottom: "sand" },
+        collectedAt: COLLECTED,
+        importId: stored.importId,
+        importedAt: expect.any(Date),
+      },
+    ]);
+  });
+
+  it("takes the absence of terms a later file gives", async () => {
+    await store("forgotten", [found("a1")]);
+
+    const second = await storeSourceless("forgotten", [found("a1")]);
+
+    expect(second).toMatchObject({ changed: 1, unchanged: 0 });
+    expect(await rowsOf("forgotten")).toMatchObject([{ termsUrl: null }]);
   });
 
   const differences: [string, Partial<PrivateBreak>][] = [
