@@ -1,3 +1,4 @@
+import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Drawer,
@@ -20,10 +21,26 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
+import {
+  Meter,
+  MeterIndicator,
+  MeterLabel,
+  MeterTrack,
+  MeterValue,
+} from "@repo/ui/components/ui/meter";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import { Slider } from "@repo/ui/components/ui/slider";
 import { Switch } from "@repo/ui/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@repo/ui/components/ui/table";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
@@ -363,6 +380,79 @@ export function DesignSystemPage() {
           <Slider defaultValue={[20, 70]} getAriaLabel={(index) => (index === 0 ? "From" : "To")} />
           <Slider defaultValue={30} disabled getAriaLabel={() => "Disabled"} />
         </div>
+      </Section>
+
+      <Section title="Badge">
+        <Row>
+          <Badge>Revoked</Badge>
+          <Badge variant="success">Working</Badge>
+          <Badge variant="warning">Suspended</Badge>
+          <Badge variant="error">Over the limit</Badge>
+        </Row>
+      </Section>
+
+      <Section title="Meter">
+        <div className="grid w-64 gap-m">
+          <Meter value={120} max={300}>
+            <div className="flex items-baseline justify-between gap-s">
+              <MeterLabel>Calls this hour</MeterLabel>
+              <MeterValue>{() => "120 / 300"}</MeterValue>
+            </div>
+            <MeterTrack>
+              <MeterIndicator />
+            </MeterTrack>
+          </Meter>
+          <Meter value={255} max={300} aria-label="Near the limit">
+            <MeterTrack>
+              <MeterIndicator level="low" />
+            </MeterTrack>
+          </Meter>
+          <Meter value={300} max={300} aria-label="At the limit">
+            <MeterTrack>
+              <MeterIndicator level="high" />
+            </MeterTrack>
+          </Meter>
+        </div>
+      </Section>
+
+      <Section title="Table">
+        <Table>
+          <TableCaption>Three keys, one of them revoked.</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Key</TableHead>
+              <TableHead className="text-right">Calls</TableHead>
+              <TableHead>State</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell>Tide clock</TableCell>
+              <TableCell className="font-mono text-neutral-7">key_a1B2</TableCell>
+              <TableCell className="text-right tabular-nums">1,204</TableCell>
+              <TableCell>
+                <Badge variant="success">Working</Badge>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Harbour screen</TableCell>
+              <TableCell className="font-mono text-neutral-7">key_c3D4</TableCell>
+              <TableCell className="text-right tabular-nums">86</TableCell>
+              <TableCell>
+                <Badge variant="success">Working</Badge>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Old script</TableCell>
+              <TableCell className="font-mono text-neutral-7">key_e5F6</TableCell>
+              <TableCell className="text-right tabular-nums">0</TableCell>
+              <TableCell>
+                <Badge>Revoked</Badge>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </Section>
 
       <Section title="Drawer">
