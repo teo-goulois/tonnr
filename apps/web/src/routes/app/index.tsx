@@ -1,42 +1,51 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useTheme } from "next-themes";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 
-import { BreakPanel } from "@/components/viewer/break-panel";
-import {
-  BREAK_COLOR,
-  HEIGHT_SCALE,
-  NO_READING_COLOR,
-  StationMap,
-  WIND_SCALE,
-  type Bounds,
-  type MapStation,
-  type WindStation,
-} from "@/components/viewer/station-map";
-import { StationPanel } from "@/components/viewer/station-panel";
+import type { Bounds, MapLayers } from "@/components/viewer/station-map";
+import type { SavedList, Station } from "@/components/viewer/types";
+import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
+import { authClient } from "@/lib/auth-client";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { useStoredState } from "@/lib/use-stored-state";
+import { m } from "@/paraglide/messages.js";
 import { orpc } from "@/utils/orpc";
 
-// A temporary page to look at the data the API serves. It is not the product's interface.
 export const Route = createFileRoute("/app/")({
-  // A station or a break is selected, never both.
-  validateSearch: z.object({ station: z.string().optional(), break: z.string().optional() }),
-  component: Viewer,
+  validateSearch: z.object({
+    // The station or the surf break whose panel is open. One is selected, never both.
+    station: z.string().optional(),
+    break: z.string().optional(),
+    panel: z.enum(["saved", "alerts"]).optional(),
+  }),
+  component: ViewerRoute,
 });
 
-const HOUR_MS = 60 * 60 * 1000;
-// A reading older than this is shown as missing on the map.
-const FRESH_WAVES_MS = 6 * HOUR_MS;
-const FRESH_WIND_MS = 2 * HOUR_MS;
-const KNOTS_PER_MS = 1.943844;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
 const WIND_LIMIT = 500;
 const BREAK_LIMIT = 1000;
+const DEFAULT_LAYERS: MapLayers = { sea: true, buoys: true, wind: false, breaks: true };
 
-const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+function readLayers(stored: unknown): MapLayers | null {
+  if (typeof stored !== "object" || stored === null) return null;
+  const { sea, buoys, wind, breaks } = stored as Record<string, unknown>;
+  return typeof sea === "boolean" && typeof buoys === "boolean" && typeof wind === "boolean"
+    ? // A choice kept from before the breaks were on the map says nothing of them.
+      { sea, buoys, wind, breaks: typeof breaks === "boolean" ? breaks : DEFAULT_LAYERS.breaks }
+    : null;
+}
 
-const MINUTE_MS = 60 * 1000;
-
-// The current time, updated every minute, so that a reading ages out while the page stays open.
+// The current time, updated every minute, so that a reading ages while the page stays open.
 function useNow() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -46,184 +55,289 @@ function useNow() {
   return now;
 }
 
-function Viewer() {
+// What a query gives a screen. A query that is switched off is not loading anything.
+function loadable<Data>(query: { data: Data | undefined; isLoading: boolean; isError: boolean }) {
+  return { data: query.data, isPending: query.isLoading, isError: query.isError };
+}
+
+function ViewerRoute() {
   const search = Route.useSearch();
+  const { panel } = search;
   // An empty value selects nothing, and a station wins over a break given with it.
   const selectedId = search.station || undefined;
   const selectedBreakId = selectedId ? undefined : search.break || undefined;
   const navigate = Route.useNavigate();
-  const [showWind, setShowWind] = useState(true);
-  const [showBreaks, setShowBreaks] = useState(true);
+  const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const now = useNow();
+  // Rounded to the hour so the query keys stay the same from one minute to the next.
+  const hour = Math.floor(now / HOUR_MS) * HOUR_MS;
   const [bounds, setBounds] = useState<Bounds | null>(null);
+  const [layers, setLayers] = useStoredState("tonnr:map-layers", DEFAULT_LAYERS, readLayers);
+  const session = authClient.useSession();
+  const signedIn = Boolean(session.data);
 
   const waves = useQuery(
     orpc.v1.stations.list.queryOptions({
       input: { measures: "waves", limit: 500 },
       refetchInterval: 10 * MINUTE_MS,
+      select: (answer) => answer.stations,
     }),
   );
   // Wind stations are many, so only the ones in view are loaded.
   const wind = useQuery(
     orpc.v1.stations.list.queryOptions({
       input: { measures: "wind", bbox: bounds?.join(",") ?? "", limit: WIND_LIMIT },
-      enabled: showWind && bounds !== null,
+      enabled: layers.wind && bounds !== null,
       placeholderData: keepPreviousData,
       // The worker fetches the wind every ten minutes.
       refetchInterval: 5 * MINUTE_MS,
+      select: (answer) => answer.stations,
     }),
   );
-
   const breaks = useQuery(
     orpc.v1.breaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
-      enabled: showBreaks && bounds !== null,
+      enabled: layers.breaks && bounds !== null,
       placeholderData: keepPreviousData,
       // The catalogue changes once a week.
       staleTime: 60 * MINUTE_MS,
+      // Without them the map shows the stations alone, which needs no message.
+      meta: { quiet: true },
     }),
   );
-  const visibleBreaks = showBreaks ? (breaks.data?.breaks ?? []) : [];
-
-  const now = useNow();
-  const stations: MapStation[] = (waves.data?.stations ?? []).map((station) => ({
-    id: station.id,
-    name: station.name,
-    latitude: station.latitude,
-    longitude: station.longitude,
-    significantHeightMeters:
-      station.latestReading && now - station.latestReading.observedAt.getTime() < FRESH_WAVES_MS
-        ? station.latestReading.significantHeightMeters
-        : null,
-    isSheltered: station.exposure === "sheltered",
-  }));
-  const windStations: WindStation[] = (showWind ? (wind.data?.stations ?? []) : []).flatMap(
-    (station) => {
-      const reading = station.latestReading;
-      const speed = reading?.windSpeedMetersPerSecond;
-      if (!reading || speed == null || now - reading.observedAt.getTime() > FRESH_WIND_MS)
-        return [];
-      return [
-        {
-          id: station.id,
-          name: station.name,
-          latitude: station.latitude,
-          longitude: station.longitude,
-          speedKnots: speed * KNOTS_PER_MS,
-          directionDegrees: reading.windDirectionDegrees,
-        },
-      ];
-    },
+  const sea = useQuery(
+    orpc.v1.maps.waveHeight.queryOptions({
+      enabled: layers.sea,
+      staleTime: 30 * MINUTE_MS,
+      retry: 1,
+      // Without it the map shows the buoys alone, which needs no message.
+      meta: { quiet: true },
+    }),
   );
-  const french = stations
-    .filter((station) => station.id.startsWith("candhis-"))
-    .sort((a, b) => (b.significantHeightMeters ?? -1) - (a.significantHeightMeters ?? -1));
+
+  const lists = useQuery(
+    orpc.v1.lists.list.queryOptions({
+      enabled: signedIn,
+      select: (answer) => answer.lists,
+      meta: { quiet: true },
+    }),
+  );
+  const notifications = useQuery(
+    orpc.v1.notifications.list.queryOptions({
+      input: { limit: 50 },
+      enabled: signedIn && panel === "alerts",
+      select: (answer) => answer.notifications,
+      meta: { quiet: true },
+    }),
+  );
+
+  const loaded = useMemo(() => {
+    const byId = new Map<string, Station>();
+    for (const station of wind.data ?? []) byId.set(station.id, station);
+    for (const station of waves.data ?? []) byId.set(station.id, station);
+    return byId;
+  }, [waves.data, wind.data]);
+
+  // A saved station that is neither a buoy nor a wind station in view is fetched on its own.
+  const savedIds = useMemo(
+    () => [...new Set((lists.data ?? []).flatMap((list) => list.stationIds))],
+    [lists.data],
+  );
+  const missingIds = waves.isSuccess ? savedIds.filter((id) => !loaded.has(id)) : [];
+  const missing = useQueries({
+    queries: missingIds.map((id) =>
+      orpc.v1.stations.get.queryOptions({ input: { id }, meta: { quiet: true } }),
+    ),
+  });
+  const savedStations = useMemo(() => {
+    const byId = new Map<string, Station>();
+    for (const id of savedIds) {
+      const station = loaded.get(id);
+      if (station) byId.set(id, station);
+    }
+    for (const query of missing) {
+      if (query.data) byId.set(query.data.id, query.data);
+    }
+    return byId;
+    // The answers themselves say when the list of queries has something new.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedIds, loaded, missing.map((query) => query.dataUpdatedAt).join()]);
+
+  const history = useQuery(
+    orpc.v1.stations.readings.queryOptions({
+      input: { id: selectedId ?? "", limit: 2000 },
+      enabled: selectedId !== undefined,
+      meta: { quiet: true },
+    }),
+  );
+  // The map already knows where most stations are, so their forecast and tide load with their
+  // history, not after it.
+  const known = selectedId ? (loaded.get(selectedId) ?? savedStations.get(selectedId)) : undefined;
+  // A break that has left the catalogue answers with an error, which its panel says.
+  const found = useQuery(
+    orpc.v1.breaks.get.queryOptions({
+      input: { id: selectedBreakId ?? "" },
+      enabled: selectedBreakId !== undefined,
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
+  const placed =
+    known ??
+    history.data?.station ??
+    (selectedBreakId
+      ? (breaks.data?.breaks.find((candidate) => candidate.id === selectedBreakId) ?? found.data)
+      : undefined);
+  const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
+  const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
+  // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
+  const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
+
+  const tides = useQuery(
+    orpc.v1.tides.timeline.queryOptions({
+      input: {
+        ...atPoint,
+        start: new Date(hour - 6 * HOUR_MS),
+        end: new Date(hour + 42 * HOUR_MS),
+        stepMinutes: 10,
+      },
+      ...expected,
+    }),
+  );
+  const extremes = useQuery(
+    orpc.v1.tides.extremes.queryOptions({
+      input: { ...atPoint, start: new Date(hour), end: new Date(hour + 26 * HOUR_MS) },
+      ...expected,
+    }),
+  );
+  const forecast = useQuery(
+    orpc.v1.forecasts.get.queryOptions({ input: { ...atPoint, days: 4 }, ...expected }),
+  );
+
+  const listsKey = orpc.v1.lists.list.queryKey();
+  const setLists = (update: (lists: SavedList[]) => SavedList[]) =>
+    queryClient.setQueryData(listsKey, (answer) => ({ lists: update(answer?.lists ?? []) }));
+  const refreshLists = () => queryClient.invalidateQueries({ queryKey: listsKey });
+  const replaceList = (list: SavedList) =>
+    setLists((all) =>
+      all.some((other) => other.id === list.id)
+        ? all.map((other) => (other.id === list.id ? list : other))
+        : // The favorites the star had drawn before the account had any.
+          [list, ...all.filter((other) => other.id !== "favorites")],
+    );
+
+  const addStation = useMutation(
+    orpc.v1.lists.addStation.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
+  const removeStation = useMutation(
+    orpc.v1.lists.removeStation.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
+  const createList = useMutation(
+    orpc.v1.lists.create.mutationOptions({
+      onSuccess: (list) => setLists((all) => [...all, list]),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const deleteList = useMutation(
+    orpc.v1.lists.delete.mutationOptions({
+      onSuccess: ({ id }) => setLists((all) => all.filter((list) => list.id !== id)),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const markRead = useMutation(
+    orpc.v1.notifications.markRead.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.notifications.key() }),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+
+  // The star answers at once: the list changes on the screen, then the API confirms it.
+  function save(listId: string, stationId: string, add: boolean) {
+    setLists((all) => {
+      const isTarget = (list: SavedList) =>
+        listId === "favorites" ? list.isDefault : list.id === listId;
+      if (!all.some(isTarget) && listId === "favorites" && add) {
+        const today = new Date();
+        return [
+          {
+            id: "favorites",
+            name: "",
+            isDefault: true,
+            stationIds: [stationId],
+            createdAt: today,
+            updatedAt: today,
+          },
+          ...all,
+        ];
+      }
+      return all.map((list) =>
+        isTarget(list)
+          ? {
+              ...list,
+              stationIds: add
+                ? [...list.stationIds.filter((id) => id !== stationId), stationId]
+                : list.stationIds.filter((id) => id !== stationId),
+            }
+          : list,
+      );
+    });
+    (add ? addStation : removeStation).mutate({ id: listId, stationId });
+    if (listId === "favorites" && add) toast.success(m.saved_added_to_favorites());
+  }
 
   return (
-    <div className="grid min-h-0 grid-rows-[minmax(320px,45svh)_1fr] lg:grid-cols-[1fr_460px] lg:grid-rows-1">
-      <div className="relative min-h-0">
-        <StationMap
-          stations={stations}
-          windStations={windStations}
-          breaks={visibleBreaks}
-          selectedId={selectedId ?? selectedBreakId}
-          onSelect={(id) => void navigate({ search: { station: id } })}
-          onSelectBreak={(id) => void navigate({ search: { break: id } })}
-          onBoundsChange={setBounds}
-        />
-        <div className="bg-background/90 absolute bottom-3 left-3 grid gap-2 rounded-md border px-3 py-2 text-xs">
-          <div>
-            <div className="text-muted-foreground mb-1">Vagues, hauteur significative</div>
-            <div className="flex flex-wrap items-center gap-3">
-              {HEIGHT_SCALE.map((stop) => (
-                <span key={stop.meters} className="flex items-center gap-1">
-                  <span className="size-2.5 rounded-full" style={{ background: stop.color }} />
-                  {number.format(stop.meters)} m
-                </span>
-              ))}
-              <span className="flex items-center gap-1">
-                <span className="size-2.5 rounded-full" style={{ background: NO_READING_COLOR }} />
-                sans mesure récente
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-white/40" />
-                site abrité
-              </span>
-            </div>
-          </div>
-          <div>
-            <label className="text-muted-foreground mb-1 flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={showWind}
-                onChange={(event) => setShowWind(event.target.checked)}
-              />
-              Vent, en nœuds (la flèche indique où il va)
-            </label>
-            {showWind && (
-              <div className="flex flex-wrap items-center gap-3">
-                {WIND_SCALE.map((stop) => (
-                  <span key={stop.knots} className="flex items-center gap-1">
-                    <span className="size-2.5 rounded-sm" style={{ background: stop.background }} />
-                    {stop.knots}+
-                  </span>
-                ))}
-                {wind.data?.stations.length === WIND_LIMIT && (
-                  <span className="text-muted-foreground">zoome pour tout voir</span>
-                )}
-              </div>
-            )}
-          </div>
-          <label className="text-muted-foreground flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={showBreaks}
-              onChange={(event) => setShowBreaks(event.target.checked)}
-            />
-            <span className="size-2 rounded-full" style={{ background: BREAK_COLOR }} />
-            Spots de surf, d'après OpenStreetMap
-            {showBreaks && breaks.data?.next != null && <span>(zoome pour tout voir)</span>}
-          </label>
-        </div>
-      </div>
-
-      <aside className="min-h-0 overflow-y-auto border-t lg:border-t-0 lg:border-l">
-        {selectedId ? (
-          <StationPanel key={selectedId} stationId={selectedId} />
-        ) : selectedBreakId ? (
-          <BreakPanel key={selectedBreakId} breakId={selectedBreakId} />
-        ) : (
-          <div className="grid gap-4 p-4">
-            <div>
-              <h2 className="text-l font-medium">Bouées et stations de vent</h2>
-              <p className="text-muted-foreground text-sm">
-                {waves.isPending
-                  ? "Chargement…"
-                  : waves.isError
-                    ? "L'API ne répond pas."
-                    : `${stations.length} bouées, ${windStations.length} stations de vent et ${visibleBreaks.length} spots de surf dans la vue. Choisis-en un sur la carte ou dans la liste.`}
-              </p>
-            </div>
-            <ul className="grid gap-1">
-              {french.map((station) => (
-                <li key={station.id}>
-                  <Link
-                    to="/app"
-                    search={{ station: station.id }}
-                    className="hover:bg-muted flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
-                  >
-                    <span>{station.name}</span>
-                    <span className="text-muted-foreground tabular-nums">
-                      {station.significantHeightMeters === null
-                        ? "–"
-                        : `${number.format(station.significantHeightMeters)} m`}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </aside>
-    </div>
+    <Viewer
+      now={now}
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      wide={wide}
+      waveStations={loadable(waves)}
+      windStations={wind.data ?? []}
+      windTruncated={wind.data?.length === WIND_LIMIT}
+      breaks={breaks.data?.breaks ?? []}
+      breaksTruncated={breaks.data?.next != null}
+      sea={sea.data}
+      layers={layers}
+      selectedId={selectedId}
+      selectedBreakId={selectedBreakId}
+      selected={{
+        station: known,
+        history: loadable(history),
+        found: loadable(found),
+        forecast: loadable(forecast),
+        tides: loadable(tides),
+        extremes: loadable(extremes),
+      }}
+      panel={panel}
+      signedIn={signedIn}
+      lists={loadable(lists)}
+      savedStations={savedStations}
+      notifications={loadable(notifications)}
+      onLayersChange={setLayers}
+      onSelect={(station) => void navigate({ search: { station } })}
+      onSelectBreak={(id) => void navigate({ search: { break: id } })}
+      // A panel opens over the station's and gives it back when it closes.
+      onPanelChange={(next: ViewerPanel | undefined) =>
+        void navigate({ search: (previous) => ({ ...previous, panel: next }) })
+      }
+      onBoundsChange={setBounds}
+      onSave={save}
+      onCreateList={(name) => createList.mutate({ name })}
+      onDeleteList={(list) => deleteList.mutate({ id: list.id })}
+      onReadNotification={(notification) => markRead.mutate({ id: notification.id })}
+    />
   );
 }

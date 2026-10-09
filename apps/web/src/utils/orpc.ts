@@ -11,6 +11,8 @@ export function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        // A screen that says itself what it could not load asks for no toast.
+        if (query.meta?.quiet) return;
         toast.error(`Error: ${error.message}`, {
           action: {
             label: "retry",

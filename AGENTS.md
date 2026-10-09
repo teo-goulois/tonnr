@@ -24,6 +24,9 @@ For UI work, follow `GUI.md` and use `graphical-ui`, `graphical-convert`, or `gr
 - `packages/ui` follows Téo's handbook (teogoulois.com/code/web/conventions). Primitives live in `src/components/ui/`, and each one is taken from the teogoulois registry, then given the Tonnr theme. Add a missing one the same way before writing a new one.
 - Icons are Nucleo, imported from `@repo/ui/icon` and nowhere else. The theme's snapshot names another set: Nucleo replaces it.
 - `/design-system` shows every shared component with its variants and states, in development only. A new component is added there in the same change.
+- Charts are EvilCharts, copied into `packages/ui/src/components/evilcharts/` and given the theme. A screen draws a curve through `SeaChart` in `apps/web/src/components/viewer/`.
+- A wave height and a wind speed have one color each, defined in `apps/web/src/lib/sea-scales.ts`. The sea, the markers, the legend, and the charts read it there.
+- A panel of the map opens in `ViewerDrawer`: beside the map on a wide screen, as a sheet at the bottom of a phone.
 - Keyboard shortcuts are listed in `apps/web/src/lib/shortcuts.ts` and registered through its `useShortcut`, never with a `keydown` listener. The user can rebind each one, so read the binding in force from `useShortcuts` when showing it.
 - `Mod+K` opens the command palette, in `apps/web/src/components/shared/command-palette.tsx`. A new page or primary action is added there in the same change.
 - `/` is the landing page and `/app` is the product. A screen under `/app` is a component that takes props, in `apps/web/src/components/<feature>/`, and its route loads the data.

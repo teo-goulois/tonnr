@@ -1,37 +1,39 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { cn } from "@repo/ui/lib/utils";
+import { type ComponentProps, type ReactNode, Suspense, lazy } from "react";
 
-import { orpc } from "@/utils/orpc";
+import {
+  compassPoint,
+  formatClock,
+  formatDayAndClock,
+  formatKnots,
+  formatMeters,
+  formatNumber,
+  formatSeconds,
+  toKnots,
+} from "@/lib/format";
+import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
+import { m } from "@/paraglide/messages.js";
 
-import { LineChart } from "./line-chart";
+import type { Forecast, Loadable, TideExtremes, TideTimeline } from "./types";
 
-const HOUR_MS = 60 * 60 * 1000;
-const MINUTE_MS = 60 * 1000;
+// The chart library is heavy and only a panel draws with it, so it loads apart from the map.
+// The viewer asks for it as soon as the map is up, and a box of the chart's size waits for it.
+const LazySeaChart = lazy(() =>
+  import("./sea-chart").then((module) => ({ default: module.SeaChart })),
+);
 
-// The hour under way. It changes once an hour, so the queries that start from it keep their
-// key between renders and ask again when the page has stayed open.
-function useCurrentHour() {
-  const [hour, setHour] = useState(() => Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
-  useEffect(() => {
-    const timer = setInterval(() => setHour(Math.floor(Date.now() / HOUR_MS) * HOUR_MS), MINUTE_MS);
-    return () => clearInterval(timer);
-  }, []);
-  return useMemo(() => new Date(hour), [hour]);
+export function SeaChart(props: ComponentProps<typeof LazySeaChart>) {
+  return (
+    <Suspense fallback={<Skeleton className="h-44 w-full rounded-(--radius-xs)" />}>
+      <LazySeaChart {...props} />
+    </Suspense>
+  );
 }
 
-export const number = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
-const clock = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
-const dayAndClock = new Intl.DateTimeFormat("fr-FR", {
-  weekday: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const COMPASS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
-
-function compass(degrees: number) {
-  return COMPASS[Math.round(degrees / 45) % 8];
-}
+// Every third hour of the next day, enough to read the trend at a glance.
+const FORECAST_ROWS = 8;
+const TIDE_EXTREMES = 4;
 
 export function Section({
   title,
@@ -39,162 +41,233 @@ export function Section({
   children,
 }: {
   title: string;
-  note?: string;
-  children: React.ReactNode;
+  note?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="grid gap-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium">{title}</h3>
-        {note && <span className="text-muted-foreground text-xs">{note}</span>}
+    <section className="grid gap-xs">
+      <div className="flex items-baseline justify-between gap-s">
+        <h3 className="text-m font-medium">{title}</h3>
+        {note && <span className="text-right text-s text-neutral-7">{note}</span>}
       </div>
       {children}
     </section>
   );
 }
 
-/** The swell forecast and the tide at a point, whatever stands there: a buoy or a surf break. */
-export function PointConditions({ latitude, longitude }: { latitude: number; longitude: number }) {
-  const now = useCurrentHour();
+function ForecastTable({ hours, loading }: { hours: Forecast["hours"]; loading: boolean }) {
+  const cell = "py-1.5 pr-xs last:pr-0";
+  // A rule above each row. A table row draws no shadow, so its cells carry it.
+  const ruled = cn(cell, "shadow-[inset_0_var(--border-s)_0_var(--neutral-4)]");
+  return (
+    <table className="w-full text-s tabular-nums">
+      <thead className="text-left text-xs text-neutral-7">
+        <tr>
+          <th className={cn(cell, "font-normal")}>{m.forecast_time()}</th>
+          <th className={cn(cell, "font-normal")}>{m.forecast_waves()}</th>
+          <th className={cn(cell, "font-normal")}>{m.forecast_swell()}</th>
+          <th className={cn(cell, "font-normal")}>{m.forecast_wind()}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading
+          ? Array.from({ length: FORECAST_ROWS }, (_, row) => (
+              <tr key={row}>
+                {Array.from({ length: 4 }, (_, column) => (
+                  <td key={column} className={ruled}>
+                    <Skeleton className="h-(--line-s) w-4/5 rounded-(--radius-xs)" />
+                  </td>
+                ))}
+              </tr>
+            ))
+          : hours.map((hour) => {
+              const windSpeed = toKnots(hour.windSpeedMetersPerSecond);
+              return (
+                <tr key={hour.time.toISOString()}>
+                  <td className={cn(ruled, "text-neutral-7")}>{formatDayAndClock(hour.time)}</td>
+                  <td className={ruled}>
+                    <span className="flex items-center gap-xxs">
+                      {hour.waveHeightMeters !== null && (
+                        <span
+                          aria-hidden
+                          className="size-2 shrink-0 rounded-full"
+                          style={{
+                            background: scaleColor(WAVE_HEIGHT_SCALE, hour.waveHeightMeters),
+                          }}
+                        />
+                      )}
+                      {hour.waveHeightMeters === null ? "–" : formatMeters(hour.waveHeightMeters)}
+                      {hour.wavePeriodSeconds !== null && (
+                        <span className="text-neutral-7">
+                          {formatSeconds(hour.wavePeriodSeconds)}
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className={ruled}>
+                    {hour.swellHeightMeters === null ? "–" : formatMeters(hour.swellHeightMeters)}
+                    {hour.swellDirectionDegrees !== null && (
+                      <span className="text-neutral-7">
+                        {" "}
+                        {compassPoint(hour.swellDirectionDegrees)}
+                      </span>
+                    )}
+                  </td>
+                  <td className={ruled}>
+                    {windSpeed === null ? "–" : formatKnots(windSpeed)}
+                    {hour.windDirectionDegrees !== null && (
+                      <span className="text-neutral-7">
+                        {" "}
+                        {compassPoint(hour.windDirectionDegrees)}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+      </tbody>
+    </table>
+  );
+}
 
-  const tides = useQuery(
-    orpc.v1.tides.timeline.queryOptions({
-      input: {
-        latitude,
-        longitude,
-        start: new Date(now.getTime() - 6 * HOUR_MS),
-        end: new Date(now.getTime() + 42 * HOUR_MS),
-        stepMinutes: 10,
-      },
-      retry: false,
-    }),
+function TideExtremesList({
+  extremes,
+  loading,
+}: {
+  extremes: TideExtremes["extremes"];
+  loading: boolean;
+}) {
+  return (
+    <ul className="grid grid-cols-2 gap-xs">
+      {loading
+        ? Array.from({ length: TIDE_EXTREMES }, (_, index) => (
+            <li key={index} className="grid gap-xxs rounded-(--radius-xs) bg-neutral-2 px-s py-xs">
+              <Skeleton className="h-(--line-xs) w-10 rounded-(--radius-xs)" />
+              <Skeleton className="h-(--line-s) w-20 rounded-(--radius-xs)" />
+            </li>
+          ))
+        : extremes.map((extreme) => (
+            <li
+              key={extreme.time.toISOString()}
+              className="grid gap-xxs rounded-(--radius-xs) bg-neutral-2 px-s py-xs"
+            >
+              <span className="text-xs text-neutral-7">
+                {extreme.type === "high" ? m.tide_high() : m.tide_low()}
+              </span>
+              <span className="text-s tabular-nums">
+                {formatClock(extreme.time)}
+                <span className="text-neutral-7"> · {formatMeters(extreme.heightMeters)}</span>
+              </span>
+            </li>
+          ))}
+    </ul>
   );
-  const extremes = useQuery(
-    orpc.v1.tides.extremes.queryOptions({
-      input: { latitude, longitude, start: now, end: new Date(now.getTime() + 26 * HOUR_MS) },
-      retry: false,
-    }),
-  );
-  const forecast = useQuery(
-    orpc.v1.forecasts.get.queryOptions({
-      input: { latitude, longitude, days: 4 },
-      retry: false,
-      // The API keeps a forecast for an hour.
-      refetchInterval: HOUR_MS,
-    }),
-  );
+}
 
-  // Every third hour of the next day, enough to read the trend at a glance.
+export type PointConditionsProps = {
+  now: number;
+  forecast: Loadable<Forecast>;
+  tides: Loadable<TideTimeline>;
+  extremes: Loadable<TideExtremes>;
+};
+
+/** The wave forecast and the tide at a point, whatever stands there: a buoy or a surf break. */
+export function PointConditions({ now, forecast, tides, extremes }: PointConditionsProps) {
   const nextHours = (forecast.data?.hours ?? [])
-    .filter((hour) => hour.time >= now && hour.time.getUTCHours() % 3 === 0)
-    .slice(0, 9);
+    .filter((hour) => hour.time.getTime() >= now && hour.time.getUTCHours() % 3 === 0)
+    .slice(0, FORECAST_ROWS);
+  const nextExtremes = (extremes.data?.extremes ?? []).slice(0, TIDE_EXTREMES);
 
   return (
     <>
-      <Section
-        title="Prévision de houle"
-        note={forecast.data ? "mètres, hauteur totale des vagues" : undefined}
-      >
-        {forecast.isPending ? (
-          <p className="text-muted-foreground text-sm">Chargement…</p>
-        ) : forecast.data ? (
+      <Section title={m.forecast_title()} note={m.forecast_note()}>
+        {forecast.isPending || forecast.data ? (
           <>
-            <LineChart
-              label="Prévision de hauteur des vagues"
-              unit="m"
-              marker={new Date()}
-              points={forecast.data.hours.map((hour) => ({
+            <SeaChart
+              label={m.forecast_title()}
+              scale={WAVE_HEIGHT_SCALE}
+              formatValue={formatMeters}
+              marker={new Date(now)}
+              isLoading={forecast.isPending}
+              points={(forecast.data?.hours ?? []).map((hour) => ({
                 time: hour.time,
                 value: hour.waveHeightMeters,
               }))}
             />
-            <table className="w-full text-xs tabular-nums">
-              <thead className="text-muted-foreground">
-                <tr className="text-left">
-                  <th className="py-1 font-normal">Heure</th>
-                  <th className="font-normal">Vagues</th>
-                  <th className="font-normal">Houle</th>
-                  <th className="font-normal">Vent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {nextHours.map((hour) => (
-                  <tr key={hour.time.toISOString()} className="border-t">
-                    <td className="py-1">{dayAndClock.format(hour.time)}</td>
-                    <td>
-                      {hour.waveHeightMeters === null
-                        ? "–"
-                        : `${number.format(hour.waveHeightMeters)} m`}
-                      {hour.wavePeriodSeconds !== null &&
-                        ` · ${number.format(hour.wavePeriodSeconds)} s`}
-                    </td>
-                    <td>
-                      {hour.swellHeightMeters === null
-                        ? "–"
-                        : `${number.format(hour.swellHeightMeters)} m`}
-                      {hour.swellDirectionDegrees !== null &&
-                        ` ${compass(hour.swellDirectionDegrees)}`}
-                    </td>
-                    <td>
-                      {hour.windSpeedMetersPerSecond === null
-                        ? "–"
-                        : `${number.format(hour.windSpeedMetersPerSecond * 3.6)} km/h`}
-                      {hour.windDirectionDegrees !== null &&
-                        ` ${compass(hour.windDirectionDegrees)}`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-muted-foreground text-xs">{forecast.data.source.attribution}</p>
+            <ForecastTable hours={nextHours} loading={forecast.isPending} />
           </>
         ) : (
-          <p className="text-muted-foreground text-sm">Pas de prévision pour ce point.</p>
+          <p className="text-s text-neutral-7">{m.forecast_none()}</p>
         )}
       </Section>
 
       <Section
-        title="Marée"
+        title={m.tide_title()}
         note={
-          tides.data
-            ? `mètres, à ${tides.data.station.name} (${number.format(tides.data.station.distanceKm)} km)`
-            : undefined
+          tides.data &&
+          m.tide_station({
+            name: tides.data.station.name,
+            distance: formatNumber(tides.data.station.distanceKm, 0),
+          })
         }
       >
-        {tides.isPending ? (
-          <p className="text-muted-foreground text-sm">Chargement…</p>
-        ) : tides.data ? (
+        {tides.isPending || tides.data ? (
           <>
-            <LineChart
-              label="Hauteur de marée"
-              unit="m"
-              marker={new Date()}
-              points={tides.data.timeline.map((entry) => ({
+            <SeaChart
+              label={m.tide_title()}
+              formatValue={formatMeters}
+              marker={new Date(now)}
+              isLoading={tides.isPending}
+              points={(tides.data?.timeline ?? []).map((entry) => ({
                 time: entry.time,
                 value: entry.heightMeters,
               }))}
             />
-            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
-              {extremes.data?.extremes.map((extreme) => (
-                <li key={extreme.time.toISOString()}>
-                  <span className="text-muted-foreground">
-                    {extreme.type === "high" ? "PM" : "BM"}
-                  </span>{" "}
-                  {clock.format(extreme.time)} · {number.format(extreme.heightMeters)} m
-                </li>
-              ))}
-            </ul>
-            <p className="text-muted-foreground text-xs">
-              Calculée, hauteurs au-dessus de {tides.data.datum}. Source{" "}
-              {tides.data.station.source.name}.
-            </p>
+            <TideExtremesList extremes={nextExtremes} loading={extremes.isPending} />
           </>
         ) : (
-          <p className="text-muted-foreground text-sm">
-            Aucune station de marée à moins de 100 km.
-          </p>
+          <p className="text-s text-neutral-7">{m.tide_none()}</p>
         )}
       </Section>
     </>
+  );
+}
+
+/**
+ * Where a panel's figures come from. `origin` credits what stands at the point, with its licence,
+ * and the forecast and the tide follow once they are known.
+ */
+export function Sources({
+  origin,
+  license,
+  forecast,
+  tides,
+}: {
+  // Undefined while the station or the break loads.
+  origin: string | undefined;
+  license: { type: string; url: string } | undefined;
+  forecast: Forecast | undefined;
+  tides: TideTimeline | undefined;
+}) {
+  return (
+    <footer className="grid gap-xxs text-xs text-neutral-7">
+      {origin && license ? (
+        <p>
+          {origin}{" "}
+          <a
+            className="underline underline-offset-2 hover:text-neutral-10"
+            href={license.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {license.type}
+          </a>
+        </p>
+      ) : (
+        <Skeleton className="h-(--line-xs) w-3/4 rounded-(--radius-xs)" />
+      )}
+      {forecast && <p>{m.source_forecast({ attribution: forecast.source.attribution })}</p>}
+      {tides && <p>{m.source_tide({ datum: tides.datum, source: tides.station.source.name })}</p>}
+    </footer>
   );
 }

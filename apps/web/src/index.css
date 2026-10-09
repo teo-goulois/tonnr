@@ -1,1 +1,24 @@
 @import "@repo/ui/globals.css";
+
+/* The map's credits, on the theme's surface and in its type. They leave the legend its corner.
+   The map's own stylesheet loads after this one, so each rule names the map to outrank it. */
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+  max-width: calc(100% - 18rem);
+}
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  background-color: var(--neutral-1);
+  box-shadow: 0 0 0 var(--border-s) var(--neutral-10-transparent);
+  color: var(--neutral-7);
+  font-family: var(--font-ui);
+  font-size: var(--size-xs);
+  line-height: var(--line-xs);
+}
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact a {
+  color: var(--neutral-10);
+}
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button {
+  background-color: transparent;
+}
+.dark .maplibregl-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}

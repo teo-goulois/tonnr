@@ -1,4 +1,13 @@
 import { Button } from "@repo/ui/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerPanel,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@repo/ui/components/ui/drawer";
 import { Input } from "@repo/ui/components/ui/input";
 import { Kbd } from "@repo/ui/components/ui/kbd";
 import { Label } from "@repo/ui/components/ui/label";
@@ -13,14 +22,34 @@ import {
 } from "@repo/ui/components/ui/menu";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
+import { Switch } from "@repo/ui/components/ui/switch";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { MapLegend } from "@/components/viewer/map-legend";
+import {
+  BuoyPill,
+  FreshnessDot,
+  HeightChip,
+  UserDot,
+  WindBadge,
+} from "@/components/viewer/map-markers";
+import { SeaChart } from "@/components/viewer/sea-chart";
+import type { MapLayers } from "@/components/viewer/station-map";
+import { StationPanel } from "@/components/viewer/station-panel";
+import type {
+  Forecast,
+  StationReadings,
+  TideExtremes,
+  TideTimeline,
+} from "@/components/viewer/types";
+import { formatKnots, formatMeters } from "@/lib/format";
+import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { useShortcuts } from "@/lib/shortcuts";
 
 const VARIANTS = [
@@ -56,6 +85,117 @@ const NEUTRALS = [
   "bg-neutral-10",
 ] as const;
 
+const HOUR_MS = 60 * 60 * 1000;
+// A fixed moment, so the samples below draw the same curves on every visit.
+const SAMPLE_NOW = Date.UTC(2026, 9, 9, 6);
+
+// A swell that builds to three metres and eases, one value every half hour for two days.
+const SAMPLE_HEIGHTS = Array.from({ length: 96 }, (_, index) => ({
+  time: new Date(SAMPLE_NOW - (95 - index) * 0.5 * HOUR_MS),
+  value: 1.1 + 1.9 * Math.exp(-(((index - 60) / 14) ** 2)) + 0.12 * Math.sin(index / 3),
+}));
+const SAMPLE_WIND = SAMPLE_HEIGHTS.map((point, index) => ({
+  time: point.time,
+  value: 14 + 10 * Math.sin(index / 15),
+}));
+
+const SAMPLE_LICENSE = {
+  type: "etalab-2.0",
+  url: "https://www.etalab.gouv.fr/",
+  commercialUse: true,
+};
+const SAMPLE_READINGS: StationReadings = {
+  station: {
+    id: "sample",
+    provider: "candhis",
+    name: "Les Pierres Noires",
+    latitude: 48.29,
+    longitude: -4.97,
+    attribution: "CANDHIS",
+    measures: ["waves"],
+    exposure: "open",
+    license: SAMPLE_LICENSE,
+  },
+  readings: SAMPLE_HEIGHTS.map((point) => ({
+    observedAt: point.time,
+    significantHeightMeters: point.value,
+    maxHeightMeters: point.value * 1.6,
+    peakPeriodSeconds: 11,
+    meanPeriodSeconds: null,
+    significantPeriodSeconds: null,
+    peakDirectionDegrees: 290,
+    directionalSpreadDegrees: null,
+    waterTemperatureCelsius: 15.5,
+    windSpeedMetersPerSecond: null,
+    windGustMetersPerSecond: null,
+    windDirectionDegrees: null,
+    validated: false,
+  })).reverse(),
+};
+const SAMPLE_FORECAST: Forecast = {
+  point: { latitude: 48.3, longitude: -5 },
+  source: {
+    name: "Open-Meteo",
+    url: "https://open-meteo.com/",
+    attribution: "Weather data by Open-Meteo.com",
+    license: {
+      type: "cc-by-4.0",
+      url: "https://creativecommons.org/licenses/by/4.0/",
+      commercialUse: false,
+    },
+  },
+  hours: Array.from({ length: 96 }, (_, index) => {
+    const height = 1.6 + 1.2 * Math.sin(index / 14);
+    return {
+      time: new Date(SAMPLE_NOW - 6 * HOUR_MS + index * HOUR_MS),
+      waveHeightMeters: height,
+      wavePeriodSeconds: 9,
+      waveDirectionDegrees: 290,
+      swellHeightMeters: height * 0.8,
+      swellPeriodSeconds: 11,
+      swellDirectionDegrees: 285,
+      windWaveHeightMeters: height * 0.3,
+      windWavePeriodSeconds: 4,
+      windWaveDirectionDegrees: 250,
+      windSpeedMetersPerSecond: 6 + 3 * Math.sin(index / 9),
+      windGustMetersPerSecond: 10,
+      windDirectionDegrees: 250,
+    };
+  }),
+};
+const SAMPLE_TIDE_STATION = {
+  id: "sample",
+  name: "Le Conquet",
+  latitude: 48.36,
+  longitude: -4.78,
+  distanceKm: 16,
+  source: { name: "TICON-4", url: "https://www.seanoe.org/" },
+  license: {
+    type: "cc-by-4.0",
+    url: "https://creativecommons.org/licenses/by/4.0/",
+    commercialUse: true,
+  },
+};
+const SAMPLE_TIDES: TideTimeline = {
+  station: SAMPLE_TIDE_STATION,
+  datum: "LAT",
+  timeline: Array.from({ length: 288 }, (_, index) => ({
+    time: new Date(SAMPLE_NOW - 6 * HOUR_MS + index * (HOUR_MS / 6)),
+    heightMeters: 3.6 + 2.8 * Math.sin((index / 74.5) * 2 * Math.PI),
+  })),
+};
+const SAMPLE_EXTREMES: TideExtremes = {
+  station: SAMPLE_TIDE_STATION,
+  datum: "LAT",
+  extremes: [0, 1, 2, 3].map((index) => ({
+    time: new Date(SAMPLE_NOW + (2 + index * 6.2) * HOUR_MS),
+    type: index % 2 === 0 ? ("high" as const) : ("low" as const),
+    heightMeters: index % 2 === 0 ? 6.4 : 0.8,
+  })),
+};
+const LOADED = { isPending: false, isError: false };
+const LOADING = { data: undefined, isPending: true, isError: false };
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="grid gap-m">
@@ -72,6 +212,13 @@ function Row({ children }: { children: ReactNode }) {
 // Every shared component with its variants and states. Development only.
 export function DesignSystemPage() {
   const bindings = useShortcuts();
+  const [layers, setLayers] = useState<MapLayers>({
+    sea: true,
+    buoys: true,
+    wind: true,
+    breaks: true,
+  });
+  const [legendExpanded, setLegendExpanded] = useState(true);
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-xxl px-m py-xl">
@@ -186,6 +333,173 @@ export function DesignSystemPage() {
             <ShortcutKeys hotkey={bindings["command-palette"]} />
           </span>
         </Row>
+      </Section>
+
+      <Section title="Switch">
+        <Row>
+          <Switch aria-label="Off" />
+          <Switch aria-label="On" defaultChecked />
+          <Switch aria-label="Disabled" disabled />
+          <Switch aria-label="Disabled and on" disabled defaultChecked />
+        </Row>
+      </Section>
+
+      <Section title="Drawer">
+        <Row>
+          <Drawer swipeDirection="right">
+            <DrawerTrigger render={<Button variant="outline" />}>Open a side panel</DrawerTrigger>
+            <DrawerContent showCloseButton>
+              <DrawerHeader>
+                <DrawerTitle>Les Pierres Noires</DrawerTitle>
+                <DrawerDescription>A panel on the side of a wide screen.</DrawerDescription>
+              </DrawerHeader>
+              <DrawerPanel>Swell 1.8 m at 12 s, from WNW.</DrawerPanel>
+            </DrawerContent>
+          </Drawer>
+          <Drawer showSwipeHandle>
+            <DrawerTrigger render={<Button variant="outline" />}>Open a sheet</DrawerTrigger>
+            <DrawerContent variant="edge">
+              <DrawerHeader>
+                <DrawerTitle>Les Pierres Noires</DrawerTitle>
+                <DrawerDescription>A sheet at the bottom of a phone.</DrawerDescription>
+              </DrawerHeader>
+              <DrawerPanel>Swell 1.8 m at 12 s, from WNW.</DrawerPanel>
+            </DrawerContent>
+          </Drawer>
+        </Row>
+      </Section>
+
+      <Section title="Map markers">
+        <Row>
+          <BuoyPill heightMeters={0.4} periodSeconds={6} directionDegrees={250} freshness="fresh" />
+          <BuoyPill
+            heightMeters={1.8}
+            periodSeconds={12}
+            directionDegrees={290}
+            freshness="fresh"
+          />
+          <BuoyPill
+            heightMeters={2.6}
+            periodSeconds={10}
+            directionDegrees={null}
+            freshness="aging"
+          />
+          <BuoyPill heightMeters={3.4} periodSeconds={14} directionDegrees={300} freshness="old" />
+          <BuoyPill
+            heightMeters={5.2}
+            periodSeconds={null}
+            directionDegrees={270}
+            freshness="fresh"
+          />
+          <BuoyPill
+            heightMeters={8.5}
+            periodSeconds={17}
+            directionDegrees={280}
+            freshness="fresh"
+          />
+        </Row>
+        <Row>
+          <BuoyPill
+            heightMeters={1.8}
+            periodSeconds={12}
+            directionDegrees={290}
+            freshness="fresh"
+            selected
+          />
+          <BuoyPill
+            heightMeters={1.8}
+            periodSeconds={12}
+            directionDegrees={290}
+            freshness="fresh"
+            saved
+          />
+        </Row>
+        <Row>
+          {[2, 8, 13, 18, 23, 28, 35, 45].map((knots) => (
+            <WindBadge key={knots} speedKnots={knots} directionDegrees={knots * 9} />
+          ))}
+          <WindBadge speedKnots={12} directionDegrees={null} />
+          <WindBadge speedKnots={12} directionDegrees={200} selected />
+        </Row>
+        <Row>
+          <HeightChip heightMeters={1.8} directionDegrees={290} />
+          <FreshnessDot freshness="fresh" />
+          <FreshnessDot freshness="aging" />
+          <FreshnessDot freshness="old" />
+          <span className="relative ml-s size-4">
+            <UserDot className="absolute" />
+          </span>
+        </Row>
+      </Section>
+
+      <Section title="Map legend">
+        <MapLegend
+          layers={layers}
+          onLayersChange={setLayers}
+          expanded={legendExpanded}
+          onExpandedChange={setLegendExpanded}
+          seaTime={new Date(SAMPLE_NOW)}
+          seaIsNow
+          canStepBack
+          canStepForward
+          onSeaStep={() => {}}
+          onSeaNow={() => {}}
+          windTruncated
+          breaksTruncated
+        />
+      </Section>
+
+      <Section title="Chart">
+        <div className="grid gap-m sm:grid-cols-2">
+          <SeaChart
+            label="Wave height"
+            scale={WAVE_HEIGHT_SCALE}
+            formatValue={formatMeters}
+            points={SAMPLE_HEIGHTS}
+            marker={new Date(SAMPLE_NOW - 12 * HOUR_MS)}
+          />
+          <SeaChart
+            label="Wind"
+            scale={WIND_SPEED_SCALE}
+            formatValue={formatKnots}
+            points={SAMPLE_WIND}
+          />
+          <SeaChart
+            label="Tide"
+            formatValue={formatMeters}
+            points={SAMPLE_TIDES.timeline.map((entry) => ({
+              time: entry.time,
+              value: entry.heightMeters,
+            }))}
+          />
+          <SeaChart label="Loading" formatValue={formatMeters} points={[]} isLoading />
+          <SeaChart label="Empty" formatValue={formatMeters} points={[]} />
+        </div>
+      </Section>
+
+      <Section title="Station panel">
+        <div className="grid gap-m lg:grid-cols-2">
+          <div className="edge rounded-(--radius-xs) p-m">
+            <StationPanel
+              now={SAMPLE_NOW}
+              station={undefined}
+              history={LOADING}
+              forecast={LOADING}
+              tides={LOADING}
+              extremes={LOADING}
+            />
+          </div>
+          <div className="edge rounded-(--radius-xs) p-m">
+            <StationPanel
+              now={SAMPLE_NOW}
+              station={undefined}
+              history={{ data: SAMPLE_READINGS, ...LOADED }}
+              forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
+              tides={{ data: SAMPLE_TIDES, ...LOADED }}
+              extremes={{ data: SAMPLE_EXTREMES, ...LOADED }}
+            />
+          </div>
+        </div>
       </Section>
 
       <Section title="Feedback">

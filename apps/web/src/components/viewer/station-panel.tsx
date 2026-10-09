@@ -1,111 +1,220 @@
-import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import type { ReactNode } from "react";
 
-import { orpc } from "@/utils/orpc";
+import { compassPoint, formatKnots, formatMeters, formatNumber, toKnots } from "@/lib/format";
+import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
+import { m } from "@/paraglide/messages.js";
 
-import { LineChart } from "./line-chart";
-import { number, PointConditions, Section } from "./point-conditions";
+import { DirectionArrow, HeightChip } from "./map-markers";
+import {
+  PointConditions,
+  type PointConditionsProps,
+  SeaChart,
+  Section,
+  Sources,
+} from "./point-conditions";
+import { type Loadable, type Reading, type Station, type StationReadings, periodOf } from "./types";
 
-const KNOTS_PER_MS = 1.943844;
+type StationPanelProps = PointConditionsProps & {
+  // What the map already knows of the station, shown while its history loads.
+  station: Station | undefined;
+  history: Loadable<StationReadings>;
+};
 
-function knots(metersPerSecond: number | null) {
-  return metersPerSecond === null ? null : metersPerSecond * KNOTS_PER_MS;
-}
-
-function ago(date: Date) {
-  const minutes = Math.round((Date.now() - date.getTime()) / 60_000);
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `il y a ${hours} h` : `il y a ${Math.round(hours / 24)} j`;
-}
-
-function Tile({ label, value, unit }: { label: string; value: number | null; unit: string }) {
+// A figure with its label. While it loads, a bar of the same height holds its place.
+function Stat({
+  label,
+  value,
+  unit,
+  detail,
+  adornment,
+  loading = false,
+}: {
+  label: string;
+  // Null for a value the station does not report.
+  value?: string | null;
+  unit?: string;
+  // A second figure, written small beside the label, such as a bearing in degrees.
+  detail?: string;
+  adornment?: ReactNode;
+  loading?: boolean;
+}) {
   return (
-    <div className="rounded-md border px-3 py-2">
-      <div className="text-muted-foreground text-xs">{label}</div>
-      <div className="text-lg font-medium tabular-nums">
-        {value === null ? "–" : number.format(value)}
-        {value !== null && <span className="text-muted-foreground ml-1 text-xs">{unit}</span>}
+    <div className="grid content-start gap-xxs rounded-(--radius-xs) bg-neutral-2 px-s py-xs">
+      <div className="flex justify-between gap-xxs text-xs text-neutral-7">
+        <span className="truncate">{label}</span>
+        {!loading && detail && <span className="tabular-nums">{detail}</span>}
       </div>
+      {loading ? (
+        <Skeleton className="h-(--line-l) w-14 rounded-(--radius-xs)" />
+      ) : (
+        <div className="flex items-center gap-xxs text-l font-medium tabular-nums">
+          {adornment}
+          <span className="truncate">
+            {value ?? "–"}
+            {value != null && unit && (
+              <span className="ml-0.5 text-s font-normal text-neutral-7">{unit}</span>
+            )}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-export function StationPanel({ stationId }: { stationId: string }) {
-  const history = useQuery(
-    orpc.v1.stations.readings.queryOptions({ input: { id: stationId, limit: 2000 } }),
-  );
-  const station = history.data?.station;
+function periodLabel(reading: Reading | null | undefined) {
+  if (reading?.peakPeriodSeconds != null) return m.station_period_peak();
+  if (reading?.significantPeriodSeconds != null) return m.station_period_significant();
+  if (reading?.meanPeriodSeconds != null) return m.station_period_mean();
+  return m.station_period();
+}
 
-  if (history.isPending) return <p className="text-muted-foreground p-4 text-sm">Chargement…</p>;
-  if (!station) return <p className="p-4 text-sm">Cette bouée est introuvable.</p>;
+function number(value: number | null | undefined, digits = 1) {
+  return value == null ? null : formatNumber(value, digits);
+}
 
-  const readings = history.data?.readings ?? [];
-  const latest = readings[0];
-  const measuresWaves = station.measures.includes("waves");
-  const measuresWind = station.measures.includes("wind");
-  const period =
-    latest?.peakPeriodSeconds ??
-    latest?.significantPeriodSeconds ??
-    latest?.meanPeriodSeconds ??
-    null;
-  const periodLabel =
-    latest?.peakPeriodSeconds != null
-      ? "Période au pic"
-      : latest?.significantPeriodSeconds != null
-        ? "Période significative"
-        : "Période moyenne";
+function Now({
+  station,
+  reading,
+  loading,
+}: {
+  station: Pick<Station, "measures"> | undefined;
+  reading: Reading | null | undefined;
+  loading: boolean;
+}) {
+  // A station that is still unknown is laid out as a wave buoy, the most common kind.
+  const measuresWaves = station?.measures.includes("waves") ?? true;
+  const measuresWind = station?.measures.includes("wind") ?? false;
+  const height = reading?.significantHeightMeters ?? null;
+  const direction = reading?.peakDirectionDegrees ?? null;
+  const windSpeed = toKnots(reading?.windSpeedMetersPerSecond);
+  const windDirection = reading?.windDirectionDegrees ?? null;
+
+  if (!loading && !reading) {
+    return <p className="text-s text-neutral-7">{m.station_no_reading()}</p>;
+  }
 
   return (
-    <div className="grid gap-6 p-4">
-      <header>
-        <h2 className="text-l font-medium">{station.name}</h2>
-        <p className="text-muted-foreground text-xs">
-          {station.attribution} · licence {station.license.type}
-        </p>
-        {station.exposure === "sheltered" && (
-          <p className="mt-2 text-xs">
-            Site abrité : les jours de mer agitée, ses vagues sont restées sous un cinquième de
-            celles des stations voisines.
-          </p>
-        )}
-      </header>
-
-      <Section title="Dernière mesure" note={latest && ago(latest.observedAt)}>
-        {latest ? (
-          <div className="grid grid-cols-3 gap-2">
-            {measuresWaves && (
-              <>
-                <Tile
-                  label="Hauteur significative"
-                  value={latest.significantHeightMeters}
-                  unit="m"
+    <div className="grid grid-cols-3 gap-xs">
+      {measuresWaves && (
+        <>
+          <Stat
+            label={m.station_height()}
+            loading={loading}
+            value={number(height)}
+            unit={m.unit_m()}
+            adornment={
+              height !== null && (
+                <HeightChip heightMeters={height} directionDegrees={null} className="size-3" />
+              )
+            }
+          />
+          <Stat
+            label={periodLabel(reading)}
+            loading={loading}
+            value={number(periodOf(reading))}
+            unit={m.unit_s()}
+          />
+          <Stat
+            label={m.station_direction()}
+            loading={loading}
+            value={direction === null ? null : compassPoint(direction)}
+            detail={direction === null ? undefined : `${formatNumber(direction, 0)}°`}
+            adornment={direction !== null && <DirectionArrow fromDegrees={direction} />}
+          />
+          <Stat
+            label={m.station_max_height()}
+            loading={loading}
+            value={number(reading?.maxHeightMeters)}
+            unit={m.unit_m()}
+          />
+          <Stat
+            label={m.station_water()}
+            loading={loading}
+            value={number(reading?.waterTemperatureCelsius)}
+            unit="°C"
+          />
+        </>
+      )}
+      {(measuresWind || windSpeed !== null) && (
+        <>
+          <Stat
+            label={m.station_wind()}
+            loading={loading}
+            value={number(windSpeed, 0)}
+            unit={m.unit_kn()}
+            adornment={
+              windSpeed !== null && (
+                <span
+                  aria-hidden
+                  className="size-3 shrink-0 rounded-full"
+                  style={{ background: scaleColor(WIND_SPEED_SCALE, windSpeed) }}
                 />
-                <Tile label="Hauteur max" value={latest.maxHeightMeters} unit="m" />
-                <Tile label={periodLabel} value={period} unit="s" />
-                <Tile label="Direction au pic" value={latest.peakDirectionDegrees} unit="°" />
-                <Tile label="Eau" value={latest.waterTemperatureCelsius} unit="°C" />
-              </>
-            )}
-            <Tile label="Vent" value={knots(latest.windSpeedMetersPerSecond)} unit="nd" />
-            {measuresWind && (
-              <>
-                <Tile label="Rafales" value={knots(latest.windGustMetersPerSecond)} unit="nd" />
-                <Tile label="Vent, vient du" value={latest.windDirectionDegrees} unit="°" />
-              </>
-            )}
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Aucune mesure sur les deux derniers jours.
-          </p>
-        )}
-      </Section>
+              )
+            }
+          />
+          {measuresWind && (
+            <>
+              <Stat
+                label={m.station_gusts()}
+                loading={loading}
+                value={number(toKnots(reading?.windGustMetersPerSecond), 0)}
+                unit={m.unit_kn()}
+              />
+              <Stat
+                label={m.station_wind_direction()}
+                loading={loading}
+                value={windDirection === null ? null : compassPoint(windDirection)}
+                detail={windDirection === null ? undefined : `${formatNumber(windDirection, 0)}°`}
+                adornment={windDirection !== null && <DirectionArrow fromDegrees={windDirection} />}
+              />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** What a station measures now and lately, then the forecast and the tide where it floats. */
+export function StationPanel({
+  now,
+  station: known,
+  history,
+  forecast,
+  tides,
+  extremes,
+}: StationPanelProps) {
+  const station = history.data?.station ?? known;
+  const readings = history.data?.readings ?? [];
+  const latest = readings[0] ?? known?.latestReading;
+  // The map's list already holds the latest reading, so only a station opened by its address waits.
+  const loadingNow = !latest && history.isPending;
+
+  if (history.isError && !known) {
+    return <p className="text-s text-neutral-7">{m.station_not_found()}</p>;
+  }
+
+  const measuresWaves = station?.measures.includes("waves") ?? true;
+  const measuresWind = station?.measures.includes("wind") ?? false;
+
+  return (
+    <div className="grid gap-l">
+      {station?.exposure === "sheltered" && (
+        <p className="rounded-(--radius-xs) bg-warning-transparent px-s py-xs text-s">
+          {m.station_sheltered_note()}
+        </p>
+      )}
+
+      <Now station={station} reading={latest} loading={loadingNow} />
 
       {measuresWaves && (
-        <Section title="Hauteur significative mesurée" note="mètres, 48 dernières heures">
-          <LineChart
-            label="Hauteur significative mesurée"
-            unit="m"
+        <Section title={m.station_measured_height()} note={m.station_last_48h()}>
+          <SeaChart
+            label={m.station_measured_height()}
+            scale={WAVE_HEIGHT_SCALE}
+            formatValue={formatMeters}
+            isLoading={history.isPending}
             points={readings
               .map((reading) => ({
                 time: reading.observedAt,
@@ -117,21 +226,30 @@ export function StationPanel({ stationId }: { stationId: string }) {
       )}
 
       {measuresWind && (
-        <Section title="Vent mesuré" note="nœuds, 48 dernières heures">
-          <LineChart
-            label="Vitesse du vent mesurée"
-            unit="nd"
+        <Section title={m.station_measured_wind()} note={m.station_last_48h()}>
+          <SeaChart
+            label={m.station_measured_wind()}
+            scale={WIND_SPEED_SCALE}
+            formatValue={formatKnots}
+            isLoading={history.isPending}
             points={readings
               .map((reading) => ({
                 time: reading.observedAt,
-                value: knots(reading.windSpeedMetersPerSecond),
+                value: toKnots(reading.windSpeedMetersPerSecond),
               }))
               .reverse()}
           />
         </Section>
       )}
 
-      <PointConditions latitude={station.latitude} longitude={station.longitude} />
+      <PointConditions now={now} forecast={forecast} tides={tides} extremes={extremes} />
+
+      <Sources
+        origin={station && m.source_measurements({ attribution: station.attribution })}
+        license={station?.license}
+        forecast={forecast.data}
+        tides={tides.data}
+      />
     </div>
   );
 }

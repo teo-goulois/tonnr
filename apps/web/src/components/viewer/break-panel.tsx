@@ -1,34 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
+import { m } from "@/paraglide/messages.js";
 
-import { orpc } from "@/utils/orpc";
+import { PointConditions, type PointConditionsProps, Sources } from "./point-conditions";
+import type { Loadable, SurfBreak } from "./types";
 
-import { PointConditions } from "./point-conditions";
+type BreakPanelProps = PointConditionsProps & {
+  found: Loadable<SurfBreak>;
+};
 
-export function BreakPanel({ breakId }: { breakId: string }) {
-  const found = useQuery(orpc.v1.breaks.get.queryOptions({ input: { id: breakId }, retry: false }));
-
-  if (found.isPending) return <p className="text-muted-foreground p-4 text-sm">Chargement…</p>;
-  // An error comes first: a break that has left the catalogue may still be in the cache.
-  if (found.isError || !found.data) return <p className="p-4 text-sm">Ce spot est introuvable.</p>;
-
-  const { name, latitude, longitude, source } = found.data;
+/** The wave forecast and the tide at a surf break of the catalogue. */
+export function BreakPanel({ now, found, forecast, tides, extremes }: BreakPanelProps) {
+  // A break that has left the catalogue may still be in the cache, so the error comes first.
+  if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
   return (
-    <div className="grid gap-6 p-4">
-      <header>
-        <h2 className="text-l font-medium">{name}</h2>
-        <p className="text-muted-foreground text-xs">
-          Spot du catalogue ·{" "}
-          <a href={source.url} target="_blank" rel="noreferrer" className="underline">
-            sa fiche chez la source
-          </a>
-        </p>
-        <p className="text-muted-foreground text-xs">
-          {source.attribution} · licence {source.license.type}
-        </p>
-      </header>
-
-      <PointConditions latitude={latitude} longitude={longitude} />
+    <div className="grid gap-l">
+      <PointConditions now={now} forecast={forecast} tides={tides} extremes={extremes} />
+      <Sources
+        origin={found.data && m.source_break({ attribution: found.data.source.attribution })}
+        license={found.data?.source.license}
+        forecast={forecast.data}
+        tides={tides.data}
+      />
     </div>
   );
 }

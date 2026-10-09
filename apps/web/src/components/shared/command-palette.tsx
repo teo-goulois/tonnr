@@ -65,6 +65,16 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/app" }),
         },
         {
+          value: `${m.saved_title()} saved favorites lists`,
+          label: m.saved_title(),
+          run: () => void navigate({ to: "/app", search: { panel: "saved" } }),
+        },
+        {
+          value: `${m.alerts_title()} alerts notifications`,
+          label: m.alerts_title(),
+          run: () => void navigate({ to: "/app", search: { panel: "alerts" } }),
+        },
+        {
           value: `${m.command_sign_in()} login account`,
           label: m.command_sign_in(),
           run: () => void navigate({ to: "/login" }),
