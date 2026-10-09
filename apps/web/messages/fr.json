@@ -175,5 +175,8 @@
   "break_title": "Spot de surf",
   "break_from_catalogue": "Spot de surf, d'après OpenStreetMap",
   "break_not_found": "Ce spot est introuvable.",
-  "source_break": "Spot de surf : {attribution}. Licence :"
+  "source_break": "Spot de surf : {attribution}. Licence :",
+  "private_break_in_list": "Spot de surf, de ta liste privée",
+  "private_break_details": "Ce que dit la liste",
+  "private_break_source": "Spot de la liste privée de cette instance. Seul son opérateur le voit : le droit de le partager n'est pas établi."
 }

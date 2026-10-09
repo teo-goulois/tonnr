@@ -21,6 +21,7 @@ import { m } from "@/paraglide/messages.js";
 import { AlertsPanel } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { MapLegend } from "./map-legend";
+import { PrivateBreakPanel } from "./private-break-panel";
 import { SavedPanel } from "./saved-panel";
 import type { SeaTimes } from "./sea-timeline";
 import { ReadingAge, StationActions } from "./station-actions";
@@ -40,6 +41,7 @@ import {
   type AlertNotification,
   type Forecast,
   type Loadable,
+  type PrivateBreak,
   type SavedList,
   type Station,
   type StationReadings,
@@ -77,13 +79,16 @@ type ViewerProps = {
   breaksTruncated: boolean;
   sea: SeaDescription | undefined;
   layers: MapLayers;
-  // A station or a break is selected, never both.
+  // A station or a break is selected, never both. A break is the catalogue's, or one of the
+  // instance's private list, which only an operator is given.
   selectedId: string | undefined;
   selectedBreakId: string | undefined;
+  selectedPrivateBreakId: string | undefined;
   selected: {
     station: Station | undefined;
     history: Loadable<StationReadings>;
     found: Loadable<SurfBreak>;
+    foundPrivate: Loadable<PrivateBreak>;
     // The forecast and the tide at the selected station or break.
     forecast: Loadable<Forecast>;
     tides: Loadable<TideTimeline>;
@@ -179,6 +184,7 @@ export function Viewer({
   layers,
   selectedId,
   selectedBreakId,
+  selectedPrivateBreakId,
   selected,
   onTideExtend,
   panel,
@@ -257,25 +263,29 @@ export function Viewer({
     [seaPresent, seaStepMs],
   );
 
+  // The id of what is selected: a station, or a break of either list.
+  const selection = selectedId ?? selectedBreakId ?? selectedPrivateBreakId;
+
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
-    if (!(selectedId ?? selectedBreakId) || typeof window === "undefined") return none;
+    if (!selection || typeof window === "undefined") return none;
     return wide
       ? { ...none, right: SIDE_PANEL_WIDTH }
       : { ...none, bottom: Math.round(window.innerHeight * SHEET_SNAP_POINTS[0]!) };
-  }, [selectedId, selectedBreakId, wide]);
+  }, [selection, wide]);
 
   // The panel of a station or of a break keeps its content while it slides away.
-  const lastSelection = useRef({ id: selectedId, breakId: selectedBreakId, ...selected });
-  if (selectedId ?? selectedBreakId) {
-    lastSelection.current = { id: selectedId, breakId: selectedBreakId, ...selected };
-  }
+  const ids = { id: selectedId, breakId: selectedBreakId, privateId: selectedPrivateBreakId };
+  const lastSelection = useRef({ ...ids, ...selected });
+  if (selection) lastSelection.current = { ...ids, ...selected };
   const shown = lastSelection.current;
+  // The break shown, from whichever list holds it.
+  const shownBreak = shown.breakId ? shown.found : shown.privateId ? shown.foundPrivate : undefined;
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
-  const shownTitle = shown.breakId
-    ? (shown.found.data?.name ?? (shown.found.isError ? m.break_title() : undefined))
+  const shownTitle = shownBreak
+    ? (shownBreak.data?.name ?? (shownBreak.isError ? m.break_title() : undefined))
     : shownName;
 
   function requireAccount(reason: string, then?: () => void) {
@@ -336,7 +346,7 @@ export function Viewer({
         stations={mapStations}
         windStations={mapWindStations}
         breaks={layers.breaks ? breaks : []}
-        selectedId={selectedId ?? selectedBreakId}
+        selectedId={selection}
         layers={layers}
         seaLayer={sea}
         seaTime={seaTime}
@@ -416,7 +426,7 @@ export function Viewer({
       />
 
       <ViewerDrawer
-        open={(selectedId ?? selectedBreakId) !== undefined}
+        open={selection !== undefined}
         onOpenChange={(open) => {
           if (!open) onSelect(undefined);
         }}
@@ -436,6 +446,14 @@ export function Viewer({
               </a>
             ) : (
               !shown.found.isError && (
+                <Skeleton className="h-(--line-s) w-32 rounded-(--radius-xs)" />
+              )
+            )
+          ) : shown.privateId ? (
+            shown.foundPrivate.data ? (
+              m.private_break_in_list()
+            ) : (
+              !shown.foundPrivate.isError && (
                 <Skeleton className="h-(--line-s) w-32 rounded-(--radius-xs)" />
               )
             )
@@ -466,6 +484,16 @@ export function Viewer({
             key={shown.breakId}
             now={now}
             found={shown.found}
+            forecast={shown.forecast}
+            tides={shown.tides}
+            extremes={shown.extremes}
+            onTideExtend={onTideExtend}
+          />
+        ) : shown.privateId ? (
+          <PrivateBreakPanel
+            key={shown.privateId}
+            now={now}
+            found={shown.foundPrivate}
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}

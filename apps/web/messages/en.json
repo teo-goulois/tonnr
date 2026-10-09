@@ -175,5 +175,8 @@
   "break_title": "Surf break",
   "break_from_catalogue": "Surf break, from OpenStreetMap",
   "break_not_found": "This break could not be found.",
-  "source_break": "Surf break: {attribution}. License:"
+  "source_break": "Surf break: {attribution}. License:",
+  "private_break_in_list": "Surf break, from your private list",
+  "private_break_details": "What the list says",
+  "private_break_source": "Break of this instance's private list. Only its operator sees it: the right to share it is not established."
 }
