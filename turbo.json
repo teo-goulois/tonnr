@@ -49,14 +49,6 @@
     },
     "db:down": {
       "cache": false
-    },
-    "deploy": {
-      "cache": false,
-      "interactive": true
-    },
-    "destroy": {
-      "cache": false,
-      "interactive": true
     }
   },
   "globalEnv": [

@@ -2,7 +2,7 @@
 
 An instance is three programs: Postgres 18, the API, and the worker that fetches the measurements. Decision 009 gives the reasons behind what follows.
 
-The web app is not one of the containers yet, and an instance without it serves the API alone. To run the web app, follow "Run it" in the [README](../README.md), with `VITE_SERVER_URL` in `apps/web/.env` set to the public address of the API. `pnpm run deploy` sends it to Cloudflare instead, a path that no real deployment has used so far.
+The web app is not one of the containers, and an instance without it serves the API alone. It goes to Cloudflare: "The web app, on Cloudflare" below gives the steps. To run it on your machine instead, follow "Run it" in the [README](../README.md), with `VITE_SERVER_URL` in `apps/web/.env` set to the public address of the API.
 
 ## With Docker Compose
 
@@ -11,11 +11,11 @@ The web app is not one of the containers yet, and an instance without it serves 
 3. Copy `.env.example` to `.env` and choose `POSTGRES_PASSWORD`, from letters and digits only: it goes into the database's address as it is. `openssl rand -hex 24` makes one. Postgres takes it when it first creates its volume, so choose it before the first start.
 4. Run `docker compose up --detach --build`.
 
-| Variable             | Value                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET` | 32 characters or more. `openssl rand -base64 32` makes one.                                                         |
-| `BETTER_AUTH_URL`    | The public HTTPS address of the API.                                                                                |
-| `CORS_ORIGIN`        | The public HTTPS address of the web app, exactly as the browser shows it. Without a web app, the API's own address. |
+| Variable             | Value                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET` | 32 characters or more. `openssl rand -base64 32` makes one.                                                                                   |
+| `BETTER_AUTH_URL`    | The public HTTPS address of the API.                                                                                                          |
+| `CORS_ORIGIN`        | The public HTTPS address of the web app, exactly as the browser shows it, with no slash at its end. Without a web app, the API's own address. |
 
 Keep the secret: changing it signs every user out.
 
@@ -39,12 +39,44 @@ The services may start in any order, and together.
 
 On Easypanel, each service has a deploy address under "Deployments". Put it in the root `.env`, as `.env.example` shows, and `pnpm run deploy:api` or `pnpm run deploy:worker` deploys the service from your machine. Keep the address secret: whoever knows it can deploy.
 
+## The web app, on Cloudflare
+
+This is optional: an instance serves its API without it. Decision 021 gives the reasons behind what follows.
+
+The web app runs as a Cloudflare Worker, deployed from your machine with Alchemy. A stage is one deployment of it: a name you choose, such as `prod`, a host name, and the API it talks to.
+
+You need a Cloudflare account that holds the zone of your domain, and the web app on the same site as the API: `app.example.org` beside `api.example.org`. The session cookie is the API's, and from a page of any other site Safari keeps it back. For the same reason the address Cloudflare gives a Worker, under `workers.dev`, cannot be the web app's.
+
+1. In Cloudflare, create an API token with these rights and no other:
+
+   | On                  | Right                 | What it is for                                     |
+   | ------------------- | --------------------- | -------------------------------------------------- |
+   | The account         | Workers Scripts: Edit | The web app's Worker, its files, and its host name |
+   | The account         | Secrets Store: Edit   | The token and the key of Alchemy's state store     |
+   | The zone of the app | Workers Routes: Edit  | Putting the Worker on the host name                |
+   | The zone of the app | Zone: Read            | Finding the zone by its name                       |
+
+2. Copy `packages/infra/.env.example` to `packages/infra/.env` and set the token and the account's id.
+3. Write `packages/infra/.env.<stage>`, such as `.env.prod`, with the stage's two values: `WEB_DOMAIN`, the host name, and `VITE_SERVER_URL`, the public address of the API.
+4. Set the API's `CORS_ORIGIN` to `https://` and that host name, and restart the API.
+5. Run `pnpm run deploy:web <stage>`. It shows what it will change and asks before it does. `--yes` does not ask. `--dry-run` only shows, once a first deployment has made the state store below.
+
+The command builds what `main` holds on the remote named `origin`, in a checkout of its own, and never what your working tree holds. It installs the dependencies there, so it needs the licence key of the icons, in the root `.env` or in the shell. Run it again to deploy a newer `main`.
+
+- Cloudflare makes the DNS record and the certificate of the host name. A first deployment may take a minute to answer.
+- Alchemy records what it deployed in a Worker of your account, `alchemy-state-store`, and makes it at the first deployment. Every project you deploy with Alchemy shares it: leave it in place.
+- The token can change every Worker of the account. Keep it as you keep the API's secret.
+- Search engines are told not to list a stage. Add `WEB_INDEXED=true` to the stage's file when you want yours listed.
+- To check a stage, sign in from its address. That proves the web app, the API, and `CORS_ORIGIN` agree.
+
 ## Updating
 
 ```bash
 git pull
 docker compose up --detach --build
 ```
+
+Then `pnpm run deploy:web <stage>`, from your machine, when the instance has a web app: deploy the API first when the web app needs something new from it.
 
 A new version applies its migrations when its first container starts. A migration that fails stops the container, and none of the pending migrations is kept. Back the database up first:
 
