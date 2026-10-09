@@ -20,6 +20,10 @@ export const SHORTCUT_ACTIONS = [
   { id: "switch-locale", label: () => m.shortcut_switch_locale(), defaultHotkey: "L" },
 ] as const;
 
+// The shortcuts of an operator alone. The console of a developer account registers none of
+// them, and does not offer to rebind them.
+export const OPERATOR_SHORTCUTS: readonly string[] = ["new-developer"];
+
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 export type ShortcutId = ShortcutAction["id"];
 

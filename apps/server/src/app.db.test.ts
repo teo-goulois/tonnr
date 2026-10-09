@@ -330,6 +330,12 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/developers", "post"],
       ["/developers/{id}", "patch"],
       ["/developers/{id}", "delete"],
+      ["/developers/{id}/members", "get"],
+      ["/developers/{id}/members", "post"],
+      ["/developers/{id}/members/{accountId}", "delete"],
+      ["/console", "get"],
+      ["/console/usage/series", "get"],
+      ["/console/usage/breakdown", "get"],
       ["/usage/series", "get"],
       ["/usage/breakdown", "get"],
       ["/accounts", "get"],
@@ -913,6 +919,148 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         body: {},
       });
       expect(asked.status).toBe(503);
+    });
+  });
+
+  describe("the console of a developer account", () => {
+    const SPAN = "from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z";
+    const span = { from: "2026-01-01T00:00:00Z", to: "2026-01-02T00:00:00Z" };
+
+    /** Two developer accounts with a key each, and an account that is a member of the first. */
+    async function shared() {
+      const owner = await signUpOperator();
+      const screens = await makeDeveloper(owner, { name: "Harbour screens", contact: "quay" });
+      const clock = await makeDeveloper(owner, { name: "Tide clock" });
+      const { key } = await makeKey(owner, screens);
+      await makeKey(owner, clock);
+      const member = await signUp("ana");
+      const { id } = await bodyOf<{ id: string }>(
+        await send("GET", "/v1/account", { cookie: member }),
+      );
+      const added = await send("POST", `/v1/developers/${screens}/members`, {
+        cookie: owner,
+        origin: ADMIN,
+        body: { accountId: id },
+      });
+      expect(added.status).toBe(200);
+      return { owner, member, memberId: id, screens, clock, key };
+    }
+
+    it("answers a member with its developer account alone, on both transports", async () => {
+      const { member, screens, clock, key } = await shared();
+
+      // From the admin's site, where the console is, and from the web app's as any account's.
+      for (const origin of [ADMIN, APP]) {
+        const answer = await send("GET", "/v1/console", { cookie: member, origin });
+        expect([answer.status, answer.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+        const text = JSON.stringify(await answer.json());
+        expect(text).toContain("Harbour screens");
+        for (const kept of ["Tide clock", clock, "quay", key.slice(8)]) {
+          expect(text).not.toContain(kept);
+        }
+      }
+      const overRpc = await send("POST", "/rpc/v1/console/get", {
+        cookie: member,
+        origin: ADMIN,
+        body: {},
+      });
+      expect(await bodyOf(overRpc)).toMatchObject({
+        json: { developers: [{ id: screens, name: "Harbour screens", keys: [{}] }] },
+      });
+
+      const calls = await send("GET", `/v1/console/usage/series?developerId=${screens}&${SPAN}`, {
+        cookie: member,
+        origin: ADMIN,
+      });
+      expect([calls.status, await calls.json()]).toEqual([200, { points: [] }]);
+    });
+
+    it("answers 404 for a developer account the caller is no member of, as for none", async () => {
+      const { member, clock } = await shared();
+      const from = { cookie: member, origin: ADMIN };
+
+      for (const developerId of [clock, crypto.randomUUID()]) {
+        for (const path of [
+          `/v1/console/usage/series?developerId=${developerId}&${SPAN}`,
+          `/v1/console/usage/breakdown?developerId=${developerId}&${SPAN}&by=key`,
+          `/v1/console/usage/breakdown?developerId=${developerId}&${SPAN}&by=procedure`,
+        ]) {
+          const answer = await send("GET", path, from);
+          expect([answer.status, await answer.json()], path).toEqual([
+            404,
+            expect.objectContaining({ message: "No such developer account." }),
+          ]);
+        }
+        const overRpc = await send("POST", "/rpc/v1/console/breakdown", {
+          ...from,
+          body: { json: { ...span, developerId, by: "key" } },
+        });
+        expect(overRpc.status).toBe(404);
+      }
+      // What the operator's counts take is refused to a member, whatever it names.
+      expect(
+        (await send("GET", `/v1/usage/series?developerId=${clock}&${SPAN}`, from)).status,
+      ).toBe(403);
+    });
+
+    it("answers no key, no one, and no page of another site", async () => {
+      const { member, key } = await shared();
+
+      expect((await send("GET", "/v1/console", { key })).status).toBe(403);
+      expect((await send("GET", "/v1/console", { key, cookie: member })).status).toBe(403);
+      expect((await send("GET", "/v1/console")).status).toBe(401);
+      // A page of another site may send the cookie: it is given no leave to read the answer,
+      // and the other transport refuses it outright.
+      const elsewhere = await send("GET", "/v1/console", { cookie: member, origin: ELSEWHERE });
+      expect(elsewhere.headers.get("Access-Control-Allow-Origin")).toBeNull();
+      const overRpc = await send("POST", "/rpc/v1/console/get", {
+        cookie: member,
+        origin: ELSEWHERE,
+        body: {},
+      });
+      expect(overRpc.status).toBe(403);
+    });
+
+    it("has its members named by an operator from the admin's site, and by nobody else", async () => {
+      const { owner, member, memberId, screens, clock } = await shared();
+      const members = `/v1/developers/${clock}/members`;
+      const body = { accountId: memberId };
+
+      // A member adds itself to nothing, and an operator's page of the web app adds no one.
+      for (const by of [
+        { cookie: member, origin: ADMIN },
+        { cookie: owner, origin: APP },
+        { cookie: owner, origin: ELSEWHERE },
+      ]) {
+        expect((await send("POST", members, { ...by, body })).status).toBe(403);
+        expect((await send("GET", members, by)).status).toBe(403);
+        expect(
+          (await send("DELETE", `/v1/developers/${screens}/members/${memberId}`, by)).status,
+        ).toBe(403);
+      }
+      const overRpc = await send("POST", "/rpc/v1/developers/addMember", {
+        cookie: member,
+        origin: ADMIN,
+        body: { json: { id: clock, accountId: memberId } },
+      });
+      expect(overRpc.status).toBe(403);
+
+      // Taken out by the operator, the member reads nothing from its next call.
+      const removed = await send("DELETE", `/v1/developers/${screens}/members/${memberId}`, {
+        cookie: owner,
+        origin: ADMIN,
+      });
+      expect([removed.status, await removed.json()]).toEqual([200, { members: [] }]);
+      const after = await send("GET", "/v1/console", { cookie: member, origin: ADMIN });
+      expect(await after.json()).toEqual({ developers: [] });
+      expect(
+        (
+          await send("GET", `/v1/console/usage/series?developerId=${screens}&${SPAN}`, {
+            cookie: member,
+            origin: ADMIN,
+          })
+        ).status,
+      ).toBe(404);
     });
   });
 

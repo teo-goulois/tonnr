@@ -927,6 +927,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
         id: "late",
         name: "Late",
         email: "LATE@Example.org",
+        emailVerified: false,
         createdAt: new Date("2126-01-01T00:00:00Z"),
         isOperator: false,
         suspendedAt: null,

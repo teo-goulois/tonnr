@@ -1,6 +1,14 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
-import { apiKey, developer, developerCalls, type OperatorChanges } from "@repo/db/schema/access";
+import {
+  accountSuspension,
+  apiKey,
+  developer,
+  developerCalls,
+  developerMember,
+  type OperatorChanges,
+} from "@repo/db/schema/access";
+import { user } from "@repo/db/schema/auth";
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -96,6 +104,35 @@ async function described(db: Database, id?: string) {
     )
     .where(id === undefined ? undefined : eq(developer.id, id))
     .orderBy(asc(developer.name), asc(developer.id));
+}
+
+const memberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  // Whether the account's address was checked. It says nothing of who holds the account.
+  emailVerified: z.boolean(),
+  // Since when the account is suspended: it reads nothing while it is. Null otherwise.
+  suspendedAt: z.date().nullable(),
+  addedAt: z.date(),
+});
+
+/** The members of a developer account, the first added first. */
+function membersOf(db: Pick<Database, "select">, developerId: string) {
+  return db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      suspendedAt: accountSuspension.at,
+      addedAt: developerMember.addedAt,
+    })
+    .from(developerMember)
+    .innerJoin(user, eq(user.id, developerMember.userId))
+    .leftJoin(accountSuspension, eq(accountSuspension.userId, user.id))
+    .where(eq(developerMember.developerId, developerId))
+    .orderBy(asc(developerMember.addedAt), asc(user.id));
 }
 
 const missing = (id: string) =>
@@ -267,5 +304,118 @@ export const developersRouter = {
       });
       if (!deleted) throw missing(input.id);
       return deleted;
+    }),
+
+  members: adminProcedure
+    .route({
+      method: "GET",
+      path: "/developers/{id}/members",
+      summary: "The accounts that may read a developer account in the console",
+      description:
+        `${ADMIN_ONLY} A member reads the account's name, its limit, its keys by name and ` +
+        "their calls, and changes nothing. Decision 027.",
+      tags: ["Developer accounts"],
+    })
+    .input(z.object({ id: z.uuid() }))
+    .output(z.object({ members: z.array(memberSchema) }))
+    .handler(async ({ input, context }) => {
+      const [found] = await context.db
+        .select({ id: developer.id })
+        .from(developer)
+        .where(eq(developer.id, input.id));
+      if (!found) throw missing(input.id);
+      return { members: await membersOf(context.db, input.id) };
+    }),
+
+  addMember: adminProcedure
+    .route({
+      method: "POST",
+      path: "/developers/{id}/members",
+      summary: "Let an account read a developer account in the console",
+      description:
+        `${ADMIN_ONLY} The account is named by its identifier, which the list of accounts ` +
+        "gives. An address proves nothing of who holds an account, checked or not: name the " +
+        "account you know to be theirs. Adding a member that is one already changes nothing.",
+      tags: ["Developer accounts"],
+    })
+    .input(z.object({ id: z.uuid(), accountId: z.string().min(1).max(200) }))
+    .output(z.object({ members: z.array(memberSchema) }))
+    .handler(async ({ input, context }) => {
+      const operatorId = context.session.user.id;
+      await context.db.transaction(async (tx) => {
+        // Both are held until the member is written. The developer account is neither renamed
+        // nor deleted meanwhile, and the account is not deleted: nothing else of it is held,
+        // so that it signs in and is suspended as before.
+        const [held] = await tx
+          .select({ id: developer.id, name: developer.name })
+          .from(developer)
+          .where(eq(developer.id, input.id))
+          .for("share");
+        if (!held) throw missing(input.id);
+        const [account] = await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.id, input.accountId))
+          .for("key share");
+        if (!account) throw new ORPCError("NOT_FOUND", { message: "No such account." });
+
+        const [added] = await tx
+          .insert(developerMember)
+          .values({ developerId: input.id, userId: input.accountId, operatorId })
+          .onConflictDoNothing()
+          .returning({ userId: developerMember.userId });
+        if (added) {
+          await recordAction(tx, {
+            operatorId,
+            action: "developer.member_add",
+            developer: held,
+            account: { id: input.accountId },
+          });
+        }
+      });
+      return { members: await membersOf(context.db, input.id) };
+    }),
+
+  removeMember: adminProcedure
+    .route({
+      method: "DELETE",
+      path: "/developers/{id}/members/{accountId}",
+      summary: "Take the console of a developer account from an account",
+      description:
+        `${ADMIN_ONLY} The account reads nothing of the developer account from its next ` +
+        "call. Removing one that is no member changes nothing.",
+      tags: ["Developer accounts"],
+    })
+    .input(z.object({ id: z.uuid(), accountId: z.string().min(1).max(200) }))
+    .output(z.object({ members: z.array(memberSchema) }))
+    .handler(async ({ input, context }) => {
+      const operatorId = context.session.user.id;
+      await context.db.transaction(async (tx) => {
+        const [held] = await tx
+          .select({ id: developer.id, name: developer.name })
+          .from(developer)
+          .where(eq(developer.id, input.id))
+          .for("share");
+        if (!held) throw missing(input.id);
+
+        const [removed] = await tx
+          .delete(developerMember)
+          .where(
+            and(
+              eq(developerMember.developerId, input.id),
+              eq(developerMember.userId, input.accountId),
+            ),
+          )
+          .returning({ userId: developerMember.userId });
+        if (removed) {
+          await recordAction(tx, {
+            operatorId,
+            action: "developer.member_remove",
+            developer: held,
+            account: { id: input.accountId },
+          });
+        }
+      });
+      return { members: await membersOf(context.db, input.id) };
     }),
 };

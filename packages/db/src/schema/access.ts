@@ -58,6 +58,31 @@ export const developer = pgTable("developer", {
 });
 
 /**
+ * The accounts that may read a developer account in the console: its name, its limit, its keys
+ * by name and their calls. An operator names them, and nothing else does: an account is not
+ * made a member for its address. Decision 027 gives the rules.
+ */
+export const developerMember = pgTable(
+  "developer_member",
+  {
+    developerId: text("developer_id")
+      .notNull()
+      .references(() => developer.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true }).defaultNow().notNull(),
+    // The operator who added it. Null once their account is deleted.
+    operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.developerId, table.userId] }),
+    // For the console, which asks what an account is a member of.
+    index("developer_member_userId_idx").on(table.userId),
+  ],
+);
+
+/**
  * A key a program calls the API with, in place of a session. It reads the data everyone shares
  * and nothing of an account. It works while it is not revoked, its developer account is not
  * suspended, and its maker is an operator.
@@ -150,6 +175,8 @@ export const OPERATOR_ACTIONS = [
   "developer.suspend",
   "developer.resume",
   "developer.delete",
+  "developer.member_add",
+  "developer.member_remove",
   "key.create",
   "key.revoke",
   "account.sign_out",
@@ -193,9 +220,10 @@ export const operatorAction = pgTable(
     // The key that was made or revoked, by its name. Null for what was done to an account.
     keyId: text("key_id"),
     keyName: text("key_name"),
-    // The account whose sessions were closed, or that was suspended or let in again. Its
-    // identifier alone: an account is a person, and the record outlives it. It does not point
-    // to the account, so that the record of one that was deleted stays.
+    // The account whose sessions were closed, that was suspended or let in again, or that was
+    // made a member of a developer account or taken out of it. Its identifier alone: an
+    // account is a person, and the record outlives it. It does not point to the account, so
+    // that the record of one that was deleted stays.
     accountId: text("account_id"),
     changes: jsonb("changes").$type<OperatorChanges>(),
   },

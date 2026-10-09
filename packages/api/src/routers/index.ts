@@ -6,6 +6,7 @@ import { accountRouter } from "./account";
 import { accountsRouter } from "./accounts";
 import { actionsRouter } from "./actions";
 import { breaksRouter } from "./breaks";
+import { consoleRouter } from "./console";
 import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
 import { instanceRouter } from "./instance";
@@ -20,13 +21,15 @@ import { tidesRouter } from "./tides";
 import { usageRouter } from "./usage";
 
 // The API, version 1. Once released it only grows: a breaking change goes in a new version.
-// Every procedure asks who calls: decision 019 says which take a key and which a session, and
-// decision 020 which take the admin's site as well.
+// Every procedure asks who calls: decision 019 says which take a key and which a session,
+// decision 020 which take the admin's site as well, and decision 027 which take a member of a
+// developer account.
 export const v1Router = {
   account: accountRouter,
   accounts: accountsRouter,
   actions: actionsRouter,
   breaks: breaksRouter,
+  console: consoleRouter,
   developers: developersRouter,
   forecasts: forecastsRouter,
   instance: instanceRouter,

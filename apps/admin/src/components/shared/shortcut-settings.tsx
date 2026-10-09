@@ -3,6 +3,7 @@ import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/co
 import { useEffect, useSyncExternalStore } from "react";
 
 import {
+  OPERATOR_SHORTCUTS,
   SHORTCUT_ACTIONS,
   isDefaultShortcut,
   useShortcutRecorder,
@@ -73,9 +74,10 @@ function ShortcutRow({ action, bindings }: { action: ShortcutAction; bindings: S
   );
 }
 
-// The dialog where the operator rebinds every shortcut of the admin. They belong to this
-// browser: the copy an account keeps is of the web app's shortcuts, which are other ones.
-export function ShortcutSettings() {
+// The dialog where the reader rebinds every shortcut of the admin. They belong to this
+// browser: the copy an account keeps is of the web app's shortcuts, which are other ones. The
+// console shows the shortcuts it has, and not an operator's.
+export function ShortcutSettings({ forConsole = false }: { forConsole?: boolean }) {
   const open = useSyncExternalStore(
     subscribe,
     () => isOpen,
@@ -93,7 +95,9 @@ export function ShortcutSettings() {
           <DialogDescription>{m.shortcuts_description()}</DialogDescription>
         </div>
         <ul className="grid gap-s">
-          {SHORTCUT_ACTIONS.map((action) => (
+          {SHORTCUT_ACTIONS.filter(
+            (action) => !forConsole || !OPERATOR_SHORTCUTS.includes(action.id),
+          ).map((action) => (
             <ShortcutRow key={action.id} action={action} bindings={bindings} />
           ))}
         </ul>

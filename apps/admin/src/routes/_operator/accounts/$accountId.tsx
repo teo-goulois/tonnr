@@ -1,4 +1,3 @@
-import { ORPCError } from "@orpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
@@ -8,7 +7,7 @@ import { Loader } from "@/components/shared/loader";
 import { NotFound } from "@/components/shared/not-found";
 import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages.js";
-import { orpc } from "@/utils/orpc";
+import { isMissing, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_operator/accounts/$accountId")({
   component: AccountRoute,
@@ -32,8 +31,8 @@ function AccountScreen({ accountId }: { accountId: string }) {
     orpc.v1.accounts.get.queryOptions({
       input: { id: accountId },
       refetchInterval: EVERY,
-      // An account that does not exist is not asked for again.
-      retry: (count, error) => !isMissing(error) && count < 2,
+      // The screen says itself that an account does not exist.
+      meta: { quietWhenMissing: true },
     }),
   );
   // What was done to the account, the latest first. The page of the activity has all of it.
@@ -56,12 +55,12 @@ function AccountScreen({ accountId }: { accountId: string }) {
     >
       <section className="grid grid-cols-1 gap-s">
         <h2 className="text-m font-medium">{m.account_history()}</h2>
-        <ActionsTable actions={history.data?.actions} empty={m.account_history_empty()} />
+        <ActionsTable
+          actions={history.data?.actions}
+          own="account"
+          empty={m.account_history_empty()}
+        />
       </section>
     </AccountPage>
   );
-}
-
-function isMissing(error: unknown) {
-  return error instanceof ORPCError && error.code === "NOT_FOUND";
 }

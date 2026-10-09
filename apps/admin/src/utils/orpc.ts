@@ -26,6 +26,11 @@ export function isRefusal(error: unknown) {
   return error instanceof ORPCError && ["UNAUTHORIZED", "FORBIDDEN"].includes(error.code);
 }
 
+/** Whether the API said that what was asked for does not exist, or is not the caller's to read. */
+export function isMissing(error: unknown) {
+  return error instanceof ORPCError && error.code === "NOT_FOUND";
+}
+
 /**
  * `onRefused` is told when the API refuses the caller while a page is open: the session ended,
  * or the account no longer runs the instance. Asking again would be refused again.
@@ -34,8 +39,10 @@ export function createQueryClient(onRefused: () => void = () => {}) {
   const queryClient: QueryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
-        // A screen that says itself what it could not load asks for no toast.
+        // A screen that says itself what it could not load asks for no toast. Some say it
+        // only of what does not exist, and leave the other failures to this.
         if (query.meta?.quiet) return;
+        if (query.meta?.quietWhenMissing && isMissing(error)) return;
         if (isRefusal(error)) {
           onRefused();
           // A session that ended goes to the sign-in. An account the API still knows is told
@@ -59,7 +66,8 @@ export function createQueryClient(onRefused: () => void = () => {}) {
     defaultOptions: {
       queries: {
         staleTime: 30 * 1000,
-        retry: (failures, error) => !isRefusal(error) && failures < 2,
+        // A refusal and something that does not exist are answers: asking again gets the same.
+        retry: (failures, error) => !isRefusal(error) && !isMissing(error) && failures < 2,
       },
     },
   });
@@ -86,9 +94,9 @@ export const client: AppRouterClient = createORPCClient(link);
 export const orpc = createTanstackQueryUtils(client);
 
 /**
- * After a change: the developer accounts, their keys and the record of what was done are asked
- * again. A change to one shows in the others: a key in its account's count, each of them in
- * the record.
+ * After a change: the developer accounts with their members, their keys, the accounts and the
+ * record of what was done are asked again. A change to one shows in the others: a key in its
+ * account's count, each of them in the record.
  */
 export function refreshLists(queryClient: QueryClient) {
   return Promise.all([

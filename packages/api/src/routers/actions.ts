@@ -28,9 +28,9 @@ const actionSchema = z.object({
   developerName: z.string().nullable(),
   // The key that was made or revoked. Null for what was done to an account.
   keyName: z.string().nullable(),
-  // The account whose sessions were closed, or that was suspended or let in again, with the
-  // name it has now. The record keeps its identifier alone: the name is null once the account
-  // is deleted.
+  // The account whose sessions were closed, that was suspended or let in again, or that was
+  // made a member of a developer account or taken out of it, with the name it has now. The
+  // record keeps its identifier alone: the name is null once the account is deleted.
   accountId: z.string().nullable(),
   accountName: z.string().nullable(),
   // What an update changed. A contact and a note are only said to have changed.
@@ -54,16 +54,17 @@ export const actionsRouter = {
       summary: "What the operators did to the developer accounts, the keys and the accounts",
       description:
         `${ADMIN_ONLY} The latest first. Each change made through the API is recorded with ` +
-        "it: creating, changing, suspending, resuming and deleting a developer account, making " +
-        "and revoking a key, closing an account's sessions, suspending an account and letting " +
-        "it in again. A key is named and never shown. The commands run on the server are not " +
-        "recorded: whoever runs them is no account. A record is kept thirteen months. Pages " +
-        "follow one another through `after`.",
+        "it: creating, changing, suspending, resuming and deleting a developer account, adding " +
+        "a member to it and taking one out, making and revoking a key, closing an account's " +
+        "sessions, suspending an account and letting it in again. A record of a member names " +
+        "the developer account and the account. A key is named and never shown. The commands " +
+        "run on the server are not recorded: whoever runs them is no account. A record is kept " +
+        "thirteen months. Pages follow one another through `after`.",
       tags: ["Operator actions"],
     })
     .input(
       z.object({
-        // Only what was done to this developer account and to its keys.
+        // Only what was done to this developer account, to its keys and to its members.
         developerId: z.uuid().optional(),
         // Only what was done to this account.
         accountId: z.string().min(1).max(200).optional(),

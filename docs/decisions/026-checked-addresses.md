@@ -1,6 +1,6 @@
 # 026. Checking an account's address by mail
 
-Status: asked for by Téo on 2026-10-09, who chose the library and the provider. Not built: mail for anything else (an alert, a lost password), changing an account's address, a limit on the accounts one address of the network may create, and the developer's console.
+Status: asked for by Téo on 2026-10-09, who chose the library and the provider. Not built: mail for anything else (an alert, a lost password), changing an account's address, and a limit on the accounts one address of the network may create. The developer's console came with decision 027, which rests on no address.
 
 ## Context
 

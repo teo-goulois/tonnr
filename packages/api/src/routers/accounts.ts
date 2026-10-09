@@ -129,6 +129,8 @@ export const accountsRouter = {
             id: z.string(),
             name: z.string(),
             email: z.string(),
+            // Whether the account's address was checked.
+            emailVerified: z.boolean(),
             createdAt: z.date(),
             isOperator: z.boolean(),
             // Since when the account is suspended. Null for one that is not.
@@ -160,6 +162,7 @@ export const accountsRouter = {
           id: user.id,
           name: user.name,
           email: user.email,
+          emailVerified: user.emailVerified,
           createdAt: user.createdAt,
           isOperator: isNotNull(operator.userId).mapWith(Boolean),
           suspendedAt: accountSuspension.at,

@@ -18,12 +18,20 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const router = useRouter();
+  const { queryClient } = Route.useRouteContext();
   const to = pageOf(Route.useSearch().to);
 
   return (
     <main className="mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xxl">
       <h1 className="text-l font-medium">{m.app_title({ name: APP_NAME })}</h1>
-      <SignInForm onSuccess={() => router.history.push(to)} />
+      <SignInForm
+        onSuccess={() => {
+          // A session that ended without a sign-out left what it loaded in memory. The account
+          // that signs in now may be another: it starts from nothing.
+          queryClient.clear();
+          router.history.push(to);
+        }}
+      />
     </main>
   );
 }

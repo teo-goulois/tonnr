@@ -40,12 +40,20 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
   const keys = useQuery(
     orpc.v1.keys.list.queryOptions({ input: { developerId }, refetchInterval: EVERY }),
   );
+  const members = useQuery(
+    orpc.v1.developers.members.queryOptions({
+      input: { id: developerId },
+      refetchInterval: EVERY,
+      // The screen says itself that the developer account does not exist.
+      meta: { quietWhenMissing: true },
+    }),
+  );
   const filter = { developerId };
   const series = useUsageSeries(range, filter);
   const byKey = useUsageBreakdown(range, "key", filter);
   const byProcedure = useUsageBreakdown(range, "procedure", filter);
-  // What was done to the account and to its keys, the latest first. The page of the activity
-  // has all of it.
+  // What was done to the account, to its keys and to its members, the latest first. The page
+  // of the activity has all of it.
   const history = useQuery(
     orpc.v1.actions.list.queryOptions({ input: { developerId, limit: 20 } }),
   );
@@ -58,6 +66,7 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
     <DeveloperPage
       developer={developer}
       keys={keys.data?.keys}
+      members={members.data?.members}
       now={now.getTime()}
       onDeleted={() => void navigate({ to: "/developers" })}
     >

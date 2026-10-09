@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import type { Database } from "@repo/db";
 import { apiKey, apiUsage, developer, USAGE_OUTCOMES } from "@repo/db/schema/access";
 import { and, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
@@ -9,7 +10,7 @@ import type { Outcome } from "../usage";
 const ADMIN_ONLY =
   "Takes the signed-in session of an operator of the instance, in a request that names the " +
   "admin's site in `Origin`. No key calls this: decision 020.";
-const APPROXIMATE =
+export const APPROXIMATE =
   "The counts are approximate and up to thirty seconds late: the API writes them every thirty " +
   "seconds, and loses some when it is killed. They are kept thirteen months.";
 
@@ -18,7 +19,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const LONGEST = { hour: 32 * DAY_MS, day: 400 * DAY_MS };
 
 // How many calls ended each way.
-const countsSchema = z.object({
+export const countsSchema = z.object({
   answered: z.number(),
   invalid: z.number(),
   refused: z.number(),
@@ -37,7 +38,7 @@ const counted = Object.fromEntries(
 ) as Record<Outcome, SQL<number>>;
 const total = sql<number>`sum(${apiUsage.calls})`;
 
-const span = z.object({
+export const span = z.object({
   // The first hour counted, and the hour after the last. Both are read as moments, so a day is
   // whatever day the reader gives the bounds of.
   from: z.coerce.date(),
@@ -56,13 +57,81 @@ function within(input: { from: Date; to: Date }, longest: number) {
   return and(gte(apiUsage.hour, input.from), lt(apiUsage.hour, input.to));
 }
 
-function isKnownTimeZone(timeZone: string) {
+export function isKnownTimeZone(timeZone: string) {
   try {
     new Intl.DateTimeFormat("en", { timeZone });
     return true;
   } catch {
     return false;
   }
+}
+
+type Step = "hour" | "day";
+
+/**
+ * The calls over time in a span, by the hour or by the day. `scope` keeps the calls that are
+ * asked for: it may name the key a call was made with, which is joined.
+ */
+export async function readSeries(
+  db: Database,
+  input: { from: Date; to: Date; step: Step; timeZone: string },
+  scope: SQL | undefined,
+) {
+  const inSpan = within(input, LONGEST[input.step]);
+  const at =
+    input.step === "hour"
+      ? sql<Date>`${apiUsage.hour}`.mapWith(apiUsage.hour)
+      : sql<Date>`date_trunc('day', ${apiUsage.hour}, ${input.timeZone})`.mapWith(apiUsage.hour);
+
+  return db
+    .select({ at: at.as("at"), ...counted })
+    .from(apiUsage)
+    .leftJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
+    .where(and(inSpan, scope))
+    .groupBy(sql`1`)
+    .orderBy(sql`1`);
+}
+
+/**
+ * The calls of a span, by who called or by what was called: the rows with the most calls
+ * first, a hundred at most. `scope` keeps the calls that are asked for, as in `readSeries`.
+ */
+export async function readBreakdown(
+  db: Database,
+  input: { from: Date; to: Date; by: "via" | "developer" | "key" | "procedure" },
+  scope: SQL | undefined,
+) {
+  const inSpan = and(within(input, LONGEST.day), scope);
+  const from = () => db.select({ id: id.as("id"), name: name.as("name"), ...counted });
+  let id: SQL<string | null>;
+  let name: SQL<string | null> = sql<null>`null`;
+
+  if (input.by === "developer" || input.by === "key") {
+    if (input.by === "developer") {
+      id = sql<string | null>`${developer.id}`;
+      name = sql<string | null>`${developer.name}`;
+    } else {
+      id = sql<string>`${apiKey.id}`;
+      name = sql<string>`${apiKey.name}`;
+    }
+    return from()
+      .from(apiUsage)
+      .innerJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
+      .leftJoin(developer, eq(developer.id, apiKey.developerId))
+      .where(inSpan)
+      .groupBy(sql`1`, sql`2`)
+      .orderBy(sql`${total} desc`, sql`1`)
+      .limit(100);
+  }
+
+  id = input.by === "via" ? sql<string>`${apiUsage.via}` : sql<string>`${apiUsage.procedure}`;
+  return from()
+    .from(apiUsage)
+    .leftJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
+    .where(inSpan)
+    .groupBy(sql`1`, sql`2`)
+    .orderBy(sql`${total} desc`, sql`1`)
+    .limit(100);
 }
 
 export const usageRouter = {
@@ -92,30 +161,16 @@ export const usageRouter = {
       }),
     )
     .output(z.object({ points: z.array(countsSchema.extend({ at: z.date() })) }))
-    .handler(async ({ input, context }) => {
-      const inSpan = within(input, LONGEST[input.step]);
-      const at =
-        input.step === "hour"
-          ? sql<Date>`${apiUsage.hour}`.mapWith(apiUsage.hour)
-          : sql<Date>`date_trunc('day', ${apiUsage.hour}, ${input.timeZone})`.mapWith(
-              apiUsage.hour,
-            );
-
-      const points = await context.db
-        .select({ at: at.as("at"), ...counted })
-        .from(apiUsage)
-        .leftJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
-        .where(
-          and(
-            inSpan,
-            input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
-            input.keyId ? eq(apiUsage.keyId, input.keyId) : undefined,
-          ),
-        )
-        .groupBy(sql`1`)
-        .orderBy(sql`1`);
-      return { points };
-    }),
+    .handler(async ({ input, context }) => ({
+      points: await readSeries(
+        context.db,
+        input,
+        and(
+          input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
+          input.keyId ? eq(apiUsage.keyId, input.keyId) : undefined,
+        ),
+      ),
+    })),
 
   breakdown: adminProcedure
     .route({
@@ -149,43 +204,11 @@ export const usageRouter = {
         ),
       }),
     )
-    .handler(async ({ input, context }) => {
-      const inSpan = and(
-        within(input, LONGEST.day),
+    .handler(async ({ input, context }) => ({
+      rows: await readBreakdown(
+        context.db,
+        input,
         input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
-      );
-      const { db } = context;
-      const from = () => db.select({ id: id.as("id"), name: name.as("name"), ...counted });
-      let id: SQL<string | null>;
-      let name: SQL<string | null> = sql<null>`null`;
-
-      if (input.by === "developer" || input.by === "key") {
-        if (input.by === "developer") {
-          id = sql<string | null>`${developer.id}`;
-          name = sql<string | null>`${developer.name}`;
-        } else {
-          id = sql<string>`${apiKey.id}`;
-          name = sql<string>`${apiKey.name}`;
-        }
-        const rows = await from()
-          .from(apiUsage)
-          .innerJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
-          .leftJoin(developer, eq(developer.id, apiKey.developerId))
-          .where(inSpan)
-          .groupBy(sql`1`, sql`2`)
-          .orderBy(sql`${total} desc`, sql`1`)
-          .limit(100);
-        return { rows };
-      }
-
-      id = input.by === "via" ? sql<string>`${apiUsage.via}` : sql<string>`${apiUsage.procedure}`;
-      const rows = await from()
-        .from(apiUsage)
-        .leftJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
-        .where(inSpan)
-        .groupBy(sql`1`, sql`2`)
-        .orderBy(sql`${total} desc`, sql`1`)
-        .limit(100);
-      return { rows };
-    }),
+      ),
+    })),
 };

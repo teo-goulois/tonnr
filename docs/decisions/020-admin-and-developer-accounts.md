@@ -2,7 +2,7 @@
 
 Status: decided by Téo on 2026-10-09. It amends decision 019 on four points, named below.
 
-Not built: a console where a developer reads their own keys and calls, a limit on what an account calls with its session, and a limit on calls made with a key that no longer works. The budget of calls to the forecast provider came with decision 023. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
+Not built: a limit on what an account calls with its session, and a limit on calls made with a key that no longer works. The budget of calls to the forecast provider came with decision 023, and the console where a developer reads their own keys and calls with decision 027. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
 
 ## Context
 
@@ -73,7 +73,7 @@ Other APIs settle the question the same way once they have grown: a key belongs 
 - It shows the developer accounts with their keys, the calls by hour and by day, by developer account, by key and by procedure, what the operators did, and the accounts that signed up, with their name and address. It only reads those accounts.
 - A day is the reader's. The counts are by UTC's hour, so a day is exact where the clock is a whole number of hours from UTC, and off by part of an hour elsewhere.
 - It is built for a wide screen first and stays usable on a phone. Decision 014's rule of the phone screen is for `/app`, which a mobile app will follow: the admin has no mobile app to come.
-- An operator signs in to it with the account and the session of the web app. The admin creates no account. To an account that is no operator it shows the account's id and the command that makes it one.
+- An operator signs in to it with the account and the session of the web app. The admin creates no account. To an account that is no operator it shows the console of decision 027, or, when no developer account names it a member, the account's id and the command that makes it an operator.
 - The API learns the admin's address from `ADMIN_ORIGIN`, which is optional. It then lets that site sign in and call, as it does the web app's. The address must not be the web app's.
 - The session cookie is the API's. A browser sends it from the admin only when both addresses belong to one site, such as `admin.example.org` and `api.example.org`.
 

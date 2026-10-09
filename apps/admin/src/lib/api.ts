@@ -7,6 +7,9 @@ type Answer<Procedure extends (...args: never[]) => unknown> = Awaited<ReturnTyp
 export type Developer = Answer<V1["developers"]["list"]>["developers"][number];
 export type Key = Answer<V1["keys"]["list"]>["keys"][number];
 export type MadeKey = Answer<V1["keys"]["create"]>;
+export type Member = Answer<V1["developers"]["members"]>["members"][number];
+// A developer account as one of its members reads it in the console, with its keys by name.
+export type ConsoleDeveloper = Answer<V1["console"]["get"]>["developers"][number];
 export type Account = Answer<V1["accounts"]["list"]>["accounts"][number];
 export type AccountDetail = Answer<V1["accounts"]["get"]>;
 export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];

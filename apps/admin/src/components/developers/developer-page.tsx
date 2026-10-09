@@ -8,27 +8,37 @@ import { toast } from "sonner";
 
 import { CallsMeter } from "@/components/shared/calls-meter";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import type { Developer, Key } from "@/lib/api";
+import type { Developer, Key, Member } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 import { client, refreshLists } from "@/utils/orpc";
 
 import { DeveloperFormDialog } from "./developer-form-dialog";
 import { KeysTable } from "./keys-table";
+import { MembersSection } from "./members-section";
 import { NewKeyDialog } from "./new-key-dialog";
 
 type DeveloperPageProps = {
   developer: Developer;
   // Undefined while they load.
   keys: Key[] | undefined;
+  // The accounts that read it in the console. Undefined while they load.
+  members: Member[] | undefined;
   now: number;
   onDeleted: () => void;
   // The account's calls: the route draws them, since it knows the span of time on screen.
   children: ReactNode;
 };
 
-/** One developer account: what the operator noted of it, its keys, and its calls. */
-export function DeveloperPage({ developer, keys, now, onDeleted, children }: DeveloperPageProps) {
+/** One developer account: what the operator noted of it, its keys, who reads it, and its calls. */
+export function DeveloperPage({
+  developer,
+  keys,
+  members,
+  now,
+  onDeleted,
+  children,
+}: DeveloperPageProps) {
   const queryClient = useQueryClient();
   const [dialog, setDialog] = useState<"edit" | "key" | "delete" | null>(null);
   const close = (open: boolean) => !open && setDialog(null);
@@ -122,6 +132,8 @@ export function DeveloperPage({ developer, keys, now, onDeleted, children }: Dev
         </div>
         <KeysTable keys={keys} suspended={suspended} now={now} />
       </section>
+
+      <MembersSection developer={developer} members={members} />
 
       {children}
 

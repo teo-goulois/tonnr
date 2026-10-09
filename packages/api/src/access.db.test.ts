@@ -66,6 +66,11 @@ const ANSWERS_AN_ACCOUNT = [
   "privateData",
   "v1.account.get",
   "v1.account.sendVerification",
+  // What a member of a developer account reads of it. The door is an account's: who is a
+  // member of what is held by each of them, and tested with them.
+  "v1.console.breakdown",
+  "v1.console.get",
+  "v1.console.series",
   "v1.lists.addStation",
   "v1.lists.create",
   "v1.lists.delete",
@@ -270,6 +275,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.developers.create",
         "v1.developers.update",
         "v1.developers.delete",
+        "v1.developers.members",
+        "v1.developers.addMember",
+        "v1.developers.removeMember",
         "v1.instance.state",
         "v1.keys.list",
         "v1.keys.create",

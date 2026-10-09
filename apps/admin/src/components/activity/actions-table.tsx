@@ -19,6 +19,9 @@ type ActionsTableProps = {
   // The developer accounts that still exist: a record of one that was deleted is not a link.
   // Without it, the table is one account's own and names none.
   existing?: ReadonlySet<string>;
+  // Set on the page of an account that signs in: a record that names a developer account as
+  // well, as that of a member does, says which. Elsewhere it says which account.
+  own?: "account";
   // What to say when nothing was done.
   empty: string;
 };
@@ -27,8 +30,12 @@ const limitOf = (calls: number | null) =>
   calls === null ? m.developer_no_limit() : formatCount(calls);
 
 /** What a record says was done, one line for each thing it changed. */
-function sentences(action: OperatorAction): string[] {
+function sentences(action: OperatorAction, own?: "account"): string[] {
   const key = { name: action.keyName ?? "" };
+  // A record of a member names two: the developer account and the account. The page of one
+  // says the other. The account has the name it has now, and none once it is deleted.
+  const member = { name: action.accountName ?? m.action_account_gone() };
+  const developer = { developer: action.developerName ?? "" };
   switch (action.action) {
     case "developer.create": {
       const limit = action.changes?.callsPerHour;
@@ -55,6 +62,16 @@ function sentences(action: OperatorAction): string[] {
       return [m.action_resumed()];
     case "developer.delete":
       return [m.action_deleted()];
+    case "developer.member_add":
+      return [
+        own === "account" ? m.action_member_added_to(developer) : m.action_member_added(member),
+      ];
+    case "developer.member_remove":
+      return [
+        own === "account"
+          ? m.action_member_removed_from(developer)
+          : m.action_member_removed(member),
+      ];
     case "key.create":
       return [m.action_key_made(key)];
     case "key.revoke":
@@ -73,9 +90,13 @@ function sentences(action: OperatorAction): string[] {
 
 const linked = "focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline";
 
-/** What an action was done to: a developer account, or an account, each a link while it exists. */
+/**
+ * What an action was done to: a developer account, or an account, each a link while it exists.
+ * A record of a member names both: the developer account is here, and the sentence names the
+ * account.
+ */
 function Subject({ action, existing }: { action: OperatorAction; existing: ReadonlySet<string> }) {
-  if (action.accountId !== null) {
+  if (action.accountId !== null && action.developerId === null) {
     // The record keeps an account's identifier alone: its name is the one it has now.
     return action.accountName === null ? (
       <span className="text-neutral-7">{m.action_operator_gone()}</span>
@@ -100,7 +121,7 @@ function Subject({ action, existing }: { action: OperatorAction; existing: Reado
 }
 
 /** What the operators did, the latest first: when, who, to which account, and what. */
-export function ActionsTable({ actions, existing, empty }: ActionsTableProps) {
+export function ActionsTable({ actions, existing, own, empty }: ActionsTableProps) {
   if (actions?.length === 0) return <p className="text-s text-neutral-7">{empty}</p>;
   const columns = existing ? 4 : 3;
 
@@ -132,7 +153,7 @@ export function ActionsTable({ actions, existing, empty }: ActionsTableProps) {
                   </TableCell>
                 )}
                 <TableCell>
-                  {sentences(action).map((sentence) => (
+                  {sentences(action, own).map((sentence) => (
                     <p key={sentence}>{sentence}</p>
                   ))}
                 </TableCell>

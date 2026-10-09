@@ -36,3 +36,31 @@ export function useUsageBreakdown(
     }),
   );
 }
+
+// A developer account the reader is no member of answers as one that does not exist. The
+// console says so itself, and leaves the other failures to the toast.
+const ASKED_AS_A_MEMBER = { quietWhenMissing: true };
+
+/** The calls of a developer account over a span of time, as one of its members reads them. */
+export function useConsoleSeries(range: Range, developerId: string) {
+  return useQuery(
+    orpc.v1.console.series.queryOptions({
+      input: { from: range.from, to: range.to, step: range.step, timeZone, developerId },
+      refetchInterval: EVERY,
+      placeholderData: keepPreviousData,
+      meta: ASKED_AS_A_MEMBER,
+    }),
+  );
+}
+
+/** The calls of a developer account in a span of time, by key or by what was called. */
+export function useConsoleBreakdown(range: Range, by: "key" | "procedure", developerId: string) {
+  return useQuery(
+    orpc.v1.console.breakdown.queryOptions({
+      input: { from: range.from, to: range.to, by, developerId },
+      refetchInterval: EVERY,
+      placeholderData: keepPreviousData,
+      meta: ASKED_AS_A_MEMBER,
+    }),
+  );
+}

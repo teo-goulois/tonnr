@@ -19,19 +19,26 @@ import { formatAgo, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 import { client, refreshLists } from "@/utils/orpc";
 
+// What the table shows of a key: what an operator's list gives, and the console's.
+type ShownKey = Pick<Key, "id" | "name" | "prefix" | "createdAt" | "lastUsedAt" | "revokedAt">;
+
 type KeysTableProps = {
   // Undefined while they load.
-  keys: Key[] | undefined;
+  keys: ShownKey[] | undefined;
   // Whether the keys' developer account is suspended: none of them works then.
   suspended?: boolean;
+  // Set in the console: a member reads the keys, and revokes none.
+  readOnly?: boolean;
   now: number;
 };
 
-/** The keys of a developer account, the newest first. A key that works can be revoked. */
-export function KeysTable({ keys, suspended = false, now }: KeysTableProps) {
+/**
+ * The keys of a developer account, the newest first. An operator can revoke a key that works.
+ */
+export function KeysTable({ keys, suspended = false, readOnly = false, now }: KeysTableProps) {
   const queryClient = useQueryClient();
   // The key the dialog asks about. It stays while the dialog closes, so its name does not blink.
-  const [revoking, setRevoking] = useState<Key | null>(null);
+  const [revoking, setRevoking] = useState<ShownKey | null>(null);
   const [asking, setAsking] = useState(false);
   const revoke = useMutation({
     mutationFn: (id: string) => client.v1.keys.revoke({ id }),
@@ -51,9 +58,11 @@ export function KeysTable({ keys, suspended = false, now }: KeysTableProps) {
             <TableHead>{m.key_created()}</TableHead>
             <TableHead>{m.last_used()}</TableHead>
             <TableHead>{m.state()}</TableHead>
-            <TableHead>
-              <span className="sr-only">{m.actions()}</span>
-            </TableHead>
+            {!readOnly && (
+              <TableHead>
+                <span className="sr-only">{m.actions()}</span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -77,39 +86,43 @@ export function KeysTable({ keys, suspended = false, now }: KeysTableProps) {
                       <Badge variant="success">{m.key_working()}</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {!key.revokedAt && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setRevoking(key);
-                          setAsking(true);
-                        }}
-                      >
-                        {m.key_revoke()}
-                      </Button>
-                    )}
-                  </TableCell>
+                  {!readOnly && (
+                    <TableCell className="text-right">
+                      {!key.revokedAt && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRevoking(key);
+                            setAsking(true);
+                          }}
+                        >
+                          {m.key_revoke()}
+                        </Button>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             : [0, 1].map((row) => (
                 <TableRow key={row}>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={readOnly ? 5 : 6}>
                     <Skeleton className="h-5 w-full" />
                   </TableCell>
                 </TableRow>
               ))}
         </TableBody>
       </Table>
-      <ConfirmDialog
-        open={asking}
-        onOpenChange={setAsking}
-        title={m.key_revoke_title({ name: revoking?.name ?? "" })}
-        body={m.key_revoke_body()}
-        confirmLabel={m.key_revoke()}
-        onConfirm={() => (revoking ? revoke.mutateAsync(revoking.id) : Promise.resolve())}
-      />
+      {!readOnly && (
+        <ConfirmDialog
+          open={asking}
+          onOpenChange={setAsking}
+          title={m.key_revoke_title({ name: revoking?.name ?? "" })}
+          body={m.key_revoke_body()}
+          confirmLabel={m.key_revoke()}
+          onConfirm={() => (revoking ? revoke.mutateAsync(revoking.id) : Promise.resolve())}
+        />
+      )}
     </>
   );
 }

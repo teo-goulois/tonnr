@@ -56,36 +56,63 @@ export function openCommandPalette() {
   setOpen(true);
 }
 
-// Every page and primary action of the admin, one key press away, and each developer account
-// by its name.
-export function CommandPalette() {
-  const open = useSyncExternalStore(
+function usePaletteOpen() {
+  return useSyncExternalStore(
     subscribe,
     () => isOpen,
     () => false,
   );
-  const [query, setQuery] = useState("");
-  const navigate = useNavigate();
+}
+
+/** What every reader of the admin has, an operator or not: the theme, the language, the way out. */
+function usePreferences(): PaletteGroup {
   const bindings = useShortcuts();
   const signOut = useSignOut();
   const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  return {
+    value: "preferences",
+    label: m.command_group_preferences(),
+    items: [
+      {
+        value: `${m.shortcut_toggle_theme()} theme light dark`,
+        label: isDark ? m.command_theme_light() : m.command_theme_dark(),
+        hotkey: bindings["toggle-theme"],
+        run: () => setTheme(isDark ? "light" : "dark"),
+      },
+      {
+        value: `${m.shortcut_switch_locale()} language langue english français`,
+        label: m.command_switch_locale(),
+        hotkey: bindings["switch-locale"],
+        run: () => void setLocale(getLocale() === "fr" ? "en" : "fr"),
+      },
+      {
+        value: `${m.command_shortcuts()} keyboard hotkeys`,
+        label: m.command_shortcuts(),
+        run: openShortcutSettings,
+      },
+      {
+        value: `${m.auth_sign_out()} logout sign out`,
+        label: m.auth_sign_out(),
+        run: signOut,
+      },
+    ],
+  };
+}
+
+// Every page and primary action of the admin, one key press away, and each developer account
+// by its name.
+export function CommandPalette() {
+  const open = usePaletteOpen();
+  const navigate = useNavigate();
+  const bindings = useShortcuts();
+  const preferences = usePreferences();
   // The accounts are asked for when the palette first opens, and not before.
   const developers = useQuery(
     orpc.v1.developers.list.queryOptions({ enabled: open, meta: { quiet: true } }),
   );
 
-  function handleOpenChange(next: boolean) {
-    setOpen(next);
-    if (!next) setQuery("");
-  }
-
-  // Its shortcut closes it as well. Over another dialog it does nothing: choosing a page there
-  // would leave what the dialog shows.
-  useShortcut("command-palette", bindings, () => handleOpenChange(!open), { evenInDialog: open });
-  // The palette does not stay open for whoever signs in next.
-  useEffect(() => () => setOpen(false), []);
-
-  const isDark = resolvedTheme === "dark";
   const groups: PaletteGroup[] = [
     {
       value: "navigation",
@@ -141,35 +168,60 @@ export function CommandPalette() {
           void navigate({ to: "/developers/$developerId", params: { developerId: developer.id } }),
       })),
     },
+    preferences,
+  ];
+
+  return <Palette open={open} groups={groups} placeholder={m.command_palette_placeholder()} />;
+}
+
+type ConsolePaletteProps = {
+  // The developer accounts the reader is a member of: the layout has them already.
+  developers: { id: string; name: string }[];
+};
+
+// The palette of the console: the developer accounts the reader is a member of, and its
+// preferences. None of an operator's pages or actions is here, nor anything asked of the API
+// that an operator alone may ask.
+export function ConsolePalette({ developers }: ConsolePaletteProps) {
+  const open = usePaletteOpen();
+  const navigate = useNavigate();
+  const preferences = usePreferences();
+
+  const groups: PaletteGroup[] = [
     {
-      value: "preferences",
-      label: m.command_group_preferences(),
-      items: [
-        {
-          value: `${m.shortcut_toggle_theme()} theme light dark`,
-          label: isDark ? m.command_theme_light() : m.command_theme_dark(),
-          hotkey: bindings["toggle-theme"],
-          run: () => setTheme(isDark ? "light" : "dark"),
-        },
-        {
-          value: `${m.shortcut_switch_locale()} language langue english français`,
-          label: m.command_switch_locale(),
-          hotkey: bindings["switch-locale"],
-          run: () => void setLocale(getLocale() === "fr" ? "en" : "fr"),
-        },
-        {
-          value: `${m.command_shortcuts()} keyboard hotkeys`,
-          label: m.command_shortcuts(),
-          run: openShortcutSettings,
-        },
-        {
-          value: `${m.auth_sign_out()} logout sign out`,
-          label: m.auth_sign_out(),
-          run: signOut,
-        },
-      ],
+      value: "developers",
+      label: m.nav_developers(),
+      items: developers.map((developer) => ({
+        value: `${developer.name} ${developer.id}`,
+        label: developer.name,
+        run: () =>
+          void navigate({ to: "/console/$developerId", params: { developerId: developer.id } }),
+      })),
     },
-  ].filter((group) => group.items.length > 0);
+    preferences,
+  ];
+
+  return <Palette open={open} groups={groups} placeholder={m.console_palette_placeholder()} />;
+}
+
+type PaletteProps = { open: boolean; groups: PaletteGroup[]; placeholder: string };
+
+/** The dialog itself: what it is given to search, and the shortcut that opens and closes it. */
+function Palette({ open, groups: every, placeholder }: PaletteProps) {
+  const [query, setQuery] = useState("");
+  const bindings = useShortcuts();
+  const groups = every.filter((group) => group.items.length > 0);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setQuery("");
+  }
+
+  // Its shortcut closes it as well. Over another dialog it does nothing: choosing a page there
+  // would leave what the dialog shows.
+  useShortcut("command-palette", bindings, () => handleOpenChange(!open), { evenInDialog: open });
+  // The palette does not stay open for whoever signs in next.
+  useEffect(() => () => setOpen(false), []);
 
   function runAction(action: PaletteAction) {
     handleOpenChange(false);
@@ -185,7 +237,7 @@ export function CommandPalette() {
           value={query}
           onValueChange={setQuery}
         >
-          <CommandInput placeholder={m.command_palette_placeholder()} />
+          <CommandInput placeholder={placeholder} />
           <CommandPanel>
             <CommandEmpty>{m.command_palette_empty()}</CommandEmpty>
             <CommandList>
