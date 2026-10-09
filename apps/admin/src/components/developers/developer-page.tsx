@@ -6,13 +6,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
+import { CallsMeter } from "@/components/shared/calls-meter";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { Developer, Key } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 import { client, refreshLists } from "@/utils/orpc";
 
-import { CallsMeter } from "./calls-meter";
 import { DeveloperFormDialog } from "./developer-form-dialog";
 import { KeysTable } from "./keys-table";
 import { NewKeyDialog } from "./new-key-dialog";
@@ -83,7 +83,11 @@ export function DeveloperPage({ developer, keys, now, onDeleted, children }: Dev
         <div className="grid content-start gap-xxs">
           <dt className="text-s text-neutral-7">{m.developer_calls_this_hour()}</dt>
           <dd>
-            <CallsMeter calls={developer.callsThisHour} limit={developer.callsPerHour} />
+            <CallsMeter
+              calls={developer.callsThisHour}
+              limit={developer.callsPerHour}
+              label={m.developer_calls_this_hour()}
+            />
           </dd>
         </div>
         <div className="grid content-start gap-xxs">

@@ -1,4 +1,5 @@
 import type { Session } from "@repo/auth";
+import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
 
 import type { Usage } from "./usage";
@@ -16,6 +17,9 @@ export type Context = {
   adminSites: readonly string[];
   // Where the calls are counted.
   usage: Usage;
+  // The forecasts of this program: kept in its memory, then in the database, and asked of the
+  // provider within the instance's budget. Decision 023.
+  forecasts: Forecasts;
   // The process that answers, as the state of the instance shows it: when it started, and the
   // web app's address as it holds it. Both are the server's to say.
   server: { startedAt: Date; webOrigin: string };

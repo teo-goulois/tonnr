@@ -10,6 +10,7 @@ import {
 } from "@repo/ui/components/ui/table";
 import type { ReactNode } from "react";
 
+import { CallsMeter } from "@/components/shared/calls-meter";
 import type { InstanceState, Job } from "@/lib/api";
 import { formatAgo, formatBytes, formatCount, formatDuration } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -17,6 +18,17 @@ import { m } from "@/paraglide/messages.js";
 import { cadence, countPhrases, failureSentence, STATE_LABELS, STATE_VARIANTS } from "./job-words";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+type ForecastBucket = InstanceState["forecasts"]["calls"][number]["bucket"];
+
+// The counts of requests to the forecast provider, in the order the API gives them.
+const FORECAST_BUCKETS: ForecastBucket[] = ["day:people", "day:alerts", "hour", "minute"];
+const BUCKET_LABELS: Record<ForecastBucket, () => string> = {
+  "day:people": m.forecast_calls_people,
+  "day:alerts": m.forecast_calls_alerts,
+  hour: m.forecast_calls_hour,
+  minute: m.forecast_calls_minute,
+};
 
 type InstancePageProps = {
   // Undefined while it loads.
@@ -131,6 +143,9 @@ function WorkerFact({ workers, now }: { workers: Worker[]; now: number }) {
 
 /** The state of the instance: its programs, what each job of the worker last did, its data. */
 export function InstancePage({ state, now }: InstancePageProps) {
+  // An API of the version before this page's says nothing of forecasts: the admin and the API
+  // are not deployed together, and the section waits rather than fail.
+  const forecasts = state?.forecasts as InstanceState["forecasts"] | undefined;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
@@ -236,6 +251,37 @@ export function InstancePage({ state, now }: InstancePageProps) {
             </TableBody>
           </Table>
         )}
+      </section>
+
+      <section className="grid grid-cols-1 gap-s">
+        <div className="grid gap-xxs">
+          <h2 className="text-m font-medium">{m.instance_forecasts()}</h2>
+          <p className="max-w-(--container-2xl) text-s text-neutral-7">{m.forecasts_note()}</p>
+        </div>
+        <dl className="grid gap-x-l gap-y-m sm:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]">
+          {(forecasts?.calls ?? FORECAST_BUCKETS).map((count) => {
+            const label = BUCKET_LABELS[typeof count === "string" ? count : count.bucket]();
+            return (
+              <Fact key={label} label={label}>
+                {typeof count === "string" ? (
+                  <Skeleton className="h-8 w-40" />
+                ) : (
+                  <CallsMeter calls={count.calls} limit={count.limit} label={label} />
+                )}
+              </Fact>
+            );
+          })}
+          <Fact label={m.forecast_cells()}>
+            {forecasts ? (
+              <span className="grid gap-xxs">
+                <span className="tabular-nums">{formatCount(forecasts.cells)}</span>
+                <span className="text-s text-neutral-7">{m.forecast_cells_note()}</span>
+              </span>
+            ) : (
+              <Skeleton className="h-6 w-24" />
+            )}
+          </Fact>
+        </dl>
       </section>
 
       <section className="grid grid-cols-1 gap-s">

@@ -1,5 +1,8 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { FORECAST_PROVIDER, forecastBudget } from "@repo/conditions/forecasts/open-meteo";
+import { testForecasts } from "@repo/conditions/forecasts/testing";
+import { forecastStore } from "@repo/db/forecasts";
 import {
   apiKey,
   apiUsage,
@@ -10,6 +13,7 @@ import {
 } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
+import { forecastCell, providerCalls } from "@repo/db/schema/forecasts";
 import { job, workerProcess } from "@repo/db/schema/instance";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
@@ -28,6 +32,8 @@ const HOUR_MS = 60 * 60 * 1000;
 describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let usage: Usage;
+  // No test asks the forecast provider: a function stands for it.
+  const { forecasts } = testForecasts();
   // What the counter takes for the time. A test moves it to count in another hour.
   let clock = new Date();
 
@@ -68,6 +74,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
     adminSites: [ADMIN],
     usage,
     server: { startedAt: AT, webOrigin: "https://app.example.org" },
+    forecasts,
   });
   const asOwner = () => ({ context: context({ session: "owner" }) });
   const byKey = (key: string) => ({ context: context({ authorization: `Bearer ${key}` }) });
@@ -1415,6 +1422,35 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
           lastFailure: failure,
           failuresInARow: 1,
         },
+      ]);
+    });
+
+    it("gives the forecasts that are kept, and the requests of the day against what may be sent", async () => {
+      await database.db.delete(forecastCell);
+      await database.db.delete(providerCalls);
+      const none = (await state()).forecasts;
+      expect(none).toEqual({
+        cells: 0,
+        calls: [
+          { bucket: "day:people", calls: 0, limit: 5500 },
+          { bucket: "day:alerts", calls: 0, limit: 2500 },
+          { bucket: "hour", calls: 0, limit: 4000 },
+          { bucket: "minute", calls: 0, limit: 480 },
+        ],
+      });
+
+      const people = forecastStore(database.db, FORECAST_PROVIDER, forecastBudget("people"));
+      const alerts = forecastStore(database.db, FORECAST_PROVIDER, forecastBudget("alerts"));
+      await people.write({ latStep: 873, lonStep: -29 }, { fetchedAt: new Date(), data: {} });
+      for (const store of [people, people, people, alerts]) await store.spend();
+
+      const { forecasts: found } = await state();
+      expect(found.cells).toBe(1);
+      expect(found.calls.map((count) => [count.bucket, count.calls])).toEqual([
+        ["day:people", 3],
+        ["day:alerts", 1],
+        ["hour", 4],
+        ["minute", 4],
       ]);
     });
 

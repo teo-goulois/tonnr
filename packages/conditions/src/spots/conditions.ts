@@ -1,7 +1,8 @@
 import type { SpotCriteria } from "@repo/db/schema/spots";
 import { Effect } from "effect";
 
-import { FORECAST_SOURCE, getForecast } from "../forecasts/open-meteo";
+import type { Forecasts } from "../forecasts/forecasts";
+import { FORECAST_SOURCE } from "../forecasts/open-meteo";
 import { predictTideExtremes, predictTideTimeline } from "../tides/tide-prediction";
 import { findWindows, tideTrendAt, unmetCriteria, type HourConditions } from "./criteria";
 
@@ -13,17 +14,25 @@ type AssessedSpot = { latitude: number; longitude: number; criteria: SpotCriteri
 
 /**
  * Hour by hour, the forecast and the tide at a spot, the criteria each hour does not meet, and
- * the windows during which the spot works. Null when the spot has no sea forecast.
+ * the windows during which the spot works. `hasSea` is false when the spot has no sea forecast,
+ * and there is nothing else then. The forecast comes from the program's `forecasts`, and says
+ * when it was fetched and whether it is an older one, given because the provider could not be
+ * asked.
  */
-export const assessSpot = Effect.fn("assessSpot")(function* (spot: AssessedSpot, days: number) {
-  const forecast = yield* getForecast({
+export const assessSpot = Effect.fn("assessSpot")(function* (
+  forecasts: Forecasts,
+  spot: AssessedSpot,
+  days: number,
+) {
+  const forecast = yield* forecasts.get({
     latitude: spot.latitude,
     longitude: spot.longitude,
     days,
   });
-  const first = forecast?.hours[0]?.time;
-  const last = forecast?.hours.at(-1)?.time;
-  if (!forecast || !first || !last) return null;
+  const fetched = { forecastFetchedAt: forecast.fetchedAt, forecastStale: forecast.stale };
+  const first = forecast.hours?.[0]?.time;
+  const last = forecast.hours?.at(-1)?.time;
+  if (!forecast.hours || !first || !last) return { hasSea: false as const, ...fetched };
 
   const point = { latitude: spot.latitude, longitude: spot.longitude };
   const tides = predictTideTimeline({ ...point, start: first, end: last, stepMinutes: 60 });
@@ -52,9 +61,11 @@ export const assessSpot = Effect.fn("assessSpot")(function* (spot: AssessedSpot,
   });
 
   return {
+    hasSea: true as const,
     hours,
     windows: findWindows(hours),
     forecastSource: FORECAST_SOURCE,
+    ...fetched,
     tideStation: tides ? { ...tides.station, datum: tides.datum } : null,
   };
 });

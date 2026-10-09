@@ -1,3 +1,5 @@
+import { FORECAST_BUDGET, FORECAST_PROVIDER } from "@repo/conditions/forecasts/open-meteo";
+import { countForecastCells, currentCalls } from "@repo/db/forecasts";
 import { station } from "@repo/db/schema/buoys";
 import {
   FAILURE_KINDS,
@@ -53,6 +55,14 @@ export function jobState(row: JobRow, now: Date): (typeof JOB_STATES)[number] {
   if (row.outcome) return row.outcome;
   return row.deadlineAt && now > row.deadlineAt ? "expired" : "running";
 }
+
+// What the instance lets itself ask its forecast provider, as decision 023 counts it.
+const BUDGETS = [
+  { bucket: "day:people", limit: FORECAST_BUDGET.day.people },
+  { bucket: "day:alerts", limit: FORECAST_BUDGET.day.alerts },
+  { bucket: "hour", limit: FORECAST_BUDGET.hour },
+  { bucket: "minute", limit: FORECAST_BUDGET.minute },
+] as const;
 
 const EXPIRED: JobFailure = { kind: "expired" };
 
@@ -158,12 +168,26 @@ export const instanceRouter = {
           }),
         ),
         database: z.object({ sizeBytes: z.number() }),
+        forecasts: z.object({
+          // The cells that have a forecast kept.
+          cells: z.number(),
+          // The requests sent to the forecast provider in the present day, hour and minute, in
+          // UTC, against what the instance lets itself send. The day has a share for the
+          // people who look and one for the alerts.
+          calls: z.array(
+            z.object({
+              bucket: z.enum(["day:people", "day:alerts", "hour", "minute"]),
+              calls: z.number(),
+              limit: z.number(),
+            }),
+          ),
+        }),
       }),
     )
     .handler(async ({ context }) => {
       const { db } = context;
 
-      const [workers, jobs, providers, sized] = await Promise.all([
+      const [workers, jobs, providers, sized, cells, calls] = await Promise.all([
         db
           .select()
           .from(workerProcess)
@@ -194,6 +218,8 @@ export const instanceRouter = {
         db.execute<{ size: string; at: string }>(
           sql`select pg_database_size(current_database()) as size, (extract(epoch from now()) * 1000)::bigint as at`,
         ),
+        countForecastCells(db),
+        currentCalls(db, FORECAST_PROVIDER),
       ]);
 
       const at = new Date(Number(sized.rows[0]?.at));
@@ -216,6 +242,10 @@ export const instanceRouter = {
         jobs: jobs.map((row) => describeJob(row, at)),
         providers,
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
+        forecasts: {
+          cells,
+          calls: BUDGETS.map((budget) => ({ ...budget, calls: calls.get(budget.bucket) ?? 0 })),
+        },
       };
     }),
 };

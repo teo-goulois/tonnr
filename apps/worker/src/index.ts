@@ -2,10 +2,11 @@ import type { Database } from "@repo/db";
 import { Effect } from "effect";
 import { PgBoss } from "pg-boss";
 
-import { evaluateAlerts } from "./alerts";
+import { alertsDone, evaluateAlerts } from "./alerts";
 import { breakSources } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
+import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providers, retiredProviderIds } from "./ingest";
 import {
   announceWorker,
@@ -24,6 +25,9 @@ import { pruneReadings } from "./store";
 // What the jobs read and write, and where the worker says what it does: decision 022.
 const db = jobDatabase(ENV);
 const state = stateDatabase(ENV);
+
+// The forecasts the alerts read, which the API keeps and reads too.
+const forecasts = createForecasts(db);
 
 // The worker says it is there before anything else, so that one which fails to start shows.
 const worker = await announceWorker(state);
@@ -152,10 +156,12 @@ await boss.work(
   withStart,
   attemptOf(
     PRUNE_QUEUE,
-    (db) => pruneReadings(db),
-    (deleted) => {
-      console.log(`Pruned ${deleted} old wind readings`);
-      return { counts: { deleted } };
+    (db) => Effect.all({ deleted: pruneReadings(db), forecasts: pruneKeptForecasts(db) }),
+    ({ deleted, forecasts: kept }) => {
+      console.log(
+        `Pruned ${deleted} old wind readings, ${kept.cells} forecasts and ${kept.calls} counts of calls`,
+      );
+      return { counts: { deleted, forecasts: kept.cells, callCounts: kept.calls } };
     },
   ),
 );
@@ -185,15 +191,7 @@ await boss.schedule(ALERTS_QUEUE, scheduled(ALERTS_QUEUE).schedule);
 await boss.work(
   ALERTS_QUEUE,
   withStart,
-  attemptOf(
-    ALERTS_QUEUE,
-    (db) => evaluateAlerts(db),
-    ({ spots, created, failed }) => ({
-      counts: { spots, created, failed },
-      // The run went to its end, and some spots could not be checked.
-      degraded: failed > 0,
-    }),
-  ),
+  attemptOf(ALERTS_QUEUE, (db) => evaluateAlerts(db, forecasts), alertsDone),
 );
 await boss.send(ALERTS_QUEUE);
 

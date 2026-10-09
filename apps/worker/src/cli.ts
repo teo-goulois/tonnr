@@ -5,6 +5,7 @@ import { evaluateAlerts } from "./alerts";
 import { addBreaksFile, fetchBreaks, removeBreaksOf } from "./breaks/command";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
+import { createForecasts } from "./forecasts";
 import { ingest, providers } from "./ingest";
 import { grantOperator, removeOperator } from "./operators";
 
@@ -40,7 +41,7 @@ try {
     const outcome = await command(db, rest);
     for (const line of outcome.lines) (outcome.ok ? console.log : console.error)(line);
     if (!outcome.ok) process.exitCode = 1;
-  } else await Effect.runPromise(evaluateAlerts(db));
+  } else await Effect.runPromise(evaluateAlerts(db, createForecasts(db)));
 } catch (error) {
   console.error(error);
   process.exitCode = 1;

@@ -1,3 +1,4 @@
+import { testForecasts } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
@@ -28,6 +29,8 @@ const bodyOf = async <Body>(response: Response) => (await response.json()) as Bo
 describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let usage: Usage;
+  // No test asks the forecast provider: a function stands for it.
+  const { forecasts } = testForecasts();
   // An instance with an admin app, and one without.
   let app: ReturnType<typeof createApp>;
   let bare: ReturnType<typeof createApp>;
@@ -45,8 +48,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     // Counted in memory, and written only when a test asks.
     usage = createUsage(db, { every: null });
     const withAdmin = { ...env, ADMIN_ORIGIN: ADMIN };
-    app = createApp({ env: withAdmin, db, auth: createAuth(withAdmin, db), usage });
-    bare = createApp({ env, db, auth: createAuth(env, db), usage });
+    app = createApp({ env: withAdmin, db, auth: createAuth(withAdmin, db), usage, forecasts });
+    bare = createApp({ env, db, auth: createAuth(env, db), usage, forecasts });
     // The app logs each request, and each fault as an error.
     logged = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -475,7 +478,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const same = { ...env, ...addresses };
 
       expect(() =>
-        createApp({ env: same, db: database.db, auth: createAuth(same, database.db), usage }),
+        createApp({
+          env: same,
+          db: database.db,
+          auth: createAuth(same, database.db),
+          usage,
+          forecasts,
+        }),
       ).toThrow("ADMIN_ORIGIN must not be the web app's address");
     });
 
@@ -484,7 +493,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         const alone = { ...env, ...addresses };
 
         expect(() =>
-          createApp({ env: alone, db: database.db, auth: createAuth(alone, database.db), usage }),
+          createApp({
+            env: alone,
+            db: database.db,
+            auth: createAuth(alone, database.db),
+            usage,
+            forecasts,
+          }),
         ).not.toThrow();
       }
     });

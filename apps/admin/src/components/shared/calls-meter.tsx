@@ -5,12 +5,14 @@ import { m } from "@/paraglide/messages.js";
 
 type CallsMeterProps = {
   calls: number;
-  // Null: the account has no limit.
+  // Null: nothing limits the calls.
   limit: number | null;
+  // What is counted, for a reader who does not see the meter.
+  label: string;
 };
 
-/** The calls a developer account made this hour, against its limit when it has one. */
-export function CallsMeter({ calls, limit }: CallsMeterProps) {
+/** Calls that were made, against their limit when they have one. */
+export function CallsMeter({ calls, limit, label }: CallsMeterProps) {
   if (limit === null) {
     return <span className="tabular-nums">{formatCount(calls)}</span>;
   }
@@ -20,7 +22,7 @@ export function CallsMeter({ calls, limit }: CallsMeterProps) {
     <Meter
       value={Math.min(calls, limit)}
       max={limit}
-      aria-label={m.developer_calls_this_hour()}
+      aria-label={label}
       getAriaValueText={() =>
         m.calls_of_limit({ calls: formatCount(calls), limit: formatCount(limit) })
       }

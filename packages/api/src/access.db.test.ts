@@ -1,5 +1,6 @@
 import { call, isLazy, isProcedure, lazy, unlazy } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { testForecasts } from "@repo/conditions/forecasts/testing";
 import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
@@ -94,6 +95,8 @@ const wait = (milliseconds: number) =>
 describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let usage: Usage;
+  // No test asks the forecast provider: a function stands for it.
+  const { forecasts } = testForecasts();
 
   beforeAll(async () => {
     database = await createTestDatabase();
@@ -136,6 +139,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     adminSites: [ADMIN],
     usage,
     server: { startedAt: AT, webOrigin: WEB },
+    forecasts,
   });
   const bySession = (id: string, site?: string | null) => ({
     context: context({ session: id, site }),

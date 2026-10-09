@@ -35,14 +35,12 @@ const COUNT_LABELS: Record<string, (count: { count: string }) => string> = {
   open: m.count_open,
   sheltered: m.count_sheltered,
   changed: m.count_changed,
+  forecasts: m.count_forecasts,
+  callCounts: m.count_call_counts,
   spots: m.count_spots,
   created: m.count_created,
   failed: m.count_failed,
-  listed: m.count_listed,
-  added: m.count_added,
-  removed: m.count_removed,
-  kept: m.count_kept,
-  leftOut: m.count_left_out,
+  stale: m.count_stale,
 };
 
 /**

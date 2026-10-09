@@ -15,8 +15,8 @@ import { Link } from "@tanstack/react-router";
 import type { Developer, Key } from "@/lib/api";
 import { formatAgo } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
+import { CallsMeter } from "@/components/shared/calls-meter";
 
-import { CallsMeter } from "./calls-meter";
 import { DeveloperFormDialog } from "./developer-form-dialog";
 import { KeysTable } from "./keys-table";
 
@@ -83,7 +83,11 @@ export function DevelopersPage({
                       {developer.contact}
                     </TableCell>
                     <TableCell>
-                      <CallsMeter calls={developer.callsThisHour} limit={developer.callsPerHour} />
+                      <CallsMeter
+                        calls={developer.callsThisHour}
+                        limit={developer.callsPerHour}
+                        label={m.developer_calls_this_hour()}
+                      />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{developer.keys}</TableCell>
                     <TableCell className="whitespace-nowrap text-neutral-7">

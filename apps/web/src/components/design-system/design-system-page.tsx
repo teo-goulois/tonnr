@@ -165,13 +165,16 @@ const SAMPLE_FORECAST: Forecast = {
   source: {
     name: "Open-Meteo",
     url: "https://open-meteo.com/",
-    attribution: "Weather data by Open-Meteo.com",
+    attribution:
+      "Weather data by Open-Meteo.com. Wave forecast from the German Weather Service DWD.",
     license: {
       type: "cc-by-4.0",
       url: "https://creativecommons.org/licenses/by/4.0/",
       commercialUse: false,
     },
   },
+  fetchedAt: new Date(SAMPLE_NOW),
+  stale: false,
   hours: Array.from({ length: 96 }, (_, index) => {
     const height = 1.6 + 1.2 * Math.sin(index / 14);
     return {

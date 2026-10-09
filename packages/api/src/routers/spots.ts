@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import { type Caller, callerProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
+import { forecastUnavailable } from "./forecasts";
+import { MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import { criteriaSchema } from "@repo/conditions/spots/criteria";
 
@@ -231,7 +233,12 @@ export const spotsRouter = {
       summary: "When a spot works: forecast and tide hour by hour, checked against its criteria",
       tags: ["Spots"],
     })
-    .input(z.object({ id: z.string(), days: z.coerce.number().int().min(1).max(7).default(3) }))
+    .input(
+      z.object({
+        id: z.string(),
+        days: z.coerce.number().int().min(1).max(MAX_FORECAST_DAYS).default(3),
+      }),
+    )
     .output(
       z.object({
         // The periods during which every criterion is met.
@@ -256,6 +263,10 @@ export const spotsRouter = {
           attribution: z.string(),
           license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
         }),
+        // When the instance fetched the forecast, and whether it is an older one, given because
+        // the provider could not be asked.
+        forecastFetchedAt: z.date(),
+        forecastStale: z.boolean(),
         // Null when no tide station is close enough. Tide criteria are then never met.
         tideStation: z
           .object({
@@ -277,14 +288,11 @@ export const spotsRouter = {
         throw notFound(input.id);
       }
 
-      const result = await Effect.runPromise(Effect.result(assessSpot(row, input.days)));
-      if (Result.isFailure(result)) {
-        console.error(result.failure);
-        throw new ORPCError("SERVICE_UNAVAILABLE", {
-          message: "The forecast provider did not answer. Try again in a moment.",
-        });
-      }
-      if (!result.success) {
+      const result = await Effect.runPromise(
+        Effect.result(assessSpot(context.forecasts, row, input.days)),
+      );
+      if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
+      if (!result.success.hasSea) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this spot." });
       }
       return result.success;

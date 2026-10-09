@@ -2,7 +2,7 @@
 
 Status: decided by Téo on 2026-10-09. It amends decision 019 on four points, named below.
 
-Not built: a console where a developer reads their own keys and calls, a limit on what an account calls with its session, a limit on calls made with a key that no longer works, and a budget of calls to the forecast provider. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
+Not built: a console where a developer reads their own keys and calls, a limit on what an account calls with its session, and a limit on calls made with a key that no longer works. The budget of calls to the forecast provider came with decision 023. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
 
 ## Context
 

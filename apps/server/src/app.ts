@@ -3,6 +3,7 @@ import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import type { Context } from "@repo/api/context";
 import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { appRouter, v1Router } from "@repo/api/routers/index";
 import type { Usage } from "@repo/api/usage";
@@ -19,6 +20,8 @@ type Services = {
   auth: ReturnType<typeof createAuth>;
   // Where the calls are counted.
   usage: Usage;
+  // Where the forecasts are kept, and their requests counted.
+  forecasts: Context["forecasts"];
   // When the process started. Without it, when this app was made.
   startedAt?: Date;
 };
@@ -40,7 +43,7 @@ function logFault(error: unknown) {
 }
 
 /** The API as a Hono app: every route, and nothing that listens. */
-export function createApp({ env, db, auth, usage, startedAt = new Date() }: Services) {
+export function createApp({ env, db, auth, usage, forecasts, startedAt = new Date() }: Services) {
   const app = new Hono();
 
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
@@ -143,6 +146,7 @@ export function createApp({ env, db, auth, usage, startedAt = new Date() }: Serv
       site: siteOf(request),
       adminSites,
       usage,
+      forecasts,
       server: { startedAt, webOrigin },
     };
 

@@ -24,4 +24,5 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [020. An admin app, developer accounts, and counted calls](020-admin-and-developer-accounts.md)
 - [021. Stages of the web app, and its pre-production](021-web-stages.md)
 - [022. The state of an instance](022-instance-state.md)
+- [023. Forecasts kept in the database, and a budget of calls to their provider](023-forecasts-kept.md)
 - [024. One catalogue of breaks, filled once](024-one-catalogue-of-breaks.md)
