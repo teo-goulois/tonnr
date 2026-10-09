@@ -52,7 +52,8 @@ export const accountRouter = {
       summary: "Send the caller the mail that checks its address, again",
       description:
         "Takes a signed-in session. The mail holds a link, good for a day, which marks the " +
-        "address as checked and opens the web app at `/verified`. It signs no one in. The " +
+        "address as checked and opens the web app at `/verified`, or at `/fr/verified` for a " +
+        "mail in French. It signs no one in. The " +
         "answer is 409 when the address is already checked, 429 with `Retry-After` when the " +
         "account has had its mails for the hour or the day, and 503 when the instance sends " +
         "no mail, has sent its mails for the day, or its provider did not take this one: the " +

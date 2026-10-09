@@ -83,7 +83,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account and its address", () => {
     });
   });
 
-  it("is sent the mail again, in the language it names, with a link that ends on the web app", async () => {
+  it("is sent the mail again, in the language it names, with a link that ends on the web app in that language", async () => {
     const mail = testVerification(database.db);
 
     expect(await ask("ana", mail, { locale: "fr" })).toMatchObject({ answer: { sent: true } });
@@ -94,11 +94,13 @@ describe.skipIf(!TEST_DATABASE_URL)("an account and its address", () => {
     expect(sent?.subject).toContain("Vérifie ton adresse");
     const link = new URL(mail.link() ?? "");
     expect(`${link.origin}${link.pathname}`).toBe("http://localhost:3000/api/auth/verify-email");
-    expect(link.searchParams.get("callbackURL")).toBe("http://localhost:3001/verified");
+    expect(link.searchParams.get("callbackURL")).toBe("http://localhost:3001/fr/verified");
     expect(link.searchParams.get("token")).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
 
     await ask("ben", mail);
     expect(mail.sent()[1]?.subject).toContain("Check your address");
+    const english = new URL(mail.link() ?? "");
+    expect(english.searchParams.get("callbackURL")).toBe("http://localhost:3001/verified");
   });
 
   it("gets no link to a page on an instance that has no web app", async () => {

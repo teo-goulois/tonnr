@@ -776,6 +776,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const body = { email: "ana@example.org", password };
       await send("POST", "/api/auth/sign-in/email", { origin: APP, body }, mailing.app);
       expect(mailing.sent()).toHaveLength(1);
+      // The link ends on the page in the language of its mail.
+      const followed = await send("GET", pathOf(mailing.link()), {}, mailing.app);
+      expect(followed.headers.get("Location")).toBe(`${APP}/fr/verified`);
     });
 
     it("marks the address as checked when the link is followed, signs no one in, and ends on the web app", async () => {

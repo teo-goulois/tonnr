@@ -45,12 +45,16 @@ export function createVerification(
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
   const apiOrigin = new URL(env.BETTER_AUTH_URL).origin;
 
-  // The link opens the API, which sends the browser on to the web app. An instance with no web
-  // app has no page to end on: the API's own answer ends the link.
-  const linkOf = (token: string) => {
+  // The link opens the API, which sends the browser on to the web app, to the page in the
+  // language of the mail: French lives under `/fr` there. An instance with no web app has no
+  // page to end on: the API's own answer ends the link.
+  const linkOf = (token: string, locale: Locale) => {
     const link = new URL("/api/auth/verify-email", apiOrigin);
     link.searchParams.set("token", token);
-    if (webOrigin !== apiOrigin) link.searchParams.set("callbackURL", `${webOrigin}/verified`);
+    if (webOrigin !== apiOrigin) {
+      const page = locale === "fr" ? "/fr/verified" : "/verified";
+      link.searchParams.set("callbackURL", `${webOrigin}${page}`);
+    }
     return link.href;
   };
   // The account's own counts, then the instance's: one mail is counted in all of them or in
@@ -86,7 +90,7 @@ export function createVerification(
         undefined,
         VERIFICATION_SECONDS,
       ));
-    const outcome = await mailer.send(verificationMail(user.email, linkOf(made), locale));
+    const outcome = await mailer.send(verificationMail(user.email, linkOf(made, locale), locale));
     return outcome === "accepted" ? { sent: true } : { sent: false, why: "failed" };
   }
 

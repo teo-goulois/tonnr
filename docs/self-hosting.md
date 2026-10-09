@@ -268,7 +268,7 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 | `EMAIL_DAILY_LIMIT` | Optional. How many mails the instance lets out in a day. 200 without it.                                                                 |
 
 - The address in `EMAIL_FROM` must be one your provider lets you send from. Set up SPF and DKIM for its domain as the provider says, or the mails end in the spam folder.
-- The link in the mail opens the API, which sends the browser on to the web app at `/verified`. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two.
+- The link in the mail opens the API, which sends the browser on to the web app at `/verified`, or at `/fr/verified` for a mail in French. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two.
 - Your provider learns the address of everyone who signs up, when, and the mail itself, link included. Turn off what it offers to track: opened mails and followed links. A provider that tracks links rewrites them, and keeps them.
 - The instance counts its mails and stops at the day's limit. An account is sent three mails an hour at most, and five a day. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
