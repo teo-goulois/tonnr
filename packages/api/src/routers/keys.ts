@@ -1,9 +1,9 @@
 import { ORPCError } from "@orpc/server";
-import { apiKey, operator } from "@repo/db/schema/access";
+import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
-import { operatorProcedure } from "../index";
+import { adminProcedure } from "../index";
 import { newKey } from "../keys";
 import { hasControlCharacter } from "../text";
 
@@ -12,8 +12,10 @@ const keySchema = z.object({
   name: z.string(),
   // The key's first characters. The key itself is given once, when it is made.
   prefix: z.string(),
+  // The developer account the key belongs to. Null only for a key made before there were any.
+  developerId: z.string().nullable(),
   createdAt: z.date(),
-  // To the minute. Null until the key is used.
+  // The minute of its last call while it worked, up to thirty seconds late. Null until then.
   lastUsedAt: z.date().nullable(),
   // A revoked key no longer works, and stays in the list.
   revokedAt: z.date().nullable(),
@@ -23,39 +25,41 @@ const described = {
   id: apiKey.id,
   name: apiKey.name,
   prefix: apiKey.prefix,
+  developerId: apiKey.developerId,
   createdAt: apiKey.createdAt,
   lastUsedAt: apiKey.lastUsedAt,
   revokedAt: apiKey.revokedAt,
 };
 
 const SESSION_ONLY =
-  "Takes the signed-in session of an operator of the instance. A key cannot make, list or " +
-  "revoke keys.";
+  "Takes the signed-in session of an operator of the instance, in a request that names the " +
+  "admin's site in `Origin`. A key cannot make, list or revoke keys.";
 
 export const keysRouter = {
-  list: operatorProcedure
+  list: adminProcedure
     .route({
       method: "GET",
       path: "/keys",
-      summary: "The API keys the caller made, the newest first",
-      description: SESSION_ONLY,
+      summary: "The API keys of the instance, or of one developer account, the newest first",
+      description: `${SESSION_ONLY} The keys are the instance's: every operator lists them all.`,
       tags: ["Keys"],
     })
+    .input(z.object({ developerId: z.uuid().optional() }))
     .output(z.object({ keys: z.array(keySchema) }))
-    .handler(async ({ context }) => {
+    .handler(async ({ input, context }) => {
       const keys = await context.db
         .select(described)
         .from(apiKey)
-        .where(eq(apiKey.userId, context.session.user.id))
+        .where(input.developerId ? eq(apiKey.developerId, input.developerId) : undefined)
         .orderBy(desc(apiKey.createdAt), desc(apiKey.id));
       return { keys };
     }),
 
-  create: operatorProcedure
+  create: adminProcedure
     .route({
       method: "POST",
       path: "/keys",
-      summary: "Make an API key",
+      summary: "Make an API key for a developer account",
       description:
         `${SESSION_ONLY} The answer holds the key, and nothing gives it again: the instance ` +
         "keeps only its hash. A program sends it as `Authorization: Bearer <key>`, and reads " +
@@ -71,6 +75,8 @@ export const keysRouter = {
           .min(1)
           .max(80)
           .refine((name) => !hasControlCharacter(name), "must not contain control characters"),
+        // The developer account the key belongs to, for good.
+        developerId: z.uuid(),
       }),
     )
     .output(keySchema.extend({ key: z.string() }))
@@ -88,9 +94,28 @@ export const keysRouter = {
           .for("share");
         if (!held) throw new ORPCError("FORBIDDEN");
 
+        // The same for the account the key goes to: it is not deleted under the key.
+        const [owner] = await tx
+          .select({ id: developer.id })
+          .from(developer)
+          .where(eq(developer.id, input.developerId))
+          .for("share");
+        if (!owner) {
+          throw new ORPCError("NOT_FOUND", {
+            message: `No developer account "${input.developerId}".`,
+          });
+        }
+
         const [row] = await tx
           .insert(apiKey)
-          .values({ id: crypto.randomUUID(), userId, name: input.name, prefix, keyHash })
+          .values({
+            id: crypto.randomUUID(),
+            userId,
+            developerId: owner.id,
+            name: input.name,
+            prefix,
+            keyHash,
+          })
           .returning(described);
         return row;
       });
@@ -98,11 +123,11 @@ export const keysRouter = {
       return { ...made, key };
     }),
 
-  revoke: operatorProcedure
+  revoke: adminProcedure
     .route({
       method: "DELETE",
       path: "/keys/{id}",
-      summary: "Revoke an API key the caller made",
+      summary: "Revoke an API key",
       description: `${SESSION_ONLY} A revoked key stops working at once, and never works again.`,
       tags: ["Keys"],
     })
@@ -112,13 +137,7 @@ export const keysRouter = {
       const [revoked] = await context.db
         .update(apiKey)
         .set({ revokedAt: new Date() })
-        .where(
-          and(
-            eq(apiKey.id, input.id),
-            eq(apiKey.userId, context.session.user.id),
-            isNull(apiKey.revokedAt),
-          ),
-        )
+        .where(and(eq(apiKey.id, input.id), isNull(apiKey.revokedAt)))
         .returning(described);
       if (!revoked)
         throw new ORPCError("NOT_FOUND", { message: `No key "${input.id}" to revoke.` });

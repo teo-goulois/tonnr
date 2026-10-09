@@ -8,6 +8,8 @@ export type AuthConfig = {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   CORS_ORIGIN: string;
+  // The admin app's address, when the instance has one. It signs in as the web app does.
+  ADMIN_ORIGIN?: string | undefined;
 };
 
 export function createAuth(
@@ -21,7 +23,11 @@ export function createAuth(
       provider: "pg",
       schema,
     }),
-    trustedOrigins: [env.CORS_ORIGIN, ...desktopOrigins],
+    trustedOrigins: [
+      env.CORS_ORIGIN,
+      ...(env.ADMIN_ORIGIN ? [env.ADMIN_ORIGIN] : []),
+      ...desktopOrigins,
+    ],
     emailAndPassword: { enabled: true },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,

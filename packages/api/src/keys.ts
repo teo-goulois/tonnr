@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 import type { Database } from "@repo/db";
-import { apiKey, operator } from "@repo/db/schema/access";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { apiKey, developer, developerCalls, operator } from "@repo/db/schema/access";
+import { sql } from "drizzle-orm";
 
 // How every key starts, so that a key is told from another secret at a glance. 32 random bytes
 // follow, written in base64url.
@@ -35,42 +35,82 @@ export function readAuthorization(header: string | null) {
 }
 
 /**
- * Notes that a key was used, to the minute. It is a convenience for whoever lists the keys, so
- * it never holds a caller back: a row that something else is writing is passed over, and a
- * failure is dropped.
+ * What the instance makes of a key it knows. `admitted`: the key works, and its call was added
+ * to what its developer account made this hour. `limited`: the key works, and the account has
+ * used its hour's limit. `dead`: the key is revoked, its account is suspended, or its maker is
+ * no longer an operator.
  */
-async function noteUse(db: Database, id: string) {
+export type KeyState = "admitted" | "limited" | "dead";
+
+/**
+ * Finds a key and lets its call in, in one statement. The call is added to the row of the key's
+ * developer account for this hour, unless the row already holds the account's limit: the
+ * database refuses that addition itself, so the limit holds whatever arrives at once, and
+ * whichever process answers. Null when nobody made the key.
+ *
+ * A key without a developer account is one that the version before decision 020 made. It works
+ * by the rules it was made under, and nothing counts its calls here.
+ */
+export async function admitKey(db: Database, key: string) {
   try {
-    const due = db
-      .select({ id: apiKey.id })
-      .from(apiKey)
-      .where(
-        and(
-          eq(apiKey.id, id),
-          sql`(${apiKey.lastUsedAt} is null or ${apiKey.lastUsedAt} < now() - interval '1 minute')`,
-        ),
-      )
-      .for("update", { skipLocked: true });
-    await db
-      .update(apiKey)
-      .set({ lastUsedAt: sql`now()` })
-      .where(inArray(apiKey.id, due));
-  } catch {
-    // The key works whether or not its use was noted.
+    return await admit(db, key);
+  } catch (error) {
+    // The key's developer account was deleted between the moment the key was found and the
+    // moment its call was counted. The key went with it: nobody holds this key any more.
+    if (isGoneDeveloper(error)) return null;
+    throw error;
   }
 }
 
-/**
- * The key's id when the key works: it is not revoked, and whoever made it is still an operator.
- */
-export async function findWorkingKey(db: Database, key: string) {
-  const [found] = await db
-    .select({ id: apiKey.id })
-    .from(apiKey)
-    .innerJoin(operator, eq(operator.userId, apiKey.userId))
-    .where(and(eq(apiKey.keyHash, hashKey(key)), isNull(apiKey.revokedAt)));
+// What the database says when a row of `developer_calls` names a developer account that is gone.
+const GONE_DEVELOPER = "developer_calls_developer_id_developer_id_fkey";
+
+function isGoneDeveloper(error: unknown) {
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (typeof cause !== "object" || cause === null) return false;
+  const { code, constraint } = cause as { code?: unknown; constraint?: unknown };
+  return code === "23503" && constraint === GONE_DEVELOPER;
+}
+
+async function admit(db: Database, key: string) {
+  const limit = sql`(select calls_per_hour from named)`;
+  const { rows } = await db.execute<{
+    id: string;
+    works: boolean;
+    counted: boolean;
+    let_in: boolean;
+  }>(sql`
+    with named as (
+      select
+        ${apiKey.id},
+        ${apiKey.developerId},
+        ${developer.callsPerHour},
+        (${apiKey.revokedAt} is null and ${developer.suspendedAt} is null
+          and ${operator.userId} is not null) as works
+      from ${apiKey}
+      left join ${developer} on ${developer.id} = ${apiKey.developerId}
+      left join ${operator} on ${operator.userId} = ${apiKey.userId}
+      where ${apiKey.keyHash} = ${hashKey(key)}
+    ), let_in as (
+      insert into ${developerCalls} as counted (hour, developer_id, calls)
+      select date_trunc('hour', now(), 'UTC'), named.developer_id, 1
+      from named
+      where named.works and named.developer_id is not null
+      on conflict (hour, developer_id) do update set calls = counted.calls + 1
+      where ${limit} is null or counted.calls < ${limit}
+      returning 1
+    )
+    select
+      named.id,
+      named.works,
+      named.developer_id is not null as counted,
+      exists (select 1 from let_in) as let_in
+    from named
+  `);
+  const [found] = rows;
   if (!found) return null;
 
-  await noteUse(db, found.id);
-  return found;
+  let state: KeyState = "dead";
+  if (found.works) state = found.let_in || !found.counted ? "admitted" : "limited";
+  return { id: found.id, state };
 }

@@ -2,9 +2,9 @@ import { serve } from "@hono/node-server";
 
 import { createApp } from "./app";
 import { ENV } from "./env.server";
-import { auth, db } from "./services";
+import { auth, db, usage } from "./services";
 
-const app = createApp({ env: ENV, db, auth });
+const app = createApp({ env: ENV, db, auth, usage });
 
 const server = serve(
   {
@@ -28,6 +28,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
       process.exit(1);
     }, 5000).unref();
     server.close(async () => {
+      // The requests are answered: what they counted is written before the database is left.
+      await usage.stop();
       await db.$client.end();
       process.exit(0);
     });

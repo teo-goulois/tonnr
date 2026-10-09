@@ -15,6 +15,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - A user keeps buoys and wind stations as favorites and sorts them into lists. Decision 017 gives the model.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
 - An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, or a program with a key that the operator gave it.
+- Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, and the accounts that signed up. Decision 020 covers it.
 
 Tonnr lives at `tonnr.app`. Decision 013 records the name.
 

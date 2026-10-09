@@ -1,8 +1,11 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { nameProcedures } from "../procedures";
 import { accountRouter } from "./account";
+import { accountsRouter } from "./accounts";
 import { breaksRouter } from "./breaks";
+import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
 import { keysRouter } from "./keys";
 import { listsRouter } from "./lists";
@@ -13,12 +16,16 @@ import { privateBreaksRouter } from "./private-breaks";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
 import { tidesRouter } from "./tides";
+import { usageRouter } from "./usage";
 
 // The API, version 1. Once released it only grows: a breaking change goes in a new version.
-// Every procedure asks who calls: decision 019 says which take a key and which a session.
+// Every procedure asks who calls: decision 019 says which take a key and which a session, and
+// decision 020 which take the admin's site as well.
 export const v1Router = {
   account: accountRouter,
+  accounts: accountsRouter,
   breaks: breaksRouter,
+  developers: developersRouter,
   forecasts: forecastsRouter,
   keys: keysRouter,
   lists: listsRouter,
@@ -28,6 +35,7 @@ export const v1Router = {
   spots: spotsRouter,
   stations: stationsRouter,
   tides: tidesRouter,
+  usage: usageRouter,
 };
 
 export const appRouter = {
@@ -43,5 +51,8 @@ export const appRouter = {
     };
   }),
 };
+// A call is counted under its procedure's name.
+nameProcedures(appRouter);
+
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

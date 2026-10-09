@@ -1,6 +1,6 @@
 import { call, isLazy, isProcedure, lazy, unlazy } from "@orpc/server";
 import type { Session } from "@repo/auth";
-import { apiKey, operator } from "@repo/db/schema/access";
+import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { privateBreak, privateBreakImport } from "@repo/db/schema/private-breaks";
 import { spot, surfBreak } from "@repo/db/schema/spots";
@@ -10,10 +10,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Context } from "./context";
 import { publicProcedure } from "./index";
+import { procedureName } from "./procedures";
 import { appRouter, v1Router } from "./routers/index";
+import { createUsage, type Usage } from "./usage";
 
 const KEY = /^key_[A-Za-z0-9_-]{43}$/;
 const AT = new Date("2026-10-09T08:00:00Z");
+// Where a request says it comes from: the admin app, the web app, or the API's own pages.
+const ADMIN = "https://admin.example.org";
+const WEB = "https://app.example.org";
 
 type Named = [name: string, procedure: never];
 
@@ -52,14 +57,49 @@ const takesASession = everyProcedure.filter(
   ([name]) => name !== "healthCheck" && !ANSWERS_A_KEY.includes(name),
 );
 
+// The procedures any account may call with its session: what the account owns.
+const ANSWERS_AN_ACCOUNT = [
+  "preferences.getShortcuts",
+  "preferences.saveShortcuts",
+  "privateData",
+  "v1.account.get",
+  "v1.lists.addStation",
+  "v1.lists.create",
+  "v1.lists.delete",
+  "v1.lists.list",
+  "v1.lists.removeStation",
+  "v1.lists.update",
+  "v1.notifications.list",
+  "v1.notifications.markRead",
+  "v1.spots.create",
+  "v1.spots.delete",
+  "v1.spots.list",
+  "v1.spots.update",
+];
+// The procedures that take an operator's session, from the web app as well: what the instance
+// keeps to its operator.
+const ANSWERS_AN_OPERATOR = ["v1.privateBreaks.get", "v1.privateBreaks.list"];
+// Every other procedure runs the instance, and takes an operator's session from the admin's
+// site. None is named: a procedure added later is held to that until someone names it above.
+const named = ["healthCheck", ...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT, ...ANSWERS_AN_OPERATOR];
+const runsTheInstance = everyProcedure.filter(([name]) => !named.includes(name));
+const keptFromAnAccount = everyProcedure.filter(
+  ([name]) => name !== "healthCheck" && ![...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT].includes(name),
+);
+// What a procedure does with a caller it accepts and no input: it answers, or refuses the input.
+const PAST_THE_DOOR = ["answered", "BAD_REQUEST", "NOT_FOUND"];
+
 const wait = (milliseconds: number) =>
   new Promise<"waiting">((resolve) => setTimeout(() => resolve("waiting"), milliseconds));
 
 describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
+  let usage: Usage;
 
   beforeAll(async () => {
     database = await createTestDatabase();
+    // Counted in memory, and written only when a test asks.
+    usage = createUsage(database.db, { every: null });
   });
   afterAll(() => database?.drop());
   beforeEach(async () => {
@@ -67,6 +107,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     await db.delete(privateBreak);
     await db.delete(privateBreakImport);
     await db.delete(surfBreak);
+    // Their keys and their counts go with the developer accounts.
+    await db.delete(developer);
     // Their spots, keys and operator rows go with the accounts.
     await db.delete(user);
     await db.insert(user).values([
@@ -87,18 +129,32 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       session: { ...session, ...dates, ipAddress: null, userAgent: null },
     } as Session;
   }
-  const context = (by: { session?: string; authorization?: string } = {}): Context => ({
+  // A request comes from the admin's site unless a test says otherwise.
+  type By = { session?: string; authorization?: string; site?: string | null };
+  const context = (by: By = {}): Context => ({
     db: database.db,
     session: by.session ? sessionOf(by.session) : null,
     authorization: by.authorization ?? null,
+    site: by.site === undefined ? ADMIN : by.site,
+    adminSites: [ADMIN],
+    usage,
   });
-  const bySession = (id: string) => ({ context: context({ session: id }) });
+  const bySession = (id: string, site?: string | null) => ({
+    context: context({ session: id, site }),
+  });
   const byKey = (key: string) => ({ context: context({ authorization: `Bearer ${key}` }) });
   // Made when a test runs: the database is not there before.
   const anonymous = () => ({ context: context() });
 
-  const makeKey = (by = "owner", name = "a program") =>
-    call(v1Router.keys.create, { name }, bySession(by));
+  const makeDeveloper = (name = "a developer", callsPerHour: number | null = null) =>
+    call(v1Router.developers.create, { name, callsPerHour }, bySession("owner"));
+  // A key of a developer account made for it, unless the test names one.
+  const makeKey = async (by = "owner", name = "a program", developerId?: string) =>
+    call(
+      v1Router.keys.create,
+      { name, developerId: developerId ?? (await makeDeveloper()).id },
+      bySession(by),
+    );
   const stations = (options: { context: Context }) => call(v1Router.stations.list, {}, options);
   const refusal = (code: string) => expect.objectContaining({ code });
 
@@ -155,6 +211,109 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     });
   });
 
+  describe("with the session of an account that is no operator", () => {
+    it.each(everyProcedure.filter(([name]) => ANSWERS_AN_ACCOUNT.includes(name)))(
+      "gets past the door of %s, from the web app",
+      async (_, procedure) => {
+        const outcome = await call(procedure, undefined as never, bySession("visitor", WEB)).then(
+          () => "answered",
+          (error: { code?: string }) => error.code,
+        );
+        expect(PAST_THE_DOOR).toContain(outcome);
+      },
+    );
+
+    it.each(keptFromAnAccount)("is refused %s, from the admin's site too", async (_, procedure) => {
+      for (const site of [ADMIN, WEB]) {
+        await expect(
+          call(procedure, undefined as never, bySession("visitor", site)),
+        ).rejects.toEqual(refusal("FORBIDDEN"));
+      }
+    });
+
+    it("is named for every procedure it may call", () => {
+      const all = [...ANSWERS_AN_ACCOUNT, ...ANSWERS_AN_OPERATOR];
+      expect(all.filter((name) => !everyName.includes(name))).toEqual([]);
+    });
+  });
+
+  describe("with the session of an operator", () => {
+    it.each(everyProcedure.filter(([name]) => ANSWERS_AN_OPERATOR.includes(name)))(
+      "gets past the door of %s, from the web app",
+      async (_, procedure) => {
+        const outcome = await call(procedure, undefined as never, bySession("owner", WEB)).then(
+          () => "answered",
+          (error: { code?: string }) => error.code,
+        );
+        expect(PAST_THE_DOOR).toContain(outcome);
+      },
+    );
+
+    it("finds what runs the instance, and nothing that a later change left unnamed by mistake", () => {
+      expect(runsTheInstance.map(([name]) => name)).toEqual([
+        "v1.accounts.list",
+        "v1.developers.list",
+        "v1.developers.create",
+        "v1.developers.update",
+        "v1.developers.delete",
+        "v1.keys.list",
+        "v1.keys.create",
+        "v1.keys.revoke",
+        "v1.usage.series",
+        "v1.usage.breakdown",
+      ]);
+    });
+
+    it.each(runsTheInstance)(
+      "gets past the door of %s from the admin's site",
+      async (_, procedure) => {
+        const outcome = await call(procedure, undefined as never, bySession("owner", ADMIN)).then(
+          () => "answered",
+          (error: { code?: string }) => error.code,
+        );
+        expect(PAST_THE_DOOR).toContain(outcome);
+      },
+    );
+
+    it.each(runsTheInstance)(
+      "is refused %s from the web app, from a site it does not know, and from none",
+      async (_, procedure) => {
+        // `null` in words is what a page without an origin of its own sends.
+        for (const site of [WEB, "https://elsewhere.example", "null", `${ADMIN}.example`, null]) {
+          await expect(
+            call(procedure, undefined as never, bySession("owner", site)),
+          ).rejects.toEqual(refusal("FORBIDDEN"));
+        }
+      },
+    );
+
+    it("makes nothing and changes nothing from the web app", async () => {
+      const made = await makeDeveloper();
+      const fromWeb = bySession("owner", WEB);
+
+      await expect(
+        call(v1Router.keys.create, { name: "mine", developerId: made.id }, fromWeb),
+      ).rejects.toEqual(refusal("FORBIDDEN"));
+      await expect(
+        call(v1Router.developers.update, { id: made.id, suspended: true }, fromWeb),
+      ).rejects.toEqual(refusal("FORBIDDEN"));
+      await expect(call(v1Router.developers.delete, { id: made.id }, fromWeb)).rejects.toEqual(
+        refusal("FORBIDDEN"),
+      );
+
+      expect(await database.db.select().from(apiKey)).toEqual([]);
+      expect(await database.db.select().from(developer)).toMatchObject([
+        { id: made.id, suspendedAt: null },
+      ]);
+    });
+  });
+
+  describe("a procedure's name", () => {
+    it("is its place in the router, for every procedure", () => {
+      for (const [name, procedure] of everyProcedure) expect(procedureName(procedure)).toBe(name);
+    });
+  });
+
   describe("with a key", () => {
     it("answers with the data everyone shares", async () => {
       const { key } = await makeKey();
@@ -195,7 +354,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       const { key } = await makeKey();
       const both = { context: context({ session: "owner", authorization: `Bearer ${key}` }) };
 
-      await expect(call(v1Router.keys.list, undefined, both)).rejects.toEqual(refusal("FORBIDDEN"));
+      await expect(call(v1Router.keys.list, {}, both)).rejects.toEqual(refusal("FORBIDDEN"));
       await expect(call(v1Router.privateBreaks.list, {}, both)).rejects.toEqual(
         refusal("FORBIDDEN"),
       );
@@ -285,64 +444,6 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       await expect(stations(byKey(key))).rejects.toEqual(refusal("UNAUTHORIZED"));
       expect(await database.db.select().from(apiKey)).toEqual([]);
     });
-
-    it("answers while something else writes its row, and leaves the use unnoted", async () => {
-      const made = await makeKey();
-      const held = Promise.withResolvers<void>();
-      const release = Promise.withResolvers<void>();
-      const writing = database.db.transaction(async (tx) => {
-        await tx.select().from(apiKey).where(eq(apiKey.id, made.id)).for("update");
-        held.resolve();
-        await release.promise;
-      });
-      await held.promise;
-
-      const answer = await Promise.race([stations(byKey(made.key)), wait(2000)]);
-      release.resolve();
-      await writing;
-
-      expect(answer).toEqual({ stations: [] });
-      const [row] = await database.db.select().from(apiKey).where(eq(apiKey.id, made.id));
-      expect(row?.lastUsedAt).toBeNull();
-    });
-
-    it("answers when its use cannot be noted at all", async () => {
-      const { key } = await makeKey();
-      // A database that takes no write, as a read-only copy would.
-      const db = new Proxy(database.db, {
-        get(target, property) {
-          if (property !== "update") return Reflect.get(target, property);
-          return () => {
-            throw new Error("This database takes no write");
-          };
-        },
-      });
-
-      expect(await stations({ context: { ...byKey(key).context, db } })).toEqual({ stations: [] });
-    });
-
-    it("notes its use to the minute, and no more often", async () => {
-      const made = await makeKey();
-      const used = async () => {
-        const [row] = await database.db.select().from(apiKey).where(eq(apiKey.id, made.id));
-        return row?.lastUsedAt ?? null;
-      };
-      expect(await used()).toBeNull();
-
-      await stations(byKey(made.key));
-      const first = await used();
-      expect(first).toBeInstanceOf(Date);
-
-      await stations(byKey(made.key));
-      expect(await used()).toEqual(first);
-
-      await database.db
-        .update(apiKey)
-        .set({ lastUsedAt: new Date("2026-10-09T07:00:00Z") })
-        .where(eq(apiKey.id, made.id));
-      await stations(byKey(made.key));
-      expect((await used())?.getTime()).toBeGreaterThan(AT.getTime());
-    });
   });
 
   describe("the keys", () => {
@@ -353,13 +454,19 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         id: expect.any(String),
         name: "the tide clock",
         prefix: made.key.slice(0, 8),
+        developerId: expect.any(String),
         key: expect.stringMatching(KEY),
         createdAt: expect.any(Date),
         lastUsedAt: null,
         revokedAt: null,
       });
       const [stored] = await database.db.select().from(apiKey);
-      expect(stored).toMatchObject({ id: made.id, userId: "owner", prefix: made.prefix });
+      expect(stored).toMatchObject({
+        id: made.id,
+        userId: "owner",
+        developerId: made.developerId,
+        prefix: made.prefix,
+      });
       expect(stored?.keyHash).toMatch(/^[0-9a-f]{64}$/);
       expect(JSON.stringify(stored)).not.toContain(made.key);
       expect(JSON.stringify(stored)).not.toContain(made.key.slice(8));
@@ -390,10 +497,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     });
 
     it("refuses a name with a character that is not one", async () => {
+      const { id: developerId } = await makeDeveloper();
       for (const name of ["bad\u0000name", "two\nlines", "bell\u0007"]) {
-        await expect(call(v1Router.keys.create, { name }, bySession("owner"))).rejects.toEqual(
-          refusal("BAD_REQUEST"),
-        );
+        await expect(
+          call(v1Router.keys.create, { name, developerId }, bySession("owner")),
+        ).rejects.toEqual(refusal("BAD_REQUEST"));
       }
     });
 
@@ -403,33 +511,63 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       expect(new Set(keys.map((made) => made.key)).size).toBe(3);
     });
 
-    it("lists to an operator the keys they made, without the keys", async () => {
+    it("lists to an operator the keys of the instance, another operator's too, without the keys", async () => {
       const first = await makeKey("owner", "first");
       const second = await makeKey("owner", "second");
       await makeKey("second", "someone else's");
 
-      const { keys } = await call(v1Router.keys.list, undefined, bySession("owner"));
+      const { keys } = await call(v1Router.keys.list, {}, bySession("owner"));
 
-      expect(keys.map((key) => key.name).sort()).toEqual(["first", "second"]);
+      expect(keys.map((key) => key.name).sort()).toEqual(["first", "second", "someone else's"]);
       expect(JSON.stringify(keys)).not.toContain(first.key);
       expect(JSON.stringify(keys)).not.toContain(second.key.slice(8));
     });
 
-    it("lets an operator revoke only the keys they made", async () => {
+    it("lists the keys of one developer account", async () => {
+      const first = await makeKey("owner", "first");
+      await makeKey("owner", "of another account");
+      await makeKey("second", "second", first.developerId ?? undefined);
+
+      const { keys } = await call(
+        v1Router.keys.list,
+        { developerId: first.developerId ?? undefined },
+        bySession("owner"),
+      );
+
+      expect(keys.map((key) => key.name).sort()).toEqual(["first", "second"]);
+    });
+
+    it("lets an operator revoke a key another operator made", async () => {
       const theirs = await makeKey("second");
 
-      await expect(
-        call(v1Router.keys.revoke, { id: theirs.id }, bySession("owner")),
-      ).rejects.toEqual(refusal("NOT_FOUND"));
-      expect(await stations(byKey(theirs.key))).toEqual({ stations: [] });
+      const revoked = await call(v1Router.keys.revoke, { id: theirs.id }, bySession("owner"));
 
-      const revoked = await call(v1Router.keys.revoke, { id: theirs.id }, bySession("second"));
       expect(revoked).toMatchObject({ id: theirs.id, revokedAt: expect.any(Date) });
+      await expect(stations(byKey(theirs.key))).rejects.toEqual(refusal("UNAUTHORIZED"));
+    });
+
+    it("makes no key for a developer account that does not exist", async () => {
+      await expect(
+        call(
+          v1Router.keys.create,
+          { name: "mine", developerId: crypto.randomUUID() },
+          bySession("owner"),
+        ),
+      ).rejects.toEqual(refusal("NOT_FOUND"));
+      expect(await database.db.select().from(apiKey)).toEqual([]);
     });
 
     it.each([
-      ["making one", () => call(v1Router.keys.create, { name: "mine" }, bySession("visitor"))],
-      ["listing them", () => call(v1Router.keys.list, undefined, bySession("visitor"))],
+      [
+        "making one",
+        () =>
+          call(
+            v1Router.keys.create,
+            { name: "mine", developerId: crypto.randomUUID() },
+            bySession("visitor"),
+          ),
+      ],
+      ["listing them", () => call(v1Router.keys.list, {}, bySession("visitor"))],
       [
         "revoking one",
         () => call(v1Router.keys.revoke, { id: crypto.randomUUID() }, bySession("visitor")),
@@ -440,10 +578,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     });
 
     it("refuses a name that is empty or too long", async () => {
+      const { id: developerId } = await makeDeveloper();
       for (const name of ["", "   ", "n".repeat(81)]) {
-        await expect(call(v1Router.keys.create, { name }, bySession("owner"))).rejects.toEqual(
-          refusal("BAD_REQUEST"),
-        );
+        await expect(
+          call(v1Router.keys.create, { name, developerId }, bySession("owner")),
+        ).rejects.toEqual(refusal("BAD_REQUEST"));
       }
     });
   });

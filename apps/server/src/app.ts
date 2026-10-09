@@ -1,10 +1,11 @@
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
+import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { isCrossSiteWrite } from "@repo/api/cross-site";
+import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { appRouter, v1Router } from "@repo/api/routers/index";
+import type { Usage } from "@repo/api/usage";
 import type { createAuth } from "@repo/auth";
 import { APP_NAME } from "@repo/config/app";
 import type { Database } from "@repo/db";
@@ -13,25 +14,56 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 type Services = {
-  env: { BETTER_AUTH_URL: string; CORS_ORIGIN: string };
+  env: { BETTER_AUTH_URL: string; CORS_ORIGIN: string; ADMIN_ORIGIN?: string | undefined };
   db: Database;
   auth: ReturnType<typeof createAuth>;
+  // Where the calls are counted.
+  usage: Usage;
 };
 
 // An answer was given to one caller, so no cache between the API and its callers may keep it.
 const NOT_CACHED = "private, no-store";
 
+const HOUR_SECONDS = 60 * 60;
+
+// The reference's page runs this script at the API's own address, where a signed-in session
+// reaches. The version is named, so that the CDN serves what was read and not whatever is newest.
+const REFERENCE_SCRIPT = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.73.1";
+
+// A procedure that refuses a request has answered it: the request's line in the log says so with
+// its status. The refusal itself is not printed: it holds what the caller sent.
+function logFault(error: unknown) {
+  if (error instanceof ORPCError && error.status < 500) return;
+  console.error(error);
+}
+
 /** The API as a Hono app: every route, and nothing that listens. */
-export function createApp({ env, db, auth }: Services) {
+export function createApp({ env, db, auth, usage }: Services) {
   const app = new Hono();
 
-  app.use(logger());
+  const webOrigin = new URL(env.CORS_ORIGIN).origin;
+  const apiOrigin = new URL(env.BETTER_AUTH_URL).origin;
+  // The site that may run the instance. Decision 020 keeps it apart from the web app's.
+  const adminSites = adminSitesOf(env);
+  // An instance without a web app names the API's own address as CORS_ORIGIN, and then leaves
+  // ADMIN_ORIGIN out: naming it would say that one site is both.
+  if (env.ADMIN_ORIGIN && adminSites.includes(webOrigin)) {
+    throw new Error("ADMIN_ORIGIN must not be the web app's address, CORS_ORIGIN");
+  }
+  // The sites whose pages may call with a visitor's session, and write with it: the web app,
+  // the admin app, and the API's own reference.
+  const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites])];
+
+  // What follows `?` is left out of the log: it holds what a caller searched for.
+  app.use(logger((line, ...rest) => console.log(line.replace(/\?\S*/, ""), ...rest)));
   app.use(
     "/*",
     cors({
-      origin: env.CORS_ORIGIN,
+      // The API's own pages need no leave to call it.
+      origin: [...new Set([webOrigin, ...(env.ADMIN_ORIGIN ? adminSites : [])])],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: ["Content-Type", "Authorization"],
+      exposeHeaders: ["Retry-After"],
       credentials: true,
     }),
   );
@@ -43,6 +75,7 @@ export function createApp({ env, db, auth }: Services) {
       new OpenAPIReferencePlugin({
         schemaConverters: [new ZodToJsonSchemaConverter()],
         docsPath: "/docs",
+        docsScriptUrl: REFERENCE_SCRIPT,
         specPath: "/openapi.json",
         docsTitle: `${APP_NAME} API v1`,
         specGenerateOptions: {
@@ -80,24 +113,10 @@ export function createApp({ env, db, auth }: Services) {
         },
       }),
     ],
-    interceptors: [
-      onError((error) => {
-        console.error(error);
-      }),
-    ],
+    interceptors: [onError(logFault)],
   });
 
-  const rpcHandler = new RPCHandler(appRouter, {
-    interceptors: [
-      onError((error) => {
-        console.error(error);
-      }),
-    ],
-  });
-
-  // The sites whose pages may write with a visitor's session: the web app, and the API's own
-  // reference.
-  const trustedOrigins = [new URL(env.CORS_ORIGIN).origin, new URL(env.BETTER_AUTH_URL).origin];
+  const rpcHandler = new RPCHandler(appRouter, { interceptors: [onError(logFault)] });
 
   app.use("/*", async (c, next) => {
     const isApi = ["/rpc", "/v1"].some((prefix) => c.req.path.startsWith(`${prefix}/`));
@@ -119,21 +138,23 @@ export function createApp({ env, db, auth }: Services) {
       db,
       session: await auth.api.getSession({ headers: c.req.raw.headers }),
       authorization: c.req.header("authorization") ?? null,
+      site: siteOf(request),
+      adminSites,
+      usage,
     };
 
-    const rpcResult = await rpcHandler.handle(c.req.raw, { prefix: "/rpc", context });
-    if (rpcResult.matched) {
-      rpcResult.response.headers.set("Cache-Control", NOT_CACHED);
-      return c.newResponse(rpcResult.response.body, rpcResult.response);
-    }
+    const answered =
+      (await rpcHandler.handle(c.req.raw, { prefix: "/rpc", context })).response ??
+      (await v1Handler.handle(c.req.raw, { prefix: "/v1", context })).response;
+    if (!answered) return next();
 
-    const v1Result = await v1Handler.handle(c.req.raw, { prefix: "/v1", context });
-    if (v1Result.matched) {
-      v1Result.response.headers.set("Cache-Control", NOT_CACHED);
-      return c.newResponse(v1Result.response.body, v1Result.response);
+    answered.headers.set("Cache-Control", NOT_CACHED);
+    // A call over its developer account's limit is taken again when the hour turns.
+    if (answered.status === 429) {
+      const left = HOUR_SECONDS - (Math.floor(Date.now() / 1000) % HOUR_SECONDS);
+      answered.headers.set("Retry-After", String(left));
     }
-
-    await next();
+    return c.newResponse(answered.body, answered);
   });
 
   app.get("/", (c) => {

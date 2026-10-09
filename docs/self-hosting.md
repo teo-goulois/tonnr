@@ -152,13 +152,15 @@ Whoever can query the database reads the list too, and a dump holds it. Keep you
 
 ## Accounts, the operator, and API keys
 
-The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. Anyone else gets 401, the health check and the reference aside. Decision 019 gives the rules.
+The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. Anyone else gets 401, the health check and the reference aside. Decisions 019 and 020 give the rules.
 
 Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet. An account reads the data everyone shares and keeps its own spots and lists.
 
-An operator is an account that runs the instance. It makes the API keys, and it alone reads the private list below. You name the operator from the server, by the account's id. Do it before you give the instance's address to anyone.
+An operator is an account that runs the instance. It creates the developer accounts and makes their keys, sees how much they call, reads the list of the accounts that signed up, and alone reads the private list above. You name the operator from the server, by the account's id. Do it before you give the instance's address to anyone.
 
-Without a web app, with `https://api.example.org` standing for your API's address:
+A developer account is whoever consumes the API with keys: a person, a team, or a program of your own. It is not an account that signs in. You create it, you make its keys, and you hand them over.
+
+Without a web app or an admin app, with `https://api.example.org` standing for your API's address:
 
 ```bash
 # Create your account. The cookie it gets is your session.
@@ -174,10 +176,15 @@ curl --cookie session.txt https://api.example.org/v1/account
 docker compose run --rm worker node dist/cli.mjs operator <account id>
 docker compose run --rm worker node dist/cli.mjs operator <account id> --write
 
-# Make a key. The answer shows it once, and nothing shows it again.
+# Create a developer account, with 100 calls an hour between its keys. The answer gives its id.
 curl --cookie session.txt --header 'Content-Type: application/json' \
   --header 'Origin: https://api.example.org' \
-  --data '{"name":"my script"}' https://api.example.org/v1/keys
+  --data '{"name":"my scripts","callsPerHour":100}' https://api.example.org/v1/developers
+
+# Make it a key. The answer shows the key once, and nothing shows it again.
+curl --cookie session.txt --header 'Content-Type: application/json' \
+  --header 'Origin: https://api.example.org' \
+  --data '{"name":"tide clock","developerId":"<developer id>"}' https://api.example.org/v1/keys
 
 # A program calls with the key.
 curl --header 'Authorization: Bearer <key>' https://api.example.org/v1/stations
@@ -185,12 +192,33 @@ curl --header 'Authorization: Bearer <key>' https://api.example.org/v1/stations
 
 Later, `/api/auth/sign-in/email` takes the same address and password and gives a new session.
 
-The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts: the web app's address, or its own. A browser adds it. A script has to, on sign-up, on sign-in, and on anything that writes with the session.
+The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts. A browser adds it. A script has to, on sign-up, on sign-in, on anything that writes with the session, and on every call to what runs the instance, a read too: the developer accounts, the keys, the counts and the list of accounts.
 
 - A key reads the shared data only. It reads nothing of an account and not the private list, so it can be given to a program.
-- `GET /v1/keys` lists the keys you made, and `DELETE /v1/keys/<id>` revokes one. Both take your session, and the second the `Origin` header.
+- The keys are the instance's: every operator lists them at `GET /v1/keys` and revokes any of them at `DELETE /v1/keys/<id>`. A revoked key never works again.
+- `PATCH /v1/developers/<id>` changes a developer account, and suspends it with `{"suspended":true}`: none of its keys works until it is resumed. `DELETE /v1/developers/<id>` deletes it with its keys and their counts.
+- A developer account's limit is a number of calls in an hour of the clock, UTC's, shared by its keys. A call over it gets 429, with `Retry-After`. Leave `callsPerHour` out for no limit. An account calls with its session without a limit.
+- `GET /v1/usage/series` and `GET /v1/usage/breakdown` give the calls by hour or by day, by developer account, by key and by procedure. The API keeps no address and no record of a call: it counts them, writes the counts every thirty seconds, and deletes them after thirteen months. A key's counts show when its developer account calls and what it asks for.
+- `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
 - `node dist/cli.mjs operator-remove <account id>` takes the operator's rights back, with `--write`, and revokes every key the account made. Those keys never work again.
 - An instance with no operator still serves its accounts. Nobody can make a key, and nobody reads the private list.
+- A key made before the developer accounts was given one named after its maker, when the instance was updated.
+
+### The admin app
+
+`apps/admin` is a web app for all of the above. It is optional, and it is not one of the containers. It goes to Cloudflare as the second app of a stage, beside the web app:
+
+1. Follow "The web app, on Cloudflare" above: the admin is a part of a stage of the web app.
+2. Add `ADMIN_DOMAIN` to the stage's file, `packages/infra/.env.<stage>`: the admin's host name, such as `admin.example.org`.
+3. Update the API to a version that has the admin's procedures, set its `ADMIN_ORIGIN` to `https://` and that host name, and restart it.
+4. Run `pnpm run deploy:admin <stage>`. It works as `pnpm run deploy:web` does, and takes the same `--dry-run` and `--yes`.
+
+To run it on your machine instead, against an API on your machine, set `VITE_SERVER_URL` in `apps/admin/.env` and run `pnpm run dev:admin`: it answers at `http://localhost:3002`, which the API's `ADMIN_ORIGIN` then names.
+
+- The admin signs in with an account's address and password, as the web app does. It creates no account.
+- Its address and the API's must belong to one site, such as `admin.example.org` and `api.example.org`. The session cookie is the API's, and a browser does not send it from a page of another site. An admin on your machine therefore runs an API on your machine. Do not name an address of your machine in the `ADMIN_ORIGIN` of an instance online: whatever runs there would run the instance.
+- Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
+- Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
 
 ## What an instance owes the data providers
 

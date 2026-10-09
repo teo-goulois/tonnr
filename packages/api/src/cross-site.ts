@@ -1,7 +1,7 @@
 const READS = ["GET", "HEAD", "OPTIONS"];
 
 /** The site a request says it comes from, by `Origin` or else by `Referer`. Null when it says none. */
-function siteOf(request: { origin: string | null; referer: string | null }) {
+export function siteOf(request: { origin: string | null; referer: string | null }) {
   if (request.origin !== null) return request.origin;
   if (request.referer !== null && URL.canParse(request.referer)) {
     return new URL(request.referer).origin;
@@ -23,4 +23,21 @@ export function isCrossSiteWrite(
 
   const site = siteOf(request);
   return site === null || !trustedOrigins.includes(site);
+}
+
+/**
+ * Whether a request comes from a site that may run the instance. It has to name one: a request
+ * that names no site is refused, since a page at the API's own address reads the answer to such
+ * a request. A script names the site itself, as it does on a write.
+ */
+export function isFromAdminSite(site: string | null, adminSites: readonly string[]) {
+  return site !== null && adminSites.includes(site);
+}
+
+/**
+ * The sites that may run the instance: the admin app's when the instance names one, and
+ * otherwise the API's own, which is then where its operator's scripts say they come from.
+ */
+export function adminSitesOf(env: { BETTER_AUTH_URL: string; ADMIN_ORIGIN?: string | undefined }) {
+  return [new URL(env.ADMIN_ORIGIN ?? env.BETTER_AUTH_URL).origin];
 }
