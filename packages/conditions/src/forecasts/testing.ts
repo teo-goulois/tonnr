@@ -37,6 +37,9 @@ export function answer(
       windSpeedMetersPerSecond: flat(5),
       windGustMetersPerSecond: flat(8),
       windDirectionDegrees: flat(90),
+      cloudCoverPercent: flat(40),
+      precipitationMillimeters: flat(0),
+      airTemperatureCelsius: flat(16),
     },
   };
 }

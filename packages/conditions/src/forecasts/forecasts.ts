@@ -122,6 +122,9 @@ export function hoursFor(data: ForecastData, asked: Asked, at: number) {
       windSpeedMetersPerSecond: values.windSpeedMetersPerSecond[index] ?? null,
       windGustMetersPerSecond: values.windGustMetersPerSecond[index] ?? null,
       windDirectionDegrees: values.windDirectionDegrees[index] ?? null,
+      cloudCoverPercent: values.cloudCoverPercent[index] ?? null,
+      precipitationMillimeters: values.precipitationMillimeters[index] ?? null,
+      airTemperatureCelsius: values.airTemperatureCelsius[index] ?? null,
     });
   }
   // No wave height at any of the hours asked for: the point has no sea nearby.

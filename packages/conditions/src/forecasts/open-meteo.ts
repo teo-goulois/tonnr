@@ -104,15 +104,19 @@ const marineSchema = z.object({
   hourly: marineHourly.refine(hasOneValuePerHour),
 });
 
+// The wind over the sea, and the weather a surfer dresses for: the sky, the rain, the air.
+const weatherHourly = z.object({
+  time: times,
+  wind_speed_10m: series,
+  wind_gusts_10m: series,
+  wind_direction_10m: series,
+  cloud_cover: series,
+  precipitation: series,
+  temperature_2m: series,
+});
+
 const weatherSchema = z.object({
-  hourly: z
-    .object({
-      time: times,
-      wind_speed_10m: series,
-      wind_gusts_10m: series,
-      wind_direction_10m: series,
-    })
-    .refine(hasOneValuePerHour),
+  hourly: weatherHourly.refine(hasOneValuePerHour),
 });
 
 const columns = z.object({
@@ -130,6 +134,11 @@ const columns = z.object({
   windSpeedMetersPerSecond: series,
   windGustMetersPerSecond: series,
   windDirectionDegrees: series,
+  // The share of the sky under cloud, from 0 to 100.
+  cloudCoverPercent: series,
+  // Rain, showers and snow of the hour before.
+  precipitationMillimeters: series,
+  airTemperatureCelsius: series,
 });
 
 /**
@@ -183,6 +192,9 @@ export function buildForecast(marineJson: unknown, weatherJson: unknown) {
       windSpeedMetersPerSecond: wind.wind_speed_10m,
       windGustMetersPerSecond: wind.wind_gusts_10m,
       windDirectionDegrees: wind.wind_direction_10m,
+      cloudCoverPercent: wind.cloud_cover,
+      precipitationMillimeters: wind.precipitation,
+      airTemperatureCelsius: wind.temperature_2m,
     },
   };
   return data;
@@ -211,7 +223,8 @@ const oneMoreTry = {
 };
 
 /**
- * Asks Open-Meteo for the forecast of a cell: one request for the waves and one for the wind.
+ * Asks Open-Meteo for the forecast of a cell: one request for the waves, and one for the wind
+ * and the weather.
  * `spend` counts a request before it is sent, and fails when the instance may send no more.
  */
 export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) => {
@@ -235,7 +248,9 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
         ),
         ask(
           url(WEATHER_URL, cell, {
-            hourly: "wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+            hourly: Object.keys(weatherHourly.shape)
+              .filter((name) => name !== "time")
+              .join(","),
             wind_speed_unit: "ms",
           }),
         ),

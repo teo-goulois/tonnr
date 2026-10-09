@@ -199,6 +199,9 @@ const SAMPLE_FORECAST: Forecast = {
       windSpeedMetersPerSecond: 6 + 3 * Math.sin(index / 9),
       windGustMetersPerSecond: 10,
       windDirectionDegrees: 250,
+      cloudCoverPercent: 40,
+      precipitationMillimeters: 0,
+      airTemperatureCelsius: 15,
     };
   }),
 };

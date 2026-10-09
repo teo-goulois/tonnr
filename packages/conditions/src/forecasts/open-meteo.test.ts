@@ -41,12 +41,15 @@ function weather(time = times) {
       wind_speed_10m: [14.73, 12.1, null],
       wind_gusts_10m: [16.0, 15.2, null],
       wind_direction_10m: [312, 310, null],
+      cloud_cover: [75, 100, null],
+      precipitation: [0, 0.4, null],
+      temperature_2m: [16.2, 15.8, null],
     },
   };
 }
 
 describe("buildForecast", () => {
-  it("joins waves and wind hour by hour, on the marine model's grid point", () => {
+  it("joins waves, wind and weather hour by hour, on the marine model's grid point", () => {
     const forecast = buildForecast(marine([2.34, 2.48, null]), weather());
     if (forecast instanceof ForecastFormatError) throw forecast;
 
@@ -65,6 +68,9 @@ describe("buildForecast", () => {
       windSpeedMetersPerSecond: [14.73, 12.1, null],
       windGustMetersPerSecond: [16, 15.2, null],
       windDirectionDegrees: [312, 310, null],
+      cloudCoverPercent: [75, 100, null],
+      precipitationMillimeters: [0, 0.4, null],
+      airTemperatureCelsius: [16.2, 15.8, null],
     });
     // What is kept is read back through the same shape.
     expect(forecastData.parse(JSON.parse(JSON.stringify(forecast)))).toEqual(forecast);

@@ -27,7 +27,7 @@ export const forecastsRouter = {
     .route({
       method: "GET",
       path: "/forecasts",
-      summary: "Hourly wave, swell, and wind forecast at a point",
+      summary: "Hourly wave, swell, wind, and weather forecast at a point",
       tags: ["Forecasts"],
     })
     .input(
@@ -77,6 +77,11 @@ export const forecastsRouter = {
             windSpeedMetersPerSecond: measurement,
             windGustMetersPerSecond: measurement,
             windDirectionDegrees: measurement,
+            // The share of the sky under cloud, from 0 to 100.
+            cloudCoverPercent: measurement,
+            // Rain, showers and snow of the hour before.
+            precipitationMillimeters: measurement,
+            airTemperatureCelsius: measurement,
           }),
         ),
       }),
