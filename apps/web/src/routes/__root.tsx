@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import { AppHotkeys } from "@/components/shared/app-hotkeys";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ShortcutSettings } from "@/components/shared/shortcut-settings";
+import { FreshnessPrototypeSwitcher } from "@/components/viewer/freshness-prototype";
 import type { orpc } from "@/utils/orpc";
 
 import { getLocale } from "@/paraglide/runtime.js";
@@ -63,6 +64,7 @@ function RootDocument() {
           <ShortcutSettings />
           <Outlet />
           <Toaster />
+          {import.meta.env.DEV && <FreshnessPrototypeSwitcher />}
         </ThemeProvider>
         <TanStackRouterDevtools position="bottom-left" />
         <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />

@@ -33,6 +33,7 @@ import {
 } from "@/lib/sea-scales";
 
 import { BuoyPill, UserDot, WindBadge } from "./map-markers";
+import { addLandProtocol, LAND_TILE_SIZE, landTiles, spreadSea } from "./sea-tiles";
 
 export type MapStation = {
   id: string;
@@ -126,6 +127,11 @@ const DEFAULT_VIEW = { center: [-2.5, 46.3] as [number, number], zoom: 4.8 };
 const VIEW_STORAGE_KEY = "tonnr:map-view";
 // Sea tiles go through this protocol, which gives each gray level its color.
 const SEA_PROTOCOL = "seatile";
+// The model's cells are about nine kilometres wide, and a tile of this zoom already draws each
+// over several pixels. A closer one says nothing more, and leaves wider gaps along the coast.
+const SEA_MAX_ZOOM = 7;
+// The source of the basemap, whose tiles say where the water is.
+const BASEMAP_SOURCE = "openmaptiles";
 // More markers than this hide the map, and the dots under them still say where the stations are.
 const MAX_MARKERS = 140;
 const BUOY_BOX = { width: 104, height: 32 };
@@ -163,8 +169,9 @@ function addSeaProtocol(maplibre: typeof import("maplibre-gl")) {
     context.drawImage(tile, 0, 0);
     const image = context.getImageData(0, 0, tile.width, tile.height);
     const pixels = image.data;
+    spreadSea(pixels, tile.width, tile.height);
     for (let index = 0; index < pixels.length; index += 4) {
-      // Land is transparent in the tile, and stays so.
+      // A tile with no sea in it is transparent, and stays so.
       if (pixels[index + 3] === 0) continue;
       const color = pixels[index]! * 4;
       pixels[index] = seaColors[color]!;
@@ -450,6 +457,7 @@ export function StationMap({
 
       maplibre.setWorkerUrl(workerUrl);
       addSeaProtocol(maplibre);
+      addLandProtocol(maplibre);
       const instance = new maplibre.Map({
         container: container.current,
         style: STYLE_URLS[loadedTheme.current],
@@ -659,14 +667,40 @@ export function StationMap({
     layout();
   }, [selectedId, styleVersion, layout]);
 
-  // The sea, colored by its wave height, under the names and the roads.
+  // Where the basemap's tiles are, which its style leaves to a second document.
+  const [basemap, setBasemap] = useState<{ tiles: string; maxZoom: number } | null>(null);
+  useEffect(() => {
+    if (styleVersion === 0 || basemap) return;
+    const source = map.current?.getStyle().sources[BASEMAP_SOURCE];
+    if (source?.type !== "vector" || !source.url) return;
+
+    const controller = new AbortController();
+    fetch(source.url, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((description: { tiles?: unknown; maxzoom?: unknown }) => {
+        const tiles = Array.isArray(description.tiles) ? description.tiles[0] : undefined;
+        if (typeof tiles !== "string" || typeof description.maxzoom !== "number") return;
+        setBasemap({ tiles, maxZoom: description.maxzoom });
+      })
+      // Without it the sea stays as the basemap draws it.
+      .catch(() => {});
+    return () => controller.abort();
+  }, [styleVersion, basemap]);
+
+  // The sea, colored by its wave height up to the shore, under the names and the roads. The
+  // colors run under the land, which is drawn again over them, so the coast stays sharp.
   useEffect(() => {
     const instance = map.current;
     if (!instance || styleVersion === 0) return;
 
-    if (!layers.sea || !seaLayer || !seaTime) {
-      if (instance.getLayer("sea")) instance.removeLayer("sea");
-      if (instance.getSource("sea")) instance.removeSource("sea");
+    const land = instance.getPaintProperty("background", "background-color");
+    const water = instance.getPaintProperty("water", "fill-color");
+    const hasBasemapColors = typeof land === "string" && typeof water === "string";
+    if (!layers.sea || !seaLayer || !seaTime || !basemap || !hasBasemapColors) {
+      for (const id of ["sea", "land"]) {
+        if (instance.getLayer(id)) instance.removeLayer(id);
+        if (instance.getSource(id)) instance.removeSource(id);
+      }
       return;
     }
 
@@ -683,27 +717,32 @@ export function StationMap({
       tiles,
       tileSize: seaLayer.tileSize,
       minzoom: seaLayer.minZoom,
-      maxzoom: seaLayer.maxZoom,
+      maxzoom: Math.min(seaLayer.maxZoom, SEA_MAX_ZOOM),
       attribution: seaLayer.source.attribution,
+    });
+    instance.addSource("land", {
+      type: "raster",
+      tiles: landTiles(basemap.tiles, { land, water }),
+      tileSize: LAND_TILE_SIZE,
+      maxzoom: basemap.maxZoom,
     });
     const styleLayers = instance.getStyle().layers;
     const above = styleLayers[styleLayers.findIndex((layer) => layer.id === "water") + 1]?.id;
+    // The land appears at once: while it fades in, the sea's colors would show through it.
+    instance.addLayer(
+      { id: "land", type: "raster", source: "land", paint: { "raster-fade-duration": 0 } },
+      above,
+    );
     instance.addLayer(
       {
         id: "sea",
         type: "raster",
         source: "sea",
-        paint: {
-          "raster-resampling": "linear",
-          "raster-fade-duration": 200,
-          // The model's cells are about nine kilometres wide. Close up they say less than they
-          // seem to, so the sea fades and lets the coast show.
-          "raster-opacity": ["interpolate", ["linear"], ["zoom"], 8, 1, 11, 0.35],
-        },
+        paint: { "raster-resampling": "linear", "raster-fade-duration": 200 },
       },
-      above,
+      "land",
     );
-  }, [layers.sea, seaLayer, seaTime, styleVersion]);
+  }, [layers.sea, seaLayer, seaTime, basemap, styleVersion]);
 
   // The selected station comes into view when it is off the map or under a drawer. One that is
   // already visible stays where it is: the map does not move under the finger that pressed it.

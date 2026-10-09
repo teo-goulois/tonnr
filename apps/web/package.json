@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@inlang/paraglide-js": "^2.26.0",
+    "@mapbox/vector-tile": "^3.0.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.15.0",
@@ -26,6 +27,7 @@
     "better-auth": "catalog:",
     "maplibre-gl": "^6.13.0",
     "next-themes": "catalog:",
+    "pbf": "^5.1.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "sonner": "catalog:",

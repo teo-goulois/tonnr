@@ -19,7 +19,7 @@ That takes a wave height at every point of the sea, which only a model gives. Op
 - The legend also names the ramp, the range, and the unit that were used. The service answers a ramp it does not know with the variable's default colors and no error. When the legend is not the one expected, the API says the map is unavailable, so the client never reads heights from the wrong colors.
 - The capabilities and the legend are kept an hour, in memory.
 - The address of a tile carries the moment the data last changed, in a parameter the service ignores. Copernicus marks a tile to be kept thirty days. Without that parameter a browser would go on showing an old run's field of a coming day.
-- The web app's palette is in `apps/web/src/lib/sea-scales.ts`. A sea under half a metre keeps the basemap's color, so a flat sea reads as empty. From zoom 8 the sea fades, because a cell of the model then covers more of the screen than it can speak for.
+- The web app's palette is in `apps/web/src/lib/sea-scales.ts`. A sea under half a metre keeps the basemap's color, so a flat sea reads as empty. The colors reach the shore at every zoom, as Téo asked on 2026-10-09: the web app gives the water the model leaves blank the height of the nearest cell, and draws the land again over the colors, from the basemap's own tiles, so the coast stays sharp. It asks for no tile closer than zoom 7, where a cell already covers several pixels.
 - The legend steps through the model's fields, three hours at a time, from the latest one that is not in the future.
 - The credit is shown on the map. The API returns it as `source.attribution`: "Generated using E.U. Copernicus Marine Service Information" and the product's DOI. A map in Tonnr's palette is a product that was changed, which is the case that wording is for.
 
@@ -28,7 +28,7 @@ That takes a wave height at every point of the sea, which only a model gives. Op
 - Copernicus sees the address of each visitor and the part of the sea they look at, as OpenFreeMap does for the basemap.
 - Tonnr has no say in whether the service answers, nor in how many tiles it gives. Its help page states no limit. When it fails the sea is not colored, and the rest of the map works.
 - A self-hosted instance gets the same map with no key and no account. Its API asks Copernicus for two documents an hour, its visitors' browsers fetch the tiles, and it owes the credit as Téo's instance does.
-- A cell of the grid is about 9 km and is sea or land as a whole. The coast is coarse, and a bay smaller than a cell is left blank or takes the height of the open sea beside it. Shelter on a smaller scale than a cell does not show. The color at a spot is the height offshore, not the height of the waves that break there.
+- A cell of the grid is about 9 km and is sea or land as a whole. The model's coast is coarse, and a bay smaller than a cell takes the height of the open sea beside it. Shelter on a smaller scale than a cell does not show. The color at a spot is the height offshore, not the height of the waves that break there.
 - The field comes from a model, and a buoy can show one color while the sea around it shows another. Open-Meteo stays the source of the forecast at a point, so the map and a spot's forecast are two sources and can disagree.
 - A height of 10 m or more is drawn as 10 m. On 2026-10-08 the model had more than 10.5 m in the southern Indian Ocean.
 - Read with the API's table, the 45 pixels checked that day were within 4 cm of the heights the service gave for them.
