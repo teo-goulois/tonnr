@@ -97,6 +97,7 @@
   "map_sea_now": "Maintenant",
   "map_sea_earlier": "Plus tôt",
   "map_sea_later": "Plus tard",
+  "map_sea_time": "Heure affichée sur la mer",
   "map_from": "de {direction}",
   "map_wind_speed": "vent {speed}",
   "map_loading": "Chargement des bouées",

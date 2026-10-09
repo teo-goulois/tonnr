@@ -3,7 +3,7 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import { LocateIcon, MinusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
@@ -22,6 +22,7 @@ import { AlertsPanel } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { MapLegend } from "./map-legend";
 import { SavedPanel } from "./saved-panel";
+import type { SeaTimes } from "./sea-timeline";
 import { ReadingAge, StationActions } from "./station-actions";
 import {
   type Bounds,
@@ -50,6 +51,8 @@ import {
 import { SHEET_SNAP_POINTS, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-drawer";
 
 const HOUR_MS = 60 * 60 * 1000;
+// How far back the sea can be shown.
+const SEA_PAST_MS = 24 * HOUR_MS;
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
@@ -221,18 +224,37 @@ export function Viewer({
     [layers.wind, windStations, now],
   );
 
-  // The model's latest field that is not in the future, then as many steps ahead as asked.
+  // The model's latest field that is not in the future, then as many steps ahead as asked. The
+  // model keeps years of the past: the timeline goes a day back, enough to see what just came in.
   const seaStepMs = (sea?.times.stepSeconds ?? 0) * 1000;
-  const seaTimestamp = useMemo(() => {
+  const seaTimes = useMemo<SeaTimes | undefined>(() => {
     if (!sea || seaStepMs <= 0) return undefined;
     const start = sea.times.start.getTime();
-    const present = start + Math.floor((now - start) / seaStepMs) * seaStepMs;
-    const time = present + seaSteps * seaStepMs;
-    return Math.min(Math.max(time, start), sea.times.end.getTime());
-  }, [sea, seaStepMs, seaSteps, now]);
+    const onStep = (time: number) => start + Math.floor((time - start) / seaStepMs) * seaStepMs;
+    const present = onStep(now);
+    return {
+      present,
+      earliest: Math.max(start, onStep(present - SEA_PAST_MS)),
+      latest: onStep(sea.times.end.getTime()),
+      stepMs: seaStepMs,
+    };
+  }, [sea, seaStepMs, now]);
+  const seaTimestamp =
+    seaTimes &&
+    Math.min(
+      Math.max(seaTimes.present + seaSteps * seaTimes.stepMs, seaTimes.earliest),
+      seaTimes.latest,
+    );
   const seaTime = useMemo(
     () => (seaTimestamp === undefined ? undefined : new Date(seaTimestamp)),
     [seaTimestamp],
+  );
+  const seaPresent = seaTimes?.present;
+  const onSeaTimeChange = useCallback(
+    (time: number) => {
+      if (seaPresent !== undefined) setSeaSteps(Math.round((time - seaPresent) / seaStepMs));
+    },
+    [seaPresent, seaStepMs],
   );
 
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
@@ -387,19 +409,8 @@ export function Viewer({
         expanded={legendChoice ?? wide}
         onExpandedChange={setLegendChoice}
         seaTime={layers.sea ? seaTime : undefined}
-        seaIsNow={seaSteps === 0}
-        canStepBack={
-          sea !== undefined &&
-          seaTimestamp !== undefined &&
-          seaTimestamp - seaStepMs >= sea.times.start.getTime()
-        }
-        canStepForward={
-          sea !== undefined &&
-          seaTimestamp !== undefined &&
-          seaTimestamp + seaStepMs <= sea.times.end.getTime()
-        }
-        onSeaStep={(steps) => setSeaSteps((current) => current + steps)}
-        onSeaNow={() => setSeaSteps(0)}
+        seaTimes={seaTimes}
+        onSeaTimeChange={onSeaTimeChange}
         windTruncated={windTruncated}
         breaksTruncated={breaksTruncated}
       />

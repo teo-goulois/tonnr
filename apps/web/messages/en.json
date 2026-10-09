@@ -97,6 +97,7 @@
   "map_sea_now": "Now",
   "map_sea_earlier": "Earlier",
   "map_sea_later": "Later",
+  "map_sea_time": "Time shown on the sea",
   "map_from": "from {direction}",
   "map_wind_speed": "wind {speed}",
   "map_loading": "Loading buoys",

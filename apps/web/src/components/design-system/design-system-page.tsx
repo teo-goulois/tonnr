@@ -22,6 +22,7 @@ import {
 } from "@repo/ui/components/ui/menu";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
+import { Slider } from "@repo/ui/components/ui/slider";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
@@ -89,6 +90,12 @@ const NEUTRALS = [
 const HOUR_MS = 60 * 60 * 1000;
 // A fixed moment, so the samples below draw the same curves on every visit.
 const SAMPLE_NOW = Date.UTC(2026, 9, 9, 6);
+const SAMPLE_SEA_TIMES = {
+  present: SAMPLE_NOW,
+  earliest: SAMPLE_NOW - 24 * HOUR_MS,
+  latest: SAMPLE_NOW + 9 * 24 * HOUR_MS,
+  stepMs: 3 * HOUR_MS,
+};
 // The midnight before it, where the reader is.
 const SAMPLE_DAY = new Date(SAMPLE_NOW).setHours(0, 0, 0, 0);
 
@@ -223,6 +230,7 @@ export function DesignSystemPage() {
     breaks: true,
   });
   const [legendExpanded, setLegendExpanded] = useState(true);
+  const [seaTime, setSeaTime] = useState(SAMPLE_NOW);
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-xxl px-m py-xl">
@@ -348,6 +356,14 @@ export function DesignSystemPage() {
         </Row>
       </Section>
 
+      <Section title="Slider">
+        <div className="grid w-64 gap-m">
+          <Slider defaultValue={30} getAriaLabel={() => "Value"} />
+          <Slider defaultValue={[20, 70]} getAriaLabel={(index) => (index === 0 ? "From" : "To")} />
+          <Slider defaultValue={30} disabled getAriaLabel={() => "Disabled"} />
+        </div>
+      </Section>
+
       <Section title="Drawer">
         <Row>
           <Drawer swipeDirection="right">
@@ -442,12 +458,9 @@ export function DesignSystemPage() {
           onLayersChange={setLayers}
           expanded={legendExpanded}
           onExpandedChange={setLegendExpanded}
-          seaTime={new Date(SAMPLE_NOW)}
-          seaIsNow
-          canStepBack
-          canStepForward
-          onSeaStep={() => {}}
-          onSeaNow={() => {}}
+          seaTime={new Date(seaTime)}
+          seaTimes={SAMPLE_SEA_TIMES}
+          onSeaTimeChange={setSeaTime}
           windTruncated
           breaksTruncated
         />

@@ -1,14 +1,15 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Switch } from "@repo/ui/components/ui/switch";
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, LayersIcon } from "@repo/ui/icon";
+import { ChevronDownIcon, LayersIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useId } from "react";
 
-import { formatDayAndClock, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot } from "./map-markers";
+import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import type { MapLayers } from "./station-map";
 
 type MapLegendProps = {
@@ -17,14 +18,11 @@ type MapLegendProps = {
   // Shows every layer with its switch. Folded, only the scale of the wave heights is left.
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
-  // The instant the sea is shown at, and whether that is the present. Undefined while the sea's
-  // description loads, or when the provider does not answer.
+  // The instant the sea is shown at, among those it can be. Undefined while the sea's description
+  // loads, or when the provider does not answer.
   seaTime: Date | undefined;
-  seaIsNow: boolean;
-  canStepBack: boolean;
-  canStepForward: boolean;
-  onSeaStep: (steps: number) => void;
-  onSeaNow: () => void;
+  seaTimes: SeaTimes | undefined;
+  onSeaTimeChange: (time: number) => void;
   // Wind stations and breaks are many: when not all of them are loaded, the legend says how to
   // see the rest.
   windTruncated: boolean;
@@ -101,11 +99,8 @@ export function MapLegend({
   expanded,
   onExpandedChange,
   seaTime,
-  seaIsNow,
-  canStepBack,
-  canStepForward,
-  onSeaStep,
-  onSeaNow,
+  seaTimes,
+  onSeaTimeChange,
   windTruncated,
   breaksTruncated,
   className,
@@ -140,35 +135,8 @@ export function MapLegend({
         onCheckedChange={(sea) => onLayersChange({ ...layers, sea })}
       >
         <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
-        {seaTime && (
-          <div className="flex items-center gap-xxs">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={m.map_sea_earlier()}
-              disabled={!canStepBack}
-              onClick={() => onSeaStep(-1)}
-            >
-              <ChevronLeftIcon data-slot="icon" aria-hidden />
-            </Button>
-            <span className="flex-1 text-center text-s tabular-nums" aria-live="polite">
-              {seaIsNow ? m.map_sea_now() : formatDayAndClock(seaTime)}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={m.map_sea_later()}
-              disabled={!canStepForward}
-              onClick={() => onSeaStep(1)}
-            >
-              <ChevronRightIcon data-slot="icon" aria-hidden />
-            </Button>
-            {!seaIsNow && (
-              <Button variant="secondary" size="xs" onClick={onSeaNow}>
-                {m.map_sea_now()}
-              </Button>
-            )}
-          </div>
+        {seaTime && seaTimes && (
+          <SeaTimeline time={seaTime} times={seaTimes} onTimeChange={onSeaTimeChange} />
         )}
       </LayerRow>
 
