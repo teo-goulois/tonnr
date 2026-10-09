@@ -45,8 +45,11 @@ export function localeOf(acceptLanguage: string | null | undefined): Locale {
       const weight = quality === undefined ? 1 : Number(quality.slice(2));
       return { language: tag.trim().split("-")[0] ?? "", weight, index };
     })
-    // A weight of zero says "not this one".
-    .filter(({ language, weight }) => (language === "fr" || language === "en") && weight > 0)
+    // A weight of zero says "not this one", and one that is no weight says nothing.
+    .filter(
+      ({ language, weight }) =>
+        (language === "fr" || language === "en") && weight > 0 && weight <= 1,
+    )
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
   return wanted[0]?.language === "fr" ? "fr" : "en";
 }

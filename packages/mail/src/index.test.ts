@@ -247,6 +247,9 @@ describe("the mail that asks an account to check its address", () => {
     // A weight of zero says that the language is not wanted.
     expect(localeOf("fr;q=0, en")).toBe("en");
     expect(localeOf("fr-FR;q=0")).toBe("en");
+    // A weight that is none is not weighed.
+    expect(localeOf("en;q=1,fr;q=2")).toBe("en");
+    expect(localeOf("fr;q=abc")).toBe("en");
     expect(localeOf("de")).toBe("en");
     expect(localeOf(null)).toBe("en");
     expect(localeOf("")).toBe("en");
