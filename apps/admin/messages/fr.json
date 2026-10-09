@@ -4,6 +4,7 @@
   "load_failed": "Chargement impossible : {reason}",
   "retry": "Réessayer",
   "error_title": "Cet écran n’a pas pu se charger",
+  "error_unreachable": "L’API à l’adresse {api} n’a pas répondu à cette app. Elle ne répond à l’admin que si son ADMIN_ORIGIN vaut {origin}, exactement comme écrit ici. Si c’est le cas, l’API est peut-être arrêtée.",
   "not_found_title": "Cette page n’existe pas",
   "not_found_back": "Retour à la vue d’ensemble",
   "toggle_theme": "Passer du clair au sombre",

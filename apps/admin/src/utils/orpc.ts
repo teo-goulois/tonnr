@@ -9,6 +9,18 @@ import { m } from "@/paraglide/messages.js";
 
 import { ENV } from "../env.public";
 
+/**
+ * No answer came back from the API, or none this page may read. A browser gives the same failure
+ * for an API that is stopped and for one that does not name this app's address, and gives a
+ * fault of the page's own code the same kind of error: this one is the API's alone.
+ */
+export class ApiUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super("The API did not answer", { cause });
+    this.name = "ApiUnreachableError";
+  }
+}
+
 /** Whether the API refused the caller: no session, or no right to what was asked. */
 export function isRefusal(error: unknown) {
   return error instanceof ORPCError && ["UNAUTHORIZED", "FORBIDDEN"].includes(error.code);
@@ -61,6 +73,10 @@ const link = new RPCLink({
       ...options,
       // The session's cookie belongs to the API's address, not to this app's.
       credentials: "include",
+    }).catch((error: unknown) => {
+      // A call that was given up, as a screen that closes gives up its own, is no failure.
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      throw new ApiUnreachableError(error);
     });
   },
 });

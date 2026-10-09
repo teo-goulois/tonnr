@@ -4,6 +4,7 @@
   "load_failed": "Could not load: {reason}",
   "retry": "Retry",
   "error_title": "This screen could not load",
+  "error_unreachable": "The API at {api} did not answer this app. It answers the admin only when its ADMIN_ORIGIN is {origin}, exactly as written here. If it is, the API may be stopped.",
   "not_found_title": "This page does not exist",
   "not_found_back": "Back to the overview",
   "toggle_theme": "Switch between light and dark",
