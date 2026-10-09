@@ -9,7 +9,8 @@ type PrivateBreakPanelProps = PointConditionsProps & {
   found: Loadable<PrivateBreak>;
 };
 
-type Row = [label: string, value: string];
+// A field of the list: its name as the file writes it, that name in words, and its value.
+type Row = { name: string; label: string; value: string };
 type Group = { title: string | undefined; rows: Row[] };
 
 // A field's name as the list writes it, such as `preferredTides`, made into words.
@@ -27,24 +28,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * A value as text, or undefined when it says nothing: a field left empty stays out of the panel,
- * where a zero or a "no" is something the list said.
+ * where a zero or a "no" is something the list said. A field inside another keeps its name, so
+ * that a minimum is not read as a maximum, nor a figure without the unit the list gave it.
  */
 function textOf(value: unknown): string | undefined {
   if (value === null || value === undefined || value === "") return undefined;
   if (Array.isArray(value)) {
     const items = value.map(textOf).filter((item) => item !== undefined);
-    return items.length > 0 ? items.join(", ") : undefined;
+    if (items.length === 0) return undefined;
+    // Items that hold fields are set apart more than the fields within one.
+    return items.join(value.some(isRecord) ? "; " : ", ");
   }
   if (isRecord(value)) {
     const fields = Object.entries(value)
       .map(([name, field]) => [name, textOf(field)] as const)
       .filter(([, text]) => text !== undefined);
     if (fields.length === 0) return undefined;
-    // An object with one field is that field: its name adds nothing beside the row's.
-    if (fields.length === 1) return fields[0]?.[1];
     return fields.map(([name, text]) => `${wordsOf(name).toLowerCase()} ${text}`).join(", ");
   }
   return String(value);
+}
+
+function rowOf(name: string, value: unknown): Row | undefined {
+  const text = textOf(value);
+  return text === undefined ? undefined : { name, label: wordsOf(name), value: text };
 }
 
 /**
@@ -58,13 +65,13 @@ function groupsOf(details: Record<string, unknown>): Group[] {
 
   for (const [name, value] of Object.entries(details)) {
     if (!isRecord(value)) {
-      const text = textOf(value);
-      if (text !== undefined) alone.push([wordsOf(name), text]);
+      const row = rowOf(name, value);
+      if (row) alone.push(row);
       continue;
     }
     const rows = Object.entries(value)
-      .map(([field, inner]) => [wordsOf(field), textOf(inner)] as const)
-      .filter((row): row is Row => row[1] !== undefined);
+      .map(([field, inner]) => rowOf(field, inner))
+      .filter((row) => row !== undefined);
     if (rows.length > 0) groups.push({ title: wordsOf(name), rows });
   }
   return alone.length > 0 ? [{ title: undefined, rows: alone }, ...groups] : groups;
@@ -96,14 +103,17 @@ export function PrivateBreakPanel({
       {groups.length > 0 && (
         <Section title={m.private_break_details()}>
           <div className="grid gap-s">
-            {groups.map((group) => (
-              <div key={group.title ?? ""} className="grid gap-xxs">
+            {groups.map((group, index) => (
+              // The groups keep their order for one break, and two names can read the same once
+              // made into words, so neither a title nor a label is a key.
+              // eslint-disable-next-line react/no-array-index-key
+              <div key={index} className="grid gap-xxs">
                 {group.title && <h4 className="text-s font-medium">{group.title}</h4>}
                 <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-s gap-y-xxs text-s">
-                  {group.rows.map(([label, value]) => (
-                    <Fragment key={label}>
-                      <dt className="text-neutral-7">{label}</dt>
-                      <dd className="break-words">{value}</dd>
+                  {group.rows.map((row) => (
+                    <Fragment key={row.name}>
+                      <dt className="text-neutral-7">{row.label}</dt>
+                      <dd className="break-words">{row.value}</dd>
                     </Fragment>
                   ))}
                 </dl>

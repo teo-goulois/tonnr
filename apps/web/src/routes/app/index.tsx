@@ -72,7 +72,8 @@ function ViewerRoute() {
   // An empty value selects nothing, and a station wins over a break given with it.
   const selectedId = search.station || undefined;
   const selectedBreakId = selectedId ? undefined : search.break || undefined;
-  const selectedPrivateBreakId =
+  // What the address asks for. It selects a break only for an account that may read the list.
+  const requestedPrivateBreakId =
     selectedId || selectedBreakId ? undefined : search.privateBreak || undefined;
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
@@ -121,17 +122,27 @@ function ViewerRoute() {
   const account = useQuery(
     orpc.v1.account.get.queryOptions({
       enabled: signedIn,
-      staleTime: 60 * MINUTE_MS,
+      // Asked again every few minutes, so that the page learns when the account stops being one.
+      staleTime: 5 * MINUTE_MS,
       meta: { quiet: true },
     }),
   );
-  const isOperator = account.data?.isOperator === true;
+  // An operator as far as the page knows: the account of the session in force, as the API last
+  // described it. The API decides at each call, whatever the page believes.
+  const isOperator =
+    signedIn &&
+    !account.isError &&
+    account.data?.isOperator === true &&
+    account.data.id === session.data?.user.id;
+  const selectedPrivateBreakId = isOperator ? requestedPrivateBreakId : undefined;
   const privateBreaks = useQuery(
     orpc.v1.privateBreaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
       enabled: isOperator && layers.breaks && bounds !== null,
       placeholderData: keepPreviousData,
       staleTime: 60 * MINUTE_MS,
+      // A refusal is not asked again: it is acted on at once, below.
+      retry: false,
       meta: { quiet: true },
     }),
   );
@@ -220,6 +231,15 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
+  // What was loaded of the list goes with the right to read it.
+  useEffect(() => {
+    if (!isOperator) queryClient.removeQueries({ queryKey: orpc.v1.privateBreaks.key() });
+  }, [isOperator, queryClient]);
+  // A refusal says that the account may no longer be what the page believes, so it asks again.
+  const isRefused = privateBreaks.isError || foundPrivate.isError;
+  useEffect(() => {
+    if (isRefused) void queryClient.invalidateQueries({ queryKey: orpc.v1.account.get.key() });
+  }, [isRefused, queryClient]);
   const isSelected = (candidate: { id: string }) =>
     candidate.id === (selectedBreakId ?? selectedPrivateBreakId);
   const placed =
@@ -363,7 +383,9 @@ function ViewerRoute() {
 
   // The catalogue's breaks, then the private list's for an operator, each told from the other.
   // The map redraws them when the list changes, so the list changes only with its sources.
-  const privateInView = isOperator ? privateBreaks.data?.breaks : undefined;
+  // A list that the API has just refused is not shown from what an earlier answer left.
+  const privateInView =
+    isOperator && !privateBreaks.isError ? privateBreaks.data?.breaks : undefined;
   const privateIds = useMemo(
     () => new Set(privateInView?.map((found) => found.id)),
     [privateInView],
@@ -387,7 +409,8 @@ function ViewerRoute() {
       windTruncated={wind.data?.length === WIND_LIMIT}
       breaks={mapBreaks}
       breaksTruncated={
-        breaks.data?.next != null || (isOperator && privateBreaks.data?.next != null)
+        breaks.data?.next != null ||
+        (privateInView !== undefined && privateBreaks.data?.next != null)
       }
       sea={sea.data}
       layers={layers}
@@ -398,7 +421,7 @@ function ViewerRoute() {
         station: known,
         history: loadable(history),
         found: loadable(found),
-        foundPrivate: loadable(foundPrivate),
+        foundPrivate: isOperator ? loadable(foundPrivate) : null,
         forecast: loadable(forecast),
         tides: loadable(tides),
         extremes: loadable(extremes),

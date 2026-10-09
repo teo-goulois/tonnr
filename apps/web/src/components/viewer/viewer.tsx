@@ -88,7 +88,8 @@ type ViewerProps = {
     station: Station | undefined;
     history: Loadable<StationReadings>;
     found: Loadable<SurfBreak>;
-    foundPrivate: Loadable<PrivateBreak>;
+    // Null for an account that may not read the private list.
+    foundPrivate: Loadable<PrivateBreak> | null;
     // The forecast and the tide at the selected station or break.
     forecast: Loadable<Forecast>;
     tides: Loadable<TideTimeline>;
@@ -279,9 +280,14 @@ export function Viewer({
   const ids = { id: selectedId, breakId: selectedBreakId, privateId: selectedPrivateBreakId };
   const lastSelection = useRef({ ...ids, ...selected });
   if (selection) lastSelection.current = { ...ids, ...selected };
+  // What the panel of a private break held goes with the right to read the list.
+  if (selected.foundPrivate === null && lastSelection.current.privateId) {
+    lastSelection.current = { ...lastSelection.current, privateId: undefined, foundPrivate: null };
+  }
   const shown = lastSelection.current;
+  const shownPrivate = shown.privateId ? shown.foundPrivate : null;
   // The break shown, from whichever list holds it.
-  const shownBreak = shown.breakId ? shown.found : shown.privateId ? shown.foundPrivate : undefined;
+  const shownBreak = shown.breakId ? shown.found : (shownPrivate ?? undefined);
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
   const shownTitle = shownBreak
@@ -449,11 +455,11 @@ export function Viewer({
                 <Skeleton className="h-(--line-s) w-32 rounded-(--radius-xs)" />
               )
             )
-          ) : shown.privateId ? (
-            shown.foundPrivate.data ? (
+          ) : shownPrivate ? (
+            shownPrivate.data ? (
               m.private_break_in_list()
             ) : (
-              !shown.foundPrivate.isError && (
+              !shownPrivate.isError && (
                 <Skeleton className="h-(--line-s) w-32 rounded-(--radius-xs)" />
               )
             )
@@ -489,11 +495,11 @@ export function Viewer({
             extremes={shown.extremes}
             onTideExtend={onTideExtend}
           />
-        ) : shown.privateId ? (
+        ) : shownPrivate ? (
           <PrivateBreakPanel
             key={shown.privateId}
             now={now}
-            found={shown.foundPrivate}
+            found={shownPrivate}
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}
