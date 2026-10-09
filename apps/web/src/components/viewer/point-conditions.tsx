@@ -181,10 +181,18 @@ export type PointConditionsProps = {
   forecast: Loadable<Forecast>;
   tides: Loadable<TideTimeline>;
   extremes: Loadable<TideExtremes>;
+  // Asks for one more day of tide, before the days loaded or after them.
+  onTideExtend?: (direction: -1 | 1) => void;
 };
 
 /** The wave forecast and the tide at a point, whatever stands there: a buoy or a surf break. */
-export function PointConditions({ now, forecast, tides, extremes }: PointConditionsProps) {
+export function PointConditions({
+  now,
+  forecast,
+  tides,
+  extremes,
+  onTideExtend,
+}: PointConditionsProps) {
   const nextHours = (forecast.data?.hours ?? [])
     .filter((hour) => hour.time.getTime() >= now && hour.time.getUTCHours() % 3 === 0)
     .slice(0, FORECAST_ROWS);
@@ -231,6 +239,7 @@ export function PointConditions({ now, forecast, tides, extremes }: PointConditi
             <TideChart
               label={m.tide_title()}
               now={new Date(now)}
+              onExtend={onTideExtend}
               isLoading={tides.isPending}
               extremes={allExtremes}
               points={(tides.data?.timeline ?? []).map((entry) => ({

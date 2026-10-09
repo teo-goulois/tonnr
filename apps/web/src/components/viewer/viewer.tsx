@@ -86,6 +86,8 @@ type ViewerProps = {
     tides: Loadable<TideTimeline>;
     extremes: Loadable<TideExtremes>;
   };
+  // Asks for one more day of tide, before the days loaded or after them.
+  onTideExtend: (direction: -1 | 1) => void;
   panel: ViewerPanel | undefined;
   signedIn: boolean;
   lists: Loadable<SavedList[]>;
@@ -175,6 +177,7 @@ export function Viewer({
   selectedId,
   selectedBreakId,
   selected,
+  onTideExtend,
   panel,
   signedIn,
   lists,
@@ -455,6 +458,7 @@ export function Viewer({
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}
+            onTideExtend={onTideExtend}
           />
         ) : (
           <StationPanel
@@ -466,6 +470,7 @@ export function Viewer({
             forecast={shown.forecast}
             tides={shown.tides}
             extremes={shown.extremes}
+            onTideExtend={onTideExtend}
           />
         )}
       </ViewerDrawer>

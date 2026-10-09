@@ -32,9 +32,10 @@ export const Route = createFileRoute("/app/")({
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
-// The days of tide a panel can scroll through: yesterday, today and the six after.
-const TIDE_DAYS_BEFORE = 1;
-const TIDE_DAYS = 8;
+// The days of tide a panel opens with, around today: yesterday and the six days after. Scrolled
+// to an end, the strip asks for one more, up to what the API gives in one answer.
+const TIDE_DAYS = { before: 1, after: 6 };
+const TIDE_DAYS_MOST = 15;
 const WIND_LIMIT = 500;
 const BREAK_LIMIT = 1000;
 const DEFAULT_LAYERS: MapLayers = { sea: true, buoys: true, wind: false, breaks: true };
@@ -77,6 +78,7 @@ function ViewerRoute() {
   // Rounded to the hour so the query keys stay the same from one minute to the next.
   const hour = Math.floor(now / HOUR_MS) * HOUR_MS;
   const [bounds, setBounds] = useState<Bounds | null>(null);
+  const [tideReach, setTideReach] = useState({ of: "", ...TIDE_DAYS });
   const [layers, setLayers] = useStoredState("tonnr:map-layers", DEFAULT_LAYERS, readLayers);
   const session = authClient.useSession();
   const signedIn = Boolean(session.data);
@@ -199,26 +201,42 @@ function ViewerRoute() {
   const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
 
   // The tide is a strip of whole days to scroll along, from midnight where the user is.
+  // The days asked for belong to what is selected: another selection opens on its first days.
+  const selection = selectedId ?? selectedBreakId ?? "";
+  const tideDays = tideReach.of === selection ? tideReach : TIDE_DAYS;
   const tideSpan = useMemo(() => {
     const start = new Date(hour);
     start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - TIDE_DAYS_BEFORE);
     const end = new Date(start);
-    end.setDate(end.getDate() + TIDE_DAYS);
+    start.setDate(start.getDate() - tideDays.before);
+    end.setDate(end.getDate() + tideDays.after + 1);
     return { start, end };
     // The hour changes the span only when it passes midnight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [new Date(hour).toDateString()]);
+  }, [new Date(hour).toDateString(), tideDays.before, tideDays.after]);
+  // More days of the same point keep the curve on screen until they come. The point a query
+  // asked for is the input in its key.
+  const keepAtPoint = {
+    placeholderData: <Answer,>(previous: Answer | undefined, asked?: { queryKey: unknown }) => {
+      const key = asked?.queryKey as [unknown, { input?: typeof atPoint }] | undefined;
+      const input = key?.[1].input;
+      return input?.latitude === atPoint.latitude && input.longitude === atPoint.longitude
+        ? previous
+        : undefined;
+    },
+  };
   const tides = useQuery(
     orpc.v1.tides.timeline.queryOptions({
       input: { ...atPoint, ...tideSpan, stepMinutes: 10 },
       ...expected,
+      ...keepAtPoint,
     }),
   );
   const extremes = useQuery(
     orpc.v1.tides.extremes.queryOptions({
       input: { ...atPoint, ...tideSpan },
       ...expected,
+      ...keepAtPoint,
     }),
   );
   const forecast = useQuery(
@@ -330,6 +348,13 @@ function ViewerRoute() {
         tides: loadable(tides),
         extremes: loadable(extremes),
       }}
+      onTideExtend={(direction) =>
+        setTideReach({
+          of: selection,
+          before: Math.min(TIDE_DAYS_MOST, tideDays.before + (direction < 0 ? 1 : 0)),
+          after: Math.min(TIDE_DAYS_MOST, tideDays.after + (direction > 0 ? 1 : 0)),
+        })
+      }
       panel={panel}
       signedIn={signedIn}
       lists={loadable(lists)}

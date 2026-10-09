@@ -11,6 +11,7 @@ import { cn } from "@repo/ui/lib/utils";
 import {
   type PointerEvent,
   type ReactNode,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -34,16 +35,22 @@ type TideChartProps = {
   // The high and low waters to name on the curve.
   extremes: TideExtremes["extremes"];
   now?: Date;
+  // Asks for one more day before the strip or after it, when it is scrolled to an end.
+  onExtend?: (direction: -1 | 1) => void;
   isLoading?: boolean;
   className?: string;
 };
 
 // Above the rule that follows the pointer, below the dot the chart puts under it.
 const MARKS_LAYER = 1150;
-// The room a time takes beside its dot, in pixels.
-const LABEL_WIDTH = 40;
+// Under the grid, where a band of gray tells one day from the next.
+const DAYS_LAYER = -150;
+// The room a character of a mark takes, in pixels, to keep a mark whole inside what is in view.
+const CHARACTER_WIDTH = 6.5;
+// The height the chart gives the figures of time under the plot, in pixels.
+const X_AXIS_HEIGHT = 30;
 // How many colors a day of the curve is painted with, to turn pale where the hours are gone.
-const COLOR_STEPS_PER_DAY = 96;
+const COLOR_STEPS_PER_DAY = 48;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // How long a strip let go by the mouse takes to settle on a day, in milliseconds.
 const SETTLE_MS = 400;
@@ -120,11 +127,14 @@ function TideMarks({
   extremes,
   now,
   axis,
+  strip,
 }: Pick<TideChartProps, "extremes"> & {
   rows: Row[];
   now?: number;
   // Where the figures of the heights are written: beside the strip, so they stay when it scrolls.
   axis: HTMLElement | null;
+  // What scrolls the strip: the marks keep clear of the edges of what it shows.
+  strip: HTMLElement | null;
 }) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
@@ -136,6 +146,21 @@ function TideMarks({
   }, [rows]);
   const isPointed = useIsTooltipActive();
   const pointedTime = useActiveTooltipLabel();
+  // The part of the strip in view, in the pixels of the chart.
+  const [view, setView] = useState<{ left: number; right: number }>();
+  useEffect(() => {
+    if (!strip) return;
+    const read = () =>
+      setView({ left: strip.scrollLeft, right: strip.scrollLeft + strip.clientWidth });
+    read();
+    strip.addEventListener("scroll", read, { passive: true });
+    const resized = new ResizeObserver(read);
+    resized.observe(strip);
+    return () => {
+      strip.removeEventListener("scroll", read);
+      resized.disconnect();
+    };
+  }, [strip]);
 
   const first = rows[0];
   const last = rows.at(-1);
@@ -143,6 +168,9 @@ function TideMarks({
 
   const left = plot.x;
   const right = plot.x + plot.width;
+  const viewLeft = Math.max(left, view?.left ?? left);
+  const viewRight = Math.min(right, view?.right ?? right);
+  const inView = (cx: number) => cx >= viewLeft && cx <= viewRight;
   const bottom = plot.y + plot.height;
   const x = (time: number) => xScale(time) ?? left;
   const y = (value: number) => yScale(value) ?? bottom;
@@ -152,11 +180,14 @@ function TideMarks({
   const nowHeight = now === undefined ? undefined : heightAt(rows, now);
 
   // A time sits where the curve leaves room: before its dot, above the line when the water
-  // rises and below when it falls. Against the left edge it goes to the other side, mirrored.
+  // rises and below when it falls. Against the left edge of what is in view it goes to the
+  // other side, mirrored. A dot out of view has no time, which would show cut at the edge.
   function levelMark(crossing: Crossing, strong: boolean) {
     const cx = x(crossing.time);
     const cy = y(crossing.value);
-    const before = cx - LABEL_WIDTH >= left;
+    if (!inView(cx)) return null;
+    const text = formatClock(new Date(crossing.time));
+    const before = cx - 6 - text.length * CHARACTER_WIDTH >= viewLeft;
     const above = (crossing.rising === before || cy + 16 > bottom) && cy - 16 > 0;
     return (
       <Mark
@@ -166,7 +197,7 @@ function TideMarks({
         anchor={before ? "end" : "start"}
         strong={strong}
       >
-        {formatClock(new Date(crossing.time))}
+        {text}
       </Mark>
     );
   }
@@ -226,8 +257,35 @@ function TideMarks({
       axis,
     );
 
+  // Every other day stands on gray, counted from today, which keeps the page's own color
+  // however many days the strip holds before it.
+  const dayNumber = (day: Date) =>
+    Math.round(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()) / DAY_MS);
+  const todayNumber = now === undefined ? 0 : dayNumber(new Date(now));
+  const grayDays: { from: number; to: number }[] = [];
+  for (const day = new Date(first.time); day.getTime() < last.time;) {
+    const from = day.getTime();
+    const gray = (dayNumber(day) - todayNumber) % 2 !== 0;
+    day.setDate(day.getDate() + 1);
+    if (gray) grayDays.push({ from, to: Math.min(day.getTime(), last.time) });
+  }
+
   return (
     <>
+      <ZIndexLayer zIndex={DAYS_LAYER}>
+        <g aria-hidden pointerEvents="none">
+          {grayDays.map((day) => (
+            <rect
+              key={day.from}
+              x={x(day.from)}
+              width={x(day.to) - x(day.from)}
+              y={0}
+              height={bottom + X_AXIS_HEIGHT}
+              className="fill-neutral-2"
+            />
+          ))}
+        </g>
+      </ZIndexLayer>
       <ZIndexLayer zIndex={MARKS_LAYER}>
         <g aria-hidden pointerEvents="none">
           {now !== undefined && nowHeight !== undefined && (
@@ -247,15 +305,17 @@ function TideMarks({
             extremes
               .filter((extreme) => {
                 const time = extreme.time.getTime();
-                return time > first.time && time < last.time;
+                return time > first.time && time < last.time && inView(x(time));
               })
               .map((extreme) => {
                 const cx = x(extreme.time.getTime());
                 const cy = y(extreme.heightMeters);
+                const clock = formatClock(extreme.time);
+                const half = (clock.length * CHARACTER_WIDTH) / 2;
                 // A high water is named above the curve and a low water below it, clear of its line.
                 const ty = extreme.type === "high" ? cy - 20 : cy + 15;
-                // Kept whole inside the plot when the high or low water is near an edge.
-                const tx = Math.min(right - LABEL_WIDTH / 2, Math.max(left + LABEL_WIDTH / 2, cx));
+                // Kept whole when the high or low water is near an edge of what is in view.
+                const tx = Math.min(viewRight - half, Math.max(viewLeft + half, cx));
                 return (
                   <g key={extreme.time.getTime()}>
                     <line
@@ -267,7 +327,7 @@ function TideMarks({
                       strokeOpacity={0.4}
                     />
                     <Mark x={tx} y={ty} strong>
-                      {formatClock(extreme.time)}
+                      {clock}
                     </Mark>
                     <Mark x={tx} y={ty + 12}>
                       {formatMeters(extreme.heightMeters)}
@@ -287,7 +347,15 @@ function TideMarks({
  * The tide as a strip of days to scroll along, one day wide, with its high and low waters and the
  * moments it stands at one height. The strip opens on today.
  */
-export function TideChart({ label, points, extremes, now, isLoading, className }: TideChartProps) {
+export function TideChart({
+  label,
+  points,
+  extremes,
+  now,
+  onExtend,
+  isLoading,
+  className,
+}: TideChartProps) {
   const rows = useMemo(
     () =>
       points.flatMap((point) =>
@@ -305,7 +373,7 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
       : undefined;
 
   const [axis, setAxis] = useState<HTMLDivElement | null>(null);
-  const strip = useRef<HTMLDivElement>(null);
+  const [strip, setStrip] = useState<HTMLDivElement | null>(null);
   const drag = useRef<{ x: number; left: number } | null>(null);
   // The day the strip is scrolled to. Until it has moved, that is today.
   const [scrolledTo, setScrolledTo] = useState<number>();
@@ -314,13 +382,26 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
   shownDay.setDate(shownDay.getDate() + shown);
 
   function scrollToDay(day: number, behavior: ScrollBehavior) {
-    const element = strip.current;
-    element?.scrollTo({ left: day * element.clientWidth, behavior });
+    strip?.scrollTo({ left: day * strip.clientWidth, behavior });
   }
 
+  // The strip opens on today. When days are added before the first one, it moves by as many,
+  // so that what was in view stays there.
+  const startedAt = useRef<number>(undefined);
   useLayoutEffect(() => {
-    scrollToDay(today ?? 0, "instant");
-  }, [today, days]);
+    if (!strip || start === 0) return;
+    if (startedAt.current === undefined) {
+      strip.scrollTo({ left: (today ?? 0) * strip.clientWidth, behavior: "instant" });
+    } else {
+      const added = Math.round((startedAt.current - start) / DAY_MS);
+      strip.scrollTo({ left: strip.scrollLeft + added * strip.clientWidth, behavior: "instant" });
+    }
+    startedAt.current = start;
+    // Today moves along the strip with the days added: only a new start moves the strip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strip, start]);
+  // The day last reported while scrolling, to ask for more days once at each end.
+  const reported = useRef<number>(undefined);
 
   // A mouse has no way to scroll sideways, so it drags the strip, which then settles on a day.
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -370,14 +451,19 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
       <div className="flex">
         <div ref={setAxis} aria-hidden className="relative w-[30px] shrink-0" />
         <div
-          ref={strip}
+          ref={setStrip}
           role="group"
           aria-label={label}
           tabIndex={0}
           className="min-w-0 flex-1 cursor-grab snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] active:cursor-grabbing"
           onScroll={(event) => {
             const element = event.currentTarget;
-            setScrolledTo(Math.round(element.scrollLeft / element.clientWidth));
+            const day = Math.round(element.scrollLeft / element.clientWidth);
+            setScrolledTo(day);
+            if (day === reported.current) return;
+            reported.current = day;
+            if (day === 0) onExtend?.(-1);
+            else if (day === days - 1) onExtend?.(1);
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -404,7 +490,7 @@ export function TideChart({ label, points, extremes, now, isLoading, className }
               tooltip={false}
               className={cn("h-56", className)}
             >
-              <TideMarks rows={rows} extremes={extremes} now={moment} axis={axis} />
+              <TideMarks rows={rows} extremes={extremes} now={moment} axis={axis} strip={strip} />
             </SeaChart>
           </div>
         </div>
