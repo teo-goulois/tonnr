@@ -9,7 +9,7 @@ import { m } from "@/paraglide/messages.js";
 const DAY_MS = 24 * 60 * 60 * 1000;
 // How long the thumb rests on an instant before the map shows it. Dragging across a week passes
 // over dozens of instants, and the map asks the provider for none of those it only crosses.
-const SETTLE_MS = 150;
+const SETTLE_MS = 80;
 
 /** The instants the sea can be shown at: a day back, and as far ahead as the model goes. */
 export type SeaTimes = {

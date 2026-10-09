@@ -6,7 +6,6 @@ import type {
   Map as MapLibreMap,
   MapMouseEvent,
   PaddingOptions,
-  RasterTileSource,
 } from "maplibre-gl";
 // The library runs its tile work in a worker, which the bundler has to build as its own file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -145,6 +144,10 @@ const SEA_MAX_ZOOM = 4;
 // Heights can be written on the sea in figures. They are hidden for now, as Téo asked on
 // 2026-10-09 after trying them.
 const SEA_HEIGHTS_SHOWN: boolean = false;
+// The sea at one instant is a layer named after it.
+const SEA_LAYER = "sea:";
+// How long one instant of the sea takes to fade into the next.
+const SEA_FADE_MS = 250;
 // The source of the basemap, whose tiles say where the water is.
 const BASEMAP_SOURCE = "openmaptiles";
 // More markers than this hide the map, and the dots under them still say where the stations are.
@@ -706,6 +709,8 @@ export function StationMap({
 
   // Where the basemap's tiles are, which its style leaves to a second document.
   const [basemap, setBasemap] = useState<{ tiles: string; maxZoom: number } | null>(null);
+  // The layer of the sea that is in view, while the next one loads.
+  const seaShown = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (styleVersion === 0 || basemap) return;
     const source = map.current?.getStyle().sources[BASEMAP_SOURCE];
@@ -730,55 +735,98 @@ export function StationMap({
     const instance = map.current;
     if (!instance || styleVersion === 0) return;
 
+    const removeLayer = (id: string) => {
+      if (instance.getLayer(id)) instance.removeLayer(id);
+      if (instance.getSource(id)) instance.removeSource(id);
+    };
     const land = instance.getPaintProperty("background", "background-color");
     const water = instance.getPaintProperty("water", "fill-color");
     const hasBasemapColors = typeof land === "string" && typeof water === "string";
     if (!layers.sea || !seaLayer || !seaTime || !basemap || !hasBasemapColors) {
-      for (const id of ["sea", "land", "sea-heights"]) {
-        if (instance.getLayer(id)) instance.removeLayer(id);
-        if (instance.getSource(id)) instance.removeSource(id);
-      }
+      const seas = instance.getStyle().layers.filter((layer) => layer.id.startsWith(SEA_LAYER));
+      for (const id of [...seas.map((layer) => layer.id), "land", "sea-heights"]) removeLayer(id);
+      seaShown.current = undefined;
       return;
     }
 
     seaColors = seaColorTable(seaLayer.encoding.metersByLevel);
-    const tiles = seaTiles(seaLayer, seaTime);
-    const source = instance.getSource<RasterTileSource>("sea");
-    if (source) {
-      source.setTiles(tiles);
-      return;
+    if (!instance.getSource("land")) {
+      instance.addSource("land", {
+        type: "raster",
+        tiles: landTiles(basemap.tiles, { land, water }),
+        tileSize: LAND_TILE_SIZE,
+        maxzoom: basemap.maxZoom,
+      });
+      const styleLayers = instance.getStyle().layers;
+      const above = styleLayers[styleLayers.findIndex((layer) => layer.id === "water") + 1]?.id;
+      // The land appears at once: while it fades in, the sea's colors would show through it.
+      instance.addLayer(
+        { id: "land", type: "raster", source: "land", paint: { "raster-fade-duration": 0 } },
+        above,
+      );
     }
 
-    instance.addSource("sea", {
-      type: "raster",
-      tiles,
-      tileSize: seaLayer.tileSize,
-      minzoom: seaLayer.minZoom,
-      maxzoom: Math.min(seaLayer.maxZoom, SEA_MAX_ZOOM),
-      attribution: seaLayer.source.attribution,
-    });
-    instance.addSource("land", {
-      type: "raster",
-      tiles: landTiles(basemap.tiles, { land, water }),
-      tileSize: LAND_TILE_SIZE,
-      maxzoom: basemap.maxZoom,
-    });
-    const styleLayers = instance.getStyle().layers;
-    const above = styleLayers[styleLayers.findIndex((layer) => layer.id === "water") + 1]?.id;
-    // The land appears at once: while it fades in, the sea's colors would show through it.
-    instance.addLayer(
-      { id: "land", type: "raster", source: "land", paint: { "raster-fade-duration": 0 } },
-      above,
-    );
-    instance.addLayer(
-      {
-        id: "sea",
+    // Each instant is a layer of its own. The one in view stays until the next has its tiles, then
+    // one fades into the other: the sea never goes blank between two instants.
+    // A new style has dropped the layer that was in view.
+    if (seaShown.current && !instance.getLayer(seaShown.current)) seaShown.current = undefined;
+    const id = `${SEA_LAYER}${seaTime.toISOString()}`;
+    if (!instance.getLayer(id)) {
+      instance.addSource(id, {
         type: "raster",
-        source: "sea",
-        paint: { "raster-resampling": "linear", "raster-fade-duration": 200 },
-      },
-      "land",
-    );
+        tiles: seaTiles(seaLayer, seaTime),
+        tileSize: seaLayer.tileSize,
+        minzoom: seaLayer.minZoom,
+        maxzoom: Math.min(seaLayer.maxZoom, SEA_MAX_ZOOM),
+        attribution: seaLayer.source.attribution,
+      });
+      instance.addLayer(
+        {
+          id,
+          type: "raster",
+          source: id,
+          paint: {
+            "raster-resampling": "linear",
+            "raster-fade-duration": seaShown.current ? 0 : SEA_FADE_MS,
+            "raster-opacity": seaShown.current ? 0 : 1,
+            "raster-opacity-transition": { duration: SEA_FADE_MS, delay: 0 },
+          },
+        },
+        "land",
+      );
+    }
+    seaShown.current ??= id;
+
+    const reveal = () => {
+      if (!instance.getLayer(id) || !instance.isSourceLoaded(id)) return;
+      instance.off("sourcedata", reveal);
+      const previous = seaShown.current;
+      if (previous === id) return;
+      seaShown.current = id;
+      instance.setPaintProperty(id, "raster-opacity", 1);
+      if (!previous || !instance.getLayer(previous)) return;
+      instance.setPaintProperty(previous, "raster-opacity", 0);
+      // Gone once it has faded, unless the reader came back to it meanwhile.
+      setTimeout(() => {
+        if (seaShown.current !== previous && map.current === instance) removeLayer(previous);
+      }, SEA_FADE_MS);
+    };
+    instance.on("sourcedata", reveal);
+    reveal();
+    return () => {
+      instance.off("sourcedata", reveal);
+      // An instant the reader only passed over never came into view.
+      if (seaShown.current !== id) removeLayer(id);
+    };
+  }, [layers.sea, seaLayer, seaTime, basemap, styleVersion]);
+
+  // Heights written on the sea in figures, which are hidden for now.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || styleVersion === 0 || !instance.getLayer("land")) return;
+    const styleLayers = instance.getStyle().layers;
+    const above = styleLayers[styleLayers.findIndex((layer) => layer.id === "land") + 1]?.id;
+    if (instance.getSource("sea-heights")) return;
     if (!SEA_HEIGHTS_SHOWN) return;
     instance.addSource("sea-heights", { type: "geojson", data: seaHeightFeatures([]) });
     // Under the names of the basemap, which hide a height that runs into them.
