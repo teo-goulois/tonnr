@@ -64,9 +64,9 @@ You need a Cloudflare account that holds the zone of your domain, and the web ap
 The command builds what `main` holds on the remote named `origin`, in a checkout of its own, and never what your working tree holds. It installs the dependencies there, so it needs the licence key of the icons, in the root `.env` or in the shell. Run it again to deploy a newer `main`.
 
 - Cloudflare makes the DNS record and the certificate of the host name. A first deployment may take a minute to answer.
-- Alchemy records what it deployed in a Worker of your account, `alchemy-state-store`, and makes it at the first deployment. Every project you deploy with Alchemy shares it: leave it in place.
+- Alchemy records what it deployed in a Worker of your account, `alchemy-state-store`, and makes it at the first deployment. Every project you deploy with Alchemy shares it, so leave it in place.
 - The token can change every Worker of the account. Keep it as you keep the API's secret.
-- Search engines are told not to list a stage. Add `WEB_INDEXED=true` to the stage's file when you want yours listed.
+- The web app tells search engines not to list a stage. Add `WEB_INDEXED=true` to the stage's file when you want yours listed.
 - To check a stage, sign in from its address. That proves the web app, the API, and `CORS_ORIGIN` agree.
 
 ## Updating

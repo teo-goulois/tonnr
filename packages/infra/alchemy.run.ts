@@ -33,7 +33,7 @@ export default Alchemy.Stack(
       },
       env: {
         VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
-        // Search engines are told to leave a stage out unless it says "true".
+        // The web app tells search engines to leave the stage out, unless this says "true".
         WEB_INDEXED: Config.String("WEB_INDEXED").pipe(Config.withDefault("false")),
       },
       dev: {

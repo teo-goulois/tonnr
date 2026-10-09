@@ -1,6 +1,6 @@
 # 021. Stages of the web app, and its pre-production
 
-Status: decided by Téo on 2026-10-09 and deployed the same day: the stage `dev` serves `https://dev.tonnr.app`. Not built: a production stage, a command that takes a stage down, and a deployment from CI. Not tried: a stage that asks search engines to list it.
+Status: decided by Téo on 2026-10-09 and deployed the same day. The stage `dev` serves `https://dev.tonnr.app`. Not built: a production stage, a command that takes a stage down, and a deployment from CI. Not tried: a stage that asks search engines to list it.
 
 ## Context
 
@@ -10,7 +10,7 @@ Téo wants a pre-production of the web app at `dev.tonnr.app`, working against t
 
 Three facts bound the choice:
 
-- An API trusts one web origin, its `CORS_ORIGIN`: decision 019.
+- An API trusts one web origin, its `CORS_ORIGIN`, by decision 019.
 - The session cookie belongs to the API's host. A page sends it when it is on the same site as the API. From any other site, Safari keeps it back.
 - Several people and agents work in one checkout, which often holds work that is not finished.
 
@@ -30,22 +30,22 @@ Three facts bound the choice:
 - `pnpm run deploy:web <stage>` deploys a stage from a developer's machine, as `pnpm run deploy:api` does the API.
 - It builds the commit that `main` has on the remote, in a checkout of its own that it makes and removes. It never builds the working tree.
 - It deploys the web app and leaves any other app of the stack as it is.
-- It shows what it will change and asks. `--yes` skips the question. `--dry-run` stops after showing, and changes nothing: it fails where the state store is missing or out of date, rather than make or change it.
+- It shows what it will change and asks. `--yes` skips the question. `--dry-run` stops after showing and changes nothing. Where the state store is missing or out of date, it fails rather than make or change it.
 - The install and Alchemy run code that other people wrote. Each gets the one secret it needs, and of the shell only what its tools need to run. The install gets the licence key of the icons, and Alchemy the access to Cloudflare.
 - Stopping the command stops the step under way.
-- The scripts `deploy` and `destroy` are removed. They deployed to a stage named after the user, with the address of the local API.
-- CI deploys nothing, and still reads one secret: decision 012.
+- This decision removes the scripts `deploy` and `destroy`. They deployed to a stage named after the user, with the address of the local API.
+- CI deploys nothing, and still reads the one secret of decision 012.
 
 ### State
 
 - Alchemy records what it deployed in a state store of the Cloudflare account: a Worker named `alchemy-state-store`, with a Secrets Store. It makes one when the account has none.
-- An account has one state store, shared by every project that deploys to it with Alchemy. Téo's account had one from other projects, at the version this Alchemy expects, and it is used as it is.
+- An account has one state store, shared by every project that deploys to it with Alchemy. Téo's account had one from other projects, at the version this Alchemy expects, and Tonnr uses it as it is.
 
 ### Search engines
 
-- Anyone who has a stage's address can open it. Sign-up is open on the API either way: decision 019.
-- Search engines are told not to list a stage, unless it sets `WEB_INDEXED=true`. The web app says so in a header, `X-Robots-Tag: noindex`, on every page it answers.
-- `robots.txt` goes on letting them in: a search engine that may not read a page does not read its header.
+- Anyone who has a stage's address can open it. Sign-up is open on the API either way, by decision 019.
+- The web app tells search engines not to list a stage, unless the stage sets `WEB_INDEXED=true`. It says so in a header, `X-Robots-Tag: noindex`, on every page it answers.
+- `robots.txt` still allows every page, because a search engine that may not read a page does not read its header.
 
 ## Rejected
 
@@ -65,7 +65,7 @@ Three facts bound the choice:
 - Every deployment installs the dependencies in its checkout, about twenty seconds, so it needs the licence key of the icons.
 - A deployment that fails, or that is stopped, leaves its checkout in the temporary directory, and says where.
 - A variable of the shell that the build needs and that the command does not pass on has to be added to the list in `scripts/cloudflare-deploy.mjs`.
-- The token can change every Worker of the account, not only Tonnr's: Cloudflare does not narrow that right to one Worker.
+- The token can change every Worker of the account, not only Tonnr's. Cloudflare does not narrow that right to one Worker.
 - The first deployment from a machine reads the state store's own token and keeps it in `~/.alchemy`.
 - A newer Alchemy may expect another version of the state store, and brings the store to it. That changes it for every project of the account, and `--yes` does it without asking. Check the other projects before changing Alchemy's version here.
 - The pre-production does what `scripts/demo.mjs` was written for. The script stays until Téo removes it.
