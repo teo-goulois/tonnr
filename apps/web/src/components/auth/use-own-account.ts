@@ -30,8 +30,9 @@ export function useOwnAccount() {
   );
 
   // A question that waits for the network to come back is not being asked: whoever reads this
-  // says what it can meanwhile, and is told when the answer comes.
-  const isAsking = asked.isPending && asked.fetchStatus !== "paused";
+  // says what it can meanwhile, and is told when the answer comes. One that is asked again
+  // after it failed leaves in place what its failure showed.
+  const isAsking = asked.isPending && asked.fetchStatus !== "paused" && asked.errorUpdatedAt === 0;
 
   return {
     // Undefined while the browser's session is not known.
