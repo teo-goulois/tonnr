@@ -106,17 +106,6 @@ function ViewerRoute() {
       select: (answer) => answer.stations,
     }),
   );
-  const breaks = useQuery(
-    orpc.v1.breaks.list.queryOptions({
-      input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
-      enabled: layers.breaks && bounds !== null,
-      placeholderData: keepPreviousData,
-      // The catalogue changes once a week.
-      staleTime: 60 * MINUTE_MS,
-      // Without them the map shows the stations alone, which needs no message.
-      meta: { quiet: true },
-    }),
-  );
   // The instance's private list is given to its operators and to no one else, so the map asks
   // for it only once the account is known to be one.
   const account = useQuery(
@@ -135,6 +124,9 @@ function ViewerRoute() {
     account.data?.isOperator === true &&
     account.data.id === session.data?.user.id;
   const selectedPrivateBreakId = isOperator ? requestedPrivateBreakId : undefined;
+  // An operator is shown the private list in place of the catalogue: most places are in both,
+  // and would stand twice on the map. So the map waits to know whom it is shown to.
+  const isRoleKnown = !session.isPending && (!signedIn || account.isFetched);
   const privateBreaks = useQuery(
     orpc.v1.privateBreaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
@@ -143,6 +135,17 @@ function ViewerRoute() {
       staleTime: 60 * MINUTE_MS,
       // A refusal is not asked again: it is acted on at once, below.
       retry: false,
+      meta: { quiet: true },
+    }),
+  );
+  const breaks = useQuery(
+    orpc.v1.breaks.list.queryOptions({
+      input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
+      enabled: layers.breaks && bounds !== null && isRoleKnown && !isOperator,
+      placeholderData: keepPreviousData,
+      // The catalogue changes once a week.
+      staleTime: 60 * MINUTE_MS,
+      // Without them the map shows the stations alone, which needs no message.
       meta: { quiet: true },
     }),
   );
@@ -381,8 +384,8 @@ function ViewerRoute() {
     if (listId === "favorites" && add) toast.success(m.saved_added_to_favorites());
   }
 
-  // The catalogue's breaks, then the private list's for an operator, each told from the other.
-  // The map redraws them when the list changes, so the list changes only with its sources.
+  // The catalogue's breaks, or the private list's for an operator. The map redraws them when
+  // the list changes, so the list changes only with its source.
   // A list that the API has just refused is not shown from what an earlier answer left.
   const privateInView =
     isOperator && !privateBreaks.isError ? privateBreaks.data?.breaks : undefined;
@@ -390,12 +393,9 @@ function ViewerRoute() {
     () => new Set(privateInView?.map((found) => found.id)),
     [privateInView],
   );
-  const catalogueInView = breaks.data?.breaks;
+  const catalogueInView = isOperator ? undefined : breaks.data?.breaks;
   const mapBreaks = useMemo(
-    () => [
-      ...(catalogueInView ?? []),
-      ...(privateInView ?? []).map((found) => ({ ...found, isPrivate: true })),
-    ],
+    () => catalogueInView ?? (privateInView ?? []).map((found) => ({ ...found, isPrivate: true })),
     [catalogueInView, privateInView],
   );
 
@@ -409,8 +409,9 @@ function ViewerRoute() {
       windTruncated={wind.data?.length === WIND_LIMIT}
       breaks={mapBreaks}
       breaksTruncated={
-        breaks.data?.next != null ||
-        (privateInView !== undefined && privateBreaks.data?.next != null)
+        isOperator
+          ? privateInView !== undefined && privateBreaks.data?.next != null
+          : breaks.data?.next != null
       }
       sea={sea.data}
       layers={layers}

@@ -1,6 +1,6 @@
 # 016. A private list of surf breaks
 
-Status: asked for by Téo on 2026-10-08, built on 2026-10-09, and amended the same day at his request: the file need not say where its list comes from. An operator's session reads the list, as decision 019 says. The web app's map shows it to an operator, as hollow dots among the catalogue's, with what the list says of a break in its panel.
+Status: asked for by Téo on 2026-10-08, built on 2026-10-09, and amended the same day at his request: the file need not say where its list comes from. An operator's session reads the list, as decision 019 says. The web app's map shows it to an operator in place of the catalogue, for now: most places are in both, and would stand twice. Its breaks are hollow dots, and a break's panel gives what the list says of it.
 
 ## Context
 
