@@ -17,7 +17,7 @@ type ActionsTableProps = {
   // Undefined while they load.
   actions: OperatorAction[] | undefined;
   // The developer accounts that still exist: a record of one that was deleted is not a link.
-  // Without it, the table is one account's own and names no account.
+  // Without it, the table is one account's own and names none.
   existing?: ReadonlySet<string>;
   // What to say when nothing was done.
   empty: string;
@@ -59,7 +59,44 @@ function sentences(action: OperatorAction): string[] {
       return [m.action_key_made(key)];
     case "key.revoke":
       return [m.action_key_revoked(key)];
+    case "account.sign_out":
+      return [m.action_signed_out({ count: formatCount(action.changes?.sessions ?? 0) })];
+    case "account.suspend":
+      return [m.action_suspended()];
+    case "account.resume":
+      return [m.action_account_resumed()];
+    // An API of a later version records what this admin has no words for yet.
+    default:
+      return [m.action_unknown({ action: action.action })];
   }
+}
+
+const linked = "focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline";
+
+/** What an action was done to: a developer account, or an account, each a link while it exists. */
+function Subject({ action, existing }: { action: OperatorAction; existing: ReadonlySet<string> }) {
+  if (action.accountId !== null) {
+    // The record keeps an account's identifier alone: its name is the one it has now.
+    return action.accountName === null ? (
+      <span className="text-neutral-7">{m.action_operator_gone()}</span>
+    ) : (
+      <Link to="/accounts/$accountId" params={{ accountId: action.accountId }} className={linked}>
+        {action.accountName}
+      </Link>
+    );
+  }
+  if (action.developerId !== null && existing.has(action.developerId)) {
+    return (
+      <Link
+        to="/developers/$developerId"
+        params={{ developerId: action.developerId }}
+        className={linked}
+      >
+        {action.developerName}
+      </Link>
+    );
+  }
+  return action.developerName ?? <span className="text-neutral-7">{m.usage_no_developer()}</span>;
 }
 
 /** What the operators did, the latest first: when, who, to which account, and what. */
@@ -91,19 +128,7 @@ export function ActionsTable({ actions, existing, empty }: ActionsTableProps) {
                 </TableCell>
                 {existing && (
                   <TableCell className="max-w-56 truncate">
-                    {action.developerId !== null && existing.has(action.developerId) ? (
-                      <Link
-                        to="/developers/$developerId"
-                        params={{ developerId: action.developerId }}
-                        className="focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline"
-                      >
-                        {action.developerName}
-                      </Link>
-                    ) : (
-                      (action.developerName ?? (
-                        <span className="text-neutral-7">{m.usage_no_developer()}</span>
-                      ))
-                    )}
+                    <Subject action={action} existing={existing} />
                   </TableCell>
                 )}
                 <TableCell>

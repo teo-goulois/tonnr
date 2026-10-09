@@ -15,7 +15,9 @@ export function SignInForm({ onSuccess }: { onSuccess: () => void }) {
     onSubmit: async ({ value }) => {
       const answer = await authClient.signIn.email(value);
       if (answer.error) {
-        toast.error(answer.error.message || m.auth_failed());
+        // An account that an operator suspended is told so in the reader's language.
+        const suspended = answer.error.code === "ACCOUNT_SUSPENDED";
+        toast.error(suspended ? m.auth_suspended() : answer.error.message || m.auth_failed());
         return;
       }
       onSuccess();

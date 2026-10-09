@@ -1,4 +1,4 @@
-import { apiKey, operator } from "@repo/db/schema/access";
+import { accountSuspension, apiKey, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { asc, eq } from "drizzle-orm";
@@ -73,6 +73,51 @@ describe.skipIf(!TEST_DATABASE_URL)("the operators of an instance", () => {
       lines: [`operator: ${WHO} is already an operator.`],
     });
     expect(await operators()).toEqual(["owner"]);
+  });
+
+  it("makes no operator of a suspended account, with or without the word to write", async () => {
+    await database.db.insert(accountSuspension).values({ userId: "owner" });
+
+    for (const args of [["owner"], ["owner", "--write"]]) {
+      expect(await grantOperator(database.db, args)).toEqual({
+        ok: false,
+        lines: [`operator: ${WHO} is suspended. Let it in again from the admin first.`],
+      });
+    }
+    expect(await operators()).toEqual([]);
+
+    // Once it is let in again, it is made one as any other.
+    await database.db.delete(accountSuspension);
+    expect((await grantOperator(database.db, ["owner", "--write"])).ok).toBe(true);
+    expect(await operators()).toEqual(["owner"]);
+  });
+
+  it("waits for a suspension that is being written, and then refuses", async () => {
+    // An operator suspends the account: the transaction holds its row.
+    const suspending = await database.db.$client.connect();
+    try {
+      await suspending.query("begin");
+      await suspending.query('select id from "user" where id = $1 for no key update', ["owner"]);
+      await suspending.query("insert into account_suspension (user_id) values ($1)", ["owner"]);
+
+      const granting = grantOperator(database.db, ["owner", "--write"]);
+      // The command has reached the account's row, and waits for it.
+      for (let tries = 0; ; tries += 1) {
+        const { rows } = await database.db.$client.query(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+        );
+        if (rows[0]?.waiting > 0) break;
+        if (tries > 300) throw new Error("Nothing waits for a lock");
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      await suspending.query("commit");
+      expect((await granting).ok).toBe(false);
+      expect(await operators()).toEqual([]);
+    } finally {
+      await suspending.query("rollback").catch(() => {});
+      suspending.release();
+    }
   });
 
   it("takes an id, and no address", async () => {

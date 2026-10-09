@@ -254,6 +254,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     it("finds what runs the instance, and nothing that a later change left unnamed by mistake", () => {
       expect(runsTheInstance.map(([name]) => name)).toEqual([
         "v1.accounts.list",
+        "v1.accounts.get",
+        "v1.accounts.signOut",
+        "v1.accounts.update",
         "v1.actions.list",
         "v1.developers.list",
         "v1.developers.create",

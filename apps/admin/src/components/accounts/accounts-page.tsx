@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "@repo/ui/components/ui/table";
 
+import { Link } from "@tanstack/react-router";
+
 import type { Account } from "@/lib/api";
 import { formatCount, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -27,7 +29,7 @@ type AccountsPageProps = {
   isLoadingMore: boolean;
 };
 
-/** The accounts that signed up, the newest first. The admin reads them and changes none. */
+/** The accounts that signed up, the newest first. Each leads to its page. */
 export function AccountsPage({
   accounts,
   total,
@@ -75,7 +77,15 @@ export function AccountsPage({
             {accounts
               ? accounts.map((account) => (
                   <TableRow key={account.id}>
-                    <TableCell className="max-w-64 truncate font-medium">{account.name}</TableCell>
+                    <TableCell className="max-w-64 truncate font-medium">
+                      <Link
+                        to="/accounts/$accountId"
+                        params={{ accountId: account.id }}
+                        className="focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline"
+                      >
+                        {account.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="max-w-72 truncate text-neutral-7">
                       {account.email}
                     </TableCell>
@@ -83,7 +93,12 @@ export function AccountsPage({
                       {formatDate(account.createdAt)}
                     </TableCell>
                     <TableCell>
-                      {account.isOperator && <Badge>{m.account_operator()}</Badge>}
+                      <span className="flex flex-wrap gap-xs">
+                        {account.isOperator && <Badge>{m.account_operator()}</Badge>}
+                        {account.suspendedAt && (
+                          <Badge variant="warning">{m.account_suspended()}</Badge>
+                        )}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))

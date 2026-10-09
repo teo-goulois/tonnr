@@ -8,6 +8,7 @@ export type Developer = Answer<V1["developers"]["list"]>["developers"][number];
 export type Key = Answer<V1["keys"]["list"]>["keys"][number];
 export type MadeKey = Answer<V1["keys"]["create"]>;
 export type Account = Answer<V1["accounts"]["list"]>["accounts"][number];
+export type AccountDetail = Answer<V1["accounts"]["get"]>;
 export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;

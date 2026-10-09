@@ -4,6 +4,8 @@ import type { Database } from "@repo/db";
 import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
+import { suspensionHooks } from "./suspension";
+
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
@@ -29,6 +31,8 @@ export function createAuth(
       ...desktopOrigins,
     ],
     emailAndPassword: { enabled: true },
+    // A suspended account opens no session: decision 025.
+    databaseHooks: { session: { create: suspensionHooks(database) } },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     advanced: {

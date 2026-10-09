@@ -1,6 +1,7 @@
 import { OPERATOR_ACTIONS, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { and, desc, eq, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
 import { adminProcedure } from "../index";
@@ -14,7 +15,11 @@ const changed = <Value extends z.ZodType>(value: Value) => z.object({ from: valu
 const actionSchema = z.object({
   id: z.string(),
   at: z.date(),
-  action: z.enum(OPERATOR_ACTIONS),
+  // One of the actions this version records, or one that a later version added: a program that
+  // reads this has an answer for a word it does not know.
+  action: z
+    .string()
+    .describe(`One of: ${OPERATOR_ACTIONS.join(", ")}. A later version may add to them.`),
   // The operator who did it, by the name they have now. Null once their account is deleted.
   operatorName: z.string().nullable(),
   // The developer account it was done to, or whose key it was, with the name it had then. The
@@ -23,6 +28,11 @@ const actionSchema = z.object({
   developerName: z.string().nullable(),
   // The key that was made or revoked. Null for what was done to an account.
   keyName: z.string().nullable(),
+  // The account whose sessions were closed, or that was suspended or let in again, with the
+  // name it has now. The record keeps its identifier alone: the name is null once the account
+  // is deleted.
+  accountId: z.string().nullable(),
+  accountName: z.string().nullable(),
   // What an update changed. A contact and a note are only said to have changed.
   changes: z
     .object({
@@ -30,6 +40,8 @@ const actionSchema = z.object({
       callsPerHour: changed(z.number().nullable()).optional(),
       contact: z.literal(true).optional(),
       note: z.literal(true).optional(),
+      // How many open sessions of an account were closed.
+      sessions: z.number().optional(),
     })
     .nullable(),
 });
@@ -39,11 +51,12 @@ export const actionsRouter = {
     .route({
       method: "GET",
       path: "/actions",
-      summary: "What the operators did to the developer accounts and the keys, the latest first",
+      summary: "What the operators did to the developer accounts, the keys and the accounts",
       description:
-        `${ADMIN_ONLY} Each change made through the API is recorded with it: creating, ` +
-        "changing, suspending, resuming and deleting a developer account, making and revoking " +
-        "a key. A key is named and never shown. The commands run on the server are not " +
+        `${ADMIN_ONLY} The latest first. Each change made through the API is recorded with ` +
+        "it: creating, changing, suspending, resuming and deleting a developer account, making " +
+        "and revoking a key, closing an account's sessions, suspending an account and letting " +
+        "it in again. A key is named and never shown. The commands run on the server are not " +
         "recorded: whoever runs them is no account. A record is kept thirteen months. Pages " +
         "follow one another through `after`.",
       tags: ["Operator actions"],
@@ -52,6 +65,8 @@ export const actionsRouter = {
       z.object({
         // Only what was done to this developer account and to its keys.
         developerId: z.uuid().optional(),
+        // Only what was done to this account.
+        accountId: z.string().min(1).max(200).optional(),
         // The `next` of the page before.
         after: z.uuid().optional(),
         limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -74,6 +89,8 @@ export const actionsRouter = {
           )`
         : undefined;
 
+      // The account an action was done to is read apart from the operator who did it.
+      const target = alias(user, "target");
       const rows = await context.db
         .select({
           id: operatorAction.id,
@@ -83,13 +100,17 @@ export const actionsRouter = {
           developerId: operatorAction.developerId,
           developerName: operatorAction.developerName,
           keyName: operatorAction.keyName,
+          accountId: operatorAction.accountId,
+          accountName: target.name,
           changes: operatorAction.changes,
         })
         .from(operatorAction)
         .leftJoin(user, eq(user.id, operatorAction.operatorId))
+        .leftJoin(target, eq(target.id, operatorAction.accountId))
         .where(
           and(
             input.developerId ? eq(operatorAction.developerId, input.developerId) : undefined,
+            input.accountId ? eq(operatorAction.accountId, input.accountId) : undefined,
             after,
           ),
         )

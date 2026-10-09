@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { AccountsPage } from "@/components/accounts/accounts-page";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_operator/accounts")({
+export const Route = createFileRoute("/_operator/accounts/")({
   // What is searched for is in the address, so that going back finds it again.
   validateSearch: (search): { q?: string } => ({ q: searchOf(search.q) || undefined }),
   component: AccountsRoute,

@@ -2,8 +2,11 @@ import { dayOf, planNotifications } from "@repo/conditions/alerts/plan";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import type { Database } from "@repo/db";
+import { isSuspended } from "@repo/db/accounts";
+import { accountSuspension } from "@repo/db/schema/access";
+import { user } from "@repo/db/schema/auth";
 import { notification, spot } from "@repo/db/schema/spots";
-import { and, eq, gt, gte, or } from "drizzle-orm";
+import { and, eq, gt, gte, notExists, or } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import { StoreError } from "./store";
@@ -20,6 +23,14 @@ const evaluateSpot = Effect.fn("evaluateSpot")(function* (
   row: typeof spot.$inferSelect,
   now: Date,
 ) {
+  // The spot's owner may have been suspended since the spots were listed: no forecast is asked
+  // for an account that is kept out. Decision 025.
+  const isOut = yield* Effect.tryPromise({
+    try: () => isSuspended(db, row.userId),
+    catch: (cause) => new StoreError({ provider: "alerts", cause }),
+  });
+  if (isOut) return { created: 0, stale: false } satisfies Evaluated;
+
   const assessment = yield* assessSpot(forecasts, row, FORECAST_DAYS);
   // An older forecast, given because the provider could not be asked, announces nothing and
   // calls nothing off: yesterday's news would do both wrongly. The spot's notifications stay
@@ -36,6 +47,10 @@ const evaluateSpot = Effect.fn("evaluateSpot")(function* (
         const [current] = await tx.select().from(spot).where(eq(spot.id, row.id)).for("update");
         const unchanged = current?.updatedAt.getTime() === row.updatedAt.getTime();
         if (!current?.alertsEnabled || !unchanged) return 0;
+        // And its owner once more, held so that a suspension waits for this to be written, or
+        // is seen here: nothing is announced to an account that was suspended meanwhile.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, row.userId)).for("share");
+        if (await isSuspended(tx, row.userId)) return 0;
 
         const existing = await tx
           .select()
@@ -113,7 +128,22 @@ export const evaluateAlerts = Effect.fn("evaluateAlerts")(function* (
 ) {
   const now = new Date();
   const spots = yield* Effect.tryPromise({
-    try: () => db.select().from(spot).where(eq(spot.alertsEnabled, true)),
+    try: () =>
+      db
+        .select()
+        .from(spot)
+        .where(
+          and(
+            eq(spot.alertsEnabled, true),
+            // The alerts of a suspended account would spend the forecasts' budget for no one.
+            notExists(
+              db
+                .select({ userId: accountSuspension.userId })
+                .from(accountSuspension)
+                .where(eq(accountSuspension.userId, spot.userId)),
+            ),
+          ),
+        ),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
   });
 

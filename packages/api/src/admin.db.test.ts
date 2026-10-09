@@ -4,6 +4,7 @@ import { FORECAST_PROVIDER, forecastBudget } from "@repo/conditions/forecasts/op
 import { testForecasts } from "@repo/conditions/forecasts/testing";
 import { forecastStore } from "@repo/db/forecasts";
 import {
+  accountSuspension,
   apiKey,
   apiUsage,
   developer,
@@ -11,10 +12,11 @@ import {
   operator,
   operatorAction,
 } from "@repo/db/schema/access";
-import { user } from "@repo/db/schema/auth";
+import { session, user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
 import { forecastCell, providerCalls } from "@repo/db/schema/forecasts";
 import { job, workerProcess } from "@repo/db/schema/instance";
+import { createDb } from "@repo/db";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -923,6 +925,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
         email: "LATE@Example.org",
         createdAt: new Date("2126-01-01T00:00:00Z"),
         isOperator: false,
+        suspendedAt: null,
       });
       expect(Object.fromEntries(accounts.map((found) => [found.id, found.isOperator]))).toEqual({
         late: false,
@@ -970,6 +973,281 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
     });
   });
 
+  describe("an account, in an operator's hands", () => {
+    const account = (id = "visitor") => call(v1Router.accounts.get, { id }, asOwner());
+    const signOut = (id = "visitor", by = "owner") =>
+      call(v1Router.accounts.signOut, { id }, { context: context({ session: by }) });
+    const suspend = (id = "visitor", suspended = true, by = "owner") =>
+      call(v1Router.accounts.update, { id, suspended }, { context: context({ session: by }) });
+    const recordedActions = async () =>
+      (await call(v1Router.actions.list, {}, asOwner())).actions.map((done) => [
+        done.action,
+        done.operatorName,
+        done.accountId,
+        done.accountName,
+        done.changes,
+      ]);
+    const rowsOf = async (id: string) =>
+      (await database.db.select().from(session).where(eq(session.userId, id))).map((row) => row.id);
+    // Sessions of an account: so many open, so many past their end.
+    const open = async (id: string, sessions: number, expired = 0) => {
+      const row = (index: number, hours: number) => ({
+        id: `${id}-${index}`,
+        userId: id,
+        token: `token-${id}-${index}`,
+        expiresAt: new Date(Date.now() + hours * HOUR_MS),
+        createdAt: new Date(Date.now() - 48 * HOUR_MS),
+        updatedAt: new Date(Date.now() - (index + 1) * HOUR_MS),
+        // What the sign-in library keeps of a session, and that no procedure gives.
+        ipAddress: "203.0.113.7",
+        userAgent: "A browser",
+      });
+      const rows = [
+        ...Array.from({ length: sessions }, (_, index) => row(index, 24)),
+        ...Array.from({ length: expired }, (_, index) => row(sessions + index, -1)),
+      ];
+      if (rows.length > 0) await database.db.insert(session).values(rows);
+    };
+
+    beforeEach(async () => {
+      await database.db.delete(accountSuspension);
+    });
+
+    it("is seen with who it is and how many sessions it has open, and nothing of where they came from", async () => {
+      await open("visitor", 2, 1);
+
+      const found = await account();
+
+      expect(found).toEqual({
+        id: "visitor",
+        name: "Visitor",
+        email: "visitor@example.org",
+        emailVerified: false,
+        createdAt: expect.any(Date),
+        isOperator: false,
+        suspendedAt: null,
+        sessions: 2,
+        sessionRenewedAt: expect.any(Date),
+      });
+      // The latest of the two that are open, an hour ago.
+      expect(Date.now() - found.sessionRenewedAt!.getTime()).toBeLessThan(1.1 * HOUR_MS);
+      expect(JSON.stringify(found)).not.toContain("203.0.113.7");
+      expect(await account("owner")).toMatchObject({
+        isOperator: true,
+        sessions: 0,
+        sessionRenewedAt: null,
+      });
+      await expect(account("nobody")).rejects.toEqual(refusal("NOT_FOUND"));
+    });
+
+    it("has its sessions closed, the ones past their end too, and the open ones counted", async () => {
+      await open("visitor", 2, 3);
+      await open("second", 1);
+
+      expect(await signOut()).toEqual({ closed: 2 });
+
+      expect(await rowsOf("visitor")).toEqual([]);
+      expect(await rowsOf("second")).toEqual(["second-0"]);
+      expect(await recordedActions()).toEqual([
+        ["account.sign_out", "Owner", "visitor", "Visitor", { sessions: 2 }],
+      ]);
+      // Nothing is open any more: nothing is closed, and nothing is recorded.
+      expect(await signOut()).toEqual({ closed: 0 });
+      expect(await recordedActions()).toHaveLength(1);
+      await expect(signOut("nobody")).rejects.toEqual(refusal("NOT_FOUND"));
+    });
+
+    it("may be an operator's, and the operator's own", async () => {
+      await open("owner", 1);
+      await open("second", 2);
+
+      expect(await signOut("second")).toEqual({ closed: 2 });
+      expect(await signOut("owner")).toEqual({ closed: 1 });
+      expect([await rowsOf("owner"), await rowsOf("second")]).toEqual([[], []]);
+    });
+
+    it("has its sessions closed by an operator whose own are being closed by it", async () => {
+      // Two operators close each other's sessions at the same moment, again and again: neither
+      // waits for the other, and each is recorded.
+      for (let round = 0; round < 12; round += 1) {
+        await database.db.delete(session);
+        await open("owner", 1);
+        await open("second", 1);
+
+        expect(await Promise.all([signOut("second", "owner"), signOut("owner", "second")])).toEqual(
+          [{ closed: 1 }, { closed: 1 }],
+        );
+      }
+      expect(await database.db.select().from(session)).toEqual([]);
+      expect(await recordedActions()).toHaveLength(24);
+    });
+
+    it("counts its open sessions the same whatever time zone the database's connection keeps", async () => {
+      const elsewhere = createDb(
+        { DATABASE_URL: database.url },
+        { options: "-c timezone=Pacific/Kiritimati" },
+      );
+      const behind = createDb(
+        { DATABASE_URL: database.url },
+        { options: "-c timezone=Pacific/Pago_Pago" },
+      );
+      try {
+        for (const db of [elsewhere, behind]) {
+          await database.db.delete(session);
+          // Two open, and three past their end by an hour: fourteen hours east or eleven west
+          // would take one kind for the other.
+          await open("visitor", 2, 3);
+          const there = { context: { ...context({ session: "owner" }), db } };
+
+          expect(await call(v1Router.accounts.get, { id: "visitor" }, there)).toMatchObject({
+            sessions: 2,
+          });
+          expect(await call(v1Router.accounts.signOut, { id: "visitor" }, there)).toEqual({
+            closed: 2,
+          });
+        }
+      } finally {
+        await elsewhere.$client.end();
+        await behind.$client.end();
+      }
+    });
+
+    it("is suspended once, with its sessions closed and the operator who did it", async () => {
+      await open("visitor", 2);
+
+      const suspended = await suspend();
+
+      expect(suspended).toMatchObject({ id: "visitor", sessions: 0, sessionRenewedAt: null });
+      expect(suspended.suspendedAt).toBeInstanceOf(Date);
+      expect(await rowsOf("visitor")).toEqual([]);
+      expect(await database.db.select().from(accountSuspension)).toMatchObject([
+        { userId: "visitor", operatorId: "owner" },
+      ]);
+      expect(
+        (await call(v1Router.accounts.list, { q: "visitor" }, asOwner())).accounts,
+      ).toMatchObject([{ id: "visitor", suspendedAt: suspended.suspendedAt }]);
+
+      // A second time, by another operator: nothing changes, and nothing is recorded.
+      const again = await suspend("visitor", true, "second");
+      expect(again.suspendedAt).toEqual(suspended.suspendedAt);
+      expect(await recordedActions()).toEqual([
+        ["account.suspend", "Owner", "visitor", "Visitor", null],
+      ]);
+    });
+
+    it("is let in again, without its sessions, and that is recorded once", async () => {
+      await suspend();
+
+      expect(await suspend("visitor", false, "second")).toMatchObject({
+        suspendedAt: null,
+        sessions: 0,
+      });
+      expect(await suspend("visitor", false)).toMatchObject({ suspendedAt: null });
+
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+      expect(
+        (await recordedActions()).map(([action, operatorName]) => [action, operatorName]),
+      ).toEqual([
+        ["account.resume", "Second"],
+        ["account.suspend", "Owner"],
+      ]);
+    });
+
+    it("is not suspended when it is an operator's, nor when there is none", async () => {
+      await open("second", 1);
+
+      await expect(suspend("second")).rejects.toEqual(refusal("CONFLICT"));
+      await expect(suspend("owner")).rejects.toEqual(refusal("CONFLICT"));
+      await expect(suspend("nobody")).rejects.toEqual(refusal("NOT_FOUND"));
+      await expect(suspend("nobody", false)).rejects.toEqual(refusal("NOT_FOUND"));
+
+      expect(await rowsOf("second")).toEqual(["second-0"]);
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+      expect(await recordedActions()).toEqual([]);
+    });
+
+    it("leaves a record that names it by its identifier, and outlives it without its name", async () => {
+      await open("visitor", 1);
+      await signOut();
+      await suspend();
+      await suspend("second-visitor").catch(() => {});
+      await makeDeveloper();
+      const ofVisitor = () => call(v1Router.actions.list, { accountId: "visitor" }, asOwner());
+
+      expect((await ofVisitor()).actions.map((done) => [done.action, done.accountName])).toEqual([
+        ["account.suspend", "Visitor"],
+        ["account.sign_out", "Visitor"],
+      ]);
+
+      // The account is deleted: its suspension goes with it, and the record stays.
+      await database.db.delete(user).where(eq(user.id, "visitor"));
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+      expect(
+        (await ofVisitor()).actions.map((done) => [done.action, done.accountId, done.accountName]),
+      ).toEqual([
+        ["account.suspend", "visitor", null],
+        ["account.sign_out", "visitor", null],
+      ]);
+      const kept = await database.db.select().from(operatorAction);
+      expect(JSON.stringify(kept)).not.toContain("Visitor");
+      expect(JSON.stringify(kept)).not.toContain("visitor@example.org");
+    });
+
+    it("has its own pages of what was done to it, under the name it has now", async () => {
+      await suspend();
+      await suspend("visitor", false);
+      await suspend();
+      await suspend("second").catch(() => {});
+      await makeDeveloper();
+      await database.db.update(user).set({ name: "Renamed" }).where(eq(user.id, "visitor"));
+      const page = (after?: string) =>
+        call(v1Router.actions.list, { accountId: "visitor", limit: 2, after }, asOwner());
+
+      const first = await page();
+      expect(first.actions.map((done) => [done.action, done.accountName])).toEqual([
+        ["account.suspend", "Renamed"],
+        ["account.resume", "Renamed"],
+      ]);
+      const second = await page(first.next ?? undefined);
+      expect(second.actions.map((done) => done.action)).toEqual(["account.suspend"]);
+      expect(second.next).toBeNull();
+    });
+
+    it("leaves no record when what it does fails", async () => {
+      await open("visitor", 1);
+      // A database that takes no record.
+      const db = new Proxy(database.db, {
+        get(target, property) {
+          if (property !== "transaction") return Reflect.get(target, property);
+          return (run: (tx: never) => Promise<unknown>) =>
+            target.transaction((tx) => {
+              const refusing = new Proxy(tx, {
+                get(inner, name) {
+                  const value: unknown = Reflect.get(inner, name, inner);
+                  if (name !== "insert" || typeof value !== "function") return value;
+                  return (table: unknown) => {
+                    if (table === operatorAction) throw new Error("This database takes no record");
+                    return Reflect.apply(value, inner, [table]);
+                  };
+                },
+              });
+              return run(refusing as never);
+            });
+        },
+      });
+      const broken = { context: { ...context({ session: "owner" }), db } };
+
+      await expect(call(v1Router.accounts.signOut, { id: "visitor" }, broken)).rejects.toThrow();
+      await expect(
+        call(v1Router.accounts.update, { id: "visitor", suspended: true }, broken),
+      ).rejects.toThrow();
+
+      // Neither was done: the session is there, and the account is not suspended.
+      expect(await rowsOf("visitor")).toEqual(["visitor-0"]);
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+    });
+  });
+
   describe("what an operator did", () => {
     const done = async (input: object = {}) =>
       (await call(v1Router.actions.list, input as never, asOwner())).actions;
@@ -980,6 +1258,8 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       operatorName: "Owner",
       developerName: "Harbour screens",
       keyName: null,
+      accountId: null,
+      accountName: null,
       changes: null,
     };
 

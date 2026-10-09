@@ -1,8 +1,9 @@
 import { testForecasts } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
-import { apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
-import { user } from "@repo/db/schema/auth";
+import { suspensionHooks } from "@repo/auth/suspension";
+import { accountSuspension, apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
+import { session, user } from "@repo/db/schema/auth";
 import { stationList } from "@repo/db/schema/lists";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -299,6 +300,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/usage/series", "get"],
       ["/usage/breakdown", "get"],
       ["/accounts", "get"],
+      ["/accounts/{id}", "get"],
+      ["/accounts/{id}", "patch"],
+      ["/accounts/{id}/sessions", "delete"],
       ["/actions", "get"],
       ["/instance", "get"],
       ["/lists", "get"],
@@ -502,6 +506,203 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
           }),
         ).not.toThrow();
       }
+    });
+  });
+
+  describe("an account that an operator suspends", () => {
+    const password = "made-up-for-these-tests";
+    const signIn = (name: string) =>
+      send("POST", "/api/auth/sign-in/email", {
+        origin: APP,
+        body: { email: `${name}@example.org`, password },
+      });
+    const cookieOf = (response: Response) =>
+      response.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+    const idOf = async (cookie: string) =>
+      (await bodyOf<{ id: string }>(await send("GET", "/v1/account", { cookie }))).id;
+    const sessionsOf = async (id: string) =>
+      (await database.db.select().from(session)).filter((row) => row.userId === id);
+
+    it("is signed out everywhere, cannot sign in, and can again once it is let in", async () => {
+      const operatorCookie = await signUpOperator();
+      const from = { cookie: operatorCookie, origin: ADMIN };
+      const cookie = await signUp("guest");
+      const second = cookieOf(await signIn("guest"));
+      const id = await idOf(cookie);
+      expect(await sessionsOf(id)).toHaveLength(2);
+
+      const seen = await send("GET", `/v1/accounts/${id}`, from);
+      expect(await bodyOf(seen)).toMatchObject({ id, sessions: 2, suspendedAt: null });
+
+      const suspended = await send("PATCH", `/v1/accounts/${id}`, {
+        ...from,
+        body: { suspended: true },
+      });
+      expect(suspended.status).toBe(200);
+      expect(await bodyOf(suspended)).toMatchObject({ id, sessions: 0 });
+
+      // Both of its devices are signed out, at the next thing they ask.
+      for (const old of [cookie, second]) {
+        expect((await send("GET", "/v1/account", { cookie: old })).status).toBe(401);
+      }
+      const refused = await signIn("guest");
+      expect(refused.status).toBe(403);
+      expect(await bodyOf(refused)).toEqual({
+        code: "ACCOUNT_SUSPENDED",
+        message: "This account is suspended.",
+      });
+      expect(await sessionsOf(id)).toEqual([]);
+      // Whatever the refusal carries opens nothing.
+      const left = cookieOf(refused);
+      if (left) expect((await send("GET", "/v1/account", { cookie: left })).status).toBe(401);
+
+      const letIn = await send("PATCH", `/v1/accounts/${id}`, {
+        ...from,
+        body: { suspended: false },
+      });
+      expect(await bodyOf(letIn)).toMatchObject({ suspendedAt: null, sessions: 0 });
+      expect((await send("GET", "/v1/account", { cookie })).status).toBe(401);
+      const back = await signIn("guest");
+      expect(back.status).toBe(200);
+      expect((await send("GET", "/v1/account", { cookie: cookieOf(back) })).status).toBe(200);
+    });
+
+    it("has its sessions closed over both transports, an operator's own too", async () => {
+      const operatorCookie = await signUpOperator();
+      const from = { cookie: operatorCookie, origin: ADMIN };
+      const cookie = await signUp("guest");
+      const id = await idOf(cookie);
+
+      const closed = await send("POST", "/rpc/v1/accounts/signOut", {
+        ...from,
+        body: { json: { id } },
+      });
+      expect(await bodyOf(closed)).toMatchObject({ json: { closed: 1 } });
+      expect((await send("GET", "/v1/account", { cookie })).status).toBe(401);
+
+      const own = await send("DELETE", `/v1/accounts/${await idOf(operatorCookie)}/sessions`, from);
+      expect(await bodyOf(own)).toEqual({ closed: 1 });
+      // The operator is signed out by what they did.
+      expect((await send("GET", "/v1/accounts", from)).status).toBe(401);
+    });
+
+    it("refuses to suspend an operator, and anything asked from elsewhere than the admin", async () => {
+      const operatorCookie = await signUpOperator();
+      const operatorId = await idOf(operatorCookie);
+      const guest = await idOf(await signUp("guest"));
+
+      const own = await send("PATCH", `/v1/accounts/${operatorId}`, {
+        cookie: operatorCookie,
+        origin: ADMIN,
+        body: { suspended: true },
+      });
+      expect(own.status).toBe(409);
+
+      for (const by of [{ origin: APP }, {}] satisfies By[]) {
+        const refused = await send("PATCH", `/v1/accounts/${guest}`, {
+          cookie: operatorCookie,
+          ...by,
+          body: { suspended: true },
+        });
+        expect(refused.status).toBe(403);
+      }
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+    });
+
+    // Waits until a statement of this database waits for a lock: what was started is then
+    // known to have reached it, however slow the machine.
+    async function untilBlocked() {
+      for (let tries = 0; tries < 300; tries += 1) {
+        const { rows } = await database.db.$client.query(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+        );
+        if (rows[0]?.waiting > 0) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error("Nothing waits for a lock");
+    }
+
+    it("refuses a sign-in that was under way when the suspension was written, and leaves it no session", async () => {
+      const cookie = await signUp("guest");
+      const id = await idOf(cookie);
+      await database.db.delete(session);
+
+      // An operator suspends the account: the transaction holds its row, and is not written
+      // yet. Nobody else sees the suspension.
+      const suspending = await database.db.$client.connect();
+      try {
+        await suspending.query("begin");
+        await suspending.query('select id from "user" where id = $1 for no key update', [id]);
+        await suspending.query("insert into account_suspension (user_id) values ($1)", [id]);
+
+        // The account signs in, through the sign-in itself: it sees no suspension, writes its
+        // session, and then waits for the account's row.
+        const signingIn = signIn("guest");
+        await untilBlocked();
+        expect(await sessionsOf(id)).toHaveLength(1);
+
+        await suspending.query("delete from session where user_id = $1", [id]);
+        await suspending.query("commit");
+
+        const refused = await signingIn;
+        expect(refused.status).toBe(403);
+        expect(await bodyOf(refused)).toEqual({
+          code: "ACCOUNT_SUSPENDED",
+          message: "This account is suspended.",
+        });
+        // The session it had written is gone, and what the refusal carries opens nothing.
+        expect(await sessionsOf(id)).toEqual([]);
+        const left = cookieOf(refused);
+        if (left) expect((await send("GET", "/v1/account", { cookie: left })).status).toBe(401);
+      } finally {
+        await suspending.query("rollback").catch(() => {});
+        suspending.release();
+      }
+    });
+
+    it("answers an operator over the other transport too, and nobody else", async () => {
+      const operatorCookie = await signUpOperator();
+      const from = { cookie: operatorCookie, origin: ADMIN };
+      const guestCookie = await signUp("guest");
+      const id = await idOf(guestCookie);
+      const rpc = (procedure: string, by: By, json: object) =>
+        send("POST", `/rpc/v1/accounts/${procedure}`, { ...by, body: { json } });
+
+      expect(await bodyOf(await rpc("get", from, { id }))).toMatchObject({
+        json: { id, sessions: 1, suspendedAt: null },
+      });
+      // The account itself, an operator from the web app's site, and a caller with no session.
+      for (const by of [
+        { cookie: guestCookie, origin: ADMIN },
+        { cookie: operatorCookie, origin: APP },
+        { origin: ADMIN },
+      ] satisfies By[]) {
+        expect((await rpc("get", by, { id })).status).toBeGreaterThanOrEqual(401);
+        expect((await rpc("update", by, { id, suspended: true })).status).toBeGreaterThanOrEqual(
+          401,
+        );
+      }
+      expect(await database.db.select().from(accountSuspension)).toEqual([]);
+
+      const suspended = await rpc("update", from, { id, suspended: true });
+      expect(await bodyOf<{ json: { suspendedAt: unknown } }>(suspended)).toMatchObject({
+        json: { id, sessions: 0 },
+      });
+      expect(await database.db.select().from(accountSuspension)).toHaveLength(1);
+    });
+
+    it("leaves a session that an account opens while nothing suspends it", async () => {
+      const cookie = await signUp("guest");
+      const id = await idOf(cookie);
+      const [opened] = await sessionsOf(id);
+
+      await expect(
+        suspensionHooks(database.db).after({ id: opened!.id, userId: id }, null),
+      ).resolves.toBeUndefined();
+      expect(await sessionsOf(id)).toHaveLength(1);
     });
   });
 

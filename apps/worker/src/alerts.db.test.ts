@@ -1,5 +1,6 @@
 import { answer, providerDown, testForecasts } from "@repo/conditions/forecasts/testing";
 import { user } from "@repo/db/schema/auth";
+import { accountSuspension } from "@repo/db/schema/access";
 import { job } from "@repo/db/schema/instance";
 import { notification, spot } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -121,6 +122,88 @@ describe.skipIf(!TEST_DATABASE_URL)("the alerts and the forecast they are planne
       outcome: "degraded",
       counts: { spots: 1, created: 0, failed: 0, stale: 1 },
     });
+  });
+
+  it("leave out the spots of a suspended account, and ask no forecast for them", async () => {
+    await database.db.insert(accountSuspension).values({ userId: "owner" });
+
+    expect(await run()).toEqual({ spots: 0, created: 0, failed: 0, stale: 0 });
+    expect(kept.provider.asked).toBe(0);
+    expect(await notifications()).toEqual([]);
+
+    await database.db.delete(accountSuspension);
+    expect(await run()).toMatchObject({ spots: 1, created: 1 });
+  });
+
+  it("ask no forecast for a spot whose owner was suspended while another spot was checked", async () => {
+    await database.db.insert(user).values({ id: "other", name: "Other", email: "x@example.org" });
+    await database.db.insert(spot).values({
+      id: "theirs",
+      userId: "other",
+      name: "Theirs",
+      latitude: 48.4,
+      longitude: -4.8,
+      criteria: { swellHeightMeters: { min: 1 } },
+      alertsEnabled: true,
+    });
+    // Both accounts are suspended while the first spot's forecast is fetched: whichever spot
+    // comes second is not asked for.
+    const during = testForecasts();
+    const fetched = during.forecasts.get;
+    const forecasts = {
+      ...during.forecasts,
+      get: (query: Parameters<typeof fetched>[0]) =>
+        Effect.gen(function* () {
+          const found = yield* fetched(query);
+          yield* Effect.promise(() =>
+            database.db
+              .insert(accountSuspension)
+              .values([{ userId: "owner" }, { userId: "other" }])
+              .onConflictDoNothing(),
+          );
+          return found;
+        }),
+    };
+
+    try {
+      expect(await Effect.runPromise(evaluateAlerts(database.db, forecasts))).toEqual({
+        spots: 2,
+        created: 0,
+        failed: 0,
+        stale: 0,
+      });
+      expect(during.provider.asked).toBe(1);
+      expect(await notifications()).toEqual([]);
+    } finally {
+      await database.db.delete(user).where(eq(user.id, "other"));
+      await database.db.delete(accountSuspension);
+    }
+  });
+
+  it("announce nothing to an account that was suspended while its forecast was fetched", async () => {
+    // The account is suspended between the moment the spots are listed and the writing.
+    const during = testForecasts();
+    const fetched = during.forecasts.get;
+    const forecasts = {
+      ...during.forecasts,
+      get: (query: Parameters<typeof fetched>[0]) =>
+        Effect.gen(function* () {
+          const found = yield* fetched(query);
+          yield* Effect.promise(() =>
+            database.db.insert(accountSuspension).values({ userId: "owner" }),
+          );
+          return found;
+        }),
+    };
+
+    expect(await Effect.runPromise(evaluateAlerts(database.db, forecasts))).toEqual({
+      spots: 1,
+      created: 0,
+      failed: 0,
+      stale: 0,
+    });
+    expect(await notifications()).toEqual([]);
+    await database.db.delete(accountSuspension);
   });
 
   it("count a spot as failed when no forecast can be had for it", async () => {

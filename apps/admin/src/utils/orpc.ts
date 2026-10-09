@@ -94,6 +94,7 @@ export function refreshLists(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: orpc.v1.developers.key() }),
     queryClient.invalidateQueries({ queryKey: orpc.v1.keys.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.v1.accounts.key() }),
     queryClient.invalidateQueries({ queryKey: orpc.v1.actions.key() }),
   ]);
 }

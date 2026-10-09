@@ -27,6 +27,19 @@ export const operator = pgTable("operator", {
 });
 
 /**
+ * An account that an operator suspended: it has no session, and cannot sign in until the row is
+ * deleted. What it owns stays. An operator is never suspended. Decision 025 gives the rules.
+ */
+export const accountSuspension = pgTable("account_suspension", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  // The operator who suspended it. Null once their account is deleted.
+  operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
+});
+
+/**
  * Whoever consumes the API with keys: a person, a team or a program, as the operator names it.
  * The operator creates it and makes its keys. It is not an account that signs in: it has no
  * password and no session. Decision 020 gives the rules.
@@ -139,6 +152,9 @@ export const OPERATOR_ACTIONS = [
   "developer.delete",
   "key.create",
   "key.revoke",
+  "account.sign_out",
+  "account.suspend",
+  "account.resume",
 ] as const;
 
 /**
@@ -151,10 +167,12 @@ export type OperatorChanges = {
   callsPerHour?: { from: number | null; to: number | null };
   contact?: true;
   note?: true;
+  // How many open sessions of an account were closed.
+  sessions?: number;
 };
 
 /**
- * What an operator did to a developer account or to a key, and when. It is written in the
+ * What an operator did to a developer account, to a key or to an account, and when. It is written in the
  * transaction that does it, so that nothing is done without its record, and no record says what
  * was not done. A key is named and never held here. The record of an account outlives the
  * account: it is deleted thirteen months after its day, with the counts.
@@ -175,10 +193,15 @@ export const operatorAction = pgTable(
     // The key that was made or revoked, by its name. Null for what was done to an account.
     keyId: text("key_id"),
     keyName: text("key_name"),
+    // The account whose sessions were closed, or that was suspended or let in again. Its
+    // identifier alone: an account is a person, and the record outlives it. It does not point
+    // to the account, so that the record of one that was deleted stays.
+    accountId: text("account_id"),
     changes: jsonb("changes").$type<OperatorChanges>(),
   },
   (table) => [
     index("operator_action_at_idx").on(table.at),
     index("operator_action_developerId_at_idx").on(table.developerId, table.at),
+    index("operator_action_accountId_at_idx").on(table.accountId, table.at, table.id),
   ],
 );

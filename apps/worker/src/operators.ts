@@ -1,4 +1,5 @@
 import type { Database } from "@repo/db";
+import { isSuspended } from "@repo/db/accounts";
 import { apiKey, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { and, eq, isNull } from "drizzle-orm";
@@ -40,6 +41,11 @@ export async function grantOperator(db: Database, args: string[]): Promise<Outco
 
     const [already] = await tx.select().from(operator).where(eq(operator.userId, id));
     if (already) return { ok: true, lines: [`operator: ${who} is already an operator.`] };
+    // An operator is never suspended, so a suspended account is not made one: decision 025.
+    // The account's row is held, so a suspension under way has ended, or waits for this.
+    if (await isSuspended(tx, id)) {
+      return refused(`operator: ${who} is suspended. Let it in again from the admin first.`);
+    }
     if (!read.write) {
       return {
         ok: true,
