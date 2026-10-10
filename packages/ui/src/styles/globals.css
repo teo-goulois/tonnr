@@ -373,3 +373,39 @@
     font-size: max(1em, 16px);
   }
 }
+
+/* Where a drawer stands, as its popup works it out from how far it was dragged. These change at
+   each pixel of a drag, and a variable that changes is worked out again for everything that
+   inherits it: the whole content of the drawer. Only the popup reads them, so they stop there. */
+@property --translate-x {
+  syntax: "*";
+  inherits: false;
+}
+@property --translate-y {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-progress {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-peek-offset {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-scale-base {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-scale {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-shrink {
+  syntax: "*";
+  inherits: false;
+}
+@property --stack-height {
+  syntax: "*";
+  inherits: false;
+}
