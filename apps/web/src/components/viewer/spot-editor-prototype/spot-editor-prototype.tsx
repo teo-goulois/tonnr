@@ -118,7 +118,7 @@ function EditorSwitcher({
     "grid size-7 cursor-pointer place-items-center rounded-full hover:bg-white/15 [&_svg]:size-3.5";
   // Under the header and not at the bottom of the screen, where one variant docks its lanes.
   return createPortal(
-    <div className="fixed top-[4.25rem] left-1/2 z-[1000] flex -translate-x-1/2 items-center gap-1 rounded-full bg-black p-1 font-mono text-xs text-white shadow-lg ring-1 ring-white/30">
+    <div className="fixed top-[7.75rem] left-1/2 z-[1000] flex -translate-x-1/2 lg:top-[4.25rem] items-center gap-1 rounded-full bg-black p-1 font-mono text-xs text-white shadow-lg ring-1 ring-white/30">
       <button type="button" className={button} aria-label="Previous variant" onClick={() => go(-1)}>
         <ChevronLeftIcon aria-hidden />
       </button>
