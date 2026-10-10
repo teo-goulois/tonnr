@@ -390,9 +390,11 @@ export function VariantB({
             )}
       </p>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="flex w-max min-w-full">
-          <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: LABEL_WIDTH }}>
+      {/* The names stay put and the lanes scroll beside them. A column that sticks to the side of
+          one scroller was drawn a second time over the map by the browser of the check. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex">
+          <div className="shrink-0" style={{ width: LABEL_WIDTH }}>
             <div
               className="flex items-end px-m pb-xxs text-xxs text-neutral-7"
               style={{ height: AXIS_HEIGHT }}
@@ -435,97 +437,103 @@ export function VariantB({
             ))}
           </div>
 
-          <div
-            className="relative"
-            style={{ width }}
-            onPointerMove={(event) => {
-              const box = event.currentTarget.getBoundingClientRect();
-              const index = Math.floor((event.clientX - box.left) / HOUR_WIDTH);
-              setHovered(index >= 0 && index < hours.length ? index : undefined);
-            }}
-            onPointerLeave={() => setHovered(undefined)}
-          >
-            {/* The line of the days: the windows, and an hour to press. */}
-            <svg
-              width={width}
-              height={AXIS_HEIGHT}
-              className="block cursor-pointer"
-              onClick={(event) => {
-                // The hour is read from the press itself: a press can come before the pointer
-                // was seen to move.
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <div
+              className="relative"
+              style={{ width }}
+              onPointerMove={(event) => {
                 const box = event.currentTarget.getBoundingClientRect();
-                const hour = hours[Math.floor((event.clientX - box.left) / HOUR_WIDTH)];
-                if (hour) onCriteria(around(hour));
+                const index = Math.floor((event.clientX - box.left) / HOUR_WIDTH);
+                setHovered(index >= 0 && index < hours.length ? index : undefined);
               }}
+              onPointerLeave={() => setHovered(undefined)}
             >
-              {hours.map((hour, index) =>
-                hour.time.getHours() === 0 || index === 0 ? (
-                  <g key={index}>
-                    <line
-                      x1={index * HOUR_WIDTH}
-                      x2={index * HOUR_WIDTH}
-                      y2={AXIS_HEIGHT}
-                      className="stroke-neutral-4"
+              {/* The line of the days: the windows, and an hour to press. */}
+              <svg
+                width={width}
+                height={AXIS_HEIGHT}
+                className="block cursor-pointer"
+                onClick={(event) => {
+                  // The hour is read from the press itself: a press can come before the pointer
+                  // was seen to move.
+                  const box = event.currentTarget.getBoundingClientRect();
+                  const hour = hours[Math.floor((event.clientX - box.left) / HOUR_WIDTH)];
+                  if (hour) onCriteria(around(hour));
+                }}
+              >
+                {hours.map((hour, index) =>
+                  hour.time.getHours() === 0 || index === 0 ? (
+                    <g key={index}>
+                      <line
+                        x1={index * HOUR_WIDTH}
+                        x2={index * HOUR_WIDTH}
+                        y2={AXIS_HEIGHT}
+                        className="stroke-neutral-4"
+                      />
+                      <text
+                        x={index * HOUR_WIDTH + 4}
+                        y={12}
+                        className="fill-neutral-7 text-[10px]"
+                      >
+                        {dayOf(hour.time)}
+                      </text>
+                    </g>
+                  ) : null,
+                )}
+                {judged.windows.map((window) => {
+                  const from = hours.findIndex(
+                    (hour) => hour.time.getTime() === window.start.getTime(),
+                  );
+                  const span = (window.end.getTime() - window.start.getTime()) / (60 * 60 * 1000);
+                  return (
+                    <rect
+                      key={window.start.getTime()}
+                      x={from * HOUR_WIDTH}
+                      y={20}
+                      width={span * HOUR_WIDTH - 1}
+                      height={12}
+                      rx={3}
+                      // A window too short for an alert is drawn lighter.
+                      className={cn("fill-success", !isAnnounced(window) && "opacity-40")}
                     />
-                    <text x={index * HOUR_WIDTH + 4} y={12} className="fill-neutral-7 text-[10px]">
-                      {dayOf(hour.time)}
-                    </text>
-                  </g>
-                ) : null,
-              )}
-              {judged.windows.map((window) => {
-                const from = hours.findIndex(
-                  (hour) => hour.time.getTime() === window.start.getTime(),
-                );
-                const span = (window.end.getTime() - window.start.getTime()) / (60 * 60 * 1000);
+                  );
+                })}
+              </svg>
+              {lanes.map((lane) => {
+                const ruledOut = hours.map((hour) => hour.unmet.includes(lane.key));
                 return (
-                  <rect
-                    key={window.start.getTime()}
-                    x={from * HOUR_WIDTH}
-                    y={20}
-                    width={span * HOUR_WIDTH - 1}
-                    height={12}
-                    rx={3}
-                    // A window too short for an alert is drawn lighter.
-                    className={cn("fill-success", !isAnnounced(window) && "opacity-40")}
-                  />
+                  <div key={lane.key} className="border-t border-neutral-3">
+                    {lane.kind === "range" ? (
+                      <RangeBand
+                        lane={lane}
+                        values={hours.map((hour) => {
+                          const value = hour[lane.key];
+                          return value === null ? null : value * lane.scale;
+                        })}
+                        range={criteria[lane.key]}
+                        ruledOut={ruledOut}
+                        width={width}
+                        onChange={(range) => set(lane.key, range)}
+                      />
+                    ) : (
+                      <ArcBand
+                        values={hours.map((hour) => hour[lane.key])}
+                        arc={criteria[lane.key]}
+                        ruledOut={ruledOut}
+                        width={width}
+                        onChange={(arc) => set(lane.key, arc)}
+                      />
+                    )}
+                  </div>
                 );
               })}
-            </svg>
-            {lanes.map((lane) => {
-              const ruledOut = hours.map((hour) => hour.unmet.includes(lane.key));
-              return (
-                <div key={lane.key} className="border-t border-neutral-3">
-                  {lane.kind === "range" ? (
-                    <RangeBand
-                      lane={lane}
-                      values={hours.map((hour) => {
-                        const value = hour[lane.key];
-                        return value === null ? null : value * lane.scale;
-                      })}
-                      range={criteria[lane.key]}
-                      ruledOut={ruledOut}
-                      width={width}
-                      onChange={(range) => set(lane.key, range)}
-                    />
-                  ) : (
-                    <ArcBand
-                      values={hours.map((hour) => hour[lane.key])}
-                      arc={criteria[lane.key]}
-                      ruledOut={ruledOut}
-                      width={width}
-                      onChange={(arc) => set(lane.key, arc)}
-                    />
-                  )}
-                </div>
-              );
-            })}
-            {hovered !== undefined && (
-              <div
-                className="pointer-events-none absolute inset-y-0 bg-neutral-10/10"
-                style={{ left: hovered * HOUR_WIDTH, width: HOUR_WIDTH }}
-              />
-            )}
+              {hovered !== undefined && (
+                <div
+                  className="pointer-events-none absolute inset-y-0 bg-neutral-10/10"
+                  style={{ left: hovered * HOUR_WIDTH, width: HOUR_WIDTH }}
+                />
+              )}
+            </div>
           </div>
         </div>
         <div className="p-m">{footer}</div>
