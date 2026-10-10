@@ -355,17 +355,51 @@ export function Viewer({
   // Until the content of a new selection is drawn, the panel is empty: not the one before.
   const isDrawn = drawn.id === shown.id && drawn.breakId === shown.breakId;
   // The charts wait for the drawer to come to rest. The drawer says when, and a drawer that opens
-  // with the page says nothing: the wait then ends by itself.
-  const [atRest, setAtRest] = useState(false);
+  // with the page says nothing: the wait then ends by itself. Each opening is counted, so that a
+  // drawer that closes keeps its charts, and changes nothing for them while it slides away.
   const isOpen = selection !== undefined;
+  const [opening, setOpening] = useState({ count: 0, isOpen: false });
+  if (opening.isOpen !== isOpen) {
+    setOpening({ count: opening.count + (isOpen ? 1 : 0), isOpen });
+  }
+  const [restedOpening, setRestedOpening] = useState(0);
+  const atRest = restedOpening === opening.count;
   useEffect(() => {
     if (!isOpen) return;
-    const timer = setTimeout(() => setAtRest(true), DRAWER_REST_MS);
-    return () => {
-      clearTimeout(timer);
-      setAtRest(false);
-    };
-  }, [isOpen]);
+    const timer = setTimeout(() => setRestedOpening(opening.count), DRAWER_REST_MS);
+    return () => clearTimeout(timer);
+  }, [isOpen, opening.count]);
+
+  // A panel is drawn again when what it shows changes, and not each time the map does.
+  const tideExtend = useRef(onTideExtend);
+  tideExtend.current = onTideExtend;
+  const extendTide = useCallback((direction: -1 | 1) => tideExtend.current(direction), []);
+  const selectionPanel = useMemo(() => {
+    if (!isDrawn) return null;
+    return drawn.breakId ? (
+      <BreakPanel
+        key={drawn.breakId}
+        now={now}
+        found={drawn.found}
+        forecast={drawn.forecast}
+        tides={drawn.tides}
+        extremes={drawn.extremes}
+        onTideExtend={extendTide}
+      />
+    ) : (
+      <StationPanel
+        // A new station starts at the top, with its own charts.
+        key={drawn.id}
+        now={now}
+        station={drawn.station}
+        history={drawn.history}
+        forecast={drawn.forecast}
+        tides={drawn.tides}
+        extremes={drawn.extremes}
+        onTideExtend={extendTide}
+      />
+    );
+  }, [isDrawn, drawn, now, extendTide]);
   const shownBreak = shown.breakId ? shown.found : undefined;
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
@@ -550,7 +584,7 @@ export function Viewer({
         wide={wide}
         alongside
         onRest={(open) => {
-          if (open) setAtRest(true);
+          if (open) setRestedOpening(opening.count);
         }}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
@@ -594,31 +628,7 @@ export function Viewer({
           )
         }
       >
-        <ChartsAtRest value={atRest}>
-          {!isDrawn ? null : drawn.breakId ? (
-            <BreakPanel
-              key={drawn.breakId}
-              now={now}
-              found={drawn.found}
-              forecast={drawn.forecast}
-              tides={drawn.tides}
-              extremes={drawn.extremes}
-              onTideExtend={onTideExtend}
-            />
-          ) : (
-            <StationPanel
-              // A new station starts at the top, with its own charts.
-              key={drawn.id}
-              now={now}
-              station={drawn.station}
-              history={drawn.history}
-              forecast={drawn.forecast}
-              tides={drawn.tides}
-              extremes={drawn.extremes}
-              onTideExtend={onTideExtend}
-            />
-          )}
-        </ChartsAtRest>
+        <ChartsAtRest value={atRest}>{selectionPanel}</ChartsAtRest>
       </ViewerDrawer>
 
       <ViewerDrawer

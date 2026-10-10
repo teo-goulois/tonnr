@@ -14,9 +14,13 @@ export type VariantKey = NonNullable<(typeof VARIANTS)[number]["key"]>;
 
 /** The variant the address asks for. Never one in production, where the bar is not shown either. */
 export function useVariant(): VariantKey | undefined {
-  const search: { variant?: string } = useSearch({ strict: false });
+  // Only the variant is read: a panel must not be drawn again when the rest of the address changes.
+  const asked = useSearch({
+    strict: false,
+    select: (search: { variant?: string }) => search.variant,
+  });
   if (!import.meta.env.DEV) return undefined;
-  return VARIANTS.find((variant) => variant.key === search.variant)?.key;
+  return VARIANTS.find((variant) => variant.key === asked)?.key;
 }
 
 /** The bar that goes from one variant to the next. It is not part of what is being judged. */
