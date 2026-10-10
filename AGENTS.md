@@ -55,6 +55,7 @@ Other people and agents work on this repository from other machines, on `main`.
 
 - Commit often, one change per commit, so that work in progress never sits only on one machine.
 - Run `git pull --rebase` before starting a task and before each commit.
+- Run `pnpm run check` before each commit, and `pnpm run format` when it names a file. A red `main` stops whoever deploys next.
 - Push after each commit. The project is at an experimental stage, and `main` is where everyone meets.
 
 ## A public repository
@@ -84,7 +85,7 @@ Téo's rules are at teogoulois.com/code/workstation/secrets. In this repository:
 - Localify serves the web app at `https://tonnr.localify` and the API at `https://api.tonnr.localify`. Start each with `localify dev web` and `localify dev server`: Localify picks the port. The local `.env` files name these two addresses, so the API's CORS and the auth cookies match them.
 - The admin app starts with `pnpm run dev:admin`, on port 3002. The API answers it only when `ADMIN_ORIGIN` in `apps/server/.env` is the address the browser shows for it, and that address must share a site with the API's: `http://localhost:3002` beside `http://localhost:3000`, or `https://admin.tonnr.localify` beside `https://api.tonnr.localify`.
 - `pnpm install` needs `NUCLEO_LICENSE_KEY` in its environment: the icon packages check the licence when they install, and stop the install without it. The root `.env` holds the key, and pnpm does not read that file: `export $(grep NUCLEO_LICENSE_KEY .env) && pnpm install`. Any pnpm command installs first when the dependencies changed, and stops the same way. The API's and the worker's images do not install them.
-- `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing. `pnpm run format` writes.
+- `pnpm run check` runs lint, the format check, the type check, and the tests. It writes nothing, and stops at the first of the four that fails. CI runs the four as steps of their own, each whatever became of the others. `pnpm run format` writes.
 - `pnpm run db:start` needs Docker.
 - `pnpm run docker:up` runs the release images of the API and the worker with Postgres. It takes ports 3000 and 5432 unless `API_PORT` and `POSTGRES_PORT` name others, and belongs to the same Compose project as `db:start`, so stop the development API first.
 - The tests that need Postgres are skipped unless `TEST_DATABASE_URL` names a server on which they may create databases: `TEST_DATABASE_URL=postgresql://postgres:password@localhost:5432/postgres pnpm run test`. Each creates a database of its own and drops it.

@@ -44,10 +44,24 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       # The Nucleo icon packages check the licence when they install.
-      - run: pnpm install --frozen-lockfile
+      - id: install
+        run: pnpm install --frozen-lockfile
         env:
           NUCLEO_LICENSE_KEY: ${{ secrets.NUCLEO_LICENSE_KEY }}
-      - run: pnpm run check
+      # The four checks of `pnpm run check`, each in a step of its own. That command stops at the
+      # first one that fails, so a file left unformatted hid the types and the tests of its
+      # commit. Here each one runs whatever became of the others, once the install is done.
+      - name: Lint
+        run: pnpm run lint
+      - name: Check the format
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm exec oxfmt --check
+      - name: Check the types
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run check-types
+      - name: Run the tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run test
       - name: Check that the schema has its migration
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
