@@ -14,6 +14,8 @@ import type { ReactNode } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
+import { useDrawerDismissal } from "./use-drawer-dismissal";
+
 /** How much of the screen's height a sheet beside the map takes: first a part, then nearly all. */
 export const SHEET_SNAP_POINTS = [0.46, 0.94];
 /** The width of a panel on the side of a wide screen, with its margin, in pixels. */
@@ -21,6 +23,8 @@ export const SIDE_PANEL_WIDTH = 448;
 
 type ViewerDrawerProps = {
   open: boolean;
+  // Identifies the selected record, so a new one can interrupt a dismissal.
+  identity?: string;
   onOpenChange: (open: boolean) => void;
   // A panel on the side of a wide screen, a sheet at the bottom of a phone.
   wide: boolean;
@@ -38,6 +42,7 @@ type ViewerDrawerProps = {
 /** The drawer every panel of the map opens in. */
 export function ViewerDrawer({
   open,
+  identity,
   onOpenChange,
   wide,
   alongside = false,
@@ -48,12 +53,11 @@ export function ViewerDrawer({
   children,
 }: ViewerDrawerProps) {
   const isSheet = !wide;
+  const dismissal = useDrawerDismissal(open, identity, onOpenChange, onRest);
 
   return (
     <Drawer
-      open={open}
-      onOpenChange={onOpenChange}
-      onOpenChangeComplete={onRest}
+      {...dismissal}
       modal={!alongside}
       disablePointerDismissal={alongside}
       swipeDirection={wide ? "right" : "down"}

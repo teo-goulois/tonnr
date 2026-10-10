@@ -249,7 +249,7 @@ export function DrawerOverlay({
         "select-none",
         // state: ending
         "data-ending-style:pointer-events-none data-ending-style:opacity-0",
-        "data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
+        "data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--motion-large-duration))]",
         // state: snap-points
         "data-snap-points:[--drawer-overlay-min-opacity:0.5]",
         // state: starting
@@ -476,12 +476,12 @@ export function DrawerContent({
                 "[--stack-shrink:calc(1-var(--stack-scale))] [--stack-step:0.05]",
                 // state: ending / starting / swiping
                 "data-ending-style:transform-(--closed-transform) data-ending-style:opacity-[0.9999]",
-                "data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
+                "data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--motion-large-duration))]",
                 "data-nested-drawer-swiping:duration-0",
-                "data-ending-style:data-nested-drawer-swiping:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
+                "data-ending-style:data-nested-drawer-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--motion-large-duration))]",
                 "data-starting-style:transform-(--closed-transform)",
                 !hasSnapPoints && "data-swiping:duration-0",
-                "data-ending-style:data-swiping:duration-[calc(var(--drawer-swipe-strength)*400ms)]",
+                "data-ending-style:data-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--motion-large-duration))]",
                 // state: swipe-axis
                 "data-[swipe-axis=y]:inset-x-0",
                 "data-[swipe-axis=y]:data-nested-drawer-open:h-(--stack-height)",

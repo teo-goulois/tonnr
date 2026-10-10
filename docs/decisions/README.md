@@ -29,3 +29,5 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [025. Closing an account's sessions, and suspending an account](025-account-sessions-and-suspension.md)
 - [026. Checking an account's address by mail](026-checked-addresses.md)
 - [027. A console for whoever holds a developer account's keys](027-developer-console.md)
+
+- [028. A drawer closes before its address changes](028-drawer-dismissal.md)

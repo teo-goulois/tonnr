@@ -621,6 +621,7 @@ export function Viewer({
 
       <ViewerDrawer
         open={selection !== undefined}
+        identity={selectedId ? `station:${selectedId}` : `break:${selectedBreakId}`}
         onOpenChange={(open) => {
           if (!open) onSelect(undefined);
         }}
@@ -674,6 +675,7 @@ export function Viewer({
 
       <ViewerDrawer
         open={buoy.id !== undefined}
+        identity={buoy.id}
         onOpenChange={(open) => {
           if (!open) onOpenBuoy(undefined);
         }}
