@@ -7,6 +7,35 @@ import { createContext, useContext, useEffect, useState } from "react";
 /** Whether the drawer that holds the charts has come to rest. True where no drawer holds them. */
 export const ChartsAtRest = createContext(true);
 
+// How long a drawer may take to open before its charts stop waiting for it.
+const DRAWER_REST_MS = 600;
+
+/**
+ * Whether a drawer has come to rest since it last opened, and what to tell when it says so. A
+ * drawer that opens with the page says nothing: the wait then ends by itself. Each opening is
+ * counted, so that a drawer that closes keeps its charts, and changes nothing for them while it
+ * slides away.
+ */
+export function useDrawerRest(isOpen: boolean) {
+  const [opening, setOpening] = useState({ count: 0, isOpen: false });
+  if (opening.isOpen !== isOpen) {
+    setOpening({ count: opening.count + (isOpen ? 1 : 0), isOpen });
+  }
+  const [restedOpening, setRestedOpening] = useState(0);
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => setRestedOpening(opening.count), DRAWER_REST_MS);
+    return () => clearTimeout(timer);
+  }, [isOpen, opening.count]);
+
+  return {
+    atRest: restedOpening === opening.count,
+    onRest: (open: boolean) => {
+      if (open) setRestedOpening(opening.count);
+    },
+  };
+}
+
 const waiting: Array<() => void> = [];
 let drawing = false;
 

@@ -1,5 +1,3 @@
-// PROTOTYPE: thrown away once the new details panel is settled. See details-prototype.tsx.
-
 import { Button } from "@repo/ui/components/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "@repo/ui/components/ui/popover";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -13,7 +11,7 @@ import { m } from "@/paraglide/messages.js";
 import { DirectionArrow, HeightChip } from "../map-markers";
 import type { PointConditionsProps } from "../point-conditions";
 import { type Reading, type Station, periodOf } from "../types";
-import { LineGlyph } from "./metric-lanes";
+import { LineGlyph } from "./line-glyph";
 import {
   DAY_MS,
   HOUR_MS,
@@ -27,9 +25,11 @@ import {
   formatMetric,
   metricColor,
   metrics,
-  t,
   valueAt,
 } from "./metrics";
+
+/** The buoy a surf break's sea is read on, and how far it floats. */
+export type Nearby = { station: Station; distanceKm: number };
 
 /** What the panel is given, for a buoy or for a surf break, already put on one footing. */
 export type DetailsProps = PointConditionsProps & {
@@ -44,7 +44,7 @@ export type DetailsProps = PointConditionsProps & {
   measuresWind: boolean;
   historyPending: boolean;
   // At a surf break: the buoy to read the sea on, and how to open it.
-  nearby?: { station: Station; distanceKm: number };
+  nearby?: Nearby;
   onOpenStation?: (stationId: string) => void;
   // What credits the data.
   footer: ReactNode;
@@ -99,7 +99,6 @@ export function Block({
  * and what the model says. A value the buoy does not measure is the model's, and says so.
  */
 export function NowTiles(props: DetailsProps) {
-  const strings = t();
   const all = metrics();
   const loading = props.hasBuoy ? props.historyPending && !props.latest : props.forecast.isPending;
 
@@ -147,7 +146,7 @@ export function NowTiles(props: DetailsProps) {
                     <LineGlyph dashed />
                     <span className="truncate">
                       {read.measured === undefined
-                        ? strings.model
+                        ? m.details_model()
                         : formatMetric(metric, read.model, false)}
                     </span>
                   </>
@@ -163,7 +162,6 @@ export function NowTiles(props: DetailsProps) {
 
 /** What a buoy reads beside the four values. It stays folded until it is asked for. */
 export function ReadingMore({ latest }: { latest?: Reading | null }) {
-  const strings = t();
   const [open, setOpen] = useState(false);
   if (!latest) return null;
 
@@ -179,13 +177,16 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
   const periodValue = periodOf(latest);
   const rows = [
     latest.peakDirectionDegrees !== null && [
-      strings.direction,
+      m.details_direction(),
       describeDirection(latest.peakDirectionDegrees),
     ],
-    latest.maxHeightMeters !== null && [strings.max, formatMeters(latest.maxHeightMeters)],
+    latest.maxHeightMeters !== null && [
+      m.details_max_height(),
+      formatMeters(latest.maxHeightMeters),
+    ],
     period !== null && periodValue !== null && [period, formatSeconds(periodValue)],
     latest.waterTemperatureCelsius !== null && [
-      strings.water,
+      m.details_water(),
       `${formatNumber(latest.waterTemperatureCelsius)} °C`,
     ],
   ].filter((row) => row !== false);
@@ -200,7 +201,7 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {strings.more}
+        {m.details_more()}
         <ChevronDownIcon
           data-slot="icon"
           aria-hidden
@@ -226,26 +227,24 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
 
 /** What there is to know before trusting the curves, behind a button so the panel stays bare. */
 export function About(props: DetailsProps) {
-  const strings = t();
   const height = metrics().height;
   const drift = bias(props.measured, props.model, "height", props.now - DAY_MS);
   const notes = [
     drift !== undefined &&
       (Math.abs(drift) < 0.15
-        ? strings.biasNone
-        : (drift > 0 ? strings.biasHigh : strings.biasLow).replace(
-            "{value}",
-            formatMetric(height, Math.abs(drift)),
-          )),
-    strings.modelNote,
-    !props.measuresWind && strings.noWindSensor,
+        ? m.details_bias_none()
+        : (drift > 0 ? m.details_bias_high : m.details_bias_low)({
+            value: formatMetric(height, Math.abs(drift)),
+          })),
+    m.details_model_note(),
+    !props.measuresWind && m.details_no_wind_sensor(),
   ].filter((note) => note !== false);
 
   return (
     <Popover>
       <PopoverTrigger
         render={<Button variant="ghost" size="icon-xs" className="text-neutral-7" />}
-        aria-label={strings.about}
+        aria-label={m.details_about()}
       >
         <InfoIcon data-slot="icon" aria-hidden />
       </PopoverTrigger>
@@ -266,7 +265,7 @@ export function nearestBuoy(
   place: { latitude: number; longitude: number },
   now: number,
 ) {
-  let nearest: { station: Station; distanceKm: number } | undefined;
+  let nearest: Nearby | undefined;
   for (const station of stations) {
     const reading = station.latestReading;
     if (station.exposure === "sheltered" || reading?.significantHeightMeters == null) continue;
@@ -285,11 +284,10 @@ export function NearbyBuoy({
   now,
   onOpen,
 }: {
-  nearby: NonNullable<DetailsProps["nearby"]>;
+  nearby: Nearby;
   now: number;
   onOpen?: (stationId: string) => void;
 }) {
-  const strings = t();
   const { station } = nearby;
   const reading = station.latestReading;
   if (!reading || reading.significantHeightMeters === null) return null;
@@ -316,7 +314,7 @@ export function NearbyBuoy({
           <span className="text-xs text-neutral-7">{formatAgo(reading.observedAt, now)}</span>
         </span>
         <span className="truncate text-xs text-neutral-7">
-          {strings.nearestBuoy.replace("{distance}", formatNumber(nearby.distanceKm, 0))}
+          {m.details_nearest_buoy({ distance: formatNumber(nearby.distanceKm, 0) })}
           {" · "}
           {station.name}
         </span>

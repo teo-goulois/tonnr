@@ -1,5 +1,3 @@
-// PROTOTYPE: thrown away once a variant of the details panel has won. See details-prototype.tsx.
-
 import { compassPoint, formatNumber, toKnots } from "@/lib/format";
 import {
   CLOUD_COVER_SCALE,
@@ -12,7 +10,7 @@ import {
   scaleColor,
   scaleInk,
 } from "@/lib/sea-scales";
-import { getLocale } from "@/paraglide/runtime.js";
+import { m } from "@/paraglide/messages.js";
 
 import { type Forecast, type Reading, periodOf } from "../types";
 
@@ -39,80 +37,6 @@ export type Sample = {
   rain: number | null;
   air: number | null;
 };
-
-// The strings of the prototype stay out of the messages until a variant is kept.
-const STRINGS = {
-  en: {
-    height: "Swell",
-    period: "Period",
-    energy: "Energy",
-    wind: "Wind",
-    gust: "Gusts",
-    direction: "Direction",
-    cloud: "Clouds",
-    rain: "Rain",
-    air: "Air",
-    model: "model",
-    buoy: "buoy",
-    gap: "difference",
-    now: "now",
-    live: "Buoy and model",
-    ahead: "Forecast",
-    week: "7 days",
-    days: "d",
-    more: "More",
-    max: "Max height",
-    water: "Water",
-    about: "About these figures",
-    backToNow: "Now",
-    noWindSensor: "This buoy has no wind sensor: the wind is the model's.",
-    biasHigh: "Over 24 h the model reads {value} above the buoy.",
-    biasLow: "Over 24 h the model reads {value} under the buoy.",
-    biasNone: "Over 24 h the model and the buoy agree on the height.",
-    modelNote: "The model's past hours are its latest run, not the forecast as first issued.",
-    nearestBuoy: "Buoy, {distance} km away",
-    forecastTab: "Forecast",
-    guideTab: "Guide",
-    guideEmpty: "Nothing written about this spot yet.",
-  },
-  fr: {
-    height: "Houle",
-    period: "Période",
-    energy: "Énergie",
-    wind: "Vent",
-    gust: "Rafales",
-    direction: "Direction",
-    cloud: "Nuages",
-    rain: "Pluie",
-    air: "Air",
-    model: "modèle",
-    buoy: "bouée",
-    gap: "écart",
-    now: "maintenant",
-    live: "Bouée et modèle",
-    ahead: "Prévisions",
-    week: "7 jours",
-    days: "j",
-    more: "Plus",
-    max: "Hauteur max",
-    water: "Eau",
-    about: "À propos de ces chiffres",
-    backToNow: "Maintenant",
-    noWindSensor: "Cette bouée ne mesure pas le vent : le vent est celui du modèle.",
-    biasHigh: "Sur 24 h, le modèle donne {value} de plus que la bouée.",
-    biasLow: "Sur 24 h, le modèle donne {value} de moins que la bouée.",
-    biasNone: "Sur 24 h, le modèle et la bouée s'accordent sur la hauteur.",
-    modelNote: "Les heures passées du modèle sont son dernier calcul, pas la prévision d'origine.",
-    nearestBuoy: "Bouée à {distance} km",
-    forecastTab: "Prévisions",
-    guideTab: "Guide",
-    guideEmpty: "Rien d'écrit sur ce spot pour l'instant.",
-  },
-};
-
-export function t() {
-  return getLocale() === "fr" ? STRINGS.fr : STRINGS.en;
-}
 
 /**
  * The energy of one wave along a metre of its crest, in kilojoules: the power of the sea in deep
@@ -143,12 +67,11 @@ export type Metric = {
 };
 
 export function metrics(): Record<MetricKey, Metric> {
-  const strings = t();
   return {
     height: {
       key: "height",
-      label: strings.height,
-      unit: "m",
+      label: m.details_swell(),
+      unit: m.unit_m(),
       digits: 1,
       scale: WAVE_HEIGHT_SCALE,
       tinted: false,
@@ -156,8 +79,8 @@ export function metrics(): Record<MetricKey, Metric> {
     },
     period: {
       key: "period",
-      label: strings.period,
-      unit: "s",
+      label: m.details_period(),
+      unit: m.unit_s(),
       digits: 0,
       scale: WAVE_PERIOD_SCALE,
       tinted: true,
@@ -165,7 +88,7 @@ export function metrics(): Record<MetricKey, Metric> {
     },
     energy: {
       key: "energy",
-      label: strings.energy,
+      label: m.details_energy(),
       unit: "kJ",
       digits: 0,
       scale: WAVE_ENERGY_SCALE,
@@ -173,8 +96,8 @@ export function metrics(): Record<MetricKey, Metric> {
     },
     wind: {
       key: "wind",
-      label: strings.wind,
-      unit: getLocale() === "fr" ? "nds" : "kn",
+      label: m.details_wind(),
+      unit: m.unit_kn(),
       digits: 0,
       scale: WIND_SPEED_SCALE,
       tinted: false,
@@ -187,11 +110,10 @@ export const METRIC_KEYS: MetricKey[] = ["height", "period", "energy", "wind"];
 
 /** The weather beside the sea, for the rows under the wind's. */
 export function weatherMetrics(): Record<WeatherKey, Metric> {
-  const strings = t();
   return {
     cloud: {
       key: "cloud",
-      label: strings.cloud,
+      label: m.details_clouds(),
       unit: "%",
       digits: 0,
       scale: CLOUD_COVER_SCALE,
@@ -200,7 +122,7 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
     },
     rain: {
       key: "rain",
-      label: strings.rain,
+      label: m.details_rain(),
       unit: "mm",
       digits: 1,
       scale: PRECIPITATION_SCALE,
@@ -209,7 +131,7 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
     },
     air: {
       key: "air",
-      label: strings.air,
+      label: m.details_air(),
       unit: "°C",
       digits: 0,
       scale: CLOUD_COVER_SCALE,

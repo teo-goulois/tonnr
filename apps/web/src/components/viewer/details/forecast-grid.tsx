@@ -1,5 +1,3 @@
-// PROTOTYPE: thrown away once the new details panel is settled. See details-prototype.tsx.
-
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
@@ -13,9 +11,10 @@ import {
 } from "react";
 
 import { compassPoint, formatClock, formatDay } from "@/lib/format";
+import { m } from "@/paraglide/messages.js";
 
 import { DirectionArrow } from "../map-markers";
-import { LineGlyph } from "./metric-lanes";
+import { LineGlyph } from "./line-glyph";
 import {
   HOUR_MS,
   type Metric,
@@ -26,7 +25,6 @@ import {
   formatMetric,
   isNight,
   metrics,
-  t,
   valueAt,
   weatherMetrics,
 } from "./metrics";
@@ -98,7 +96,6 @@ export function ForecastGrid({
   lead = 0,
   isLoading = false,
 }: ForecastGridProps) {
-  const strings = t();
   const all = metrics();
   const weather = weatherMetrics();
   const step = stepHours * HOUR_MS;
@@ -217,7 +214,7 @@ export function ForecastGrid({
             <RowLabel quiet className="h-5">
               <span className="flex items-center gap-xxs">
                 <LineGlyph dashed />
-                {strings.model}
+                {m.details_model()}
               </span>
             </RowLabel>
             {columns.map((column) => {
@@ -244,7 +241,7 @@ export function ForecastGrid({
     return (
       <tr>
         <RowLabel quiet className={ROW}>
-          {strings.direction}
+          {m.details_direction()}
         </RowLabel>
         {columns.map((column) => {
           const bearing =
@@ -286,7 +283,7 @@ export function ForecastGrid({
           className="absolute top-0 left-0 z-20"
           onClick={() => scroller.current?.scrollTo({ left: home, behavior: "smooth" })}
         >
-          {strings.backToNow}
+          {m.details_back_to_now()}
         </Button>
       )}
       <div
@@ -362,7 +359,7 @@ export function ForecastGrid({
                 >
                   <span className={bandName} style={{ left: LABELS }}>
                     <LineGlyph />
-                    {strings.buoy}
+                    {m.details_buoy()}
                   </span>
                 </th>
                 {lastMeasured + 1 < columns.length && (
@@ -372,7 +369,7 @@ export function ForecastGrid({
                   >
                     <span className={bandName} style={{ left: LABELS + 8 }}>
                       <LineGlyph dashed />
-                      {strings.model}
+                      {m.details_model()}
                     </span>
                   </th>
                 )}
@@ -387,7 +384,7 @@ export function ForecastGrid({
             {directionRow("waveDirection")}
             {spacer}
             {valueRows(all.wind)}
-            {valueRows(all.wind, strings.gust, "gust")}
+            {valueRows(all.wind, m.details_gusts(), "gust")}
             {directionRow("windDirection")}
             {spacer}
             {valueRows(weather.cloud)}

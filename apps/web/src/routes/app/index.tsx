@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { nearestBuoy } from "@/components/viewer/details/parts";
 import type { Bounds, MapLayers } from "@/components/viewer/station-map";
 import type { SavedBreak, SavedItem, SavedList, Station } from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
@@ -26,12 +27,14 @@ export const Route = createFileRoute("/app/")({
     station: z.string().optional(),
     break: z.string().optional(),
     panel: z.enum(["saved", "alerts"]).optional(),
-    // PROTOTYPE: a variant of the details panel. See components/viewer/prototype.
-    variant: z.enum(["a"]).optional(),
+    // The buoy opened from a surf break, over the break's panel.
+    buoy: z.string().optional(),
   }),
   component: ViewerRoute,
 });
 
+// What a panel reads of the model: the week ahead, and the two days before now.
+const FORECAST_DAYS = { days: 7, pastDays: 2 };
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 // The days of tide a panel opens with, around today: yesterday and the six days after. Scrolled
@@ -281,9 +284,51 @@ function ViewerRoute() {
   );
   const forecast = useQuery(
     orpc.v1.forecasts.get.queryOptions({
-      // PROTOTYPE: a variant reads the week ahead, and the model's last two days beside the buoy.
-      input: search.variant ? { ...atPoint, days: 7, pastDays: 2 } : { ...atPoint, days: 4 },
+      // The week ahead, and the model's last two days to set beside what a buoy measured.
+      input: { ...atPoint, ...FORECAST_DAYS },
       ...expected,
+    }),
+  );
+
+  // At a surf break, the sea is read on the nearest buoy that still reports. The map's list holds
+  // the buoys already.
+  const breakPoint = selectedBreakId ? point : undefined;
+  const nearby = useMemo(
+    () => (breakPoint && waves.data ? nearestBuoy(waves.data, breakPoint, hour) : undefined),
+    // A buoy ages with the hours, not with the minutes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [breakPoint?.latitude, breakPoint?.longitude, waves.data, hour],
+  );
+  // That buoy opens over the break, and the address names it. It is loaded as a selected station
+  // is, on the days of tide the break is shown.
+  const buoyId = selectedBreakId ? search.buoy : undefined;
+  const buoyHistory = useQuery(
+    orpc.v1.stations.readings.queryOptions({
+      input: { id: buoyId ?? "", limit: 2000 },
+      enabled: buoyId !== undefined,
+      meta: { quiet: true },
+    }),
+  );
+  const buoyKnown = buoyId ? loaded.get(buoyId) : undefined;
+  const buoyPlaced = buoyKnown ?? buoyHistory.data?.station;
+  const atBuoy = { latitude: buoyPlaced?.latitude ?? 0, longitude: buoyPlaced?.longitude ?? 0 };
+  const expectedAtBuoy = { ...expected, enabled: buoyPlaced !== undefined };
+  const buoyForecast = useQuery(
+    orpc.v1.forecasts.get.queryOptions({
+      input: { ...atBuoy, ...FORECAST_DAYS },
+      ...expectedAtBuoy,
+    }),
+  );
+  const buoyTides = useQuery(
+    orpc.v1.tides.timeline.queryOptions({
+      input: { ...atBuoy, ...tideSpan, stepMinutes: 10 },
+      ...expectedAtBuoy,
+    }),
+  );
+  const buoyExtremes = useQuery(
+    orpc.v1.tides.extremes.queryOptions({
+      input: { ...atBuoy, ...tideSpan },
+      ...expectedAtBuoy,
     }),
   );
 
@@ -416,7 +461,17 @@ function ViewerRoute() {
         forecast: loadable(forecast),
         tides: loadable(tides),
         extremes: loadable(extremes),
+        nearby,
       }}
+      buoy={{
+        id: buoyId,
+        station: buoyKnown,
+        history: loadable(buoyHistory),
+        forecast: loadable(buoyForecast),
+        tides: loadable(buoyTides),
+        extremes: loadable(buoyExtremes),
+      }}
+      onOpenBuoy={(buoy) => void navigate({ search: (previous) => ({ ...previous, buoy }) })}
       onTideExtend={(direction) =>
         setTideReach({
           of: selection,
@@ -431,8 +486,8 @@ function ViewerRoute() {
       savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
-      onSelect={(station) => void navigate({ search: { station, variant: search.variant } })}
-      onSelectBreak={(id) => void navigate({ search: { break: id, variant: search.variant } })}
+      onSelect={(station) => void navigate({ search: { station } })}
+      onSelectBreak={(id) => void navigate({ search: { break: id } })}
       // A panel opens over the station's and gives it back when it closes.
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({ search: (previous) => ({ ...previous, panel: next }) })

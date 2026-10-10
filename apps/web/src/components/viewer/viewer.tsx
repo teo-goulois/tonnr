@@ -28,7 +28,8 @@ import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
-import { ChartsAtRest } from "./chart-turns";
+import { ChartsAtRest, useDrawerRest } from "./chart-turns";
+import type { Nearby } from "./details/parts";
 import { MapLegend } from "./map-legend";
 import { SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
@@ -73,8 +74,6 @@ function endOfLastWholeDay(latest: number, stepMs: number) {
   if (latest + stepMs >= nextMidnight) return latest;
   return latest - (Math.floor((latest - midnight) / stepMs) + 1) * stepMs;
 }
-// How long a drawer may take to open before its charts stop waiting for it.
-const DRAWER_REST_MS = 600;
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
@@ -110,9 +109,22 @@ type ViewerProps = {
     forecast: Loadable<Forecast>;
     tides: Loadable<TideTimeline>;
     extremes: Loadable<TideExtremes>;
+    // At a surf break: the buoy the sea is read on.
+    nearby: Nearby | undefined;
   };
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
+  // The buoy opened from a surf break, in a second drawer over the break's. Closing it gives the
+  // break back, which the map never left.
+  buoy: {
+    id: string | undefined;
+    station: Station | undefined;
+    history: Loadable<StationReadings>;
+    forecast: Loadable<Forecast>;
+    tides: Loadable<TideTimeline>;
+    extremes: Loadable<TideExtremes>;
+  };
+  onOpenBuoy: (stationId: string | undefined) => void;
   panel: ViewerPanel | undefined;
   signedIn: boolean;
   lists: Loadable<SavedList[]>;
@@ -210,8 +222,28 @@ function sameSelection(one: Selection, other: Selection) {
     sameLoadable(one.found, other.found) &&
     sameLoadable(one.forecast, other.forecast) &&
     sameLoadable(one.tides, other.tides) &&
-    sameLoadable(one.extremes, other.extremes)
+    sameLoadable(one.extremes, other.extremes) &&
+    one.nearby === other.nearby
   );
+}
+
+// A drawer that holds no surf break has none to say anything of.
+const NO_BREAK: Loadable<SurfBreak> = { data: undefined, isPending: false, isError: false };
+
+/**
+ * What a drawer shows, and what of it is drawn. The drawer keeps its content while it slides
+ * away. The charts of a panel take long to draw, and each answer of the API draws them again:
+ * drawn at once, they stop the drawer and the map while these move. So the panel's content is
+ * drawn behind, a little at a time, and the drawer does not wait for it. Until the content of a
+ * new selection is drawn, there is none: not the one before.
+ */
+function useShown(isOpen: boolean, current: Selection) {
+  const last = useRef(current);
+  if (isOpen && !sameSelection(last.current, current)) last.current = current;
+  const shown = last.current;
+  const drawn = useDeferredValue(shown);
+  const isDrawn = drawn.id === shown.id && drawn.breakId === shown.breakId;
+  return { shown, drawn: isDrawn ? drawn : undefined };
 }
 
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
@@ -230,6 +262,8 @@ export function Viewer({
   selectedBreakId,
   selected,
   onTideExtend,
+  buoy,
+  onOpenBuoy,
   panel,
   signedIn,
   lists,
@@ -260,6 +294,7 @@ export function Viewer({
   useEffect(() => {
     void import("./sea-chart");
     void import("./tide-chart");
+    void import("./details/metric-lanes");
   }, []);
 
   const savedIds = useMemo(
@@ -341,41 +376,29 @@ export function Viewer({
       : { ...none, bottom: Math.round(window.innerHeight * SHEET_SNAP_POINTS[0]!) };
   }, [selection, wide]);
 
-  // The panel of a station or of a break keeps its content while it slides away.
-  const ids = { id: selectedId, breakId: selectedBreakId };
-  const lastSelection = useRef({ ...ids, ...selected });
-  if (selection && !sameSelection(lastSelection.current, { ...ids, ...selected })) {
-    lastSelection.current = { ...ids, ...selected };
-  }
-  const shown = lastSelection.current;
-  // The charts of a panel take long to draw, and each answer of the API draws them again. Drawn
-  // at once, they stop the drawer and the map while these move. The panel's content is drawn
-  // behind, a little at a time, and the drawer does not wait for it.
-  const drawn = useDeferredValue(shown);
-  // Until the content of a new selection is drawn, the panel is empty: not the one before.
-  const isDrawn = drawn.id === shown.id && drawn.breakId === shown.breakId;
-  // The charts wait for the drawer to come to rest. The drawer says when, and a drawer that opens
-  // with the page says nothing: the wait then ends by itself. Each opening is counted, so that a
-  // drawer that closes keeps its charts, and changes nothing for them while it slides away.
-  const isOpen = selection !== undefined;
-  const [opening, setOpening] = useState({ count: 0, isOpen: false });
-  if (opening.isOpen !== isOpen) {
-    setOpening({ count: opening.count + (isOpen ? 1 : 0), isOpen });
-  }
-  const [restedOpening, setRestedOpening] = useState(0);
-  const atRest = restedOpening === opening.count;
-  useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => setRestedOpening(opening.count), DRAWER_REST_MS);
-    return () => clearTimeout(timer);
-  }, [isOpen, opening.count]);
+  const { shown, drawn } = useShown(selection !== undefined, {
+    id: selectedId,
+    breakId: selectedBreakId,
+    ...selected,
+  });
+  const rest = useDrawerRest(selection !== undefined);
+  const shownBuoy = useShown(buoy.id !== undefined, {
+    ...buoy,
+    breakId: undefined,
+    found: NO_BREAK,
+    nearby: undefined,
+  });
+  const buoyRest = useDrawerRest(buoy.id !== undefined);
 
   // A panel is drawn again when what it shows changes, and not each time the map does.
   const tideExtend = useRef(onTideExtend);
   tideExtend.current = onTideExtend;
   const extendTide = useCallback((direction: -1 | 1) => tideExtend.current(direction), []);
+  const buoyOpener = useRef(onOpenBuoy);
+  buoyOpener.current = onOpenBuoy;
+  const openBuoy = useCallback((stationId: string) => buoyOpener.current(stationId), []);
   const selectionPanel = useMemo(() => {
-    if (!isDrawn) return null;
+    if (!drawn) return null;
     return drawn.breakId ? (
       <BreakPanel
         key={drawn.breakId}
@@ -385,6 +408,8 @@ export function Viewer({
         tides={drawn.tides}
         extremes={drawn.extremes}
         onTideExtend={extendTide}
+        nearby={drawn.nearby}
+        onOpenBuoy={openBuoy}
       />
     ) : (
       <StationPanel
@@ -399,7 +424,25 @@ export function Viewer({
         onTideExtend={extendTide}
       />
     );
-  }, [isDrawn, drawn, now, extendTide]);
+  }, [drawn, now, extendTide, openBuoy]);
+  const drawnBuoy = shownBuoy.drawn;
+  const buoyPanel = useMemo(
+    () =>
+      drawnBuoy && (
+        <StationPanel
+          key={drawnBuoy.id}
+          now={now}
+          station={drawnBuoy.station}
+          history={drawnBuoy.history}
+          forecast={drawnBuoy.forecast}
+          tides={drawnBuoy.tides}
+          extremes={drawnBuoy.extremes}
+        />
+      ),
+    [drawnBuoy, now],
+  );
+  const buoyReading =
+    shownBuoy.shown.history.data?.readings[0] ?? shownBuoy.shown.station?.latestReading;
   const shownBreak = shown.breakId ? shown.found : undefined;
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
@@ -583,9 +626,7 @@ export function Viewer({
         }}
         wide={wide}
         alongside
-        onRest={(open) => {
-          if (open) setRestedOpening(opening.count);
-        }}
+        onRest={rest.onRest}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
           shown.breakId ? (
@@ -628,7 +669,31 @@ export function Viewer({
           )
         }
       >
-        <ChartsAtRest value={atRest}>{selectionPanel}</ChartsAtRest>
+        <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>
+      </ViewerDrawer>
+
+      <ViewerDrawer
+        open={buoy.id !== undefined}
+        onOpenChange={(open) => {
+          if (!open) onOpenBuoy(undefined);
+        }}
+        wide={wide}
+        onRest={buoyRest.onRest}
+        title={
+          shownBuoy.shown.history.data?.station.name ??
+          shownBuoy.shown.station?.name ?? (
+            <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />
+          )
+        }
+        description={
+          <ReadingAge
+            observedAt={buoyReading?.observedAt}
+            freshness={freshnessOf(buoyReading?.observedAt, now)}
+            now={now}
+          />
+        }
+      >
+        <ChartsAtRest value={buoyRest.atRest}>{buoyPanel}</ChartsAtRest>
       </ViewerDrawer>
 
       <ViewerDrawer

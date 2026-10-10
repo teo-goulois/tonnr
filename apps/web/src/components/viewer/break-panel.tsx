@@ -1,15 +1,19 @@
 import { m } from "@/paraglide/messages.js";
 
 import { BreakCharacteristics } from "./break-characteristics";
-import { PointConditions, type PointConditionsProps, Sources } from "./point-conditions";
-import { DetailsPrototype, PrototypeSwitcher, useVariant } from "./prototype/prototype-switcher";
+import { Details } from "./details/details";
+import type { Nearby } from "./details/parts";
+import { type PointConditionsProps, Sources } from "./point-conditions";
 import type { Loadable, SurfBreak } from "./types";
 
 type BreakPanelProps = PointConditionsProps & {
   found: Loadable<SurfBreak>;
+  // The buoy the sea is read on at this break, and how to open its panel over this one.
+  nearby?: Nearby;
+  onOpenBuoy?: (stationId: string) => void;
 };
 
-/** The wave forecast and the tide at a surf break of the catalogue, and what is known of the break. */
+/** The week and the tide at a surf break of the catalogue, and what is known of the break. */
 export function BreakPanel({
   now,
   found,
@@ -17,8 +21,9 @@ export function BreakPanel({
   tides,
   extremes,
   onTideExtend,
+  nearby,
+  onOpenBuoy,
 }: BreakPanelProps) {
-  const variant = useVariant();
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
@@ -31,47 +36,26 @@ export function BreakPanel({
       : attribution
         ? m.source_break_unlicensed({ attribution })
         : attribution;
-  const characteristics = found.data && <BreakCharacteristics found={found.data} />;
-  const sources = (
-    <Sources
-      origin={origin}
-      license={source?.license}
-      forecast={forecast.data}
-      tides={tides.data}
-    />
-  );
-
-  // PROTOTYPE: a variant of the panel, chosen in the address. See prototype/details-prototype.tsx.
-  if (variant) {
-    return (
-      <div className="grid gap-l">
-        <DetailsPrototype
-          spot={found.data}
-          now={now}
-          forecast={forecast}
-          tides={tides}
-          extremes={extremes}
-          onTideExtend={onTideExtend}
-          guide={characteristics}
-          footer={sources}
-        />
-        <PrototypeSwitcher />
-      </div>
-    );
-  }
 
   return (
-    <div className="grid gap-l">
-      <PrototypeSwitcher />
-      <PointConditions
-        now={now}
-        forecast={forecast}
-        tides={tides}
-        extremes={extremes}
-        onTideExtend={onTideExtend}
-      />
-      {characteristics}
-      {sources}
-    </div>
+    <Details
+      spot={found.data}
+      now={now}
+      forecast={forecast}
+      tides={tides}
+      extremes={extremes}
+      onTideExtend={onTideExtend}
+      nearby={nearby}
+      onOpenStation={onOpenBuoy}
+      guide={found.data && <BreakCharacteristics found={found.data} />}
+      footer={
+        <Sources
+          origin={origin}
+          license={source?.license}
+          forecast={forecast.data}
+          tides={tides.data}
+        />
+      }
+    />
   );
 }

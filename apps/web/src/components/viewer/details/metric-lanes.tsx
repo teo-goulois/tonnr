@@ -1,5 +1,3 @@
-// PROTOTYPE: thrown away once the new details panel is settled. See details-prototype.tsx.
-
 import {
   EvilAreaChart,
   useActiveTooltipLabel,
@@ -10,13 +8,17 @@ import {
   ZIndexLayer,
 } from "@repo/ui/components/evilcharts/charts/recharts-area-chart";
 import { Badge } from "@repo/ui/components/ui/badge";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
+import { m } from "@/paraglide/messages.js";
 
+import { useChartTurn } from "../chart-turns";
 import { DirectionArrow } from "../map-markers";
 import { curveColors, valueTicks } from "../sea-chart";
+import { LineGlyph } from "./line-glyph";
 import {
   DAY_MS,
   HOUR_MS,
@@ -29,7 +31,6 @@ import {
   formatMetric,
   metricColor,
   metrics,
-  t,
   valueAt,
 } from "./metrics";
 
@@ -66,24 +67,6 @@ const LIVE_REACH = 3 * HOUR_MS;
 // than the `h-24` of the others, so the four plots are one height.
 const X_AXIS_HEIGHT = 30;
 const Y_AXIS_WIDTH = 30;
-
-/** The buoy's line or the model's, as the lanes draw them, before a figure it tells apart. */
-export function LineGlyph({ dashed = false, color }: { dashed?: boolean; color?: string }) {
-  return (
-    <svg width={14} height={6} aria-hidden className="shrink-0 text-neutral-8">
-      <line
-        x1={1}
-        x2={13}
-        y1={3}
-        y2={3}
-        stroke={color ?? "currentColor"}
-        strokeLinecap="round"
-        strokeWidth={dashed ? 1.5 : 2.5}
-        strokeDasharray={dashed ? "3 3" : undefined}
-      />
-    </svg>
-  );
-}
 
 function rowsOf(metric: Metric, measured: Sample[], model: Sample[], start: number, end: number) {
   // A point every half hour, or every hour once the span is a week.
@@ -288,7 +271,7 @@ function Lane({
   onPoint,
   last,
 }: LaneProps) {
-  const strings = t();
+  const isMyTurn = useChartTurn();
   const rows = useMemo(
     () => rowsOf(metric, measured, model, start, end),
     [metric, measured, model, start, end],
@@ -299,11 +282,11 @@ function Lane({
     const buoyColors = colorsOf(metric, rows, "buoy");
     const gapColors = ["var(--neutral-8)"];
     return {
-      model: { label: strings.model, colors: { light: modelColors, dark: modelColors } },
-      buoy: { label: strings.buoy, colors: { light: buoyColors, dark: buoyColors } },
-      gap: { label: strings.gap, colors: { light: gapColors, dark: gapColors } },
+      model: { label: m.details_model(), colors: { light: modelColors, dark: modelColors } },
+      buoy: { label: m.details_buoy(), colors: { light: buoyColors, dark: buoyColors } },
+      gap: { label: m.details_gap(), colors: { light: gapColors, dark: gapColors } },
     };
-  }, [metric, rows, strings.model, strings.buoy, strings.gap]);
+  }, [metric, rows]);
   const ticks = useMemo(
     () =>
       ticksOf(
@@ -389,68 +372,73 @@ function Lane({
         )}
       </div>
       <figure className="m-0" aria-label={metric.label}>
-        <EvilAreaChart
-          className={cn("aspect-auto w-full", last ? "h-[126px]" : "h-24")}
-          config={config}
-          data={rows}
-          curveType="monotone"
-          isLoading={isLoading}
-          loadingPoints={14}
-          chartProps={{ margin: { top: 6, right: 1, bottom: 0, left: 0 } }}
-        >
-          <EvilAreaChart.Grid />
-          <EvilAreaChart.XAxis
-            dataKey="time"
-            type="number"
-            scale="time"
-            domain={[start, end]}
-            hide={!last}
-            height={X_AXIS_HEIGHT}
-            ticks={noons}
-            tickFormatter={(time: number) => formatDay(new Date(time))}
-          />
-          <EvilAreaChart.YAxis
-            width={Y_AXIS_WIDTH}
-            tickMargin={4}
-            ticks={ticks}
-            domain={[ticks[0]!, ticks.at(-1)!]}
-            tickFormatter={(value: number) => formatNumber(value)}
-          />
-          {hasBuoy && (
+        {/* A lane is a chart: it waits for its turn, and a box of its size holds its place. */}
+        {!isMyTurn ? (
+          <Skeleton className={cn("w-full rounded-(--radius-xs)", last ? "h-[126px]" : "h-24")} />
+        ) : (
+          <EvilAreaChart
+            className={cn("aspect-auto w-full", last ? "h-[126px]" : "h-24")}
+            config={config}
+            data={rows}
+            curveType="monotone"
+            isLoading={isLoading}
+            loadingPoints={14}
+            chartProps={{ margin: { top: 6, right: 1, bottom: 0, left: 0 } }}
+          >
+            <EvilAreaChart.Grid />
+            <EvilAreaChart.XAxis
+              dataKey="time"
+              type="number"
+              scale="time"
+              domain={[start, end]}
+              hide={!last}
+              height={X_AXIS_HEIGHT}
+              ticks={noons}
+              tickFormatter={(time: number) => formatDay(new Date(time))}
+            />
+            <EvilAreaChart.YAxis
+              width={Y_AXIS_WIDTH}
+              tickMargin={4}
+              ticks={ticks}
+              domain={[ticks[0]!, ticks.at(-1)!]}
+              tickFormatter={(value: number) => formatNumber(value)}
+            />
+            {hasBuoy && (
+              <EvilAreaChart.Area
+                dataKey="gap"
+                variant="lines"
+                strokeVariant="solid"
+                animationType="none"
+                areaProps={{ dataKey: "gap", stroke: "none", fillOpacity: 1 }}
+              />
+            )}
             <EvilAreaChart.Area
-              dataKey="gap"
-              variant="lines"
-              strokeVariant="solid"
-              animationType="none"
-              areaProps={{ dataKey: "gap", stroke: "none", fillOpacity: 1 }}
+              dataKey="model"
+              variant="gradient"
+              strokeVariant="dashed"
+              strokeWidth={1.5}
             />
-          )}
-          <EvilAreaChart.Area
-            dataKey="model"
-            variant="gradient"
-            strokeVariant="dashed"
-            strokeWidth={1.5}
-          />
-          {hasBuoy && (
-            <EvilAreaChart.Area
-              dataKey="buoy"
-              strokeVariant="solid"
-              strokeWidth={2.5}
-              areaProps={{ dataKey: "buoy", fill: "none" }}
-            />
-          )}
-          {!isLoading && (
-            <LaneMarks
-              metric={metric}
-              start={start}
-              end={end}
-              now={now}
-              nights={nights}
-              pointed={pointed}
-              onPoint={onPoint}
-            />
-          )}
-        </EvilAreaChart>
+            {hasBuoy && (
+              <EvilAreaChart.Area
+                dataKey="buoy"
+                strokeVariant="solid"
+                strokeWidth={2.5}
+                areaProps={{ dataKey: "buoy", fill: "none" }}
+              />
+            )}
+            {!isLoading && (
+              <LaneMarks
+                metric={metric}
+                start={start}
+                end={end}
+                now={now}
+                nights={nights}
+                pointed={pointed}
+                onPoint={onPoint}
+              />
+            )}
+          </EvilAreaChart>
+        )}
       </figure>
     </div>
   );
@@ -474,7 +462,6 @@ export function MetricLanes({
 }: MetricLanesProps) {
   const [pointed, setPointed] = useState<number>();
   const all = metrics();
-  const strings = t();
   const hasBuoy = measured.length > 0;
 
   return (
@@ -485,11 +472,11 @@ export function MetricLanes({
             <>
               <span className="flex items-center gap-xxs">
                 <LineGlyph />
-                {strings.buoy}
+                {m.details_buoy()}
               </span>
               <span className="flex items-center gap-xxs">
                 <LineGlyph dashed />
-                {strings.model}
+                {m.details_model()}
               </span>
             </>
           )}
@@ -497,7 +484,7 @@ export function MetricLanes({
         <span
           className={cn("tabular-nums", pointed !== undefined && "font-medium text-neutral-10")}
         >
-          {pointed === undefined ? strings.now : formatDayAndClock(new Date(pointed))}
+          {pointed === undefined ? m.details_now() : formatDayAndClock(new Date(pointed))}
         </span>
       </div>
       {keys.map((key, index) => (
