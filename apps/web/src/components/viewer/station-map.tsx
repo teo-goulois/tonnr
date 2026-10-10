@@ -128,6 +128,10 @@ type StationMapProps = {
   onSelect: (id: string) => void;
   onSelectBreak: (id: string) => void;
   onBoundsChange: (bounds: Bounds) => void;
+  // PROTOTYPE: where the spot being edited is, and a press on the sea that places it. See
+  // spot-editor-prototype.
+  pin?: MapPoint | null;
+  onPlace?: (point: MapPoint) => void;
 };
 
 const STYLE_URLS = {
@@ -451,6 +455,8 @@ export function StationMap({
   onSelect,
   onSelectBreak,
   onBoundsChange,
+  pin = null,
+  onPlace,
 }: StationMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -506,6 +512,8 @@ export function StationMap({
     onSelect,
     onSelectBreak,
     onBoundsChange,
+    pin,
+    onPlace,
   });
   latest.current = {
     stations,
@@ -520,6 +528,8 @@ export function StationMap({
     onSelect,
     onSelectBreak,
     onBoundsChange,
+    pin,
+    onPlace,
   };
 
   // Chooses the markers that fit without covering one another, and moves each to its point.
@@ -536,6 +546,7 @@ export function StationMap({
       hovered,
       layers,
       userLocation,
+      pin,
     } = latest.current;
     const width = element.clientWidth;
     const height = element.clientHeight;
@@ -595,6 +606,7 @@ export function StationMap({
     }
     // What stands at one point and has no room to find: where the user is, and the break in hand.
     const pinned = {
+      "spot:pin": pin,
       user: userLocation,
       "break:selected": selectedBreak,
       "break:hovered": hovered,
@@ -668,7 +680,11 @@ export function StationMap({
       });
       instance.on("click", (event: MapMouseEvent) => {
         const hit = nearestDot(instance, event.point, reach);
-        if (!hit) return;
+        if (!hit) {
+          // PROTOTYPE: a press on the sea places the spot being edited.
+          latest.current.onPlace?.({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+          return;
+        }
         if (hit.isBreak) latest.current.onSelectBreak(hit.id);
         else latest.current.onSelect(hit.id);
       });
@@ -1121,7 +1137,7 @@ export function StationMap({
   }, [selectedBreak]);
   // What is pinned to a point takes its place before the browser paints it, and so does a marker
   // that has just been drawn.
-  useLayoutEffect(layout, [userLocation, selectedBreak, hovered, padding, layout]);
+  useLayoutEffect(layout, [userLocation, selectedBreak, hovered, padding, layout, pin]);
   useLayoutEffect(() => {
     for (const [key, position] of positions.current) {
       const node = nodes.current.get(key);
@@ -1219,6 +1235,12 @@ export function StationMap({
                 </div>
               );
             })}
+            {/* PROTOTYPE: the spot being edited. */}
+            {pin && (
+              <div ref={register("spot:pin")} className="absolute top-0 left-0 size-0">
+                <span className="absolute size-5 -translate-1/2 rounded-full border-[3px] border-background bg-success shadow-md" />
+              </div>
+            )}
             {userLocation && (
               <div ref={register("user")} className="absolute top-0 left-0 size-0">
                 <UserDot

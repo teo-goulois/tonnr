@@ -5,6 +5,9 @@ import { LocateIcon, MinusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type CSSProperties,
+  type ComponentProps,
+  Suspense,
+  lazy,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -130,6 +133,12 @@ type ViewerProps = {
   onCreateList: (name: string) => void;
   onDeleteList: (list: SavedList) => void;
   onReadNotification: (notification: AlertNotification) => void;
+  // PROTOTYPE: the editor of a spot, when it is open, and what opens it. See
+  // spot-editor-prototype.
+  spotEditor?: Omit<ComponentProps<typeof SpotEditorPrototype>, "wide" | "now"> & {
+    onPlace: (point: MapPoint) => void;
+  };
+  onNewSpot?: () => void;
 };
 
 function describeStation(station: Station, now: number, savedIds: Set<string>): MapStation {
@@ -215,6 +224,14 @@ function sameSelection(one: Selection, other: Selection) {
 }
 
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
+// PROTOTYPE: the editor of a spot loads apart from the viewer, so that a build for production
+// never carries it.
+const SpotEditorPrototype = lazy(() =>
+  import("./spot-editor-prototype/spot-editor-prototype").then((module) => ({
+    default: module.SpotEditorPrototype,
+  })),
+);
+
 export function Viewer({
   now,
   theme,
@@ -245,6 +262,8 @@ export function Viewer({
   onCreateList,
   onDeleteList,
   onReadNotification,
+  spotEditor,
+  onNewSpot,
 }: ViewerProps) {
   const map = useRef<StationMapHandle>(null);
   const promptAuth = useAuthPrompt();
@@ -332,14 +351,19 @@ export function Viewer({
     return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
   }, [breaks, selectedBreakId, loadedBreak]);
 
+  const editorVariant = spotEditor?.variant;
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
-    if (!selection || typeof window === "undefined") return none;
+    if ((!selection && !editorVariant) || typeof window === "undefined") return none;
+    // PROTOTYPE: one variant of the spot editor docks under the map.
+    if (editorVariant === "b") {
+      return { ...none, bottom: Math.round(Math.min(window.innerHeight * 0.62, 480)) };
+    }
     return wide
       ? { ...none, right: SIDE_PANEL_WIDTH }
       : { ...none, bottom: Math.round(window.innerHeight * SHEET_SNAP_POINTS[0]!) };
-  }, [selection, wide]);
+  }, [selection, wide, editorVariant]);
 
   // The panel of a station or of a break keeps its content while it slides away.
   const ids = { id: selectedId, breakId: selectedBreakId };
@@ -492,7 +516,26 @@ export function Viewer({
         onSelect={onSelect}
         onSelectBreak={onSelectBreak}
         onBoundsChange={onBoundsChange}
+        pin={spotEditor?.point}
+        onPlace={spotEditor?.onPlace}
       />
+
+      {/* PROTOTYPE: what opens the editor of a spot. */}
+      {onNewSpot && !spotEditor && (
+        <Button
+          variant="outline"
+          className={cn(floating, "absolute right-s", wide ? "top-s" : "top-[4.75rem]")}
+          onClick={onNewSpot}
+        >
+          <PlusIcon data-slot="icon" aria-hidden />
+          New spot
+        </Button>
+      )}
+      {spotEditor && (
+        <Suspense fallback={null}>
+          <SpotEditorPrototype wide={wide} now={now} {...spotEditor} />
+        </Suspense>
+      )}
 
       {(waveStations.isPending || waveStations.isError) && (
         <p
@@ -577,7 +620,8 @@ export function Viewer({
       )}
 
       <ViewerDrawer
-        open={selection !== undefined}
+        // PROTOTYPE: the editor of a spot takes the place of the panel of what is selected.
+        open={selection !== undefined && !spotEditor}
         onOpenChange={(open) => {
           if (!open) onSelect(undefined);
         }}

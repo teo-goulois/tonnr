@@ -28,6 +28,10 @@ export const Route = createFileRoute("/app/")({
     panel: z.enum(["saved", "alerts"]).optional(),
     // PROTOTYPE: a variant of the details panel. See components/viewer/prototype.
     variant: z.enum(["a"]).optional(),
+    // PROTOTYPE: the editor of a spot, in one of its variants, and the point pressed on the map
+    // for it, as "latitude,longitude". See components/viewer/spot-editor-prototype.
+    spot: z.enum(["a", "b", "c"]).optional(),
+    at: z.string().optional(),
   }),
   component: ViewerRoute,
 });
@@ -49,6 +53,14 @@ function readLayers(stored: unknown): MapLayers | null {
     ? // A choice kept from before the breaks were on the map says nothing of them.
       { sea, buoys, wind, breaks: typeof breaks === "boolean" ? breaks : DEFAULT_LAYERS.breaks }
     : null;
+}
+
+// PROTOTYPE: the point the address gives for the spot being edited.
+function pointOf(at: string | undefined) {
+  const [latitude, longitude] = (at ?? "").split(",").map(Number);
+  return at && Number.isFinite(latitude) && Number.isFinite(longitude)
+    ? { latitude: latitude!, longitude: longitude! }
+    : undefined;
 }
 
 // The current time, updated every minute, so that a reading ages while the page stays open.
@@ -85,6 +97,9 @@ function ViewerRoute() {
   // An empty value selects nothing, and a station wins over a break given with it.
   const selectedId = search.station || undefined;
   const selectedBreakId = selectedId ? undefined : search.break || undefined;
+  // PROTOTYPE: the editor of a spot opens in development alone, at a break or at a pressed point.
+  const editing = import.meta.env.DEV && !selectedId ? search.spot : undefined;
+  const pressed = editing ? pointOf(search.at) : undefined;
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
@@ -235,7 +250,7 @@ function ViewerRoute() {
     known ??
     history.data?.station ??
     (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : undefined);
-  const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
+  const point = pressed ?? (placed && { latitude: placed.latitude, longitude: placed.longitude });
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
   const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
@@ -282,7 +297,11 @@ function ViewerRoute() {
   const forecast = useQuery(
     orpc.v1.forecasts.get.queryOptions({
       // PROTOTYPE: a variant reads the week ahead, and the model's last two days beside the buoy.
-      input: search.variant ? { ...atPoint, days: 7, pastDays: 2 } : { ...atPoint, days: 4 },
+      input: editing
+        ? { ...atPoint, days: 7 }
+        : search.variant
+          ? { ...atPoint, days: 7, pastDays: 2 }
+          : { ...atPoint, days: 4 },
       ...expected,
     }),
   );
@@ -432,7 +451,46 @@ function ViewerRoute() {
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
       onSelect={(station) => void navigate({ search: { station, variant: search.variant } })}
-      onSelectBreak={(id) => void navigate({ search: { break: id, variant: search.variant } })}
+      // PROTOTYPE: a break pressed while a spot is edited is where the spot goes.
+      onSelectBreak={(id) =>
+        void navigate({ search: { break: id, variant: search.variant, spot: editing } })
+      }
+      spotEditor={
+        editing
+          ? {
+              variant: editing,
+              point: point ?? null,
+              found: pressed ? undefined : found.data,
+              forecast: loadable(forecast),
+              tides: loadable(tides),
+              extremes: loadable(extremes),
+              onPlace: (to) =>
+                void navigate({
+                  search: {
+                    spot: editing,
+                    at: `${to.latitude.toFixed(5)},${to.longitude.toFixed(5)}`,
+                  },
+                }),
+              onVariant: (next) =>
+                void navigate({
+                  replace: true,
+                  search: (previous) => ({ ...previous, spot: next }),
+                }),
+              onClose: () =>
+                void navigate({
+                  search: (previous) => ({ ...previous, spot: undefined, at: undefined }),
+                }),
+            }
+          : undefined
+      }
+      onNewSpot={
+        import.meta.env.DEV
+          ? () =>
+              void navigate({
+                search: (previous) => ({ ...previous, station: undefined, spot: "a" }),
+              })
+          : undefined
+      }
       // A panel opens over the station's and gives it back when it closes.
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({ search: (previous) => ({ ...previous, panel: next }) })
