@@ -18,6 +18,7 @@ import { m } from "@/paraglide/messages.js";
 import { useChartTurn } from "../chart-turns";
 import { DirectionArrow } from "../map-markers";
 import { curveColors, valueTicks } from "../sea-chart";
+import { nearestChartPoint, useChartTouch } from "../use-chart-touch";
 import { LineGlyph } from "./line-glyph";
 import {
   DAY_MS,
@@ -68,16 +69,21 @@ const LIVE_REACH = 3 * HOUR_MS;
 const X_AXIS_HEIGHT = 30;
 const Y_AXIS_WIDTH = 30;
 
-function rowsOf(metric: Metric, measured: Sample[], model: Sample[], start: number, end: number) {
+function rowsOf(
+  key: Metric["key"],
+  measured: Sample[],
+  model: Sample[],
+  start: number,
+  end: number,
+) {
   // A point every half hour, or every hour once the span is a week.
   const step = end - start > 5 * DAY_MS ? HOUR_MS : HOUR_MS / 2;
-  const lastReading = measured.filter((sample) => sample[metric.key] !== null).at(-1)?.time ?? 0;
+  const lastReading = measured.filter((sample) => sample[key] !== null).at(-1)?.time ?? 0;
   const rows: LaneRow[] = [];
   for (let time = Math.ceil(start / step) * step; time <= end; time += step) {
-    const modelled = valueAt(model, metric.key, time, HOUR_MS) ?? null;
+    const modelled = valueAt(model, key, time, HOUR_MS) ?? null;
     // A buoy says nothing of the hours after its last reading.
-    const read =
-      time <= lastReading ? (valueAt(measured, metric.key, time, HOUR_MS) ?? null) : null;
+    const read = time <= lastReading ? (valueAt(measured, key, time, HOUR_MS) ?? null) : null;
     rows.push({
       time,
       model: modelled,
@@ -124,6 +130,8 @@ function LaneMarks({
   nights,
   pointed,
   onPoint,
+  touchTime,
+  isTouch,
 }: {
   metric: Metric;
   start: number;
@@ -132,6 +140,8 @@ function LaneMarks({
   nights: Night[];
   pointed: LaneRow | undefined;
   onPoint: (time: number | undefined) => void;
+  touchTime: number | undefined;
+  isTouch: boolean;
 }) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
@@ -141,14 +151,14 @@ function LaneMarks({
   // Only the lane the pointer is on speaks, and it says so once when the pointer leaves it.
   const spoke = useRef(false);
   useEffect(() => {
-    if (isPointed) {
+    if (isTouch ? touchTime !== undefined : isPointed) {
       spoke.current = true;
-      onPoint(Number(pointedLabel));
+      onPoint(isTouch ? touchTime : Number(pointedLabel));
     } else if (spoke.current) {
       spoke.current = false;
       onPoint(undefined);
     }
-  }, [isPointed, pointedLabel, onPoint]);
+  }, [isPointed, pointedLabel, onPoint, isTouch, touchTime]);
 
   if (!plot || !xScale || !yScale) return null;
 
@@ -273,9 +283,17 @@ function Lane({
 }: LaneProps) {
   const isMyTurn = useChartTurn();
   const rows = useMemo(
-    () => rowsOf(metric, measured, model, start, end),
-    [metric, measured, model, start, end],
+    () => rowsOf(metric.key, measured, model, start, end),
+    [metric.key, measured, model, start, end],
   );
+  const touch = useChartTouch({
+    start,
+    end,
+    left: Y_AXIS_WIDTH,
+    right: 1,
+    enabled: isMyTurn && !isLoading,
+    samples: rows,
+  });
   const hasBuoy = rows.some((row) => row.buoy !== null);
   const config = useMemo(() => {
     const modelColors = colorsOf(metric, rows, "model");
@@ -371,7 +389,12 @@ function Lane({
           </span>
         )}
       </div>
-      <figure className="m-0" aria-label={metric.label}>
+      <figure
+        ref={touch.ref}
+        onKeyDownCapture={touch.onKeyDownCapture}
+        className="m-0 select-none [-webkit-touch-callout:none]"
+        aria-label={metric.label}
+      >
         {/* A lane is a chart: it waits for its turn, and a box of its size holds its place. */}
         {!isMyTurn ? (
           <Skeleton className={cn("w-full rounded-(--radius-xs)", last ? "h-[126px]" : "h-24")} />
@@ -435,6 +458,8 @@ function Lane({
                 nights={nights}
                 pointed={pointed}
                 onPoint={onPoint}
+                touchTime={nearestChartPoint(rows, touch.time)?.time}
+                isTouch={touch.isTouch}
               />
             )}
           </EvilAreaChart>
@@ -466,6 +491,7 @@ export function MetricLanes({
 
   return (
     <div className={cn("grid gap-s", className)}>
+      <p className="text-xs text-neutral-7 [@media(pointer:fine)]:hidden">{m.chart_touch_hint()}</p>
       <div className="flex h-(--line-xs) items-center justify-between gap-xs text-xs text-neutral-7">
         <span className="flex items-center gap-s">
           {hasBuoy && (

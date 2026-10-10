@@ -263,5 +263,6 @@
   "details_nearest_buoy": "Buoy, {distance} km away",
   "details_forecast_tab": "Forecast",
   "details_guide_tab": "Guide",
-  "details_guide_empty": "Nothing written about this spot yet."
+  "details_guide_empty": "Nothing written about this spot yet.",
+  "chart_touch_hint": "Hold, then slide to read the values."
 }

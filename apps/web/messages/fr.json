@@ -263,5 +263,6 @@
   "details_nearest_buoy": "Bouée à {distance} km",
   "details_forecast_tab": "Prévisions",
   "details_guide_tab": "Guide",
-  "details_guide_empty": "Rien d'écrit sur ce spot pour l'instant."
+  "details_guide_empty": "Rien d'écrit sur ce spot pour l'instant.",
+  "chart_touch_hint": "Maintenez, puis glissez pour lire les valeurs."
 }

@@ -23,7 +23,7 @@ import { formatClock, formatDay, formatMeters, formatNumber } from "@/lib/format
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { type ChartPoint, SeaChart, valueTicks } from "./sea-chart";
+import { type ChartInspection, type ChartPoint, SeaChart, valueTicks } from "./sea-chart";
 import { TideChartSkeleton } from "./tide-chart-skeleton";
 import type { TideExtremes } from "./types";
 
@@ -157,6 +157,7 @@ function TideMarks({
   now,
   axis,
   strip,
+  inspection,
 }: Pick<TideChartProps, "extremes"> & {
   rows: Row[];
   now?: number;
@@ -164,6 +165,7 @@ function TideMarks({
   axis: HTMLElement | null;
   // What scrolls the strip: the marks keep clear of the edges of what it shows.
   strip: HTMLElement | null;
+  inspection: ChartInspection;
 }) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
@@ -221,11 +223,15 @@ function TideMarks({
   const x = (time: number) => xScale(time) ?? left;
   const y = (value: number) => yScale(value) ?? bottom;
 
-  const underPointer = isPointed ? rows.findIndex((row) => row.time === Number(pointedTime)) : -1;
+  const underPointer = inspection.isTouch
+    ? rows.findIndex((row) => row.time === inspection.point?.time)
+    : isPointed
+      ? rows.findIndex((row) => row.time === Number(pointedTime))
+      : -1;
   const onCurve =
     underPointer >= 0 &&
-    pointerY !== undefined &&
-    Math.abs(y(rows[underPointer]!.value) - pointerY) <= CURVE_REACH;
+    (inspection.isTouch ||
+      (pointerY !== undefined && Math.abs(y(rows[underPointer]!.value) - pointerY) <= CURVE_REACH));
   const pointedIndex = onCurve ? underPointer : -1;
   const pointed = rows[pointedIndex];
   const nowHeight = now === undefined ? undefined : heightAt(rows, now);
@@ -408,6 +414,10 @@ export function TideChart({
   isLoading,
   className,
 }: TideChartProps) {
+  const [inspection, setInspection] = useState<ChartInspection>({
+    point: undefined,
+    isTouch: false,
+  });
   const rows = useMemo(
     () =>
       points.flatMap((point) =>
@@ -496,7 +506,11 @@ export function TideChart({
     <div className="grid gap-xxs">
       <div className="flex h-8 items-center justify-between gap-xs">
         <span className="text-s tabular-nums" aria-live="polite">
-          {shown === today ? m.tide_today() : formatDay(shownDay)}
+          {inspection.point
+            ? `${formatClock(new Date(inspection.point.time))} · ${formatMeters(inspection.point.value)}`
+            : shown === today
+              ? m.tide_today()
+              : formatDay(shownDay)}
         </span>
         {today !== undefined && shown !== today && (
           <Button variant="secondary" size="xs" onClick={() => scrollToDay(today, "smooth")}>
@@ -543,13 +557,22 @@ export function TideChart({
               yAxis={false}
               everyHours={6}
               tooltip={false}
+              onInspect={setInspection}
               className={cn("h-48", className)}
             >
-              <TideMarks rows={rows} extremes={extremes} now={moment} axis={axis} strip={strip} />
+              <TideMarks
+                rows={rows}
+                extremes={extremes}
+                now={moment}
+                axis={axis}
+                strip={strip}
+                inspection={inspection}
+              />
             </SeaChart>
           </div>
         </div>
       </div>
+      <p className="text-xs text-neutral-7 [@media(pointer:fine)]:hidden">{m.chart_touch_hint()}</p>
     </div>
   );
 }

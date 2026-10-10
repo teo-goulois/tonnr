@@ -12,6 +12,7 @@ export function TideChartSkeleton({ className }: { className?: string }) {
         <Skeleton className="h-(--line-s) w-16 rounded-(--radius-xs)" />
       </div>
       <Skeleton className={cn("h-48 w-full rounded-(--radius-xs)", className)} />
+      <Skeleton className="h-(--line-xs) w-56 rounded-(--radius-xs) [@media(pointer:fine)]:hidden" />
     </div>
   );
 }

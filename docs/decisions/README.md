@@ -31,3 +31,5 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [027. A console for whoever holds a developer account's keys](027-developer-console.md)
 
 - [028. A drawer closes before its address changes](028-drawer-dismissal.md)
+
+- [029. Reading charts by touch](029-touch-chart-inspection.md)

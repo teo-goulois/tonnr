@@ -1,10 +1,23 @@
-import { EvilAreaChart } from "@repo/ui/components/evilcharts/charts/recharts-area-chart";
+import {
+  EvilAreaChart,
+  usePlotArea,
+  useXAxisScale,
+  useYAxisScale,
+  ZIndexLayer,
+} from "@repo/ui/components/evilcharts/charts/recharts-area-chart";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 
 import { formatClock, formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { type ScaleStop, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
+
+import { nearestChartPoint, useChartTouch } from "./use-chart-touch";
+
+export type ChartInspection = {
+  point: { time: number; value: number } | undefined;
+  isTouch: boolean;
+};
 
 export type ChartPoint = { time: Date; value: number | null };
 
@@ -32,6 +45,7 @@ type SeaChartProps = {
   everyHours?: number;
   // The box that follows the pointer with the value under it.
   tooltip?: boolean;
+  onInspect?: (inspection: ChartInspection) => void;
   className?: string;
   // Parts drawn over the plot once the curve is there.
   children?: ReactNode;
@@ -106,6 +120,7 @@ export function SeaChart({
   yAxis = true,
   everyHours,
   tooltip = true,
+  onInspect,
   className,
   children,
 }: SeaChartProps) {
@@ -129,6 +144,22 @@ export function SeaChart({
   // The same box whether the chart is loading, empty or drawn, so nothing moves when data comes.
   const box = cn("aspect-auto h-44 w-full", className);
 
+  const start = first?.time ?? 0;
+  const end = last?.time ?? 0;
+  const touch = useChartTouch({
+    start,
+    end,
+    left: yAxis ? 30 : 0,
+    right: yAxis ? 8 : 0,
+    enabled: !isLoading && measured.length > 1,
+    samples: measured,
+  });
+  const point = nearestChartPoint(measured, touch.time);
+  const inspection = useMemo(() => ({ point, isTouch: touch.isTouch }), [point, touch.isTouch]);
+  useEffect(() => {
+    onInspect?.(inspection);
+  }, [inspection, onInspect]);
+
   if (!isLoading && (!first || !last || first.time === last.time)) {
     return (
       <p className={cn(box, "flex items-center text-s text-neutral-7")}>
@@ -137,8 +168,6 @@ export function SeaChart({
     );
   }
 
-  const start = first?.time ?? 0;
-  const end = last?.time ?? 0;
   const values = measured.map((row) => row.value);
   const yTicks = valueTicks(Math.min(0, ...values), Math.max(0, ...values));
   const spansDays = end - start > 36 * HOUR_MS;
@@ -157,64 +186,108 @@ export function SeaChart({
           : label
       }
     >
-      <EvilAreaChart
-        className={box}
-        config={config}
-        data={data}
-        curveType="monotone"
-        isLoading={isLoading}
-        loadingPoints={14}
-        chartProps={{ margin: { top: headroom, right: yAxis ? 8 : 0, bottom: 0, left: 0 } }}
-      >
-        <EvilAreaChart.Grid />
-        <EvilAreaChart.XAxis
-          dataKey="time"
-          type="number"
-          scale="time"
-          domain={[start, end]}
-          ticks={timeTicks(start, end, everyHours).filter(
-            (time) => !everyHours || new Date(time).getHours() !== 0,
+      {tooltip && (
+        <figcaption
+          className={cn(
+            "mb-xxs min-h-(--line-s) text-s tabular-nums",
+            !touch.isTouch && "[@media(pointer:fine)]:hidden",
           )}
-          tickFormatter={(time: number) =>
-            spansDays && !everyHours ? formatDay(new Date(time)) : formatClock(new Date(time))
-          }
-        />
-        <EvilAreaChart.YAxis
-          width={30}
-          hide={!yAxis}
-          padding={{ bottom: footroom }}
-          ticks={yTicks}
-          domain={[yTicks[0]!, yTicks.at(-1)!]}
-          tickFormatter={(value: number) => formatNumber(value)}
-        />
-        {tooltip && (
-          <EvilAreaChart.Tooltip
-            hideIndicator
-            valueFormatter={formatValue}
-            labelFormatter={(_, payload) => {
-              const time: unknown = payload?.[0]?.payload?.time;
-              return typeof time === "number" ? formatDayAndClock(new Date(time)) : null;
-            }}
+        >
+          {point
+            ? `${formatDayAndClock(new Date(point.time))} · ${formatValue(point.value)}`
+            : m.chart_touch_hint()}
+        </figcaption>
+      )}
+      <div
+        ref={touch.ref}
+        onKeyDownCapture={touch.onKeyDownCapture}
+        className="select-none [-webkit-touch-callout:none]"
+      >
+        <EvilAreaChart
+          className={box}
+          config={config}
+          data={data}
+          curveType="monotone"
+          isLoading={isLoading}
+          loadingPoints={14}
+          chartProps={{ margin: { top: headroom, right: yAxis ? 8 : 0, bottom: 0, left: 0 } }}
+        >
+          <EvilAreaChart.Grid />
+          <EvilAreaChart.XAxis
+            dataKey="time"
+            type="number"
+            scale="time"
+            domain={[start, end]}
+            ticks={timeTicks(start, end, everyHours).filter(
+              (time) => !everyHours || new Date(time).getHours() !== 0,
+            )}
+            tickFormatter={(time: number) =>
+              spansDays && !everyHours ? formatDay(new Date(time)) : formatClock(new Date(time))
+            }
           />
-        )}
-        {markerTime !== undefined && markerTime > start && markerTime < end && (
-          <EvilAreaChart.ReferenceLine
-            x={markerTime}
-            stroke="var(--neutral-7)"
-            strokeDasharray="3 3"
-            label={{
-              value: m.chart_now(),
-              position: "insideTopRight",
-              fill: "var(--neutral-7)",
-              fontSize: 11,
-            }}
+          <EvilAreaChart.YAxis
+            width={30}
+            hide={!yAxis}
+            padding={{ bottom: footroom }}
+            ticks={yTicks}
+            domain={[yTicks[0]!, yTicks.at(-1)!]}
+            tickFormatter={(value: number) => formatNumber(value)}
           />
-        )}
-        <EvilAreaChart.Area dataKey="value" strokeVariant="solid" strokeWidth={2}>
-          <EvilAreaChart.ActiveDot variant="border" />
-        </EvilAreaChart.Area>
-        {!isLoading && children}
-      </EvilAreaChart>
+          {tooltip && !touch.isTouch && (
+            <EvilAreaChart.Tooltip
+              hideIndicator
+              valueFormatter={formatValue}
+              labelFormatter={(_, payload) => {
+                const time: unknown = payload?.[0]?.payload?.time;
+                return typeof time === "number" ? formatDayAndClock(new Date(time)) : null;
+              }}
+            />
+          )}
+          {markerTime !== undefined && markerTime > start && markerTime < end && (
+            <EvilAreaChart.ReferenceLine
+              x={markerTime}
+              stroke="var(--neutral-7)"
+              strokeDasharray="3 3"
+              label={{
+                value: m.chart_now(),
+                position: "insideTopRight",
+                fill: "var(--neutral-7)",
+                fontSize: 11,
+              }}
+            />
+          )}
+          <EvilAreaChart.Area dataKey="value" strokeVariant="solid" strokeWidth={2}>
+            {!touch.isTouch && <EvilAreaChart.ActiveDot variant="border" />}
+          </EvilAreaChart.Area>
+          {point && <TouchCursor point={point} />}
+          {!isLoading && children}
+        </EvilAreaChart>
+      </div>
     </figure>
+  );
+}
+
+function TouchCursor({ point }: { point: { time: number; value: number } }) {
+  const plot = usePlotArea();
+  const xScale = useXAxisScale();
+  const yScale = useYAxisScale();
+  if (!plot || !xScale || !yScale) return null;
+  const x = xScale(point.time);
+  const y = yScale(point.value);
+  if (x === undefined || y === undefined) return null;
+  return (
+    <ZIndexLayer zIndex={1150}>
+      <g aria-hidden pointerEvents="none">
+        <line
+          x1={x}
+          x2={x}
+          y1={plot.y}
+          y2={plot.y + plot.height}
+          className="stroke-neutral-10"
+          strokeOpacity={0.5}
+        />
+        <circle cx={x} cy={y} r={4.5} className="fill-neutral-1 stroke-color-1" strokeWidth={2} />
+      </g>
+    </ZIndexLayer>
   );
 }
