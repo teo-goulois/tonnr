@@ -460,8 +460,8 @@ type About = { userId: string; alertId: string | null; moment: string };
  * Holds what a mail depends on, in the order everything else takes it: the account, so that a
  * suspension or its deletion waits, then the alerts the mail speaks of, then the account's
  * settings, so that stopping mail waits too. An evening speaks of every alert of the account.
- * What the mail is written from is read once all is held, and `stamp` is all of it: the
- * account's settings, its alerts, and what the last look left at each spot.
+ * Nothing of a delivery is written before all three are held: the API changes an account's
+ * deliveries once it holds its settings.
  */
 async function hold(tx: Transaction, made: About) {
   const [account] = await tx
@@ -482,6 +482,19 @@ async function hold(tx: Transaction, made: About) {
     .from(alertSettings)
     .where(eq(alertSettings.userId, made.userId))
     .for("update");
+  return { account, alerts, settingsRow };
+}
+
+/**
+ * What a mail is written from, read once all is held: the spots it speaks of with what the
+ * last look left at each, and `stamp`, which is all of it with the account's settings and its
+ * alerts. A mail whose stamp is another when it is handed over is written anew.
+ */
+async function writtenFrom(
+  tx: Transaction,
+  made: About,
+  held: Pick<Awaited<ReturnType<typeof hold>>, "alerts" | "settingsRow">,
+) {
   const links =
     made.moment === "evening"
       ? await watchedOf(tx, { userId: made.userId })
@@ -489,8 +502,8 @@ async function hold(tx: Transaction, made: About) {
         ? await watchedOf(tx, { alertId: made.alertId })
         : [];
   const stamp = JSON.stringify([
-    settingsOf(settingsRow),
-    alerts.map((one) => [one.id, one.enabled, one.revision]),
+    settingsOf(held.settingsRow),
+    held.alerts.map((one) => [one.id, one.enabled, one.revision]),
     links.map((one) => [
       one.place.id,
       one.alert.id,
@@ -507,7 +520,7 @@ async function hold(tx: Transaction, made: About) {
       ]),
     ]),
   ]);
-  return { account, alerts, settingsRow, links, stamp };
+  return { links, stamp };
 }
 
 type Outcome = "sent" | "failed" | "held" | "expired" | "skipped";
@@ -531,14 +544,10 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
     const [made] = await tx.select().from(notification).where(eq(notification.id, notificationId));
     if (!made) return "skipped";
     const now = new Date();
+    const { account, alerts, settingsRow } = await hold(tx, made);
     // What a worker that stopped left of the alert is taken as told before anything is read.
-    let isLeaving = false;
-    if (made.alertId) {
-      await tx.select({ id: user.id }).from(user).where(eq(user.id, made.userId)).for("share");
-      await tx.select({ id: alert.id }).from(alert).where(eq(alert.id, made.alertId)).for("update");
-      isLeaving = await honour(tx, made.alertId, now);
-    }
-    const { account, alerts, settingsRow, links, stamp } = await hold(tx, made);
+    const isLeaving = made.alertId ? await honour(tx, made.alertId, now) : false;
+    const { links, stamp } = await writtenFrom(tx, made, { alerts, settingsRow });
     // Read once all is held: another worker may have sent it meanwhile.
     const [due] = await tx
       .select()
@@ -706,7 +715,8 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
 export async function hand(db: Database, out: MailOut, notificationId: string, taken: Taken) {
   const began = Date.now();
   return db.transaction(async (tx): Promise<Outcome> => {
-    const { account, settingsRow, stamp } = await hold(tx, taken);
+    const { account, alerts, settingsRow } = await hold(tx, taken);
+    const { stamp } = await writtenFrom(tx, taken, { alerts, settingsRow });
     const sending = delivery(notificationId, "sending");
     const [mine] = await tx.select().from(notificationDelivery).where(sending);
     // Taken as told meanwhile, by whoever found it left behind.

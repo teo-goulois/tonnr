@@ -606,6 +606,37 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       expect(afternoon[0]?.text).not.toContain("08:00 to 10:00");
     });
 
+    it("takes what a stopped worker left without holding a delivery before the settings", async () => {
+      await waiting();
+      const [made] = await database.db.select().from(notification);
+      const [due] = await database.db.select().from(notificationDelivery);
+      if (!made || !due) throw new Error("no notification");
+      await database.db.insert(notification).values({ ...made, id: "second", key: "second" });
+      await database.db.insert(notificationDelivery).values({ ...due, notificationId: "second" });
+      // The first is written to be leaving, for both, and its worker stops there.
+      vi.setSystemTime(new Date(SATURDAY + 9 * HOUR_MS));
+      expect(typeof (await take(database.db, out, made.id))).toBe("object");
+      vi.advanceTimersByTime(20 * 60 * 1000);
+
+      // An account that changes its quiet hours holds its settings, then its deliveries. The
+      // worker that takes the other one meanwhile waits for the settings, holding neither.
+      let taken: Awaited<ReturnType<typeof take>> | undefined;
+      await database.db.transaction(async (changing) => {
+        await changing.select().from(alertSettings).for("update");
+        const taking = take(database.db, out, "second").then((outcome) => {
+          taken = outcome;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(taken).toBeUndefined();
+        await changing.update(notificationDelivery).set({ dueAt: new Date() });
+        // Its transaction ends here, and the worker goes on.
+        void taking;
+      });
+      await vi.waitFor(() => expect(taken).toBe("skipped"));
+      // What the first told is taken as told, and the second has nothing left to say.
+      expect((await states()).map(([, state]) => state).sort()).toEqual(["expired", "sending"]);
+    });
+
     it("leaves as one mail when two of an alert waited for hours that are now the same", async () => {
       await waiting();
       // Another one of the alert, written for the end of the same morning.
