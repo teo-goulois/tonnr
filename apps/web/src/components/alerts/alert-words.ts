@@ -25,9 +25,9 @@ export type Arc = NonNullable<AlertCriteria[ArcKey]>;
 const KNOTS_PER_MS = 1.943844;
 
 /**
- * How a range is shown and set: its unit, the usual ends of its slider, its step, how its value
- * is kept, and the least and the most the API takes of it, as it is kept. The wind is kept in
- * metres per second and read in knots.
+ * How a range is shown and set: its unit, the usual ends of its slider and its step, in the unit
+ * its reader chose, how its value is kept, and `floor` and `ceiling`, the least and the most
+ * the API takes of it, as it is kept: metres, seconds, metres a second.
  */
 export const RANGES: Record<
   RangeKey,
@@ -59,12 +59,9 @@ export const RANGES: Record<
     shown: (kept) =>
       getUnits().height === "ft" ? Math.round(heightIn(kept) * 2) / 2 : Math.round(kept * 10) / 10,
     kept: (shown) => Math.round(metersFrom(shown) * 100) / 100,
-    get floor() {
-      return Math.round(heightIn(0));
-    },
-    get ceiling() {
-      return Math.round(heightIn(30));
-    },
+    // The API's bounds are of the height as it is kept, in metres, whatever unit it is read in.
+    floor: 0,
+    ceiling: 30,
   },
   swellPeriodSeconds: {
     label: m.alert_label_swell_period,
@@ -110,12 +107,9 @@ export const RANGES: Record<
     shown: (kept) =>
       getUnits().height === "ft" ? Math.round(heightIn(kept) * 2) / 2 : Math.round(kept * 10) / 10,
     kept: (shown) => Math.round(metersFrom(shown) * 100) / 100,
-    get floor() {
-      return Math.round(heightIn(-5));
-    },
-    get ceiling() {
-      return Math.round(heightIn(20));
-    },
+    // The API's bounds are of the height as it is kept, in metres, whatever unit it is read in.
+    floor: -5,
+    ceiling: 20,
   },
 };
 

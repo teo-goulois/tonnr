@@ -96,6 +96,55 @@ describe("the mailer of an instance", () => {
   });
 });
 
+describe("a mail over SMTP that is given up", () => {
+  const server = { SMTP_URL: "smtps://mail.example.org", EMAIL_FROM: "hello@example.org" };
+  // An SMTP server that takes a while, as the library's adapter meets it: giving up answers
+  // at once, and the connection goes on.
+  function slow(ms: number) {
+    const left: unknown[] = [];
+    const out = memoryAdapter("smtp");
+    const adapter: typeof out = {
+      ...out,
+      send: (message, context) =>
+        new Promise((resolve, reject) => {
+          context.signal?.addEventListener("abort", () => reject(new Error("given up")), {
+            once: true,
+          });
+          setTimeout(() => {
+            left.push(message);
+            resolve(out.send(message, context));
+          }, ms);
+        }),
+    };
+    return { adapter, left };
+  }
+
+  it("may still leave after `send` has answered, and never after `sendToTheEnd` has", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const hasty = slow(60);
+    expect(await createMailer(server, hasty.adapter, 10)?.send(mail)).toBe("failed");
+    expect(hasty.left).toHaveLength(0);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    // It left all the same.
+    expect(hasty.left).toHaveLength(1);
+
+    const patient = slow(60);
+    expect(await createMailer(server, patient.adapter, 10)?.sendToTheEnd(mail)).toBe("accepted");
+    expect(patient.left).toHaveLength(1);
+    logged.mockRestore();
+  });
+
+  it("is given up in time through a provider's API, where giving up closes the request", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { adapter } = slow(60);
+
+    expect(
+      await createMailer(settings, { ...adapter, name: "unosend" }, 10)?.sendToTheEnd(mail),
+    ).toBe("failed");
+    logged.mockRestore();
+  });
+});
+
 describe("a mail through Unosend, with a function in place of the network", () => {
   // What the adapter asks, and what it is answered.
   function network(answer: (signal: AbortSignal | null | undefined) => Promise<Response>) {

@@ -37,6 +37,11 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     init: true
+    # The worker sends the alerts' mail: it reads the way out and the two public addresses where
+    # the API does. Without them it sends none.
+    env_file:
+      - path: apps/server/.env
+        required: false
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/app
       # Taken from the root .env when it is set there, and left unset otherwise: the worker then

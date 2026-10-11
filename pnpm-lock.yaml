@@ -536,12 +536,18 @@ importers:
       '@neaps/tide-database':
         specifier: 'catalog:'
         version: 0.9.20260907
+      '@opencoredev/email-sdk':
+        specifier: 2.0.0
+        version: 2.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@repo/conditions':
         specifier: workspace:*
         version: link:../../packages/conditions
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/mail':
+        specifier: workspace:*
+        version: link:../../packages/mail
       '@repo/upstream':
         specifier: workspace:*
         version: link:../../packages/upstream

@@ -6,7 +6,10 @@ import type { Availability } from "./open";
 type Row = typeof alertSettings.$inferSelect;
 
 /** How an account wants to be told, as its row says or, without one, as the defaults do. */
-export type AlertSettings = Omit<Row, "userId" | "updatedAt" | "eveningUntil" | "mailTokenHash">;
+export type AlertSettings = Omit<
+  Row,
+  "userId" | "updatedAt" | "eveningUntil" | "mailKey" | "mailTokenHash"
+>;
 
 /**
  * The most days ahead an account may ask to be told of. The forecast reaches seven days, counted
@@ -42,6 +45,7 @@ export function settingsOf(row: Row | undefined): AlertSettings {
     userId: _userId,
     updatedAt: _updatedAt,
     eveningUntil: _until,
+    mailKey: _key,
     mailTokenHash: _hash,
     ...settings
   } = row;

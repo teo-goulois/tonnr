@@ -28,7 +28,7 @@ Tonnr is free and not commercial for now. It is open source: the repository is p
 - Swell and wind forecasts, fetched per spot.
 - Tides, computed from open harmonic constants. Téo rates them as essential. Decision 002 covers the source.
 - History for a point, switched on when a user first shows interest in that point.
-- Alerts when a spot is forecast to work. They are recorded and listed by the API. Sending them by email and web push is not built.
+- Alerts when a spot is forecast to work. They are recorded and listed by the API, and sent by email to an account that said yes. Sending them by web push is not built.
 - A catalogue of surf breaks that the instance's operator fills once, from OpenStreetMap or from a file, each break with what is known of it: its type, its bottom, the tides and the directions it likes. Decisions 015 and 024 cover it. Publishing a user's spot after moderation is not built.
 
 A mobile app follows the first release. The API runs as its own service, and notifications are designed for mobile push from the start.

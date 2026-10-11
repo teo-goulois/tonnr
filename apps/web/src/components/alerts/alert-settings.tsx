@@ -23,12 +23,16 @@ export type AlertSettingsChange = Partial<
     | "eveningMinutes"
     | "onBegin"
     | "noticeMinutes"
+    | "quietFrom"
+    | "quietTo"
+    | "namesInSubject"
     | "horizonDays"
     | "daylightOnly"
     | "week"
     | "awayUntil"
   > & {
     zone: string;
+    byMail: boolean;
   }
 >;
 
@@ -95,6 +99,36 @@ function Setting({
         <Switch aria-labelledby={id} checked={checked} onCheckedChange={onCheckedChange} />
       )}
     </div>
+  );
+}
+
+/** An end of the quiet hours: a time of the day, with its name beside it. */
+function QuietHour({
+  label,
+  minutes,
+  onChange,
+}: {
+  label: string;
+  minutes: number;
+  onChange: (minutes: number) => void;
+}) {
+  const id = useId();
+  return (
+    <label htmlFor={id} className="flex items-center gap-xs text-s">
+      {label}
+      <Input
+        id={id}
+        type="time"
+        className="w-auto"
+        value={clock(minutes)}
+        onChange={(event) => {
+          const [hours, past] = event.currentTarget.value.split(":").map(Number);
+          if (hours === undefined || past === undefined) return;
+          if (Number.isNaN(hours) || Number.isNaN(past)) return;
+          onChange(hours * 60 + past);
+        }}
+      />
+    </label>
   );
 }
 
@@ -267,7 +301,6 @@ export function AlertSettingsForm({ settings, deviceZone, onChange }: AlertSetti
               ))}
           </ToggleGroup>
         )}
-        <Setting label={m.alert_settings_quiet()} hint={m.alert_settings_quiet_hint()} soon />
       </Section>
 
       <Section title={m.alert_settings_ahead()}>
@@ -346,7 +379,62 @@ export function AlertSettingsForm({ settings, deviceZone, onChange }: AlertSetti
       </Section>
 
       <Section title={m.alert_settings_how()}>
-        <Setting label={m.alert_settings_mail()} hint={m.alert_settings_mail_hint()} soon />
+        {/* A mail needs an instance that sends some. An account says yes before its address
+            is checked, and mail leaves once it is. */}
+        {kept.mail === "off" ? (
+          <div className="grid gap-xxs">
+            <span className="text-neutral-7">{m.alert_settings_mail()}</span>
+            <span className="text-s text-neutral-7">{m.alert_settings_mail_none()}</span>
+          </div>
+        ) : (
+          <Setting
+            label={m.alert_settings_mail()}
+            hint={
+              kept.mail === "unchecked"
+                ? m.alert_settings_mail_unchecked()
+                : m.alert_settings_mail_hint()
+            }
+            checked={kept.byMail === true}
+            onCheckedChange={(byMail) => onChange({ byMail })}
+          />
+        )}
+        {kept.mail !== "off" && kept.byMail === true && (
+          <>
+            <Setting
+              label={m.alert_settings_subject()}
+              hint={m.alert_settings_subject_hint()}
+              checked={kept.namesInSubject}
+              onCheckedChange={(namesInSubject) => onChange({ namesInSubject })}
+            />
+            <Setting
+              label={m.alert_settings_quiet()}
+              hint={m.alert_settings_quiet_hint()}
+              checked={kept.quietFrom !== null && kept.quietTo !== null}
+              onCheckedChange={(quiet) =>
+                // Given whole: a beginning and an end, or neither.
+                onChange(
+                  quiet
+                    ? { quietFrom: 22 * 60, quietTo: 7 * 60 }
+                    : { quietFrom: null, quietTo: null },
+                )
+              }
+            />
+            {kept.quietFrom !== null && kept.quietTo !== null && (
+              <div className="flex flex-wrap items-center gap-s">
+                <QuietHour
+                  label={m.alert_settings_quiet_from()}
+                  minutes={kept.quietFrom}
+                  onChange={(quietFrom) => onChange({ quietFrom, quietTo: kept.quietTo })}
+                />
+                <QuietHour
+                  label={m.alert_settings_quiet_to()}
+                  minutes={kept.quietTo}
+                  onChange={(quietTo) => onChange({ quietFrom: kept.quietFrom, quietTo })}
+                />
+              </div>
+            )}
+          </>
+        )}
         <Setting label={m.alert_settings_push()} hint={m.alert_settings_push_hint()} soon />
       </Section>
 

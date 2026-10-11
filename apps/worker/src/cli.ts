@@ -3,6 +3,7 @@ import { Effect } from "effect";
 
 import { evaluateAlerts } from "./alerts";
 import { addBreaksFile, fetchBreaks, removeBreaksOf } from "./breaks/command";
+import { mailOutOf } from "./deliveries";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts } from "./forecasts";
@@ -40,7 +41,7 @@ const db = createDb(ENV);
 try {
   if (provider) await Effect.runPromise(ingest(provider, db));
   else if (job === "exposure") console.log(await Effect.runPromise(updateExposure(db)));
-  else if (job === "moments") await Effect.runPromise(tellMoments(db));
+  else if (job === "moments") await Effect.runPromise(tellMoments(db, mailOutOf(ENV)));
   else if (command) {
     const outcome = await command(db, rest);
     for (const line of outcome.lines) (outcome.ok ? console.log : console.error)(line);

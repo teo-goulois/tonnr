@@ -5,6 +5,7 @@ import { suspensionHooks } from "@repo/auth/suspension";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { createEmailVerificationToken } from "better-auth/api";
 import { accountSuspension, apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
+import { alertSettings } from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
 import { stationList } from "@repo/db/schema/lists";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -353,6 +354,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     ] as const) {
       expect(spec.paths[path]?.[method]?.security, `${method} ${path}`).toEqual([{ session: [] }]);
     }
+    // What the link of a mail does asks for neither.
+    expect(spec.paths["/alert-mails/off"]?.post?.security).toEqual([]);
+    expect(spec.paths["/alert-mails/off"]?.get?.security).toEqual([]);
   });
 
   it("lets the web app's pages call, with their cookie and every method the API has", async () => {
@@ -1272,6 +1276,66 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect(lines.join("\n")).not.toContain("someone");
       expect(lines.join("\n")).not.toContain("?");
       expect(faults).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the link of an alert mail", () => {
+    // An account that said yes to mail, and the address its mails' header carries.
+    async function link() {
+      const cookie = await signUp("reader");
+      const set = await send("PATCH", "/v1/alert-settings", {
+        cookie,
+        origin: APP,
+        body: { byMail: true },
+      });
+      expect(set.status).toBe(200);
+      const [row] = await database.db.select().from(alertSettings);
+      if (!row?.mailKey) throw new Error("no key was made");
+      return {
+        key: row.mailKey,
+        path: `/v1/alert-mails/off?u=${row.userId}&k=${row.mailKey}`,
+        byMail: async () => (await database.db.select().from(alertSettings))[0]?.byMail,
+      };
+    }
+    // As a mail program presses "unsubscribe": a form, with no cookie and no site.
+    const press = (path: string) =>
+      app.request(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "List-Unsubscribe=One-Click",
+      });
+
+    it("stops the mails for a mail program that posts to it, with no session and no key", async () => {
+      const { path, key, byMail } = await link();
+      logged.mockClear();
+
+      const wrong = await press(path.replace(key, "not-the-key"));
+      expect([wrong.status, await bodyOf(wrong)]).toEqual([200, { off: false }]);
+      expect(await byMail()).toBe(true);
+
+      const pressed = await press(`${path}&l=fr`);
+      expect([pressed.status, await bodyOf(pressed)]).toEqual([200, { off: true }]);
+      expect(await byMail()).toBe(false);
+      // Once.
+      expect(await bodyOf(await press(path))).toEqual({ off: false });
+
+      // The log holds the route, and nothing of the link.
+      const lines = logged.mock.calls.map((line: unknown[]) => String(line[0])).join("\n");
+      expect(lines).toContain("/v1/alert-mails/off");
+      expect(lines).not.toContain(key);
+    });
+
+    it("leads who opens it to the page that asks, and stops nothing by that", async () => {
+      const { path, key, byMail } = await link();
+
+      // As the header of a mail in French carries it.
+      const opened = await app.request(`${path}&l=fr`, { redirect: "manual" });
+      expect(opened.status).toBe(303);
+      expect(opened.headers.get("Location")).toBe(
+        `${APP}/fr/mail-off?${new URL(path, APP).searchParams}`,
+      );
+      expect(opened.headers.get("Location")).toContain(key);
+      expect(await byMail()).toBe(true);
     });
   });
 

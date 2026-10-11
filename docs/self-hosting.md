@@ -179,7 +179,28 @@ Update the API and the worker before you add a file: the version before this one
 
 ## Alerts
 
-An account sets an alert on spots of its own, and the worker looks at every alert every three hours: its job is `evaluate-alerts`. Every quarter of an hour, `tell-alert-moments` tells what begins and, at each account's hour, the evening before. The page of the instance lists both with the others. There is nothing to set. An alert reads the forecasts the instance keeps anyway, within the same count of requests. What an alert tells is listed in the web app, and no mail is sent yet. Decision 031 gives the rules.
+An account sets an alert on spots of its own, and the worker looks at every alert every three hours: its job is `evaluate-alerts`. Every quarter of an hour, `tell-alert-moments` tells what begins and, at each account's hour, the evening before. The page of the instance lists both with the others. There is nothing to set. An alert reads the forecasts the instance keeps anyway, within the same count of requests. What an alert tells is listed in the web app. Decision 031 gives the rules.
+
+### Alerts by mail
+
+An account that says yes is mailed what its alerts tell, at the address it signed up with, once that address is checked. The worker sends these mails, not the API: give it the way out you gave the API (see "Checking addresses by mail" below), and the two public addresses a mail links to.
+
+| Variable                                      | What the worker does with it                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `UNOSEND_API_KEY` or `SMTP_URL`, `EMAIL_FROM` | Sends the mail, as the API does.                                                                        |
+| `EMAIL_DAILY_LIMIT`                           | The same day's limit as the API's: the alerts take four fifths of it at most.                           |
+| `CORS_ORIGIN`                                 | The web app's address: a mail links to the spot, to the settings, and to the page that stops the mails. |
+| `BETTER_AUTH_URL`                             | The API's address: a mail program posts there when its reader presses "unsubscribe".                    |
+
+- With Docker Compose the worker reads `apps/server/.env` as the API does, so there is nothing more to set. On another platform, set these on the worker's service.
+- A worker without a way out, or without the two addresses, sends no mail and says nothing of it: what the alerts tell stays in the web app's list.
+- An account is mailed eight alert mails a day at most. A mail that a limit holds back is not sent later. An instance whose `EMAIL_DAILY_LIMIT` is 1 sends no alert mail: four fifths of one mail is none.
+- A mail waits for the end of the account's quiet hours, as they are when it leaves, and is written then: it says where the hours are at that moment, and is not sent when they are over or gone.
+- A mail that was leaving when the worker stopped is not sent again, and neither is what it said: nobody knows whether it left. Its delivery stays marked `sending` in `alert_delivery`, and the web app's list holds what it said.
+- While a mail is handed to your provider, its account's alerts and settings are held, so that an account that stops its mails is answered once the mail has left, and never before. With `SMTP_URL`, a server that is slow at every step can hold an account's changes for a minute or more: the worker lets go of a server that has said nothing for ten seconds.
+- `POST /v1/alert-mails/off` is what a mail's link does. It takes no session and no key: the link carries a key of its own, which switches alert mails off for one account and does nothing else. A `GET` at the same address leads to the web app's page that asks first, and reads nothing.
+- A mail program shows its own "unsubscribe" button only when the mail's DKIM signature covers the two headers that carry this address, `List-Unsubscribe` and `List-Unsubscribe-Post`: RFC 8058 asks for it. Send yourself an alert mail, open its source, and read the `h=` list of its `DKIM-Signature` header. When the two names are missing, ask your provider to sign them, or set the signed headers of your SMTP relay. The link at the foot of the mail works either way.
+- Your mail provider learns who has alerts, when, and the names of their alerts and spots, which a mail holds. An account can keep names out of the subject, not out of the mail.
 
 ### Coming from an earlier version
 
@@ -276,7 +297,7 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 
 An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. Decision 026 gives the rules.
 
-Set these in `apps/server/.env`, or in the API's environment on another platform. The worker needs none of them.
+Set these in `apps/server/.env`, or in the API's environment on another platform. The worker needs the same to send the mails of the alerts: "Alerts by mail" above says which.
 
 | Variable            | Value                                                                                                                                    |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -288,7 +309,7 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 - The address in `EMAIL_FROM` must be one your provider lets you send from. Set up SPF and DKIM for its domain as the provider says, or the mails end in the spam folder.
 - The link in the mail opens the API, which sends the browser on to the web app at `/verified`, or at `/fr/verified` for a mail in French. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two.
 - Your provider learns the address of everyone who signs up, when, and the mail itself, link included. Turn off what it offers to track: opened mails and followed links. A provider that tracks links rewrites them, and keeps them.
-- The instance counts its mails and stops at the day's limit. An account is sent three mails an hour at most, and five a day. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
+- The instance counts its mails and stops at the day's limit, the alerts' mails with the others. An account is sent three mails that check its address an hour at most, and five a day: its alert mails are counted apart. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
 - The log keeps how a mail failed, never to whom it went.
 

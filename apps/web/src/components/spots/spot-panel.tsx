@@ -157,8 +157,9 @@ export function SpotPanel({
         alert={
           found?.isOwner &&
           // No alert is offered before the account's alerts are known: one that came late
-          // would take the place of what was being written.
-          (alerting.alerts.data ? (
+          // would take the place of what was being written. Nor is a first one written before
+          // its settings are: they say whether it is asked about mail, with that alert.
+          (alerting.alerts.data && (alert || alerting.settings.data) ? (
             <AlertEditor
               now={now}
               spot={found}
@@ -169,12 +170,29 @@ export function SpotPanel({
               preview={alerting.preview}
               onTry={alerting.onTry}
               isSaving={alerting.isSaving}
-              onSave={(draft, changed) => alerting.onSave(alert, draft, changed)}
+              // Asked once, as an alert is made, of an account that never answered, on an
+              // instance that sends mail.
+              asksMail={
+                !alert &&
+                alerting.settings.data?.byMail === null &&
+                alerting.settings.data.mail !== "off"
+              }
+              mailWaits={alerting.settings.data?.mail === "unchecked"}
+              onSave={(draft, changed, byMail) => alerting.onSave(alert, draft, changed, byMail)}
               isDeleting={alerting.isDeleting}
               onDelete={alerting.onDelete}
             />
-          ) : alerting.alerts.isError ? (
-            <p className="text-s text-neutral-7">{m.alerts_mine_load_failed()}</p>
+          ) : alerting.alerts.isError || alerting.settings.isError ? (
+            <div className="grid justify-items-start gap-s">
+              <p className="text-s text-neutral-7">
+                {alerting.alerts.isError
+                  ? m.alerts_mine_load_failed()
+                  : m.alert_settings_load_failed()}
+              </p>
+              <Button variant="secondary" onClick={alerting.onRetry}>
+                {m.action_retry()}
+              </Button>
+            </div>
           ) : (
             <div className="grid gap-s">
               <Skeleton className="h-(--line-m) w-3/5 rounded-(--radius-xs)" />

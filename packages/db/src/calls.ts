@@ -25,7 +25,11 @@ const SPAN_SECONDS = { day: 24 * 60 * 60, hour: 60 * 60, minute: 60 } as const;
  * with the seconds left before each starts again, by the database's clock. A limit is one at
  * least: the first of a span is always counted.
  */
-export async function countCalls(db: Database, counts: readonly Count[]) {
+export async function countCalls(
+  // A transaction counts inside itself: what it counted is kept if it is, and not otherwise.
+  db: Pick<Database, "transaction">,
+  counts: readonly Count[],
+) {
   // The first of a span is counted whatever the limit: a limit under one would not hold.
   if (counts.some(({ limit }) => !Number.isInteger(limit) || limit < 1)) {
     throw new Error("A limit is a whole number, one at least");

@@ -1,6 +1,6 @@
 # 026. Checking an account's address by mail
 
-Status: asked for by Téo on 2026-10-09, who chose the library and the provider. Not built: mail for anything else (an alert, a lost password), changing an account's address, and a limit on the accounts one address of the network may create. The developer's console came with decision 027, which rests on no address.
+Status: asked for by Téo on 2026-10-09, who chose the library and the provider. Since 2026-10-11 the worker sends mail too, for the alerts: [decision 031](031-alerts.md) says how, and what follows of who sends is changed by it. Not built: mail for anything else (a lost password), changing an account's address, and a limit on the accounts one address of the network may create. The developer's console came with decision 027, which rests on no address.
 
 ## Context
 
@@ -16,7 +16,7 @@ The instance sends no mail at all today.
 - The library reports its use to its authors unless it is told not to. It is told not to.
 - A mail is tried once, and whoever waits for it is answered within ten seconds. The library is given no second provider to fall back on, and tries nothing again: a mail that was accepted late would be sent twice. Through Unosend the request is ended at ten seconds. Through SMTP the library holds the connection until the server has said nothing for ten seconds, which can be a few seconds after the answer.
 - With neither, the instance sends no mail and checks no address. Everything else works as before.
-- The API alone sends mail. The worker does not.
+- The API alone sends the mail that checks an address. Since decision 031 the worker sends the alerts' mail, through the same package and counted in the same day's limit.
 - `packages/mail` is where a mail is written and sent. It knows the library and nothing of who signs in.
 - The instance counts the mails it lets out in a day, in the table that counts the requests to a provider, and stops at `EMAIL_DAILY_LIMIT`, 200 unless set otherwise. A mail costs money or reputation, and sign-up is open. A day and an hour are those of the calendar, in UTC.
 - An account is sent a mail to check its address three times an hour at most, and five times a day. Its count and the instance's are taken together or not at all, before the mail leaves: a mail that the provider then refuses stays counted. When both are full, the account is told of its own.

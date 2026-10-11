@@ -42,6 +42,9 @@ const everyName = everyProcedure.map(([name]) => name);
 
 // The procedures a key may call: the data everyone shares. Each is named, so that a new
 // procedure answers a key only once someone adds it here on purpose.
+// The procedures that answer anyone: the health check, and what the link of an alert mail does,
+// which carries a key of its own (decision 031).
+const ANSWERS_ANYONE = ["healthCheck", "v1.alerts.mailOff", "v1.alerts.mailOffPage"];
 const ANSWERS_A_KEY = [
   "v1.breaks.get",
   "v1.breaks.list",
@@ -55,7 +58,7 @@ const ANSWERS_A_KEY = [
   "v1.tides.timeline",
 ];
 const takesASession = everyProcedure.filter(
-  ([name]) => name !== "healthCheck" && !ANSWERS_A_KEY.includes(name),
+  ([name]) => !ANSWERS_ANYONE.includes(name) && !ANSWERS_A_KEY.includes(name),
 );
 
 // The procedures any account may call with its session: what the account owns.
@@ -102,10 +105,11 @@ const ANSWERS_AN_ACCOUNT = [
 const ANSWERS_AN_OPERATOR: string[] = [];
 // Every other procedure runs the instance, and takes an operator's session from the admin's
 // site. None is named: a procedure added later is held to that until someone names it above.
-const named = ["healthCheck", ...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT, ...ANSWERS_AN_OPERATOR];
+const named = [...ANSWERS_ANYONE, ...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT, ...ANSWERS_AN_OPERATOR];
 const runsTheInstance = everyProcedure.filter(([name]) => !named.includes(name));
 const keptFromAnAccount = everyProcedure.filter(
-  ([name]) => name !== "healthCheck" && ![...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT].includes(name),
+  ([name]) =>
+    !ANSWERS_ANYONE.includes(name) && ![...ANSWERS_A_KEY, ...ANSWERS_AN_ACCOUNT].includes(name),
 );
 // What a procedure does with a caller it accepts and no input: it answers, or refuses the input.
 const PAST_THE_DOOR = ["answered", "BAD_REQUEST", "NOT_FOUND"];
@@ -190,7 +194,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       expect(await call(appRouter.healthCheck, undefined, anonymous())).toBe("OK");
     });
 
-    it.each(everyProcedure.filter(([name]) => name !== "healthCheck"))(
+    it.each(everyProcedure.filter(([name]) => !ANSWERS_ANYONE.includes(name)))(
       "refuses %s",
       async (_, procedure) => {
         await expect(call(procedure, undefined as never, anonymous())).rejects.toEqual(

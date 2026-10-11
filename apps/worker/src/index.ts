@@ -6,6 +6,7 @@ import { alertsDone, evaluateAlerts } from "./alerts";
 import { breakSources } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
+import { mailOutOf } from "./deliveries";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
@@ -46,6 +47,9 @@ const PRUNE_QUEUE = "prune-readings";
 const EXPOSURE_QUEUE = "classify-exposure";
 const ALERTS_QUEUE = "evaluate-alerts";
 const MOMENTS_QUEUE = "tell-alert-moments";
+// What alert mails leave with. Null on an instance whose worker was given no way out, or not the
+// addresses a mail links to: what an alert tells then stays in the web app's list.
+const mailOut = mailOutOf(ENV);
 // Every job the scheduler runs, with its schedule. A queue that is not here cannot be run.
 const jobs: Scheduled[] = [
   ...providers.map((provider) => ({ name: `ingest-${provider.id}`, schedule: provider.schedule })),
@@ -209,7 +213,7 @@ await boss.schedule(MOMENTS_QUEUE, scheduled(MOMENTS_QUEUE).schedule);
 await boss.work(
   MOMENTS_QUEUE,
   withStart,
-  attemptOf(MOMENTS_QUEUE, (db) => tellMoments(db), momentsDone),
+  attemptOf(MOMENTS_QUEUE, (db) => tellMoments(db, mailOut), momentsDone),
 );
 await boss.send(ALERTS_QUEUE);
 

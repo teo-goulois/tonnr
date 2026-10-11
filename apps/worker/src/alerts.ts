@@ -1,4 +1,4 @@
-import { type SeaWindow, type Told, type ToldPiece, planLook } from "@repo/conditions/alerts/look";
+import { type SeaWindow, type Told, planLook, planMail, recut } from "@repo/conditions/alerts/look";
 import { tellUntil } from "@repo/conditions/alerts/moments";
 import { type Interval, openHours } from "@repo/conditions/alerts/open";
 import { availabilityOf, cutOf, settingsOf, zoneOf } from "@repo/conditions/alerts/settings";
@@ -9,8 +9,6 @@ import { isSuspended } from "@repo/db/accounts";
 import { accountSuspension } from "@repo/db/schema/access";
 import {
   type NotificationPayload,
-  type Stretch,
-  type ToldStretch,
   alert,
   alertSettings,
   alertSpot,
@@ -22,6 +20,8 @@ import { spot } from "@repo/db/schema/spots";
 import { and, asc, eq, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
+import { queueMail } from "./deliveries";
+import { figuresOf, seaHour, stretch, toldPiece, toldStretch } from "./kept";
 import { StoreError } from "./store";
 
 // Decision 031. The worker looks at each alert every three hours, at each of its spots, and
@@ -43,25 +43,6 @@ const isDue = (lookedAt: Date | null, now: Date) =>
 // What became of a look at an alert: the spots a fresh forecast was read for, those that were
 // left as they were for want of one, and the notifications it made.
 type Looked = { spots: number; stale: number; created: number };
-
-const stretch = (interval: Interval): Stretch => ({
-  start: interval.start.toISOString(),
-  end: interval.end.toISOString(),
-});
-const interval = (kept: Stretch): Interval => ({
-  start: new Date(kept.start),
-  end: new Date(kept.end),
-});
-const toldPiece = (kept: ToldStretch): ToldPiece => ({
-  ...interval(kept),
-  missed: kept.missed,
-  ...(kept.last ? { last: interval(kept.last) } : {}),
-});
-const toldStretch = (piece: ToldPiece): ToldStretch => ({
-  ...stretch(piece),
-  missed: piece.missed,
-  ...(piece.last ? { last: stretch(piece.last) } : {}),
-});
 
 type Hours = Extract<Effect.Success<ReturnType<typeof assessSpot>>, { hasSea: true }>["hours"];
 
@@ -142,15 +123,16 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
   const created = yield* Effect.tryPromise({
     try: () =>
       db.transaction(async (tx) => {
+        // Its owner first, held so that a suspension waits for this to be written, or is seen
+        // here: nothing is told to an account that was suspended meanwhile. An account that is
+        // deleted takes its alerts in the same order, so that the two never wait for each other.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, row.userId)).for("share");
         // Holding the alert makes its looks run one after the other. The forecasts took a moment
         // to fetch, so the alert is read again: it may have been changed, switched off, or
         // looked at by another worker meanwhile.
         const [current] = await tx.select().from(alert).where(eq(alert.id, row.id)).for("update");
         if (!current?.enabled || current.revision !== row.revision) return 0;
         if (!isDue(current.lookedAt, now)) return 0;
-        // And its owner once more, held so that a suspension waits for this to be written, or
-        // is seen here: nothing is told to an account that was suspended meanwhile.
-        await tx.select({ id: user.id }).from(user).where(eq(user.id, row.userId)).for("share");
         if (await isSuspended(tx, row.userId)) return 0;
 
         const [settingsRow] = await tx
@@ -186,16 +168,36 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
               seen: window.seen,
             }));
 
+          // The hours are cut otherwise than at the last look: what was told is brought in
+          // line with them, and nothing is said of the difference.
+          const settled = kept.cutBy !== null && kept.cutBy !== cut;
+          const open = (sea: Interval) =>
+            openHours(sea, place, availability, current.shortestMinutes);
           const plan = planLook({ windows, told: kept.told.map(toldPiece) }, found, {
             now,
             tellUntil: until,
-            open: (sea) => openHours(sea, place, availability, current.shortestMinutes),
-            // The hours are cut otherwise than at the last look: what was told is brought in
-            // line with them, and nothing is said of the difference.
-            settled: kept.cutBy !== null && kept.cutBy !== cut,
+            open,
+            settled,
             // A moment the account switched off is not told.
             quiet: { found: !settings.onFound, change: !settings.onChange },
           });
+
+          // What mail told follows what no mail says. Hours that are cut otherwise are cut
+          // again as what was told is, from the sea as it was known: hours that the change
+          // opened stay new to mail. And an account that switched changes off is kept in line
+          // at each look, so that switching them back on tells nothing of what moved meanwhile.
+          let mailed = kept.mailed;
+          if (settled) {
+            mailed = recut({ windows, told: mailed.map(toldPiece) }, open).map(toldStretch);
+          }
+          if (!settings.onChange && mailed.length > 0) {
+            mailed = planMail(
+              mailed.map(toldPiece),
+              plan.told,
+              plan.windows.flatMap((window) => open(window.sea)),
+              { now, quiet: { found: true, change: true } },
+            ).mailed.map(toldStretch);
+          }
 
           // What the look saw takes the place of what was known of the spot.
           await tx.delete(alertWindow).where(eq(alertWindow.spotId, place.id));
@@ -207,6 +209,15 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
                 seaStart: window.sea.start,
                 seaEnd: window.sea.end,
                 seen: window.seen,
+                // Its hours that are not over, for what is said of them before the next look.
+                hours: hours
+                  .filter(
+                    (hour) =>
+                      hour.time.getTime() + HOUR_MS > now.getTime() &&
+                      hour.time.getTime() + HOUR_MS > window.sea.start.getTime() &&
+                      hour.time.getTime() < window.sea.end.getTime(),
+                  )
+                  .map(seaHour),
               })),
             );
           }
@@ -216,6 +227,8 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
               told: plan.told.map(toldStretch),
               cutBy: cut,
               lookedAt: now,
+              forecastFetchedAt: fetchedAt,
+              ...(mailed === kept.mailed ? {} : { mailed }),
             })
             .where(eq(alertSpot.spotId, place.id));
 
@@ -248,6 +261,11 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
           .values(rows)
           .onConflictDoNothing()
           .returning({ id: notification.id });
+        // Each notification that was written leaves by the ways out its account chose.
+        for (const { id } of made) {
+          const row = rows.find((one) => one.id === id);
+          if (row) await queueMail(tx, row, settings, now);
+        }
         return made.length;
       }),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
@@ -272,19 +290,7 @@ function lineOf(
     forecastFetchedAt: fetchedAt.toISOString(),
     open: open.map(stretch),
     ...("before" in told ? { before: told.before.map(stretch) } : {}),
-    ...(hour
-      ? {
-          sea: {
-            swellHeightMeters: hour.swellHeightMeters,
-            swellPeriodSeconds: hour.swellPeriodSeconds,
-            swellDirectionDegrees: hour.swellDirectionDegrees,
-            windSpeedMetersPerSecond: hour.windSpeedMetersPerSecond,
-            windDirectionDegrees: hour.windDirectionDegrees,
-            tideHeightMeters: hour.tideHeightMeters,
-            tideTrend: hour.tideTrend,
-          },
-        }
-      : {}),
+    ...(hour ? { sea: figuresOf(seaHour(hour)) } : {}),
   };
 }
 

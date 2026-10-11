@@ -85,6 +85,15 @@ const knownProcedure = publicProcedure.use(async ({ context, next, procedure }) 
 });
 
 /**
+ * Answers anyone, and counts the call: for what a link in a mail does, which carries a key of
+ * its own and comes with no session. Decision 031 names the one thing that is built on it.
+ */
+export const linkProcedure = knownProcedure.route({
+  // The reference says that such a route asks for neither a key nor a session.
+  spec: (operation) => ({ ...operation, security: [] }),
+});
+
+/**
  * Answers a caller the instance knows: an account by its session, or a program by an API key.
  * For the data everyone shares. `context.caller` says which of the two is calling.
  */

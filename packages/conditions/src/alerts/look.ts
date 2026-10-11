@@ -141,7 +141,7 @@ function follow(known: SeaWindow[], found: Interval[], now: Date): SeaWindow[] {
  * piece, the open hours of the known sea that overlap where it was. A piece whose sea the last
  * look did not find stays as it is: nothing is known to cut it with.
  */
-function recut(
+export function recut(
   known: { windows: SeaWindow[]; told: ToldPiece[] },
   open: (sea: Interval) => Interval[],
 ): ToldPiece[] {
@@ -284,4 +284,58 @@ export function planLook(
   if (gone.length > 0) tell.push({ moment: "gone", before: gone });
 
   return { windows, told: once(standing), tell };
+}
+
+/**
+ * Decides what a mail says of a spot, and what stands as told by mail once it has left.
+ *
+ * A mail may leave hours after the look that wrote its notification, when the account's quiet
+ * hours end, or not at all. So what mail told at a spot is kept apart from what the list told,
+ * and a mail says how the two differ, by the rules of a look: the open hours that stand as told
+ * are to mail what the sea is to a look. Hours that mail never told are found, hours further
+ * than two hours from what mail told have moved, and hours that stand no more are gone. Nothing
+ * waits for a second look here: what stands as told was found twice, and was called off after
+ * two looks.
+ *
+ * `mailed` is what mail told at the spot, `told` what the last look left as told there, and
+ * `present` the open hours of the windows that look found. What a mail says are hours of
+ * `present`, as they are: where a told piece was last found is a stretch that may hold hours
+ * that do not work, and only says which of the present hours are its own.
+ */
+export function planMail(
+  mailed: ToldPiece[],
+  told: ToldPiece[],
+  present: Interval[],
+  context: { now: Date; quiet?: Context["quiet"] },
+) {
+  const now = context.now.getTime();
+  const ahead = <Piece extends Interval>(pieces: Piece[]) =>
+    pieces.filter((piece) => piece.end.getTime() > now);
+  // The present hours that told pieces are at.
+  const found = told.filter((piece) => piece.missed === 0).map(lastOf);
+  const standing = once(ahead(present).filter((piece) => overlapsAny(piece, found)));
+  // A told piece that the last look missed is neither there nor gone yet: what mail told of
+  // it stays as it is, and nothing is said.
+  const missed = ahead(told.filter((piece) => piece.missed > 0).map(lastOf));
+  const isHeld = (piece: ToldPiece) =>
+    overlapsAny(lastOf(piece), missed) && !overlapsAny(lastOf(piece), standing);
+  const held = ahead(mailed).filter(isHeld);
+
+  const plan = planLook(
+    {
+      windows: standing.map((piece) => ({ sea: piece, seen: LOOKS_TO_TELL })),
+      told: mailed
+        .filter((piece) => !isHeld(piece))
+        .map((piece) => ({ ...piece, missed: LOOKS_TO_CALL_OFF - 1 })),
+    },
+    standing,
+    {
+      now: context.now,
+      // The days ahead were counted when the hours were told.
+      tellUntil: new Date(8.64e15),
+      open: (piece) => [piece],
+      ...(context.quiet ? { quiet: context.quiet } : {}),
+    },
+  );
+  return { mailed: once([...plan.told, ...held]), tell: plan.tell };
 }

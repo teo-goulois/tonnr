@@ -248,6 +248,11 @@ function News({
                         {formatDayAndClock(new Date(line.buoy.observedAt), payload.zone)}
                       </span>
                     )}
+                    {line.buoy?.attribution && line.buoy.significantHeightMeters !== null && (
+                      <span className="text-xs text-neutral-7">
+                        {m.alerts_station_credit({ attribution: line.buoy.attribution })}
+                      </span>
+                    )}
                   </span>
                 ))}
                 <span className="text-xs text-neutral-7">

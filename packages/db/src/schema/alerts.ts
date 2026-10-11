@@ -24,6 +24,20 @@ export type Stretch = { start: string; end: string };
  */
 export type ToldStretch = Stretch & { missed: number; last?: Stretch };
 
+/** What the forecast and the tide give at a spot for one hour, as a notification keeps it. */
+export type SeaFigures = {
+  swellHeightMeters: number | null;
+  swellPeriodSeconds: number | null;
+  swellDirectionDegrees: number | null;
+  windSpeedMetersPerSecond: number | null;
+  windDirectionDegrees: number | null;
+  tideHeightMeters: number | null;
+  tideTrend: "rising" | "falling" | null;
+};
+
+/** An hour of a sea window, as the look that saw it read it: when it begins, in ISO 8601. */
+export type SeaHour = SeaFigures & { time: string };
+
 /** Hours of a day, in minutes since midnight: from the first to the one they end at. */
 export type DayHours = { from: number; to: number }[];
 
@@ -32,6 +46,9 @@ export const DELIVERY_CHANNELS = ["mail", "push"] as const;
 export const DELIVERY_STATES = [
   // Waiting for its hour, or for the worker.
   "pending",
+  // Given to the way out, and not known to have left or not: the worker stopped meanwhile.
+  // It is not tried again, since it may have left.
+  "sending",
   "sent",
   // The way out refused it, or could not be reached.
   "failed",
@@ -97,6 +114,12 @@ export const alertSpot = pgTable(
     cutBy: text("cut_by"),
     // The open hours that were said to begin, and are not over.
     begun: jsonb("begun").$type<Stretch[]>().default([]).notNull(),
+    // The open hours that a mail told at the spot and are not over. A mail may leave long
+    // after a look, or not at all, so what mail said is kept apart from what the list said:
+    // a mail says how `told` differs from it.
+    mailed: jsonb("mailed").$type<ToldStretch[]>().default([]).notNull(),
+    // When the forecast that the last look read at the spot was fetched.
+    forecastFetchedAt: timestamp("forecast_fetched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("alert_spot_alertId_idx").on(table.alertId)],
@@ -143,9 +166,13 @@ export const alertSettings = pgTable("alert_settings", {
   // The end of the day the last evening message listed, so that a day gets one, whatever
   // becomes of the account's time zone meanwhile.
   eveningUntil: timestamp("evening_until", { withTimezone: true }),
-  // The hash of the token that a mail's link switches alert mails off with. It is made with
-  // the first alert mail, and made anew each time mail is switched back on.
+  // Read by nothing: `mailKey` took its place before any mail was sent. A later release drops
+  // it, as decision 009 asks of a column that a running version may still name.
   mailTokenHash: text("mail_token_hash"),
+  // What a mail's link switches alert mails off with: a key made when mail is switched on, and
+  // made anew each time it is switched on again, so that an old mail's link stops working. It
+  // is kept as it is: the worker writes it into each mail, and it opens nothing but that.
+  mailKey: text("mail_key"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
@@ -171,6 +198,9 @@ export const alertWindow = pgTable(
     seaEnd: timestamp("sea_end", { withTimezone: true }).notNull(),
     // The looks in a row that found it.
     seen: integer("seen").default(1).notNull(),
+    // Its hours that are not over, as the last look read them: what a message says of the sea
+    // when open hours begin, or the evening before, without reading a forecast again.
+    hours: jsonb("hours").$type<SeaHour[]>().default([]).notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.spotId, table.seaStart] }),
@@ -191,22 +221,15 @@ export type NotificationPayload = {
     spotName: string;
     // When the forecast the spot was read on was fetched.
     forecastFetchedAt?: string;
-    // For the evening before: the alert the spot is in.
+    // For the evening before: the alert the spot is in, and its name then.
+    alertId?: string;
     alertName?: string;
     // The window's open hours. None for a window that is gone.
     open: Stretch[];
     // For a window that moved or went: its open hours as they had been told.
     before?: Stretch[];
     // What the forecast gave for the first of the open hours.
-    sea?: {
-      swellHeightMeters: number | null;
-      swellPeriodSeconds: number | null;
-      swellDirectionDegrees: number | null;
-      windSpeedMetersPerSecond: number | null;
-      windDirectionDegrees: number | null;
-      tideHeightMeters: number | null;
-      tideTrend: "rising" | "falling" | null;
-    };
+    sea?: SeaFigures;
     // For a window that begins: what the nearest buoy last read. Null far from any.
     buoy?: {
       stationId: string;
@@ -216,6 +239,8 @@ export type NotificationPayload = {
       significantHeightMeters: number | null;
       peakPeriodSeconds: number | null;
       peakDirectionDegrees: number | null;
+      // Who the station's readings are credited to.
+      attribution?: string;
     } | null;
   }[];
 };

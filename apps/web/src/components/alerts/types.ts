@@ -6,6 +6,8 @@ import type { AlertSettingsChange } from "./alert-settings";
 export type Alerting = {
   alerts: Loadable<Alert[]>;
   settings: Loadable<AlertSettings>;
+  // Asks again for the alerts and the settings, when one of them could not be had.
+  onRetry: () => void;
   // The time zone of this device, which an account that has set none takes with its first alert.
   deviceZone: string;
   // What the alert that is being written gives at its spots.
@@ -13,8 +15,13 @@ export type Alerting = {
   onTry: (trial: AlertTrial) => void;
   isSaving: boolean;
   // Saves an alert: a new one, whole, when `alert` is undefined, and otherwise what of it was
-  // changed.
-  onSave: (alert: Alert | undefined, draft: AlertDraft, changed: Partial<AlertDraft>) => void;
+  // changed. `byMail` is what the account answered when it was asked whether it wants mail.
+  onSave: (
+    alert: Alert | undefined,
+    draft: AlertDraft,
+    changed: Partial<AlertDraft>,
+    byMail?: boolean,
+  ) => void;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
   // The alerts whose switch is being saved.

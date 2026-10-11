@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@neaps/tide-database": "catalog:",
+    "@opencoredev/email-sdk": "2.0.0",
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/mail": "workspace:*",
     "@repo/upstream": "workspace:*",
     "cron-parser": "^5.10.1",
     "drizzle-orm": "catalog:",

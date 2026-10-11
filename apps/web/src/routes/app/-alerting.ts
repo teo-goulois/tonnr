@@ -159,11 +159,21 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
   const turn = useMutation(orpc.v1.alerts.update.mutationOptions());
 
   // Each request answers for itself: its promise settles whatever was asked after it.
-  const save = (alert: Alert | undefined, draft: AlertDraft, changed: Partial<AlertDraft>) => {
+  const save = (
+    alert: Alert | undefined,
+    draft: AlertDraft,
+    changed: Partial<AlertDraft>,
+    byMail?: boolean,
+  ) => {
     const asked = alert
       ? update.mutateAsync({ id: alert.id, ...changed })
-      : // The first alert sets the account's time zone, as its first setting does.
-        create.mutateAsync({ ...draft, ...device });
+      : // The first alert sets the account's time zone, as its first setting does, and keeps
+        // what the account answered about mail: both are saved with the alert, or not at all.
+        create.mutateAsync({
+          ...draft,
+          ...device,
+          ...(byMail === undefined ? {} : { byMailIfNone: byMail }),
+        });
     void asked
       .then((saved) => {
         // The alert is in the list at once: its editor reads it there.
@@ -214,6 +224,10 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
     },
     onTry,
     isSaving: create.isPending || update.isPending,
+    onRetry: () => {
+      void queryClient.invalidateQueries({ queryKey: alertsKey });
+      void queryClient.invalidateQueries({ queryKey: settingsOptions.queryKey });
+    },
     onSave: save,
     isDeleting: remove.isPending,
     onDelete: (alert) =>

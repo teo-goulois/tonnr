@@ -31,7 +31,7 @@ const overlaps = (one: Interval, other: Interval) =>
 
 // Whether the last look at a spot is recent enough for what it found to be believed. A look
 // that the clock says is still to come is not.
-function isFresh(spot: Watched, now: Date) {
+export function isFresh(spot: Pick<Watched, "lookedAt">, now: Date) {
   if (!spot.lookedAt) return false;
   const age = now.getTime() - spot.lookedAt.getTime();
   return age >= 0 && age <= LOOK_GOOD_HOURS * HOUR_MS;
@@ -129,6 +129,40 @@ export function hoursOfDay(day: string, zone: string, now: Date, spots: Watched[
       return { spotId: spot.spotId, pieces };
     })
     .filter((listed) => listed.pieces.length > 0);
+}
+
+/**
+ * What is left of the hours a message spoke of, when it leaves later than it was written: the
+ * open hours of the spot's windows, as the last look left them, that overlap those hours and
+ * are not over. None when that look is too old to be believed.
+ */
+export function stillOpen(now: Date, spot: Watched, open: OpenOf, said: Interval[]) {
+  if (!isFresh(spot, now)) return [];
+  return spot.windows
+    .flatMap((window) => open(spot.spotId, window.sea))
+    .filter(
+      (piece) => piece.end.getTime() > now.getTime() && said.some((one) => overlaps(piece, one)),
+    )
+    .sort(byStart);
+}
+
+/**
+ * What is left of hours that were said to begin, when the message leaves later than it was
+ * written: of the hours that are still open, those that begin within the account's notice, or
+ * have begun, and of which enough is left. Hours that have become later ones are not "on".
+ */
+export function stillBegins(
+  now: Date,
+  spot: Watched,
+  open: OpenOf,
+  said: Interval[],
+  noticeMinutes: number,
+) {
+  return stillOpen(now, spot, open, said).filter(
+    (piece) =>
+      piece.start.getTime() - noticeMinutes * MINUTE_MS <= now.getTime() &&
+      piece.end.getTime() - WORTH_MINUTES * MINUTE_MS > now.getTime(),
+  );
 }
 
 /** The hours in which an account is sent nothing, on its own clock. They may run past midnight. */

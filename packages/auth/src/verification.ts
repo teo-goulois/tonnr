@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
 import { type Count, countCalls } from "@repo/db/calls";
-import type { Mailer } from "@repo/mail";
+import { type Mailer, MAIL_PROVIDER } from "@repo/mail";
 import { type Locale, localeOf, verificationMail } from "@repo/mail/verification";
 import { createEmailVerificationToken } from "better-auth/api";
 
@@ -8,8 +8,9 @@ import { createEmailVerificationToken } from "better-auth/api";
 
 /** How long a link is good for. */
 export const VERIFICATION_SECONDS = 24 * 60 * 60;
-/** The name the instance's mails are counted under. An account's are under `mail:<its id>`. */
-export const MAIL_PROVIDER = "mail";
+// The instance's mails are counted under `MAIL_PROVIDER`, and an account's under
+// `mail:<its id>`.
+export { MAIL_PROVIDER };
 /** How many mails the instance lets out in a day, unless its settings say otherwise. */
 export const DEFAULT_DAILY_MAILS = 200;
 

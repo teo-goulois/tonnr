@@ -6,14 +6,21 @@ import { MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import { criteriaSchema } from "@repo/conditions/spots/criteria";
 import type { Database } from "@repo/db";
-import { alert, alertSettings, alertSpot, alertWindow } from "@repo/db/schema/alerts";
+import {
+  alert,
+  alertSettings,
+  alertSpot,
+  alertWindow,
+  notification,
+  notificationDelivery,
+} from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
 import { and, asc, count, eq, inArray, max, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 import { z } from "zod";
 
-import { protectedProcedure } from "../index";
+import { linkProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
 import { forecastUnavailable } from "./forecasts";
 
@@ -150,7 +157,7 @@ export async function forgetSeen(tx: Transaction, alertId: string, spotId?: stri
     );
   await tx
     .update(alertSpot)
-    .set({ told: [], cutBy: null, begun: [], lookedAt: null })
+    .set({ told: [], mailed: [], cutBy: null, begun: [], lookedAt: null })
     .where(and(eq(alertSpot.alertId, alertId), spotId ? eq(alertSpot.spotId, spotId) : undefined));
 }
 
@@ -204,6 +211,25 @@ async function settleDevice(
     });
 }
 
+/**
+ * Keeps what an account answers about mail with the alert it is asked with, when it never
+ * answered: decision 031. An answer it gave before stands, whatever is given here. Saying yes
+ * makes the key that the link of its mails carries.
+ */
+async function settleMail(tx: Database | Transaction, userId: string, byMail: boolean) {
+  const key = byMail ? crypto.randomUUID() : null;
+  await tx
+    .insert(alertSettings)
+    .values({ userId, byMail, mailKey: key })
+    .onConflictDoUpdate({
+      target: alertSettings.userId,
+      set: {
+        mailKey: sql`case when ${alertSettings.byMail} is null then ${key} else ${alertSettings.mailKey} end`,
+        byMail: sql`coalesce(${alertSettings.byMail}, ${byMail}::boolean)`,
+      },
+    });
+}
+
 const stretchSchema = z.object({ start: z.date(), end: z.date() });
 const dayHoursSchema = z
   .array(
@@ -243,7 +269,20 @@ const settingsSchema = z.object({
   byMail: z.boolean().nullable(),
   namesInSubject: z.boolean(),
   byPush: z.boolean(),
+  // Whether a mail can reach the account, which is no setting of its own: "ready" on an instance
+  // that sends mail, to an address that was checked, "unchecked" while the address was not, and
+  // "off" on an instance that sends no mail.
+  mail: z.enum(["ready", "unchecked", "off"]),
 });
+
+// Whether a mail can reach the caller's account.
+function mailOf(context: {
+  verification: { isOn: boolean };
+  session: { user: { emailVerified: boolean } };
+}) {
+  if (!context.verification.isOn) return "off" as const;
+  return context.session.user.emailVerified ? ("ready" as const) : ("unchecked" as const);
+}
 
 const minutesOfDay = z
   .number()
@@ -284,12 +323,19 @@ export const alertsRouter = {
         enabled: z.boolean().default(true),
         shortestMinutes: shortestSchema.default(120),
         ...deviceFields,
+        byMailIfNone: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether the account wants its alerts by mail, if it never said. It keeps the " +
+              "answer it gave. Mail leaves once its address is checked.",
+          ),
       }),
     )
     .output(alertSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { spotIds, zoneIfNone, localeIfNone, ...fields } = input;
+      const { spotIds, zoneIfNone, localeIfNone, byMailIfNone, ...fields } = input;
 
       const created = await context.db.transaction(async (tx) => {
         // Locking the account row makes its creations run one after the other, so two requests
@@ -312,6 +358,8 @@ export const alertsRouter = {
           .values(spotIds.map((spotId, position) => ({ spotId, alertId: row.id, position })));
         // An account's days and hours are read in the time zone of its first alert's device.
         await settleDevice(tx, userId, { zoneIfNone, localeIfNone });
+        // And what it answers about mail is saved with the alert, or not at all.
+        if (byMailIfNone !== undefined) await settleMail(tx, userId, byMailIfNone);
         return row;
       });
       if (created === null) {
@@ -604,7 +652,7 @@ export const alertsRouter = {
         .select()
         .from(alertSettings)
         .where(eq(alertSettings.userId, context.session.user.id));
-      return settingsOf(row);
+      return { ...settingsOf(row), mail: mailOf(context) };
     }),
 
   updateSettings: protectedProcedure
@@ -665,16 +713,127 @@ export const alertsRouter = {
       };
       const row = await context.db.transaction(async (tx) => {
         await settleDevice(tx, userId, device);
+        // Switching mail on makes the key its mails' link carries, anew each time: the link of
+        // a mail from before it was switched off stops working. Switching it off forgets it.
+        const key = crypto.randomUUID();
+        const mailKey =
+          changes.byMail === undefined
+            ? {}
+            : changes.byMail
+              ? {
+                  values: { mailKey: key },
+                  set: {
+                    mailKey: sql`case when ${alertSettings.byMail} is true then ${alertSettings.mailKey} else ${key} end`,
+                  },
+                }
+              : { values: { mailKey: null }, set: { mailKey: null } };
         const [saved] = await tx
           .insert(alertSettings)
-          .values({ userId, ...changes })
+          .values({ userId, ...changes, ...mailKey.values })
           .onConflictDoUpdate({
             target: alertSettings.userId,
-            set: { ...changes, updatedAt: new Date() },
+            set: { ...changes, ...mailKey.set, updatedAt: new Date() },
           })
           .returning();
+        // A mail that waits for the end of quiet hours waits for those the account has now:
+        // the worker reads them again at its next pass, and not at the hour it kept.
+        if (changes.quietFrom !== undefined || changes.zone !== undefined || device.zoneIfNone) {
+          await tx
+            .update(notificationDelivery)
+            .set({ dueAt: sql`least(${notificationDelivery.dueAt}, now())` })
+            .where(
+              and(
+                eq(notificationDelivery.state, "pending"),
+                inArray(
+                  notificationDelivery.notificationId,
+                  tx
+                    .select({ id: notification.id })
+                    .from(notification)
+                    .where(eq(notification.userId, userId)),
+                ),
+              ),
+            );
+        }
         return saved;
       });
-      return settingsOf(row);
+      return { ...settingsOf(row), mail: mailOf(context) };
+    }),
+
+  mailOff: linkProcedure
+    .route({
+      method: "POST",
+      path: "/alert-mails/off",
+      inputStructure: "detailed",
+      summary: "Stop the alert mails of an account, from the link of one of them",
+      description:
+        "What the link at the foot of an alert mail does, and what a mail program asks when " +
+        'its reader presses "unsubscribe": it takes no session and no key of the API. `u` and ' +
+        "`k` are the two values the link carries. It switches alert mails off for that account " +
+        "and does nothing else: it reads nothing, and switches nothing on.",
+      tags: ["Alerts"],
+    })
+    .input(
+      z.object({
+        query: z.object({
+          u: z.string().min(1).max(200).describe("The account, as the link names it."),
+          k: z.string().min(1).max(200).describe("The key the link carries."),
+          l: z
+            .string()
+            .max(8)
+            .optional()
+            .describe("The language of the mail, which the page uses."),
+        }),
+      }),
+    )
+    .output(
+      z.object({
+        // False for a link that is no longer good: mail was switched off since, or on again.
+        off: z.boolean(),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const { u, k } = input.query;
+      const stopped = await context.db
+        .update(alertSettings)
+        .set({ byMail: false, mailKey: null, updatedAt: new Date() })
+        .where(and(eq(alertSettings.userId, u), eq(alertSettings.mailKey, k)))
+        .returning({ userId: alertSettings.userId })
+        // What the database says of a query that failed holds the key: it is not passed on to
+        // where faults are logged.
+        .catch(() => null);
+      if (!stopped) throw new ORPCError("INTERNAL_SERVER_ERROR");
+      return { off: stopped.length > 0 };
+    }),
+
+  mailOffPage: linkProcedure
+    .route({
+      method: "GET",
+      path: "/alert-mails/off",
+      inputStructure: "detailed",
+      outputStructure: "detailed",
+      successStatus: 303,
+      summary: "Go to the page that stops the alert mails of an account",
+      description:
+        "Where a mail program lands when it opens the address of a mail's `List-Unsubscribe` " +
+        "header instead of posting to it: the page of the web app with the one button that " +
+        "stops alert mails. Following it switches nothing off.",
+      tags: ["Alerts"],
+    })
+    .input(
+      z.object({
+        query: z.object({
+          u: z.string().max(200).optional().describe("The account, as the link names it."),
+          k: z.string().max(200).optional().describe("The key the link carries."),
+          l: z.string().max(8).optional().describe("The language of the mail the link is in."),
+        }),
+      }),
+    )
+    .output(z.object({ headers: z.object({ location: z.string() }) }))
+    .handler(({ input, context }) => {
+      const { u = "", k = "", l } = input.query;
+      // The page is in the language of the mail, which the link says: nothing is read of the
+      // account, since the key of a link reads nothing.
+      const page = `${context.server.webOrigin}${l === "fr" ? "/fr" : ""}/mail-off`;
+      return { headers: { location: `${page}?${new URLSearchParams({ u, k })}` } };
     }),
 };

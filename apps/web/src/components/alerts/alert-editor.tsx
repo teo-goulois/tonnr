@@ -65,9 +65,15 @@ type AlertEditorProps = {
   // What the draft gives at its spots, and how to ask for it.
   preview: Loadable<AlertPreview>;
   onTry: (trial: AlertTrial) => void;
+  // True for an account that was never asked whether it wants its alerts by mail, on an
+  // instance that sends some: it is asked here, with the alert it saves.
+  asksMail: boolean;
+  // True while the account's address is not checked: mail leaves once it is.
+  mailWaits?: boolean;
   isSaving: boolean;
-  // The alert as it is written, and what of it differs from the alert that is saved.
-  onSave: (draft: AlertDraft, changed: Partial<AlertDraft>) => void;
+  // The alert as it is written, what of it differs from the alert that is saved, and what the
+  // account answered about mail when it was asked.
+  onSave: (draft: AlertDraft, changed: Partial<AlertDraft>, byMail?: boolean) => void;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
 };
@@ -128,6 +134,8 @@ export function AlertEditor({
   zone,
   preview,
   onTry,
+  asksMail,
+  mailWaits = false,
   isSaving,
   onSave,
   isDeleting,
@@ -185,6 +193,8 @@ export function AlertEditor({
   const [wasDeleted, setWasDeleted] = useState(false);
   const isOpen = alert !== undefined || wasOpened || (opened && !wasDeleted);
   const [isConfirming, setIsConfirming] = useState(false);
+  // Mail is offered, and taken unless the account says no.
+  const [wantsMail, setWantsMail] = useState(true);
   const hadAlert = useRef(alert !== undefined);
   useEffect(() => {
     if (hadAlert.current && !alert) {
@@ -369,6 +379,7 @@ export function AlertEditor({
             ...(parts.name === undefined ? {} : { name }),
             ...(parts.criteria === undefined ? {} : { criteria: sent }),
           },
+          asksMail ? wantsMail : undefined,
         );
       }}
     >
@@ -604,6 +615,22 @@ export function AlertEditor({
           {isFull && (
             <p className="text-xs text-neutral-7">{m.alert_spots_most({ count: SPOTS_MOST })}</p>
           )}
+        </div>
+      )}
+
+      {asksMail && (
+        <div className="flex items-start justify-between gap-m">
+          <div className="grid gap-xxs">
+            <span id={`${id}-mail`}>{m.alert_mail_ask()}</span>
+            <span className="text-s text-neutral-7">
+              {mailWaits ? m.alert_mail_ask_hint_unchecked() : m.alert_mail_ask_hint()}
+            </span>
+          </div>
+          <Switch
+            aria-labelledby={`${id}-mail`}
+            checked={wantsMail}
+            onCheckedChange={setWantsMail}
+          />
         </div>
       )}
 

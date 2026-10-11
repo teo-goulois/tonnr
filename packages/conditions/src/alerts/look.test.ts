@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type SeaWindow, type ToldPiece, planLook } from "./look";
+import { type SeaWindow, type ToldPiece, planLook, planMail, recut } from "./look";
 import type { Interval } from "./open";
 
 // Thursday 15 October 2026, hour by hour. "15T08" is 08:00 UTC that day.
@@ -491,5 +491,181 @@ describe("a moment the account switched off", () => {
     look("14T09", []);
     expect(look("14T12", [])).toEqual([]);
     expect(told()).toEqual([]);
+  });
+});
+
+/** What mail tells of a spot, pass after pass, beside what the list holds as told. */
+function mailbox(quiet: { found?: boolean; change?: boolean } = {}) {
+  let mailed: ToldPiece[] = [];
+  const piece = (start: string, end: string, more: Partial<ToldPiece> = {}): ToldPiece => ({
+    ...sea(start, end),
+    missed: 0,
+    ...more,
+  });
+  return {
+    piece,
+    /**
+     * A mail that leaves at a moment, when the list holds these hours as told. The hours that
+     * are open then are where the told pieces are, unless they are given.
+     */
+    mail(now: string, told: ToldPiece[], present?: Interval[]) {
+      const plan = planMail(
+        mailed,
+        told,
+        present ?? told.filter((one) => one.missed === 0).map((one) => one.last ?? one),
+        { now: at(now), quiet },
+      );
+      mailed = plan.mailed;
+      return plan.tell.map((said) =>
+        [
+          said.moment,
+          "open" in said ? said.open.map(stamp).join(" ") : "",
+          "before" in said ? `was ${said.before.map(stamp).join(" ")}` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+    },
+    mailed: () => mailed.map(stamp),
+  };
+}
+
+describe("what a mail says of a spot", () => {
+  it("tells hours that mail never told, once", () => {
+    const { mail, piece, mailed } = mailbox();
+    const told = [piece("15T08", "15T12"), piece("16T08", "16T12")];
+
+    expect(mail("14T07", told)).toEqual(["found 15T08-15T12 16T08-16T12"]);
+    expect(mailed()).toEqual(["15T08-15T12", "16T08-16T12"]);
+    expect(mail("14T10", told)).toEqual([]);
+    // Hours told since are the only news.
+    expect(mail("14T13", [...told, piece("17T08", "17T12")])).toEqual(["found 17T08-17T12"]);
+  });
+
+  it("says where hours are now, when they moved while the mail waited", () => {
+    const { mail, piece } = mailbox();
+
+    // Told at 23:00 as 08:00 to 12:00, moved in the night: the morning's mail says 11:00.
+    expect(mail("15T07", [piece("15T11", "15T15")])).toEqual(["found 15T11-15T15"]);
+  });
+
+  it("says nothing of hours that came and went while the mail waited", () => {
+    const { mail, mailed } = mailbox();
+
+    expect(mail("15T07", [])).toEqual([]);
+    expect(mailed()).toEqual([]);
+  });
+
+  it("says that hours moved by more than two hours from what mail told", () => {
+    const { mail, piece, mailed } = mailbox();
+    mail("14T07", [piece("15T08", "15T12")]);
+
+    // An hour later is no news, and is held against what mail said.
+    expect(mail("14T10", [piece("15T08", "15T12", { last: sea("15T09", "15T13") })])).toEqual([]);
+    expect(mailed()).toEqual(["15T08-15T12"]);
+    // The list told the move: mail tells it against what mail said.
+    expect(mail("14T13", [piece("15T11", "15T15")])).toEqual(["moved 15T11-15T15 was 15T08-15T12"]);
+    expect(mailed()).toEqual(["15T11-15T15"]);
+  });
+
+  it("adds up small moves against what mail told, whatever the list told meanwhile", () => {
+    const { mail, piece } = mailbox();
+    mail("14T07", [piece("15T08", "15T12")]);
+
+    expect(mail("14T10", [piece("15T10", "15T14")])).toEqual([]);
+    expect(mail("14T13", [piece("15T11", "15T15")])).toEqual(["moved 15T11-15T15 was 15T08-15T12"]);
+  });
+
+  it("says that hours are gone as soon as the list holds them no more", () => {
+    const { mail, piece, mailed } = mailbox();
+    mail("14T07", [piece("15T08", "15T12"), piece("16T08", "16T12")]);
+
+    // Missed by one look, they still stand as told.
+    expect(
+      mail("14T10", [piece("15T08", "15T12", { missed: 1 }), piece("16T08", "16T12")]),
+    ).toEqual([]);
+    expect(mail("14T13", [piece("16T08", "16T12")])).toEqual(["gone was 15T08-15T12"]);
+    expect(mailed()).toEqual(["16T08-16T12"]);
+  });
+
+  it("says nothing of hours that are over, nor of hours with too little left", () => {
+    const { mail, piece, mailed } = mailbox();
+    mail("14T07", [piece("15T08", "15T12")]);
+
+    expect(mail("15T13", [])).toEqual([]);
+    expect(mailed()).toEqual([]);
+    // Twenty minutes are left of these: not worth a mail.
+    expect(
+      mail("16T11", [{ ...piece("16T08", "16T12"), end: new Date("2026-10-16T11:20:00Z") }]),
+    ).toEqual([]);
+  });
+
+  it("keeps what mail told in line without a word, for an account that switched changes off", () => {
+    const { mail, piece, mailed } = mailbox({ change: true });
+    mail("14T07", [piece("15T08", "15T12"), piece("16T08", "16T12")]);
+
+    expect(mail("14T10", [piece("15T12", "15T16")])).toEqual([]);
+    expect(mailed()).toEqual(["15T12-15T16"]);
+  });
+
+  it("tells nothing new to an account that switched found off, and follows nothing of it", () => {
+    const { mail, piece, mailed } = mailbox({ found: true });
+
+    expect(mail("14T07", [piece("15T08", "15T12")])).toEqual([]);
+    expect(mailed()).toEqual([]);
+    expect(mail("14T10", [])).toEqual([]);
+  });
+
+  it("tells the hours that are open, not the stretch a told piece was last found in", () => {
+    const { mail, piece, mailed } = mailbox();
+    // Two mornings were told, joined for a look, then apart again: the second is remembered
+    // as a stretch that holds the hour between them, which does not work.
+    const told = [
+      piece("15T07", "15T09", { last: sea("15T08", "15T09") }),
+      piece("15T10", "15T12", { last: sea("15T08", "15T12") }),
+    ];
+
+    expect(mail("14T07", told, [sea("15T08", "15T09"), sea("15T10", "15T12")])).toEqual([
+      "found 15T08-15T09 15T10-15T12",
+    ]);
+    expect(mailed()).toEqual(["15T08-15T09", "15T10-15T12"]);
+  });
+
+  it("says nothing new of hours that the last look missed, and does not call them off", () => {
+    const { mail, piece, mailed } = mailbox();
+    // Never told by mail, and missed by the last look: nothing to say yet.
+    expect(mail("14T07", [piece("15T08", "15T12", { missed: 1 })], [])).toEqual([]);
+    expect(mailed()).toEqual([]);
+
+    // Told by mail, then missed by a look that found other hours nearby: it has not moved.
+    mail("14T10", [piece("15T08", "15T12")]);
+    expect(
+      mail(
+        "14T13",
+        [piece("15T08", "15T12", { missed: 1 }), piece("15T14", "15T18")],
+        [sea("15T14", "15T18")],
+      ),
+    ).toEqual(["found 15T14-15T18"]);
+    expect(mailed()).toEqual(["15T08-15T12", "15T14-15T18"]);
+  });
+});
+
+describe("what mail told, under hours that are cut anew", () => {
+  it("keeps the hours that are still open, and takes none that the change opened", () => {
+    const windows: SeaWindow[] = [{ sea: sea("15T08", "15T17"), seen: 3 }];
+    const mailed: ToldPiece[] = [{ ...sea("15T08", "15T10"), missed: 0 }];
+
+    // The account now goes in the afternoon only: the morning mail told is no longer its own.
+    expect(recut({ windows, told: mailed }, between(13, 17))).toEqual([]);
+    // And one that goes all day keeps it, as long as it is now.
+    expect(recut({ windows, told: mailed }, between(6, 12)).map(stamp)).toEqual(["15T08-15T12"]);
+    // The afternoon is then new to mail, as it is to the list.
+    const plan = planMail(
+      recut({ windows, told: mailed }, between(13, 17)),
+      [{ ...sea("15T13", "15T17"), missed: 0 }],
+      [sea("15T13", "15T17")],
+      { now: at("14T07") },
+    );
+    expect(plan.tell).toEqual([{ moment: "found", open: [sea("15T13", "15T17")] }]);
   });
 });

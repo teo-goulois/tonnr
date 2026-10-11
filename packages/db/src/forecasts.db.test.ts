@@ -114,6 +114,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept in the database", () => 
     });
 
     it("never passes a limit, however many are counted at the same moment", async () => {
+      // A minute that ends while they are counted starts another, with twenty of its own.
+      const { rows } = await database.db.execute<{ left: number }>(
+        sql`select (60 - extract(second from now()))::float8 as left`,
+      );
+      const left = rows[0]?.left ?? 60;
+      if (left < 5) await new Promise((resolve) => setTimeout(resolve, left * 1000 + 100));
+
       const people = store("people", { minute: 20 });
       const alerts = store("alerts", { minute: 20 });
 

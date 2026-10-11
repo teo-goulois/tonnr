@@ -11,6 +11,9 @@ import { unosend } from "@opencoredev/email-sdk/unosend";
 // How the instance sends a mail: decision 026. This knows the library and the two ways out,
 // and nothing of who signs in. Nothing here is logged of a mail but how it failed.
 
+/** The name the instance's mails are counted under, all of them: its limit for a day. */
+export const MAIL_PROVIDER = "mail";
+
 /** What an instance sets to send mail. With no way out, it sends none. */
 export type MailSettings = {
   UNOSEND_API_KEY?: string | undefined;
@@ -20,8 +23,18 @@ export type MailSettings = {
   EMAIL_FROM?: string | undefined;
 };
 
-/** A mail to one address: the address alone, with no name beside it. */
-export type Mail = { to: string; subject: string; text: string; html: string };
+/**
+ * A mail to one address: the address alone, with no name beside it. `headers` are the few a
+ * mail program reads beside the usual ones, such as what lets it stop a kind of mail in one
+ * press.
+ */
+export type Mail = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  headers?: { name: string; value: string }[];
+};
 
 export type Mailer = {
   /** The way out the instance's settings chose. */
@@ -33,6 +46,15 @@ export type Mailer = {
    * seconds after the answer, when its connection has said nothing for ten seconds.
    */
   send: (mail: Mail) => Promise<"accepted" | "failed">;
+  /**
+   * Sends a mail, once, and answers only when nothing more of it can leave: for whoever holds
+   * something until then, as the worker holds an account while its alert mail leaves. Over
+   * SMTP, a mail that is given up after its ten seconds may still leave, since its connection
+   * goes on. So this one waits for the server instead, which is let go of when it has said
+   * nothing for ten seconds at one step. Through a provider's API, giving up closes the
+   * request, and this is `send`.
+   */
+  sendToTheEnd: (mail: Mail) => Promise<"accepted" | "failed">;
 };
 
 // How long a mail may take to leave. A sign-up waits for it.
@@ -128,19 +150,21 @@ export function createMailer(
     retry: { maxAttempts: 1 },
   });
 
+  const hand = async ({ to, subject, text, html, headers }: Mail, signal?: AbortSignal) => {
+    try {
+      await client.send(
+        { from, to, subject, text, html, ...(headers ? { headers } : {}) },
+        signal ? { signal } : {},
+      );
+      return "accepted" as const;
+    } catch (error) {
+      console.error(`mail: not accepted by ${via} (${failureOf(error)})`);
+      return "failed" as const;
+    }
+  };
   return {
     via,
-    send: async ({ to, subject, text, html }) => {
-      try {
-        await client.send(
-          { from, to, subject, text, html },
-          { signal: AbortSignal.timeout(sendMs) },
-        );
-        return "accepted";
-      } catch (error) {
-        console.error(`mail: not accepted by ${via} (${failureOf(error)})`);
-        return "failed";
-      }
-    },
+    send: (mail) => hand(mail, AbortSignal.timeout(sendMs)),
+    sendToTheEnd: (mail) => hand(mail, via === "smtp" ? undefined : AbortSignal.timeout(sendMs)),
   };
 }

@@ -1,6 +1,13 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
-import { alert, alertSettings, alertSpot, alertWindow } from "@repo/db/schema/alerts";
+import {
+  alert,
+  alertSettings,
+  alertSpot,
+  alertWindow,
+  notification,
+  notificationDelivery,
+} from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -95,7 +102,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       .onConflictDoNothing();
     await database.db
       .update(alertSpot)
-      .set({ told: [TOLD], cutBy: "as it was", begun: [BEGUN], lookedAt: AT })
+      .set({ told: [TOLD], mailed: [TOLD], cutBy: "as it was", begun: [BEGUN], lookedAt: AT })
       .where(eq(alertSpot.spotId, spotId));
     await database.db.update(alert).set({ lookedAt: AT }).where(eq(alert.id, alertId));
   };
@@ -106,7 +113,14 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
   // The spots of an alert at which something told still stands.
   const toldAt = async (alertId: string) =>
     (await database.db.select().from(alertSpot).where(eq(alertSpot.alertId, alertId)))
-      .filter((row) => row.told.length > 0 || row.cutBy || row.begun.length > 0 || row.lookedAt)
+      .filter(
+        (row) =>
+          row.told.length > 0 ||
+          row.mailed.length > 0 ||
+          row.cutBy ||
+          row.begun.length > 0 ||
+          row.lookedAt,
+      )
       .map((row) => row.spotId)
       .sort();
   const lookedAtOf = async (id: string) =>
@@ -199,6 +213,54 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         longitude: -1.5,
       });
       expect((await make({ spotIds: ["bens-other"] }, "ben")).name).toBe("The bay");
+    });
+  });
+
+  describe("made with an answer about mail", () => {
+    const mailOf = async (userId: string) => {
+      const [row] = await database.db
+        .select()
+        .from(alertSettings)
+        .where(eq(alertSettings.userId, userId));
+      return row ? { byMail: row.byMail, hasKey: row.mailKey !== null } : null;
+    };
+
+    it("keeps the answer with the alert, and the key of its mails' link for a yes", async () => {
+      await make({ byMailIfNone: true } as never);
+      expect(await mailOf("ana")).toEqual({ byMail: true, hasKey: true });
+
+      await make({ spotIds: ["bens"], byMailIfNone: false } as never, "ben");
+      expect(await mailOf("ben")).toEqual({ byMail: false, hasKey: false });
+    });
+
+    it("keeps the answer an account gave before, whatever comes with a later alert", async () => {
+      await call(v1Router.alerts.updateSettings, { byMail: false }, by("ana"));
+      await make({ byMailIfNone: true } as never);
+      expect(await mailOf("ana")).toEqual({ byMail: false, hasKey: false });
+
+      await call(v1Router.alerts.updateSettings, { byMail: true }, by("ben"));
+      const [before] = await database.db
+        .select()
+        .from(alertSettings)
+        .where(eq(alertSettings.userId, "ben"));
+      await make({ spotIds: ["bens"], byMailIfNone: false } as never, "ben");
+      const [after] = await database.db
+        .select()
+        .from(alertSettings)
+        .where(eq(alertSettings.userId, "ben"));
+      expect(after).toMatchObject({ byMail: true, mailKey: before?.mailKey });
+    });
+
+    it("saves no answer when the alert is not made", async () => {
+      await make();
+      // The spot is in an alert already: the second is refused, and its answer with it.
+      await expect(make({ byMailIfNone: true } as never)).rejects.toEqual(refusal("CONFLICT"));
+      expect(await mailOf("ana")).toBeNull();
+    });
+
+    it("leaves an account that is not asked as it is", async () => {
+      await make();
+      expect(await mailOf("ana")).toBeNull();
     });
   });
 
@@ -519,6 +581,8 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       byMail: null,
       namesInSubject: true,
       byPush: false,
+      // The instance of these tests sends no mail.
+      mail: "off",
     };
 
     it("are the defaults for an account that set nothing", async () => {
@@ -637,6 +701,159 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         by("ben"),
       );
       expect(alone).toMatchObject({ zone: "Europe/Paris", locale: null });
+    });
+
+    describe("the link of an alert mail", () => {
+      const keyOf = async (userId: string) =>
+        (await database.db.select().from(alertSettings).where(eq(alertSettings.userId, userId)))[0]
+          ?.mailKey ?? null;
+      // With no session at all, as a mail program asks, or with another account's.
+      const nobody = (): { context: Context } => ({
+        context: { ...by("ben").context, session: null },
+      });
+      const follow = (u: string, k: string, who = nobody()) =>
+        call(v1Router.alerts.mailOff, { query: { u, k } }, who);
+
+      it("has a key from the moment mail is switched on, and none before", async () => {
+        await call(v1Router.alerts.updateSettings, { onFound: true }, by("ana"));
+        expect(await keyOf("ana")).toBeNull();
+
+        await call(v1Router.alerts.updateSettings, { byMail: true }, by("ana"));
+        const key = await keyOf("ana");
+        expect(key).toEqual(expect.any(String));
+        // Saying yes again is no new key: the mails already sent keep their link.
+        await call(v1Router.alerts.updateSettings, { byMail: true, onFound: false }, by("ana"));
+        expect(await keyOf("ana")).toBe(key);
+      });
+
+      it("switches alert mails off, for whoever holds it, and nothing else", async () => {
+        await call(v1Router.alerts.updateSettings, { byMail: true, horizonDays: 4 }, by("ana"));
+        const key = (await keyOf("ana")) ?? "";
+
+        // It is followed with no session of the account's, or with another account's.
+        expect(await follow("ana", "not-the-key", by("ben"))).toEqual({ off: false });
+        expect(await follow("ana", key)).toEqual({ off: true });
+        expect(await call(v1Router.alerts.getSettings, undefined, by("ana"))).toMatchObject({
+          byMail: false,
+          horizonDays: 4,
+        });
+        expect(await keyOf("ana")).toBeNull();
+        // It works once.
+        expect(await follow("ana", key)).toEqual({ off: false });
+      });
+
+      it("does nothing with a key that is not the account's, or no longer", async () => {
+        await call(v1Router.alerts.updateSettings, { byMail: true }, by("ana"));
+        await call(v1Router.alerts.updateSettings, { byMail: true }, by("ben"));
+        const bens = (await keyOf("ben")) ?? "";
+
+        expect(await follow("ana", "made-up")).toEqual({ off: false });
+        expect(await follow("ana", bens)).toEqual({ off: false });
+        expect(await follow("nobody", bens)).toEqual({ off: false });
+
+        // Mail switched off, then on again: the link of a mail from before is good no more.
+        const old = (await keyOf("ana")) ?? "";
+        await call(v1Router.alerts.updateSettings, { byMail: false }, by("ana"));
+        await call(v1Router.alerts.updateSettings, { byMail: true }, by("ana"));
+        expect(await follow("ana", old)).toEqual({ off: false });
+        expect(await call(v1Router.alerts.getSettings, undefined, by("ana"))).toMatchObject({
+          byMail: true,
+        });
+      });
+    });
+
+    describe("the address a mail program opens", () => {
+      const open = (query: { u?: string; k?: string; l?: string }) =>
+        call(
+          v1Router.alerts.mailOffPage,
+          { query },
+          { context: { ...by("ben").context, session: null } },
+        );
+
+      it("leads to the page that asks, in the language of the mail, and stops nothing", async () => {
+        await call(v1Router.alerts.updateSettings, { byMail: true, locale: "fr" }, by("ana"));
+        const [row] = await database.db.select().from(alertSettings);
+        const key = row?.mailKey ?? "";
+
+        expect(await open({ u: "ana", k: key, l: "fr" })).toEqual({
+          headers: { location: `${WEB}/fr/mail-off?u=ana&k=${key}` },
+        });
+        expect((await database.db.select().from(alertSettings))[0]).toMatchObject({
+          byMail: true,
+          mailKey: key,
+        });
+      });
+
+      it("says nothing of an account, whatever key is given", async () => {
+        await call(v1Router.alerts.updateSettings, { byMail: true, locale: "fr" }, by("ana"));
+        const [row] = await database.db.select().from(alertSettings);
+
+        // The account's own language is not read: a good key and a made-up one lead alike.
+        expect(await open({ u: "ana", k: row?.mailKey ?? "" })).toEqual({
+          headers: { location: `${WEB}/mail-off?u=ana&k=${row?.mailKey}` },
+        });
+        expect(await open({ u: "ana", k: "made-up" })).toEqual({
+          headers: { location: `${WEB}/mail-off?u=ana&k=made-up` },
+        });
+        expect(await open({ l: "de" })).toEqual({ headers: { location: `${WEB}/mail-off?u=&k=` } });
+      });
+    });
+
+    it("keeps the key of a link out of what is said of a fault", async () => {
+      const failing = {
+        update: () => ({
+          set: () => ({
+            where: () => ({
+              returning: () =>
+                Promise.reject(new Error("Failed query, params: ana,the-secret-key")),
+            }),
+          }),
+        }),
+      };
+      const fault = await call(
+        v1Router.alerts.mailOff,
+        { query: { u: "ana", k: "the-secret-key" } },
+        { context: { ...by("ben").context, session: null, db: failing as never } },
+      ).catch((error: unknown) => error);
+
+      expect(fault).toBeInstanceOf(ORPCError);
+      expect(fault).toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+      expect(
+        JSON.stringify([fault, (fault as Error).message, (fault as Error).cause]),
+      ).not.toContain("the-secret-key");
+    });
+
+    it("make a mail that waits follow quiet hours as they are changed", async () => {
+      const made = await make();
+      await database.db.insert(notification).values({
+        id: "told",
+        userId: "ana",
+        alertId: made.id,
+        moment: "found",
+        key: "told",
+        payload: { alertName: "The bay", zone: "UTC", lines: [] },
+      });
+      // The database's clock is not the test's: a day that is far ahead on both.
+      const later = new Date("2100-01-01T00:00:00Z");
+      const waiting = {
+        notificationId: "told",
+        channel: "mail" as const,
+        dueAt: later,
+        expiresAt: later,
+      };
+      await database.db.insert(notificationDelivery).values(waiting);
+      const dueAt = async () => (await database.db.select().from(notificationDelivery))[0]?.dueAt;
+
+      // Another setting leaves it where it is.
+      await call(v1Router.alerts.updateSettings, { onFound: true }, by("ana"));
+      expect(await dueAt()).toEqual(later);
+      // And so does another account's quiet hours.
+      await call(v1Router.alerts.updateSettings, { quietFrom: null, quietTo: null }, by("ben"));
+      expect(await dueAt()).toEqual(later);
+
+      // New quiet hours make it due: the worker reads them at its next pass.
+      await call(v1Router.alerts.updateSettings, { quietFrom: null, quietTo: null }, by("ana"));
+      expect(((await dueAt()) ?? later).getTime()).toBeLessThan(later.getTime());
     });
 
     it("keep a time zone's name as the runtime spells it", async () => {

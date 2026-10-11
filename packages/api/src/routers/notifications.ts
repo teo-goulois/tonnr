@@ -22,7 +22,8 @@ const payloadSchema = z.object({
       spotName: z.string(),
       // When the forecast the spot was read on was fetched.
       forecastFetchedAt: z.string().optional(),
-      // For the evening before: the alert the spot is in.
+      // For the evening before: the alert the spot is in, and its name then.
+      alertId: z.string().optional(),
       alertName: z.string().optional(),
       // The window's open hours. None for a window that is gone.
       open: z.array(stretchSchema),
@@ -51,6 +52,8 @@ const payloadSchema = z.object({
           significantHeightMeters: measure,
           peakPeriodSeconds: measure,
           peakDirectionDegrees: measure,
+          // Who the station's readings are credited to.
+          attribution: z.string().optional(),
         })
         .nullable()
         .optional(),

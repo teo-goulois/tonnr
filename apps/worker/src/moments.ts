@@ -1,20 +1,11 @@
-import type { ToldPiece } from "@repo/conditions/alerts/look";
-import {
-  type Watched,
-  beginnings,
-  dayOf,
-  eveningFor,
-  hoursOfDay,
-} from "@repo/conditions/alerts/moments";
-import { type Interval, openHours } from "@repo/conditions/alerts/open";
+import { beginnings, dayOf, eveningFor, hoursOfDay } from "@repo/conditions/alerts/moments";
+import { openHours } from "@repo/conditions/alerts/open";
 import { availabilityOf, settingsOf, zoneOf } from "@repo/conditions/alerts/settings";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { accountSuspension } from "@repo/db/schema/access";
 import {
   type NotificationPayload,
-  type Stretch,
-  type ToldStretch,
   alert,
   alertSettings,
   alertSpot,
@@ -22,27 +13,34 @@ import {
   notification,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { reading, station } from "@repo/db/schema/buoys";
 import { spot } from "@repo/db/schema/spots";
-import {
-  and,
-  asc,
-  between,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  ne,
-  notExists,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
+import { type MailOut, queueMail, sendDeliveries } from "./deliveries";
+import {
+  fromNow,
+  interval,
+  openOf,
+  running,
+  seaAt,
+  stretch,
+  toldPiece,
+  watched,
+  watchedOf,
+} from "./kept";
+import { wavesNear } from "./stations";
 import { StoreError } from "./store";
+
+type Line = NotificationPayload["lines"][number];
+
+// What the last look read of the sea for an hour, as a notification keeps it.
+const seaOf = (windows: Parameters<typeof seaAt>[0], moment: Date) => {
+  const read = seaAt(windows, moment);
+  if (!read) return {};
+  const { at: _at, ...sea } = read;
+  return { sea };
+};
 
 // Decision 031, "The moments": what the worker tells between two looks, from what the last
 // look kept. It reads no forecast: "it is on" when open hours begin, and the evening before.
@@ -51,183 +49,6 @@ import { StoreError } from "./store";
 // database holds then, under a lock: an alert that was switched off meanwhile, a piece another
 // worker has just said, a setting that changed, are seen there.
 
-const MINUTE_MS = 60 * 1000;
-// A wave station is read for "it is on" when it is this near, and its reading this recent.
-const STATION_KM = 60;
-const READING_FRESH_MS = 2 * 60 * MINUTE_MS;
-// Among the stations near enough, the nearest few are asked for a reading, the nearest first.
-const STATIONS_ASKED = 5;
-const EARTH_KM = 6371;
-const KM_PER_DEGREE = 111.2;
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-type Place = { id: string; name: string; latitude: number; longitude: number };
-type Line = NotificationPayload["lines"][number];
-
-const stretch = (interval: Interval): Stretch => ({
-  start: interval.start.toISOString(),
-  end: interval.end.toISOString(),
-});
-const interval = (kept: Stretch): Interval => ({
-  start: new Date(kept.start),
-  end: new Date(kept.end),
-});
-const toldPiece = (kept: ToldStretch): ToldPiece => ({
-  ...interval(kept),
-  missed: kept.missed,
-  ...(kept.last ? { last: interval(kept.last) } : {}),
-});
-// The pieces said to begin that are not over: one that is over no longer hides a later one.
-const running = (begun: Stretch[], now: Date) =>
-  begun.filter((piece) => new Date(piece.end).getTime() > now.getTime());
-
-function distanceKm(
-  one: { latitude: number; longitude: number },
-  other: { latitude: number; longitude: number },
-) {
-  const radians = (degrees: number) => (degrees * Math.PI) / 180;
-  const a =
-    Math.sin(radians(other.latitude - one.latitude) / 2) ** 2 +
-    Math.cos(radians(one.latitude)) *
-      Math.cos(radians(other.latitude)) *
-      Math.sin(radians(other.longitude - one.longitude) / 2) ** 2;
-  return 2 * EARTH_KM * Math.asin(Math.sqrt(a));
-}
-
-/**
- * The longitudes of a box that holds every point within a distance of a place: one range, two
- * when it passes the antimeridian, and null for every longitude, near a pole. The distance
- * itself is checked afterwards.
- */
-export function longitudesNear(place: { latitude: number; longitude: number }, km: number) {
-  const latitudes = km / KM_PER_DEGREE;
-  // The parallel of the box that is nearest a pole is the narrowest: the box is as wide there.
-  const farthest = Math.min(90, Math.abs(place.latitude) + latitudes);
-  const width = latitudes / Math.cos((farthest * Math.PI) / 180);
-  if (farthest >= 90 || width >= 180) return null;
-  const [west, east] = [place.longitude - width, place.longitude + width];
-  if (west < -180) return [[west + 360, 180] as const, [-180, east] as const];
-  if (east > 180) return [[west, 180] as const, [-180, east - 360] as const];
-  return [[west, east] as const];
-}
-
-/**
- * The latest wave reading of the nearest station that the sea reaches freely, near a place and
- * no older than two hours. Null far from any, or when none near has measured waves lately. It
- * is the whole sea where the station stands, and confirms nothing of a spot: decision 031,
- * "What the buoy says".
- */
-async function wavesNear(db: Database | Transaction, place: Place, now: Date) {
-  const since = new Date(now.getTime() - READING_FRESH_MS);
-  const latitudes = STATION_KM / KM_PER_DEGREE;
-  const longitudes = longitudesNear(place, STATION_KM);
-  const near = await db
-    .select({
-      id: station.id,
-      name: station.name,
-      latitude: station.latitude,
-      longitude: station.longitude,
-    })
-    .from(station)
-    .where(
-      and(
-        eq(station.reportsWaves, true),
-        // A station that is not known to be sheltered: open, or not told yet (decision 011).
-        or(isNull(station.exposure), ne(station.exposure, "sheltered")),
-        // A station that said nothing lately has no reading to give.
-        gte(station.latestObservedAt, since),
-        between(station.latitude, place.latitude - latitudes, place.latitude + latitudes),
-        longitudes
-          ? or(...longitudes.map(([west, east]) => between(station.longitude, west, east)))
-          : undefined,
-      ),
-    );
-  const nearest = near
-    .map((one) => ({ ...one, distanceKm: distanceKm(place, one) }))
-    .filter((one) => one.distanceKm <= STATION_KM)
-    .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, STATIONS_ASKED);
-  for (const one of nearest) {
-    // Its latest reading that measured waves: a later one may hold the wind alone. One that
-    // is dated after now is a clock that is wrong, and is not read.
-    const [read] = await db
-      .select()
-      .from(reading)
-      .where(
-        and(
-          eq(reading.stationId, one.id),
-          isNotNull(reading.significantHeightM),
-          gte(reading.observedAt, since),
-          lte(reading.observedAt, now),
-        ),
-      )
-      .orderBy(desc(reading.observedAt))
-      .limit(1);
-    if (!read) continue;
-    return {
-      stationId: one.id,
-      name: one.name,
-      distanceKm: Math.round(one.distanceKm * 10) / 10,
-      observedAt: read.observedAt.toISOString(),
-      significantHeightMeters: read.significantHeightM,
-      peakPeriodSeconds: read.peakPeriodS,
-      peakDirectionDegrees: read.peakDirectionDeg,
-    } satisfies NonNullable<Line["buoy"]>;
-  }
-  return null;
-}
-
-// The spots of an account's alerts that are on, with what the last look kept of each.
-async function watchedOf(
-  tx: Database | Transaction,
-  where: { alertId: string } | { userId: string },
-) {
-  const links = await tx
-    .select({
-      alert,
-      link: alertSpot,
-      place: { id: spot.id, name: spot.name, latitude: spot.latitude, longitude: spot.longitude },
-    })
-    .from(alertSpot)
-    .innerJoin(alert, eq(alert.id, alertSpot.alertId))
-    .innerJoin(spot, eq(spot.id, alertSpot.spotId))
-    .where(
-      and(
-        eq(alert.enabled, true),
-        "alertId" in where ? eq(alert.id, where.alertId) : eq(alert.userId, where.userId),
-      ),
-    )
-    .orderBy(asc(alert.createdAt), asc(alert.id), asc(alertSpot.position));
-  const alertIds = [...new Set(links.map((one) => one.alert.id))];
-  const windows =
-    alertIds.length === 0
-      ? []
-      : await tx.select().from(alertWindow).where(inArray(alertWindow.alertId, alertIds));
-  const bySpot = Map.groupBy(windows, (window) => window.spotId);
-  return links.map((one) => ({ ...one, windows: bySpot.get(one.place.id) ?? [] }));
-}
-type Link = Awaited<ReturnType<typeof watchedOf>>[number];
-
-const watched = (one: Link, now: Date): Watched => ({
-  spotId: one.place.id,
-  windows: one.windows.map((window) => ({
-    sea: { start: window.seaStart, end: window.seaEnd },
-    seen: window.seen,
-  })),
-  told: one.link.told.map(toldPiece),
-  lookedAt: one.link.lookedAt,
-  begun: running(one.link.begun, now).map(interval),
-});
-
-// The hours of a sea window an account can use, by its settings and its alert's.
-function openOf(links: Link[], availability: ReturnType<typeof availabilityOf>) {
-  const of = new Map(links.map((one) => [one.place.id, one]));
-  return (spotId: string, sea: Interval) => {
-    const one = of.get(spotId);
-    return one ? openHours(sea, one.place, availability, one.alert.shortestMinutes) : [];
-  };
-}
-
 /**
  * Says that open hours begin at spots of an alert, when some do: one notification, with a line
  * for each spot. The alert is held, and all that decides is read then: a piece that another
@@ -235,11 +56,17 @@ function openOf(links: Link[], availability: ReturnType<typeof availabilityOf>) 
  */
 async function tellBeginning(db: Database, alertId: string) {
   return db.transaction(async (tx) => {
-    // The alert first, as whatever writes to its spots holds it.
+    // Its owner first, held so that a suspension waits for this, or is seen here, and so that
+    // an account that is deleted takes its alerts in the same order. Then the alert, as
+    // whatever writes to its spots holds it.
+    const [owned] = await tx
+      .select({ userId: alert.userId })
+      .from(alert)
+      .where(eq(alert.id, alertId));
+    if (!owned) return 0;
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, owned.userId)).for("share");
     const [held] = await tx.select().from(alert).where(eq(alert.id, alertId)).for("update");
     if (!held?.enabled) return 0;
-    // Its owner, held so that a suspension waits for this, or is seen here.
-    await tx.select({ id: user.id }).from(user).where(eq(user.id, held.userId)).for("share");
     if (await isSuspended(tx, held.userId)) return 0;
     const [settingsRow] = await tx
       .select()
@@ -278,19 +105,26 @@ async function tellBeginning(db: Database, alertId: string) {
         spotId: one.place.id,
         spotName: one.place.name,
         open: [stretch(piece)],
+        // What the last look read of the sea for the hour it begins, or for this one.
+        ...seaOf(one.windows, fromNow(piece.start, now)),
+        ...(one.link.forecastFetchedAt
+          ? { forecastFetchedAt: one.link.forecastFetchedAt.toISOString() }
+          : {}),
         buoy: await wavesNear(tx, one.place, now),
       });
     }
-    await tx.insert(notification).values({
+    const made = {
       id: crypto.randomUUID(),
       userId: held.userId,
       alertId,
-      moment: "begins",
+      moment: "begins" as const,
       // That a piece is said once is what the alert's lock and `begun` hold: whoever comes
       // next reads what this wrote. The key is the alert and the moment it was said.
       key: `begins:${alertId}:${now.toISOString()}`,
       payload: { alertName: held.name, zone: zoneOf(settings), lines },
-    });
+    };
+    await tx.insert(notification).values(made);
+    await queueMail(tx, made, settings, now);
     return 1;
   });
 }
@@ -332,13 +166,19 @@ async function tellEvening(db: Database, userId: string) {
       openOf(links, availabilityOf(settings)),
     ).flatMap(({ spotId, pieces }) => {
       const one = of.get(spotId);
-      if (!one) return [];
+      const [first] = pieces;
+      if (!one || !first) return [];
       return [
         {
           spotId,
           spotName: one.place.name,
+          alertId: one.alert.id,
           alertName: one.alert.name,
           open: pieces.map(stretch),
+          ...seaOf(one.windows, fromNow(first.start, now)),
+          ...(one.link.forecastFetchedAt
+            ? { forecastFetchedAt: one.link.forecastFetchedAt.toISOString() }
+            : {}),
         },
       ];
     });
@@ -346,19 +186,21 @@ async function tellEvening(db: Database, userId: string) {
     if (lines.length === 0) return 0;
 
     const whole = dayOf(day, zone);
+    const made = {
+      id: crypto.randomUUID(),
+      userId,
+      alertId: null,
+      moment: "evening" as const,
+      // The day as the stretch of time it is: the same date on another clock is another day.
+      key: `evening:${userId}:${whole.start.toISOString()}`,
+      payload: { alertName: null, zone, day, lines },
+    };
     const inserted = await tx
       .insert(notification)
-      .values({
-        id: crypto.randomUUID(),
-        userId,
-        alertId: null,
-        moment: "evening",
-        // The day as the stretch of time it is: the same date on another clock is another day.
-        key: `evening:${userId}:${whole.start.toISOString()}`,
-        payload: { alertName: null, zone, day, lines },
-      })
+      .values(made)
       .onConflictDoNothing()
       .returning({ id: notification.id });
+    if (inserted.length > 0) await queueMail(tx, made, settings, now);
     // The day is listed, by this or by a notification that already listed that very stretch.
     // What the account set keeps the time it was set at, and its days only go forward.
     await tx
@@ -375,25 +217,23 @@ async function tellEvening(db: Database, userId: string) {
   });
 }
 
+type Told = { begins: number; evenings: number; mails: number; failed: number };
+
 /** What a run of the moments did, as the worker says it of a job: decision 022. */
-export function momentsDone({
-  begins,
-  evenings,
-  failed,
-}: {
-  begins: number;
-  evenings: number;
-  failed: number;
-}) {
-  return { counts: { begins, evenings, failed }, degraded: failed > 0 };
+export function momentsDone({ begins, evenings, mails, failed }: Told) {
+  return { counts: { begins, evenings, mails, failed }, degraded: failed > 0 };
 }
 
 /**
  * Tells what begins and, at an account's evening hour, what the next day holds: one
- * notification for an alert whose open hours begin, and one for an account's evening. One that
- * fails does not stop the others, and what was told before it is counted.
+ * notification for an alert whose open hours begin, and one for an account's evening. Then it
+ * sends the alert mails that are due, with what `out` gives, and none without it. One thing
+ * that fails does not stop the others, and what was told before it is counted.
  */
-export const tellMoments = Effect.fn("tellMoments")(function* (db: Database) {
+export const tellMoments = Effect.fn("tellMoments")(function* (
+  db: Database,
+  out: MailOut | null = null,
+) {
   const started = new Date();
   const store = <Value>(read: () => Promise<Value>) =>
     Effect.tryPromise({
@@ -429,7 +269,32 @@ export const tellMoments = Effect.fn("tellMoments")(function* (db: Database) {
       .orderBy(asc(alert.userId), asc(alert.id));
     return rows;
   });
-  if (links.length === 0) return { begins: 0, evenings: 0, failed: 0 };
+  let begins = 0;
+  let evenings = 0;
+  let failed = 0;
+  // What is on its way out leaves whether anything is told now or not.
+  const send = function* () {
+    const mails = yield* Effect.result(sendDeliveries(db, out));
+    if (Result.isFailure(mails)) {
+      failed += 1;
+      yield* Effect.logWarning(`moments: the mails could not be read (${mails.failure._tag})`);
+      return 0;
+    }
+    failed += mails.success.failed;
+    if (
+      mails.success.sent + mails.success.failed + mails.success.held + mails.success.expired >
+      0
+    ) {
+      yield* Effect.logInfo(
+        `mail: ${mails.success.sent} alert mails sent, ${mails.success.failed} failed, ${mails.success.held} held back by a limit, ${mails.success.expired} no longer worth sending`,
+      );
+    }
+    return mails.success.sent;
+  };
+  if (links.length === 0) {
+    const mails = yield* send();
+    return { begins, evenings, mails, failed } satisfies Told;
+  }
   const alertIds = [...new Set(links.map((one) => one.alertId))];
   const userIds = [...new Set(links.map((one) => one.userId))];
   const windows = yield* store(() =>
@@ -442,9 +307,6 @@ export const tellMoments = Effect.fn("tellMoments")(function* (db: Database) {
   const settingsOfUser = new Map(settingsRows.map((row) => [row.userId, row]));
   const linksOfAlert = Map.groupBy(links, (one) => one.alertId);
 
-  let begins = 0;
-  let evenings = 0;
-  let failed = 0;
   const attempt = function* (
     told: Effect.Effect<number, StoreError>,
     count: (made: number) => void,
@@ -520,5 +382,6 @@ export const tellMoments = Effect.fn("tellMoments")(function* (db: Database) {
   yield* Effect.logInfo(
     `moments: ${alertIds.length} alerts of ${userIds.length} accounts, ${begins} told that it is on, ${evenings} evenings, ${failed} failed`,
   );
-  return { begins, evenings, failed };
+  const mails = yield* send();
+  return { begins, evenings, mails, failed } satisfies Told;
 });
