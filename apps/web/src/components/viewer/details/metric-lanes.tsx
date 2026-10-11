@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
+import { getLocale } from "@/paraglide/runtime.js";
 
 import { useChartTurn } from "../chart-turns";
 import { DirectionArrow } from "../map-markers";
@@ -324,6 +325,56 @@ function Lane({
     return list;
   }, [start, end]);
 
+  // Keep axes and curves mounted while only the reading moves.
+  const curves = useMemo(
+    () => (
+      <>
+        <EvilAreaChart.Grid />
+        <EvilAreaChart.XAxis
+          dataKey="time"
+          type="number"
+          scale="time"
+          domain={[start, end]}
+          hide={!last}
+          height={X_AXIS_HEIGHT}
+          ticks={noons}
+          tickFormatter={(time: number) => formatDay(new Date(time))}
+        />
+        <EvilAreaChart.YAxis
+          width={Y_AXIS_WIDTH}
+          tickMargin={4}
+          ticks={ticks}
+          domain={[ticks[0]!, ticks.at(-1)!]}
+          tickFormatter={(value: number) => formatNumber(value)}
+        />
+        {hasBuoy && (
+          <EvilAreaChart.Area
+            dataKey="gap"
+            variant="lines"
+            strokeVariant="solid"
+            animationType="none"
+            areaProps={{ dataKey: "gap", stroke: "none", fillOpacity: 1 }}
+          />
+        )}
+        <EvilAreaChart.Area
+          dataKey="model"
+          variant="gradient"
+          strokeVariant="dashed"
+          strokeWidth={1.5}
+        />
+        {hasBuoy && (
+          <EvilAreaChart.Area
+            dataKey="buoy"
+            strokeVariant="solid"
+            strokeWidth={2.5}
+            areaProps={{ dataKey: "buoy", fill: "none" }}
+          />
+        )}
+      </>
+    ),
+    [start, end, last, noons, ticks, hasBuoy],
+  );
+
   const pointed =
     pointedTime === undefined ? undefined : rows.find((row) => row.time === pointedTime);
   // At rest a lane reads the buoy's last reading while it is recent, and the model now otherwise.
@@ -408,47 +459,7 @@ function Lane({
             loadingPoints={14}
             chartProps={{ margin: { top: 6, right: 1, bottom: 0, left: 0 } }}
           >
-            <EvilAreaChart.Grid />
-            <EvilAreaChart.XAxis
-              dataKey="time"
-              type="number"
-              scale="time"
-              domain={[start, end]}
-              hide={!last}
-              height={X_AXIS_HEIGHT}
-              ticks={noons}
-              tickFormatter={(time: number) => formatDay(new Date(time))}
-            />
-            <EvilAreaChart.YAxis
-              width={Y_AXIS_WIDTH}
-              tickMargin={4}
-              ticks={ticks}
-              domain={[ticks[0]!, ticks.at(-1)!]}
-              tickFormatter={(value: number) => formatNumber(value)}
-            />
-            {hasBuoy && (
-              <EvilAreaChart.Area
-                dataKey="gap"
-                variant="lines"
-                strokeVariant="solid"
-                animationType="none"
-                areaProps={{ dataKey: "gap", stroke: "none", fillOpacity: 1 }}
-              />
-            )}
-            <EvilAreaChart.Area
-              dataKey="model"
-              variant="gradient"
-              strokeVariant="dashed"
-              strokeWidth={1.5}
-            />
-            {hasBuoy && (
-              <EvilAreaChart.Area
-                dataKey="buoy"
-                strokeVariant="solid"
-                strokeWidth={2.5}
-                areaProps={{ dataKey: "buoy", fill: "none" }}
-              />
-            )}
+            {curves}
             {!isLoading && (
               <LaneMarks
                 metric={metric}
@@ -486,7 +497,8 @@ export function MetricLanes({
   className,
 }: MetricLanesProps) {
   const [pointed, setPointed] = useState<number>();
-  const all = metrics();
+  const locale = getLocale();
+  const all = useMemo(() => metrics(), [locale]);
   const hasBuoy = measured.length > 0;
 
   return (

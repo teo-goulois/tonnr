@@ -160,6 +160,59 @@ export function SeaChart({
     onInspect?.(inspection);
   }, [inspection, onInspect]);
 
+  const yTicks = useMemo(() => {
+    const values = measured.map((row) => row.value);
+    return valueTicks(Math.min(0, ...values), Math.max(0, ...values));
+  }, [measured]);
+  const spansDays = end - start > 36 * HOUR_MS;
+  const markerTime = marker?.getTime();
+
+  // Inspection changes the marks, not the geometry or the SVG touch target.
+  const curves = useMemo(
+    () => (
+      <>
+        <EvilAreaChart.Grid />
+        <EvilAreaChart.XAxis
+          dataKey="time"
+          type="number"
+          scale="time"
+          domain={[start, end]}
+          ticks={timeTicks(start, end, everyHours).filter(
+            (time) => !everyHours || new Date(time).getHours() !== 0,
+          )}
+          tickFormatter={(time: number) =>
+            spansDays && !everyHours ? formatDay(new Date(time)) : formatClock(new Date(time))
+          }
+        />
+        <EvilAreaChart.YAxis
+          width={30}
+          hide={!yAxis}
+          padding={{ bottom: footroom }}
+          ticks={yTicks}
+          domain={[yTicks[0]!, yTicks.at(-1)!]}
+          tickFormatter={(value: number) => formatNumber(value)}
+        />
+        {markerTime !== undefined && markerTime > start && markerTime < end && (
+          <EvilAreaChart.ReferenceLine
+            x={markerTime}
+            stroke="var(--neutral-7)"
+            strokeDasharray="3 3"
+            label={{
+              value: m.chart_now(),
+              position: "insideTopRight",
+              fill: "var(--neutral-7)",
+              fontSize: 11,
+            }}
+          />
+        )}
+        <EvilAreaChart.Area dataKey="value" strokeVariant="solid" strokeWidth={2}>
+          <EvilAreaChart.ActiveDot variant="border" />
+        </EvilAreaChart.Area>
+      </>
+    ),
+    [start, end, everyHours, spansDays, yAxis, footroom, yTicks, markerTime],
+  );
+
   if (!isLoading && (!first || !last || first.time === last.time)) {
     return (
       <p className={cn(box, "flex items-center text-s text-neutral-7")}>
@@ -167,11 +220,6 @@ export function SeaChart({
       </p>
     );
   }
-
-  const values = measured.map((row) => row.value);
-  const yTicks = valueTicks(Math.min(0, ...values), Math.max(0, ...values));
-  const spansDays = end - start > 36 * HOUR_MS;
-  const markerTime = marker?.getTime();
 
   return (
     <figure
@@ -201,7 +249,10 @@ export function SeaChart({
       <div
         ref={touch.ref}
         onKeyDownCapture={touch.onKeyDownCapture}
-        className="select-none [-webkit-touch-callout:none]"
+        className={cn(
+          "select-none [-webkit-touch-callout:none]",
+          touch.isTouch && "[&_.recharts-active-dot]:hidden",
+        )}
       >
         <EvilAreaChart
           className={box}
@@ -212,27 +263,7 @@ export function SeaChart({
           loadingPoints={14}
           chartProps={{ margin: { top: headroom, right: yAxis ? 8 : 0, bottom: 0, left: 0 } }}
         >
-          <EvilAreaChart.Grid />
-          <EvilAreaChart.XAxis
-            dataKey="time"
-            type="number"
-            scale="time"
-            domain={[start, end]}
-            ticks={timeTicks(start, end, everyHours).filter(
-              (time) => !everyHours || new Date(time).getHours() !== 0,
-            )}
-            tickFormatter={(time: number) =>
-              spansDays && !everyHours ? formatDay(new Date(time)) : formatClock(new Date(time))
-            }
-          />
-          <EvilAreaChart.YAxis
-            width={30}
-            hide={!yAxis}
-            padding={{ bottom: footroom }}
-            ticks={yTicks}
-            domain={[yTicks[0]!, yTicks.at(-1)!]}
-            tickFormatter={(value: number) => formatNumber(value)}
-          />
+          {curves}
           {tooltip && !touch.isTouch && (
             <EvilAreaChart.Tooltip
               hideIndicator
@@ -243,22 +274,6 @@ export function SeaChart({
               }}
             />
           )}
-          {markerTime !== undefined && markerTime > start && markerTime < end && (
-            <EvilAreaChart.ReferenceLine
-              x={markerTime}
-              stroke="var(--neutral-7)"
-              strokeDasharray="3 3"
-              label={{
-                value: m.chart_now(),
-                position: "insideTopRight",
-                fill: "var(--neutral-7)",
-                fontSize: 11,
-              }}
-            />
-          )}
-          <EvilAreaChart.Area dataKey="value" strokeVariant="solid" strokeWidth={2}>
-            {!touch.isTouch && <EvilAreaChart.ActiveDot variant="border" />}
-          </EvilAreaChart.Area>
           {point && <TouchCursor point={point} />}
           {!isLoading && children}
         </EvilAreaChart>

@@ -26,6 +26,10 @@ navigation keep their existing behavior.
 `useChartTouch` owns this gesture for the product's curves. Updates are limited to animation
 frames and snap to actual samples, so moving inside one sample does not redraw the chart.
 Chart mounting still follows the drawer's rest and the existing drawing queue.
+Axes and curves keep stable React elements while inspection moves only the marks. Rebuilding
+axis settings can replace Recharts' SVG paths: touch events keep targeting the original path,
+so replacing it mid-gesture loses subsequent moves. Regression tests start on the path itself
+and check that it remains connected through the hold and slide.
 
 ## Consequences
 

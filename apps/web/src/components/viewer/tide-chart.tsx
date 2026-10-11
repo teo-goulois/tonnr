@@ -197,8 +197,10 @@ function TideMarks({
   const [pointerY, setPointerY] = useState<number>();
   useEffect(() => {
     if (!strip) return;
-    const move = (event: globalThis.PointerEvent) =>
+    const move = (event: globalThis.PointerEvent) => {
+      if (event.pointerType === "touch") return;
       setPointerY(event.clientY - strip.getBoundingClientRect().top);
+    };
     const leave = () => setPointerY(undefined);
     strip.addEventListener("pointerdown", move);
     strip.addEventListener("pointermove", move);
