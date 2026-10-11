@@ -430,6 +430,9 @@ importers:
       '@repo/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@repo/conditions':
+        specifier: workspace:*
+        version: link:../../packages/conditions
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
