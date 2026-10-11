@@ -1,6 +1,6 @@
 import { isNight } from "@repo/conditions/sun";
 
-import { compassPoint, formatNumber, toKnots } from "@/lib/format";
+import { formatNumber, toKnots } from "@/lib/format";
 import {
   CLOUD_COVER_SCALE,
   PRECIPITATION_SCALE,
@@ -266,10 +266,6 @@ export function cellColors(metric: Metric, value: number) {
 
 export function metricColor(metric: Metric, value: number) {
   return scaleColor(metric.scale, value);
-}
-
-export function describeDirection(degrees: number) {
-  return `${compassPoint(degrees)} ${formatNumber(degrees, 0)}°`;
 }
 
 const RADIANS = Math.PI / 180;

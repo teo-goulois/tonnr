@@ -313,15 +313,12 @@ function ViewerRoute() {
     (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : spot);
   const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
-  // A station that measures the wind alone shows no forecast and no tide: none is asked for.
+  // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
+  const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
+  // A station that measures the wind alone shows no tide: none is asked for.
   const selectedStation = selectedId ? (known ?? history.data?.station) : undefined;
   const windAlone = selectedStation !== undefined && !selectedStation.measures.includes("waves");
-  // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
-  const expected = {
-    enabled: point !== undefined && !windAlone,
-    retry: false,
-    meta: { quiet: true },
-  };
+  const expectedTide = { ...expected, enabled: expected.enabled && !windAlone };
 
   // The tide is a strip of whole days to scroll along, from midnight where the user is.
   // The days asked for belong to what is selected: another selection opens on its first days.
@@ -351,14 +348,14 @@ function ViewerRoute() {
   const tides = useQuery(
     orpc.v1.tides.timeline.queryOptions({
       input: { ...atPoint, ...tideSpan, stepMinutes: 10 },
-      ...expected,
+      ...expectedTide,
       ...keepAtPoint,
     }),
   );
   const extremes = useQuery(
     orpc.v1.tides.extremes.queryOptions({
       input: { ...atPoint, ...tideSpan },
-      ...expected,
+      ...expectedTide,
       ...keepAtPoint,
     }),
   );

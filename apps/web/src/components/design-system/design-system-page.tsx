@@ -777,7 +777,7 @@ export function DesignSystemPage() {
               station={SAMPLE_WIND_STATION}
               history={{ data: SAMPLE_WIND_READINGS, ...LOADED }}
               historyDays={7}
-              forecast={NOTHING}
+              forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
               tides={NOTHING}
               extremes={NOTHING}
             />

@@ -8,6 +8,7 @@ import { type ReactNode, useState } from "react";
 import { formatAgo, formatMeters, formatNumber, formatSeconds, freshnessOf } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
+import { Bearing } from "../bearing";
 import { DirectionArrow, HeightChip } from "../map-markers";
 import type { PointConditionsProps } from "../point-conditions";
 import { type Reading, type Station, periodOf } from "../types";
@@ -19,7 +20,6 @@ import {
   type Metric,
   type Sample,
   bias,
-  describeDirection,
   directionAt,
   distanceKm,
   formatMetric,
@@ -175,10 +175,10 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
           ? m.station_period_mean()
           : null;
   const periodValue = periodOf(latest);
-  const rows = [
+  const listed: (false | [string, ReactNode])[] = [
     latest.peakDirectionDegrees !== null && [
       m.details_direction(),
-      describeDirection(latest.peakDirectionDegrees),
+      <Bearing key="direction" degrees={latest.peakDirectionDegrees} withDegrees />,
     ],
     latest.maxHeightMeters !== null && [
       m.details_max_height(),
@@ -189,7 +189,8 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
       m.details_water(),
       `${formatNumber(latest.waterTemperatureCelsius)} °C`,
     ],
-  ].filter((row) => row !== false);
+  ];
+  const rows = listed.filter((row) => row !== false);
   if (rows.length === 0) return null;
 
   return (

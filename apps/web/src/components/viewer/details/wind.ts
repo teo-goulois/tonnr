@@ -1,4 +1,4 @@
-import { DAY_MS, HOUR_MS, type Sample } from "./metrics";
+import { DAY_MS, HOUR_MS, type Sample, valueAt } from "./metrics";
 
 const MINUTE_MS = 60 * 1000;
 
@@ -6,11 +6,12 @@ const MINUTE_MS = 60 * 1000;
 export const HISTORY_DAYS = 2;
 export const HISTORY_DAYS_MOST = 7;
 
-export type WindRangeKey = "hours" | "days" | "week";
+export type WindRangeKey = "hours" | "day" | "days" | "week";
 
 /**
  * A span of the wind to read, and the step it is read by. A station reports every few minutes:
- * six hours keep each reading, and a longer span takes the wind by the half hour or by the hour.
+ * six hours keep each reading, and a longer span takes the wind by the quarter of an hour, by
+ * the half hour or by the hour.
  */
 export type WindRange = {
   key: WindRangeKey;
@@ -22,16 +23,32 @@ export type WindRange = {
 
 export const WIND_RANGES: Record<WindRangeKey, WindRange> = {
   hours: { key: "hours", span: 6 * HOUR_MS, step: 6 * MINUTE_MS, days: HISTORY_DAYS },
+  day: { key: "day", span: DAY_MS, step: 12 * MINUTE_MS, days: HISTORY_DAYS },
   days: { key: "days", span: 2 * DAY_MS, step: 30 * MINUTE_MS, days: HISTORY_DAYS },
   week: { key: "week", span: 7 * DAY_MS, step: HOUR_MS, days: HISTORY_DAYS_MOST },
 };
 
-/** The wind over one step: its mean speed, its strongest gust, and where it came from. */
+// The model is drawn as far ahead as the span reaches back, and two days at most: a week of
+// measurements is read for what the wind did, not for what it will do in a week.
+const AHEAD_MOST = 2 * DAY_MS;
+
+/** How far past now a span is drawn, for the model's wind to come. */
+export function aheadOf(range: WindRange) {
+  return Math.min(range.span, AHEAD_MOST);
+}
+
+/**
+ * The wind at one moment of a span. Where the station measured, the mean speed of the step, its
+ * strongest gust, and where the wind came from. Everywhere the model reaches, what it says.
+ */
 export type WindRow = {
   time: number;
   // In knots.
   wind: number | null;
   gust: number | null;
+  // The model's wind at that moment. Null where the forecast does not reach.
+  model: number | null;
+  // Where the wind came from: by the station where it measured, by the model elsewhere.
   direction: number | null;
 };
 
@@ -83,17 +100,58 @@ export function windRows(samples: Sample[], start: number, end: number, step: nu
       time: Math.max(start, at * step),
       wind: mean(held.map((sample) => sample.wind!)),
       gust: gusts.length > 0 ? Math.max(...gusts) : null,
+      model: null,
       direction: meanBearing(
         held.flatMap((sample) => (sample.windDirection === null ? [] : [sample.windDirection])),
       ),
     };
     const previous = rows.at(-1);
     if (previous && row.time - previous.time > silence) {
-      rows.push({ time: (previous.time + row.time) / 2, wind: null, gust: null, direction: null });
+      rows.push({
+        time: (previous.time + row.time) / 2,
+        wind: null,
+        gust: null,
+        model: null,
+        direction: null,
+      });
     }
     rows.push(row);
   }
   return rows;
+}
+
+/**
+ * The rows of a station with the model's wind beside them: what the model says at each row,
+ * then the model's own hours before the first measurement and after the last one, as far as
+ * the span goes. No hour of the model is put between two measurements, where it would cut the
+ * station's curve in two.
+ */
+export function withModel(rows: WindRow[], model: Sample[], start: number, end: number) {
+  const measured = rows.filter((row) => row.wind !== null);
+  const first = measured[0]?.time ?? Infinity;
+  const last = measured.at(-1)?.time ?? -Infinity;
+
+  const beside = rows.map((row) => ({
+    ...row,
+    model: valueAt(model, "wind", row.time, HOUR_MS) ?? null,
+  }));
+  const alone = model.flatMap((sample) =>
+    sample.wind !== null &&
+    sample.time >= start &&
+    sample.time <= end &&
+    (sample.time < first || sample.time > last)
+      ? [
+          {
+            time: sample.time,
+            wind: null,
+            gust: null,
+            model: sample.wind,
+            direction: sample.windDirection,
+          },
+        ]
+      : [],
+  );
+  return [...beside, ...alone].sort((a, b) => a.time - b.time);
 }
 
 /** The strongest gust of the rows, with its moment, and the mean of their wind. */
@@ -131,11 +189,11 @@ export function bearingsAlong(rows: WindRow[], start: number, end: number, parts
   });
 }
 
-/** The row nearest a moment among those that hold a wind speed. */
+/** The row nearest a moment among those that hold a wind speed, the station's or the model's. */
 export function rowNear(rows: WindRow[], time: number) {
   let nearest: WindRow | undefined;
   for (const row of rows) {
-    if (row.wind === null) continue;
+    if (row.wind === null && row.model === null) continue;
     if (!nearest || Math.abs(row.time - time) < Math.abs(nearest.time - time)) nearest = row;
   }
   return nearest;

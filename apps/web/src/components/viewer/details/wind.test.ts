@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import type { Sample } from "./metrics";
-import { bearingsAlong, meanBearing, rowNear, windRows, windSummary } from "./wind";
+import {
+  WIND_RANGES,
+  aheadOf,
+  bearingsAlong,
+  meanBearing,
+  rowNear,
+  windRows,
+  windSummary,
+  withModel,
+} from "./wind";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -51,9 +60,21 @@ describe("windRows", () => {
     );
 
     expect(rows).toEqual([
-      { time: START, wind: 10, gust: 14, direction: expect.closeTo(270, 5) },
-      { time: START + 6 * MINUTE, wind: 12, gust: 15, direction: expect.closeTo(280, 5) },
-      { time: START + 12 * MINUTE, wind: 11, gust: 16, direction: expect.closeTo(290, 5) },
+      { time: START, wind: 10, gust: 14, model: null, direction: expect.closeTo(270, 5) },
+      {
+        time: START + 6 * MINUTE,
+        wind: 12,
+        gust: 15,
+        model: null,
+        direction: expect.closeTo(280, 5),
+      },
+      {
+        time: START + 12 * MINUTE,
+        wind: 11,
+        gust: 16,
+        model: null,
+        direction: expect.closeTo(290, 5),
+      },
     ]);
   });
 
@@ -93,7 +114,7 @@ describe("windRows", () => {
   it("gives a step without a gust or a bearing none", () => {
     const [row] = windRows([sample(0, 10)], START, START + HOUR, 6 * MINUTE);
 
-    expect(row).toEqual({ time: START, wind: 10, gust: null, direction: null });
+    expect(row).toEqual({ time: START, wind: 10, gust: null, model: null, direction: null });
   });
 
   it("stops the curve where the station said nothing for more than an hour and a half", () => {
@@ -184,5 +205,76 @@ describe("rowNear", () => {
     expect(rowNear(rows, START + 62 * MINUTE)?.wind).toBe(11);
     expect(rowNear(rows, START + 100 * MINUTE)?.wind).toBe(12);
     expect(rowNear([], START)).toBeUndefined();
+  });
+});
+
+describe("aheadOf", () => {
+  it("draws the model as far ahead as the span reaches back, and two days at most", () => {
+    expect(aheadOf(WIND_RANGES.hours)).toBe(6 * HOUR);
+    expect(aheadOf(WIND_RANGES.day)).toBe(24 * HOUR);
+    expect(aheadOf(WIND_RANGES.days)).toBe(48 * HOUR);
+    expect(aheadOf(WIND_RANGES.week)).toBe(48 * HOUR);
+  });
+});
+
+describe("withModel", () => {
+  // The model's wind by the hour, from an hour before noon to three hours after.
+  const model = [-60, 0, 60, 120, 180].map((minutes, index) => ({
+    ...sample(minutes, 10 + index, null, 200 + index),
+  }));
+  const station = windRows(
+    [sample(6, 20, 25, 90), sample(12, 22, 26, 90), sample(18, 21, 27, 90)],
+    START,
+    START + HOUR,
+    6 * MINUTE,
+  );
+
+  it("says what the model reads at each row of the station, between two of its hours", () => {
+    const rows = withModel(station, model, START - HOUR, START + 3 * HOUR);
+
+    const beside = rows.filter((row) => row.wind !== null);
+    expect(beside.map((row) => row.model)).toEqual([
+      expect.closeTo(11.1, 5),
+      expect.closeTo(11.2, 5),
+      expect.closeTo(11.3, 5),
+    ]);
+    // The station's own bearing stays where it measured.
+    expect(beside.map((row) => row.direction)).toEqual([90, 90, 90]);
+  });
+
+  it("adds the model's hours before the first measurement and after the last, and none between", () => {
+    const rows = withModel(station, model, START - HOUR, START + 3 * HOUR);
+
+    expect(rows.map((row) => [(row.time - START) / MINUTE, row.wind, row.model === null])).toEqual([
+      [-60, null, false],
+      [0, null, false],
+      [6, 20, false],
+      [12, 22, false],
+      [18, 21, false],
+      [60, null, false],
+      [120, null, false],
+      [180, null, false],
+    ]);
+    // Where the model alone speaks, the bearing is its own.
+    expect(rows.at(-1)).toMatchObject({ model: 14, direction: 204, gust: null });
+  });
+
+  it("keeps to the span", () => {
+    const rows = withModel(station, model, START, START + HOUR);
+
+    expect(rows.map((row) => (row.time - START) / MINUTE)).toEqual([0, 6, 12, 18, 60]);
+  });
+
+  it("draws the model alone at a station that measured nothing", () => {
+    const rows = withModel([], model, START, START + 2 * HOUR);
+
+    expect(rows.map((row) => row.model)).toEqual([11, 12, 13]);
+    expect(rowNear(rows, START + 70 * MINUTE)?.model).toBe(12);
+  });
+
+  it("leaves a row without a model where the forecast does not reach", () => {
+    const [row] = withModel(station, [], START, START + HOUR);
+
+    expect(row).toMatchObject({ wind: 20, model: null });
   });
 });

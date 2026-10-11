@@ -1,8 +1,9 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { compassPoint } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
+import { Bearing } from "./bearing";
 import { Section } from "./point-conditions";
 import type { SurfBreak } from "./types";
 
@@ -97,8 +98,16 @@ export function pointName(point: WordOf<"bestSwellDirections">) {
   return compassPoint(COMPASS.indexOf(point) * 22.5);
 }
 
+// Each point with its arrow, as a direction is written everywhere.
 function points(given: WordOf<"bestSwellDirections">[] | null) {
-  return given?.map(pointName).join(", ");
+  if (!given || given.length === 0) return undefined;
+  return (
+    <span className="flex flex-wrap gap-x-xs gap-y-xxs">
+      {given.map((point) => (
+        <Bearing key={point} degrees={COMPASS.indexOf(point) * 22.5} />
+      ))}
+    </span>
+  );
 }
 
 // A characteristic that is said in a list of words, with the words it may be said in.
@@ -147,7 +156,7 @@ export function CharacteristicsList({
   title: string;
 }) {
   const offshore = known.offshoreDirectionDegrees;
-  const rows = [
+  const listed: [string, ReactNode][] = [
     // The nearest place first, as an address reads.
     [m.break_location(), location && [...location].reverse().join(", ")],
     [m.break_types(), words(known.breakTypes, BREAK_TYPES)],
@@ -159,8 +168,9 @@ export function CharacteristicsList({
     [m.break_best_tides(), words(known.bestTides, TIDE_STAGES)],
     [m.break_best_swell(), points(known.bestSwellDirections)],
     [m.break_best_wind(), points(known.bestWindDirections)],
-    [m.break_offshore_wind(), offshore === null ? undefined : compassPoint(offshore)],
-  ].filter((row): row is [string, string] => Boolean(row[1]));
+    [m.break_offshore_wind(), offshore == null ? undefined : <Bearing degrees={offshore} />],
+  ];
+  const rows = listed.filter(([, value]) => Boolean(value));
 
   if (rows.length === 0) return null;
 

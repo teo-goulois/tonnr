@@ -11,16 +11,11 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  compassPoint,
-  formatClock,
-  formatDay,
-  formatDayAndClock,
-  formatNumber,
-} from "@/lib/format";
+import { formatClock, formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
+import { Bearing } from "../bearing";
 import { useChartTurn } from "../chart-turns";
 import { DirectionArrow } from "../map-markers";
 import { curveColors, valueTicks } from "../sea-chart";
@@ -32,10 +27,12 @@ import { type WindRow, bearingsAlong, rowNear } from "./wind";
 type Night = { from: number; to: number };
 
 type WindChartProps = {
-  // The wind over the span, oldest first, as `windRows` gives it.
+  // The wind over the span, oldest first: the station's rows with the model's beside them.
   rows: WindRow[];
   start: number;
   end: number;
+  // Ruled on the plot when the span goes past it, where the model alone speaks.
+  now: number;
   nights?: Night[];
   isLoading?: boolean;
   className?: string;
@@ -66,7 +63,7 @@ function timeTicksOf(start: number, end: number) {
   return { ticks, format: days ? formatDay : formatClock };
 }
 
-function colorsOf(rows: WindRow[], key: "wind" | "gust") {
+function colorsOf(rows: WindRow[], key: "wind" | "gust" | "model") {
   const points = rows.flatMap((row) => {
     const value = row[key];
     return value === null ? [] : [{ time: row.time, value }];
@@ -75,12 +72,14 @@ function colorsOf(rows: WindRow[], key: "wind" | "gust") {
 }
 
 /**
- * What the chart draws beyond its curves: the nights, the days, and the moment under the
- * pointer. It also tells the chart which moment that is, so the figures above can read it.
+ * What the chart draws beyond its curves: the nights, the days, the moment it is now, and the
+ * moment under the pointer. It also tells the chart which moment that is, so the figures above
+ * can read it.
  */
 function WindMarks({
   start,
   end,
+  now,
   nights,
   pointed,
   onPoint,
@@ -89,6 +88,7 @@ function WindMarks({
 }: {
   start: number;
   end: number;
+  now: number;
   nights: Night[];
   pointed: WindRow | undefined;
   onPoint: (time: number | undefined) => void;
@@ -119,7 +119,7 @@ function WindMarks({
   const x = (time: number) => xScale(time) ?? plot.x;
   const y = (value: number) => yScale(value) ?? bottom;
 
-  // A span of days is ruled at each midnight. Six hours are not: their hours are written.
+  // A span of days is ruled at each midnight. A few hours are not: their hours are written.
   const days: number[] = [];
   if (end - start > 12 * HOUR_MS) {
     const midnight = new Date(start);
@@ -161,7 +161,17 @@ function WindMarks({
               className="stroke-neutral-4"
             />
           ))}
-          {pointed?.wind != null && (
+          {now > start && now < end && (
+            <line
+              x1={x(now)}
+              x2={x(now)}
+              y1={top}
+              y2={bottom}
+              strokeDasharray="3 3"
+              className="stroke-neutral-10"
+            />
+          )}
+          {pointed && (
             <g>
               <line
                 x1={x(pointed.time)}
@@ -171,24 +181,36 @@ function WindMarks({
                 className="stroke-neutral-10"
                 strokeOpacity={0.5}
               />
+              {pointed.model !== null && (
+                <circle
+                  cx={x(pointed.time)}
+                  cy={y(pointed.model)}
+                  r={3.5}
+                  strokeWidth={1.5}
+                  className="fill-neutral-1"
+                  stroke={scaleColor(WIND_SPEED_SCALE, pointed.model)}
+                />
+              )}
               {pointed.gust !== null && (
                 <circle
                   cx={x(pointed.time)}
                   cy={y(pointed.gust)}
-                  r={3.5}
-                  strokeWidth={1.5}
+                  r={3}
+                  strokeWidth={1.25}
                   className="fill-neutral-1"
                   stroke={scaleColor(WIND_SPEED_SCALE, pointed.gust)}
                 />
               )}
-              <circle
-                cx={x(pointed.time)}
-                cy={y(pointed.wind)}
-                r={4.5}
-                strokeWidth={1.5}
-                className="stroke-neutral-1"
-                fill={scaleColor(WIND_SPEED_SCALE, pointed.wind)}
-              />
+              {pointed.wind !== null && (
+                <circle
+                  cx={x(pointed.time)}
+                  cy={y(pointed.wind)}
+                  r={4.5}
+                  strokeWidth={1.5}
+                  className="stroke-neutral-1"
+                  fill={scaleColor(WIND_SPEED_SCALE, pointed.wind)}
+                />
+              )}
             </g>
           )}
         </g>
@@ -197,15 +219,17 @@ function WindMarks({
   );
 }
 
-/** The two lines named and, under the pointer, the moment they are read at and what they read. */
+/** The lines named and, under the pointer, the moment they are read at and what they read. */
 function WindLegend({
   read,
   hasGusts,
+  hasModel,
   isLoading,
 }: {
   // The row under the pointer. Undefined at rest.
   read: WindRow | undefined;
   hasGusts: boolean;
+  hasModel: boolean;
   isLoading: boolean;
 }) {
   return (
@@ -222,6 +246,12 @@ function WindLegend({
               {m.details_gusts()}
             </span>
           )}
+          {hasModel && (
+            <span className="flex items-center gap-xxs">
+              <LineGlyph dashed />
+              {m.details_model()}
+            </span>
+          )}
         </span>
         {read && !isLoading && (
           <span className="font-medium text-neutral-10 tabular-nums">
@@ -231,24 +261,32 @@ function WindLegend({
       </div>
       <div className="flex h-(--line-s) items-center justify-between gap-xs">
         <span className="text-xs text-neutral-6">{m.unit_kn()}</span>
-        {read?.wind != null && !isLoading && (
+        {read && !isLoading && (
           <span className="flex items-center gap-xs text-s font-medium tabular-nums">
-            <span className="flex items-center gap-xxs">
-              <LineGlyph color={scaleColor(WIND_SPEED_SCALE, read.wind)} />
-              {formatNumber(read.wind, 0)}
-            </span>
+            {read.wind !== null && (
+              <span className="flex items-center gap-xxs">
+                <LineGlyph color={scaleColor(WIND_SPEED_SCALE, read.wind)} />
+                {formatNumber(read.wind, 0)}
+              </span>
+            )}
             {read.gust !== null && (
               <span className="flex items-center gap-xxs">
                 <LineGlyph thin color={scaleColor(WIND_SPEED_SCALE, read.gust)} />
                 {formatNumber(read.gust, 0)}
               </span>
             )}
-            {read.direction !== null && (
-              <span className="flex items-center gap-xxs">
-                <DirectionArrow fromDegrees={read.direction} className="size-3" />
-                {compassPoint(read.direction)}
+            {read.model !== null && (
+              <span
+                className={cn(
+                  "flex items-center gap-xxs",
+                  read.wind !== null && "text-xs font-normal text-neutral-7",
+                )}
+              >
+                <LineGlyph dashed color={scaleColor(WIND_SPEED_SCALE, read.model)} />
+                {formatNumber(read.model, 0)}
               </span>
             )}
+            {read.direction !== null && <Bearing degrees={read.direction} />}
           </span>
         )}
       </div>
@@ -257,44 +295,64 @@ function WindLegend({
 }
 
 /**
- * The wind a station measured over a span: its speed as a bold line, its gusts as a thin one
- * above, and where it came from along the bottom. The figures over the plot read the moment
- * under the pointer.
+ * The wind at a station over a span: what it measured as a bold line, its gusts as a thin one
+ * above, the model's wind as a dashed one that goes on past now, and where the wind comes from
+ * along the bottom. The figures over the plot read the moment under the pointer.
  */
 export function WindChart({
   rows,
   start,
   end,
+  now,
   nights = [],
   isLoading = false,
   className,
 }: WindChartProps) {
   const isMyTurn = useChartTurn();
   const [pointedTime, setPointedTime] = useState<number>();
-  // The rows that hold a wind speed: the others only stop the curve where the station was silent.
-  const drawn = useMemo(() => rows.filter((row) => row.wind !== null), [rows]);
+  // The rows that say something. The others only stop the station's curve where it was silent.
+  const readable = useMemo(
+    () => rows.filter((row) => row.wind !== null || row.model !== null),
+    [rows],
+  );
   const touch = useChartTouch({
     start,
     end,
     left: Y_AXIS_WIDTH,
     right: 1,
     enabled: isMyTurn && !isLoading,
-    samples: drawn,
+    samples: readable,
   });
   const config = useMemo(() => {
     const wind = colorsOf(rows, "wind");
     const gust = colorsOf(rows, "gust");
+    const model = colorsOf(rows, "model");
     return {
       wind: { label: m.details_wind(), colors: { light: wind, dark: wind } },
       gust: { label: m.details_gusts(), colors: { light: gust, dark: gust } },
+      model: { label: m.details_model(), colors: { light: model, dark: model } },
     };
   }, [rows]);
   const ticks = useMemo(
-    () => valueTicks(0, Math.max(1, ...drawn.map((row) => Math.max(row.wind!, row.gust ?? 0)))),
-    [drawn],
+    () =>
+      valueTicks(
+        0,
+        Math.max(
+          1,
+          ...readable.map((row) => Math.max(row.wind ?? 0, row.gust ?? 0, row.model ?? 0)),
+        ),
+      ),
+    [readable],
   );
-  const hasGusts = drawn.some((row) => row.gust !== null);
+  const hasWind = readable.some((row) => row.wind !== null);
+  const hasGusts = readable.some((row) => row.gust !== null);
+  const hasModel = readable.some((row) => row.model !== null);
   const bearings = useMemo(() => bearingsAlong(rows, start, end, BEARINGS), [rows, start, end]);
+  // From there on the bearings are the model's.
+  const lastMeasured = useMemo(
+    () => rows.filter((row) => row.wind !== null).at(-1)?.time ?? -Infinity,
+    [rows],
+  );
 
   // Keep axes and curves mounted while only the reading moves.
   const curves = useMemo(() => {
@@ -318,6 +376,16 @@ export function WindChart({
           domain={[ticks[0]!, ticks.at(-1)!]}
           tickFormatter={(value: number) => formatNumber(value, 0)}
         />
+        {hasModel && (
+          <EvilAreaChart.Area
+            dataKey="model"
+            strokeVariant="dashed"
+            strokeWidth={1.5}
+            // The model speaks by the hour, and the rows between two of its hours hold none.
+            connectNulls
+            areaProps={{ dataKey: "model", fill: "none" }}
+          />
+        )}
         {hasGusts && (
           <EvilAreaChart.Area
             dataKey="gust"
@@ -326,20 +394,22 @@ export function WindChart({
             areaProps={{ dataKey: "gust", fill: "none" }}
           />
         )}
-        <EvilAreaChart.Area
-          dataKey="wind"
-          variant="gradient"
-          strokeVariant="solid"
-          strokeWidth={2.5}
-        />
+        {hasWind && (
+          <EvilAreaChart.Area
+            dataKey="wind"
+            variant="gradient"
+            strokeVariant="solid"
+            strokeWidth={2.5}
+          />
+        )}
       </>
     );
-  }, [start, end, ticks, hasGusts]);
+  }, [start, end, ticks, hasWind, hasGusts, hasModel]);
 
   // The figures over the plot are those under the pointer. At rest they are left unwritten: the
   // tiles above the chart hold the last reading, and a step of the chart is a mean of several.
-  const pointed = pointedTime === undefined ? undefined : rowNear(drawn, pointedTime);
-  const isEmpty = !isLoading && drawn.length < 2;
+  const pointed = pointedTime === undefined ? undefined : rowNear(readable, pointedTime);
+  const isEmpty = !isLoading && readable.length < 2;
 
   return (
     <div className={cn("grid min-w-0 gap-xs", className)}>
@@ -349,7 +419,14 @@ export function WindChart({
         </p>
       )}
       <div className="grid gap-0.5">
-        {!isEmpty && <WindLegend read={pointed} hasGusts={hasGusts} isLoading={isLoading} />}
+        {!isEmpty && (
+          <WindLegend
+            read={pointed}
+            hasGusts={hasGusts}
+            hasModel={hasModel}
+            isLoading={isLoading}
+          />
+        )}
         {isEmpty ? (
           <p className={cn(BOX, "flex items-center text-s text-neutral-7")}>
             {m.chart_too_few_points()}
@@ -379,6 +456,7 @@ export function WindChart({
                   <WindMarks
                     start={start}
                     end={end}
+                    now={now}
                     nights={nights}
                     pointed={pointed}
                     onPoint={setPointedTime}
@@ -391,22 +469,28 @@ export function WindChart({
           </figure>
         )}
       </div>
-      {/* Where the wind came from, a bearing for each twelfth of the span, under its moments. */}
+      {/* Where the wind comes from, a bearing for each twelfth of the span, under its moments.
+          Past the last measurement the bearings are the model's, and written paler. */}
       {!isEmpty && !isLoading && (
         <div
           aria-hidden
-          className="grid h-4 grid-cols-12 items-center justify-items-center text-neutral-8"
+          className="grid h-4 grid-cols-12 items-center justify-items-center"
           style={{ marginLeft: Y_AXIS_WIDTH, marginRight: 1 }}
         >
-          {bearings.map((bearing, index) =>
-            bearing === null ? (
+          {bearings.map((bearing, index) => {
+            const from = start + (index * (end - start)) / BEARINGS;
+            return bearing === null ? (
               // oxlint-disable-next-line react/no-array-index-key -- the parts of a span keep their place
               <span key={index} />
             ) : (
-              // oxlint-disable-next-line react/no-array-index-key -- the parts of a span keep their place
-              <DirectionArrow key={index} fromDegrees={bearing} className="size-3" />
-            ),
-          )}
+              <DirectionArrow
+                // oxlint-disable-next-line react/no-array-index-key -- the parts of a span keep their place
+                key={index}
+                fromDegrees={bearing}
+                className={cn("size-3", from > lastMeasured ? "text-neutral-6" : "text-neutral-8")}
+              />
+            );
+          })}
         </div>
       )}
     </div>

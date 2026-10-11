@@ -17,7 +17,8 @@ type StationPanelProps = PointConditionsProps & {
 
 /**
  * What a station measures now and lately. A buoy is read beside the model, with the week and
- * the tide there. A station that measures the wind alone shows its wind and nothing of the sea.
+ * the tide there. A station that measures the wind alone shows its wind, beside the model's,
+ * and nothing of the sea.
  */
 export function StationPanel({
   now,
@@ -48,11 +49,12 @@ export function StationPanel({
         historyPending={history.isPending}
         historyDays={historyDays}
         onHistoryExtend={onHistoryExtend}
+        forecast={forecast}
         footer={
           <Sources
             origin={m.source_measurements({ attribution: station.attribution })}
             license={station.license}
-            forecast={undefined}
+            forecast={forecast.data}
             tides={undefined}
           />
         }
