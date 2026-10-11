@@ -21,6 +21,7 @@ import {
   type SpotDraft,
   type SpotSearch,
 } from "@/components/spots/new-spot-panel";
+import type { SpotDescription } from "@/components/spots/spot-guide";
 import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
 import {
   compassPoint,
@@ -171,6 +172,12 @@ type ViewerProps = {
   onSelectSpot: (spotId: string) => void;
   onDeleteSpot: (spot: Spot) => void;
   isDeletingSpot: boolean;
+  // The spot that was just added, whose owner is offered to describe it, until they answer.
+  newSpotId: string | undefined;
+  onSpotOfferSeen: () => void;
+  // The owner says what a spot is like. `done` is called once it is saved.
+  onDescribeSpot: (spot: Spot, said: SpotDescription, done: () => void) => void;
+  isDescribingSpot: boolean;
   onPanelChange: (panel: ViewerPanel | undefined) => void;
   onBoundsChange: (bounds: Bounds) => void;
   // `listId` is a list's id, or "favorites".
@@ -323,6 +330,10 @@ export function Viewer({
   onSelectSpot,
   onDeleteSpot,
   isDeletingSpot,
+  newSpotId,
+  onSpotOfferSeen,
+  onDescribeSpot,
+  isDescribingSpot,
   onPanelChange,
   onBoundsChange,
   onSave,
@@ -464,6 +475,19 @@ export function Viewer({
   const buoyOpener = useRef(onOpenBuoy);
   buoyOpener.current = onOpenBuoy;
   const openBuoy = useCallback((stationId: string) => buoyOpener.current(stationId), []);
+  const spotOffer = useRef(onSpotOfferSeen);
+  spotOffer.current = onSpotOfferSeen;
+  const seeSpotOffer = useCallback(() => spotOffer.current(), []);
+  const spotDescriber = useRef(onDescribeSpot);
+  spotDescriber.current = onDescribeSpot;
+  const describeSpot = useCallback(
+    (spot: Spot, said: SpotDescription, done: () => void) =>
+      spotDescriber.current(spot, said, done),
+    [],
+  );
+  // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
+  const isNewSpot = drawn?.spotId !== undefined && drawn.spotId === newSpotId;
+  const isDescribing = drawn?.spotId !== undefined && isDescribingSpot;
   const selectionPanel = useMemo(() => {
     if (!drawn) return null;
     if (drawn.spotId) {
@@ -478,6 +502,10 @@ export function Viewer({
           onTideExtend={extendTide}
           nearby={drawn.nearby}
           onOpenBuoy={openBuoy}
+          isNew={isNewSpot}
+          onOfferSeen={seeSpotOffer}
+          isDescribing={isDescribing}
+          onDescribe={describeSpot}
         />
       );
     }
@@ -506,7 +534,7 @@ export function Viewer({
         onTideExtend={extendTide}
       />
     );
-  }, [drawn, now, extendTide, openBuoy]);
+  }, [drawn, now, extendTide, openBuoy, isNewSpot, seeSpotOffer, isDescribing, describeSpot]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
     () =>

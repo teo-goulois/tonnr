@@ -111,6 +111,16 @@ export function NewSpotPanel({
   const found = groups.reduce((count, group) => count + group.items.length, 0);
   const isUnavailable = isSearching && !isPending && search.places.isError;
   const isEmpty = isSearching && !isPending && found === 0 && !isUnavailable;
+  // What the search is doing, or what came of it. Nothing while nothing is searched.
+  const status = isPending
+    ? m.spot_search_pending()
+    : isUnavailable
+      ? m.spot_search_unavailable()
+      : isEmpty
+        ? m.spot_search_empty()
+        : isSearching
+          ? m.spot_search_count({ count: found })
+          : null;
   const name = draft.name.trim();
 
   if (isFull) return <p className="text-neutral-7">{m.spot_full()}</p>;
@@ -182,19 +192,11 @@ export function NewSpotPanel({
               it could not do is shown too: the map still takes the marker. */}
           <AutocompleteStatus
             className={cn(
-              "px-0 text-s font-normal text-neutral-7",
+              "px-0 font-normal text-neutral-7",
               !isEmpty && !isUnavailable && "sr-only",
             )}
           >
-            {isPending
-              ? m.spot_search_pending()
-              : isUnavailable
-                ? m.spot_search_unavailable()
-                : isEmpty
-                  ? m.spot_search_empty()
-                  : isSearching
-                    ? m.spot_search_count({ count: found })
-                    : null}
+            {status && <span className="text-s">{status}</span>}
           </AutocompleteStatus>
         </Autocomplete>
 

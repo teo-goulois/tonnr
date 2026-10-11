@@ -296,5 +296,14 @@
   "spot_public": "A public spot",
   "spot_search_clear": "Clear the search",
   "spot_search_pending": "Searching…",
-  "spot_search_count": "Results: {count}. The arrow keys go through them."
+  "spot_search_count": "Results: {count}. The arrow keys go through them.",
+  "spot_guide_title": "About this spot",
+  "spot_guide_invite": "Nothing written about this spot yet. Say what it is like: its wave, its bottom, the tides and the directions it likes.",
+  "spot_guide_describe": "Describe the spot",
+  "spot_guide_edit": "Edit",
+  "spot_guide_hint": "Press what applies and leave the rest. Nothing is required.",
+  "spot_guide_save": "Save the description",
+  "spot_guide_saved": "The description is saved.",
+  "spot_new_describe": "You can describe this spot for its guide, now or later.",
+  "spot_later": "Later"
 }

@@ -6,7 +6,7 @@ import { m } from "@/paraglide/messages.js";
 import { Section } from "./point-conditions";
 import type { SurfBreak } from "./types";
 
-type Characteristics = SurfBreak["characteristics"];
+export type Characteristics = SurfBreak["characteristics"];
 type WordOf<Field extends keyof Characteristics> = Extract<
   NonNullable<Characteristics[Field]>,
   unknown[]
@@ -92,13 +92,60 @@ function words<Word extends string>(given: Word[] | null, readings: Record<Word,
   return given?.map((word) => readings[word]()).join(", ");
 }
 
-function points(given: WordOf<"bestSwellDirections">[] | null) {
-  return given?.map((point) => compassPoint(COMPASS.indexOf(point) * 22.5)).join(", ");
+/** A point of the compass as the reader's language writes it. */
+export function pointName(point: WordOf<"bestSwellDirections">) {
+  return compassPoint(COMPASS.indexOf(point) * 22.5);
 }
 
-/** What the catalogue knows of a break. Nothing is shown of a break of which it knows no more than the place. */
-export function BreakCharacteristics({ found }: { found: SurfBreak }) {
-  const { characteristics: known, location } = found;
+function points(given: WordOf<"bestSwellDirections">[] | null) {
+  return given?.map(pointName).join(", ");
+}
+
+// A characteristic that is said in a list of words, with the words it may be said in.
+type ListedField = Exclude<keyof Characteristics, "offshoreDirectionDegrees">;
+export type CharacteristicField = {
+  [Field in ListedField]: {
+    key: Field;
+    label: () => string;
+    words: { word: WordOf<Field>; reading: () => string }[];
+  };
+}[ListedField];
+
+const wordsOf = <Word extends string>(readings: Record<Word, () => string>) =>
+  (Object.keys(readings) as Word[]).map((word) => ({ word, reading: readings[word] }));
+const compassWords = COMPASS.map((word) => ({ word, reading: () => pointName(word) }));
+
+/**
+ * The characteristics that are lists of words, in the order a guide gives them, each with its
+ * words in the order of the catalogue. What shows a break reads them, and so does what lets the
+ * owner of a spot describe it.
+ */
+export const CHARACTERISTIC_FIELDS: CharacteristicField[] = [
+  { key: "breakTypes", label: m.break_types, words: wordsOf(BREAK_TYPES) },
+  { key: "waveDirections", label: m.break_wave_directions, words: wordsOf(WAVE_DIRECTIONS) },
+  { key: "bottomTypes", label: m.break_bottom_types, words: wordsOf(BOTTOM_TYPES) },
+  { key: "abilityLevels", label: m.break_ability_levels, words: wordsOf(ABILITY_LEVELS) },
+  { key: "boardTypes", label: m.break_board_types, words: wordsOf(BOARD_TYPES) },
+  { key: "bestSeasons", label: m.break_best_seasons, words: wordsOf(SEASONS) },
+  { key: "bestTides", label: m.break_best_tides, words: wordsOf(TIDE_STAGES) },
+  { key: "bestSwellDirections", label: m.break_best_swell, words: compassWords },
+  { key: "bestWindDirections", label: m.break_best_wind, words: compassWords },
+];
+
+/**
+ * What is known of a place where the sea is surfed, as a list. Nothing is shown of a place of
+ * which nothing is known.
+ */
+export function CharacteristicsList({
+  known,
+  location = null,
+  title,
+}: {
+  known: Characteristics;
+  // The places it lies in, from the widest to the nearest.
+  location?: string[] | null;
+  title: string;
+}) {
   const offshore = known.offshoreDirectionDegrees;
   const rows = [
     // The nearest place first, as an address reads.
@@ -118,7 +165,7 @@ export function BreakCharacteristics({ found }: { found: SurfBreak }) {
   if (rows.length === 0) return null;
 
   return (
-    <Section title={m.break_about()}>
+    <Section title={title}>
       <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-s gap-y-xxs text-s">
         {rows.map(([label, value]) => (
           <Fragment key={label}>
@@ -128,5 +175,16 @@ export function BreakCharacteristics({ found }: { found: SurfBreak }) {
         ))}
       </dl>
     </Section>
+  );
+}
+
+/** What the catalogue knows of a break. Nothing is shown of a break of which it knows no more than the place. */
+export function BreakCharacteristics({ found }: { found: SurfBreak }) {
+  return (
+    <CharacteristicsList
+      known={found.characteristics}
+      location={found.location}
+      title={m.break_about()}
+    />
   );
 }

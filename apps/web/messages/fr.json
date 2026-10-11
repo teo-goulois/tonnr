@@ -296,5 +296,14 @@
   "spot_public": "Un spot public",
   "spot_search_clear": "Effacer la recherche",
   "spot_search_pending": "Recherche…",
-  "spot_search_count": "Résultats : {count}. Les flèches les parcourent."
+  "spot_search_count": "Résultats : {count}. Les flèches les parcourent.",
+  "spot_guide_title": "À propos du spot",
+  "spot_guide_invite": "Rien d'écrit sur ce spot pour l'instant. Dis à quoi il ressemble : sa vague, son fond, les marées et les directions qu'il aime.",
+  "spot_guide_describe": "Décrire le spot",
+  "spot_guide_edit": "Modifier",
+  "spot_guide_hint": "Appuie sur ce qui s'applique et laisse le reste. Rien n'est obligatoire.",
+  "spot_guide_save": "Enregistrer la fiche",
+  "spot_guide_saved": "La fiche est enregistrée.",
+  "spot_new_describe": "Tu peux décrire ce spot pour son guide, maintenant ou plus tard.",
+  "spot_later": "Plus tard"
 }

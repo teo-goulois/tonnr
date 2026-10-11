@@ -568,6 +568,8 @@ function ViewerRoute() {
     queryClient.setQueryData(spotsKey, (answer) => ({ spots: update(answer?.spots ?? []) }));
     void queryClient.invalidateQueries({ queryKey: spotsKey });
   };
+  // The spot that was just added: its panel offers to describe it, until the offer is answered.
+  const [madeId, setMadeId] = useState<string>();
   // What is on the screen when an answer comes, which may be long after it was asked for.
   const onScreen = useRef({ panel, selectedSpotId });
   onScreen.current = { panel, selectedSpotId };
@@ -579,6 +581,7 @@ function ViewerRoute() {
         setSuggested("");
         setQuery("");
         toast.success(m.spot_saved({ name: made.name }));
+        setMadeId(made.id);
         // The spot opens, unless the user has gone elsewhere meanwhile.
         if (onScreen.current.panel === "add") void navigate({ search: { spot: made.id } });
       },
@@ -594,6 +597,20 @@ function ViewerRoute() {
         queryClient.removeQueries({ queryKey: orpc.v1.spots.get.queryKey({ input: { id } }) });
         // Its panel closes, unless another was opened meanwhile.
         if (onScreen.current.selectedSpotId === id) void navigate({ search: {} });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const describeSpot = useMutation(
+    orpc.v1.spots.update.mutationOptions({
+      onSuccess: (updated) => {
+        // The spot as it was asked for alone, when its list could not be had, and in its list.
+        queryClient.setQueryData(
+          orpc.v1.spots.get.queryKey({ input: { id: updated.id } }),
+          updated,
+        );
+        void setSpots((all) => all.map((one) => (one.id === updated.id ? updated : one)));
+        toast.success(m.spot_guide_saved());
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -725,6 +742,12 @@ function ViewerRoute() {
       onSelectSpot={(id) => void navigate({ search: { spot: id } })}
       onDeleteSpot={removeSpot}
       isDeletingSpot={deleteSpot.isPending}
+      newSpotId={madeId}
+      onSpotOfferSeen={() => setMadeId(undefined)}
+      onDescribeSpot={(one, said, done) =>
+        describeSpot.mutate({ id: one.id, characteristics: said }, { onSuccess: done })
+      }
+      isDescribingSpot={describeSpot.isPending}
       // A panel opens over the station's and gives it back when it closes. The one that adds a
       // spot stands alone: the map beside it is for the marker.
       onPanelChange={(next: ViewerPanel | undefined) =>

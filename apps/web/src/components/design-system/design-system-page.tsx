@@ -50,6 +50,8 @@ import {
 } from "@repo/ui/components/ui/table";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import { Textarea } from "@repo/ui/components/ui/textarea";
+import { Toggle } from "@repo/ui/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -430,6 +432,36 @@ export function DesignSystemPage() {
           <Switch aria-label="Disabled" disabled />
           <Switch aria-label="Disabled and on" disabled defaultChecked />
         </Row>
+      </Section>
+
+      <Section title="Toggle">
+        <Row>
+          <Toggle aria-label="Off">Left</Toggle>
+          <Toggle aria-label="On" defaultPressed>
+            Left
+          </Toggle>
+          <Toggle variant="outline">Sand</Toggle>
+          <Toggle variant="outline" defaultPressed>
+            Sand
+          </Toggle>
+          <Toggle variant="outline" disabled>
+            Disabled
+          </Toggle>
+        </Row>
+        <ToggleGroup
+          multiple
+          variant="outline"
+          size="sm"
+          defaultValue={["mid", "high"]}
+          aria-label="Best tide"
+          className="max-w-64"
+        >
+          {["low", "mid_low", "mid", "mid_high", "high"].map((stage) => (
+            <ToggleGroupItem key={stage} value={stage}>
+              {stage.replace("_", " to ")}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </Section>
 
       <Section title="Slider">

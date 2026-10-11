@@ -1,6 +1,14 @@
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
-import { type ComponentProps, type ReactNode, Suspense, lazy, useMemo, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  Suspense,
+  lazy,
+  memo,
+  useMemo,
+  useState,
+} from "react";
 
 import { formatDayAndClock } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -50,7 +58,7 @@ function MetricLanes(props: ComponentProps<typeof LazyMetricLanes>) {
  * Four tiles for now. At a buoy, the swell, its period, its energy and the wind as four lanes on
  * one span of time, the buoy drawn over the model. Then the week as a grid, and the tide.
  */
-function Conditions(props: DetailsProps) {
+const Conditions = memo(function Conditions(props: DetailsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes } = props;
   const [range, setRange] = useState<Range>("live");
 
@@ -156,7 +164,9 @@ function Conditions(props: DetailsProps) {
       {props.footer}
     </div>
   );
-}
+});
+
+export type DetailsTab = "forecast" | "guide";
 
 type DetailsOfProps = PointConditionsProps & {
   // The buoy the panel is of. Undefined at a surf break.
@@ -168,6 +178,10 @@ type DetailsOfProps = PointConditionsProps & {
   spot?: { latitude: number; longitude: number };
   // What is known of the surf break, for the tab beside its forecast.
   guide?: ReactNode;
+  // The tab in view, for a panel that opens one itself. Without it the panel opens on the
+  // forecast and keeps its own count.
+  tab?: DetailsTab;
+  onTabChange?: (tab: DetailsTab) => void;
   // At a surf break: the buoy to read the sea on, and how to open it.
   nearby?: Nearby;
   onOpenStation?: (stationId: string) => void;
@@ -183,6 +197,8 @@ export function Details({
   historyPending = false,
   spot,
   guide,
+  tab,
+  onTabChange,
   ...conditions
 }: DetailsOfProps) {
   const measured = useMemo(() => measuredSamples(readings ?? []), [readings]);
@@ -209,7 +225,12 @@ export function Details({
 
   // A spot holds more than its forecast: each part gets a tab.
   return (
-    <Tabs defaultValue="forecast" className="gap-m">
+    <Tabs
+      {...(tab === undefined
+        ? { defaultValue: "forecast" }
+        : { value: tab, onValueChange: (next) => onTabChange?.(next as DetailsTab) })}
+      className="gap-m"
+    >
       <TabsList>
         <TabsTab value="forecast">{m.details_forecast_tab()}</TabsTab>
         <TabsTab value="guide">{m.details_guide_tab()}</TabsTab>
@@ -217,7 +238,9 @@ export function Details({
       <TabsPanel value="forecast">
         <Conditions {...props} />
       </TabsPanel>
-      <TabsPanel value="guide">
+      {/* Kept while the forecast is in view: what a panel lets its reader write there is not lost
+          to a look at the other tab. */}
+      <TabsPanel value="guide" keepMounted>
         {/* What draws the guide draws nothing for a break of which only the place is known. */}
         <div className="peer">{guide}</div>
         <p className="hidden text-s text-neutral-7 peer-empty:block">{m.details_guide_empty()}</p>
