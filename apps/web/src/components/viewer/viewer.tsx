@@ -38,6 +38,7 @@ import { AlertsPanel } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import type { Nearby } from "./details/parts";
+import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
 import { AccountPrompt, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
@@ -136,6 +137,8 @@ type ViewerProps = {
   selected: {
     station: Station | undefined;
     history: Loadable<StationReadings>;
+    // How many days of readings the history holds.
+    historyDays: number;
     found: Loadable<SurfBreak>;
     spot: Loadable<Spot>;
     // The forecast and the tide at the selected station or break.
@@ -148,6 +151,8 @@ type ViewerProps = {
   adding: AddingSpot;
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
+  // Asks for a week of the selected station's readings.
+  onHistoryExtend: () => void;
   // The buoy opened from a surf break, in a second drawer over the break's. Closing it gives the
   // break back, which the map never left.
   buoy: {
@@ -267,6 +272,7 @@ function sameSelection(one: Selection, other: Selection) {
     one.spotId === other.spotId &&
     one.station === other.station &&
     sameLoadable(one.history, other.history) &&
+    one.historyDays === other.historyDays &&
     sameLoadable(one.found, other.found) &&
     sameLoadable(one.spot, other.spot) &&
     sameLoadable(one.forecast, other.forecast) &&
@@ -316,6 +322,7 @@ export function Viewer({
   selected,
   adding,
   onTideExtend,
+  onHistoryExtend,
   buoy,
   onOpenBuoy,
   panel,
@@ -356,6 +363,7 @@ export function Viewer({
     void import("./sea-chart");
     void import("./tide-chart");
     void import("./details/metric-lanes");
+    void import("./details/wind-chart");
   }, []);
 
   const savedIds = useMemo(
@@ -460,6 +468,7 @@ export function Viewer({
   const rest = useDrawerRest(selection !== undefined);
   const shownBuoy = useShown(buoy.id !== undefined, {
     ...buoy,
+    historyDays: HISTORY_DAYS,
     breakId: undefined,
     spotId: undefined,
     found: NO_BREAK,
@@ -472,6 +481,9 @@ export function Viewer({
   const tideExtend = useRef(onTideExtend);
   tideExtend.current = onTideExtend;
   const extendTide = useCallback((direction: -1 | 1) => tideExtend.current(direction), []);
+  const historyExtend = useRef(onHistoryExtend);
+  historyExtend.current = onHistoryExtend;
+  const extendHistory = useCallback(() => historyExtend.current(), []);
   const buoyOpener = useRef(onOpenBuoy);
   buoyOpener.current = onOpenBuoy;
   const openBuoy = useCallback((stationId: string) => buoyOpener.current(stationId), []);
@@ -528,13 +540,25 @@ export function Viewer({
         now={now}
         station={drawn.station}
         history={drawn.history}
+        historyDays={drawn.historyDays}
+        onHistoryExtend={extendHistory}
         forecast={drawn.forecast}
         tides={drawn.tides}
         extremes={drawn.extremes}
         onTideExtend={extendTide}
       />
     );
-  }, [drawn, now, extendTide, openBuoy, isNewSpot, seeSpotOffer, isDescribing, describeSpot]);
+  }, [
+    drawn,
+    now,
+    extendTide,
+    extendHistory,
+    openBuoy,
+    isNewSpot,
+    seeSpotOffer,
+    isDescribing,
+    describeSpot,
+  ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
     () =>

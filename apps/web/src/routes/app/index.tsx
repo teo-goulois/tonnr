@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
 import { nearestBuoy } from "@/components/viewer/details/parts";
+import { HISTORY_DAYS, HISTORY_DAYS_MOST } from "@/components/viewer/details/wind";
 import type { Bounds, MapLayers, MapPoint } from "@/components/viewer/station-map";
 import type { SavedBreak, SavedItem, SavedList, Spot, Station } from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
@@ -134,6 +135,9 @@ function ViewerRoute() {
   const hour = Math.floor(now / HOUR_MS) * HOUR_MS;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [tideReach, setTideReach] = useState({ of: "", ...TIDE_DAYS });
+  // A station's panel opens on its last two days. One that reads the wind over a week asks for
+  // the week, from a moment that stays the same while the station is open.
+  const [historyReach, setHistoryReach] = useState<{ of: string; start: Date }>();
   const [layers, setLayers] = useStoredState("tonnr:map-layers", DEFAULT_LAYERS, readLayers);
   const session = authClient.useSession();
   const signedIn = Boolean(session.data);
@@ -258,13 +262,22 @@ function ViewerRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedBreakIds, breaksInView, missingBreaks.map((query) => query.dataUpdatedAt).join()]);
 
+  const historyStart =
+    historyReach && historyReach.of === selectedId ? historyReach.start : undefined;
   const history = useQuery(
     orpc.v1.stations.readings.queryOptions({
-      input: { id: selectedId ?? "", limit: 2000 },
+      input: {
+        id: selectedId ?? "",
+        limit: 2000,
+        ...(historyStart && { start: historyStart }),
+      },
       enabled: selectedId !== undefined,
       meta: { quiet: true },
+      // The days in hand of the same station stay on screen until its week comes.
+      placeholderData: (previous) => (previous?.station.id === selectedId ? previous : undefined),
     }),
   );
+  const historyDays = historyStart && !history.isPlaceholderData ? HISTORY_DAYS_MOST : HISTORY_DAYS;
   // The map already knows where most stations are, so their forecast and tide load with their
   // history, not after it.
   const known = selectedId ? (loaded.get(selectedId) ?? savedStations.get(selectedId)) : undefined;
@@ -300,8 +313,15 @@ function ViewerRoute() {
     (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : spot);
   const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
+  // A station that measures the wind alone shows no forecast and no tide: none is asked for.
+  const selectedStation = selectedId ? (known ?? history.data?.station) : undefined;
+  const windAlone = selectedStation !== undefined && !selectedStation.measures.includes("waves");
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
-  const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
+  const expected = {
+    enabled: point !== undefined && !windAlone,
+    retry: false,
+    meta: { quiet: true },
+  };
 
   // The tide is a strip of whole days to scroll along, from midnight where the user is.
   // The days asked for belong to what is selected: another selection opens on its first days.
@@ -690,6 +710,7 @@ function ViewerRoute() {
       selected={{
         station: known,
         history: loadable(history),
+        historyDays,
         found: loadable(found),
         spot: {
           data: spot,
@@ -710,6 +731,14 @@ function ViewerRoute() {
         extremes: loadable(buoyExtremes),
       }}
       onOpenBuoy={(buoy) => void navigate({ search: (previous) => ({ ...previous, buoy }) })}
+      onHistoryExtend={() => {
+        if (selectedId && historyReach?.of !== selectedId) {
+          setHistoryReach({
+            of: selectedId,
+            start: new Date(hour - HISTORY_DAYS_MOST * 24 * HOUR_MS),
+          });
+        }
+      }}
       onTideExtend={(direction) =>
         setTideReach({
           of: selection,

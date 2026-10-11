@@ -1,6 +1,8 @@
 import { m } from "@/paraglide/messages.js";
 
 import { Details } from "./details/details";
+import { HISTORY_DAYS } from "./details/wind";
+import { WindDetails } from "./details/wind-details";
 import { type PointConditionsProps, Sources } from "./point-conditions";
 import type { Loadable, Station, StationReadings } from "./types";
 
@@ -8,13 +10,21 @@ type StationPanelProps = PointConditionsProps & {
   // What the map already knows of the station, shown while its history loads.
   station: Station | undefined;
   history: Loadable<StationReadings>;
+  // How many days of readings the history holds, and how a panel asks for a week of them.
+  historyDays?: number;
+  onHistoryExtend?: () => void;
 };
 
-/** What a station measures now and lately, beside the model, then the week and the tide there. */
+/**
+ * What a station measures now and lately. A buoy is read beside the model, with the week and
+ * the tide there. A station that measures the wind alone shows its wind and nothing of the sea.
+ */
 export function StationPanel({
   now,
   station: known,
   history,
+  historyDays = HISTORY_DAYS,
+  onHistoryExtend,
   forecast,
   tides,
   extremes,
@@ -26,6 +36,28 @@ export function StationPanel({
 
   if (history.isError && !known) {
     return <p className="text-s text-neutral-7">{m.station_not_found()}</p>;
+  }
+
+  if (station && !station.measures.includes("waves")) {
+    return (
+      <WindDetails
+        now={now}
+        station={station}
+        readings={history.data?.readings}
+        latest={latest}
+        historyPending={history.isPending}
+        historyDays={historyDays}
+        onHistoryExtend={onHistoryExtend}
+        footer={
+          <Sources
+            origin={m.source_measurements({ attribution: station.attribution })}
+            license={station.license}
+            forecast={undefined}
+            tides={undefined}
+          />
+        }
+      />
+    );
   }
 
   return (

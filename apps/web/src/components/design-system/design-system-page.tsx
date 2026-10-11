@@ -174,6 +174,46 @@ const SAMPLE_READINGS: StationReadings = {
     validated: false,
   })).reverse(),
 };
+// A week of a station that measures the wind alone, a reading every six minutes: a breeze that
+// rises each afternoon, a blow on the fifth day, and four hours without a word.
+const SAMPLE_WIND_READINGS: StationReadings = {
+  station: {
+    id: "sample-wind",
+    provider: "meteofrance",
+    name: "Pointe des Sables",
+    latitude: 48.29,
+    longitude: -4.97,
+    attribution: "Météo-France",
+    measures: ["wind"],
+    exposure: null,
+    license: SAMPLE_LICENSE,
+  },
+  readings: Array.from({ length: 7 * 240 }, (_, index) => {
+    const hoursAgo = index / 10;
+    const day = Math.sin(((hoursAgo - 3) / 24) * 2 * Math.PI);
+    const blow = 9 * Math.exp(-(((hoursAgo - 110) / 9) ** 2));
+    const speed = 5 + 2.5 * day + blow + 0.8 * Math.sin(index * 1.7) + 0.5 * Math.sin(index / 3);
+    return {
+      observedAt: new Date(SAMPLE_NOW - index * 6 * 60 * 1000),
+      significantHeightMeters: null,
+      maxHeightMeters: null,
+      peakPeriodSeconds: null,
+      meanPeriodSeconds: null,
+      significantPeriodSeconds: null,
+      peakDirectionDegrees: null,
+      directionalSpreadDegrees: null,
+      waterTemperatureCelsius: null,
+      windSpeedMetersPerSecond: Math.max(0, speed),
+      windGustMetersPerSecond: Math.max(0, speed) * (1.3 + 0.15 * Math.sin(index * 0.9)),
+      windDirectionDegrees: (300 + 60 * Math.sin(hoursAgo / 20) + 360) % 360,
+      validated: false,
+    };
+  }).filter((_, index) => index < 300 || index > 340),
+};
+const SAMPLE_WIND_STATION = {
+  ...SAMPLE_WIND_READINGS.station,
+  latestReading: SAMPLE_WIND_READINGS.readings[0] ?? null,
+};
 const SAMPLE_FORECAST: Forecast = {
   point: { latitude: 48.3, longitude: -5 },
   source: {
@@ -244,6 +284,8 @@ const SAMPLE_EXTREMES: TideExtremes = {
 };
 const LOADED = { isPending: false, isError: false };
 const LOADING = { data: undefined, isPending: true, isError: false };
+// What a panel is given of the forecast and the tide when none is asked for.
+const NOTHING = { data: undefined, isPending: false, isError: false };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -721,6 +763,42 @@ export function DesignSystemPage() {
               forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
               tides={{ data: SAMPLE_TIDES, ...LOADED }}
               extremes={{ data: SAMPLE_EXTREMES, ...LOADED }}
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Wind station panel">
+        <div className="grid gap-m lg:grid-cols-2">
+          <div className="edge rounded-(--radius-xs) p-m">
+            <StationPanel
+              now={SAMPLE_NOW}
+              station={SAMPLE_WIND_STATION}
+              history={{ data: SAMPLE_WIND_READINGS, ...LOADED }}
+              historyDays={7}
+              forecast={NOTHING}
+              tides={NOTHING}
+              extremes={NOTHING}
+            />
+          </div>
+          <div className="edge rounded-(--radius-xs) p-m">
+            <StationPanel
+              now={SAMPLE_NOW}
+              station={SAMPLE_WIND_STATION}
+              history={LOADING}
+              forecast={NOTHING}
+              tides={NOTHING}
+              extremes={NOTHING}
+            />
+          </div>
+          <div className="edge rounded-(--radius-xs) p-m">
+            <StationPanel
+              now={SAMPLE_NOW}
+              station={{ ...SAMPLE_WIND_STATION, latestReading: null }}
+              history={{ data: { ...SAMPLE_WIND_READINGS, readings: [] }, ...LOADED }}
+              forecast={NOTHING}
+              tides={NOTHING}
+              extremes={NOTHING}
             />
           </div>
         </div>
