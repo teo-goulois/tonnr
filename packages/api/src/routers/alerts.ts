@@ -154,6 +154,56 @@ export async function forgetSeen(tx: Transaction, alertId: string, spotId?: stri
     .where(and(eq(alertSpot.alertId, alertId), spotId ? eq(alertSpot.spotId, spotId) : undefined));
 }
 
+// A time zone, kept as the runtime spells it, whatever case it came in.
+const zoneSchema = z
+  .string()
+  .max(64)
+  .transform((name, context) => {
+    const zone = zoneNamed(name);
+    if (zone) return zone;
+    context.addIssue({ code: "custom", message: "must be the IANA name of a time zone" });
+    return z.NEVER;
+  });
+
+// What the device a request comes from would give an account that has none yet: its time zone
+// and its language. An account that has one keeps it, whatever is given here.
+const deviceFields = {
+  zoneIfNone: zoneSchema
+    .optional()
+    .describe("The time zone to take if the account has none yet. It keeps the one it has."),
+  localeIfNone: z
+    .enum(["en", "fr"])
+    .optional()
+    .describe("The language to take if the account has none yet. It keeps the one it has."),
+};
+
+/**
+ * Gives an account the time zone and the language of the device it first sets something from,
+ * when it has none: decision 031. The database decides, so that two devices at once do not
+ * take one another's place.
+ */
+async function settleDevice(
+  tx: Database | Transaction,
+  userId: string,
+  device: { zoneIfNone?: string; localeIfNone?: "en" | "fr" },
+) {
+  if (!device.zoneIfNone && !device.localeIfNone) return;
+  await tx
+    .insert(alertSettings)
+    .values({ userId, zone: device.zoneIfNone, locale: device.localeIfNone })
+    .onConflictDoUpdate({
+      target: alertSettings.userId,
+      set: {
+        ...(device.zoneIfNone
+          ? { zone: sql`coalesce(${alertSettings.zone}, ${device.zoneIfNone})` }
+          : {}),
+        ...(device.localeIfNone
+          ? { locale: sql`coalesce(${alertSettings.locale}, ${device.localeIfNone})` }
+          : {}),
+      },
+    });
+}
+
 const stretchSchema = z.object({ start: z.date(), end: z.date() });
 const dayHoursSchema = z
   .array(
@@ -233,12 +283,13 @@ export const alertsRouter = {
         criteria: conditionsSchema,
         enabled: z.boolean().default(true),
         shortestMinutes: shortestSchema.default(120),
+        ...deviceFields,
       }),
     )
     .output(alertSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { spotIds, ...fields } = input;
+      const { spotIds, zoneIfNone, localeIfNone, ...fields } = input;
 
       const created = await context.db.transaction(async (tx) => {
         // Locking the account row makes its creations run one after the other, so two requests
@@ -259,6 +310,8 @@ export const alertsRouter = {
         await tx
           .insert(alertSpot)
           .values(spotIds.map((spotId, position) => ({ spotId, alertId: row.id, position })));
+        // An account's days and hours are read in the time zone of its first alert's device.
+        await settleDevice(tx, userId, { zoneIfNone, localeIfNone });
         return row;
       });
       if (created === null) {
@@ -561,23 +614,15 @@ export const alertsRouter = {
       summary: "Change how the caller wants to be told",
       description:
         "What is left out stays as it is. A setting changes what is told from then on: it " +
-        "calls nothing off, and tells nothing again.",
+        "calls nothing off, and tells nothing again. `zoneIfNone` and `localeIfNone` are " +
+        "taken by an account that has no time zone or no language yet, and by no other.",
       tags: ["Alerts"],
     })
     .input(
       z
         .object({
           horizonDays: z.number().int().min(1).max(MAX_HORIZON_DAYS),
-          zone: z
-            .string()
-            .max(64)
-            // Kept as the runtime spells it, whatever case it came in.
-            .transform((name, context) => {
-              const zone = zoneNamed(name);
-              if (zone) return zone;
-              context.addIssue({ code: "custom", message: "must be the IANA name of a time zone" });
-              return z.NEVER;
-            }),
+          zone: zoneSchema,
           locale: z.enum(["en", "fr"]),
           onFound: z.boolean(),
           onEvening: z.boolean(),
@@ -595,6 +640,7 @@ export const alertsRouter = {
           byPush: z.boolean(),
         })
         .partial()
+        .extend(deviceFields)
         .refine(
           (settings) => (settings.quietFrom === null) === (settings.quietTo === null),
           "quiet hours have a beginning and an end, or neither",
@@ -603,21 +649,32 @@ export const alertsRouter = {
     .output(settingsSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const changes = { ...input, ...(input.week ? { week: tidied(input.week) } : {}) };
+      const { zoneIfNone, localeIfNone, ...given } = input;
+      const changes = { ...given, ...(given.week ? { week: tidied(given.week) } : {}) };
       // Quiet hours are given whole: a beginning without an end would leave the other as it was.
       if ((changes.quietFrom === undefined) !== (changes.quietTo === undefined)) {
         throw new ORPCError("BAD_REQUEST", {
           message: "Quiet hours are given with both their beginning and their end.",
         });
       }
-      const [row] = await context.db
-        .insert(alertSettings)
-        .values({ userId, ...changes })
-        .onConflictDoUpdate({
-          target: alertSettings.userId,
-          set: { ...changes, updatedAt: new Date() },
-        })
-        .returning();
+      // A zone or a language that is given is taken. One that is only offered is for an
+      // account that has none.
+      const device = {
+        ...(changes.zone === undefined ? { zoneIfNone } : {}),
+        ...(changes.locale === undefined ? { localeIfNone } : {}),
+      };
+      const row = await context.db.transaction(async (tx) => {
+        await settleDevice(tx, userId, device);
+        const [saved] = await tx
+          .insert(alertSettings)
+          .values({ userId, ...changes })
+          .onConflictDoUpdate({
+            target: alertSettings.userId,
+            set: { ...changes, updatedAt: new Date() },
+          })
+          .returning();
+        return saved;
+      });
       return settingsOf(row);
     }),
 };

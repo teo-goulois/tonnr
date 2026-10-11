@@ -24,6 +24,8 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
+import { useAlerting } from "./-alerting";
+
 export const Route = createFileRoute("/app/")({
   validateSearch: z.object({
     // The station, the surf break or the spot whose panel is open. One is selected, never two.
@@ -32,6 +34,8 @@ export const Route = createFileRoute("/app/")({
     spot: z.string().optional(),
     // "add" is the panel that adds a spot.
     panel: z.enum(["saved", "alerts", "add"]).optional(),
+    // The part of the alerts panel in view: what was told when left out.
+    alerts: z.enum(["mine", "settings"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
   }),
@@ -203,6 +207,12 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
+
+  // The settings are read where they show: in the alerts panel, and in the panel of a spot.
+  const alerting = useAlerting({
+    signedIn,
+    isShown: panel === "alerts" || selectedSpotId !== undefined,
+  });
 
   const loaded = useMemo(() => {
     const byId = new Map<string, Station>();
@@ -749,6 +759,14 @@ function ViewerRoute() {
       savedStations={savedStations}
       savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
+      alerting={alerting}
+      alertsTab={search.alerts ?? "news"}
+      onAlertsTabChange={(tab) =>
+        void navigate({
+          search: (previous) => ({ ...previous, alerts: tab === "news" ? undefined : tab }),
+          replace: true,
+        })
+      }
       onLayersChange={setLayers}
       adding={{
         query,

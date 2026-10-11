@@ -18,6 +18,13 @@ export type SavedBreak = Pick<SurfBreak, "id" | "name">;
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];
 /** A spot of the user's own: a place they named. */
 export type Spot = Answer<V1["spots"]["list"]>["spots"][number];
+/** An alert of the user's: the conditions that make one or several of their spots work. */
+export type Alert = Answer<V1["alerts"]["list"]>["alerts"][number];
+export type AlertCriteria = Alert["criteria"];
+/** How the user wants to be told, for all their alerts. */
+export type AlertSettings = Answer<V1["alerts"]["getSettings"]>;
+/** What conditions give at spots, before they are saved. */
+export type AlertPreview = Answer<V1["alerts"]["preview"]>;
 
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {

@@ -21,6 +21,7 @@ import {
   type SpotDraft,
   type SpotSearch,
 } from "@/components/spots/new-spot-panel";
+import type { Alerting } from "@/components/alerts/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
 import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
 import {
@@ -34,7 +35,7 @@ import {
 } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import { AlertsPanel } from "./alerts-panel";
+import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import type { Nearby } from "./details/parts";
@@ -171,6 +172,11 @@ type ViewerProps = {
   savedStations: Map<string, Station>;
   savedBreaks: Map<string, SavedBreak>;
   notifications: Loadable<AlertNotification[]>;
+  // The alerts of the account, its settings, and what the screens do with them.
+  alerting: Alerting;
+  // The part of the alerts panel in view.
+  alertsTab: AlertsTab;
+  onAlertsTabChange: (tab: AlertsTab) => void;
   onLayersChange: (layers: MapLayers) => void;
   onSelect: (stationId: string | undefined) => void;
   onSelectBreak: (breakId: string) => void;
@@ -331,6 +337,9 @@ export function Viewer({
   savedStations,
   savedBreaks,
   notifications,
+  alerting,
+  alertsTab,
+  onAlertsTabChange,
   onLayersChange,
   onSelect,
   onSelectBreak,
@@ -497,6 +506,10 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
+  // The spot whose alert was last asked for from the list of alerts, and how many times one was.
+  const [alertAsked, setAlertAsked] = useState<{ spotId?: string; count: number }>({ count: 0 });
+  const ownSpots = spots.data;
+  const spotList = useMemo(() => ownSpots ?? [], [ownSpots]);
   // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
   const isNewSpot = drawn?.spotId !== undefined && drawn.spotId === newSpotId;
   const isDescribing = drawn?.spotId !== undefined && isDescribingSpot;
@@ -518,6 +531,9 @@ export function Viewer({
           onOfferSeen={seeSpotOffer}
           isDescribing={isDescribing}
           onDescribe={describeSpot}
+          spots={spotList}
+          alerting={alerting}
+          alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked.count : 0}
         />
       );
     }
@@ -558,6 +574,9 @@ export function Viewer({
     seeSpotOffer,
     isDescribing,
     describeSpot,
+    spotList,
+    alerting,
+    alertAsked,
   ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
@@ -957,9 +976,24 @@ export function Viewer({
         <AlertsPanel
           now={now}
           signedIn={signedIn}
+          tab={alertsTab}
+          onTabChange={onAlertsTabChange}
           notifications={notifications}
+          alerts={alerting.alerts}
+          spots={spotList}
+          settings={alerting.settings}
+          deviceZone={alerting.deviceZone}
           {...accountPrompt}
           onRead={onReadNotification}
+          onOpenAlert={(alert) => {
+            const [first] = alert.spotIds;
+            if (!first) return;
+            setAlertAsked((asked) => ({ spotId: first, count: asked.count + 1 }));
+            onSelectSpot(first);
+          }}
+          switching={alerting.switching}
+          onSwitchAlert={alerting.onSwitch}
+          onSettingsChange={alerting.onSettingsChange}
         />
       </ViewerDrawer>
     </div>

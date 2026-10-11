@@ -31,6 +31,7 @@ For UI work, follow `GUI.md` and use `graphical-ui`, `graphical-convert`, or `gr
 - A wave height and a wind speed have one color each, defined in `apps/web/src/lib/sea-scales.ts`. The sea, the markers, the legend, and the charts read it there.
 - A panel of the map opens in `ViewerDrawer`: beside the map on a wide screen, as a sheet at the bottom of a phone.
 - A spot of the user's own is added from `NewSpotPanel`, in `apps/web/src/components/spots/`. While it is open the map selects nothing: a press puts the spot's marker, through `onPlace` on `StationMap`. Decision 006 says what a spot is saved with.
+- An alert is written in `AlertEditor`, in `apps/web/src/components/alerts/`: one sentence whose parts open what changes them, in the third tab of the panel of a spot of the user's own. The alerts panel lists what was told, the alerts, and the account's settings. The route answers all of them through `useAlerting`, in `apps/web/src/routes/app/-alerting.ts`. Decision 031 gives the rules.
 - Keyboard shortcuts are listed in `apps/web/src/lib/shortcuts.ts` and registered through its `useShortcut`, never with a `keydown` listener. The user can rebind each one, so read the binding in force from `useShortcuts` when showing it.
 - `Mod+K` opens the command palette, in `apps/web/src/components/shared/command-palette.tsx`. A new page or primary action is added there in the same change.
 - `/` is the landing page and `/app` is the product. A screen under `/app` is a component that takes props, in `apps/web/src/components/<feature>/`, and its route loads the data.

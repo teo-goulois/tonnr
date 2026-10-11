@@ -166,7 +166,7 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
   );
 });
 
-export type DetailsTab = "forecast" | "guide";
+export type DetailsTab = "forecast" | "guide" | "alert";
 
 type DetailsOfProps = PointConditionsProps & {
   // The buoy the panel is of. Undefined at a surf break.
@@ -178,6 +178,8 @@ type DetailsOfProps = PointConditionsProps & {
   spot?: { latitude: number; longitude: number };
   // What is known of the surf break, for the tab beside its forecast.
   guide?: ReactNode;
+  // The alert of a spot of the user's own, for a third tab. A break has none.
+  alert?: ReactNode;
   // The tab in view, for a panel that opens one itself. Without it the panel opens on the
   // forecast and keeps its own count.
   tab?: DetailsTab;
@@ -197,6 +199,7 @@ export function Details({
   historyPending = false,
   spot,
   guide,
+  alert,
   tab,
   onTabChange,
   ...conditions
@@ -234,6 +237,7 @@ export function Details({
       <TabsList>
         <TabsTab value="forecast">{m.details_forecast_tab()}</TabsTab>
         <TabsTab value="guide">{m.details_guide_tab()}</TabsTab>
+        {alert && <TabsTab value="alert">{m.details_alert_tab()}</TabsTab>}
       </TabsList>
       <TabsPanel value="forecast">
         <Conditions {...props} />
@@ -245,6 +249,12 @@ export function Details({
         <div className="peer">{guide}</div>
         <p className="hidden text-s text-neutral-7 peer-empty:block">{m.details_guide_empty()}</p>
       </TabsPanel>
+      {/* Kept as the guide is: an alert that is being written is not lost to another tab. */}
+      {alert && (
+        <TabsPanel value="alert" keepMounted>
+          {alert}
+        </TabsPanel>
+      )}
     </Tabs>
   );
 }

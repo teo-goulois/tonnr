@@ -80,6 +80,16 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/app", search: { panel: "alerts" } }),
         },
         {
+          value: `${m.command_alerts_mine()} alerts spots conditions`,
+          label: m.command_alerts_mine(),
+          run: () => void navigate({ to: "/app", search: { panel: "alerts", alerts: "mine" } }),
+        },
+        {
+          value: `${m.command_alerts_settings()} alerts settings preferences hours`,
+          label: m.command_alerts_settings(),
+          run: () => void navigate({ to: "/app", search: { panel: "alerts", alerts: "settings" } }),
+        },
+        {
           value: `${m.command_sign_in()} login account`,
           label: m.command_sign_in(),
           run: () => void navigate({ to: "/login" }),

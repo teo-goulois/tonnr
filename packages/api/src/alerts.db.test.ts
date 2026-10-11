@@ -1,6 +1,6 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
-import { alert, alertSpot, alertWindow } from "@repo/db/schema/alerts";
+import { alert, alertSettings, alertSpot, alertWindow } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -594,6 +594,49 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         by("ana"),
       );
       expect([night.quietFrom, night.quietTo]).toEqual([23 * 60, 6 * 60]);
+    });
+
+    it("take a device's zone and language once, and keep them from then on", async () => {
+      // The first alert gives them, from the device it is made on.
+      await make({ zoneIfNone: "europe/paris", localeIfNone: "fr" } as never);
+      expect(await call(v1Router.alerts.getSettings, undefined, by("ana"))).toMatchObject({
+        zone: "Europe/Paris",
+        locale: "fr",
+      });
+
+      // Another device offers its own with a setting: the account keeps what it has.
+      const later = await call(
+        v1Router.alerts.updateSettings,
+        { onFound: false, zoneIfNone: "Pacific/Auckland", localeIfNone: "en" },
+        by("ana"),
+      );
+      expect(later).toMatchObject({ zone: "Europe/Paris", locale: "fr", onFound: false });
+
+      // A zone that is given, and not only offered, is taken.
+      const moved = await call(
+        v1Router.alerts.updateSettings,
+        { zone: "Pacific/Auckland", localeIfNone: "en" },
+        by("ana"),
+      );
+      expect(moved).toMatchObject({ zone: "Pacific/Auckland", locale: "fr" });
+    });
+
+    it("give a device's zone to an account that sets something first", async () => {
+      const first = await call(
+        v1Router.alerts.updateSettings,
+        { daylightOnly: false, zoneIfNone: "Europe/Paris", localeIfNone: "fr" },
+        by("ben"),
+      );
+
+      expect(first).toMatchObject({ zone: "Europe/Paris", locale: "fr", daylightOnly: false });
+      // Offered alone, they are a first setting too.
+      await database.db.delete(alertSettings);
+      const alone = await call(
+        v1Router.alerts.updateSettings,
+        { zoneIfNone: "Europe/Paris" },
+        by("ben"),
+      );
+      expect(alone).toMatchObject({ zone: "Europe/Paris", locale: null });
     });
 
     it("keep a time zone's name as the runtime spells it", async () => {
