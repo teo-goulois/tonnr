@@ -1,0 +1,1 @@
+ALTER TABLE "spot" ADD COLUMN "characteristics" jsonb;

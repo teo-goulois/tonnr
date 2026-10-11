@@ -82,6 +82,23 @@ export const COMPASS_POINTS = [
 type CompassPoint = (typeof COMPASS_POINTS)[number];
 
 /**
+ * What the owner of a spot says it is like, in the words the catalogue uses for a break. A field
+ * left out says that they have not said, and no list is empty.
+ */
+export type SpotCharacteristics = {
+  breakTypes?: (typeof BREAK_TYPES)[number][];
+  waveDirections?: (typeof WAVE_DIRECTIONS)[number][];
+  bottomTypes?: (typeof BOTTOM_TYPES)[number][];
+  abilityLevels?: (typeof ABILITY_LEVELS)[number][];
+  boardTypes?: (typeof BOARD_TYPES)[number][];
+  bestSeasons?: (typeof SEASONS)[number][];
+  bestTides?: (typeof TIDE_STAGES)[number][];
+  bestSwellDirections?: CompassPoint[];
+  bestWindDirections?: CompassPoint[];
+  offshoreDirectionDegrees?: number;
+};
+
+/**
  * A place where the sea is surfed. The catalogue is what a user picks a spot from, and it holds
  * nothing a user wrote. A break is added once, by hand, and belongs to the instance from then
  * on: nothing brings it back in line with the list it came from.
@@ -162,6 +179,9 @@ export const spot = pgTable(
       .default("private")
       .notNull(),
     criteria: jsonb("criteria").$type<SpotCriteria>().notNull(),
+    // What the owner says the spot is like, for its guide. Null while they have said nothing. It
+    // is theirs alone: a spot made from a break takes none of what the catalogue says of it.
+    characteristics: jsonb("characteristics").$type<SpotCharacteristics>(),
     // Whether the owner is told when the spot is forecast to work.
     alertsEnabled: boolean("alerts_enabled").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

@@ -5,6 +5,12 @@ import { and, asc, count, eq } from "drizzle-orm";
 import { Effect, Result } from "effect";
 import { z } from "zod";
 
+import {
+  characteristicsInput,
+  characteristicsSchema,
+  describeCharacteristics,
+  keptCharacteristics,
+} from "../characteristics";
 import { type Caller, callerProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
 import { forecastUnavailable } from "./forecasts";
@@ -35,6 +41,9 @@ const spotSchema = z.object({
   // the break has left the catalogue.
   breakId: z.string().nullable(),
   ...spotFields,
+  // What its owner says the spot is like, in the words the catalogue has for a break. Null
+  // where they have not said.
+  characteristics: characteristicsSchema,
   // Whether the caller owns the spot. The owner's identity is not exposed.
   isOwner: z.boolean(),
   createdAt: z.date(),
@@ -43,10 +52,15 @@ const spotSchema = z.object({
 
 const criterionSchema = criteriaSchema.keyof();
 
+// What the owner says the spot is like. Given, it stands for all that is said of the spot: a
+// characteristic it leaves out is one they have not spoken of. Null says nothing at all.
+const saidOfTheSpot = characteristicsInput.nullable();
+
 const defaultedFields = {
   visibility: spotFields.visibility.default("private"),
   criteria: criteriaSchema.default({}),
   alertsEnabled: spotFields.alertsEnabled.default(false),
+  characteristics: saidOfTheSpot.default(null),
 };
 // A spot starts from a break of the catalogue, or from a point of the caller's own.
 const fromBreakSchema = z.object({
@@ -75,6 +89,7 @@ function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined)
     visibility: row.visibility,
     criteria: row.criteria,
     alertsEnabled: row.alertsEnabled,
+    characteristics: describeCharacteristics(row.characteristics),
     isOwner: row.userId === userId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -101,14 +116,16 @@ export const spotsRouter = {
       description:
         "The spot starts from a break of the catalogue, or from a point of the caller's own. " +
         "From a break it takes the name and the point, unless the request gives others. It then " +
-        "keeps them as its own: a later change to the break does not move the spot.",
+        "keeps them as its own: a later change to the break does not move the spot. It takes " +
+        "nothing of what the catalogue says the break is like: `characteristics` are what the " +
+        "owner says, and null until they do.",
       tags: ["Spots"],
     })
     .input(z.union([fromBreakSchema, fromPointSchema]))
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { breakId, ...fields } = input;
+      const { breakId, characteristics, ...fields } = input;
 
       const created = await context.db.transaction(async (tx) => {
         // Locking the account row makes its creations run one after the other, so two requests
@@ -139,6 +156,7 @@ export const spotsRouter = {
           .insert(spot)
           .values({
             ...fields,
+            characteristics: keptCharacteristics(characteristics),
             id: crypto.randomUUID(),
             userId,
             breakId: origin?.id ?? null,
@@ -192,16 +210,32 @@ export const spotsRouter = {
       method: "PATCH",
       path: "/spots/{id}",
       summary: "Change a spot the caller owns",
+      description:
+        "What is left out stays as it is. `characteristics`, when given, replaces all that was " +
+        "said of the spot, and null clears it.",
       tags: ["Spots"],
     })
-    .input(z.object({ id: z.string(), ...z.object(spotFields).partial().shape }))
+    .input(
+      z.object({
+        id: z.string(),
+        ...z.object(spotFields).partial().shape,
+        characteristics: saidOfTheSpot.optional(),
+      }),
+    )
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { id, ...changes } = input;
+      const { id, characteristics, ...changes } = input;
       const [updated] = await context.db
         .update(spot)
-        .set({ ...changes, updatedAt: new Date() })
+        .set({
+          ...changes,
+          // Left out, what was said of the spot stays.
+          ...(characteristics === undefined
+            ? {}
+            : { characteristics: keptCharacteristics(characteristics) }),
+          updatedAt: new Date(),
+        })
         .where(and(eq(spot.id, id), eq(spot.userId, userId)))
         .returning();
       if (!updated) throw notFound(id);

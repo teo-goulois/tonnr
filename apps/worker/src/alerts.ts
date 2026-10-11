@@ -45,7 +45,12 @@ const evaluateSpot = Effect.fn("evaluateSpot")(function* (
         // Locking the spot makes its evaluations run one after the other. The forecast took a
         // moment to fetch, so the spot is read again: it may have been changed or switched off.
         const [current] = await tx.select().from(spot).where(eq(spot.id, row.id)).for("update");
-        const unchanged = current?.updatedAt.getTime() === row.updatedAt.getTime();
+        // What counts is what the assessment was made from: the point and the criteria. A spot
+        // that was renamed or described meanwhile is the same spot to the sea.
+        const unchanged =
+          current?.latitude === row.latitude &&
+          current.longitude === row.longitude &&
+          JSON.stringify(current.criteria) === JSON.stringify(row.criteria);
         if (!current?.alertsEnabled || !unchanged) return 0;
         // And its owner once more, held so that a suspension waits for this to be written, or
         // is seen here: nothing is announced to an account that was suspended meanwhile.

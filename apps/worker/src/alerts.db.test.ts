@@ -180,6 +180,55 @@ describe.skipIf(!TEST_DATABASE_URL)("the alerts and the forecast they are planne
     }
   });
 
+  // Forecasts during whose fetching the spot is changed.
+  const changingMeanwhile = (change: Partial<typeof spot.$inferInsert>) => {
+    const during = testForecasts();
+    const fetched = during.forecasts.get;
+    return {
+      ...during.forecasts,
+      get: (query: Parameters<typeof fetched>[0]) =>
+        Effect.gen(function* () {
+          const found = yield* fetched(query);
+          yield* Effect.promise(() =>
+            database.db
+              .update(spot)
+              .set({ ...change, updatedAt: new Date(AT.getTime() + 1000) })
+              .where(eq(spot.id, "home")),
+          );
+          return found;
+        }),
+    };
+  };
+
+  it("announce a window for a spot that was renamed or described while its forecast was fetched", async () => {
+    const forecasts = changingMeanwhile({
+      name: "Another name",
+      characteristics: { breakTypes: ["reef"] },
+    });
+
+    expect(await Effect.runPromise(evaluateAlerts(database.db, forecasts))).toMatchObject({
+      spots: 1,
+      created: 1,
+    });
+  });
+
+  it.each([
+    ["moved", { latitude: 48.9 }],
+    ["given other criteria", { criteria: { swellHeightMeters: { min: 9 } } }],
+    ["switched off", { alertsEnabled: false }],
+  ])(
+    "announce nothing for a spot that was %s while its forecast was fetched",
+    async (_what, change) => {
+      const forecasts = changingMeanwhile(change);
+
+      expect(await Effect.runPromise(evaluateAlerts(database.db, forecasts))).toMatchObject({
+        spots: 1,
+        created: 0,
+      });
+      expect(await notifications()).toEqual([]);
+    },
+  );
+
   it("announce nothing to an account that was suspended while its forecast was fetched", async () => {
     // The account is suspended between the moment the spots are listed and the writing.
     const during = testForecasts();
