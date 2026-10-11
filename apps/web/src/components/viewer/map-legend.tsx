@@ -4,6 +4,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useId } from "react";
 
 import { formatNumber } from "@/lib/format";
+import { useUnits, windFigure, windUnit } from "@/lib/units";
 import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
@@ -31,7 +32,16 @@ const WIND_TICKS = [0, 10, 20, 30, 50];
 
 // A scale as a bar. Its stops are evenly spaced, so the small values, where most seas are, get as
 // much room as the big ones.
-function ScaleBar({ scale, ticks }: { scale: ScaleStop[]; ticks: number[] }) {
+function ScaleBar({
+  scale,
+  ticks,
+  figure = formatNumber,
+}: {
+  scale: ScaleStop[];
+  ticks: number[];
+  // Writes a tick, when it is not written in the unit of the scale.
+  figure?: (tick: number) => string;
+}) {
   const last = scale.length - 1;
   const gradient = scale.map((stop, index) => `${stop.color} ${(index / last) * 100}%`).join(", ");
 
@@ -53,7 +63,7 @@ function ScaleBar({ scale, ticks }: { scale: ScaleStop[]; ticks: number[] }) {
               )}
               style={{ left: `${(index / last) * 100}%` }}
             >
-              {formatNumber(tick)}
+              {figure(tick)}
             </span>
           );
         })}
@@ -99,6 +109,8 @@ export function MapLegend({
   className,
 }: MapLegendProps) {
   const bodyId = useId();
+  // The wind's scale is written in the reader's unit.
+  useUnits();
 
   return (
     <section
@@ -167,11 +179,11 @@ export function MapLegend({
           </LayerRow>
 
           <LayerRow
-            label={m.map_wind()}
+            label={m.map_wind({ unit: windUnit() })}
             checked={layers.wind}
             onCheckedChange={(wind) => onLayersChange({ ...layers, wind })}
           >
-            <ScaleBar scale={WIND_SPEED_SCALE} ticks={WIND_TICKS} />
+            <ScaleBar scale={WIND_SPEED_SCALE} ticks={WIND_TICKS} figure={windFigure} />
             {windTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
           </LayerRow>
 

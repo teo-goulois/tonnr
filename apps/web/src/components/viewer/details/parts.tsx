@@ -9,13 +9,13 @@ import { type ReactNode, useState } from "react";
 
 import {
   formatAgo,
-  formatKnots,
   formatMeters,
   formatNumber,
   formatSeconds,
   freshnessOf,
   toKnots,
 } from "@/lib/format";
+import { formatWind, useUnits, windFigure } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
@@ -115,6 +115,8 @@ export function Block({
  * and what the model says. A value the buoy does not measure is the model's, and says so.
  */
 export function NowTiles(props: DetailsProps) {
+  // Drawn again when the reader changes units: the wind's tile is written in them.
+  useUnits();
   const all = metrics();
   const loading = props.hasBuoy ? props.historyPending && !props.latest : props.forecast.isPending;
 
@@ -406,6 +408,7 @@ export function NearbyWindStation({
   offshoreFrom?: number | null;
   onOpen?: (stationId: string) => void;
 }) {
+  useUnits();
   const { station } = nearby;
   const reading = station.latestReading;
   const speed = toKnots(reading?.windSpeedMetersPerSecond);
@@ -423,11 +426,11 @@ export function NearbyWindStation({
       <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex flex-wrap items-baseline gap-x-xs">
           <span className="text-s font-medium tabular-nums">
-            {formatKnots(speed)}
+            {formatWind(speed)}
             {gust !== null && (
               <span className="font-normal text-neutral-7">
                 {" "}
-                {m.details_gusts_to({ speed: formatNumber(gust, 0) })}
+                {m.details_gusts_to({ speed: windFigure(gust) })}
               </span>
             )}
           </span>

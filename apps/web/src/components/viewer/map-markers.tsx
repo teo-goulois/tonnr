@@ -2,7 +2,8 @@ import { ArrowUpIcon, PinIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps, CSSProperties } from "react";
 
-import { type Freshness, formatMeters, formatNumber, formatSeconds } from "@/lib/format";
+import { type Freshness, formatMeters, formatSeconds } from "@/lib/format";
+import { useUnits, windFigure } from "@/lib/units";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@/lib/sea-scales";
 
 /** An arrow that points where the waves or the wind are going, from the bearing they come from. */
@@ -222,6 +223,7 @@ export function WindChip({
   speedKnots,
   directionDegrees,
 }: Pick<WindBadgeProps, "speedKnots" | "directionDegrees">) {
+  useUnits();
   return (
     <span
       className="flex h-5.5 shrink-0 items-center gap-0.5 rounded-(--radius-xs) px-1.5 text-xs font-medium whitespace-nowrap tabular-nums"
@@ -233,7 +235,7 @@ export function WindChip({
       {directionDegrees !== null && (
         <DirectionArrow fromDegrees={directionDegrees} className="size-3" />
       )}
-      {formatNumber(speedKnots, 0)}
+      {windFigure(speedKnots)}
     </span>
   );
 }
@@ -247,6 +249,7 @@ export function WindBadge({
   style,
   ...props
 }: WindBadgeProps) {
+  useUnits();
   return (
     <button
       type="button"
@@ -277,7 +280,7 @@ export function WindBadge({
       {directionDegrees !== null && (
         <DirectionArrow fromDegrees={directionDegrees} className="size-3" />
       )}
-      {formatNumber(speedKnots, 0)}
+      {windFigure(speedKnots)}
     </button>
   );
 }

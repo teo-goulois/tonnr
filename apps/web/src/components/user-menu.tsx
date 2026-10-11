@@ -5,15 +5,23 @@ import {
   MenuGroupLabel,
   MenuItem,
   MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { MailIcon, LogOutIcon, UserIcon } from "@repo/ui/icon";
+import { MailIcon, LogOutIcon, UserIcon, WindIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { WIND_UNITS, type WindUnit, useUnits, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
+
+import { useSaveUnits } from "./shared/units-account";
 
 type UserMenuProps = {
   name: string;
@@ -25,6 +33,8 @@ type UserMenuProps = {
 export default function UserMenu({ name, email, check }: UserMenuProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const units = useUnits();
+  const saveUnits = useSaveUnits();
 
   return (
     <Menu>
@@ -39,6 +49,27 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
             {check && <span className="font-normal">{m.verify_not_checked()}</span>}
           </MenuGroupLabel>
         </MenuGroup>
+        <MenuSeparator />
+        {/* The unit every wind speed is written in, on every screen. Decision 033. */}
+        <MenuSub>
+          <MenuSubTrigger>
+            <WindIcon aria-hidden />
+            {m.units_wind_speed()}
+            <span className="ml-auto text-neutral-7">{windUnit(units.windSpeed)}</span>
+          </MenuSubTrigger>
+          <MenuSubPopup>
+            <MenuRadioGroup
+              value={units.windSpeed}
+              onValueChange={(value) => saveUnits({ ...units, windSpeed: value as WindUnit })}
+            >
+              {WIND_UNITS.map((unit) => (
+                <MenuRadioItem key={unit} value={unit}>
+                  {unit === "kn" ? `${m.units_knots()} (${windUnit(unit)})` : windUnit(unit)}
+                </MenuRadioItem>
+              ))}
+            </MenuRadioGroup>
+          </MenuSubPopup>
+        </MenuSub>
         <MenuSeparator />
         {check && (
           <MenuItem disabled={check.isSending} onClick={check.onSend}>

@@ -1,4 +1,5 @@
 import { compassPoint, formatNumber, toKnots } from "@/lib/format";
+import { knotsFrom, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import type { AlertCriteria } from "../viewer/types";
@@ -61,15 +62,21 @@ export const RANGES: Record<
   },
   windSpeedMetersPerSecond: {
     label: m.alert_label_wind_speed,
-    unit: (value) => m.unit_knots({ value }),
+    // Written and set in the reader's unit, and kept in metres a second. The bounds are those of
+    // 40 and 120 knots, read each time: the reader may change units while the editor is open.
+    unit: (value) => `${value} ${windUnit()}`,
     least: 0,
-    most: 40,
+    get most() {
+      return Math.round(windIn(40));
+    },
     step: 1,
     digits: 0,
-    shown: (kept) => Math.round(toKnots(kept)),
-    kept: (shown) => Math.round((shown / KNOTS_PER_MS) * 100) / 100,
+    shown: (kept) => Math.round(windIn(toKnots(kept))),
+    kept: (shown) => Math.round((knotsFrom(shown) / KNOTS_PER_MS) * 100) / 100,
     floor: 0,
-    ceiling: 120,
+    get ceiling() {
+      return Math.round(windIn(120));
+    },
   },
   tideHeightMeters: {
     label: m.alert_label_tide_height,

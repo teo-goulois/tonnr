@@ -27,12 +27,12 @@ import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
 import {
   compassPoint,
   formatAgo,
-  formatKnots,
   formatMeters,
   formatSeconds,
   freshnessOf,
   toKnots,
 } from "@/lib/format";
+import { formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
@@ -247,7 +247,7 @@ function describeWindStation(station: Station, now: number): WindStation[] {
       directionDegrees: direction,
       label: [
         station.name,
-        m.map_wind_speed({ speed: formatKnots(speed) }),
+        m.map_wind_speed({ speed: formatWind(speed) }),
         direction !== null && m.map_from({ direction: compassPoint(direction) }),
       ]
         .filter(Boolean)
@@ -368,6 +368,7 @@ export function Viewer({
   const [seaSteps, setSeaSteps] = useState(0);
   // Unfolded on a wide screen, folded on a phone, until the visitor chooses.
   const [legendChoice, setLegendChoice] = useState<boolean | null>(null);
+  const units = useUnits();
 
   // The charts of a station's panel load apart from the map. Asking for them now means they are
   // there by the time a station is opened.
@@ -388,7 +389,9 @@ export function Viewer({
   );
   const mapWindStations = useMemo(
     () => (layers.wind ? windStations.flatMap((station) => describeWindStation(station, now)) : []),
-    [layers.wind, windStations, now],
+    // A badge's label says the wind in the reader's unit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layers.wind, windStations, now, units],
   );
 
   // The model's latest field that is not in the future, then as many steps ahead as asked. The

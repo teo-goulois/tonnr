@@ -13,14 +13,8 @@ import { TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import {
-  compassPoint,
-  formatKnots,
-  formatMeters,
-  formatNumber,
-  formatSeconds,
-  toKnots,
-} from "@/lib/format";
+import { compassPoint, formatMeters, formatNumber, formatSeconds, toKnots } from "@/lib/format";
+import { formatWind } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import type { Alert, AlertCriteria, AlertPreview, Loadable, Spot } from "../viewer/types";
@@ -508,7 +502,7 @@ export function AlertEditor({
                             first.swellPeriodSeconds !== null &&
                               formatSeconds(first.swellPeriodSeconds),
                             first.windSpeedMetersPerSecond !== null &&
-                              formatKnots(toKnots(first.windSpeedMetersPerSecond)),
+                              formatWind(toKnots(first.windSpeedMetersPerSecond)),
                           ]
                             .filter(Boolean)
                             .join(" · ")}

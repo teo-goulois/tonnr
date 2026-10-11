@@ -12,6 +12,7 @@ import {
   scaleColor,
   scaleInk,
 } from "@/lib/sea-scales";
+import { knotsFrom, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { type Forecast, type Reading, periodOf } from "../types";
@@ -66,6 +67,10 @@ export type Metric = {
   plain?: boolean;
   // A value of zero leaves its cell empty: an hour without rain says so by saying nothing.
   hideZero?: boolean;
+  // A value as it is written, when that is not the unit it is kept and colored in: the wind is
+  // kept in knots and written in the reader's unit. `kept` is the way back.
+  shown?: (value: number) => number;
+  kept?: (shown: number) => number;
 };
 
 export function metrics(): Record<MetricKey, Metric> {
@@ -99,11 +104,13 @@ export function metrics(): Record<MetricKey, Metric> {
     wind: {
       key: "wind",
       label: m.details_wind(),
-      unit: m.unit_kn(),
+      unit: windUnit(),
       digits: 0,
       scale: WIND_SPEED_SCALE,
       tinted: false,
       direction: "windDirection",
+      shown: (value) => windIn(value),
+      kept: (shown) => knotsFrom(shown),
     },
   };
 }
@@ -143,17 +150,26 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
   };
 }
 
+/** A value in the unit it is written in, to the digits it is written with. */
+function written(metric: Metric, value: number) {
+  return Number((metric.shown ? metric.shown(value) : value).toFixed(metric.digits));
+}
+
 export function formatMetric(metric: Metric, value: number, withUnit = true) {
   // A period read on a buoy has a decimal worth showing only when it stands alone.
-  const figure = formatNumber(value, metric.digits);
+  const figure = formatNumber(metric.shown ? metric.shown(value) : value, metric.digits);
   return withUnit ? `${figure} ${metric.unit}` : figure;
 }
 
-/** A difference written with its sign, such as "+0.6 m". */
-export function formatDelta(metric: Metric, delta: number, withUnit = true) {
-  const rounded = Number(delta.toFixed(metric.digits));
-  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "±";
-  return `${sign}${formatMetric(metric, Math.abs(rounded), withUnit)}`;
+/**
+ * The difference between two values written with its sign, such as "+0.6 m": the difference of
+ * the two figures as they are written, so that the three agree.
+ */
+export function formatGap(metric: Metric, one: number, other: number, withUnit = true) {
+  const gap = Number((written(metric, one) - written(metric, other)).toFixed(metric.digits));
+  const sign = gap > 0 ? "+" : gap < 0 ? "−" : "±";
+  const figure = formatNumber(Math.abs(gap), metric.digits);
+  return `${sign}${withUnit ? `${figure} ${metric.unit}` : figure}`;
 }
 
 export function measuredSamples(readings: Reading[]): Sample[] {

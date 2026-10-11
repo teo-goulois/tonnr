@@ -2,8 +2,9 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
 import { type ComponentProps, type ReactNode, Suspense, lazy, useMemo, useState } from "react";
 
-import { formatDayAndClock, formatKnots, formatNumber, toKnots } from "@/lib/format";
+import { formatDayAndClock, formatNumber, toKnots } from "@/lib/format";
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
+import { formatWind, useUnits, windFigure, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
@@ -106,6 +107,8 @@ export function WindDetails({
   forecast,
   footer,
 }: WindDetailsProps) {
+  // Drawn again when the reader changes units: every figure here is a wind speed.
+  useUnits();
   const [key, setKey] = useState<WindRangeKey>("day");
   const range = WIND_RANGES[key];
   const start = now - range.span;
@@ -139,15 +142,15 @@ export function WindDetails({
       <div className="grid grid-cols-3 gap-xs">
         <Tile
           label={m.details_wind()}
-          figure={wind === null ? undefined : formatNumber(wind, 0)}
-          unit={m.unit_kn()}
+          figure={wind === null ? undefined : windFigure(wind)}
+          unit={windUnit()}
           color={wind === null ? "var(--neutral-4)" : scaleColor(WIND_SPEED_SCALE, wind)}
           isLoading={isReading}
         />
         <Tile
           label={m.details_gusts()}
-          figure={gust === null ? undefined : formatNumber(gust, 0)}
-          unit={m.unit_kn()}
+          figure={gust === null ? undefined : windFigure(gust)}
+          unit={windUnit()}
           color={gust === null ? "var(--neutral-4)" : scaleColor(WIND_SPEED_SCALE, gust)}
           isLoading={isReading}
         />
@@ -196,13 +199,13 @@ export function WindDetails({
           <dl className="grid gap-y-xxs text-xs tabular-nums">
             <div className="flex items-baseline justify-between gap-xs">
               <dt className="truncate text-neutral-7">{m.details_wind_mean()}</dt>
-              <dd className="whitespace-nowrap">{formatKnots(summary.mean)}</dd>
+              <dd className="whitespace-nowrap">{formatWind(summary.mean)}</dd>
             </div>
             {summary.strongest && (
               <div className="flex items-baseline justify-between gap-xs">
                 <dt className="truncate text-neutral-7">{m.details_gust_max()}</dt>
                 <dd className="whitespace-nowrap">
-                  {formatKnots(summary.strongest.value)}
+                  {formatWind(summary.strongest.value)}
                   <span className="text-neutral-7">
                     {" · "}
                     {formatDayAndClock(new Date(summary.strongest.time))}

@@ -11,8 +11,9 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { formatClock, formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
+import { formatClock, formatDay, formatDayAndClock } from "@/lib/format";
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
+import { knotsFrom, useUnits, windFigure, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
@@ -260,19 +261,19 @@ function WindLegend({
         )}
       </div>
       <div className="flex h-(--line-s) items-center justify-between gap-xs">
-        <span className="text-xs text-neutral-6">{m.unit_kn()}</span>
+        <span className="text-xs text-neutral-6">{windUnit()}</span>
         {read && !isLoading && (
           <span className="flex items-center gap-xs text-s font-medium tabular-nums">
             {read.wind !== null && (
               <span className="flex items-center gap-xxs">
                 <LineGlyph color={scaleColor(WIND_SPEED_SCALE, read.wind)} />
-                {formatNumber(read.wind, 0)}
+                {windFigure(read.wind)}
               </span>
             )}
             {read.gust !== null && (
               <span className="flex items-center gap-xxs">
                 <LineGlyph thin color={scaleColor(WIND_SPEED_SCALE, read.gust)} />
-                {formatNumber(read.gust, 0)}
+                {windFigure(read.gust)}
               </span>
             )}
             {read.model !== null && (
@@ -283,7 +284,7 @@ function WindLegend({
                 )}
               >
                 <LineGlyph dashed color={scaleColor(WIND_SPEED_SCALE, read.model)} />
-                {formatNumber(read.model, 0)}
+                {windFigure(read.model)}
               </span>
             )}
             {read.direction !== null && <Bearing degrees={read.direction} />}
@@ -309,6 +310,7 @@ export function WindChart({
   className,
 }: WindChartProps) {
   const isMyTurn = useChartTurn();
+  const units = useUnits();
   const [pointedTime, setPointedTime] = useState<number>();
   // The rows that say something. The others only stop the station's curve where it was silent.
   const readable = useMemo(
@@ -333,16 +335,20 @@ export function WindChart({
       model: { label: m.details_model(), colors: { light: model, dark: model } },
     };
   }, [rows]);
+  // Round figures in the reader's unit, set where they stand among the knots the curves are in.
   const ticks = useMemo(
     () =>
       valueTicks(
         0,
-        Math.max(
-          1,
-          ...readable.map((row) => Math.max(row.wind ?? 0, row.gust ?? 0, row.model ?? 0)),
+        windIn(
+          Math.max(
+            1,
+            ...readable.map((row) => Math.max(row.wind ?? 0, row.gust ?? 0, row.model ?? 0)),
+          ),
         ),
-      ),
-    [readable],
+      ).map((tick) => knotsFrom(tick)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [readable, units],
   );
   const hasWind = readable.some((row) => row.wind !== null);
   const hasGusts = readable.some((row) => row.gust !== null);
@@ -374,7 +380,7 @@ export function WindChart({
           tickMargin={4}
           ticks={ticks}
           domain={[ticks[0]!, ticks.at(-1)!]}
-          tickFormatter={(value: number) => formatNumber(value, 0)}
+          tickFormatter={(value: number) => windFigure(value)}
         />
         {hasModel && (
           <EvilAreaChart.Area
@@ -404,7 +410,9 @@ export function WindChart({
         )}
       </>
     );
-  }, [start, end, ticks, hasWind, hasGusts, hasModel]);
+    // The figures of the axis are written in the reader's unit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, end, ticks, hasWind, hasGusts, hasModel, units]);
 
   // The figures over the plot are those under the pointer. At rest they are left unwritten: the
   // tiles above the chart hold the last reading, and a step of the chart is a mean of several.

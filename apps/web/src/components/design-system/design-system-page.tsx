@@ -83,8 +83,9 @@ import type {
   TideExtremes,
   TideTimeline,
 } from "@/components/viewer/types";
-import { formatKnots, formatMeters } from "@/lib/format";
+import { formatMeters } from "@/lib/format";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
+import { formatWind } from "@/lib/units";
 import { useShortcuts } from "@/lib/shortcuts";
 
 const VARIANTS = [
@@ -727,7 +728,7 @@ export function DesignSystemPage() {
           <SeaChart
             label="Wind"
             scale={WIND_SPEED_SCALE}
-            formatValue={formatKnots}
+            formatValue={formatWind}
             points={SAMPLE_WIND}
           />
           <TideChart

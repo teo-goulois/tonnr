@@ -48,10 +48,6 @@ export function formatSeconds(value: number) {
   return m.unit_seconds({ value: formatNumber(value, 0) });
 }
 
-export function formatKnots(value: number) {
-  return m.unit_knots({ value: formatNumber(value, 0) });
-}
-
 /** The compass point a bearing is nearest to, such as "WNW". */
 export function compassPoint(degrees: number) {
   const points = m.compass_points().split(",");

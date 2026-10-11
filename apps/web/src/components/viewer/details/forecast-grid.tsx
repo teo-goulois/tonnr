@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { compassPoint, formatClock, formatDay } from "@/lib/format";
+import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { DirectionArrow } from "../map-markers";
@@ -96,6 +97,8 @@ export function ForecastGrid({
   lead = 0,
   isLoading = false,
 }: ForecastGridProps) {
+  // Drawn again when the reader changes units: the wind's row is written in them.
+  useUnits();
   const all = metrics();
   const weather = weatherMetrics();
   const step = stepHours * HOUR_MS;

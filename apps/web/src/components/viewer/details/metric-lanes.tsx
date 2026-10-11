@@ -13,6 +13,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
+import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 
@@ -29,7 +30,7 @@ import {
   METRIC_KEYS,
   type Sample,
   directionAt,
-  formatDelta,
+  formatGap,
   formatMetric,
   metricColor,
   metrics,
@@ -102,7 +103,12 @@ function rowsOf(
 // swell of 8 s on an axis from zero would be a flat line.
 function ticksOf(metric: Metric, values: number[]) {
   if (values.length === 0) return [0, 1];
-  if (metric.floor === undefined) return valueTicks(0, Math.max(...values));
+  if (metric.floor === undefined) {
+    // Round figures in the unit the values are written in, set where they stand among the values.
+    const shown = metric.shown ?? ((value: number) => value);
+    const kept = metric.kept ?? ((value: number) => value);
+    return valueTicks(0, shown(Math.max(...values))).map(kept);
+  }
   const low = Math.max(0, Math.floor(Math.min(...values)) - 1);
   const high = Math.ceil(Math.max(...values)) + 1;
   const step = Math.max(1, Math.ceil((high - low) / 3));
@@ -345,7 +351,9 @@ function Lane({
           tickMargin={4}
           ticks={ticks}
           domain={[ticks[0]!, ticks.at(-1)!]}
-          tickFormatter={(value: number) => formatNumber(value)}
+          tickFormatter={(value: number) =>
+            formatNumber(metric.shown ? metric.shown(value) : value)
+          }
         />
         {hasBuoy && (
           <EvilAreaChart.Area
@@ -372,7 +380,7 @@ function Lane({
         )}
       </>
     ),
-    [start, end, last, noons, ticks, hasBuoy],
+    [start, end, last, noons, ticks, hasBuoy, metric],
   );
 
   const pointed =
@@ -428,13 +436,7 @@ function Lane({
             {bearing !== undefined && <DirectionArrow fromDegrees={bearing} className="size-3" />}
             {read.buoy !== null && read.model !== null && (
               <Badge className="min-w-9 tabular-nums">
-                {/* The difference of the two figures as they are written, so the three agree. */}
-                {formatDelta(
-                  metric,
-                  Number(read.model.toFixed(metric.digits)) -
-                    Number(read.buoy.toFixed(metric.digits)),
-                  false,
-                )}
+                {formatGap(metric, read.model, read.buoy, false)}
               </Badge>
             )}
           </span>
@@ -498,7 +500,10 @@ export function MetricLanes({
 }: MetricLanesProps) {
   const [pointed, setPointed] = useState<number>();
   const locale = getLocale();
-  const all = useMemo(() => metrics(), [locale]);
+  const units = useUnits();
+  // The metrics are named in the reader's language and written in the reader's units.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all = useMemo(() => metrics(), [locale, units]);
   const hasBuoy = measured.length > 0;
 
   return (
