@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type Seen, type Tracked, planLook } from "./look";
+import { type SeaWindow, type ToldPiece, planLook } from "./look";
 import type { Interval } from "./open";
 
 // Thursday 15 October 2026, hour by hour. "15T08" is 08:00 UTC that day.
@@ -9,30 +9,33 @@ const sea = (start: string, end: string): Interval => ({ start: at(start), end: 
 const stamp = (interval: Interval) =>
   `${interval.start.toISOString().slice(8, 13)}-${interval.end.toISOString().slice(8, 13)}`;
 
-/** An alert on one spot, looked at again and again, for an account that can always go. */
-function alert(more: { horizonDays?: number; open?: (sea: Interval) => Interval[] } = {}) {
-  let known: Tracked[] = [];
-  let made = 0;
-  const settings = { horizonDays: 3, open: (found: Interval) => [found], ...more };
+type Settings = {
+  // The end of the days the account asked for.
+  tellUntil: string;
+  open: (sea: Interval) => Interval[];
+  quiet: { found?: boolean; change?: boolean };
+};
+
+/** A spot of an alert, looked at again and again, for an account that can always go. */
+function spot(more: Partial<Settings> = {}) {
+  let known: { windows: SeaWindow[]; told: ToldPiece[] } = { windows: [], told: [] };
+  const settings: Settings = { tellUntil: "31T00", open: (found) => [found], quiet: {}, ...more };
   return {
     settings,
-    /** A look at a moment, that found these sea windows at the spot. Null: no fresh forecast. */
-    look(now: string, found: Interval[] | null, spots: Seen[] = []) {
-      const plan = planLook(
-        known,
-        [...(found ? [{ spotId: "one", windows: found }] : []), ...spots],
-        {
-          now: at(now),
-          horizonDays: settings.horizonDays,
-          open: (_spotId, window) => settings.open(window),
-          newId: () => `w${(made += 1)}`,
-        },
-      );
-      known = plan.windows;
-      return plan.told.map((told) =>
+    /** A look at a moment, that found these sea windows. Null: no fresh forecast, no look. */
+    look(now: string, found: Interval[] | null, settled = false) {
+      if (!found) return [];
+      const plan = planLook(known, found, {
+        now: at(now),
+        tellUntil: at(settings.tellUntil),
+        open: settings.open,
+        settled,
+        quiet: settings.quiet,
+      });
+      known = { windows: plan.windows, told: plan.told };
+      return plan.tell.map((told) =>
         [
           told.moment,
-          told.spotId,
           "open" in told ? told.open.map(stamp).join(" ") : "",
           "before" in told ? `was ${told.before.map(stamp).join(" ")}` : "",
         ]
@@ -40,212 +43,453 @@ function alert(more: { horizonDays?: number; open?: (sea: Interval) => Interval[
           .join(" "),
       );
     },
-    known: () => known,
+    windows: () => known.windows.map((window) => `${stamp(window.sea)} x${window.seen}`),
+    told: () => known.told.map((piece) => `${stamp(piece)}${piece.missed ? " ?" : ""}`),
   };
 }
 
-describe("a look at an alert", () => {
+// The account's hours, as hours of the UTC day: the pieces of a sea window within them.
+const between =
+  (from: number, to: number, shortest = 1) =>
+  (found: Interval) => {
+    const pieces: Interval[] = [];
+    for (let day = Date.UTC(2026, 9, 10); day < found.end.getTime(); day += 24 * 3_600_000) {
+      const start = Math.max(found.start.getTime(), day + from * 3_600_000);
+      const end = Math.min(found.end.getTime(), day + to * 3_600_000);
+      if (end - start >= shortest * 3_600_000) {
+        pieces.push({ start: new Date(start), end: new Date(end) });
+      }
+    }
+    return pieces;
+  };
+
+describe("a look at a spot of an alert", () => {
   it("tells a window once two looks in a row have found it, and once only", () => {
-    const { look } = alert();
+    const { look, told } = spot();
 
     expect(look("14T06", [sea("15T08", "15T11")])).toEqual([]);
-    expect(look("14T09", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
+    expect(told()).toEqual([]);
+    expect(look("14T09", [sea("15T08", "15T11")])).toEqual(["found 15T08-15T11"]);
     expect(look("14T12", [sea("15T08", "15T11")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T11"]);
   });
 
   it("says nothing of a window that one look found and the next did not", () => {
-    const { look, known } = alert();
+    const { look, windows } = spot();
 
     look("14T06", [sea("15T08", "15T11")]);
     expect(look("14T09", [])).toEqual([]);
-    expect(known()).toEqual([]);
-    // Back, it is a window seen for the first time.
+    expect(windows()).toEqual([]);
+    // It comes back as a new window, to be found twice again.
     expect(look("14T12", [sea("15T08", "15T11")])).toEqual([]);
-    expect(look("14T15", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
+    expect(look("14T15", [sea("15T08", "15T11")])).toEqual(["found 15T08-15T11"]);
   });
 
   it("counts a look without a fresh forecast for nothing and against nothing", () => {
-    const { look, known } = alert();
+    const { look } = spot();
 
     look("14T06", [sea("15T08", "15T11")]);
     expect(look("14T09", null)).toEqual([]);
-    expect(known()).toMatchObject([{ seen: 1, missed: 0 }]);
-    expect(look("14T12", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
-    // And a told window is not called off for it.
-    expect(look("14T15", null)).toEqual([]);
+    expect(look("14T12", [sea("15T08", "15T11")])).toEqual(["found 15T08-15T11"]);
+    look("14T15", []);
     expect(look("14T18", null)).toEqual([]);
-    expect(known()).toMatchObject([{ seen: 2, missed: 0 }]);
+    expect(look("14T21", [])).toEqual(["gone was 15T08-15T11"]);
   });
 
   it("tells every window of a day", () => {
-    const { look } = alert();
-    const day = [sea("15T07", "15T10"), sea("15T16", "15T19")];
+    const { look } = spot();
+    const day = [sea("15T07", "15T10"), sea("15T17", "15T20")];
 
     look("14T06", day);
-    expect(look("14T09", day)).toEqual(["found one 15T07-15T10", "found one 15T16-15T19"]);
+    expect(look("14T09", day)).toEqual(["found 15T07-15T10 15T17-15T20"]);
+  });
+
+  it("tells the open hours, piece by piece, and keeps quiet about a window that has none", () => {
+    const { look, told, windows } = spot({ open: between(8, 12, 2) });
+    // Three days of sea are three mornings, and a window in the evening is none.
+    const found = [sea("15T06", "17T20"), sea("18T18", "18T22")];
+
+    look("14T06", found);
+    expect(look("14T09", found)).toEqual(["found 15T08-15T12 16T08-16T12 17T08-17T12"]);
+    expect(windows()).toEqual(["15T06-17T20 x2", "18T18-18T22 x2"]);
+    expect(told()).toEqual(["15T08-15T12", "16T08-16T12", "17T08-17T12"]);
   });
 
   it("waits for a window to come within the days the account asked for", () => {
-    const { look } = alert({ horizonDays: 1 });
+    const { look, settings } = spot({ tellUntil: "16T00" });
+    const found = [sea("16T08", "16T11")];
 
-    look("13T06", [sea("15T08", "15T11")]);
-    expect(look("13T09", [sea("15T08", "15T11")])).toEqual([]);
-    expect(look("14T06", [sea("15T08", "15T11")])).toEqual([]);
-    // 08:00 on the 15th is a day ahead at 08:00 on the 14th, and no sooner.
-    expect(look("14T09", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
+    look("14T06", found);
+    expect(look("14T09", found)).toEqual([]);
+    // The next day, the days asked for reach it, and it has been found long enough.
+    settings.tellUntil = "17T00";
+    expect(look("15T00", found)).toEqual(["found 16T08-16T11"]);
   });
 
-  it("tells the open hours, and keeps quiet about a window that has none", () => {
-    const account = alert();
-    // The account can go from 09:00, and only then.
-    account.settings.open = (found) =>
-      found.end > at("15T09") ? [{ start: at("15T09"), end: found.end }] : [];
+  it("does not tell hours of which half an hour or less is left", () => {
+    const known = { windows: [{ sea: sea("15T08", "15T11"), seen: 1 }], told: [] };
+    const tellAt = (now: string) =>
+      planLook(known, [sea("15T10", "15T11")], {
+        now: new Date(`2026-10-${now}:00Z`),
+        tellUntil: at("31T00"),
+        open: (found) => [found],
+      }).tell.map((told) => told.moment);
 
-    account.look("14T06", [sea("15T04", "15T12")]);
-    expect(account.look("14T09", [sea("15T04", "15T12")])).toEqual(["found one 15T09-15T12"]);
+    expect(tellAt("15T10:29")).toEqual(["found"]);
+    expect(tellAt("15T10:30")).toEqual([]);
+  });
+});
 
-    const early = alert({ open: () => [] });
-    early.look("14T06", [sea("15T02", "15T05")]);
-    expect(early.look("14T09", [sea("15T02", "15T05")])).toEqual([]);
-    // The account then makes room for it: it is found, without waiting two more looks.
-    early.settings.open = (found) => [found];
-    expect(early.look("14T12", [sea("15T02", "15T05")])).toEqual(["found one 15T02-15T05"]);
+describe("a window that was told", () => {
+  /** A spot whose window from 08 to 12 on the 15th was told. */
+  function toldSpot(more: Partial<Settings> = {}, window = sea("15T08", "15T12")) {
+    const one = spot(more);
+    one.look("14T00", [window]);
+    one.look("14T03", [window]);
+    return one;
+  }
+
+  it("is told again when its open hours begin or end more than two hours from what was told", () => {
+    const { look, told } = toldSpot();
+
+    expect(look("14T06", [sea("15T10", "15T14")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T12"]);
+    expect(look("14T09", [sea("15T11", "15T15")])).toEqual(["moved 15T11-15T15 was 15T08-15T12"]);
+    // What is told now is what the next move is held against.
+    expect(look("14T12", [sea("15T10", "15T13")])).toEqual([]);
+    expect(look("14T15", [sea("15T08", "15T12")])).toEqual(["moved 15T08-15T12 was 15T11-15T15"]);
   });
 
-  it("tells again a window whose open hours moved by more than two hours", () => {
-    const { look } = alert();
-    look("14T06", [sea("15T08", "15T12")]);
-    look("14T09", [sea("15T08", "15T12")]);
+  it("adds small moves up, against what was told", () => {
+    const { look } = toldSpot();
 
-    // Two hours is not more than two hours.
-    expect(look("14T12", [sea("15T10", "15T14")])).toEqual([]);
-    // One more is three from what was told: small moves add up.
-    expect(look("14T15", [sea("15T11", "15T15")])).toEqual([
-      "moved one 15T11-15T15 was 15T08-15T12",
-    ]);
-    // Back where it was, it has moved again from what was last told.
-    expect(look("14T18", [sea("15T08", "15T12")])).toEqual([
-      "moved one 15T08-15T12 was 15T11-15T15",
-    ]);
+    expect(look("14T06", [sea("15T09", "15T13")])).toEqual([]);
+    expect(look("14T09", [sea("15T10", "15T14")])).toEqual([]);
+    expect(look("14T12", [sea("15T11", "15T15")])).toEqual(["moved 15T11-15T15 was 15T08-15T12"]);
   });
 
-  it("knows a short window that moved past its own length for the same window", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T08", "15T10")]);
-    look("14T09", [sea("15T08", "15T10")]);
+  it("is told as longer or shorter when only its end moved", () => {
+    const { look } = toldSpot();
 
-    expect(look("14T12", [sea("15T11", "15T13")])).toEqual([
-      "moved one 15T11-15T13 was 15T08-15T10",
-    ]);
-    expect(known()).toHaveLength(1);
-    // Further than six hours from where it was, it is another: the first is missed.
-    expect(look("14T15", [sea("15T18", "15T20")])).toEqual([]);
-    expect(look("14T18", [sea("15T18", "15T20")])).toEqual([
-      "gone one was 15T11-15T13",
-      "found one 15T18-15T20",
-    ]);
+    expect(look("14T06", [sea("15T08", "15T15")])).toEqual(["moved 15T08-15T15 was 15T08-15T12"]);
   });
 
-  it("matches each known window once, to the one that shares most with it", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T08", "15T14")]);
-    look("14T09", [sea("15T08", "15T14")]);
+  it("is the same window when it moved past its own length, within six hours", () => {
+    const { look } = toldSpot({}, sea("15T08", "15T10"));
 
-    // The window breaks in two: the longer piece is the window, the other a new one.
-    expect(look("14T12", [sea("15T08", "15T09"), sea("15T10", "15T14")])).toEqual([]);
-    expect(known().map((window) => [stamp(window.sea), window.seen])).toEqual([
-      ["15T10-15T14", 3],
-      ["15T08-15T09", 1],
+    expect(look("14T06", [sea("15T13", "15T15")])).toEqual(["moved 15T13-15T15 was 15T08-15T10"]);
+    // And further than six hours, the one is gone and the other is a new window.
+    const far = toldSpot({}, sea("15T08", "15T10"));
+    expect(far.look("14T06", [sea("15T15", "15T17")])).toEqual([]);
+    expect(far.look("14T09", [sea("15T15", "15T17")])).toEqual([
+      "found 15T15-15T17",
+      "gone was 15T08-15T10",
     ]);
   });
 
-  it("calls a told window off once two looks in a row have missed it", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T08", "15T11")]);
-    look("14T09", [sea("15T08", "15T11")]);
+  it("is called off once two looks in a row have missed it", () => {
+    const { look, told } = toldSpot();
 
+    expect(look("14T06", [])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T12 ?"]);
+    expect(look("14T09", [])).toEqual(["gone was 15T08-15T12"]);
+    expect(told()).toEqual([]);
+    // It is called off once.
     expect(look("14T12", [])).toEqual([]);
-    // Found again, the count of the looks that missed it starts over.
-    expect(look("14T15", [sea("15T08", "15T11")])).toEqual([]);
-    expect(look("14T18", [])).toEqual([]);
-    expect(look("14T21", [])).toEqual(["gone one was 15T08-15T11"]);
-    expect(known()).toEqual([]);
-    // It may come back: it is then found again, after two looks.
-    look("15T00", [sea("15T08", "15T11")]);
-    expect(look("15T03", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
   });
 
-  it("does not call off a window whose hours have passed", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T08", "15T11")]);
-    look("14T09", [sea("15T08", "15T11")]);
+  it("stands when a look that missed it is followed by one that finds it", () => {
+    const { look, told } = toldSpot();
+
+    look("14T06", []);
+    expect(look("14T09", [sea("15T08", "15T12")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T12"]);
+    expect(look("14T12", [])).toEqual([]);
+    expect(look("14T15", [])).toEqual(["gone was 15T08-15T12"]);
+  });
+
+  it("is told as moved by the first look that finds it again elsewhere", () => {
+    const { look } = toldSpot();
+
+    look("14T06", []);
+    expect(look("14T09", [sea("15T11", "15T15")])).toEqual(["moved 15T11-15T15 was 15T08-15T12"]);
+  });
+
+  it("is a new window when it comes back after it was called off", () => {
+    const { look } = toldSpot();
+
+    look("14T06", []);
+    look("14T09", []);
+    expect(look("14T12", [sea("15T08", "15T12")])).toEqual([]);
+    expect(look("14T15", [sea("15T08", "15T12")])).toEqual(["found 15T08-15T12"]);
+  });
+
+  it("is not called off once its hours have passed", () => {
+    const { look, told } = toldSpot();
 
     expect(look("15T12", [])).toEqual([]);
-    expect(known()).toEqual([]);
+    expect(look("15T15", [])).toEqual([]);
+    expect(told()).toEqual([]);
   });
 
-  it("keeps the beginning of a window under way, which the forecast no longer shows", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T06", "15T12")]);
-    look("14T09", [sea("15T06", "15T12")]);
+  it("is not told as moved because its first hours have passed", () => {
+    const { look } = toldSpot({}, sea("15T06", "15T18"));
 
-    // At 09:00 the forecast begins at 09:00: the window has not moved by three hours.
-    expect(look("15T09", [sea("15T09", "15T12")])).toEqual([]);
-    expect(known().map((window) => stamp(window.sea))).toEqual(["15T06-15T12"]);
-    // Its end may still move, and that is told.
-    expect(look("15T10", [sea("15T10", "15T16")])).toEqual([
-      "moved one 15T06-15T16 was 15T06-15T12",
+    // The forecast begins at the hour of the look: the window keeps the beginning it had.
+    expect(look("15T09", [sea("15T09", "15T18")])).toEqual([]);
+    expect(look("15T12", [sea("15T12", "15T18")])).toEqual([]);
+    // But a window under way that stops for more than two hours has moved.
+    expect(look("15T13", [sea("15T16", "15T18")])).toEqual(["moved 15T16-15T18 was 15T06-15T18"]);
+  });
+
+  it("is not called off for an hour that dips in the middle of it", () => {
+    const { look, told } = toldSpot({}, sea("15T08", "15T16"));
+
+    expect(look("14T06", [sea("15T08", "15T11"), sea("15T12", "15T16")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T16"]);
+    // Its two halves are as sure as it was: neither is told as new.
+    expect(look("14T09", [sea("15T08", "15T11"), sea("15T12", "15T16")])).toEqual([]);
+  });
+
+  it("keeps two told windows for themselves when one grows and another appears", () => {
+    const { look, told } = spot();
+    const two = [sea("15T08", "15T10"), sea("15T12", "15T14")];
+    look("14T00", two);
+    expect(look("14T03", two)).toEqual(["found 15T08-15T10 15T12-15T14"]);
+
+    // The two have joined, and a third appeared: nothing is gone, and the third waits a look.
+    const then = [sea("15T09", "15T14"), sea("15T16", "15T18")];
+    expect(look("14T06", then)).toEqual(["moved 15T09-15T14 was 15T08-15T10 15T12-15T14"]);
+    expect(look("14T09", then)).toEqual(["found 15T16-15T18"]);
+    expect(told()).toEqual(["15T09-15T14", "15T16-15T18"]);
+  });
+
+  it("is not called off when two told windows joined and the sea then left one's hours", () => {
+    const { look, told } = spot();
+    const two = [sea("15T08", "15T10"), sea("15T11", "15T13")];
+    look("14T00", two);
+    look("14T03", two);
+
+    // They join, by less than two hours each: nothing is said, and both are where the sea is.
+    expect(look("14T06", [sea("15T09", "15T12")])).toEqual([]);
+    // The sea no longer reaches the hours told of the first: it is still its window.
+    expect(look("14T09", [sea("15T10", "15T12")])).toEqual([]);
+    expect(look("14T12", [sea("15T10", "15T12")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T10", "15T11-15T13"]);
+    // And a move past two hours from what was told is said of both.
+    expect(look("14T15", [sea("15T14", "15T17")])).toEqual([
+      "moved 15T14-15T17 was 15T08-15T10 15T11-15T13",
     ]);
   });
 
-  it("tells nothing when the account's hours change and the sea does not", () => {
-    const account = alert();
-    account.look("14T06", [sea("15T08", "15T14")]);
-    account.look("14T09", [sea("15T08", "15T14")]);
+  it("does not take the hours of another told window for its own", () => {
+    const { look } = spot();
+    const two = [sea("15T08", "15T10"), sea("15T12", "15T14")];
+    look("14T00", two);
+    look("14T03", two);
 
-    account.settings.open = () => [sea("15T12", "15T14")];
-    expect(account.look("14T12", [sea("15T08", "15T14")])).toEqual([]);
-    account.settings.open = () => [];
-    expect(account.look("14T15", [sea("15T08", "15T14")])).toEqual([]);
+    // The morning goes, and the afternoon stays where it was: the one is gone, not moved.
+    look("14T06", [sea("15T12", "15T14")]);
+    expect(look("14T09", [sea("15T12", "15T14")])).toEqual(["gone was 15T08-15T10"]);
   });
 
-  it("tells as gone a window that the sea moved out of the account's hours", () => {
-    const account = alert({ open: (found) => (found.start < at("15T18") ? [found] : []) });
-    account.look("14T06", [sea("15T08", "15T11")]);
-    account.look("14T09", [sea("15T08", "15T11")]);
+  it("is followed where it is, once the hours that were told have passed", () => {
+    const { look, told } = toldSpot({}, sea("15T10", "15T12"));
 
-    // The sea now comes after dark.
-    expect(account.look("14T12", [sea("15T14", "15T17")])).toEqual([
-      "moved one 15T14-15T17 was 15T08-15T11",
+    // Two hours later, which is no news: it is told for 10 to 12, and is at 12 to 14.
+    expect(look("14T06", [sea("15T12", "15T14")])).toEqual([]);
+    // At 13:00 the hours told are over, and the window is not: it is not found anew.
+    expect(look("15T13", [sea("15T12", "15T14")])).toEqual([]);
+    expect(told()).toEqual(["15T10-15T12"]);
+    expect(look("15T16", [])).toEqual([]);
+    expect(told()).toEqual([]);
+  });
+
+  it("keeps the beginning of a window under way, a day back at most", () => {
+    const { look, windows } = spot();
+    look("13T00", [sea("13T00", "15T20")]);
+    look("13T03", [sea("13T00", "15T20")]);
+
+    // The forecast begins with the day of the look: the window is known since before.
+    look("14T03", [sea("14T00", "15T20")]);
+    expect(windows()).toEqual(["13T03-15T20 x3"]);
+    look("15T09", [sea("15T00", "15T20")]);
+    expect(windows()).toEqual(["14T09-15T20 x4"]);
+  });
+
+  it("stays one window when the sea found goes back and forth between two", () => {
+    const { look, told } = spot();
+    const two = [sea("15T08", "15T10"), sea("15T11", "15T16")];
+    look("14T00", two);
+    look("14T03", two);
+
+    for (const [now, found] of [
+      ["14T06", sea("15T09", "15T12")],
+      ["14T09", sea("15T10", "15T15")],
+      ["14T12", sea("15T09", "15T12")],
+      ["14T15", sea("15T10", "15T15")],
+    ] as const) {
+      const said = look(now, [found]);
+      expect(said.filter((line) => line.startsWith("gone"))).toEqual([]);
+      expect(said.filter((line) => line.startsWith("found"))).toEqual([]);
+    }
+    expect(told().length).toBeLessThanOrEqual(2);
+  });
+
+  it("is called off when the sea leaves the account's hours, after two looks as well", () => {
+    const { look, told } = toldSpot({ open: between(6, 18, 2) }, sea("15T14", "15T17"));
+
+    // The sea window is still there, in the evening: it has no hours for the account.
+    expect(look("14T06", [sea("15T19", "15T22")])).toEqual([]);
+    expect(told()).toEqual(["15T14-15T17 ?"]);
+    expect(look("14T09", [sea("15T19", "15T22")])).toEqual(["gone was 15T14-15T17"]);
+    // Back in its hours, it is a new window: it was found by every look, and is told at once.
+    expect(look("14T12", [sea("15T15", "15T18")])).toEqual(["found 15T15-15T18"]);
+  });
+
+  it("stands when the sea comes back into the account's hours at the next look", () => {
+    const { look } = toldSpot({ open: between(6, 18, 2) }, sea("15T14", "15T17"));
+
+    look("14T06", [sea("15T19", "15T22")]);
+    expect(look("14T09", [sea("15T15", "15T18")])).toEqual([]);
+  });
+});
+
+describe("a change of the account's settings", () => {
+  it("calls nothing off, and tells nothing of the hours it moved", () => {
+    const { look, told, settings } = spot({ open: between(6, 14, 2) });
+    const found = [sea("15T06", "15T20")];
+    look("14T00", found);
+    expect(look("14T03", found)).toEqual(["found 15T06-15T14"]);
+
+    // A day off: no hour is open any more.
+    settings.open = () => [];
+    expect(look("14T06", found, true)).toEqual([]);
+    expect(look("14T09", found)).toEqual([]);
+    expect(told()).toEqual([]);
+
+    // Afternoons instead: what the sea had found long ago is told for the new hours.
+    settings.open = between(14, 20, 2);
+    expect(look("14T12", found, true)).toEqual(["found 15T14-15T20"]);
+  });
+
+  it("is not told as a move of the sea, even after the sea moved a little", () => {
+    const { look, told, settings } = spot({ open: between(6, 20, 2) });
+    look("14T00", [sea("15T08", "15T14")]);
+    look("14T03", [sea("15T08", "15T14")]);
+    // A small move, of which nothing is said.
+    expect(look("14T06", [sea("15T09", "15T15")])).toEqual([]);
+
+    // Later hours for the account, and the sea as it was.
+    settings.open = between(12, 20, 2);
+    expect(look("14T09", [sea("15T09", "15T15")], true)).toEqual([]);
+    expect(told()).toEqual(["15T12-15T15"]);
+    // What stands is what the next move of the sea is held against.
+    expect(look("14T12", [sea("15T09", "15T16")])).toEqual([]);
+    expect(look("14T15", [sea("15T09", "15T18")])).toEqual(["moved 15T12-15T18 was 15T12-15T15"]);
+  });
+
+  it("leaves a told window in doubt when the look that follows it misses the sea", () => {
+    const { look, told } = spot();
+    look("14T00", [sea("15T08", "15T12")]);
+    look("14T03", [sea("15T08", "15T12")]);
+
+    // Another time zone, and the same hours: the sea is missed once, as at any look.
+    expect(look("14T06", [], true)).toEqual([]);
+    expect(told()).toEqual(["15T08-15T12 ?"]);
+    expect(look("14T09", [sea("15T08", "15T12")])).toEqual([]);
+    expect(told()).toEqual(["15T08-15T12"]);
+  });
+
+  it("tells hours it opened elsewhere in the day as new, and forgets those it closed", () => {
+    const { look, told, settings } = spot({ open: between(8, 10, 2) });
+    const found = [sea("15T06", "15T20")];
+    look("14T00", found);
+    expect(look("14T03", found)).toEqual(["found 15T08-15T10"]);
+
+    // Early afternoons instead of mornings, on the same sea: they were never told.
+    settings.open = between(12, 14, 2);
+    expect(look("14T06", found, true)).toEqual(["found 15T12-15T14"]);
+    expect(told()).toEqual(["15T12-15T14"]);
+  });
+
+  it("tells hours it opened where the sea had gone as new, and not as a move", () => {
+    const { look, settings } = spot({ open: between(8, 12, 2) });
+    look("14T00", [sea("15T08", "15T12")]);
+    look("14T03", [sea("15T08", "15T12")]);
+    // The sea leaves for the afternoon, outside the account's hours: missed once.
+    expect(look("14T06", [sea("15T13", "15T17")])).toEqual([]);
+
+    // The account opens its afternoons. The morning is gone by the sea's doing, after two
+    // looks, and the afternoon is the account's by its own: found, not moved to.
+    settings.open = between(8, 17, 2);
+    expect(look("14T09", [sea("15T13", "15T17")], true)).toEqual([
+      "found 15T13-15T17",
+      "gone was 15T08-15T12",
     ]);
-    expect(account.look("14T15", [sea("15T19", "15T22")])).toEqual(["gone one was 15T14-15T17"]);
-    // And back into the day: found again, at once since two looks have seen it.
-    expect(account.look("14T18", [sea("15T15", "15T18")])).toEqual(["found one 15T15-15T18"]);
   });
 
-  it("looks at each spot of an alert for itself", () => {
-    const { look, known } = alert();
-    const other = (found: Interval[]): Seen[] => [{ spotId: "two", windows: found }];
+  it("keeps a told window whose hours it widened, without a word", () => {
+    const { look, told, settings } = spot({ open: between(8, 12, 2) });
+    const found = [sea("15T06", "15T20")];
+    look("14T00", found);
+    look("14T03", found);
 
-    look("14T06", [sea("15T08", "15T11")], other([sea("15T09", "15T11")]));
-    // The second spot has no fresh forecast at this look: it is found a look later.
-    expect(look("14T09", [sea("15T08", "15T11")])).toEqual(["found one 15T08-15T11"]);
-    expect(look("14T12", [sea("15T08", "15T11")], other([sea("15T09", "15T11")]))).toEqual([
-      "found two 15T09-15T11",
-    ]);
-    expect(
-      known()
-        .map((window) => window.spotId)
-        .sort(),
-    ).toEqual(["one", "two"]);
+    settings.open = between(8, 18, 2);
+    expect(look("14T06", found, true)).toEqual([]);
+    expect(told()).toEqual(["15T08-15T18"]);
   });
 
-  it("forgets a window that has run its course", () => {
-    const { look, known } = alert();
-    look("14T06", [sea("15T08", "15T11")]);
-    look("14T09", [sea("15T08", "15T11")]);
+  it("tells the hours it opened of a window that had none", () => {
+    const { look, settings } = spot({ open: () => [] });
+    const found = [sea("15T06", "15T20")];
+    look("14T00", found);
+    expect(look("14T03", found)).toEqual([]);
 
-    expect(look("15T12", null)).toEqual([]);
-    expect(known()).toEqual([]);
+    settings.open = between(8, 12, 2);
+    expect(look("14T06", found, true)).toEqual(["found 15T08-15T12"]);
+  });
+});
+
+describe("a moment the account switched off", () => {
+  it("is not told, and hours that were not told are not followed", () => {
+    const { look, told, settings } = spot({ quiet: { found: true } });
+    const found = [sea("15T08", "15T12")];
+
+    look("14T00", found);
+    expect(look("14T03", found)).toEqual([]);
+    expect(told()).toEqual([]);
+    expect(look("14T06", [])).toEqual([]);
+    expect(look("14T09", [])).toEqual([]);
+
+    // Switched back on, it tells what the looks have found meanwhile.
+    look("14T12", found);
+    look("14T15", found);
+    settings.quiet = {};
+    expect(look("14T18", found)).toEqual(["found 15T08-15T12"]);
+  });
+
+  it("holds the next move against where the window was when changes were switched back on", () => {
+    const { look, settings } = spot({ quiet: { change: true } });
+    look("14T00", [sea("15T08", "15T12")]);
+    look("14T03", [sea("15T08", "15T12")]);
+    // An hour later, of which nothing is said and nothing is kept against.
+    look("14T06", [sea("15T09", "15T13")]);
+
+    settings.quiet = {};
+    expect(look("14T09", [sea("15T11", "15T15")])).toEqual([]);
+    expect(look("14T12", [sea("15T12", "15T16")])).toEqual(["moved 15T12-15T16 was 15T09-15T13"]);
+  });
+
+  it("keeps what was told in line with the sea, without a word", () => {
+    const { look, told } = spot({ quiet: { change: true } });
+    look("14T00", [sea("15T08", "15T12")]);
+    look("14T03", [sea("15T08", "15T12")]);
+
+    expect(look("14T06", [sea("15T12", "15T16")])).toEqual([]);
+    expect(told()).toEqual(["15T12-15T16"]);
+    look("14T09", []);
+    expect(look("14T12", [])).toEqual([]);
+    expect(told()).toEqual([]);
   });
 });

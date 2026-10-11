@@ -19,11 +19,12 @@ function numberFormat(digits: number) {
   return format;
 }
 
-function dateFormat(name: string, options: Intl.DateTimeFormatOptions) {
-  const key = `${getLocale()}:${name}`;
+// `zone` is the IANA name of a time zone. Left out, the hours are the browser's.
+function dateFormat(name: string, options: Intl.DateTimeFormatOptions, zone?: string) {
+  const key = `${getLocale()}:${name}:${zone ?? ""}`;
   let format = dateFormats.get(key);
   if (!format) {
-    format = new Intl.DateTimeFormat(getLocale(), options);
+    format = new Intl.DateTimeFormat(getLocale(), { ...options, timeZone: zone });
     dateFormats.set(key, format);
   }
   return format;
@@ -58,20 +59,22 @@ export function compassPoint(degrees: number) {
 }
 
 /** "14:30" */
-export function formatClock(date: Date) {
-  return dateFormat("clock", { hour: "2-digit", minute: "2-digit" }).format(date);
+export function formatClock(date: Date, zone?: string) {
+  return dateFormat("clock", { hour: "2-digit", minute: "2-digit" }, zone).format(date);
 }
 
 /** "Fri 14:30" */
-export function formatDayAndClock(date: Date) {
-  return dateFormat("dayAndClock", { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(
-    date,
-  );
+export function formatDayAndClock(date: Date, zone?: string) {
+  return dateFormat(
+    "dayAndClock",
+    { weekday: "short", hour: "2-digit", minute: "2-digit" },
+    zone,
+  ).format(date);
 }
 
 /** "Fri 9" */
-export function formatDay(date: Date) {
-  return dateFormat("day", { weekday: "short", day: "numeric" }).format(date);
+export function formatDay(date: Date, zone?: string) {
+  return dateFormat("day", { weekday: "short", day: "numeric" }, zone).format(date);
 }
 
 /** How long ago a moment was, such as "16 min ago". */

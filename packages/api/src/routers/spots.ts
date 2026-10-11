@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/server";
+import type { Database } from "@repo/db";
+import { alert, alertSpot } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, eq } from "drizzle-orm";
-import { Effect, Result } from "effect";
+import { and, asc, count, eq, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -13,10 +14,7 @@ import {
 } from "../characteristics";
 import { type Caller, callerProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
-import { forecastUnavailable } from "./forecasts";
-import { MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
-import { assessSpot } from "@repo/conditions/spots/conditions";
-import { criteriaSchema } from "@repo/conditions/spots/criteria";
+import { type Transaction, forgetSeen } from "./alerts";
 
 const MAX_SPOTS_PER_USER = 100;
 
@@ -30,9 +28,6 @@ const spotFields = {
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   visibility: z.enum(["private", "public"]),
-  criteria: criteriaSchema,
-  // Whether the owner is notified when the spot is forecast to work.
-  alertsEnabled: z.boolean(),
 };
 
 const spotSchema = z.object({
@@ -44,13 +39,14 @@ const spotSchema = z.object({
   // What its owner says the spot is like, in the words the catalogue has for a break. Null
   // where they have not said.
   characteristics: characteristicsSchema,
+  // The alert the spot is in, for its owner. Null for a spot in none, and for anyone else:
+  // an alert is its owner's alone (decision 031).
+  alertId: z.string().nullable(),
   // Whether the caller owns the spot. The owner's identity is not exposed.
   isOwner: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
-
-const criterionSchema = criteriaSchema.keyof();
 
 // What the owner says the spot is like. Given, it stands for all that is said of the spot: a
 // characteristic it leaves out is one they have not spoken of. Null says nothing at all.
@@ -58,8 +54,6 @@ const saidOfTheSpot = characteristicsInput.nullable();
 
 const defaultedFields = {
   visibility: spotFields.visibility.default("private"),
-  criteria: criteriaSchema.default({}),
-  alertsEnabled: spotFields.alertsEnabled.default(false),
   characteristics: saidOfTheSpot.default(null),
 };
 // A spot starts from a break of the catalogue, or from a point of the caller's own.
@@ -79,7 +73,11 @@ const fromPointSchema = z.object({
   ...defaultedFields,
 });
 
-function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined) {
+function describeSpot(
+  row: typeof spot.$inferSelect,
+  userId: string | undefined,
+  alertId: string | null,
+) {
   return {
     id: row.id,
     breakId: row.breakId,
@@ -87,9 +85,8 @@ function describeSpot(row: typeof spot.$inferSelect, userId: string | undefined)
     latitude: row.latitude,
     longitude: row.longitude,
     visibility: row.visibility,
-    criteria: row.criteria,
-    alertsEnabled: row.alertsEnabled,
     characteristics: describeCharacteristics(row.characteristics),
+    alertId: row.userId === userId ? alertId : null,
     isOwner: row.userId === userId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -106,13 +103,58 @@ function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No spot "${id}".` });
 }
 
+// What a transaction answers to be started over.
+const AGAIN = Symbol("again");
+
+/**
+ * Holds a spot of the caller's, and before it the alert it is in. Whatever writes to an alert's
+ * spots holds the alert first, as the worker does for the whole of a look: two transactions
+ * that took them in opposite orders would wait for one another, and one would be refused. The
+ * spot's alert is read before anything is held, so it is read again once both are: `AGAIN` when
+ * the spot joined or left an alert meanwhile. Null for a spot the caller does not own.
+ */
+async function holdSpot(tx: Transaction, userId: string, id: string) {
+  const itsAlert = async () => {
+    const [membership] = await tx
+      .select({ alertId: alertSpot.alertId })
+      .from(alertSpot)
+      .innerJoin(spot, eq(spot.id, alertSpot.spotId))
+      .where(and(eq(alertSpot.spotId, id), eq(spot.userId, userId)));
+    return membership?.alertId ?? null;
+  };
+  const alertId = await itsAlert();
+  if (alertId)
+    await tx.select({ id: alert.id }).from(alert).where(eq(alert.id, alertId)).for("update");
+  const [held] = await tx
+    .select()
+    .from(spot)
+    .where(and(eq(spot.id, id), eq(spot.userId, userId)))
+    .for("update");
+  if (!held) return null;
+  return (await itsAlert()) === alertId ? { spot: held, alertId } : AGAIN;
+}
+
+/** Runs a change to a spot, and again when the spot's alert changed as it was taken hold of. */
+async function changingSpot<Result>(
+  db: Database,
+  change: (tx: Transaction) => Promise<Result | typeof AGAIN>,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await db.transaction(change);
+    if (result !== AGAIN) return result;
+  }
+  throw new ORPCError("CONFLICT", {
+    message: "The spot's alert was changed at the same moment. Try again.",
+  });
+}
+
 export const spotsRouter = {
   create: protectedProcedure
     .route({
       method: "POST",
       path: "/spots",
       successStatus: 201,
-      summary: "Save a spot with the conditions that make it work",
+      summary: "Save a spot: a place of the caller's own, with a name",
       description:
         "The spot starts from a break of the catalogue, or from a point of the caller's own. " +
         "From a break it takes the name and the point, unless the request gives others. It then " +
@@ -173,7 +215,7 @@ export const spotsRouter = {
         });
       }
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
-      return describeSpot(created, userId);
+      return describeSpot(created, userId, null);
     }),
 
   list: protectedProcedure
@@ -182,11 +224,12 @@ export const spotsRouter = {
     .handler(async ({ context }) => {
       const userId = context.session.user.id;
       const rows = await context.db
-        .select()
+        .select({ spot, alertId: alertSpot.alertId })
         .from(spot)
+        .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
         .where(eq(spot.userId, userId))
         .orderBy(asc(spot.createdAt));
-      return { spots: rows.map((row) => describeSpot(row, userId)) };
+      return { spots: rows.map((row) => describeSpot(row.spot, userId, row.alertId)) };
     }),
 
   get: callerProcedure
@@ -200,9 +243,15 @@ export const spotsRouter = {
     .output(spotSchema)
     .handler(async ({ input, context }) => {
       const userId = accountOf(context.caller);
-      const [row] = await context.db.select().from(spot).where(eq(spot.id, input.id));
-      if (!row || (row.visibility === "private" && row.userId !== userId)) throw notFound(input.id);
-      return describeSpot(row, userId);
+      const [row] = await context.db
+        .select({ spot, alertId: alertSpot.alertId })
+        .from(spot)
+        .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
+        .where(eq(spot.id, input.id));
+      if (!row || (row.spot.visibility === "private" && row.spot.userId !== userId)) {
+        throw notFound(input.id);
+      }
+      return describeSpot(row.spot, userId, row.alertId);
     }),
 
   update: protectedProcedure
@@ -226,20 +275,40 @@ export const spotsRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const { id, characteristics, ...changes } = input;
-      const [updated] = await context.db
-        .update(spot)
-        .set({
-          ...changes,
-          // Left out, what was said of the spot stays.
-          ...(characteristics === undefined
-            ? {}
-            : { characteristics: keptCharacteristics(characteristics) }),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(spot.id, id), eq(spot.userId, userId)))
-        .returning();
-      if (!updated) throw notFound(id);
-      return describeSpot(updated, userId);
+      return changingSpot(context.db, async (tx) => {
+        const held = await holdSpot(tx, userId, id);
+        if (held === AGAIN) return AGAIN;
+        if (!held) throw notFound(id);
+        const before = held.spot;
+
+        const [updated] = await tx
+          .update(spot)
+          .set({
+            ...changes,
+            // Left out, what was said of the spot stays.
+            ...(characteristics === undefined
+              ? {}
+              : { characteristics: keptCharacteristics(characteristics) }),
+            updatedAt: new Date(),
+          })
+          .where(eq(spot.id, id))
+          .returning();
+        if (!updated) throw notFound(id);
+
+        // A spot that moved is another place to its alert: what was seen and told of the sea
+        // where it stood is forgotten, and a look that read the forecast of the old place
+        // writes nothing.
+        const moved =
+          updated.latitude !== before.latitude || updated.longitude !== before.longitude;
+        if (held.alertId && moved) {
+          await forgetSeen(tx, held.alertId, id);
+          await tx
+            .update(alert)
+            .set({ revision: sql`${alert.revision} + 1` })
+            .where(eq(alert.id, held.alertId));
+        }
+        return describeSpot(updated, userId, held.alertId);
+      });
     }),
 
   delete: protectedProcedure
@@ -247,88 +316,49 @@ export const spotsRouter = {
       method: "DELETE",
       path: "/spots/{id}",
       summary: "Delete a spot the caller owns",
+      description:
+        "The spot leaves its alert. An alert whose last spot is deleted is deleted with it.",
       tags: ["Spots"],
     })
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .handler(async ({ input, context }) => {
-      const [deleted] = await context.db
-        .delete(spot)
-        .where(and(eq(spot.id, input.id), eq(spot.userId, context.session.user.id)))
-        .returning({ id: spot.id });
-      if (!deleted) throw notFound(input.id);
-      return deleted;
-    }),
+      const userId = context.session.user.id;
+      return changingSpot(context.db, async (tx) => {
+        const held = await holdSpot(tx, userId, input.id);
+        if (held === AGAIN) return AGAIN;
+        if (!held) throw notFound(input.id);
+        const membership = held.alertId ? { alertId: held.alertId } : null;
+        const [deleted] = await tx
+          .delete(spot)
+          .where(and(eq(spot.id, input.id), eq(spot.userId, userId)))
+          .returning({ id: spot.id });
+        if (!deleted) throw notFound(input.id);
 
-  conditions: callerProcedure
-    .route({
-      method: "GET",
-      path: "/spots/{id}/conditions",
-      summary: "When a spot works: forecast and tide hour by hour, checked against its criteria",
-      tags: ["Spots"],
-    })
-    .input(
-      z.object({
-        id: z.string(),
-        days: z.coerce.number().int().min(1).max(MAX_FORECAST_DAYS).default(3),
-      }),
-    )
-    .output(
-      z.object({
-        // The periods during which every criterion is met.
-        windows: z.array(z.object({ start: z.date(), end: z.date() })),
-        hours: z.array(
-          z.object({
-            time: z.date(),
-            swellHeightMeters: z.number().nullable(),
-            swellPeriodSeconds: z.number().nullable(),
-            swellDirectionDegrees: z.number().nullable(),
-            windSpeedMetersPerSecond: z.number().nullable(),
-            windDirectionDegrees: z.number().nullable(),
-            tideHeightMeters: z.number().nullable(),
-            tideTrend: z.enum(["rising", "falling"]).nullable(),
-            // The criteria this hour does not meet. Empty when the spot works.
-            unmet: z.array(criterionSchema),
-          }),
-        ),
-        forecastSource: z.object({
-          name: z.string(),
-          url: z.string(),
-          attribution: z.string(),
-          license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
-        }),
-        // When the instance fetched the forecast, and whether it is an older one, given because
-        // the provider could not be asked.
-        forecastFetchedAt: z.date(),
-        forecastStale: z.boolean(),
-        // Null when no tide station is close enough. Tide criteria are then never met.
-        tideStation: z
-          .object({
-            id: z.string(),
-            name: z.string(),
-            latitude: z.number(),
-            longitude: z.number(),
-            distanceKm: z.number(),
-            datum: z.string(),
-            source: z.object({ name: z.string(), url: z.string() }),
-            license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
-          })
-          .nullable(),
-      }),
-    )
-    .handler(async ({ input, context }) => {
-      const [row] = await context.db.select().from(spot).where(eq(spot.id, input.id));
-      if (!row || (row.visibility === "private" && row.userId !== accountOf(context.caller))) {
-        throw notFound(input.id);
-      }
-
-      const result = await Effect.runPromise(
-        Effect.result(assessSpot(context.forecasts, row, input.days)),
-      );
-      if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      if (!result.success.hasSea) {
-        throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this spot." });
-      }
-      return result.success;
+        if (membership) {
+          // An alert set on nothing is no alert. One that keeps other spots is read anew.
+          const emptied = await tx
+            .delete(alert)
+            .where(
+              and(
+                eq(alert.id, membership.alertId),
+                notExists(
+                  tx
+                    .select({ spotId: alertSpot.spotId })
+                    .from(alertSpot)
+                    .where(eq(alertSpot.alertId, alert.id)),
+                ),
+              ),
+            )
+            .returning({ id: alert.id });
+          if (emptied.length === 0) {
+            await tx
+              .update(alert)
+              .set({ revision: sql`${alert.revision} + 1` })
+              .where(eq(alert.id, membership.alertId));
+          }
+        }
+        return deleted;
+      });
     }),
 };

@@ -14,6 +14,7 @@ const DAY = 24 * HOUR;
 export function answer(
   at: number,
   waves: (seconds: number) => number | null = () => 1.5,
+  swell: (seconds: number) => number = () => 1.2,
 ): ForecastData {
   const today = Math.floor(at / 1000 / DAY) * DAY;
   const time = Array.from(
@@ -28,7 +29,7 @@ export function answer(
       waveHeightMeters: time.map(waves),
       wavePeriodSeconds: flat(8),
       waveDirectionDegrees: flat(300),
-      swellHeightMeters: flat(1.2),
+      swellHeightMeters: time.map(swell),
       swellPeriodSeconds: flat(11),
       swellDirectionDegrees: flat(295),
       windWaveHeightMeters: flat(0.4),
@@ -76,13 +77,14 @@ export function memoryStore(clock: () => Date = () => new Date()) {
 
 /** A provider that answers, or fails with what it is told to. Each question is two requests. */
 export function provider() {
-  // `behind` is how far the provider's clock is behind this one's, in milliseconds, and
-  // `waves` the wave height it gives for an hour.
+  // `behind` is how far the provider's clock is behind this one's, in milliseconds, `waves` the
+  // wave height it gives for an hour, and `swell` the height of the swell in it.
   const state = {
     asked: 0,
     fails: null as null | (() => unknown),
     behind: 0,
     waves: (() => 1.5) as (seconds: number) => number | null,
+    swell: (() => 1.2) as (seconds: number) => number,
   };
   const fetch: Parameters<typeof makeForecasts>[1] = (_cell, spend) =>
     Effect.gen(function* () {
@@ -90,7 +92,7 @@ export function provider() {
       yield* spend;
       state.asked += 1;
       if (state.fails) return yield* Effect.fail(state.fails() as never);
-      return answer(Date.now() - state.behind, state.waves);
+      return answer(Date.now() - state.behind, state.waves, state.swell);
     });
   return { fetch, state };
 }

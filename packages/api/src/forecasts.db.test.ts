@@ -30,7 +30,6 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
       latitude: 43.63,
       longitude: -1.46,
       visibility: "private",
-      criteria: { swellHeightMeters: { min: 1 } },
     });
   });
   afterAll(() => database?.drop());
@@ -61,8 +60,13 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
   const here = { latitude: 43.63, longitude: -1.46 };
   const forecast = (input: Record<string, number> = {}) =>
     call(v1Router.forecasts.get, { ...here, ...input }, context());
+  // What conditions would give at the spot, which an alert's editor asks for.
   const conditions = (input: Record<string, number> = {}) =>
-    call(v1Router.spots.conditions, { id: "home", ...input }, context());
+    call(
+      v1Router.alerts.preview,
+      { spotIds: ["home"], criteria: { swellHeightMeters: { min: 1 } }, ...input },
+      context(),
+    );
   const refusal = async (asked: Promise<unknown>) => {
     const error = await asked.then(
       () => null,
@@ -93,15 +97,18 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     const said = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(await forecast()).toMatchObject({ fetchedAt: AT, stale: true });
-    expect(await conditions()).toMatchObject({ forecastFetchedAt: AT, forecastStale: true });
+    expect((await conditions()).spots[0]).toMatchObject({
+      forecastFetchedAt: AT,
+      forecastStale: true,
+    });
     said.mockRestore();
   });
 
   it("gives a spot's conditions with the forecast's own moment", async () => {
     const found = await conditions({ days: 1 });
 
-    expect(found).toMatchObject({ forecastFetchedAt: AT, forecastStale: false });
-    expect(found.hours).toHaveLength(24);
+    expect(found.spots[0]).toMatchObject({ forecastFetchedAt: AT, forecastStale: false });
+    expect(found.spots[0]?.hours).toHaveLength(24);
     expect(found.forecastSource.attribution).toContain("DWD");
     // One fetch answered both the point and the spot, which are in one cell.
     await forecast();

@@ -1,111 +1,292 @@
-import { dayOf, planNotifications } from "@repo/conditions/alerts/plan";
-import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
+import { type SeaWindow, type Told, type ToldPiece, planLook } from "@repo/conditions/alerts/look";
+import { tellUntil } from "@repo/conditions/alerts/moments";
+import { type Interval, openHours } from "@repo/conditions/alerts/open";
+import { availabilityOf, cutOf, settingsOf, zoneOf } from "@repo/conditions/alerts/settings";
+import { type Forecasts, MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { accountSuspension } from "@repo/db/schema/access";
+import {
+  type NotificationPayload,
+  type Stretch,
+  type ToldStretch,
+  alert,
+  alertSettings,
+  alertSpot,
+  alertWindow,
+  notification,
+} from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { notification, spot } from "@repo/db/schema/spots";
-import { and, eq, gt, gte, notExists, or } from "drizzle-orm";
+import { spot } from "@repo/db/schema/spots";
+import { and, asc, eq, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import { StoreError } from "./store";
 
-const FORECAST_DAYS = 3;
+// Decision 031. The worker looks at each alert every three hours, at each of its spots, and
+// keeps what it saw of each spot from one look to the next: its sea windows, and the open hours
+// it told.
 
-// What became of a spot's evaluation: the notifications it created, or that it was left as it
-// was for want of a fresh forecast.
-type Evaluated = { created: number; stale: boolean };
+const HOUR_MS = 60 * 60 * 1000;
+// The job runs every three hours, and once when the worker starts. A look is applied to an alert
+// when the one before is at least this old, whoever runs it: a forecast is fresh for two hours,
+// so two looks that find a window have read two forecasts, fetched apart. A worker that starts
+// a few minutes before the job's hour does not make one forecast count twice. The half hour
+// between the two is the room left for the clocks of two workers to disagree.
+const LOOK_GAP_MS = 2.5 * HOUR_MS;
+const MOMENTS = ["found", "moved", "gone"] as const;
 
-const evaluateSpot = Effect.fn("evaluateSpot")(function* (
+const isDue = (lookedAt: Date | null, now: Date) =>
+  !lookedAt || now.getTime() - lookedAt.getTime() >= LOOK_GAP_MS;
+
+// What became of a look at an alert: the spots a fresh forecast was read for, those that were
+// left as they were for want of one, and the notifications it made.
+type Looked = { spots: number; stale: number; created: number };
+
+const stretch = (interval: Interval): Stretch => ({
+  start: interval.start.toISOString(),
+  end: interval.end.toISOString(),
+});
+const interval = (kept: Stretch): Interval => ({
+  start: new Date(kept.start),
+  end: new Date(kept.end),
+});
+const toldPiece = (kept: ToldStretch): ToldPiece => ({
+  ...interval(kept),
+  missed: kept.missed,
+  ...(kept.last ? { last: interval(kept.last) } : {}),
+});
+const toldStretch = (piece: ToldPiece): ToldStretch => ({
+  ...stretch(piece),
+  missed: piece.missed,
+  ...(piece.last ? { last: stretch(piece.last) } : {}),
+});
+
+type Hours = Extract<Effect.Success<ReturnType<typeof assessSpot>>, { hasSea: true }>["hours"];
+
+const lookAt = Effect.fn("lookAtAlert")(function* (
   db: Database,
   forecasts: Forecasts,
-  row: typeof spot.$inferSelect,
-  now: Date,
+  row: typeof alert.$inferSelect,
 ) {
-  // The spot's owner may have been suspended since the spots were listed: no forecast is asked
-  // for an account that is kept out. Decision 025.
+  const none: Looked = { spots: 0, stale: 0, created: 0 };
+  // The alert's owner may have been suspended since the alerts were listed: no forecast is
+  // asked for an account that is kept out. Decision 025.
   const isOut = yield* Effect.tryPromise({
     try: () => isSuspended(db, row.userId),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
   });
-  if (isOut) return { created: 0, stale: false } satisfies Evaluated;
+  // An alert that asks nothing of the sea would find a window at every hour.
+  if (isOut || Object.keys(row.criteria).length === 0) return none;
 
-  const assessment = yield* assessSpot(forecasts, row, FORECAST_DAYS);
-  // An older forecast, given because the provider could not be asked, announces nothing and
-  // calls nothing off: yesterday's news would do both wrongly. The spot's notifications stay
-  // as they are, and the next run reads a fresh one. Decision 023.
-  if (assessment.forecastStale) return { created: 0, stale: true } satisfies Evaluated;
-  // A spot with no sea forecast has nothing to announce.
-  if (!assessment.hasSea) return { created: 0, stale: false } satisfies Evaluated;
+  const spots = yield* Effect.tryPromise({
+    try: () =>
+      db
+        .select({
+          id: spot.id,
+          name: spot.name,
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+        })
+        .from(alertSpot)
+        .innerJoin(spot, eq(spot.id, alertSpot.spotId))
+        .where(eq(alertSpot.alertId, row.id))
+        .orderBy(asc(alertSpot.position)),
+    catch: (cause) => new StoreError({ provider: "alerts", cause }),
+  });
+
+  // The forecast at each spot, one after the other: neighbours share a cell, which the first of
+  // them fetches for all. A spot whose forecast is an older one, given because the provider
+  // could not be asked, is not looked at: yesterday's news would confirm and call off wrongly.
+  // Nor is one for which no forecast could be had at all, and the others are looked at without
+  // it: one spot that fails does not silence its neighbours.
+  const seen: {
+    place: (typeof spots)[number];
+    found: Interval[];
+    hours: Hours;
+    fetchedAt: Date;
+  }[] = [];
+  let left = 0;
+  let failure: Effect.Error<ReturnType<typeof assessSpot>> | undefined;
+  for (const place of spots) {
+    const assessed = yield* Effect.result(
+      assessSpot(forecasts, { ...place, criteria: row.criteria }, MAX_FORECAST_DAYS),
+    );
+    if (Result.isFailure(assessed)) {
+      failure ??= assessed.failure;
+      left += 1;
+      continue;
+    }
+    const assessment = assessed.success;
+    if (assessment.forecastStale) {
+      left += 1;
+      continue;
+    }
+    // A spot with no sea forecast was looked at, and has no window.
+    seen.push({
+      place,
+      found: assessment.hasSea ? assessment.windows : [],
+      hours: assessment.hasSea ? assessment.hours : [],
+      fetchedAt: assessment.forecastFetchedAt,
+    });
+  }
+  // Not one of its spots could be read for want of any forecast: the alert was not looked at.
+  if (seen.length === 0 && failure) return yield* Effect.fail(failure);
+  if (seen.length === 0) return { ...none, stale: left };
+
+  // The look is of the moment it is applied, not of the moment the run began: a run that
+  // takes long over other alerts must not make this one's look seem older than its forecast.
+  const now = new Date();
 
   const created = yield* Effect.tryPromise({
     try: () =>
       db.transaction(async (tx) => {
-        // Locking the spot makes its evaluations run one after the other. The forecast took a
-        // moment to fetch, so the spot is read again: it may have been changed or switched off.
-        const [current] = await tx.select().from(spot).where(eq(spot.id, row.id)).for("update");
-        // What counts is what the assessment was made from: the point and the criteria. A spot
-        // that was renamed or described meanwhile is the same spot to the sea.
-        const unchanged =
-          current?.latitude === row.latitude &&
-          current.longitude === row.longitude &&
-          JSON.stringify(current.criteria) === JSON.stringify(row.criteria);
-        if (!current?.alertsEnabled || !unchanged) return 0;
+        // Holding the alert makes its looks run one after the other. The forecasts took a moment
+        // to fetch, so the alert is read again: it may have been changed, switched off, or
+        // looked at by another worker meanwhile.
+        const [current] = await tx.select().from(alert).where(eq(alert.id, row.id)).for("update");
+        if (!current?.enabled || current.revision !== row.revision) return 0;
+        if (!isDue(current.lookedAt, now)) return 0;
         // And its owner once more, held so that a suspension waits for this to be written, or
-        // is seen here: nothing is announced to an account that was suspended meanwhile.
+        // is seen here: nothing is told to an account that was suspended meanwhile.
         await tx.select({ id: user.id }).from(user).where(eq(user.id, row.userId)).for("share");
         if (await isSuspended(tx, row.userId)) return 0;
 
-        const existing = await tx
+        const [settingsRow] = await tx
           .select()
-          .from(notification)
-          .where(
-            and(
-              eq(notification.spotId, row.id),
-              // Today's and later days', and any window that began earlier and has not ended.
-              or(gte(notification.day, dayOf(now)), gt(notification.windowEnd, now)),
-            ),
-          );
-        const plan = planNotifications(now, assessment.windows, existing);
+          .from(alertSettings)
+          .where(eq(alertSettings.userId, row.userId));
+        const settings = settingsOf(settingsRow);
+        const availability = availabilityOf(settings);
+        const zone = zoneOf(settings);
+        const cut = cutOf(settings, current.shortestMinutes);
+        const until = tellUntil(now, zone, settings.horizonDays);
 
-        for (const change of plan.update) {
-          await tx
-            .update(notification)
-            .set({
-              windowStart: change.windowStart,
-              windowEnd: change.windowEnd,
-              missedRuns: change.missedRuns,
-            })
-            .where(
-              and(
-                eq(notification.spotId, row.id),
-                eq(notification.day, change.day),
-                eq(notification.kind, "window_found"),
-              ),
+        const knownWindows = await tx
+          .select()
+          .from(alertWindow)
+          .where(eq(alertWindow.alertId, row.id));
+        const knownSpots = await tx.select().from(alertSpot).where(eq(alertSpot.alertId, row.id));
+
+        const lines: Record<(typeof MOMENTS)[number], NotificationPayload["lines"]> = {
+          found: [],
+          moved: [],
+          gone: [],
+        };
+        for (const { place, found, hours, fetchedAt } of seen) {
+          // The spot may have left the alert since the forecasts were asked: the alert's
+          // revision says so, and this is for the type alone.
+          const kept = knownSpots.find((known) => known.spotId === place.id);
+          if (!kept) continue;
+          const windows: SeaWindow[] = knownWindows
+            .filter((window) => window.spotId === place.id)
+            .map((window) => ({
+              sea: { start: window.seaStart, end: window.seaEnd },
+              seen: window.seen,
+            }));
+
+          const plan = planLook({ windows, told: kept.told.map(toldPiece) }, found, {
+            now,
+            tellUntil: until,
+            open: (sea) => openHours(sea, place, availability, current.shortestMinutes),
+            // The hours are cut otherwise than at the last look: what was told is brought in
+            // line with them, and nothing is said of the difference.
+            settled: kept.cutBy !== null && kept.cutBy !== cut,
+            // A moment the account switched off is not told.
+            quiet: { found: !settings.onFound, change: !settings.onChange },
+          });
+
+          // What the look saw takes the place of what was known of the spot.
+          await tx.delete(alertWindow).where(eq(alertWindow.spotId, place.id));
+          if (plan.windows.length > 0) {
+            await tx.insert(alertWindow).values(
+              plan.windows.map((window) => ({
+                alertId: row.id,
+                spotId: place.id,
+                seaStart: window.sea.start,
+                seaEnd: window.sea.end,
+                seen: window.seen,
+              })),
             );
-        }
-        if (plan.create.length === 0) return 0;
+          }
+          await tx
+            .update(alertSpot)
+            .set({
+              told: plan.told.map(toldStretch),
+              cutBy: cut,
+              lookedAt: now,
+            })
+            .where(eq(alertSpot.spotId, place.id));
 
-        const created = await tx
+          for (const told of plan.tell) {
+            lines[told.moment].push(lineOf(told, place, hours, fetchedAt));
+          }
+        }
+        await tx
+          .update(alert)
+          .set({ lookedAt: now, updatedAt: current.updatedAt })
+          .where(eq(alert.id, row.id));
+
+        // One notification for a moment of the alert at this look, with a line for each spot.
+        const rows = MOMENTS.filter((moment) => lines[moment].length > 0).map((moment) => ({
+          id: crypto.randomUUID(),
+          userId: row.userId,
+          alertId: row.id,
+          moment,
+          // A moment of an alert is told once for a look, whoever writes it.
+          key: `${moment}:${row.id}:${now.toISOString()}`,
+          payload: {
+            alertName: current.name,
+            zone,
+            lines: lines[moment],
+          } satisfies NotificationPayload,
+        }));
+        if (rows.length === 0) return 0;
+        const made = await tx
           .insert(notification)
-          .values(
-            plan.create.map((entry) => ({
-              id: crypto.randomUUID(),
-              userId: row.userId,
-              spotId: row.id,
-              ...entry,
-            })),
-          )
-          // The same notification from an earlier run stays as it is.
+          .values(rows)
           .onConflictDoNothing()
           .returning({ id: notification.id });
-        return created.length;
+        return made.length;
       }),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
   });
-  return { created, stale: false } satisfies Evaluated;
+  return { spots: seen.length, stale: left, created } satisfies Looked;
 });
+
+// What a notification says of a spot: its open hours, what they were, what the forecast gives
+// for the first of them, and when that forecast was fetched.
+function lineOf(
+  told: Told,
+  place: { id: string; name: string },
+  hours: Hours,
+  fetchedAt: Date,
+): NotificationPayload["lines"][number] {
+  const open = "open" in told ? told.open : [];
+  const first = open[0]?.start.getTime();
+  const hour = hours.find((at) => at.time.getTime() === first);
+  return {
+    spotId: place.id,
+    spotName: place.name,
+    forecastFetchedAt: fetchedAt.toISOString(),
+    open: open.map(stretch),
+    ...("before" in told ? { before: told.before.map(stretch) } : {}),
+    ...(hour
+      ? {
+          sea: {
+            swellHeightMeters: hour.swellHeightMeters,
+            swellPeriodSeconds: hour.swellPeriodSeconds,
+            swellDirectionDegrees: hour.swellDirectionDegrees,
+            windSpeedMetersPerSecond: hour.windSpeedMetersPerSecond,
+            windDirectionDegrees: hour.windDirectionDegrees,
+            tideHeightMeters: hour.tideHeightMeters,
+            tideTrend: hour.tideTrend,
+          },
+        }
+      : {}),
+  };
+}
 
 /** What a run of the alerts did, as the worker says it of a job: decision 022. */
 export function alertsDone({
@@ -116,59 +297,68 @@ export function alertsDone({
 }: Effect.Success<ReturnType<typeof evaluateAlerts>>) {
   return {
     counts: { spots, created, failed, stale },
-    // The run went to its end, and some spots could not be checked, or were left as they were
-    // for want of a fresh forecast.
+    // The run went to its end, and some alerts could not be looked at, or some spots were left
+    // as they were for want of a fresh forecast.
     degraded: failed > 0 || stale > 0,
   };
 }
 
 /**
- * Checks every spot whose alerts are on against the forecast, and records what its owner should
- * be told. One spot that fails does not stop the others. `stale` counts the spots left as they
- * were because only an older forecast could be had.
+ * Looks at every alert that is on and whose last look is old enough: reads the forecast at each
+ * of its spots, and records what its owner should be told. One alert that fails does not stop
+ * the others. `spots` counts the spots a fresh forecast was read for, `stale` those left as
+ * they were because only an older one could be had, or none, and `failed` the alerts of which
+ * no spot could be read.
  */
 export const evaluateAlerts = Effect.fn("evaluateAlerts")(function* (
   db: Database,
   forecasts: Forecasts,
 ) {
   const now = new Date();
-  const spots = yield* Effect.tryPromise({
+  const alerts = yield* Effect.tryPromise({
     try: () =>
       db
         .select()
-        .from(spot)
+        .from(alert)
         .where(
           and(
-            eq(spot.alertsEnabled, true),
+            eq(alert.enabled, true),
+            or(isNull(alert.lookedAt), lte(alert.lookedAt, new Date(now.getTime() - LOOK_GAP_MS))),
             // The alerts of a suspended account would spend the forecasts' budget for no one.
             notExists(
               db
                 .select({ userId: accountSuspension.userId })
                 .from(accountSuspension)
-                .where(eq(accountSuspension.userId, spot.userId)),
+                .where(eq(accountSuspension.userId, alert.userId)),
             ),
           ),
-        ),
+        )
+        // Those looked at longest ago first, and those never looked at before them: an
+        // instance short of requests leaves no alert behind for good.
+        .orderBy(sql`${alert.lookedAt} asc nulls first`, asc(alert.id)),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
   });
 
+  let spots = 0;
   let created = 0;
   let failed = 0;
   let stale = 0;
-  // One spot at a time, to stay light on the forecast provider.
-  for (const row of spots) {
-    const result = yield* Effect.result(evaluateSpot(db, forecasts, row, now));
+  // One alert at a time, to stay light on the forecast provider.
+  for (const row of alerts) {
+    const result = yield* Effect.result(lookAt(db, forecasts, row));
     if (Result.isFailure(result)) {
       failed += 1;
-      yield* Effect.logWarning(`alerts: spot ${row.id} could not be evaluated`, result.failure);
+      // The log names no alert: an alert is its owner's alone. It says what kind of failure.
+      yield* Effect.logWarning(`alerts: an alert could not be looked at (${result.failure._tag})`);
     } else {
+      spots += result.success.spots;
       created += result.success.created;
-      if (result.success.stale) stale += 1;
+      stale += result.success.stale;
     }
   }
 
   yield* Effect.logInfo(
-    `alerts: ${spots.length} spots checked, ${created} notifications, ${failed} failed, ${stale} left for want of a fresh forecast`,
+    `alerts: ${alerts.length} alerts, ${spots} spots looked at, ${created} notifications, ${failed} failed, ${stale} left for want of a fresh forecast`,
   );
-  return { spots: spots.length, created, failed, stale };
+  return { spots, created, failed, stale };
 });

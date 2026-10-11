@@ -174,7 +174,6 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
       name: "My jetty",
       latitude: 48.1,
       longitude: -4.4,
-      criteria: {},
     });
 
     expect(await remove("first", false)).toEqual({ removed: 1, spots: 1 });

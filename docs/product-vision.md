@@ -10,7 +10,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 
 - A user adds a spot: a point on the map and a name. They find the place by searching for a beach or a town, or pick it from a catalogue of known surf breaks, then put a marker where the wave breaks. Their own point stays private. It joins the catalogue only after moderation, so that nobody publishes a secret spot by accident.
 - The user may describe their spot as a surf guide would: its type, its bottom, the tides and the directions it likes.
-- The user sets an alert on a spot, with the conditions that make it work: swell height, period and direction, wind, and tide. Tonnr tells them when measurements or forecasts match. What an alert is and when it speaks is being decided with Téo: decision 008 holds the first version.
+- The user sets an alert on a spot, with the conditions that make it work: swell height, period and direction, wind, and tide. Tonnr tells them when measurements or forecasts match. Téo said on 2026-10-11 what an alert is and when it speaks: decision 031 holds it.
 - A spot is private, public, or shared with chosen people.
 - A user keeps buoys and wind stations as favorites and sorts them into lists. Decision 017 gives the model.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.

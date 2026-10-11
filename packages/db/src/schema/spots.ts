@@ -17,7 +17,10 @@ type Range = { min?: number; max?: number };
 // A sector of the compass, clockwise from `from` to `to`. It may pass through north.
 type Arc = { from: number; to: number };
 
-/** The conditions that make a spot work. A criterion left out is not checked. */
+/**
+ * The conditions that make a spot work, which an alert asks of the sea (decision 031). A
+ * criterion left out is not checked.
+ */
 export type SpotCriteria = {
   swellHeightMeters?: Range;
   swellPeriodSeconds?: Range;
@@ -178,11 +181,13 @@ export const spot = pgTable(
     visibility: text("visibility", { enum: ["private", "public"] })
       .default("private")
       .notNull(),
-    criteria: jsonb("criteria").$type<SpotCriteria>().notNull(),
     // What the owner says the spot is like, for its guide. Null while they have said nothing. It
     // is theirs alone: a spot made from a break takes none of what the catalogue says of it.
     characteristics: jsonb("characteristics").$type<SpotCharacteristics>(),
-    // Whether the owner is told when the spot is forecast to work.
+    // Left from decision 008, and read by nothing: a spot's conditions are its alert's since
+    // decision 031. The version before this one still reads the two columns while this one is
+    // deployed (decision 009), so they stay one release, and the next drops them.
+    criteria: jsonb("criteria").$type<SpotCriteria>().default({}).notNull(),
     alertsEnabled: boolean("alerts_enabled").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -197,10 +202,11 @@ export const spot = pgTable(
 );
 
 /**
- * What a user is told about a spot: that a window was found for a day, or that an announced
- * window is gone. There is at most one of each kind per spot and day.
+ * What decision 008 told a user about a spot. Nothing reads or writes it since decision 031,
+ * whose notifications are in `alert_notification`. The version before this one still does while
+ * this one is deployed (decision 009), so the table stays one release, and the next drops it.
  */
-export const notification = pgTable(
+export const firstNotification = pgTable(
   "notification",
   {
     id: text("id").primaryKey(),
@@ -211,11 +217,9 @@ export const notification = pgTable(
       .notNull()
       .references(() => spot.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: ["window_found", "window_cancelled"] }).notNull(),
-    // The UTC day on which the window starts.
     day: date("day", { mode: "string" }).notNull(),
     windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
     windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
-    // For a found window: how many evaluations in a row no longer saw one that day.
     missedRuns: integer("missed_runs").default(0).notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

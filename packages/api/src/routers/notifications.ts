@@ -1,17 +1,71 @@
 import { ORPCError } from "@orpc/server";
-import { notification, spot } from "@repo/db/schema/spots";
+import { ALERT_MOMENTS, notification } from "@repo/db/schema/alerts";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
 
+const stretchSchema = z.object({ start: z.string(), end: z.string() });
+const measure = z.number().nullable();
+
+// What a notification said, as it said it: decision 031. The names are those of the moment it
+// was made, and the hours were worked out in `zone`.
+const payloadSchema = z.object({
+  // The alert's name then. Null for the evening before, which lists every alert.
+  alertName: z.string().nullable(),
+  zone: z.string(),
+  // For the evening before: the day it lists, as "2026-10-15".
+  day: z.string().optional(),
+  lines: z.array(
+    z.object({
+      spotId: z.string(),
+      spotName: z.string(),
+      // When the forecast the spot was read on was fetched.
+      forecastFetchedAt: z.string().optional(),
+      // For the evening before: the alert the spot is in.
+      alertName: z.string().optional(),
+      // The window's open hours. None for a window that is gone.
+      open: z.array(stretchSchema),
+      // For a window that moved or went: its open hours as they had been told.
+      before: z.array(stretchSchema).optional(),
+      // What the forecast gave for the first of the open hours.
+      sea: z
+        .object({
+          swellHeightMeters: measure,
+          swellPeriodSeconds: measure,
+          swellDirectionDegrees: measure,
+          windSpeedMetersPerSecond: measure,
+          windDirectionDegrees: measure,
+          tideHeightMeters: measure,
+          tideTrend: z.enum(["rising", "falling"]).nullable(),
+        })
+        .optional(),
+      // For a window that begins: what the nearest buoy last read. It is the whole sea where
+      // the buoy floats, and confirms nothing of the spot. Null far from any buoy.
+      buoy: z
+        .object({
+          stationId: z.string(),
+          name: z.string(),
+          distanceKm: z.number(),
+          observedAt: z.string(),
+          significantHeightMeters: measure,
+          peakPeriodSeconds: measure,
+          peakDirectionDegrees: measure,
+        })
+        .nullable()
+        .optional(),
+    }),
+  ),
+});
+
 const notificationSchema = z.object({
   id: z.string(),
-  // "window_found": the spot is forecast to work. "window_cancelled": that window is gone.
-  kind: z.enum(["window_found", "window_cancelled"]),
-  spot: z.object({ id: z.string(), name: z.string() }),
-  windowStart: z.date(),
-  windowEnd: z.date(),
+  // The alert it is of. Null for the evening before, and once the alert is deleted.
+  alertId: z.string().nullable(),
+  // "found": a window holds. "moved": a told window moved by more than two hours. "gone": a told
+  // window left the forecast. "evening": the windows of the next day. "begins": a window is on.
+  moment: z.enum(ALERT_MOMENTS),
+  payload: payloadSchema,
   // Null until the caller marks it as read.
   readAt: z.date().nullable(),
   createdAt: z.date(),
@@ -19,12 +73,11 @@ const notificationSchema = z.object({
 
 const selection = {
   id: notification.id,
-  kind: notification.kind,
-  windowStart: notification.windowStart,
-  windowEnd: notification.windowEnd,
+  alertId: notification.alertId,
+  moment: notification.moment,
+  payload: notification.payload,
   readAt: notification.readAt,
   createdAt: notification.createdAt,
-  spot: { id: spot.id, name: spot.name },
 };
 
 export const notificationsRouter = {
@@ -32,7 +85,7 @@ export const notificationsRouter = {
     .route({
       method: "GET",
       path: "/notifications",
-      summary: "The caller's notifications, newest first",
+      summary: "What the caller's alerts told them, newest first",
       tags: ["Notifications"],
     })
     .input(
@@ -47,7 +100,6 @@ export const notificationsRouter = {
       const notifications = await context.db
         .select(selection)
         .from(notification)
-        .innerJoin(spot, eq(spot.id, notification.spotId))
         .where(
           and(
             eq(notification.userId, context.session.user.id),

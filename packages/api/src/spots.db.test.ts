@@ -198,23 +198,6 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     expect(cleared.characteristics).toEqual(UNSAID);
   });
 
-  it("leaves the spot's criteria and its alerts as they were", async () => {
-    const criteria = { swellHeightMeters: { min: 1 } };
-    const made = await call(
-      v1Router.spots.create,
-      { ...point, criteria, alertsEnabled: true },
-      by("ana"),
-    );
-
-    const said = await call(
-      v1Router.spots.update,
-      { id: made.id, characteristics: { breakTypes: ["reef"] } },
-      by("ana"),
-    );
-
-    expect(said).toMatchObject({ criteria, alertsEnabled: true, latitude: 47.84 });
-  });
-
   it.each([
     ["a word the catalogue does not have", { breakTypes: ["wedge"] }],
     ["a point the compass does not have", { bestWindDirections: ["NORTH"] }],

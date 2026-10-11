@@ -47,7 +47,6 @@ const ANSWERS_A_KEY = [
   "v1.breaks.list",
   "v1.forecasts.get",
   "v1.maps.waveHeight",
-  "v1.spots.conditions",
   "v1.spots.get",
   "v1.stations.get",
   "v1.stations.list",
@@ -66,6 +65,15 @@ const ANSWERS_AN_ACCOUNT = [
   "privateData",
   "v1.account.get",
   "v1.account.sendVerification",
+  // An alert and an account's settings are their owner's alone: decision 031.
+  "v1.alerts.create",
+  "v1.alerts.delete",
+  "v1.alerts.get",
+  "v1.alerts.getSettings",
+  "v1.alerts.list",
+  "v1.alerts.preview",
+  "v1.alerts.update",
+  "v1.alerts.updateSettings",
   // What a member of a developer account reads of it. The door is an account's: who is a
   // member of what is held by each of them, and tested with them.
   "v1.console.breakdown",
@@ -392,10 +400,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           name: "Shown",
           latitude: 48,
           longitude: -4.5,
-          criteria: {},
           visibility: "public",
         },
-        { id: "kept", userId: "owner", name: "Kept", latitude: 48, longitude: -4.5, criteria: {} },
+        { id: "kept", userId: "owner", name: "Kept", latitude: 48, longitude: -4.5 },
       ]);
       const { key } = await makeKey();
 
@@ -406,9 +413,6 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       const both = { context: context({ session: "owner", authorization: `Bearer ${key}` }) };
       for (const caller of [byKey(key), both]) {
         await expect(call(v1Router.spots.get, { id: "kept" }, caller)).rejects.toEqual(
-          refusal("NOT_FOUND"),
-        );
-        await expect(call(v1Router.spots.conditions, { id: "kept" }, caller)).rejects.toEqual(
           refusal("NOT_FOUND"),
         );
       }

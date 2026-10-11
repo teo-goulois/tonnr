@@ -177,6 +177,24 @@ The first line says how many breaks the catalogue holds from the list, and how m
 
 Update the API and the worker before you add a file: the version before this one cannot answer for a break that names no source. An instance that ran the weekly import keeps the breaks it had, and the worker stops asking for more. An instance that kept a private list loses its two tables, and their rows, at the update after the one that stopped reading them. Keep the file you imported: write the list again in the format above, add it with `breaks`, and remove the breaks of `osm` first if the two lists give the same places.
 
+## Alerts
+
+An account sets an alert on spots of its own, and the worker looks at every alert every three hours: its job is `evaluate-alerts`, which the page of the instance lists with the others. There is nothing to set. An alert reads the forecasts the instance keeps anyway, within the same count of requests. What an alert tells is listed in the web app, and no mail is sent yet. Decision 031 gives the rules.
+
+### Coming from an earlier version
+
+The version before kept a spot's conditions on the spot. This one gives each such spot an alert when its migration runs. It leaves the spot's two columns and the first `notification` table where they are, for the version before to go on reading while this one starts, and the version after this one drops them.
+
+Update the API first, and the worker once the API of the version before has stopped:
+
+```bash
+git pull
+docker compose up --detach --build server
+docker compose up --detach --build
+```
+
+The version before deletes a spot without holding its alert first. Next to the new worker, the two can wait for one another, and Postgres then refuses one of them.
+
 ## Accounts, the operator, and API keys
 
 The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. Anyone else gets 401, the health check and the reference aside. Decisions 019 and 020 give the rules.

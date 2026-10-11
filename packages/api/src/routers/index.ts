@@ -5,6 +5,7 @@ import { nameProcedures } from "../procedures";
 import { accountRouter } from "./account";
 import { accountsRouter } from "./accounts";
 import { actionsRouter } from "./actions";
+import { alertsRouter } from "./alerts";
 import { breaksRouter } from "./breaks";
 import { consoleRouter } from "./console";
 import { developersRouter } from "./developers";
@@ -29,6 +30,7 @@ export const v1Router = {
   account: accountRouter,
   accounts: accountsRouter,
   actions: actionsRouter,
+  alerts: alertsRouter,
   breaks: breaksRouter,
   console: consoleRouter,
   developers: developersRouter,

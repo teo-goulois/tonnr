@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addDays, isZone, localTime, momentOf } from "./clock";
+import { addDays, isZone, localTime, momentOf, zoneNamed } from "./clock";
 
 const PARIS = "Europe/Paris";
 
@@ -57,8 +57,35 @@ describe("the clock of an account", () => {
     expect(addDays("2028-02-28", 2)).toBe("2028-03-01");
   });
 
-  it("knows a zone from a name that is none", () => {
+  it("knows a zone from a name that is none, and spells it one way", () => {
     expect(isZone(PARIS)).toBe(true);
     expect(isZone("Europe/Atlantis")).toBe(false);
+    expect(zoneNamed("europe/paris")).toBe(PARIS);
+    // Two spellings of one zone are one name, whichever the runtime prefers.
+    expect(zoneNamed("AMERICA/argentina/buenos_aires")).toBe(
+      zoneNamed("America/Argentina/Buenos_Aires"),
+    );
+    expect(zoneNamed("Europe/Atlantis")).toBeNull();
+  });
+
+  it("reads the end of a day as the beginning of the next", () => {
+    expect(momentOf("2026-03-29", 1440, PARIS)).toEqual(momentOf("2026-03-30", 0, PARIS));
+    expect(momentOf("2026-10-11", 1440, "UTC")).toEqual(new Date("2026-10-12T00:00:00Z"));
+  });
+
+  it("reads zones whose clocks change by half an hour, or skip a day", () => {
+    // Lord Howe goes forward by thirty minutes on 4 October 2026, at 02:00.
+    expect(localTime(new Date("2026-10-03T15:29:00Z"), "Australia/Lord_Howe")).toMatchObject({
+      date: "2026-10-04",
+      minutes: 119,
+    });
+    expect(localTime(new Date("2026-10-03T15:30:00Z"), "Australia/Lord_Howe")).toMatchObject({
+      date: "2026-10-04",
+      minutes: 150,
+    });
+    // Apia had no 30 December 2011.
+    expect(momentOf("2011-12-30", 0, "Pacific/Apia")).toEqual(
+      momentOf("2011-12-31", 0, "Pacific/Apia"),
+    );
   });
 });

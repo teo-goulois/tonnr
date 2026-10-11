@@ -1,6 +1,6 @@
 # 008. Alerts
 
-Status: accepted on 2026-10-08. First version, with rules proposed to Téo and not yet confirmed by him.
+Status: replaced by [decision 031](031-alerts.md) on 2026-10-11. It was the first version, with rules proposed to Téo and never confirmed by him.
 
 ## Context
 

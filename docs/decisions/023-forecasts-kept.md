@@ -32,7 +32,7 @@ Téo asked why the instance calls the provider at each request rather than calli
 
 ### When the provider cannot be asked
 
-- When the provider does not answer, or the budget is spent, a row that is no longer fresh still answers, for a day after it was fetched. The answer says so: `GET /v1/forecasts` and `GET /v1/spots/{id}/conditions` give when the forecast was fetched and whether it is `stale`.
+- When the provider does not answer, or the budget is spent, a row that is no longer fresh still answers, for a day after it was fetched. The answer says so: `GET /v1/forecasts` and `POST /v1/alerts/preview`, which took the place of `GET /v1/spots/{id}/conditions` with decision 031, give when the forecast was fetched and whether it is `stale`.
 - A stale answer is for someone who looks. The worker plans no alert on one: it leaves the spot's notifications as they are, and counts the spot, whether the older forecast shows a sea there or none. A run with such spots is `degraded`, as decision 022 names it.
 - With no row to answer, the answer is `503`.
 - After the provider failed to answer, the program asks it nothing for a minute, then lets one question try. A provider fails to answer when it cannot be reached, answers with an error of its own, or says the instance asks too much. A refusal of one question, or an answer that changed shape, stops nothing.
