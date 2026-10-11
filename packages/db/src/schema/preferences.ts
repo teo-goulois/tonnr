@@ -16,19 +16,34 @@ export const savedShortcuts = pgTable("saved_shortcuts", {
   savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
 });
 
-// The units a wind speed may be read in: knots, kilometres an hour, metres a second, miles an
-// hour. The API speaks in metres a second whatever is chosen here.
+// The units a measurement may be read in. The API speaks in SI units whatever is chosen here:
+// metres a second, metres, degrees Celsius, kilometres and millimetres.
 export const WIND_SPEED_UNITS = ["kn", "kmh", "ms", "mph"] as const;
+export const HEIGHT_UNITS = ["m", "ft"] as const;
+export const TEMPERATURE_UNITS = ["c", "f"] as const;
+export const DISTANCE_UNITS = ["km", "mi"] as const;
+export const PRECIPITATION_UNITS = ["mm", "in"] as const;
 export type WindSpeedUnit = (typeof WIND_SPEED_UNITS)[number];
+export type HeightUnit = (typeof HEIGHT_UNITS)[number];
+export type TemperatureUnit = (typeof TEMPERATURE_UNITS)[number];
+export type DistanceUnit = (typeof DISTANCE_UNITS)[number];
+export type PrecipitationUnit = (typeof PRECIPITATION_UNITS)[number];
 
 /**
  * The units a user chose to read measurements in, on every device. A user without a row reads
- * them in the units the apps start with. Decision 033.
+ * them in the units the apps start with, which are also what a column holds until it is chosen:
+ * knots, and the metric units. Decision 033.
  */
 export const unitPreferences = pgTable("unit_preferences", {
   userId: text("user_id")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
   windSpeed: text("wind_speed").$type<WindSpeedUnit>().notNull(),
+  // The heights of the waves and of the tide.
+  height: text("height").$type<HeightUnit>().notNull().default("m"),
+  // The water's and the air's.
+  temperature: text("temperature").$type<TemperatureUnit>().notNull().default("c"),
+  distance: text("distance").$type<DistanceUnit>().notNull().default("km"),
+  precipitation: text("precipitation").$type<PrecipitationUnit>().notNull().default("mm"),
   savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
 });

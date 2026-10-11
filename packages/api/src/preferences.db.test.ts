@@ -48,22 +48,46 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's units", () => {
     return { context };
   };
 
+  const METRIC = { height: "m", temperature: "c", distance: "km", precipitation: "mm" };
+
   it("answers nothing for an account that has chosen no unit", async () => {
     expect(await call(preferencesRouter.getUnits, undefined, by("ana"))).toBeNull();
   });
 
-  it("keeps the units an account chooses, and the last choice", async () => {
+  it("keeps the unit an account chooses, and starts the others as the apps do", async () => {
     expect(await call(preferencesRouter.saveUnits, { windSpeed: "kmh" }, by("ana"))).toEqual({
       windSpeed: "kmh",
+      ...METRIC,
     });
     expect(await call(preferencesRouter.getUnits, undefined, by("ana"))).toEqual({
       windSpeed: "kmh",
+      ...METRIC,
     });
+  });
 
-    await call(preferencesRouter.saveUnits, { windSpeed: "ms" }, by("ana"));
+  it("starts the wind in knots for an account that chooses another unit first", async () => {
+    expect(await call(preferencesRouter.saveUnits, { height: "ft" }, by("ana"))).toEqual({
+      windSpeed: "kn",
+      ...METRIC,
+      height: "ft",
+    });
+  });
+
+  it("changes the units it is given and leaves the others as they are", async () => {
+    await call(
+      preferencesRouter.saveUnits,
+      { windSpeed: "ms", height: "ft", temperature: "f", distance: "mi", precipitation: "in" },
+      by("ana"),
+    );
+
+    await call(preferencesRouter.saveUnits, { temperature: "c" }, by("ana"));
 
     expect(await call(preferencesRouter.getUnits, undefined, by("ana"))).toEqual({
       windSpeed: "ms",
+      height: "ft",
+      temperature: "c",
+      distance: "mi",
+      precipitation: "in",
     });
   });
 
@@ -76,6 +100,9 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's units", () => {
   it("refuses a unit it does not know", async () => {
     await expect(
       call(preferencesRouter.saveUnits, { windSpeed: "bft" } as never, by("ana")),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      call(preferencesRouter.saveUnits, { height: "fathoms" } as never, by("ana")),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

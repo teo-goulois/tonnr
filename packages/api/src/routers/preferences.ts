@@ -1,4 +1,12 @@
-import { WIND_SPEED_UNITS, savedShortcuts, unitPreferences } from "@repo/db/schema/preferences";
+import {
+  DISTANCE_UNITS,
+  HEIGHT_UNITS,
+  PRECIPITATION_UNITS,
+  TEMPERATURE_UNITS,
+  WIND_SPEED_UNITS,
+  savedShortcuts,
+  unitPreferences,
+} from "@repo/db/schema/preferences";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -13,7 +21,28 @@ const savedShortcutsSchema = z.object({ overrides: overridesSchema, savedAt: z.d
 
 // The units the caller reads measurements in. The API's own answers stay in SI units: only what
 // an app writes on a screen follows these. Decision 033.
-const unitsSchema = z.object({ windSpeed: z.enum(WIND_SPEED_UNITS) });
+const unitsSchema = z.object({
+  windSpeed: z.enum(WIND_SPEED_UNITS),
+  height: z.enum(HEIGHT_UNITS),
+  temperature: z.enum(TEMPERATURE_UNITS),
+  distance: z.enum(DISTANCE_UNITS),
+  precipitation: z.enum(PRECIPITATION_UNITS),
+});
+// What an account that has chosen nothing reads in, and what a unit it has not chosen yet is.
+const STARTING_UNITS: z.infer<typeof unitsSchema> = {
+  windSpeed: "kn",
+  height: "m",
+  temperature: "c",
+  distance: "km",
+  precipitation: "mm",
+};
+const unitColumns = {
+  windSpeed: unitPreferences.windSpeed,
+  height: unitPreferences.height,
+  temperature: unitPreferences.temperature,
+  distance: unitPreferences.distance,
+  precipitation: unitPreferences.precipitation,
+};
 
 // What the web app keeps in the caller's account. It is not part of the public API.
 export const preferencesRouter = {
@@ -49,22 +78,24 @@ export const preferencesRouter = {
     .output(unitsSchema.nullable())
     .handler(async ({ context }) => {
       const [saved] = await context.db
-        .select({ windSpeed: unitPreferences.windSpeed })
+        .select(unitColumns)
         .from(unitPreferences)
         .where(eq(unitPreferences.userId, context.session.user.id));
       return saved ?? null;
     }),
 
   saveUnits: protectedProcedure
-    .input(unitsSchema)
+    // The units the caller changes. The others stay as they are: an app that knows fewer units
+    // than the API does not undo the choice of another.
+    .input(unitsSchema.partial())
     .output(unitsSchema)
     .handler(async ({ input, context }) => {
       const savedAt = new Date();
       const [saved] = await context.db
         .insert(unitPreferences)
-        .values({ userId: context.session.user.id, ...input, savedAt })
+        .values({ userId: context.session.user.id, ...STARTING_UNITS, ...input, savedAt })
         .onConflictDoUpdate({ target: unitPreferences.userId, set: { ...input, savedAt } })
-        .returning({ windSpeed: unitPreferences.windSpeed });
+        .returning(unitColumns);
       return saved!;
     }),
 };
