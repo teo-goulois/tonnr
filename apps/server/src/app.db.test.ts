@@ -1,4 +1,4 @@
-import { testForecasts, testVerification } from "@repo/api/testing";
+import { testForecasts, testPlaces, testVerification } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { suspensionHooks } from "@repo/auth/suspension";
@@ -61,6 +61,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
   function make(
     settings: typeof env & { ADMIN_ORIGIN?: string },
     mailing: Mailing = { on: false },
+    // The search of places asks no service: a test gives the one whose answers it sets.
+    places = testPlaces().places,
   ) {
     const { db } = database;
     const mail = testVerification(db, { ...mailing, settings });
@@ -71,6 +73,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       auth,
       usage,
       forecasts,
+      places,
       verification: mail.verification,
     });
     return { app: made, ...mail };
@@ -1064,6 +1067,107 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
           })
         ).status,
       ).toBe(404);
+    });
+  });
+
+  describe("the search of places", () => {
+    const FOUND = {
+      features: [
+        {
+          geometry: { coordinates: [-4.35, 47.83] },
+          properties: { name: "Plage des Galets", city: "Kerlouarn", country: "France" },
+        },
+      ],
+    };
+    const searching = (answer: unknown) => {
+      const service = testPlaces(answer);
+      return {
+        ...service,
+        to: make({ ...env, ADMIN_ORIGIN: ADMIN }, undefined, service.places).app,
+      };
+    };
+
+    it("finds an account a place by its name, and answers no key and no one", async () => {
+      const { to, asked } = searching(FOUND);
+      const cookie = await signUpOperator();
+      const { key } = await makeKey(cookie);
+      const path = "/v1/places?q=plage%20des%20galets&latitude=47.84&longitude=-4.35&locale=fr";
+
+      const found = await send("GET", path, { cookie }, to);
+      expect([found.status, found.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      expect(await found.json()).toEqual({
+        places: [
+          {
+            name: "Plage des Galets",
+            location: ["France", "Kerlouarn"],
+            latitude: 47.83,
+            longitude: -4.35,
+          },
+        ],
+        source: {
+          name: "OpenStreetMap",
+          url: "https://www.openstreetmap.org/copyright",
+          attribution: "(c) OpenStreetMap contributors",
+          license: {
+            type: "ODbL-1.0",
+            url: "https://opendatacommons.org/licenses/odbl/1-0/",
+            commercialUse: true,
+          },
+        },
+      });
+      expect(asked).toEqual([
+        "https://places.example.org/api?q=plage+des+galets&limit=5&lang=fr&lat=47.8&lon=-4.3",
+      ]);
+
+      expect((await send("GET", path, { key }, to)).status).toBe(403);
+      expect((await send("GET", path, {}, to)).status).toBe(401);
+      // A name too short to search, half of a point, and a point that is no number.
+      expect((await send("GET", "/v1/places?q=a", { cookie }, to)).status).toBe(400);
+      expect((await send("GET", "/v1/places?q=plage&latitude=47", { cookie }, to)).status).toBe(
+        400,
+      );
+      expect(
+        (await send("GET", "/v1/places?q=plage&latitude=&longitude=", { cookie }, to)).status,
+      ).toBe(400);
+      const overRpc = (json: object) =>
+        send("POST", "/rpc/v1/places/search", { cookie, origin: APP, body: { json } }, to);
+      for (const wrong of [
+        { latitude: null, longitude: null },
+        { latitude: true, longitude: [] },
+        { limit: true },
+        { limit: "many" },
+      ]) {
+        expect((await overRpc({ q: "plage", ...wrong })).status).toBe(400);
+      }
+      expect(asked).toHaveLength(1);
+      // The same search over the other transport, with numbers as JSON writes them.
+      const again = await overRpc({
+        q: "plage des galets",
+        latitude: 47.84,
+        longitude: -4.35,
+        locale: "fr",
+      });
+      expect(again.status).toBe(200);
+      expect(asked).toHaveLength(1);
+    });
+
+    it("says when to search again while the service is left alone, and logs no search", async () => {
+      const { to, asked } = searching(429);
+      const cookie = await signUp("visitor");
+
+      // The search that met the refusal is told how long the service rests, and so is the next.
+      const failed = await send("GET", "/v1/places?q=phare", { cookie }, to);
+      expect([failed.status, failed.headers.get("Retry-After")]).toEqual([503, "30"]);
+      const resting = await send("GET", "/v1/places?q=plage", { cookie }, to);
+      const wait = Number(resting.headers.get("Retry-After"));
+
+      expect(resting.status).toBe(503);
+      expect(wait).toBeGreaterThan(0);
+      expect(wait).toBeLessThanOrEqual(30);
+      expect(asked).toHaveLength(1);
+      const said = [...vi.mocked(console.error).mock.calls, ...logged.mock.calls].flat().join(" ");
+      expect(said).toContain("places: the search service answered 429");
+      expect(said).not.toContain("phare");
     });
   });
 

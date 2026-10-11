@@ -2,7 +2,7 @@ import { call, isLazy, isProcedure, lazy, unlazy } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { testForecasts } from "@repo/conditions/forecasts/testing";
 
-import { testVerification } from "./testing";
+import { testPlaces, testVerification } from "./testing";
 import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
@@ -81,6 +81,7 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.lists.update",
   "v1.notifications.list",
   "v1.notifications.markRead",
+  "v1.places.search",
   "v1.spots.create",
   "v1.spots.delete",
   "v1.spots.list",
@@ -150,6 +151,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     usage,
     server: { startedAt: AT, webOrigin: WEB },
     forecasts,
+    places: testPlaces().places,
     // An instance that sends no mail: no test sends one.
     verification: testVerification(database.db, { on: false }).verification,
     reply: {},

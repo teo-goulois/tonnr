@@ -3,6 +3,7 @@ import type { Verification } from "@repo/auth/verification";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
 
+import type { Places } from "./places";
 import type { Usage } from "./usage";
 
 export type Context = {
@@ -28,6 +29,8 @@ export type Context = {
   // The forecasts of this program: kept in its memory, then in the database, and asked of the
   // provider within the instance's budget. Decision 023.
   forecasts: Forecasts;
+  // The search of places by name, which asks the service the instance names. Decision 030.
+  places: Places;
   // The process that answers, as the state of the instance shows it: when it started, and the
   // web app's address as it holds it. Both are the server's to say.
   server: { startedAt: Date; webOrigin: string };

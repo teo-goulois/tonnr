@@ -9,7 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { Context } from "./context";
 import { v1Router } from "./routers/index";
-import { testForecasts, testVerification } from "./testing";
+import { testForecasts, testPlaces, testVerification } from "./testing";
 import { createUsage, type Usage } from "./usage";
 
 // An account and the mail that checks its address: decision 026. The mail is kept in memory.
@@ -48,6 +48,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account and its address", () => {
       adminSites: [ADMIN],
       usage,
       forecasts,
+      places: testPlaces().places,
       verification: mail.verification,
       reply: {},
       server: { startedAt: AT, webOrigin: "http://localhost:3001" },

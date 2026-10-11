@@ -65,6 +65,16 @@ The catalogue a user picks a spot from. Decision 015 records what each source he
 
 Surfline, Surf-forecast and Wannasurf hold fuller lists and are not sources of the catalogue: their lists are proprietary, and no permission to republish them has been established. Surfline's terms of use forbid extracting its content, and its site and the service behind its map refuse a script with a bot challenge. Tonnr fetches none of them. An operator who adds a list of their own to the catalogue, from a file, answers for it: decision 024.
 
+## Places
+
+What finds a place by its name, to put a spot on the map. Decision 030 gives the rules. Checked on 2026-10-11.
+
+| Provider | Region | Access                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | License                                                                                                       |
+| -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Photon   | World  | `photon.komoot.io/api?q=`, no key. It answers a GeoJSON collection of OpenStreetMap's places, those near `lat` and `lon` brought forward, with names in `lang`. Its page says: "You can use the API for your project, but please be fair - extensive usage will be throttled. We do not guarantee for the availability and usage might be subject of change in the future." It states no number. The software is open source, at `github.com/komoot/photon`, and an instance can run its own. | The names are OpenStreetMap's: ODbL 1.0, with the credit "© OpenStreetMap contributors" where they are shown. |
+
+Nominatim's public service is not a source: its usage policy forbids a search that completes what is being typed.
+
 ## Forecasts
 
 Integrated through `GET /v1/forecasts`. Decision 005 records the choice, and decision 023 how a forecast is kept and what the instance lets itself ask.

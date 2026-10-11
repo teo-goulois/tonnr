@@ -22,6 +22,8 @@ type Services = {
   usage: Usage;
   // Where the forecasts are kept, and their requests counted.
   forecasts: Context["forecasts"];
+  // What finds a place by its name.
+  places: Context["places"];
   // What sends an account the mail that checks its address.
   verification: Context["verification"];
   // When the process started. Without it, when this app was made.
@@ -51,6 +53,7 @@ export function createApp({
   auth,
   usage,
   forecasts,
+  places,
   verification,
   startedAt = new Date(),
 }: Services) {
@@ -157,6 +160,7 @@ export function createApp({
       adminSites,
       usage,
       forecasts,
+      places,
       verification,
       reply: {} as Context["reply"],
       server: { startedAt, webOrigin },
@@ -175,6 +179,10 @@ export function createApp({
         context.reply.retryAfterSeconds ??
         HOUR_SECONDS - (Math.floor(Date.now() / 1000) % HOUR_SECONDS);
       answered.headers.set("Retry-After", String(left));
+    }
+    // What a procedure asks of a service that is resting comes back once it has rested.
+    if (answered.status === 503 && context.reply.retryAfterSeconds !== undefined) {
+      answered.headers.set("Retry-After", String(context.reply.retryAfterSeconds));
     }
     return c.newResponse(answered.body, answered);
   });

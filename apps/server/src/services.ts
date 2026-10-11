@@ -1,4 +1,5 @@
 import { createForecasts } from "@repo/api/forecasts";
+import { createPlaces } from "@repo/api/places";
 import { createUsage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { createVerification } from "@repo/auth/verification";
@@ -16,3 +17,5 @@ export const auth = createAuth(ENV, db, [], verification);
 export const usage = createUsage(db);
 // Keeps the forecasts in the database, and counts what it asks of their provider.
 export const forecasts = createForecasts(db);
+// Finds a place by its name, through the search service the settings name.
+export const places = createPlaces(ENV);

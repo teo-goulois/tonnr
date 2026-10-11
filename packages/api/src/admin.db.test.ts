@@ -22,7 +22,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "./context";
-import { testVerification } from "./testing";
+import { testPlaces, testVerification } from "./testing";
 import { newKey } from "./keys";
 import { v1Router } from "./routers/index";
 import { jobState } from "./routers/instance";
@@ -78,6 +78,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
     usage,
     server: { startedAt: AT, webOrigin: "https://app.example.org" },
     forecasts,
+    places: testPlaces().places,
     // An instance that sends no mail, unless a test gives it a mailer.
     verification: testVerification(database.db, { on: false }).verification,
     reply: {},

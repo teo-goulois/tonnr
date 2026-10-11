@@ -18,7 +18,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Context } from "./context";
 import { v1Router } from "./routers/index";
-import { testVerification } from "./testing";
+import { testPlaces, testVerification } from "./testing";
 import { createUsage, type Usage } from "./usage";
 
 const AT = new Date("2026-10-09T08:00:00Z");
@@ -140,6 +140,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the console of a developer account", () => 
     usage,
     server: { startedAt: AT, webOrigin: WEB },
     forecasts,
+    places: testPlaces().places,
     verification: testVerification(database.db, { on: false }).verification,
     reply: {},
   });
