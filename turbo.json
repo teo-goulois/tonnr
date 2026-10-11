@@ -17,14 +17,6 @@
     "test": {
       "env": ["TEST_DATABASE_URL"]
     },
-    "web#check-types": {
-      "dependsOn": ["^check-types"],
-      "outputs": ["dist/**", "src/paraglide/**"]
-    },
-    "web#test": {
-      "dependsOn": ["web#check-types"],
-      "env": ["TEST_DATABASE_URL"]
-    },
     "dev": {
       "cache": false,
       "persistent": true
