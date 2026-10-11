@@ -3,7 +3,8 @@ import { type PointerEvent as ReactPointerEvent, useRef } from "react";
 import { compassPoint } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import { type Arc, arcWords } from "./alert-words";
+import { Bearing } from "../viewer/bearing";
+import type { Arc } from "./alert-words";
 
 // The dial is drawn at its own size, so that its letters are the theme's.
 const SIZE = 176;
@@ -149,7 +150,9 @@ export function CompassDial({ arc, now, label, onChange }: CompassDialProps) {
           );
         })}
       </svg>
-      <span className="text-xs text-neutral-7 tabular-nums">{arcWords(ends)}</span>
+      <span className="flex items-center gap-xxs text-xs text-neutral-7">
+        <Bearing degrees={ends.from} />–<Bearing degrees={ends.to} />
+      </span>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
+import { momentsDone, tellMoments } from "./moments";
 import {
   announceWorker,
   type Done,
@@ -44,6 +45,7 @@ await boss.start();
 const PRUNE_QUEUE = "prune-readings";
 const EXPOSURE_QUEUE = "classify-exposure";
 const ALERTS_QUEUE = "evaluate-alerts";
+const MOMENTS_QUEUE = "tell-alert-moments";
 // Every job the scheduler runs, with its schedule. A queue that is not here cannot be run.
 const jobs: Scheduled[] = [
   ...providers.map((provider) => ({ name: `ingest-${provider.id}`, schedule: provider.schedule })),
@@ -53,6 +55,8 @@ const jobs: Scheduled[] = [
   { name: EXPOSURE_QUEUE, schedule: "47 3 * * *" },
   // Forecast models are renewed every six to twelve hours, so every three hours is often enough.
   { name: ALERTS_QUEUE, schedule: "20 */3 * * *" },
+  // What begins, and the evening before, are told to the quarter of an hour.
+  { name: MOMENTS_QUEUE, schedule: "*/15 * * * *" },
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -197,6 +201,15 @@ await boss.work(
   ALERTS_QUEUE,
   withStart,
   attemptOf(ALERTS_QUEUE, (db) => evaluateAlerts(db, forecasts), alertsDone),
+);
+
+await boss.createQueue(MOMENTS_QUEUE, { policy: "stately", ...once });
+await boss.updateQueue(MOMENTS_QUEUE, once);
+await boss.schedule(MOMENTS_QUEUE, scheduled(MOMENTS_QUEUE).schedule);
+await boss.work(
+  MOMENTS_QUEUE,
+  withStart,
+  attemptOf(MOMENTS_QUEUE, (db) => tellMoments(db), momentsDone),
 );
 await boss.send(ALERTS_QUEUE);
 

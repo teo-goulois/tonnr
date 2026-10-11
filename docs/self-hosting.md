@@ -89,7 +89,7 @@ docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-
 
 ## Running one job
 
-Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, or `exposure`. The jobs of the catalogue of breaks take a value, and the next section gives them.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `moments`, or `exposure`. The jobs of the catalogue of breaks take a value, and the next section gives them.
 
 ## Filling the catalogue of surf breaks
 
@@ -179,7 +179,7 @@ Update the API and the worker before you add a file: the version before this one
 
 ## Alerts
 
-An account sets an alert on spots of its own, and the worker looks at every alert every three hours: its job is `evaluate-alerts`, which the page of the instance lists with the others. There is nothing to set. An alert reads the forecasts the instance keeps anyway, within the same count of requests. What an alert tells is listed in the web app, and no mail is sent yet. Decision 031 gives the rules.
+An account sets an alert on spots of its own, and the worker looks at every alert every three hours: its job is `evaluate-alerts`. Every quarter of an hour, `tell-alert-moments` tells what begins and, at each account's hour, the evening before. The page of the instance lists both with the others. There is nothing to set. An alert reads the forecasts the instance keeps anyway, within the same count of requests. What an alert tells is listed in the web app, and no mail is sent yet. Decision 031 gives the rules.
 
 ### Coming from an earlier version
 

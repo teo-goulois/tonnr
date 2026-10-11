@@ -13,10 +13,11 @@ import { TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { compassPoint, formatMeters, formatNumber, formatSeconds, toKnots } from "@/lib/format";
-import { formatWind } from "@/lib/units";
+import { formatMeters, formatNumber, formatSeconds, toKnots } from "@/lib/format";
+import { formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
+import { Bearing } from "../viewer/bearing";
 import type { Alert, AlertCriteria, AlertPreview, Loadable, Spot } from "../viewer/types";
 import { hasSeaAhead, heldBack, hoursAhead, openPieces, stretchWords } from "./alert-trial";
 import {
@@ -40,6 +41,9 @@ import {
 import { CompassDial } from "./compass-dial";
 import { HourStrip } from "./hour-strip";
 
+// An arrow and its name stand as one box in the sentence, which the underline of the part does
+// not reach: they are underlined as the part is.
+const underlined = "underline decoration-dotted underline-offset-4";
 // The shortest windows an alert may ask for, in hours.
 const SHORTEST_HOURS = [1, 2, 3, 4, 6];
 // How many of the windows ahead are listed under the strips.
@@ -75,11 +79,14 @@ type AlertEditorProps = {
 function Slot({
   label,
   words,
+  shown = words,
   isSet,
   children,
 }: {
   label: string;
+  // What the part says, in words, and as it is written when that is more than words.
   words: string;
+  shown?: ReactNode;
   isSet: boolean;
   children: ReactNode;
 }) {
@@ -98,7 +105,7 @@ function Slot({
           />
         }
       >
-        {words}
+        {shown}
       </PopoverTrigger>
       <PopoverPopup className="grid w-72 gap-s text-s">
         <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
@@ -127,6 +134,8 @@ export function AlertEditor({
   onDelete,
 }: AlertEditorProps) {
   const id = useId();
+  // The wind is written in the unit its reader chose: the editor is drawn again when it changes.
+  useUnits();
   const saved = useMemo<AlertDraft>(
     () =>
       alert
@@ -278,6 +287,15 @@ export function AlertEditor({
         label={label}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
+        shown={
+          // A direction is an arrow and a name: the two ends of the sector, clockwise.
+          value && (
+            <>
+              {m.alert_from()} <Bearing degrees={value.from} className={underlined} />–
+              <Bearing degrees={value.to} className={underlined} />
+            </>
+          )
+        }
       >
         {value ? (
           <>
@@ -302,9 +320,13 @@ export function AlertEditor({
             size="sm"
             onClick={() => setCriteria({ ...criteria, [key]: around })}
           >
-            {at == null
-              ? m.alert_sector_choose()
-              : m.alert_sector_as_now({ point: compassPoint(at) })}
+            {at == null ? (
+              m.alert_sector_choose()
+            ) : (
+              <>
+                {m.alert_sector_as_now()} <Bearing degrees={at} />
+              </>
+            )}
           </Button>
         )}
       </Slot>

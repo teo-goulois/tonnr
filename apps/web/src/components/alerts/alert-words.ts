@@ -73,10 +73,9 @@ export const RANGES: Record<
     digits: 0,
     shown: (kept) => Math.round(windIn(toKnots(kept))),
     kept: (shown) => Math.round((knotsFrom(shown) / KNOTS_PER_MS) * 100) / 100,
+    // The API's bounds are of the wind as it is kept: metres a second.
     floor: 0,
-    get ceiling() {
-      return Math.round(windIn(120));
-    },
+    ceiling: 120,
   },
   tideHeightMeters: {
     label: m.alert_label_tide_height,

@@ -17,7 +17,16 @@ import type { AlertSettings, Loadable } from "../viewer/types";
 export type AlertSettingsChange = Partial<
   Pick<
     AlertSettings,
-    "onFound" | "onChange" | "horizonDays" | "daylightOnly" | "week" | "awayUntil"
+    | "onFound"
+    | "onChange"
+    | "onEvening"
+    | "eveningMinutes"
+    | "onBegin"
+    | "noticeMinutes"
+    | "horizonDays"
+    | "daylightOnly"
+    | "week"
+    | "awayUntil"
   > & {
     zone: string;
   }
@@ -35,6 +44,8 @@ const DAY_MINUTES = 24 * 60;
 // The days an account may ask to be told ahead of.
 const DAYS_AHEAD = [1, 2, 3, 4, 5];
 const ALL_DAY = [{ from: 0, to: DAY_MINUTES }];
+// How long before a window begins "it is on" may be told, in minutes.
+const NOTICES = [0, 30, 60, 120];
 
 // The end of a day is written 24:00, as the hour it ends at.
 const clock = (minutes: number) =>
@@ -203,8 +214,59 @@ export function AlertSettingsForm({ settings, deviceZone, onChange }: AlertSetti
           checked={kept.onChange}
           onCheckedChange={(change) => onChange({ onChange: change })}
         />
-        <Setting label={m.alert_settings_evening()} hint={m.alert_settings_evening_hint()} soon />
-        <Setting label={m.alert_settings_begin()} hint={m.alert_settings_begin_hint()} soon />
+        <Setting
+          label={m.alert_settings_evening()}
+          hint={m.alert_settings_evening_hint()}
+          checked={kept.onEvening}
+          onCheckedChange={(onEvening) => onChange({ onEvening })}
+        />
+        {kept.onEvening && (
+          <Input
+            type="time"
+            className="w-auto justify-self-start"
+            aria-label={m.alert_settings_evening_at()}
+            value={clock(kept.eveningMinutes)}
+            onChange={(event) => {
+              const [hours, minutes] = event.currentTarget.value.split(":").map(Number);
+              if (hours === undefined || minutes === undefined) return;
+              if (Number.isNaN(hours) || Number.isNaN(minutes)) return;
+              onChange({ eveningMinutes: hours * 60 + minutes });
+            }}
+          />
+        )}
+        <Setting
+          label={m.alert_settings_begin()}
+          hint={m.alert_settings_begin_hint()}
+          checked={kept.onBegin}
+          onCheckedChange={(onBegin) => onChange({ onBegin })}
+        />
+        {kept.onBegin && (
+          <ToggleGroup
+            variant="outline"
+            size="sm"
+            aria-label={m.alert_settings_notice()}
+            value={[String(kept.noticeMinutes)]}
+            onValueChange={([pressed]) => {
+              if (pressed) onChange({ noticeMinutes: Number(pressed) });
+            }}
+          >
+            {/* A notice set elsewhere, that is none of these, shows as it is. */}
+            {[...new Set([...NOTICES, kept.noticeMinutes])]
+              .sort((a, b) => a - b)
+              .map((minutes) => (
+                <ToggleGroupItem key={minutes} value={String(minutes)}>
+                  {minutes === 0
+                    ? m.alert_settings_notice_none()
+                    : m.alert_settings_notice_before({
+                        notice:
+                          minutes % 60 === 0
+                            ? m.alert_hours({ count: minutes / 60 })
+                            : m.alert_settings_minutes({ count: minutes }),
+                      })}
+                </ToggleGroupItem>
+              ))}
+          </ToggleGroup>
+        )}
         <Setting label={m.alert_settings_quiet()} hint={m.alert_settings_quiet_hint()} soon />
       </Section>
 

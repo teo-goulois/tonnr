@@ -1,3 +1,4 @@
+import { momentOf } from "@repo/conditions/alerts/clock";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import {
@@ -11,11 +12,20 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentType } from "react";
 
-import { formatAgo, formatClock, formatDay, formatDayAndClock } from "@/lib/format";
+import {
+  formatAgo,
+  formatClock,
+  formatDay,
+  formatDayAndClock,
+  formatMeters,
+  formatNumber,
+  formatSeconds,
+} from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import { type AlertSettingsChange, AlertSettingsForm } from "../alerts/alert-settings";
 import { MyAlerts } from "../alerts/my-alerts";
+import { Bearing } from "./bearing";
 import { AccountPrompt } from "./saved-panel";
 import type { Alert, AlertNotification, AlertSettings, Loadable, Spot } from "./types";
 
@@ -203,12 +213,46 @@ function News({
               />
               <span className="grid min-w-0 flex-1 gap-xxs">
                 <span className={cn("truncate", unread && "font-medium")}>
-                  {payload.alertName ?? m.alerts_evening_title()}
+                  {payload.alertName ??
+                    // The evening before lists a day, for every alert: it is named by that day.
+                    m.alerts_evening_title({
+                      day: payload.day
+                        ? formatDay(momentOf(payload.day, 12 * 60, payload.zone), payload.zone)
+                        : "",
+                    })}
                 </span>
                 <span className="text-s text-neutral-7">{label()}</span>
                 {payload.lines.map((line) => (
-                  <span key={line.spotId} className="text-s">
-                    {lineOf(line, moment, payload.zone)}
+                  <span key={line.spotId} className="grid gap-xxs text-s">
+                    <span>
+                      {/* The evening lists every alert: a line says whose it is, when its
+                          alert is not named after its spot. */}
+                      {line.alertName && line.alertName !== line.spotName && (
+                        <span className="text-neutral-7">{line.alertName} · </span>
+                      )}
+                      {lineOf(line, moment, payload.zone)}
+                    </span>
+                    {/* What the nearest wave station measured as the window began: the whole
+                        sea where it stands, given for the reader to judge. */}
+                    {line.buoy && line.buoy.significantHeightMeters !== null && (
+                      <span className="flex flex-wrap items-center gap-x-xxs text-neutral-7">
+                        {m.alerts_station({
+                          name: line.buoy.name,
+                          distance: formatNumber(line.buoy.distanceKm, 0),
+                        })}{" "}
+                        {formatMeters(line.buoy.significantHeightMeters)}
+                        {line.buoy.peakPeriodSeconds !== null &&
+                          ` · ${formatSeconds(line.buoy.peakPeriodSeconds)}`}
+                        {line.buoy.peakDirectionDegrees !== null && (
+                          <>
+                            {" · "}
+                            <Bearing degrees={line.buoy.peakDirectionDegrees} />
+                          </>
+                        )}
+                        {" · "}
+                        {formatDayAndClock(new Date(line.buoy.observedAt), payload.zone)}
+                      </span>
+                    )}
                   </span>
                 ))}
                 <span className="text-xs text-neutral-7">

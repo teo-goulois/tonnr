@@ -7,10 +7,11 @@ import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts } from "./forecasts";
 import { ingest, providersOf } from "./ingest";
+import { tellMoments } from "./moments";
 import { grantOperator, removeOperator } from "./operators";
 
-// Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`, or
-// `... job exposure`. Five more take a value and write only with `--write`:
+// Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
+// `... job moments`, or `... job exposure`. Five more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
 // `... job operator <account id>` and `... job operator-remove <account id>`.
 const [job, ...rest] = process.argv.slice(2);
@@ -26,7 +27,7 @@ const commands = {
   "operator-remove": removeOperator,
 };
 const command = Object.entries(commands).find(([name]) => name === job)?.[1];
-const others = ["alerts", "exposure", ...Object.keys(commands)];
+const others = ["alerts", "moments", "exposure", ...Object.keys(commands)];
 
 if (!provider && !others.includes(job ?? "")) {
   const names = [...providers.map((candidate) => candidate.id), ...others];
@@ -39,6 +40,7 @@ const db = createDb(ENV);
 try {
   if (provider) await Effect.runPromise(ingest(provider, db));
   else if (job === "exposure") console.log(await Effect.runPromise(updateExposure(db)));
+  else if (job === "moments") await Effect.runPromise(tellMoments(db));
   else if (command) {
     const outcome = await command(db, rest);
     for (const line of outcome.lines) (outcome.ok ? console.log : console.error)(line);
