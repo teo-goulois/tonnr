@@ -33,8 +33,12 @@ export function UnitsFromAccount() {
   return null;
 }
 
-/** Changes the reader's units at once, and keeps them in the account. */
+/**
+ * Changes some of the reader's units at once, and keeps them in the account. Without an account
+ * the browser alone keeps them.
+ */
 export function useSaveUnits() {
+  const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const save = useMutation(
     orpc.preferences.saveUnits.mutationOptions({
@@ -42,10 +46,11 @@ export function useSaveUnits() {
     }),
   );
 
-  return (next: Units) => {
+  return (change: Partial<Units>) => {
     const before = getUnits();
-    setUnits(next);
-    save.mutate(next, {
+    setUnits({ ...before, ...change });
+    if (!session) return;
+    save.mutate(change, {
       // The account did not take them: the screens go back to what it holds.
       onError: () => {
         setUnits(before);

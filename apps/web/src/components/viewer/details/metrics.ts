@@ -12,7 +12,19 @@ import {
   scaleColor,
   scaleInk,
 } from "@/lib/sea-scales";
-import { knotsFrom, windIn, windUnit } from "@/lib/units";
+import {
+  heightIn,
+  heightUnit,
+  knotsFrom,
+  metersFrom,
+  rainDigits,
+  rainIn,
+  rainUnit,
+  temperatureIn,
+  temperatureUnit,
+  windIn,
+  windUnit,
+} from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { type Forecast, type Reading, periodOf } from "../types";
@@ -78,11 +90,13 @@ export function metrics(): Record<MetricKey, Metric> {
     height: {
       key: "height",
       label: m.details_swell(),
-      unit: m.unit_m(),
+      unit: heightUnit(),
       digits: 1,
       scale: WAVE_HEIGHT_SCALE,
       tinted: false,
       direction: "waveDirection",
+      shown: (value) => heightIn(value),
+      kept: (shown) => metersFrom(shown),
     },
     period: {
       key: "period",
@@ -132,8 +146,9 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
     rain: {
       key: "rain",
       label: m.details_rain(),
-      unit: "mm",
-      digits: 1,
+      unit: rainUnit(),
+      digits: rainDigits(),
+      shown: (value) => rainIn(value),
       scale: PRECIPITATION_SCALE,
       tinted: true,
       hideZero: true,
@@ -141,8 +156,9 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
     air: {
       key: "air",
       label: m.details_air(),
-      unit: "°C",
+      unit: temperatureUnit(),
       digits: 0,
+      shown: (value) => temperatureIn(value),
       scale: CLOUD_COVER_SCALE,
       tinted: true,
       plain: true,

@@ -1,6 +1,6 @@
 # 033. The units a reader chooses
 
-Status: accepted on 2026-10-11. Téo asked for it that day: an account's settings hold its units, and every screen that writes a wind speed follows them.
+Status: accepted on 2026-10-11. Téo asked for it that day: an account's settings hold its units, and every screen follows them. It began with the wind speed, and he asked the same evening for every measurement.
 
 ## Context
 
@@ -13,11 +13,12 @@ The API answers in SI units, and its answers are the same for every caller: a ke
 - A unit is a way of writing. The API's answers stay in SI units, and nothing the instance stores or computes changes with a reader's choice.
 - The choice belongs to the account, so that it is the same on every device: `unit_preferences`, one row an account, read and written by `preferences.getUnits` and `preferences.saveUnits`. They take a session and no key, as the saved shortcuts do, and are not part of the versioned API.
 - An account without a row has made no choice, and an app writes in the units it starts with: knots.
-- The wind speed is the first unit: knots, kilometres an hour, metres a second or miles an hour. The heights, in metres, and the temperatures, in degrees Celsius, have no choice yet. Each will be a column of the same row.
+- Five measurements have a choice, each a column of the row. The wind speed is in knots, kilometres an hour, metres a second or miles an hour. The heights of the waves and of the tide are in metres or feet. The temperatures of the water and of the air are in degrees Celsius or Fahrenheit. A distance is in kilometres or miles, and a rain in millimetres or inches. A period stays in seconds and an energy in kilojoules.
+- `preferences.saveUnits` takes the units that change and leaves the others as they are. An app that knows fewer measurements than the API does not undo the choice of another.
 - The web app keeps the choice in the browser too, so that a page opens in it before the account has answered. The account's answer wins.
-- The web app goes on computing in knots: the colors, the thresholds and the curves. A value is turned into the reader's unit where it is written, through `apps/web/src/lib/units.ts`. An axis takes round figures in the reader's unit, set where they stand among the knots.
+- The web app goes on computing in knots and in the metric units: the colors, the thresholds and the curves. A value is turned into the reader's unit where it is written, through `apps/web/src/lib/units.ts`. An axis takes round figures in the reader's unit, set where they stand among the values.
 - A change is seen at once on every screen, and is saved after. When the account does not take it, the screens go back to what the account holds, and say so.
-- The choice is in the account's menu: one press, and no page of settings to open.
+- The choices are in one dialog, a line for each measurement, opened from the account's menu and from the command palette. The menu says the units in force beside its entry.
 
 ## Rejected
 
@@ -29,6 +30,8 @@ The API answers in SI units, and its answers are the same for every caller: a ke
 ## Consequences
 
 - The API is deployed before the web app: a web app that asks an older API for the units gets an error, and writes in knots.
-- An alert's wind threshold is written and set in the reader's unit, and kept in metres a second as before. A threshold set in knots can read one figure off in another unit, since both are rounded.
-- A new screen that writes a wind speed calls `formatWind` or `windFigure`, and `useUnits` so that it is drawn again when the reader changes units.
+- An alert's thresholds are written and set in the reader's units, and kept in SI units as before. A threshold set in one unit can read one figure off in another, since both are rounded.
+- A new screen that writes a measurement calls the function of `units.ts` for it, such as `formatWind` or `formatHeight`, and `useUnits` so that it is drawn again when the reader changes units.
+- The tide's axis keeps its figures where the metres put them, and writes them in the reader's unit: in feet they are not round. The curves of the waves and of the wind take round figures in either unit.
+- An alert's thresholds of height are set by the half foot in feet, and by the tenth of a metre in metres.
 - The mobile app reads the same two routes.

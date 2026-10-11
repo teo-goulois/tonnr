@@ -7,15 +7,15 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
+import { formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import {
-  formatAgo,
-  formatMeters,
-  formatNumber,
-  formatSeconds,
-  freshnessOf,
-  toKnots,
-} from "@/lib/format";
-import { formatWind, useUnits, windFigure } from "@/lib/units";
+  formatDistance,
+  formatHeight,
+  formatTemperature,
+  formatWind,
+  useUnits,
+  windFigure,
+} from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
@@ -180,6 +180,8 @@ export function NowTiles(props: DetailsProps) {
 
 /** What a buoy reads beside the four values. It stays folded until it is asked for. */
 export function ReadingMore({ latest }: { latest?: Reading | null }) {
+  // The heights and the water's temperature are written in the reader's units.
+  useUnits();
   const [open, setOpen] = useState(false);
   if (!latest) return null;
 
@@ -200,12 +202,12 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
     ],
     latest.maxHeightMeters !== null && [
       m.details_max_height(),
-      formatMeters(latest.maxHeightMeters),
+      formatHeight(latest.maxHeightMeters),
     ],
     period !== null && periodValue !== null && [period, formatSeconds(periodValue)],
     latest.waterTemperatureCelsius !== null && [
       m.details_water(),
-      `${formatNumber(latest.waterTemperatureCelsius)} °C`,
+      formatTemperature(latest.waterTemperatureCelsius),
     ],
   ];
   const rows = listed.filter((row) => row !== false);
@@ -307,6 +309,8 @@ export function NearbyBuoy({
   now: number;
   onOpen?: (stationId: string) => void;
 }) {
+  // The height and the distance are written in the reader's units.
+  useUnits();
   const { station } = nearby;
   const reading = station.latestReading;
   if (!reading || reading.significantHeightMeters === null) return null;
@@ -325,7 +329,7 @@ export function NearbyBuoy({
       <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex items-baseline gap-xs">
           <span className="text-s font-medium tabular-nums">
-            {formatMeters(reading.significantHeightMeters)}
+            {formatHeight(reading.significantHeightMeters)}
             {period !== null && (
               <span className="font-normal text-neutral-7"> {formatSeconds(period)}</span>
             )}
@@ -333,7 +337,7 @@ export function NearbyBuoy({
           <span className="text-xs text-neutral-7">{formatAgo(reading.observedAt, now)}</span>
         </span>
         <span className="truncate text-xs text-neutral-7">
-          {m.details_nearest_buoy({ distance: formatNumber(nearby.distanceKm, 0) })}
+          {m.details_nearest_buoy({ distance: formatDistance(nearby.distanceKm) })}
           {" · "}
           {station.name}
         </span>
@@ -438,7 +442,7 @@ export function NearbyWindStation({
           <span className="text-xs text-neutral-7">{formatAgo(reading.observedAt, now)}</span>
         </span>
         <span className="truncate text-xs text-neutral-7">
-          {m.details_nearest_wind({ distance: formatNumber(nearby.distanceKm, 0) })}
+          {m.details_nearest_wind({ distance: formatDistance(nearby.distanceKm) })}
           {" · "}
           {station.name}
         </span>

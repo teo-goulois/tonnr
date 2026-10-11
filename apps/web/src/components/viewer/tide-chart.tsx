@@ -19,7 +19,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { formatClock, formatDay, formatMeters, formatNumber } from "@/lib/format";
+import { formatClock, formatDay } from "@/lib/format";
+import { formatHeight, heightFigure, useUnits } from "@/lib/units";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
@@ -167,6 +168,8 @@ function TideMarks({
   strip: HTMLElement | null;
   inspection: ChartInspection;
 }) {
+  // The heights are written in the reader's unit.
+  useUnits();
   const plot = usePlotArea();
   const xScale = useXAxisScale();
   const yScale = useYAxisScale();
@@ -301,7 +304,7 @@ function TideMarks({
             className="absolute inset-x-0 -translate-y-1/2 text-xs text-muted-foreground tabular-nums"
             style={{ top: y(tick) }}
           >
-            {formatNumber(tick)}
+            {heightFigure(tick)}
           </span>
         ))}
         {/* The height under the pointer, over the figure the axis has there. */}
@@ -310,7 +313,7 @@ function TideMarks({
             className="absolute inset-x-0 mr-xxs -translate-y-1/2 rounded-(--radius-xs) bg-color-1 text-center text-xs font-medium text-neutral-1 tabular-nums"
             style={{ top: y(pointed.value) }}
           >
-            {formatNumber(pointed.value)}
+            {heightFigure(pointed.value)}
           </span>
         )}
       </>,
@@ -390,7 +393,7 @@ function TideMarks({
                       {clock}
                     </Mark>
                     <Mark x={tx} y={ty + 12}>
-                      {formatMeters(extreme.heightMeters)}
+                      {formatHeight(extreme.heightMeters)}
                     </Mark>
                   </g>
                 );
@@ -416,6 +419,8 @@ export function TideChart({
   isLoading,
   className,
 }: TideChartProps) {
+  // The heights are written in the reader's unit.
+  useUnits();
   const [inspection, setInspection] = useState<ChartInspection>({
     point: undefined,
     isTouch: false,
@@ -509,7 +514,7 @@ export function TideChart({
       <div className="flex h-8 items-center justify-between gap-xs">
         <span className="text-s tabular-nums" aria-live="polite">
           {inspection.point
-            ? `${formatClock(new Date(inspection.point.time))} · ${formatMeters(inspection.point.value)}`
+            ? `${formatClock(new Date(inspection.point.time))} · ${formatHeight(inspection.point.value)}`
             : shown === today
               ? m.tide_today()
               : formatDay(shownDay)}
@@ -552,7 +557,7 @@ export function TideChart({
             <SeaChart
               label={label}
               colors={colors}
-              formatValue={formatMeters}
+              formatValue={formatHeight}
               points={points}
               headroom={room.head}
               footroom={room.foot}

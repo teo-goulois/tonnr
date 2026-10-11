@@ -2,8 +2,8 @@ import { ArrowUpIcon, PinIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps, CSSProperties } from "react";
 
-import { type Freshness, formatMeters, formatSeconds } from "@/lib/format";
-import { useUnits, windFigure } from "@/lib/units";
+import { type Freshness, formatSeconds } from "@/lib/format";
+import { formatHeight, useUnits, windFigure } from "@/lib/units";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@/lib/sea-scales";
 
 /** An arrow that points where the waves or the wind are going, from the bearing they come from. */
@@ -165,6 +165,8 @@ export function BuoyPill({
   className,
   ...props
 }: BuoyPillProps) {
+  // The height is written in the reader's unit.
+  useUnits();
   return (
     <button
       type="button"
@@ -200,7 +202,7 @@ export function BuoyPill({
           style={{ width: GAUGE_CHIP, height: GAUGE_CHIP }}
         />
       </span>
-      <span>{formatMeters(heightMeters)}</span>
+      <span>{formatHeight(heightMeters)}</span>
       {periodSeconds !== null && (
         <span className={cn("text-xs font-normal", selected ? "text-neutral-4" : "text-neutral-7")}>
           {formatSeconds(periodSeconds)}

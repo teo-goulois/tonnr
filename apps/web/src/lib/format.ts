@@ -40,10 +40,6 @@ export function formatNumber(value: number, digits = 1) {
   return numberFormat(digits).format(value);
 }
 
-export function formatMeters(value: number) {
-  return m.unit_meters({ value: formatNumber(value) });
-}
-
 export function formatSeconds(value: number) {
   return m.unit_seconds({ value: formatNumber(value, 0) });
 }

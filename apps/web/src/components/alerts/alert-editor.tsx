@@ -13,8 +13,8 @@ import { TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { formatMeters, formatNumber, formatSeconds, toKnots } from "@/lib/format";
-import { formatWind, useUnits } from "@/lib/units";
+import { formatNumber, formatSeconds, toKnots } from "@/lib/format";
+import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../viewer/bearing";
@@ -520,7 +520,7 @@ export function AlertEditor({
                         <span className="text-neutral-7">
                           {[
                             first.swellHeightMeters !== null &&
-                              formatMeters(first.swellHeightMeters),
+                              formatHeight(first.swellHeightMeters),
                             first.swellPeriodSeconds !== null &&
                               formatSeconds(first.swellPeriodSeconds),
                             first.windSpeedMetersPerSecond !== null &&

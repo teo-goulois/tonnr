@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import { AppHotkeys } from "@/components/shared/app-hotkeys";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ShortcutSettings } from "@/components/shared/shortcut-settings";
+import { UnitsSettings } from "@/components/shared/units-settings";
 import type { orpc } from "@/utils/orpc";
 
 import { getLocale } from "@/paraglide/runtime.js";
@@ -91,6 +92,7 @@ function RootDocument() {
           <AppHotkeys />
           <CommandPalette />
           <ShortcutSettings />
+          <UnitsSettings />
           <Outlet />
           <Toaster />
         </ThemeProvider>

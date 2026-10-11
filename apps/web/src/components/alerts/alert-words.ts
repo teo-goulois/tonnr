@@ -1,5 +1,13 @@
 import { compassPoint, formatNumber, toKnots } from "@/lib/format";
-import { knotsFrom, windIn, windUnit } from "@/lib/units";
+import {
+  getUnits,
+  heightIn,
+  heightUnit,
+  knotsFrom,
+  metersFrom,
+  windIn,
+  windUnit,
+} from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import type { AlertCriteria } from "../viewer/types";
@@ -38,15 +46,25 @@ export const RANGES: Record<
 > = {
   swellHeightMeters: {
     label: m.alert_label_swell_height,
-    unit: (value) => m.unit_meters({ value }),
+    // Written and set in the reader's unit, and kept in metres. In feet a step is half a foot.
+    unit: (value) => `${value} ${heightUnit()}`,
     least: 0,
-    most: 5,
-    step: 0.1,
+    get most() {
+      return Math.round(heightIn(5));
+    },
+    get step() {
+      return getUnits().height === "ft" ? 0.5 : 0.1;
+    },
     digits: 1,
-    shown: (kept) => kept,
-    kept: (shown) => Math.round(shown * 10) / 10,
-    floor: 0,
-    ceiling: 30,
+    shown: (kept) =>
+      getUnits().height === "ft" ? Math.round(heightIn(kept) * 2) / 2 : Math.round(kept * 10) / 10,
+    kept: (shown) => Math.round(metersFrom(shown) * 100) / 100,
+    get floor() {
+      return Math.round(heightIn(0));
+    },
+    get ceiling() {
+      return Math.round(heightIn(30));
+    },
   },
   swellPeriodSeconds: {
     label: m.alert_label_swell_period,
@@ -79,15 +97,25 @@ export const RANGES: Record<
   },
   tideHeightMeters: {
     label: m.alert_label_tide_height,
-    unit: (value) => m.unit_meters({ value }),
+    // Written and set in the reader's unit, and kept in metres. In feet a step is half a foot.
+    unit: (value) => `${value} ${heightUnit()}`,
     least: 0,
-    most: 8,
-    step: 0.1,
+    get most() {
+      return Math.round(heightIn(8));
+    },
+    get step() {
+      return getUnits().height === "ft" ? 0.5 : 0.1;
+    },
     digits: 1,
-    shown: (kept) => kept,
-    kept: (shown) => Math.round(shown * 10) / 10,
-    floor: -5,
-    ceiling: 20,
+    shown: (kept) =>
+      getUnits().height === "ft" ? Math.round(heightIn(kept) * 2) / 2 : Math.round(kept * 10) / 10,
+    kept: (shown) => Math.round(metersFrom(shown) * 100) / 100,
+    get floor() {
+      return Math.round(heightIn(-5));
+    },
+    get ceiling() {
+      return Math.round(heightIn(20));
+    },
   },
 };
 

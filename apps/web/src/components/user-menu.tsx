@@ -5,23 +5,18 @@ import {
   MenuGroupLabel,
   MenuItem,
   MenuPopup,
-  MenuRadioGroup,
-  MenuRadioItem,
   MenuSeparator,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { MailIcon, LogOutIcon, UserIcon, WindIcon } from "@repo/ui/icon";
+import { MailIcon, LogOutIcon, SettingsIcon, UserIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
-import { WIND_UNITS, type WindUnit, useUnits, windUnit } from "@/lib/units";
+import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
-import { useSaveUnits } from "./shared/units-account";
+import { openUnitsSettings, unitsInALine } from "./shared/units-settings";
 
 type UserMenuProps = {
   name: string;
@@ -34,7 +29,6 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const units = useUnits();
-  const saveUnits = useSaveUnits();
 
   return (
     <Menu>
@@ -50,26 +44,12 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
           </MenuGroupLabel>
         </MenuGroup>
         <MenuSeparator />
-        {/* The unit every wind speed is written in, on every screen. Decision 033. */}
-        <MenuSub>
-          <MenuSubTrigger>
-            <WindIcon aria-hidden />
-            {m.units_wind_speed()}
-            <span className="ml-auto text-neutral-7">{windUnit(units.windSpeed)}</span>
-          </MenuSubTrigger>
-          <MenuSubPopup>
-            <MenuRadioGroup
-              value={units.windSpeed}
-              onValueChange={(value) => saveUnits({ ...units, windSpeed: value as WindUnit })}
-            >
-              {WIND_UNITS.map((unit) => (
-                <MenuRadioItem key={unit} value={unit}>
-                  {unit === "kn" ? `${m.units_knots()} (${windUnit(unit)})` : windUnit(unit)}
-                </MenuRadioItem>
-              ))}
-            </MenuRadioGroup>
-          </MenuSubPopup>
-        </MenuSub>
+        {/* The units every measurement is written in, on every screen. Decision 033. */}
+        <MenuItem onClick={openUnitsSettings}>
+          <SettingsIcon aria-hidden />
+          {m.units_title()}
+          <span className="ml-auto text-neutral-7">{unitsInALine(units)}</span>
+        </MenuItem>
         <MenuSeparator />
         {check && (
           <MenuItem disabled={check.isSending} onClick={check.onSend}>

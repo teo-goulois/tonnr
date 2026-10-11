@@ -12,15 +12,8 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentType } from "react";
 
-import {
-  formatAgo,
-  formatClock,
-  formatDay,
-  formatDayAndClock,
-  formatMeters,
-  formatNumber,
-  formatSeconds,
-} from "@/lib/format";
+import { formatAgo, formatClock, formatDay, formatDayAndClock, formatSeconds } from "@/lib/format";
+import { formatDistance, formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { type AlertSettingsChange, AlertSettingsForm } from "../alerts/alert-settings";
@@ -171,6 +164,8 @@ function News({
   notifications,
   onRead,
 }: Pick<AlertsPanelProps, "now" | "notifications" | "onRead">) {
+  // A buoy's height and its distance are written in the reader's units.
+  useUnits();
   if (notifications.isPending) {
     return (
       <ul className="-mx-xs grid gap-xxs">
@@ -238,9 +233,9 @@ function News({
                       <span className="flex flex-wrap items-center gap-x-xxs text-neutral-7">
                         {m.alerts_station({
                           name: line.buoy.name,
-                          distance: formatNumber(line.buoy.distanceKm, 0),
+                          distance: formatDistance(line.buoy.distanceKm),
                         })}{" "}
-                        {formatMeters(line.buoy.significantHeightMeters)}
+                        {formatHeight(line.buoy.significantHeightMeters)}
                         {line.buoy.peakPeriodSeconds !== null &&
                           ` · ${formatSeconds(line.buoy.peakPeriodSeconds)}`}
                         {line.buoy.peakDirectionDegrees !== null && (

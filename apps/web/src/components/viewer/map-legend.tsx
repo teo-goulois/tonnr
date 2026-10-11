@@ -4,7 +4,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useId } from "react";
 
 import { formatNumber } from "@/lib/format";
-import { useUnits, windFigure, windUnit } from "@/lib/units";
+import { heightFigure, heightUnit, useUnits, windFigure, windUnit } from "@/lib/units";
 import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
@@ -109,7 +109,7 @@ export function MapLegend({
   className,
 }: MapLegendProps) {
   const bodyId = useId();
-  // The wind's scale is written in the reader's unit.
+  // The scales are written in the reader's units.
   useUnits();
 
   return (
@@ -144,11 +144,15 @@ export function MapLegend({
       {expanded && (
         <div id={bodyId} className="grid gap-s px-s pb-s">
           <LayerRow
-            label={m.map_wave_height()}
+            label={m.map_wave_height({ unit: heightUnit() })}
             checked={layers.sea}
             onCheckedChange={(sea) => onLayersChange({ ...layers, sea })}
           >
-            <ScaleBar scale={WAVE_HEIGHT_SCALE} ticks={WAVE_TICKS} />
+            <ScaleBar
+              scale={WAVE_HEIGHT_SCALE}
+              ticks={WAVE_TICKS}
+              figure={(tick) => heightFigure(tick, 0)}
+            />
           </LayerRow>
 
           <LayerRow

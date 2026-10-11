@@ -83,9 +83,8 @@ import type {
   TideExtremes,
   TideTimeline,
 } from "@/components/viewer/types";
-import { formatMeters } from "@/lib/format";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
-import { formatWind } from "@/lib/units";
+import { formatHeight, formatWind } from "@/lib/units";
 import { useShortcuts } from "@/lib/shortcuts";
 
 const VARIANTS = [
@@ -721,7 +720,7 @@ export function DesignSystemPage() {
           <SeaChart
             label="Wave height"
             scale={WAVE_HEIGHT_SCALE}
-            formatValue={formatMeters}
+            formatValue={formatHeight}
             points={SAMPLE_HEIGHTS}
             marker={new Date(SAMPLE_NOW - 12 * HOUR_MS)}
           />
@@ -740,9 +739,9 @@ export function DesignSystemPage() {
               value: entry.heightMeters,
             }))}
           />
-          <SeaChart label="Loading" formatValue={formatMeters} points={[]} isLoading />
+          <SeaChart label="Loading" formatValue={formatHeight} points={[]} isLoading />
           <TideChart label="Tide, loading" extremes={[]} points={[]} isLoading />
-          <SeaChart label="Empty" formatValue={formatMeters} points={[]} />
+          <SeaChart label="Empty" formatValue={formatHeight} points={[]} />
         </div>
       </Section>
 

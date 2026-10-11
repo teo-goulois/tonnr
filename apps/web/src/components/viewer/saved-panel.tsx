@@ -4,7 +4,8 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { PinIcon, PinPlusIcon, PlusIcon, TrashIcon, WaveIcon, XIcon } from "@repo/ui/icon";
 import { useState } from "react";
 
-import { formatMeters, formatSeconds, freshnessOf } from "@/lib/format";
+import { formatSeconds, freshnessOf } from "@/lib/format";
+import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot, HeightChip } from "./map-markers";
@@ -68,6 +69,8 @@ function StationRow({
   onSelect: () => void;
   onRemove: () => void;
 }) {
+  // The height is written in the reader's unit.
+  useUnits();
   const reading = station.latestReading;
   const freshness = freshnessOf(reading?.observedAt, now);
   const height = freshness === "none" ? null : (reading?.significantHeightMeters ?? null);
@@ -90,7 +93,7 @@ function StationRow({
         )}
         <span className="min-w-0 flex-1 truncate">{station.name}</span>
         <span className="shrink-0 text-s text-neutral-7 tabular-nums">
-          {height === null ? "–" : formatMeters(height)}
+          {height === null ? "–" : formatHeight(height)}
           {period !== null && ` · ${formatSeconds(period)}`}
         </span>
         <FreshnessDot freshness={freshness} />

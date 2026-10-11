@@ -24,15 +24,8 @@ import {
 import type { Alerting } from "@/components/alerts/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
 import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
-import {
-  compassPoint,
-  formatAgo,
-  formatMeters,
-  formatSeconds,
-  freshnessOf,
-  toKnots,
-} from "@/lib/format";
-import { formatWind, useUnits } from "@/lib/units";
+import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
+import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
@@ -221,7 +214,7 @@ function describeStation(station: Station, now: number, savedIds: Set<string>): 
     isSaved: savedIds.has(station.id),
     label: [
       station.name,
-      height !== null && formatMeters(height),
+      height !== null && formatHeight(height),
       period !== null && formatSeconds(period),
       direction !== null && m.map_from({ direction: compassPoint(direction) }),
       shown && formatAgo(shown.observedAt, now),
@@ -385,7 +378,9 @@ export function Viewer({
   );
   const mapStations = useMemo(
     () => (waveStations.data ?? []).map((station) => describeStation(station, now, savedIds)),
-    [waveStations.data, now, savedIds],
+    // A buoy's label says its height in the reader's unit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [waveStations.data, now, savedIds, units],
   );
   const mapWindStations = useMemo(
     () => (layers.wind ? windStations.flatMap((station) => describeWindStation(station, now)) : []),
