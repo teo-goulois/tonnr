@@ -23,6 +23,8 @@ import {
   type DetailsProps,
   type Nearby,
   NearbyBuoy,
+  type NearbyWind,
+  NearbyWindStation,
   NowTiles,
   ReadingMore,
 } from "./parts";
@@ -82,6 +84,14 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
         <ReadingMore latest={props.latest} />
         {props.nearby && (
           <NearbyBuoy nearby={props.nearby} now={now} onOpen={props.onOpenStation} />
+        )}
+        {props.nearbyWind && (
+          <NearbyWindStation
+            nearby={props.nearbyWind}
+            now={now}
+            offshoreFrom={props.offshoreFrom}
+            onOpen={props.onOpenStation}
+          />
         )}
       </div>
 
@@ -186,6 +196,10 @@ type DetailsOfProps = PointConditionsProps & {
   onTabChange?: (tab: DetailsTab) => void;
   // At a surf break: the buoy to read the sea on, and how to open it.
   nearby?: Nearby;
+  // At a surf break: the station the wind is read on, and where the wind comes from when it
+  // blows off the shore there.
+  nearbyWind?: NearbyWind;
+  offshoreFrom?: number | null;
   onOpenStation?: (stationId: string) => void;
   // What credits the data.
   footer: ReactNode;

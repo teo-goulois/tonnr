@@ -38,7 +38,7 @@ import { m } from "@/paraglide/messages.js";
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
-import type { Nearby } from "./details/parts";
+import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
 import { AccountPrompt, SavedPanel } from "./saved-panel";
@@ -148,6 +148,8 @@ type ViewerProps = {
     extremes: Loadable<TideExtremes>;
     // At a surf break or a spot: the buoy the sea is read on.
     nearby: Nearby | undefined;
+    // And the station its wind is read on.
+    nearbyWind: NearbyWind | undefined;
   };
   adding: AddingSpot;
   // Asks for one more day of tide, before the days loaded or after them.
@@ -284,7 +286,8 @@ function sameSelection(one: Selection, other: Selection) {
     sameLoadable(one.forecast, other.forecast) &&
     sameLoadable(one.tides, other.tides) &&
     sameLoadable(one.extremes, other.extremes) &&
-    one.nearby === other.nearby
+    one.nearby === other.nearby &&
+    one.nearbyWind === other.nearbyWind
   );
 }
 
@@ -483,6 +486,7 @@ export function Viewer({
     found: NO_BREAK,
     spot: NO_SPOT,
     nearby: undefined,
+    nearbyWind: undefined,
   });
   const buoyRest = useDrawerRest(buoy.id !== undefined);
 
@@ -526,6 +530,7 @@ export function Viewer({
           extremes={drawn.extremes}
           onTideExtend={extendTide}
           nearby={drawn.nearby}
+          nearbyWind={drawn.nearbyWind}
           onOpenBuoy={openBuoy}
           isNew={isNewSpot}
           onOfferSeen={seeSpotOffer}
@@ -547,6 +552,7 @@ export function Viewer({
         extremes={drawn.extremes}
         onTideExtend={extendTide}
         nearby={drawn.nearby}
+        nearbyWind={drawn.nearbyWind}
         onOpenBuoy={openBuoy}
       />
     ) : (

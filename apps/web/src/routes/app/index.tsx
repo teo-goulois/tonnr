@@ -12,7 +12,12 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
-import { nearestBuoy } from "@/components/viewer/details/parts";
+import {
+  WIND_NEARBY_KM,
+  boxAround,
+  nearestBuoy,
+  nearestWindStation,
+} from "@/components/viewer/details/parts";
 import { HISTORY_DAYS, HISTORY_DAYS_MOST } from "@/components/viewer/details/wind";
 import type { Bounds, MapLayers, MapPoint } from "@/components/viewer/station-map";
 import type { SavedBreak, SavedItem, SavedList, Spot, Station } from "@/components/viewer/types";
@@ -386,6 +391,31 @@ function ViewerRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [breakPoint?.latitude, breakPoint?.longitude, waves.data, hour],
   );
+  // The wind there is read on the nearest station that measured it lately. Wind stations are
+  // many, and the map holds only those in view: the ones around the point are asked for.
+  const windAround = useQuery(
+    orpc.v1.stations.list.queryOptions({
+      input: {
+        measures: "wind",
+        bbox: breakPoint ? boxAround(breakPoint, WIND_NEARBY_KM) : "",
+        limit: 100,
+      },
+      enabled: breakPoint !== undefined,
+      // The worker fetches the wind every few minutes.
+      refetchInterval: 5 * MINUTE_MS,
+      meta: { quiet: true },
+      select: (answer) => answer.stations,
+    }),
+  );
+  const nearbyWind = useMemo(
+    () =>
+      breakPoint && windAround.data
+        ? nearestWindStation(windAround.data, breakPoint, now)
+        : undefined,
+    // A wind ages with the answers that bring it, and with the hours when none comes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [breakPoint?.latitude, breakPoint?.longitude, windAround.data, hour],
+  );
   // That buoy opens over the break, and the address names it. It is loaded as a selected station
   // is, on the days of tide the break is shown.
   const buoyId = selectedBreakId || selectedSpotId ? search.buoy : undefined;
@@ -728,6 +758,7 @@ function ViewerRoute() {
         tides: loadable(tides),
         extremes: loadable(extremes),
         nearby,
+        nearbyWind,
       }}
       buoy={{
         id: buoyId,

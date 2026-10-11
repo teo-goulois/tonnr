@@ -72,6 +72,7 @@ import {
   UserDot,
   WindBadge,
 } from "@/components/viewer/map-markers";
+import { NearbyWindStation } from "@/components/viewer/details/parts";
 import { SeaChart } from "@/components/viewer/sea-chart";
 import { TideChart } from "@/components/viewer/tide-chart";
 import type { MapLayers } from "@/components/viewer/station-map";
@@ -802,6 +803,25 @@ export function DesignSystemPage() {
               extremes={NOTHING}
             />
           </div>
+        </div>
+      </Section>
+
+      <Section title="Nearest wind station">
+        <div className="grid max-w-96 gap-xs">
+          <NearbyWindStation
+            nearby={{ station: SAMPLE_WIND_STATION, distanceKm: 4 }}
+            now={SAMPLE_NOW}
+            offshoreFrom={110}
+          />
+          <NearbyWindStation
+            nearby={{ station: SAMPLE_WIND_STATION, distanceKm: 12 }}
+            now={SAMPLE_NOW}
+            offshoreFrom={300}
+          />
+          <NearbyWindStation
+            nearby={{ station: SAMPLE_WIND_STATION, distanceKm: 27 }}
+            now={SAMPLE_NOW}
+          />
         </div>
       </Section>
 

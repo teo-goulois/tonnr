@@ -1,3 +1,5 @@
+import { type ShoreWind, shoreWind } from "@repo/conditions/shore-wind";
+import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "@repo/ui/components/ui/popover";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -5,11 +7,19 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
-import { formatAgo, formatMeters, formatNumber, formatSeconds, freshnessOf } from "@/lib/format";
+import {
+  formatAgo,
+  formatKnots,
+  formatMeters,
+  formatNumber,
+  formatSeconds,
+  freshnessOf,
+  toKnots,
+} from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
-import { DirectionArrow, HeightChip } from "../map-markers";
+import { DirectionArrow, HeightChip, WindChip } from "../map-markers";
 import type { PointConditionsProps } from "../point-conditions";
 import { type Reading, type Station, periodOf } from "../types";
 import { LineGlyph } from "./line-glyph";
@@ -30,6 +40,8 @@ import {
 
 /** The buoy a surf break's sea is read on, and how far it floats. */
 export type Nearby = { station: Station; distanceKm: number };
+/** The station a surf break's wind is read on, and how far it stands. */
+export type NearbyWind = Nearby;
 
 /** What the panel is given, for a buoy or for a surf break, already put on one footing. */
 export type DetailsProps = PointConditionsProps & {
@@ -45,6 +57,10 @@ export type DetailsProps = PointConditionsProps & {
   historyPending: boolean;
   // At a surf break: the buoy to read the sea on, and how to open it.
   nearby?: Nearby;
+  // At a surf break: the station to read the wind on, which opens as the buoy does.
+  nearbyWind?: NearbyWind;
+  // Where the wind comes from when it blows off the shore there, when that is known.
+  offshoreFrom?: number | null;
   onOpenStation?: (stationId: string) => void;
   // What credits the data.
   footer: ReactNode;
@@ -320,6 +336,113 @@ export function NearbyBuoy({
           {station.name}
         </span>
       </span>
+      <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 text-neutral-7" />
+    </button>
+  );
+}
+
+// The wind is a local thing: a station further than this says little of it at a spot.
+export const WIND_NEARBY_KM = 30;
+// A wind measured longer ago than this is not the wind now. The map draws no badge for it either.
+const LIVE_WIND = 2 * HOUR_MS;
+
+/**
+ * The box around a point that holds everything within a distance of it, as the API takes a box:
+ * "west,south,east,north". Its sides are rounded so that the same point asks the same question.
+ */
+export function boxAround(place: { latitude: number; longitude: number }, km: number) {
+  const north = km / 111.2;
+  const east = north / Math.max(0.1, Math.cos((place.latitude * Math.PI) / 180));
+  const within = (value: number, most: number) => Math.min(most, Math.max(-most, value));
+  return [
+    within(place.longitude - east, 180),
+    within(place.latitude - north, 90),
+    within(place.longitude + east, 180),
+    within(place.latitude + north, 90),
+  ]
+    .map((side) => side.toFixed(3))
+    .join(",");
+}
+
+/** The station nearest a surf break among those that measured the wind lately. */
+export function nearestWindStation(
+  stations: Station[],
+  place: { latitude: number; longitude: number },
+  now: number,
+) {
+  let nearest: NearbyWind | undefined;
+  for (const station of stations) {
+    const reading = station.latestReading;
+    if (reading?.windSpeedMetersPerSecond == null) continue;
+    if (now - reading.observedAt.getTime() > LIVE_WIND) continue;
+    const distance = distanceKm(place, station);
+    if (distance <= WIND_NEARBY_KM && (!nearest || distance < nearest.distanceKm)) {
+      nearest = { station, distanceKm: distance };
+    }
+  }
+  return nearest;
+}
+
+const SHORE_WIND_NAMES: Record<ShoreWind, () => string> = {
+  offshore: m.wind_offshore,
+  cross_offshore: m.wind_cross_offshore,
+  cross_shore: m.wind_cross_shore,
+  cross_onshore: m.wind_cross_onshore,
+  onshore: m.wind_onshore,
+};
+
+/**
+ * What the nearest wind station measures, at a surf break, and how that wind meets the shore
+ * there when the break's shore is known. It opens the station's own panel.
+ */
+export function NearbyWindStation({
+  nearby,
+  now,
+  offshoreFrom,
+  onOpen,
+}: {
+  nearby: NearbyWind;
+  now: number;
+  offshoreFrom?: number | null;
+  onOpen?: (stationId: string) => void;
+}) {
+  const { station } = nearby;
+  const reading = station.latestReading;
+  const speed = toKnots(reading?.windSpeedMetersPerSecond);
+  if (!reading || speed === null) return null;
+  const gust = toKnots(reading.windGustMetersPerSecond);
+  const from = reading.windDirectionDegrees;
+
+  return (
+    <button
+      type="button"
+      className="focus-ring flex cursor-pointer items-center gap-s rounded-(--radius-xs) bg-neutral-2 px-s py-xs text-left outline-none hover:bg-neutral-3"
+      onClick={() => onOpen?.(station.id)}
+    >
+      <WindChip speedKnots={speed} directionDegrees={from} />
+      <span className="grid min-w-0 flex-1 gap-0.5">
+        <span className="flex flex-wrap items-baseline gap-x-xs">
+          <span className="text-s font-medium tabular-nums">
+            {formatKnots(speed)}
+            {gust !== null && (
+              <span className="font-normal text-neutral-7">
+                {" "}
+                {m.details_gusts_to({ speed: formatNumber(gust, 0) })}
+              </span>
+            )}
+          </span>
+          {from !== null && <Bearing degrees={from} className="text-s" />}
+          <span className="text-xs text-neutral-7">{formatAgo(reading.observedAt, now)}</span>
+        </span>
+        <span className="truncate text-xs text-neutral-7">
+          {m.details_nearest_wind({ distance: formatNumber(nearby.distanceKm, 0) })}
+          {" · "}
+          {station.name}
+        </span>
+      </span>
+      {from !== null && offshoreFrom != null && (
+        <Badge className="shrink-0">{SHORE_WIND_NAMES[shoreWind(from, offshoreFrom)]()}</Badge>
+      )}
       <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 text-neutral-7" />
     </button>
   );

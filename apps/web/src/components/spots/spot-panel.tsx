@@ -8,7 +8,7 @@ import { m } from "@/paraglide/messages.js";
 import { AlertEditor } from "../alerts/alert-editor";
 import type { Alerting } from "../alerts/types";
 import { Details, type DetailsTab } from "../viewer/details/details";
-import type { Nearby } from "../viewer/details/parts";
+import type { Nearby, NearbyWind } from "../viewer/details/parts";
 import { type PointConditionsProps, Sources } from "../viewer/point-conditions";
 import type { Loadable, Spot } from "../viewer/types";
 import { type SpotDescription, SpotGuide } from "./spot-guide";
@@ -17,6 +17,7 @@ type SpotPanelProps = PointConditionsProps & {
   spot: Loadable<Spot>;
   // The buoy the sea is read on at this spot, and how to open its panel over this one.
   nearby?: Nearby;
+  nearbyWind?: NearbyWind;
   onOpenBuoy?: (stationId: string) => void;
   // True for a spot that was just added: its owner is offered to describe it, once.
   isNew: boolean;
@@ -41,6 +42,7 @@ export function SpotPanel({
   extremes,
   onTideExtend,
   nearby,
+  nearbyWind,
   onOpenBuoy,
   isNew,
   onOfferSeen,
@@ -136,6 +138,8 @@ export function SpotPanel({
         extremes={extremes}
         onTideExtend={onTideExtend}
         nearby={nearby}
+        nearbyWind={nearbyWind}
+        offshoreFrom={found?.characteristics?.offshoreDirectionDegrees}
         onOpenStation={onOpenBuoy}
         tab={tab}
         onTabChange={setTab}

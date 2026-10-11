@@ -2,7 +2,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { BreakCharacteristics } from "./break-characteristics";
 import { Details } from "./details/details";
-import type { Nearby } from "./details/parts";
+import type { Nearby, NearbyWind } from "./details/parts";
 import { type PointConditionsProps, Sources } from "./point-conditions";
 import type { Loadable, SurfBreak } from "./types";
 
@@ -10,6 +10,7 @@ type BreakPanelProps = PointConditionsProps & {
   found: Loadable<SurfBreak>;
   // The buoy the sea is read on at this break, and how to open its panel over this one.
   nearby?: Nearby;
+  nearbyWind?: NearbyWind;
   onOpenBuoy?: (stationId: string) => void;
 };
 
@@ -22,6 +23,7 @@ export function BreakPanel({
   extremes,
   onTideExtend,
   nearby,
+  nearbyWind,
   onOpenBuoy,
 }: BreakPanelProps) {
   // A break that has left the catalogue may still be in the cache, so the error comes first.
@@ -46,6 +48,8 @@ export function BreakPanel({
       extremes={extremes}
       onTideExtend={onTideExtend}
       nearby={nearby}
+      nearbyWind={nearbyWind}
+      offshoreFrom={found.data?.characteristics.offshoreDirectionDegrees}
       onOpenStation={onOpenBuoy}
       guide={found.data && <BreakCharacteristics found={found.data} />}
       footer={

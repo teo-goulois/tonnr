@@ -217,6 +217,27 @@ type WindBadgeProps = Omit<ComponentProps<"button">, "children"> & {
   selected?: boolean;
 };
 
+/** A wind speed on its color with where the wind is going, as the map writes it, in a line of text. */
+export function WindChip({
+  speedKnots,
+  directionDegrees,
+}: Pick<WindBadgeProps, "speedKnots" | "directionDegrees">) {
+  return (
+    <span
+      className="flex h-5.5 shrink-0 items-center gap-0.5 rounded-(--radius-xs) px-1.5 text-xs font-medium whitespace-nowrap tabular-nums"
+      style={{
+        background: scaleColor(WIND_SPEED_SCALE, speedKnots),
+        color: scaleInk(WIND_SPEED_SCALE, speedKnots),
+      }}
+    >
+      {directionDegrees !== null && (
+        <DirectionArrow fromDegrees={directionDegrees} className="size-3" />
+      )}
+      {formatNumber(speedKnots, 0)}
+    </span>
+  );
+}
+
 /** A wind station on the map: the speed in knots, on its color, and where the wind is going. */
 export function WindBadge({
   speedKnots,
