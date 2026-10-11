@@ -93,7 +93,11 @@ export function ViewerDrawer({
             <div className="grid min-w-0 gap-xxs">
               <DrawerTitle className="truncate text-l">{title}</DrawerTitle>
               {description && (
-                <DrawerDescription className="text-s">{description}</DrawerDescription>
+                // In the theme's ink, as it has been drawn so far, and not in the grey the drawer
+                // gives a description.
+                <DrawerDescription className="text-s text-neutral-10">
+                  {description}
+                </DrawerDescription>
               )}
             </div>
             <div className="-mr-xs flex shrink-0 items-center gap-xxs">

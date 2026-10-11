@@ -215,9 +215,7 @@ export function SeaChart({
 
   if (!isLoading && (!first || !last || first.time === last.time)) {
     return (
-      <p className={cn(box, "flex items-center text-s text-neutral-7")}>
-        {m.chart_too_few_points()}
-      </p>
+      <p className={cn(box, "flex items-center text-neutral-7")}>{m.chart_too_few_points()}</p>
     );
   }
 

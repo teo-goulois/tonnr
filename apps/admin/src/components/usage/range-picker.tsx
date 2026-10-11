@@ -33,7 +33,7 @@ export function RangePicker({ value, onChange }: RangePickerProps) {
             // structure & layout
             "h-8 cursor-pointer rounded-(--radius-xs) px-s",
             // typography
-            "text-s font-medium whitespace-nowrap text-neutral-7",
+            "font-medium whitespace-nowrap text-neutral-7",
             // focus
             "focus-ring outline-none",
             // transitions

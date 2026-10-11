@@ -33,7 +33,7 @@ export function NavLink({
         // structure & layout
         "flex h-9 shrink-0 items-center rounded-(--radius-xs) px-s",
         // typography
-        "text-s font-medium whitespace-nowrap text-neutral-7",
+        "font-medium whitespace-nowrap text-neutral-7",
         // focus
         "focus-ring outline-none",
         // transitions

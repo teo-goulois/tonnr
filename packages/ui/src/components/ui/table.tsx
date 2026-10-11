@@ -86,7 +86,7 @@ export function TableCaption({
 }: React.ComponentProps<"caption">): React.ReactElement {
   return (
     <caption
-      className={cn("mt-s text-s text-neutral-7", className)}
+      className={cn("mt-s text-neutral-7", className)}
       data-slot="table-caption"
       {...props}
     />

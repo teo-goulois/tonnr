@@ -172,7 +172,7 @@ export function BuoyPill({
         // structure & layout
         "pointer-events-auto flex h-7 cursor-pointer items-center gap-xxs rounded-full py-0.5 pr-xs pl-0.5",
         // typography
-        "text-s font-medium whitespace-nowrap tabular-nums",
+        "font-medium whitespace-nowrap tabular-nums",
         // border & background
         "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
         // transitions
@@ -318,7 +318,7 @@ export function BreakPill({
         "flex h-7 max-w-56 items-center gap-xxs rounded-full py-0.5",
         mirrored ? "flex-row-reverse pr-0.5 pl-s" : "pr-s pl-0.5",
         // typography
-        "text-s font-medium whitespace-nowrap",
+        "font-medium whitespace-nowrap",
         // border & background
         "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
         // state: selected
