@@ -16,6 +16,8 @@ export type SavedItem = { stationId: string } | { breakId: string };
 /** What a list shows of a surf break it holds. */
 export type SavedBreak = Pick<SurfBreak, "id" | "name">;
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];
+/** A spot of the user's own: a place they named. */
+export type Spot = Answer<V1["spots"]["list"]>["spots"][number];
 
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {

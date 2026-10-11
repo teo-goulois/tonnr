@@ -1,4 +1,4 @@
-import { ArrowUpIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
+import { ArrowUpIcon, PinIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps, CSSProperties } from "react";
 
@@ -267,10 +267,13 @@ export function WindBadge({
  */
 export function BreakDisc({
   onDark = false,
+  own = false,
   className,
 }: {
   // On a selected pill, whose surface is the ink.
   onDark?: boolean;
+  // A spot of the user's own, which has a pin where a break has a wave.
+  own?: boolean;
   className?: string;
 }) {
   return (
@@ -282,7 +285,7 @@ export function BreakDisc({
         className,
       )}
     >
-      <WaveIcon strokeWidth={1.75} />
+      {own ? <PinIcon strokeWidth={1.75} /> : <WaveIcon strokeWidth={1.75} />}
     </span>
   );
 }
@@ -290,6 +293,8 @@ export function BreakDisc({
 type BreakPillProps = ComponentProps<"span"> & {
   name: string;
   selected?: boolean;
+  // A spot of the user's own.
+  own?: boolean;
   // The name before the disc, for a pill that has no room after it.
   mirrored?: boolean;
 };
@@ -301,6 +306,7 @@ type BreakPillProps = ComponentProps<"span"> & {
 export function BreakPill({
   name,
   selected = false,
+  own = false,
   mirrored = false,
   className,
   ...props
@@ -321,7 +327,7 @@ export function BreakPill({
       )}
       {...props}
     >
-      <BreakDisc onDark={selected} />
+      <BreakDisc onDark={selected} own={own} />
       <span className="truncate">{name}</span>
     </span>
   );
@@ -340,5 +346,42 @@ export function UserDot({ className, ...props }: ComponentProps<"span">) {
     >
       <span className="absolute -inset-1.5 rounded-full bg-color-1-transparent motion-safe:animate-ping" />
     </span>
+  );
+}
+
+/** How wide the foot of a spot's marker is, in pixels. The point is its middle. */
+export const SPOT_PIN_FOOT = 6;
+
+/**
+ * The marker of a spot being added: a head to take hold of, on a stem whose foot is the point.
+ * It is a button, so that it takes the keyboard's focus.
+ */
+export function SpotPin({ className, ...props }: ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "group flex cursor-grab touch-none flex-col items-center outline-none active:cursor-grabbing",
+        className,
+      )}
+      {...props}
+    >
+      <span
+        className={cn(
+          "grid size-9 place-items-center rounded-full bg-color-1 text-neutral-1",
+          "edge [--edge-color:var(--neutral-1)] [--edge-elevation:var(--shadow-m)] [--edge-width:var(--border-l)]",
+          // The ring of the theme, drawn around the head when the button has the keyboard.
+          "group-focus-visible:[outline:var(--focus-ring-outline)] group-focus-visible:outline-offset-2",
+        )}
+      >
+        <PinIcon aria-hidden className="size-4.5" />
+      </span>
+      <span aria-hidden className="h-3 w-0.5 bg-color-1" />
+      <span
+        aria-hidden
+        className="-mt-px rounded-full bg-color-1 ring-1 ring-neutral-1"
+        style={{ width: SPOT_PIN_FOOT, height: SPOT_PIN_FOOT }}
+      />
+    </button>
   );
 }

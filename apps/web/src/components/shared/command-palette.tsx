@@ -70,6 +70,11 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/app", search: { panel: "saved" } }),
         },
         {
+          value: `${m.spot_add()} new spot place marker`,
+          label: m.spot_add(),
+          run: () => void navigate({ to: "/app", search: { panel: "add" } }),
+        },
+        {
           value: `${m.alerts_title()} alerts notifications`,
           label: m.alerts_title(),
           run: () => void navigate({ to: "/app", search: { panel: "alerts" } }),

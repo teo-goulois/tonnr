@@ -66,6 +66,7 @@ import {
   FreshnessDot,
   FreshnessGauge,
   HeightChip,
+  SpotPin,
   UserDot,
   WindBadge,
 } from "@/components/viewer/map-markers";
@@ -609,6 +610,12 @@ export function DesignSystemPage() {
           <BreakPill name="Pointe des Sables" selected />
           <BreakPill name="Pointe des Sables" selected mirrored />
           <BreakPill name="The long name of a break that the pill has to cut short" />
+        </Row>
+        <Row>
+          <BreakDisc own />
+          <BreakPill name="My sandbank" own />
+          <BreakPill name="My sandbank" own selected />
+          <SpotPin aria-label="The marker of a spot being added" />
         </Row>
       </Section>
 

@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { PlusIcon, TrashIcon, WaveIcon, XIcon } from "@repo/ui/icon";
+import { PinIcon, PinPlusIcon, PlusIcon, TrashIcon, WaveIcon, XIcon } from "@repo/ui/icon";
 import { useState } from "react";
 
 import { formatMeters, formatSeconds, freshnessOf } from "@/lib/format";
@@ -14,6 +14,7 @@ import {
   type SavedBreak,
   type SavedItem,
   type SavedList,
+  type Spot,
   type Station,
   periodOf,
 } from "./types";
@@ -143,6 +144,27 @@ function BreakRow({
   );
 }
 
+/** A spot of the user's own: its name, which opens it. */
+function SpotRow({ spot, onSelect }: { spot: Spot; onSelect: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={`${rowLayout} focus-ring w-full cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
+        onClick={onSelect}
+      >
+        <span
+          aria-hidden
+          className="grid size-6 shrink-0 place-items-center rounded-full bg-color-1 text-neutral-1"
+        >
+          <PinIcon className="size-3.5" />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{spot.name}</span>
+      </button>
+    </li>
+  );
+}
+
 type SavedPanelProps = {
   now: number;
   signedIn: boolean;
@@ -150,6 +172,10 @@ type SavedPanelProps = {
   // The stations and the surf breaks the lists name, by id. One that is still loading is missing.
   stations: Map<string, Station>;
   breaks: Map<string, SavedBreak>;
+  // The user's own spots, which are no part of a list.
+  spots: Loadable<Spot[]>;
+  onSelectSpot: (spotId: string) => void;
+  onAddSpot: () => void;
   onSignIn: () => void;
   onCreateAccount: () => void;
   onSelect: (stationId: string) => void;
@@ -166,6 +192,9 @@ export function SavedPanel({
   lists,
   stations,
   breaks,
+  spots,
+  onSelectSpot,
+  onAddSpot,
   onSignIn,
   onCreateAccount,
   onSelect,
@@ -206,6 +235,38 @@ export function SavedPanel({
 
   return (
     <div className="grid gap-l">
+      <section className="grid gap-xs">
+        <div className="flex items-center justify-between gap-s">
+          <h3 className="min-w-0 truncate font-medium">
+            {m.spots_title()}
+            {spots.data && (
+              <span className="ml-xs text-s font-normal text-neutral-7 tabular-nums">
+                {spots.data.length}
+              </span>
+            )}
+          </h3>
+          <Button variant="secondary" size="sm" onClick={onAddSpot}>
+            <PinPlusIcon data-slot="icon" aria-hidden />
+            {m.spot_add()}
+          </Button>
+        </div>
+        {spots.isError ? (
+          <p className="text-s text-neutral-7">{m.spots_load_failed()}</p>
+        ) : spots.isPending ? (
+          <ul className="-mx-xs grid gap-xxs">
+            <StationRowSkeleton />
+          </ul>
+        ) : spots.data?.length ? (
+          <ul className="-mx-xs grid gap-xxs">
+            {spots.data.map((spot) => (
+              <SpotRow key={spot.id} spot={spot} onSelect={() => onSelectSpot(spot.id)} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-s text-neutral-7">{m.spots_empty()}</p>
+        )}
+      </section>
+
       {lists.isError && <p className="text-s text-neutral-7">{m.saved_load_failed()}</p>}
       {!lists.isError && isEmpty && <p className="text-neutral-7">{m.saved_empty()}</p>}
 

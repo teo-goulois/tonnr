@@ -36,6 +36,8 @@ type ViewerDrawerProps = {
   actions?: ReactNode;
   // Told once the drawer has come to rest, open or closed.
   onRest?: (open: boolean) => void;
+  // Told how much of a phone's screen a sheet beside the map takes, when it is raised or lowered.
+  onSnapChange?: (share: number) => void;
   children: ReactNode;
 };
 
@@ -50,6 +52,7 @@ export function ViewerDrawer({
   description,
   actions,
   onRest,
+  onSnapChange,
   children,
 }: ViewerDrawerProps) {
   const isSheet = !wide;
@@ -63,7 +66,13 @@ export function ViewerDrawer({
       swipeDirection={wide ? "right" : "down"}
       showSwipeHandle={isSheet}
       {...(isSheet && alongside
-        ? { snapPoints: SHEET_SNAP_POINTS, defaultSnapPoint: SHEET_SNAP_POINTS[0] }
+        ? {
+            snapPoints: SHEET_SNAP_POINTS,
+            defaultSnapPoint: SHEET_SNAP_POINTS[0],
+            onSnapPointChange: (snap) => {
+              if (typeof snap === "number") onSnapChange?.(snap);
+            },
+          }
         : {})}
     >
       <DrawerContent

@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { LocateIcon, MinusIcon, PlusIcon } from "@repo/ui/icon";
+import { LocateIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type CSSProperties,
@@ -15,6 +15,13 @@ import {
 import { toast } from "sonner";
 
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
+import {
+  type FoundPlace,
+  NewSpotPanel,
+  type SpotDraft,
+  type SpotSearch,
+} from "@/components/spots/new-spot-panel";
+import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
 import {
   compassPoint,
   formatAgo,
@@ -31,7 +38,7 @@ import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import type { Nearby } from "./details/parts";
 import { MapLegend } from "./map-legend";
-import { SavedPanel } from "./saved-panel";
+import { AccountPrompt, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import { ReadingAge, StationActions, holds } from "./station-actions";
 import {
@@ -53,6 +60,7 @@ import {
   type SavedBreak,
   type SavedItem,
   type SavedList,
+  type Spot,
   type Station,
   type StationReadings,
   type SurfBreak,
@@ -77,7 +85,27 @@ function endOfLastWholeDay(latest: number, stepMs: number) {
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
-export type ViewerPanel = "saved" | "alerts";
+// "add" is the panel that adds a spot. It stands beside the map, which takes the marker.
+export type ViewerPanel = "saved" | "alerts" | "add";
+// How close the map comes to a place the search found: near enough to see where the wave breaks.
+const PLACE_ZOOM = 13;
+
+/** What the panel that adds a spot is given, and what it asks for. */
+export type AddingSpot = {
+  query: string;
+  search: SpotSearch;
+  draft: SpotDraft;
+  // A spot the account already has where the marker stands.
+  near: { id: string; name: string } | undefined;
+  isFull: boolean;
+  isSaving: boolean;
+  onQueryChange: (query: string) => void;
+  onPick: (found: FoundPlace) => void;
+  // The marker was put somewhere on the map, on a break of the catalogue or not.
+  onPlace: (point: MapPoint, breakId?: string) => void;
+  onNameChange: (name: string) => void;
+  onSave: () => void;
+};
 
 /** The sea's wave height as map tiles, and the instants the model has a field for. */
 export type SeaDescription = SeaLayer & {
@@ -98,20 +126,25 @@ type ViewerProps = {
   breaksTruncated: boolean;
   sea: SeaDescription | undefined;
   layers: MapLayers;
-  // A station or a break is selected, never both.
+  // The user's own spots.
+  spots: Loadable<Spot[]>;
+  // A station, a break or a spot is selected, never two of them.
   selectedId: string | undefined;
   selectedBreakId: string | undefined;
+  selectedSpotId: string | undefined;
   selected: {
     station: Station | undefined;
     history: Loadable<StationReadings>;
     found: Loadable<SurfBreak>;
+    spot: Loadable<Spot>;
     // The forecast and the tide at the selected station or break.
     forecast: Loadable<Forecast>;
     tides: Loadable<TideTimeline>;
     extremes: Loadable<TideExtremes>;
-    // At a surf break: the buoy the sea is read on.
+    // At a surf break or a spot: the buoy the sea is read on.
     nearby: Nearby | undefined;
   };
+  adding: AddingSpot;
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
   // The buoy opened from a surf break, in a second drawer over the break's. Closing it gives the
@@ -135,6 +168,9 @@ type ViewerProps = {
   onLayersChange: (layers: MapLayers) => void;
   onSelect: (stationId: string | undefined) => void;
   onSelectBreak: (breakId: string) => void;
+  onSelectSpot: (spotId: string) => void;
+  onDeleteSpot: (spot: Spot) => void;
+  isDeletingSpot: boolean;
   onPanelChange: (panel: ViewerPanel | undefined) => void;
   onBoundsChange: (bounds: Bounds) => void;
   // `listId` is a list's id, or "favorites".
@@ -200,7 +236,11 @@ function describeWindStation(station: Station, now: number): WindStation[] {
   ];
 }
 
-type Selection = ViewerProps["selected"] & { id: string | undefined; breakId: string | undefined };
+type Selection = ViewerProps["selected"] & {
+  id: string | undefined;
+  breakId: string | undefined;
+  spotId: string | undefined;
+};
 
 function sameLoadable<T>(one: Loadable<T>, other: Loadable<T>) {
   return (
@@ -217,9 +257,11 @@ function sameSelection(one: Selection, other: Selection) {
   return (
     one.id === other.id &&
     one.breakId === other.breakId &&
+    one.spotId === other.spotId &&
     one.station === other.station &&
     sameLoadable(one.history, other.history) &&
     sameLoadable(one.found, other.found) &&
+    sameLoadable(one.spot, other.spot) &&
     sameLoadable(one.forecast, other.forecast) &&
     sameLoadable(one.tides, other.tides) &&
     sameLoadable(one.extremes, other.extremes) &&
@@ -229,6 +271,7 @@ function sameSelection(one: Selection, other: Selection) {
 
 // A drawer that holds no surf break has none to say anything of.
 const NO_BREAK: Loadable<SurfBreak> = { data: undefined, isPending: false, isError: false };
+const NO_SPOT: Loadable<Spot> = { data: undefined, isPending: false, isError: false };
 
 /**
  * What a drawer shows, and what of it is drawn. The drawer keeps its content while it slides
@@ -242,7 +285,8 @@ function useShown(isOpen: boolean, current: Selection) {
   if (isOpen && !sameSelection(last.current, current)) last.current = current;
   const shown = last.current;
   const drawn = useDeferredValue(shown);
-  const isDrawn = drawn.id === shown.id && drawn.breakId === shown.breakId;
+  const isDrawn =
+    drawn.id === shown.id && drawn.breakId === shown.breakId && drawn.spotId === shown.spotId;
   return { shown, drawn: isDrawn ? drawn : undefined };
 }
 
@@ -258,9 +302,12 @@ export function Viewer({
   breaksTruncated,
   sea,
   layers,
+  spots,
   selectedId,
   selectedBreakId,
+  selectedSpotId,
   selected,
+  adding,
   onTideExtend,
   buoy,
   onOpenBuoy,
@@ -273,6 +320,9 @@ export function Viewer({
   onLayersChange,
   onSelect,
   onSelectBreak,
+  onSelectSpot,
+  onDeleteSpot,
+  isDeletingSpot,
   onPanelChange,
   onBoundsChange,
   onSave,
@@ -354,8 +404,18 @@ export function Viewer({
     [seaPresent, seaStepMs],
   );
 
-  // The id of what is selected: a station or a break.
-  const selection = selectedId ?? selectedBreakId;
+  // The id of what is selected: a station, a break or a spot.
+  const selection = selectedId ?? selectedBreakId ?? selectedSpotId;
+  const isAdding = panel === "add";
+  // The marker is an account's to put: a visitor is asked for one first. It stays where it is
+  // while the spot is being saved.
+  const isPlacing = isAdding && signedIn;
+  const canPlace = isPlacing && !adding.isSaving;
+  // How much of a phone's screen the sheet beside the map takes. It opens partly raised.
+  const [sheetShare, setSheetShare] = useState(SHEET_SNAP_POINTS[0]!);
+  if (selection === undefined && !isAdding && sheetShare !== SHEET_SNAP_POINTS[0]) {
+    setSheetShare(SHEET_SNAP_POINTS[0]!);
+  }
 
   // The selected break as the map draws it. The breaks in view hold it, unless it was opened by
   // its address: its place is then known once its panel has loaded.
@@ -366,26 +426,33 @@ export function Viewer({
     if (inView) return inView;
     return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
   }, [breaks, selectedBreakId, loadedBreak]);
+  // The spots as the map draws them, and the selected one, which it draws as it does a break.
+  const mapSpots = useMemo(() => spots.data ?? [], [spots.data]);
+  const loadedSpot = selected.spot.data;
+  const selectedSpot = loadedSpot?.id === selectedSpotId ? loadedSpot : undefined;
 
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
-    if (!selection || typeof window === "undefined") return none;
+    if ((!selection && !isAdding) || typeof window === "undefined") return none;
     return wide
       ? { ...none, right: SIDE_PANEL_WIDTH }
-      : { ...none, bottom: Math.round(window.innerHeight * SHEET_SNAP_POINTS[0]!) };
-  }, [selection, wide]);
+      : { ...none, bottom: Math.round(window.innerHeight * sheetShare) };
+  }, [selection, isAdding, wide, sheetShare]);
 
   const { shown, drawn } = useShown(selection !== undefined, {
     id: selectedId,
     breakId: selectedBreakId,
+    spotId: selectedSpotId,
     ...selected,
   });
   const rest = useDrawerRest(selection !== undefined);
   const shownBuoy = useShown(buoy.id !== undefined, {
     ...buoy,
     breakId: undefined,
+    spotId: undefined,
     found: NO_BREAK,
+    spot: NO_SPOT,
     nearby: undefined,
   });
   const buoyRest = useDrawerRest(buoy.id !== undefined);
@@ -399,6 +466,21 @@ export function Viewer({
   const openBuoy = useCallback((stationId: string) => buoyOpener.current(stationId), []);
   const selectionPanel = useMemo(() => {
     if (!drawn) return null;
+    if (drawn.spotId) {
+      return (
+        <SpotPanel
+          key={drawn.spotId}
+          now={now}
+          spot={drawn.spot}
+          forecast={drawn.forecast}
+          tides={drawn.tides}
+          extremes={drawn.extremes}
+          onTideExtend={extendTide}
+          nearby={drawn.nearby}
+          onOpenBuoy={openBuoy}
+        />
+      );
+    }
     return drawn.breakId ? (
       <BreakPanel
         key={drawn.breakId}
@@ -446,9 +528,12 @@ export function Viewer({
   const shownBreak = shown.breakId ? shown.found : undefined;
   const shownReading = shown.history.data?.readings[0] ?? shown.station?.latestReading;
   const shownName = shown.history.data?.station.name ?? shown.station?.name;
-  const shownTitle = shownBreak
-    ? (shownBreak.data?.name ?? (shownBreak.isError ? m.break_title() : undefined))
-    : shownName;
+  const shownSpot = shown.spotId ? shown.spot : undefined;
+  const shownTitle = shownSpot
+    ? (shownSpot.data?.name ?? (shownSpot.isError ? m.spot_title() : undefined))
+    : shownBreak
+      ? (shownBreak.data?.name ?? (shownBreak.isError ? m.break_title() : undefined))
+      : shownName;
 
   function requireAccount(reason: string, then?: () => void) {
     promptAuth({ reason, onSignedIn: then });
@@ -460,6 +545,14 @@ export function Viewer({
     : shown.id
       ? { stationId: shown.id }
       : undefined;
+  // A spot is deleted by its owner alone.
+  const ownSpot = shownSpot?.data?.isOwner ? shownSpot.data : undefined;
+
+  // Adding a spot takes an account, which a visitor is asked for first.
+  function addSpot() {
+    if (signedIn) onPanelChange("add");
+    else requireAccount(m.auth_reason_add_spot(), () => onPanelChange("add"));
+  }
 
   function toggleFavorite() {
     if (!shownItem) return;
@@ -523,8 +616,10 @@ export function Viewer({
         stations={mapStations}
         windStations={mapWindStations}
         breaks={layers.breaks ? breaks : []}
+        spots={mapSpots}
         selectedId={selection}
-        selectedBreak={selectedBreak}
+        selectedBreak={selectedSpot ?? selectedBreak}
+        selectedIsSpot={selectedSpot !== undefined}
         layers={layers}
         seaLayer={sea}
         seaTime={seaTime}
@@ -534,7 +629,12 @@ export function Viewer({
         userLocationLabel={m.locate_you_are_here()}
         onSelect={onSelect}
         onSelectBreak={onSelectBreak}
+        onSelectSpot={onSelectSpot}
         onBoundsChange={onBoundsChange}
+        draft={isPlacing ? adding.draft.point : null}
+        draftLabel={m.spot_marker_label()}
+        placing={isPlacing}
+        onPlace={canPlace ? adding.onPlace : undefined}
       />
 
       {(waveStations.isPending || waveStations.isError) && (
@@ -556,6 +656,16 @@ export function Viewer({
         className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
         style={{ translate: `${-padding.right}px 0` }}
       >
+        <Button
+          variant="outline"
+          size="icon"
+          className={floating}
+          aria-label={m.spot_add()}
+          aria-pressed={isAdding}
+          onClick={addSpot}
+        >
+          <PinPlusIcon data-slot="icon" aria-hidden />
+        </Button>
         <Button
           variant="outline"
           size="icon"
@@ -621,16 +731,35 @@ export function Viewer({
 
       <ViewerDrawer
         open={selection !== undefined}
-        identity={selectedId ? `station:${selectedId}` : `break:${selectedBreakId}`}
+        identity={
+          selectedId
+            ? `station:${selectedId}`
+            : selectedBreakId
+              ? `break:${selectedBreakId}`
+              : `spot:${selectedSpotId}`
+        }
         onOpenChange={(open) => {
           if (!open) onSelect(undefined);
         }}
         wide={wide}
         alongside
+        onSnapChange={setSheetShare}
         onRest={rest.onRest}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
-          shown.breakId ? (
+          shown.spotId ? (
+            shown.spot.data ? (
+              shown.spot.data.isOwner ? (
+                m.spot_own()
+              ) : (
+                m.spot_public()
+              )
+            ) : (
+              !shown.spot.isError && (
+                <Skeleton className="h-(--line-s) w-24 rounded-(--radius-xs)" />
+              )
+            )
+          ) : shown.breakId ? (
             // A break links to the page it was read on, when the instance knows one.
             shown.found.data?.source.url ? (
               <a
@@ -659,14 +788,23 @@ export function Viewer({
           )
         }
         actions={
-          shownItem && (
-            <StationActions
-              item={shownItem}
-              lists={signedIn ? (lists.data ?? []) : undefined}
-              onToggleFavorite={toggleFavorite}
-              onToggleList={(list, add) => onSave(list.id, shownItem, add)}
-              onManageLists={() => onPanelChange("saved")}
+          ownSpot ? (
+            <SpotActions
+              key={ownSpot.id}
+              name={ownSpot.name}
+              isDeleting={isDeletingSpot}
+              onDelete={() => onDeleteSpot(ownSpot)}
             />
+          ) : (
+            shownItem && (
+              <StationActions
+                item={shownItem}
+                lists={signedIn ? (lists.data ?? []) : undefined}
+                onToggleFavorite={toggleFavorite}
+                onToggleList={(list, add) => onSave(list.id, shownItem, add)}
+                onManageLists={() => onPanelChange("saved")}
+              />
+            )
           )
         }
       >
@@ -699,6 +837,38 @@ export function Viewer({
       </ViewerDrawer>
 
       <ViewerDrawer
+        open={isAdding}
+        onOpenChange={(open) => {
+          if (!open) onPanelChange(undefined);
+        }}
+        wide={wide}
+        alongside
+        onSnapChange={setSheetShare}
+        title={m.spot_new_title()}
+      >
+        {signedIn ? (
+          <NewSpotPanel
+            query={adding.query}
+            onQueryChange={adding.onQueryChange}
+            search={adding.search}
+            onPick={(found) => {
+              adding.onPick(found);
+              map.current?.focus(found, PLACE_ZOOM);
+            }}
+            draft={adding.draft}
+            onNameChange={adding.onNameChange}
+            near={adding.near}
+            onOpenSpot={onSelectSpot}
+            isFull={adding.isFull}
+            isSaving={adding.isSaving}
+            onSave={adding.onSave}
+          />
+        ) : (
+          <AccountPrompt text={m.spot_sign_in_prompt()} {...accountPrompt} />
+        )}
+      </ViewerDrawer>
+
+      <ViewerDrawer
         open={panel === "saved"}
         onOpenChange={(open) => {
           if (!open) onPanelChange(undefined);
@@ -712,6 +882,9 @@ export function Viewer({
           lists={lists}
           stations={savedStations}
           breaks={savedBreaks}
+          spots={spots}
+          onSelectSpot={onSelectSpot}
+          onAddSpot={addSpot}
           onSelect={onSelect}
           {...accountPrompt}
           onSelectBreak={onSelectBreak}

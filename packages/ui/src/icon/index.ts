@@ -96,6 +96,8 @@ export { IconBellOutline18 as BellIcon } from "nucleo-ui-outline-18/components/I
 export { IconCircleUserOutline18 as UserIcon } from "nucleo-ui-outline-18/components/IconCircleUserOutline18";
 export { IconCrosshairs2Outline18 as LocateIcon } from "nucleo-ui-outline-18/components/IconCrosshairs2Outline18";
 export { IconListFavsOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconListFavsOutline18";
+export { IconPinOutline18 as PinIcon } from "nucleo-ui-outline-18/components/IconPinOutline18";
+export { IconPinPlusOutline18 as PinPlusIcon } from "nucleo-ui-outline-18/components/IconPinPlusOutline18";
 export { IconTrashOutline18 as TrashIcon } from "nucleo-ui-outline-18/components/IconTrashOutline18";
 export { IconWaterWaveOutline18 as WaveIcon } from "nucleo-ui-outline-18/components/IconWaterWaveOutline18";
 export { IconWindOutline18 as WindIcon } from "nucleo-ui-outline-18/components/IconWindOutline18";

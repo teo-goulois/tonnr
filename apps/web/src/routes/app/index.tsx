@@ -7,26 +7,30 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
 import { nearestBuoy } from "@/components/viewer/details/parts";
-import type { Bounds, MapLayers } from "@/components/viewer/station-map";
-import type { SavedBreak, SavedItem, SavedList, Station } from "@/components/viewer/types";
+import type { Bounds, MapLayers, MapPoint } from "@/components/viewer/station-map";
+import type { SavedBreak, SavedItem, SavedList, Spot, Station } from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
 import { authClient } from "@/lib/auth-client";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
+import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/app/")({
   validateSearch: z.object({
-    // The station or the surf break whose panel is open. One is selected, never both.
+    // The station, the surf break or the spot whose panel is open. One is selected, never two.
     station: z.string().optional(),
     break: z.string().optional(),
-    panel: z.enum(["saved", "alerts"]).optional(),
+    spot: z.string().optional(),
+    // "add" is the panel that adds a spot.
+    panel: z.enum(["saved", "alerts", "add"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
   }),
@@ -44,6 +48,38 @@ const TIDE_DAYS_MOST = 15;
 const WIND_LIMIT = 500;
 const BREAK_LIMIT = 1000;
 const DEFAULT_LAYERS: MapLayers = { sea: true, buoys: true, wind: false, breaks: true };
+// How many spots an account holds, as the API says when it refuses one more.
+const SPOTS_MOST = 100;
+// How long the search waits after the last key before it asks, and how many it shows of each kind.
+const SEARCH_WAIT_MS = 300;
+const SEARCH_LIMIT = 5;
+// A spot this close to the marker is the same place, as far as a warning goes.
+const SAME_PLACE_METERS = 150;
+const NO_DRAFT: SpotDraft = { name: "", point: null };
+
+// The distance between two points near one another, in meters, on a flat earth: enough to say
+// whether they are the same beach.
+function metersBetween(one: MapPoint, other: MapPoint) {
+  const perDegree = 111_320;
+  const north = (one.latitude - other.latitude) * perDegree;
+  // The short way round: 179.999 and -179.999 are neighbours.
+  const turned = ((((one.longitude - other.longitude + 180) % 360) + 360) % 360) - 180;
+  const east = turned * perDegree * Math.cos((one.latitude * Math.PI) / 180);
+  return Math.hypot(north, east);
+}
+
+// The middle of what the map shows, and how close the map is: the zoom at which the world is as
+// many times wider than the view. None for a view that crosses the antimeridian.
+function middleOf(bounds: Bounds | null) {
+  if (!bounds) return undefined;
+  const [west, south, east, north] = bounds;
+  if (west >= east) return undefined;
+  return {
+    latitude: (south + north) / 2,
+    longitude: (west + east) / 2,
+    zoom: Math.round(Math.max(0, Math.min(22, Math.log2(360 / (east - west))))),
+  };
+}
 
 function readLayers(stored: unknown): MapLayers | null {
   if (typeof stored !== "object" || stored === null) return null;
@@ -88,6 +124,7 @@ function ViewerRoute() {
   // An empty value selects nothing, and a station wins over a break given with it.
   const selectedId = search.station || undefined;
   const selectedBreakId = selectedId ? undefined : search.break || undefined;
+  const selectedSpotId = selectedId || selectedBreakId ? undefined : search.spot || undefined;
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
@@ -144,6 +181,13 @@ function ViewerRoute() {
     orpc.v1.lists.list.queryOptions({
       enabled: signedIn,
       select: (answer) => answer.lists,
+      meta: { quiet: true },
+    }),
+  );
+  const spots = useQuery(
+    orpc.v1.spots.list.queryOptions({
+      enabled: signedIn,
+      select: (answer) => answer.spots,
       meta: { quiet: true },
     }),
   );
@@ -233,11 +277,27 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
+  // A spot of the account's own is in its list. Another is asked for: it answers when it is
+  // public, and as missing otherwise.
+  const ownSpot = selectedSpotId
+    ? spots.data?.find((candidate) => candidate.id === selectedSpotId)
+    : undefined;
+  const askedSpot = useQuery(
+    orpc.v1.spots.get.queryOptions({
+      input: { id: selectedSpotId ?? "" },
+      // An account's list comes first: it says at once whether the spot is one of its own.
+      enabled: selectedSpotId !== undefined && !ownSpot && !(signedIn && spots.isLoading),
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
+  // An answer kept from before does not stand against the API now saying that there is none.
+  const spot = ownSpot ?? (selectedSpotId && !askedSpot.isError ? askedSpot.data : undefined);
   const isSelected = (candidate: { id: string }) => candidate.id === selectedBreakId;
   const placed =
     known ??
     history.data?.station ??
-    (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : undefined);
+    (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : spot);
   const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
@@ -245,7 +305,7 @@ function ViewerRoute() {
 
   // The tide is a strip of whole days to scroll along, from midnight where the user is.
   // The days asked for belong to what is selected: another selection opens on its first days.
-  const selection = selectedId ?? selectedBreakId ?? "";
+  const selection = selectedId ?? selectedBreakId ?? selectedSpotId ?? "";
   const tideDays = tideReach.of === selection ? tideReach : TIDE_DAYS;
   const tideSpan = useMemo(() => {
     const start = new Date(hour);
@@ -290,9 +350,9 @@ function ViewerRoute() {
     }),
   );
 
-  // At a surf break, the sea is read on the nearest buoy that still reports. The map's list holds
-  // the buoys already.
-  const breakPoint = selectedBreakId ? point : undefined;
+  // At a surf break or a spot, the sea is read on the nearest buoy that still reports. The map's
+  // list holds the buoys already.
+  const breakPoint = selectedBreakId || selectedSpotId ? point : undefined;
   const nearby = useMemo(
     () => (breakPoint && waves.data ? nearestBuoy(waves.data, breakPoint, hour) : undefined),
     // A buoy ages with the hours, not with the minutes.
@@ -301,7 +361,7 @@ function ViewerRoute() {
   );
   // That buoy opens over the break, and the address names it. It is loaded as a selected station
   // is, on the days of tide the break is shown.
-  const buoyId = selectedBreakId ? search.buoy : undefined;
+  const buoyId = selectedBreakId || selectedSpotId ? search.buoy : undefined;
   const buoyHistory = useQuery(
     orpc.v1.stations.readings.queryOptions({
       input: { id: buoyId ?? "", limit: 2000 },
@@ -399,6 +459,160 @@ function ViewerRoute() {
     }),
   );
 
+  // Adding a spot: what is typed to find the place, and the spot as far as it has got. Both stay
+  // when the panel closes, so that a spot the API refused is not to be made again.
+  const isAdding = panel === "add" && signedIn;
+  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState(NO_DRAFT);
+  // The name the search or the catalogue gave the draft. A name the user wrote is not replaced.
+  const [suggested, setSuggested] = useState("");
+  // What the search asks, once the keys have stopped, and where the map was then.
+  const [asked, setAsked] = useState<{ q: string; near: ReturnType<typeof middleOf> }>({
+    q: "",
+    near: undefined,
+  });
+  const middle = middleOf(bounds);
+  useEffect(() => {
+    const q = query.trim();
+    const timer = setTimeout(() => setAsked({ q, near: middle }), SEARCH_WAIT_MS);
+    return () => clearTimeout(timer);
+    // The map moving asks nothing again: a search is made from where the map was.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  // Only what is still typed is searched and shown: a search cleared, or typed further, shows no
+  // old answer. While the keys have not stopped, the answer is on its way.
+  const typed = query.trim();
+  const isSearchable = isAdding && typed.length >= SEARCH_FROM;
+  const isSearching = isSearchable && asked.q === typed;
+  const isWaiting = isSearchable && asked.q !== typed;
+  const foundPlaces = useQuery(
+    orpc.v1.places.search.queryOptions({
+      input: { q: asked.q, ...asked.near, locale: getLocale(), limit: SEARCH_LIMIT },
+      enabled: isSearching,
+      // The API asks a service that is not the instance's: one request for a search, and no more.
+      retry: false,
+      staleTime: 10 * MINUTE_MS,
+      meta: { quiet: true },
+    }),
+  );
+  const foundBreaks = useQuery(
+    orpc.v1.breaks.list.queryOptions({
+      input: { q: asked.q, limit: SEARCH_LIMIT },
+      enabled: isSearching,
+      staleTime: 60 * MINUTE_MS,
+      meta: { quiet: true },
+    }),
+  );
+  const searched = useMemo(
+    () => ({
+      breaks: {
+        data: isSearching
+          ? foundBreaks.data?.breaks.map((candidate): FoundPlace => ({
+              name: candidate.name,
+              location: candidate.location ?? [],
+              latitude: candidate.latitude,
+              longitude: candidate.longitude,
+              breakId: candidate.id,
+            }))
+          : undefined,
+        isPending: isWaiting || (isSearching && foundBreaks.isLoading),
+        isError: isSearching && foundBreaks.isError,
+      },
+      places: {
+        data: isSearching ? foundPlaces.data?.places : undefined,
+        isPending: isWaiting || (isSearching && foundPlaces.isLoading),
+        isError: isSearching && foundPlaces.isError,
+      },
+      credit: isSearching ? foundPlaces.data?.source.attribution : undefined,
+    }),
+    [
+      isSearching,
+      isWaiting,
+      foundBreaks.data,
+      foundBreaks.isLoading,
+      foundBreaks.isError,
+      foundPlaces.data,
+      foundPlaces.isLoading,
+      foundPlaces.isError,
+    ],
+  );
+  // The name follows what the marker is put on, until the user writes one.
+  const nameFor = (current: SpotDraft, name: string | undefined) =>
+    name && (!current.name.trim() || current.name === suggested) ? name.slice(0, 80) : undefined;
+  function pick(found: FoundPlace) {
+    const name = nameFor(draft, found.name);
+    if (name) setSuggested(name);
+    setDraft({
+      name: name ?? draft.name,
+      point: { latitude: found.latitude, longitude: found.longitude },
+      breakId: found.breakId,
+    });
+    setQuery("");
+  }
+  function place(at: MapPoint, breakId?: string) {
+    const on = breakId ? breaks.data?.breaks.find((one) => one.id === breakId) : undefined;
+    const name = nameFor(draft, on?.name);
+    if (name) setSuggested(name);
+    setDraft({ name: name ?? draft.name, point: at, breakId });
+  }
+  const draftPoint = draft.point;
+  const near = draftPoint
+    ? spots.data?.find((one) => metersBetween(one, draftPoint) < SAME_PLACE_METERS)
+    : undefined;
+
+  const spotsKey = orpc.v1.spots.list.queryKey();
+  // The list on the screen changes at once. A request for it that was on its way would bring
+  // back the list as it was: it is dropped, and the list is asked for again.
+  const setSpots = async (update: (all: Spot[]) => Spot[]) => {
+    await queryClient.cancelQueries({ queryKey: spotsKey });
+    queryClient.setQueryData(spotsKey, (answer) => ({ spots: update(answer?.spots ?? []) }));
+    void queryClient.invalidateQueries({ queryKey: spotsKey });
+  };
+  // What is on the screen when an answer comes, which may be long after it was asked for.
+  const onScreen = useRef({ panel, selectedSpotId });
+  onScreen.current = { panel, selectedSpotId };
+  const createSpot = useMutation(
+    orpc.v1.spots.create.mutationOptions({
+      onSuccess: (made) => {
+        void setSpots((all) => [...all.filter((one) => one.id !== made.id), made]);
+        setDraft(NO_DRAFT);
+        setSuggested("");
+        setQuery("");
+        toast.success(m.spot_saved({ name: made.name }));
+        // The spot opens, unless the user has gone elsewhere meanwhile.
+        if (onScreen.current.panel === "add") void navigate({ search: { spot: made.id } });
+      },
+      // The draft stays as it was: the panel is still open on it.
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const deleteSpot = useMutation(
+    orpc.v1.spots.delete.mutationOptions({
+      onSuccess: ({ id }) => {
+        void setSpots((all) => all.filter((one) => one.id !== id));
+        // What was kept of the spot alone goes too: its address would show it again.
+        queryClient.removeQueries({ queryKey: orpc.v1.spots.get.queryKey({ input: { id } }) });
+        // Its panel closes, unless another was opened meanwhile.
+        if (onScreen.current.selectedSpotId === id) void navigate({ search: {} });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  function saveSpot() {
+    const name = draft.name.trim();
+    if (!draft.point || !name || createSpot.isPending) return;
+    // A marker left on the break it was put on makes a spot from that break, which the API then
+    // places itself. Moved, it is a point of the user's own.
+    createSpot.mutate(draft.breakId ? { breakId: draft.breakId, name } : { name, ...draft.point });
+  }
+  function removeSpot(one: Spot) {
+    if (deleteSpot.isPending) return;
+    deleteSpot.mutate(
+      { id: one.id },
+      { onSuccess: () => toast.success(m.spot_deleted({ name: one.name })) },
+    );
+  }
+
   // The star answers at once: the list changes on the screen, then the API confirms it.
   function save(listId: string, item: SavedItem, add: boolean) {
     // The ids of the item's kind once it is added to them or taken out.
@@ -452,12 +666,19 @@ function ViewerRoute() {
       breaksTruncated={breaks.data?.next != null}
       sea={sea.data}
       layers={layers}
+      spots={loadable(spots)}
       selectedId={selectedId}
       selectedBreakId={selectedBreakId}
+      selectedSpotId={selectedSpotId}
       selected={{
         station: known,
         history: loadable(history),
         found: loadable(found),
+        spot: {
+          data: spot,
+          isPending: !spot && (askedSpot.isLoading || (signedIn && spots.isLoading)),
+          isError: !spot && askedSpot.isError,
+        },
         forecast: loadable(forecast),
         tides: loadable(tides),
         extremes: loadable(extremes),
@@ -486,11 +707,30 @@ function ViewerRoute() {
       savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
       onLayersChange={setLayers}
+      adding={{
+        query,
+        search: searched,
+        draft,
+        near: near && { id: near.id, name: near.name },
+        isFull: (spots.data?.length ?? 0) >= SPOTS_MOST,
+        isSaving: createSpot.isPending,
+        onQueryChange: setQuery,
+        onPick: pick,
+        onPlace: place,
+        onNameChange: (name) => setDraft((current) => ({ ...current, name })),
+        onSave: saveSpot,
+      }}
       onSelect={(station) => void navigate({ search: { station } })}
       onSelectBreak={(id) => void navigate({ search: { break: id } })}
-      // A panel opens over the station's and gives it back when it closes.
+      onSelectSpot={(id) => void navigate({ search: { spot: id } })}
+      onDeleteSpot={removeSpot}
+      isDeletingSpot={deleteSpot.isPending}
+      // A panel opens over the station's and gives it back when it closes. The one that adds a
+      // spot stands alone: the map beside it is for the marker.
       onPanelChange={(next: ViewerPanel | undefined) =>
-        void navigate({ search: (previous) => ({ ...previous, panel: next }) })
+        void navigate({
+          search: (previous) => (next === "add" ? { panel: next } : { ...previous, panel: next }),
+        })
       }
       onBoundsChange={setBounds}
       onSave={save}

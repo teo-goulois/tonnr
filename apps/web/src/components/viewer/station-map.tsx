@@ -5,6 +5,7 @@ import type {
   GeoJSONSource,
   Map as MapLibreMap,
   MapMouseEvent,
+  Marker as MapLibreMarker,
   PaddingOptions,
 } from "maplibre-gl";
 // The library runs its tile work in a worker, which the bundler has to build as its own file.
@@ -21,7 +22,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { WaveIcon } from "@repo/ui/icon";
+import { PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
 import { formatNumber, type Freshness } from "@/lib/format";
@@ -33,7 +34,7 @@ import {
   seaColorTable,
 } from "@/lib/sea-scales";
 
-import { BreakPill, BuoyPill, UserDot, WindBadge } from "./map-markers";
+import { BreakPill, BuoyPill, SPOT_PIN_FOOT, SpotPin, UserDot, WindBadge } from "./map-markers";
 import {
   addLandProtocol,
   LAND_TILE_SIZE,
@@ -93,6 +94,9 @@ export type MapBreak = {
   longitude: number;
 };
 
+/** A spot of the user's own: a place they named. */
+export type MapSpot = MapBreak;
+
 export type MapLayers = { sea: boolean; buoys: boolean; wind: boolean; breaks: boolean };
 
 // West, south, east, north.
@@ -111,11 +115,15 @@ type StationMapProps = {
   stations: MapStation[];
   windStations: WindStation[];
   breaks: MapBreak[];
-  // The id of the selected station, or of the selected break.
+  // The user's own spots, which no switch hides.
+  spots: MapSpot[];
+  // The id of the selected station, break or spot.
   selectedId: string | undefined;
-  // The selected break, which may be none of `breaks`: one opened by its address, or one of a
-  // layer that is switched off.
+  // The selected break or spot, which may be none of those above: one opened by its address, or
+  // a break of a layer that is switched off.
   selectedBreak: MapBreak | undefined;
+  // True when it is a spot, which has a pin where a break has a wave.
+  selectedIsSpot?: boolean;
   layers: MapLayers;
   seaLayer: SeaLayer | undefined;
   // The instant the sea is shown at.
@@ -127,7 +135,16 @@ type StationMapProps = {
   userLocationLabel: string;
   onSelect: (id: string) => void;
   onSelectBreak: (id: string) => void;
+  onSelectSpot: (id: string) => void;
   onBoundsChange: (bounds: Bounds) => void;
+  // The spot being added. While one is, the map selects nothing: `placing` takes the markers
+  // out of reach, of the keyboard too. While `onPlace` is given, a press puts the spot's marker
+  // there, on the break it lands on when it lands on one. The marker stands at `draft` once
+  // there is one, and can be dragged, or moved with the arrow keys.
+  placing?: boolean;
+  draft?: MapPoint | null;
+  draftLabel?: string;
+  onPlace?: (point: MapPoint, breakId?: string) => void;
 };
 
 const STYLE_URLS = {
@@ -159,13 +176,29 @@ const WIND_BOX = { width: 50, height: 26 };
 // A wind badge sits above its point, so a buoy that also measures the wind keeps both.
 const WIND_LIFT = 24;
 // The layers a press can land on.
-const DOT_LAYERS = ["break-dots", "station-dots", "wind-dots"];
+const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 // How far from a dot a press still finds it, in pixels: a dot is small, and a finger is not. The
 // pointer of a mouse is finer, and has to come closer.
 const FINGER_REACH = 12;
 const MOUSE_REACH = 6;
 // The layers of the surf breaks, which their switch shows and hides together.
 const BREAK_LAYERS = ["break-dots", "break-waves", "break-names"];
+// The layers of the user's own spots.
+const SPOT_LAYERS = ["spot-dots", "spot-pins", "spot-names"];
+// A spot's disc is as wide from afar as from near, and wide enough for the pin drawn in it:
+// the spots are few, and each is somewhere to go back to.
+const SPOT_RADIUS = 7;
+// The pin of a spot's disc, as an image of the map: its name and its size.
+const SPOT_PIN = { image: "spot-pin", size: 13 };
+const SPOT_NAME_ZOOM = 7;
+// How far an arrow key moves the marker of the spot being added, in pixels, and with Shift.
+const NUDGE = { step: 8, stride: 40 };
+const ARROWS: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
 // A break is a dot from afar, which grows into a disc as the map comes closer: at a few zooms, the
 // radius of the disc and the width of the edge around it, in pixels.
 const BREAK_DISCS = [
@@ -321,11 +354,11 @@ function byBreakDisc(
   ] as ExpressionSpecification;
 }
 
-// The wave of a break's disc as an image, which is what the map draws. Its lines are read from the
-// icon the page holds, so the map and the page show the same artwork.
-function waveImage(icon: SVGSVGElement, color: string) {
+// The icon of a disc as an image, which is what the map draws. Its lines are read from the icon
+// the page holds, so the map and the page show the same artwork.
+function iconImage(icon: SVGSVGElement, color: string, width: number) {
   const ratio = Math.min(3, Math.ceil(window.devicePixelRatio));
-  const size = BREAK_WAVE.size * ratio;
+  const size = width * ratio;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
@@ -357,7 +390,7 @@ function nearestDot(instance: MapLibreMap, point: { x: number; y: number }, reac
     ],
     { layers },
   );
-  let nearest: { id: string; isBreak: boolean } | undefined;
+  let nearest: { id: string; kind: "station" | "break" | "spot" } | undefined;
   let shortest = Number.POSITIVE_INFINITY;
   for (const hit of hits) {
     const id: unknown = hit.properties.id;
@@ -372,7 +405,11 @@ function nearestDot(instance: MapLibreMap, point: { x: number; y: number }, reac
     const distance = Math.hypot(at.x - point.x, at.y - point.y);
     if (distance >= shortest) continue;
     shortest = distance;
-    nearest = { id, isBreak: hit.layer.id === "break-dots" };
+    const layer = hit.layer.id;
+    nearest = {
+      id,
+      kind: layer === "break-dots" ? "break" : layer === "spot-dots" ? "spot" : "station",
+    };
   }
   return nearest;
 }
@@ -439,8 +476,10 @@ export function StationMap({
   stations,
   windStations,
   breaks,
+  spots,
   selectedId,
   selectedBreak,
+  selectedIsSpot = false,
   layers,
   seaLayer,
   seaTime,
@@ -450,12 +489,19 @@ export function StationMap({
   userLocationLabel,
   onSelect,
   onSelectBreak,
+  onSelectSpot,
   onBoundsChange,
+  placing = false,
+  draft = null,
+  draftLabel,
+  onPlace,
 }: StationMapProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   // The icon the map draws in a break's disc. It is on the page, hidden, to be read from.
   const wave = useRef<HTMLSpanElement>(null);
+  // And the icon it draws in the disc of a spot.
+  const spotPin = useRef<HTMLSpanElement>(null);
   // Counts the styles loaded so far. A new style drops every source and layer added to the last.
   const [styleVersion, setStyleVersion] = useState(0);
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
@@ -503,9 +549,14 @@ export function StationMap({
     layers,
     padding,
     userLocation,
+    breaksById,
+    draft,
     onSelect,
     onSelectBreak,
+    onSelectSpot,
     onBoundsChange,
+    placing,
+    onPlace,
   });
   latest.current = {
     stations,
@@ -517,9 +568,14 @@ export function StationMap({
     layers,
     padding,
     userLocation,
+    breaksById,
+    draft,
     onSelect,
     onSelectBreak,
+    onSelectSpot,
     onBoundsChange,
+    placing,
+    onPlace,
   };
 
   // Chooses the markers that fit without covering one another, and moves each to its point.
@@ -599,9 +655,14 @@ export function StationMap({
       "break:selected": selectedBreak,
       "break:hovered": hovered,
     };
+    // The map can show the world more than once: what is pinned stands on the copy in view.
+    const middle = instance.getCenter().lng;
     for (const [key, place] of Object.entries(pinned)) {
       if (!place) continue;
-      const point = instance.project([place.longitude, place.latitude]);
+      const point = instance.project([
+        place.longitude + Math.round((middle - place.longitude) / 360) * 360,
+        place.latitude,
+      ]);
       positions.current.set(key, { x: Math.round(point.x), y: Math.round(point.y) });
     }
 
@@ -668,8 +729,24 @@ export function StationMap({
       });
       instance.on("click", (event: MapMouseEvent) => {
         const hit = nearestDot(instance, event.point, reach);
+        const { placing, onPlace, breaksById } = latest.current;
+        // While a spot is being added a press selects nothing, the marker's place being taken
+        // or not.
+        if (placing && !onPlace) return;
+        if (onPlace) {
+          // A press on the marker itself moves nothing: it is how the marker takes the keyboard.
+          const pressed = event.originalEvent.target;
+          if (pressed instanceof Element && pressed.closest(".maplibregl-marker")) return;
+          const on = hit?.kind === "break" ? breaksById.get(hit.id) : undefined;
+          if (on) onPlace({ latitude: on.latitude, longitude: on.longitude }, on.id);
+          else {
+            onPlace({ latitude: event.lngLat.lat, longitude: wrapLongitude(event.lngLat.lng) });
+          }
+          return;
+        }
         if (!hit) return;
-        if (hit.isBreak) latest.current.onSelectBreak(hit.id);
+        if (hit.kind === "break") latest.current.onSelectBreak(hit.id);
+        else if (hit.kind === "spot") latest.current.onSelectSpot(hit.id);
         else latest.current.onSelect(hit.id);
       });
       // The pointer of a mouse shows what a press would select, and names the break it is on. A
@@ -678,8 +755,13 @@ export function StationMap({
         // A pointer that is dragging the map is not pointing.
         if (event.pointerType !== "mouse" || event.buttons !== 0) return;
         const hit = nearestDot(instance, { x: event.offsetX, y: event.offsetY }, MOUSE_REACH);
-        canvas.style.cursor = hit ? "pointer" : "";
-        setHoveredId(hit?.isBreak ? hit.id : undefined);
+        // A spot being added is put where the pointer is, whatever is under it.
+        canvas.style.cursor = latest.current.onPlace
+          ? "crosshair"
+          : hit && !latest.current.placing
+            ? "pointer"
+            : "";
+        setHoveredId(hit?.kind === "break" ? hit.id : undefined);
       });
       canvas.addEventListener("pointerleave", () => setHoveredId(undefined));
 
@@ -808,8 +890,63 @@ export function StationMap({
         "text-halo-width": 1.5,
       },
     });
+    // The user's own spots stand above the catalogue: a spot made from a break stands on it, and
+    // is the one a press finds. A spot is a disc with a pin in it, where a break has a wave.
+    const accent = themeColor("--color-1");
+    instance.addSource("spots", { type: "geojson", data: breakFeatures([]) });
+    instance.addLayer({
+      id: "spot-dots",
+      type: "circle",
+      source: "spots",
+      paint: {
+        "circle-radius": byBreakDisc((disc) => Math.max(SPOT_RADIUS, disc.radius)),
+        "circle-color": accent,
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": surface,
+      },
+    });
+    instance.addLayer({
+      id: "spot-names",
+      type: "symbol",
+      source: "spots",
+      minzoom: SPOT_NAME_ZOOM,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 11,
+        "text-variable-anchor": ["top", "bottom", "left", "right"],
+        "text-radial-offset": byBreakDisc((disc) => (Math.max(SPOT_RADIUS, disc.radius) + 5) / 11),
+        "text-justify": "auto",
+        "text-max-width": 8,
+      },
+      paint: {
+        "text-color": ink,
+        "text-halo-color": surface,
+        "text-halo-width": 1.5,
+      },
+    });
+    const pinIcon = spotPin.current?.querySelector("svg");
+    const pinDrawn = pinIcon && iconImage(pinIcon, surface, SPOT_PIN.size);
+    if (pinDrawn) {
+      if (instance.hasImage(SPOT_PIN.image)) instance.removeImage(SPOT_PIN.image);
+      instance.addImage(SPOT_PIN.image, pinDrawn.image, { pixelRatio: pinDrawn.pixelRatio });
+    }
+    // Above the names, as a break's wave is, so that a name finds every disc taken.
+    instance.addLayer({
+      id: "spot-pins",
+      type: "symbol",
+      source: "spots",
+      layout: {
+        "icon-image": SPOT_PIN.image,
+        "icon-size": byBreakDisc(
+          (disc) => (Math.max(SPOT_RADIUS, disc.radius) * 1.3) / SPOT_PIN.size,
+        ),
+        "icon-padding": 3,
+        "icon-allow-overlap": true,
+      },
+    });
     const icon = wave.current?.querySelector("svg");
-    const drawn = icon && waveImage(icon, surface);
+    const drawn = icon && iconImage(icon, surface, BREAK_WAVE.size);
     if (drawn) {
       if (instance.hasImage(BREAK_WAVE.image)) instance.removeImage(BREAK_WAVE.image);
       instance.addImage(BREAK_WAVE.image, drawn.image, { pixelRatio: drawn.pixelRatio });
@@ -859,6 +996,10 @@ export function StationMap({
   }, [breaks, styleVersion]);
 
   useEffect(() => {
+    map.current?.getSource<GeoJSONSource>("spots")?.setData(breakFeatures(spots));
+  }, [spots, styleVersion]);
+
+  useEffect(() => {
     const instance = map.current;
     if (!instance?.getLayer("station-dots")) return;
     instance.setLayoutProperty("station-dots", "visibility", layers.buoys ? "visible" : "none");
@@ -874,8 +1015,9 @@ export function StationMap({
     const instance = map.current;
     if (!instance?.getLayer("station-selected")) return;
     instance.setFilter("station-selected", ["==", ["get", "id"], selectedId ?? ""]);
-    // The selected break is drawn by its pill, which stands where its disc and its name were.
-    for (const layer of BREAK_LAYERS) {
+    // The selected break or spot is drawn by its pill, which stands where its disc and its name
+    // were.
+    for (const layer of [...BREAK_LAYERS, ...SPOT_LAYERS]) {
       instance.setFilter(layer, ["!=", ["get", "id"], selectedBreak?.id ?? ""]);
     }
     layout();
@@ -895,6 +1037,64 @@ export function StationMap({
       }
     };
   }, [hoveredBreakId, styleVersion]);
+
+  // The marker of the spot being added is the map's own, which follows the finger or the mouse
+  // that drags it. What it shows is drawn into it below.
+  const [pin, setPin] = useState<HTMLDivElement | null>(null);
+  const pinMarker = useRef<MapLibreMarker | null>(null);
+  const hasDraft = draft !== null;
+  const isUp = styleVersion > 0;
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !isUp || !hasDraft) return;
+    let cancelled = false;
+    let made: MapLibreMarker | undefined;
+    void import("maplibre-gl").then((maplibre) => {
+      const at = latest.current.draft;
+      if (cancelled || !at) return;
+      const element = document.createElement("div");
+      // The point is the middle of the marker's foot, which is the lowest thing it draws.
+      const marker = new maplibre.Marker({
+        element,
+        draggable: true,
+        anchor: "bottom",
+        offset: [0, SPOT_PIN_FOOT / 2],
+      })
+        .setLngLat([at.longitude, at.latitude])
+        .addTo(instance);
+      const place = (longitude: number, latitude: number) =>
+        latest.current.onPlace?.({ latitude, longitude: wrapLongitude(longitude) });
+      marker.on("dragend", () => {
+        const dropped = marker.getLngLat();
+        place(dropped.lng, dropped.lat);
+      });
+      // The keys of a control that has the focus, not a shortcut: the arrows move the marker,
+      // and are stopped here so that the map under it stays where it is.
+      element.addEventListener("keydown", (event) => {
+        const move = ARROWS[event.key];
+        const from = latest.current.draft;
+        if (!move || !from) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const by = event.shiftKey ? NUDGE.stride : NUDGE.step;
+        const point = instance.project([from.longitude, from.latitude]);
+        const to = instance.unproject([point.x + move[0] * by, point.y + move[1] * by]);
+        place(to.lng, to.lat);
+      });
+      made = marker;
+      pinMarker.current = marker;
+      setPin(element);
+    });
+    return () => {
+      cancelled = true;
+      made?.remove();
+      pinMarker.current = null;
+      setPin(null);
+    };
+  }, [hasDraft, isUp]);
+  useEffect(() => {
+    if (draft) pinMarker.current?.setLngLat([draft.longitude, draft.latitude]);
+  }, [draft, pin]);
 
   // Where the basemap's tiles are, which its style leaves to a second document.
   const [basemap, setBasemap] = useState<{ tiles: string; maxZoom: number } | null>(null);
@@ -1171,6 +1371,9 @@ export function StationMap({
       {overlay &&
         createPortal(
           <div
+            // While a spot is being added the markers are out of reach, of a press, which goes
+            // through them to the map, and of the keyboard.
+            inert={placing}
             className="contents"
             onPointerDownCapture={() => {
               dragged.current = false;
@@ -1247,6 +1450,7 @@ export function StationMap({
                   )}
                   name={selectedBreak.name}
                   selected
+                  own={selectedIsSpot}
                   mirrored={selectedOpensLeft}
                 />
               </div>
@@ -1269,9 +1473,13 @@ export function StationMap({
           </div>,
           overlay,
         )}
+      {pin && createPortal(<SpotPin aria-label={draftLabel} />, pin)}
       {/* The wave of a break, for the map to draw from. */}
       <span ref={wave} hidden>
         <WaveIcon strokeWidth={2} />
+      </span>
+      <span ref={spotPin} hidden>
+        <PinIcon strokeWidth={2} />
       </span>
     </>
   );
