@@ -547,6 +547,65 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       expect(await states()).toEqual([["begins", "expired"]]);
     });
 
+    it("says what is on, then what was written with it once that begins, each once", async () => {
+      // The sea works in the morning and again in the afternoon.
+      await settings({ onFound: false, onBegin: true, noticeMinutes: 30 });
+      kept.provider.swell = (seconds) =>
+        Math.max(swellBetween(8, 10)(seconds), swellBetween(13, 15)(seconds));
+      await found();
+      for (let look = 0; look < 6; look += 1) await next();
+      vi.setSystemTime(new Date(SATURDAY + 7.75 * HOUR_MS));
+      await settings({ quietFrom: 7 * 60, quietTo: 8 * 60 });
+      expect(await pass()).toMatchObject({ begins: 1, mails: 0 });
+      // The one that waits was written for the whole day, as one that waited longer would be.
+      const [made] = await database.db.select().from(notification);
+      const [line] = made?.payload.lines ?? [];
+      if (!made || !line) throw new Error("no notification");
+      await database.db
+        .update(notification)
+        .set({
+          payload: {
+            ...made.payload,
+            lines: [
+              {
+                ...line,
+                open: [
+                  {
+                    start: new Date(SATURDAY + 8 * HOUR_MS).toISOString(),
+                    end: new Date(SATURDAY + 15 * HOUR_MS).toISOString(),
+                  },
+                ],
+              },
+            ],
+          },
+        })
+        .where(eq(notification.id, made.id));
+
+      vi.setSystemTime(new Date(SATURDAY + 8 * HOUR_MS));
+      expect(await pass()).toMatchObject({ mails: 1 });
+      expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 08:00 to 10:00\n");
+      expect(post.sent()[0]?.text).not.toContain("13:00");
+      // It stays on its way for the afternoon.
+      expect((await deliveries()).filter((one) => one.state === "pending")).toMatchObject([
+        {
+          dueAt: new Date(SATURDAY + 12.5 * HOUR_MS),
+          expiresAt: new Date(SATURDAY + 15 * HOUR_MS),
+        },
+      ]);
+
+      // Looked at again through the morning, it says the afternoon when it begins, and not
+      // the morning once more.
+      vi.setSystemTime(new Date(SATURDAY + 8 * HOUR_MS + 20 * 60 * 1000));
+      await look();
+      vi.setSystemTime(new Date(SATURDAY + 11 * HOUR_MS + 20 * 60 * 1000));
+      await look();
+      vi.setSystemTime(new Date(SATURDAY + 12.5 * HOUR_MS));
+      await pass();
+      const afternoon = post.sent().filter((mail) => mail.text.includes("13:00 to 15:00"));
+      expect(afternoon).toHaveLength(1);
+      expect(afternoon[0]?.text).not.toContain("08:00 to 10:00");
+    });
+
     it("leaves as one mail when two of an alert waited for hours that are now the same", async () => {
       await waiting();
       // Another one of the alert, written for the end of the same morning.
@@ -648,8 +707,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     it("are put back whole when a setting changed, and say what stands under it", async () => {
       await found();
       const { id, taken } = await written();
+      // It is leaving, and nothing is told yet.
       expect(await states()).toEqual([["found", "sending"]]);
-      expect(await mailedAt()).toEqual(["2026-10-10T08:00:00.000Z"]);
+      expect(await mailedAt()).toEqual([]);
 
       // The account switches "found" off, and is answered.
       await settings({ onFound: false });
@@ -683,6 +743,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       expect(await hand(database.db, out, id, taken)).toBe("sent");
       expect(post.sent()).toHaveLength(1);
       expect(await states()).toEqual([["found", "sent"]]);
+      // What it told is told once it has left.
+      expect(await mailedAt()).toEqual(["2026-10-10T08:00:00.000Z"]);
     });
 
     it("are given up when the account stopped its mails", async () => {
@@ -692,6 +754,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
 
       expect(await hand(database.db, out, id, taken)).toBe("expired");
       expect(post.sent()).toEqual([]);
+      // Nothing was told: an account that says yes again is told these hours as new ones.
+      expect(await mailedAt()).toEqual([]);
+      await settings({ byMail: true });
+      kept.provider.swell = swellBetween(13, 17);
+      await next();
+      expect(await pass()).toMatchObject({ mails: 1 });
+      expect(post.sent()[0]?.subject).toBe("The bay: a window is taking shape");
     });
 
     it("are given up, for an evening, once the day it lists has begun", async () => {
@@ -737,6 +806,31 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     vi.advanceTimersByTime(20 * 60 * 1000);
     expect(await pass()).toMatchObject({ mails: 0 });
     expect(await states()).toEqual([["found", "sent"]]);
+  });
+
+  it("say later what a spot that could not be read has to say, when the provider refused the others", async () => {
+    await database.db
+      .insert(spot)
+      .values({ id: "away", userId: "owner", name: "Away", latitude: 43.6, longitude: -1.47 });
+    await database.db.insert(alertSpot).values({ spotId: "away", alertId: "bay", position: 1 });
+    await found();
+    await database.db
+      .update(alertSpot)
+      .set({ lookedAt: new Date(Date.now() - 7 * HOUR_MS) })
+      .where(eq(alertSpot.spotId, "away"));
+    const refusing = testMailer({ failing: true });
+    const said = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await pass({ ...out, mailer: refusing.mailer })).toMatchObject({ mails: 0, failed: 1 });
+    expect(await states()).toEqual([["found", "pending"]]);
+    said.mockRestore();
+
+    // What was refused is not said again, and the spot that waited is.
+    await database.db.update(alertSpot).set({ lookedAt: new Date() });
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 1 });
+    expect(post.sent()[0]?.text).toContain("Away\n  Sat 10 Oct, 08:00 to 12:00\n");
+    expect(post.sent()[0]?.text).not.toContain("Home");
   });
 
   it("follow the quiet hours as they are when they leave, not as they were", async () => {
@@ -788,14 +882,28 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     };
 
     expect(await pass(stopping)).toMatchObject({ mails: 0, failed: 1 });
-    // It left: it is kept as on its way, and what it said is told. The other has nothing
-    // left to say, in this pass or in a later one.
+    // It left, and nobody knows: it is kept as on its way, with what it tells. The other mail
+    // of the alert waits, since what it says depends on that.
     expect(post.sent()).toHaveLength(1);
+    expect(await states()).toEqual([
+      ["found", "sending"],
+      ["moved", "pending"],
+    ]);
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 0, failed: 0 });
+    expect(await states()).toEqual([
+      ["found", "sending"],
+      ["moved", "pending"],
+    ]);
+
+    // Long enough after, it is known to have been left behind: what it told is taken as told,
+    // and the other has nothing left to say.
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 0, failed: 0 });
     expect(await states()).toEqual([
       ["found", "sending"],
       ["moved", "expired"],
     ]);
-    expect(await pass()).toMatchObject({ mails: 0, failed: 0 });
     expect(post.sent()).toHaveLength(1);
     said.mockRestore();
   });

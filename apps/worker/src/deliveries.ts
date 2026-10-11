@@ -20,9 +20,9 @@ import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { countCalls } from "@repo/db/calls";
 import {
+  type DeliveryClaim,
   type NotificationPayload,
   type Stretch,
-  type ToldStretch,
   alert,
   alertSettings,
   alertSpot,
@@ -33,7 +33,7 @@ import { user } from "@repo/db/schema/auth";
 import { unitPreferences } from "@repo/db/schema/preferences";
 import { type Mail, type MailSettings, type Mailer, MAIL_PROVIDER, createMailer } from "@repo/mail";
 import { type AlertMailContent, STARTING_UNITS, alertMail } from "@repo/mail/alerts";
-import { and, asc, eq, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import {
@@ -42,12 +42,15 @@ import {
   fromNow,
   interval,
   openOf,
+  running,
   seaAt,
+  stretch,
   toldPiece,
   toldStretch,
   watched,
   watchedOf,
 } from "./kept";
+import { WRITE_SECONDS } from "./runs";
 import { wavesNear } from "./stations";
 import { StoreError } from "./store";
 
@@ -56,12 +59,13 @@ import { StoreError } from "./store";
 // lighter pass sends what is due. A mail is written when it leaves, from what the alert holds
 // then: it may have waited for the end of the account's quiet hours.
 //
-// A mail leaves in two steps. The first decides what it says and writes that it is leaving,
-// with what it tells: a worker that stops after that never says it twice. The second holds the
-// account, its alerts and its settings, checks that nothing the mail was written from has
-// changed, counts it, and hands it to the provider: an account that stops its mails waits for
+// A mail leaves in two steps. The first decides what it says, counts it, and writes that it is
+// leaving, with what it tells: its claim. The second holds the account, its alerts and its
+// settings, checks that nothing the mail was written from has changed, hands it to the
+// provider, and writes what it told to the spots. An account that stops its mails waits for
 // the one that is leaving, and none leaves once it is answered. A mail that is not handed over
-// after all is put back as it was, with what it had to say.
+// after all gives its claim up, and nothing was told. A worker that stops before it knows
+// leaves the claim, which is taken as told: nothing is said twice.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // An account is mailed this many alert mails a day at most, counted apart from the mails that
@@ -77,6 +81,12 @@ const SENT_AT_MOST = 60;
 // A delivery that cannot leave yet, for want of a look or of a checked address, is read again
 // this much later: it does not stand in the way of those that can.
 const AGAIN_MS = 15 * 60 * 1000;
+// A mail is handed over only while this much of its transaction's time is left, which is more
+// than a mail is given: the database ends a job's transaction, and would let go of the account.
+const HAND_WITHIN_MS = (WRITE_SECONDS - 60) * 1000;
+// A claim this old was left behind by a worker that stopped: the database ends a transaction
+// that hands a mail over long before.
+const LEFT_BEHIND_MS = 2 * WRITE_SECONDS * 1000;
 /** How many mails the instance lets out in a day, unless its settings say otherwise. */
 const DEFAULT_DAILY_MAILS = 200;
 
@@ -158,22 +168,91 @@ type Said = {
   alertName: string | null;
   lines: Omit<MailLine, "spotUrl">[];
   spotIds: string[];
-  // By spot, the hours mail told before, and those it has told once this has left.
-  mailed: Map<string, { before: ToldStretch[]; after: ToldStretch[] }>;
-  // The deliveries that this mail says in their place: they have nothing left to say.
-  merged: string[];
+  claim: Required<Omit<DeliveryClaim, "at">>;
 };
+const saying = (moment: Said["moment"], alertName: string | null): Said => ({
+  moment,
+  alertName,
+  lines: [],
+  spotIds: [],
+  claim: { mailed: {}, begun: {}, merged: [] },
+});
 
 // What the last look read of the sea for the hour some hours begin in, or for this one.
 const seaOf = (one: Link, begins: Date | undefined, now: Date) => {
   const sea = begins && seaAt(one.windows, fromNow(begins, now));
   return sea ? { sea } : {};
 };
+const byStart = (a: { start: Date }, b: { start: Date }) => a.start.getTime() - b.start.getTime();
+const overlaps = (one: { start: Date; end: Date }, other: { start: Date; end: Date }) =>
+  one.start.getTime() < other.end.getTime() && one.end.getTime() > other.start.getTime();
 
-// The spots a mail speaks of: those of its alert, or of every alert of the account for an
-// evening.
-const linksOf = (tx: Transaction, made: { userId: string; alertId: string | null }) =>
-  watchedOf(tx, made.alertId ? { alertId: made.alertId } : { userId: made.userId });
+const delivery = (notificationId: string, state: "pending" | "sending") =>
+  and(
+    eq(notificationDelivery.notificationId, notificationId),
+    eq(notificationDelivery.channel, "mail"),
+    eq(notificationDelivery.state, state),
+  );
+
+// Settles deliveries that have nothing left to say: sent, when they were sent in part.
+const finish = (tx: Transaction, ids: string[], now: Date) =>
+  tx
+    .update(notificationDelivery)
+    .set({
+      state: sql`case when ${notificationDelivery.settledAt} is null then 'expired' else 'sent' end`,
+      settledAt: sql`coalesce(${notificationDelivery.settledAt}, ${now.toISOString()}::timestamptz)`,
+    })
+    .where(
+      and(
+        inArray(notificationDelivery.notificationId, ids),
+        eq(notificationDelivery.channel, "mail"),
+        eq(notificationDelivery.state, "pending"),
+      ),
+    );
+
+// Writes what a mail told to the spots, and settles what it said in the place of.
+async function tell(tx: Transaction, claim: DeliveryClaim, now: Date) {
+  for (const [spotId, mailed] of Object.entries(claim.mailed ?? {})) {
+    await tx.update(alertSpot).set({ mailed }).where(eq(alertSpot.spotId, spotId));
+  }
+  for (const [spotId, mailBegun] of Object.entries(claim.begun ?? {})) {
+    await tx.update(alertSpot).set({ mailBegun }).where(eq(alertSpot.spotId, spotId));
+  }
+  if (claim.merged?.length) await finish(tx, claim.merged, now);
+}
+
+/**
+ * Takes as told what a worker that stopped was handing over for an alert: its mail may have
+ * left. Says whether a mail of the alert is being handed over at this moment, by another
+ * worker, between its two steps: whatever else the alert has to say waits for it, so that
+ * nothing is said twice.
+ */
+async function honour(tx: Transaction, alertId: string, now: Date) {
+  const claimed = await tx
+    .select({ id: notification.id, claim: notificationDelivery.claim })
+    .from(notificationDelivery)
+    .innerJoin(notification, eq(notification.id, notificationDelivery.notificationId))
+    .where(
+      and(
+        eq(notification.alertId, alertId),
+        eq(notificationDelivery.channel, "mail"),
+        eq(notificationDelivery.state, "sending"),
+        isNotNull(notificationDelivery.claim),
+      ),
+    )
+    .orderBy(asc(notificationDelivery.createdAt));
+  let isLeaving = false;
+  for (const { id, claim } of claimed) {
+    if (!claim) continue;
+    if (now.getTime() - new Date(claim.at).getTime() < LEFT_BEHIND_MS) {
+      isLeaving = true;
+      continue;
+    }
+    await tell(tx, claim, now);
+    await tx.update(notificationDelivery).set({ claim: null }).where(delivery(id, "sending"));
+  }
+  return isLeaving;
+}
 
 /**
  * What mail has to say of an alert now: for each of its spots, how the hours that stand as told
@@ -187,14 +266,7 @@ const linksOf = (tx: Transaction, made: { userId: string; alertId: string | null
  * account's settings do now: the next look reads it as it is.
  */
 async function newsOf(tx: Transaction, links: Link[], settings: AlertSettings, now: Date) {
-  const said: Said = {
-    moment: "news",
-    alertName: links[0]?.alert.name ?? null,
-    lines: [],
-    spotIds: [],
-    mailed: new Map(),
-    merged: [],
-  };
+  const said = saying("news", links[0]?.alert.name ?? null);
   const open = openOf(links, availabilityOf(settings));
   const quiet = { found: !settings.onFound, change: !settings.onChange };
   const kinds = new Set<"found" | "moved" | "gone">();
@@ -224,7 +296,7 @@ async function newsOf(tx: Transaction, links: Link[], settings: AlertSettings, n
       }
       continue;
     }
-    said.mailed.set(one.place.id, { before: one.link.mailed, after: mailed });
+    said.claim.mailed[one.place.id] = mailed;
     const line: Omit<MailLine, "spotUrl"> = {
       spotName: one.place.name,
       open: [],
@@ -237,9 +309,7 @@ async function newsOf(tx: Transaction, links: Link[], settings: AlertSettings, n
       if (told.moment === "gone") line.gone = told.before;
     }
     // The sea at the first of the hours that are there.
-    const [begins] = [...line.open, ...(line.moved?.open ?? [])].sort(
-      (a, b) => a.start.getTime() - b.start.getTime(),
-    );
+    const [begins] = [...line.open, ...(line.moved?.open ?? [])].sort(byStart);
     said.lines.push({ ...line, ...seaOf(one, begins?.start, now) });
     said.spotIds.push(one.place.id);
   }
@@ -250,10 +320,12 @@ async function newsOf(tx: Transaction, links: Link[], settings: AlertSettings, n
 
 /**
  * What is left to say of hours that begin, when the mail leaves: the hours that the alert's
- * deliveries on their way said to begin, as the last look still finds them, with what the
- * nearest wave station reads now. One mail says all that is on: two beginnings that waited
- * together may have become the same hours. A delivery whose hours have all become later ones
- * is not "on": `later` says when it is, and it waits until then.
+ * deliveries on their way said to begin, as the last look still finds them, that are on and
+ * that no mail has said to begin, with what the nearest wave station reads now. One mail says
+ * all that is on: two beginnings that waited together may have become the same hours.
+ *
+ * Hours that have become later ones are not "on": `later` says when this delivery's are, and
+ * it waits for them. Another delivery of the alert with later hours stays on its way too.
  */
 async function beginsOf(
   tx: Transaction,
@@ -277,15 +349,8 @@ async function beginsOf(
         ne(notification.id, made.id),
       ),
     );
-  const said: Said = {
-    moment: "begins",
-    alertName: links[0]?.alert.name ?? made.payload.alertName,
-    lines: [],
-    spotIds: [],
-    mailed: new Map(),
-    merged: [],
-  };
-  // By spot, the hours that are on, each once. And for this delivery, the hours it must wait for.
+  const said = saying("begins", links[0]?.alert.name ?? made.payload.alertName);
+  // By spot, the hours that are on, each once. And for this delivery, the hours it waits for.
   const on = new Map<string, Map<number, { start: Date; end: Date }>>();
   const later: { start: Date; end: Date }[] = [];
   for (const one of [made, ...others]) {
@@ -302,19 +367,22 @@ async function beginsOf(
         line.open.map(interval),
         settings.noticeMinutes,
       );
+      // Said already by a mail, of these hours or of hours they were a part of.
+      const begun = running(link.link.mailBegun, now).map(interval);
       const pieces = on.get(line.spotId) ?? new Map<number, { start: Date; end: Date }>();
-      for (const piece of reread.due) pieces.set(piece.start.getTime(), piece);
+      for (const piece of reread.due) {
+        if (!begun.some((other) => overlaps(piece, other)))
+          pieces.set(piece.start.getTime(), piece);
+      }
       on.set(line.spotId, pieces);
       waitsFor += reread.later.length;
       if (one.id === made.id) later.push(...reread.later);
     }
     // Another delivery whose hours are all said here, or are no more, has nothing left to say.
-    if (one.id !== made.id && waitsFor === 0) said.merged.push(one.id);
+    if (one.id !== made.id && waitsFor === 0) said.claim.merged.push(one.id);
   }
   for (const link of links) {
-    const left = [...(on.get(link.place.id)?.values() ?? [])].sort(
-      (a, b) => a.start.getTime() - b.start.getTime(),
-    );
+    const left = [...(on.get(link.place.id)?.values() ?? [])].sort(byStart);
     const [begins] = left;
     if (!begins || !link.link.forecastFetchedAt) continue;
     // The station's reading is read as the mail leaves: the one it was written with is old.
@@ -327,11 +395,12 @@ async function beginsOf(
       ...(station ? { station: { ...station, observedAt: new Date(station.observedAt) } } : {}),
     });
     said.spotIds.push(link.place.id);
+    said.claim.begun[link.place.id] = [...running(link.link.mailBegun, now), ...left.map(stretch)];
   }
-  if (said.lines.length > 0) return { said, later: null };
-  const [next] = later.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const [next] = later.sort(byStart);
   return {
-    said: null,
+    said: said.lines.length > 0 ? said : null,
+    // When this delivery's later hours begin, and until when they are worth a mail.
     later: next
       ? {
           dueAt: new Date(next.start.getTime() - settings.noticeMinutes * 60 * 1000),
@@ -362,22 +431,14 @@ function eveningOf(
   const whole = dayOf(day, zoneOf(settings));
   const of = new Map(links.map((one) => [one.place.id, one]));
   const open = openOf(links, availabilityOf(settings));
-  const said: Said = {
-    moment: "evening",
-    alertName: null,
-    lines: [],
-    spotIds: [],
-    mailed: new Map(),
-    merged: [],
-  };
+  const said = saying("evening", null);
   for (const line of made.payload.lines) {
     const one = of.get(line.spotId);
     const fetchedAt = one?.link.forecastFetchedAt;
     // The spot left the alert it was listed under, or the account.
     if (!one || !fetchedAt || (line.alertId && line.alertId !== one.alert.id)) continue;
-    const left = stillOpen(now, watched(one, now), open, line.open.map(interval)).filter(
-      (piece) =>
-        piece.start.getTime() < whole.end.getTime() && piece.end.getTime() > whole.start.getTime(),
+    const left = stillOpen(now, watched(one, now), open, line.open.map(interval)).filter((piece) =>
+      overlaps(piece, whole),
     );
     const [begins] = left;
     if (!begins) continue;
@@ -392,13 +453,6 @@ function eveningOf(
   }
   return said.lines.length > 0 ? said : null;
 }
-
-const delivery = (notificationId: string, state: "pending" | "sending") =>
-  and(
-    eq(notificationDelivery.notificationId, notificationId),
-    eq(notificationDelivery.channel, "mail"),
-    eq(notificationDelivery.state, state),
-  );
 
 type About = { userId: string; alertId: string | null; moment: string };
 
@@ -429,9 +483,11 @@ async function hold(tx: Transaction, made: About) {
     .where(eq(alertSettings.userId, made.userId))
     .for("update");
   const links =
-    made.moment === "evening" || made.alertId
-      ? await linksOf(tx, made.moment === "evening" ? { ...made, alertId: null } : made)
-      : [];
+    made.moment === "evening"
+      ? await watchedOf(tx, { userId: made.userId })
+      : made.alertId
+        ? await watchedOf(tx, { alertId: made.alertId })
+        : [];
   const stamp = JSON.stringify([
     settingsOf(settingsRow),
     alerts.map((one) => [one.id, one.enabled, one.revision]),
@@ -442,6 +498,8 @@ async function hold(tx: Transaction, made: About) {
       one.link.lookedAt?.getTime() ?? null,
       one.link.cutBy,
       one.link.told,
+      one.link.mailed,
+      one.link.mailBegun,
       one.windows.map((window) => [
         window.seaStart.getTime(),
         window.seaEnd.getTime(),
@@ -458,21 +516,28 @@ export type Taken = About & {
   key: string;
   day: string | undefined;
   stamp: string;
-  mailed: Said["mailed"];
-  merged: string[];
-  // Some of the alert's spots could not be read: what they have to say comes later.
-  waits: boolean;
+  // Some of what it has to say comes later: spots that could not be read, or hours that are
+  // not on yet. It stays on its way after this mail, until then and no longer than that.
+  later: { dueAt: Date; expiresAt?: Date } | null;
 };
 
 /**
- * Decides what becomes of a delivery that is due. When it is to leave, writes that it is
- * leaving, with what it tells, and gives the mail to hand over. All of it is kept together, or
- * none of it.
+ * Decides what becomes of a delivery that is due. When it is to leave, counts it, writes that
+ * it is leaving with what it tells, and gives the mail to hand over. All of it is kept
+ * together, or none of it.
  */
 export async function take(db: Database, out: MailOut | null, notificationId: string) {
   return db.transaction(async (tx): Promise<Outcome | Taken> => {
     const [made] = await tx.select().from(notification).where(eq(notification.id, notificationId));
     if (!made) return "skipped";
+    const now = new Date();
+    // What a worker that stopped left of the alert is taken as told before anything is read.
+    let isLeaving = false;
+    if (made.alertId) {
+      await tx.select({ id: user.id }).from(user).where(eq(user.id, made.userId)).for("share");
+      await tx.select({ id: alert.id }).from(alert).where(eq(alert.id, made.alertId)).for("update");
+      isLeaving = await honour(tx, made.alertId, now);
+    }
     const { account, alerts, settingsRow, links, stamp } = await hold(tx, made);
     // Read once all is held: another worker may have sent it meanwhile.
     const [due] = await tx
@@ -480,22 +545,8 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
       .from(notificationDelivery)
       .where(delivery(notificationId, "pending"));
     if (!due) return "skipped";
-    const now = new Date();
-    // What was sent in part and has nothing more to say was sent.
-    const done = async (ids = [notificationId]) => {
-      await tx
-        .update(notificationDelivery)
-        .set({
-          state: sql`case when ${notificationDelivery.settledAt} is null then 'expired' else 'sent' end`,
-          settledAt: sql`coalesce(${notificationDelivery.settledAt}, ${now.toISOString()}::timestamptz)`,
-        })
-        .where(
-          and(
-            inArray(notificationDelivery.notificationId, ids),
-            eq(notificationDelivery.channel, "mail"),
-            eq(notificationDelivery.state, "pending"),
-          ),
-        );
+    const done = async () => {
+      await finish(tx, [notificationId], now);
       return due.settledAt ? ("skipped" as const) : ("expired" as const);
     };
     // Read again later, and no sooner: until then it leaves the way to those that can leave.
@@ -507,11 +558,12 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
       return "skipped" as const;
     };
     const again = new Date(now.getTime() + AGAIN_MS);
+    // Another mail of the alert is leaving: what this one says depends on what that one told.
+    if (isLeaving) return wait(again);
     const isOver = due.expiresAt.getTime() <= now.getTime();
-    const isNews = made.moment === "found" || made.moment === "moved" || made.moment === "gone";
-    // Hours that begin, or an evening's day, are worth a mail until they are over. What an
-    // alert has to tell is read first: its hours may have become later ones.
-    if (isOver && !isNews) return done();
+    // An evening's day is worth a mail until it begins. What an alert has to tell, and hours
+    // that begin, are read first: they may have become later hours.
+    if (isOver && made.moment === "evening") return done();
     // An instance whose worker has no way out keeps the notification in the list alone.
     if (!out) return isOver ? done() : "skipped";
 
@@ -533,19 +585,20 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
     if (!account.emailVerified) return isOver ? done() : wait(again);
 
     let said: Said | null;
-    let waits = false;
-    if (isNews) {
-      const news = await newsOf(tx, links, settings, now);
-      // A spot that the next look has to read may still have something to say.
-      if (!news.said && news.waits && !isOver) return wait(again);
-      ({ said, waits } = news);
+    let later: Taken["later"] = null;
+    if (made.moment === "evening") {
+      said = eveningOf(made, links, settings, now);
     } else if (made.moment === "begins") {
       const begins = await beginsOf(tx, made, links, settings, now);
       // Hours that have become later ones are said when they begin.
       if (!begins.said && begins.later) return wait(begins.later.dueAt, begins.later.expiresAt);
-      said = begins.said;
+      ({ said, later } = begins);
     } else {
-      said = eveningOf(made, links, settings, now);
+      const news = await newsOf(tx, links, settings, now);
+      // A spot that the next look has to read may still have something to say.
+      if (!news.said && news.waits && !isOver) return wait(again);
+      said = news.said;
+      if (news.waits && !isOver) later = { dueAt: again };
     }
     if (!said) return done();
 
@@ -553,6 +606,30 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
     // has something to say waits for their end, and is read again then.
     const leaves = leavesAt(now, quietHoursOf(settings));
     if (leaves.getTime() > now.getTime()) return wait(leaves);
+
+    // Counted as it is written to be leaving, in the account's day and in the instance's, or
+    // in none. A limit that is reached holds it back: nothing was told, and what it had to
+    // say is said by the alert's next mail.
+    const share = Math.floor(out.dailyLimit * ALERTS_SHARE);
+    const full =
+      share < 1 ||
+      (await countCalls(tx, [
+        {
+          provider: `${ALERT_MAIL_PROVIDER}:${made.userId}`,
+          bucket: "day",
+          span: "day",
+          limit: ACCOUNT_DAILY_MAILS,
+        },
+        { provider: ALERT_MAIL_PROVIDER, bucket: "day", span: "day", limit: share },
+        { provider: MAIL_PROVIDER, bucket: "day", span: "day", limit: out.dailyLimit },
+      ]));
+    if (full) {
+      await tx
+        .update(notificationDelivery)
+        .set({ state: "held", settledAt: now })
+        .where(delivery(notificationId, "pending"));
+      return "held";
+    }
 
     // The link that switches alert mails off holds a key that does that and nothing else. An
     // account that said yes before the key existed gets one here, kept before any mail holds it.
@@ -566,16 +643,11 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
       .returning({ key: alertSettings.mailKey });
     if (!keyed?.key) return done();
 
-    // From here on it may leave: it is said so, and what it tells is told. A worker that stops
-    // before the provider answers leaves both as they are, and nothing is said twice.
+    // From here on it may leave: it is said so, with what it tells.
     await tx
       .update(notificationDelivery)
-      .set({ state: "sending" })
+      .set({ state: "sending", claim: { at: now.toISOString(), ...said.claim } })
       .where(delivery(notificationId, "pending"));
-    for (const [spotId, { after }] of said.mailed) {
-      await tx.update(alertSpot).set({ mailed: after }).where(eq(alertSpot.spotId, spotId));
-    }
-    if (said.merged.length > 0) await done(said.merged);
 
     const locale = settings.locale ?? "en";
     // The units the account reads its screens in: decision 033.
@@ -597,9 +669,7 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
       key: keyed.key,
       day: made.payload.day,
       stamp,
-      mailed: said.mailed,
-      merged: said.merged,
-      waits,
+      later,
       mail: alertMail({
         to: account.email,
         locale,
@@ -629,96 +699,68 @@ export async function take(db: Database, out: MailOut | null, notificationId: st
  * mail that is leaving, and once it is answered no mail leaves.
  *
  * What the mail was written from is read again here. When any of it has changed since, a
- * setting, an alert, a look, the mail is not handed over: it is put back on its way with what
- * it had to say, and written anew at the next pass. It is counted here, as it leaves: a limit
- * that is reached holds it back, and what it had to say stays to be said by a later mail.
+ * setting, an alert, a look, the mail is not handed over: its claim is given up, nothing was
+ * told, and it is written anew at the next pass. What it told is written to the spots once
+ * the provider has answered, whatever it answered: a mail that was not taken may have left.
  */
 export async function hand(db: Database, out: MailOut, notificationId: string, taken: Taken) {
+  const began = Date.now();
   return db.transaction(async (tx): Promise<Outcome> => {
     const { account, settingsRow, stamp } = await hold(tx, taken);
     const sending = delivery(notificationId, "sending");
+    const [mine] = await tx.select().from(notificationDelivery).where(sending);
+    // Taken as told meanwhile, by whoever found it left behind.
+    if (!mine?.claim) return "skipped";
     const now = new Date();
-    const settle = async (state: "sent" | "failed" | "expired") => {
-      await tx.update(notificationDelivery).set({ state, settledAt: now }).where(sending);
-      return state;
-    };
-    // Nothing was handed over: what it told is told no more, and what it said in the place
-    // of others is theirs to say again.
-    const putBack = async (state: "pending" | "held") => {
-      for (const [spotId, { before, after }] of taken.mailed) {
-        await tx
-          .update(alertSpot)
-          .set({ mailed: before })
-          .where(
-            and(
-              eq(alertSpot.spotId, spotId),
-              // Unless a look has brought it in line since, which stands.
-              sql`${alertSpot.mailed} = ${JSON.stringify(after)}::jsonb`,
-            ),
-          );
-      }
-      if (taken.merged.length > 0) {
-        await tx
-          .update(notificationDelivery)
-          .set({ state: "pending", settledAt: null })
-          .where(
-            and(
-              inArray(notificationDelivery.notificationId, taken.merged),
-              eq(notificationDelivery.channel, "mail"),
-              eq(notificationDelivery.state, "expired"),
-            ),
-          );
-      }
+    // Nothing was handed over, and nothing was told.
+    const giveUp = async (state: "pending" | "expired") => {
       await tx
         .update(notificationDelivery)
-        .set(state === "held" ? { state, settledAt: now } : { state, dueAt: now })
+        .set(
+          state === "pending"
+            ? { state, claim: null, dueAt: now }
+            : { state, claim: null, settledAt: now },
+        )
         .where(sending);
-      return state === "held" ? ("held" as const) : ("skipped" as const);
+      return state === "pending" ? ("skipped" as const) : ("expired" as const);
     };
 
-    // The account stopped mail or was kept out between the two steps: the mail is given up.
+    // The account stopped mail or was kept out between the two steps.
     if (
       !account?.emailVerified ||
       settingsRow?.byMail !== true ||
       settingsRow.mailKey !== taken.key ||
       (await isSuspended(tx, taken.userId))
     ) {
-      return settle("expired");
+      return giveUp("expired");
     }
     // An evening is said the evening before: not once the day it lists has begun.
     if (taken.moment === "evening" && !isEveningOf(taken.day, settingsOf(settingsRow), now)) {
-      return settle("expired");
+      return giveUp("expired");
     }
-    if (stamp !== taken.stamp) return putBack("pending");
+    // Something it was written from changed, or the hold came too late to last as long as a
+    // mail may take: it is written anew.
+    if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) return giveUp("pending");
 
-    // Counted as it leaves, in the account's day and in the instance's, or in none.
-    const share = Math.floor(out.dailyLimit * ALERTS_SHARE);
-    const full =
-      share < 1 ||
-      (await countCalls(tx, [
-        {
-          provider: `${ALERT_MAIL_PROVIDER}:${taken.userId}`,
-          bucket: "day",
-          span: "day",
-          limit: ACCOUNT_DAILY_MAILS,
-        },
-        { provider: ALERT_MAIL_PROVIDER, bucket: "day", span: "day", limit: share },
-        { provider: MAIL_PROVIDER, bucket: "day", span: "day", limit: out.dailyLimit },
-      ]));
-    if (full) return putBack("held");
-
-    // A mail the provider did not take is not tried again: it may have left all the same.
     const outcome = await out.mailer.send(taken.mail);
-    if (outcome !== "accepted") return settle("failed");
-    // Spots that could not be read may still have something to say: it stays on its way.
-    if (taken.waits) {
-      await tx
-        .update(notificationDelivery)
-        .set({ state: "pending", settledAt: now, dueAt: new Date(now.getTime() + AGAIN_MS) })
-        .where(sending);
-      return "sent";
-    }
-    return settle("sent");
+    await tell(tx, mine.claim, now);
+    // What it has left to say stays on its way. A mail the provider did not take is not
+    // tried again: it may have left all the same.
+    await tx
+      .update(notificationDelivery)
+      .set(
+        taken.later
+          ? {
+              state: "pending",
+              claim: null,
+              dueAt: taken.later.dueAt,
+              ...(taken.later.expiresAt ? { expiresAt: taken.later.expiresAt } : {}),
+              ...(outcome === "accepted" ? { settledAt: now } : {}),
+            }
+          : { state: outcome === "accepted" ? "sent" : "failed", claim: null, settledAt: now },
+      )
+      .where(sending);
+    return outcome === "accepted" ? "sent" : "failed";
   });
 }
 

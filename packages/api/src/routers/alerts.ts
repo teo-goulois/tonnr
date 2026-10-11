@@ -157,7 +157,7 @@ export async function forgetSeen(tx: Transaction, alertId: string, spotId?: stri
     );
   await tx
     .update(alertSpot)
-    .set({ told: [], mailed: [], cutBy: null, begun: [], lookedAt: null })
+    .set({ told: [], mailed: [], mailBegun: [], cutBy: null, begun: [], lookedAt: null })
     .where(and(eq(alertSpot.alertId, alertId), spotId ? eq(alertSpot.spotId, spotId) : undefined));
 }
 

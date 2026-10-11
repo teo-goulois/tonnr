@@ -52,7 +52,9 @@ export async function countCalls(
           counts.map(({ provider, bucket, span }) => ({
             provider,
             bucket,
-            start: sql`date_trunc(${span}::text, now(), 'UTC')`,
+            // The clock as it is, not as it was when a transaction that counts began: one that
+            // waited across midnight counts in the day it is.
+            start: sql`date_trunc(${span}::text, clock_timestamp(), 'UTC')`,
             calls: 1,
           })),
         )
@@ -66,7 +68,7 @@ export async function countCalls(
 
       // A count at its limit takes nothing: the others must not keep this one.
       const { rows } = await tx.execute<{ seconds: number }>(
-        sql`select extract(epoch from now())::float8 as seconds`,
+        sql`select extract(epoch from clock_timestamp())::float8 as seconds`,
       );
       const now = rows[0]?.seconds ?? Date.now() / 1000;
       full = counts

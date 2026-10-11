@@ -38,6 +38,20 @@ export type SeaFigures = {
 /** An hour of a sea window, as the look that saw it read it: when it begins, in ISO 8601. */
 export type SeaHour = SeaFigures & { time: string };
 
+/**
+ * What a delivery that is leaving tells, kept with it until it has left: by spot, the hours
+ * mail has told once it has, the hours mail has said to begin, and the deliveries it says in
+ * the place of. It is written to the spots when the mail is handed over. A worker that stopped
+ * before leaves it here, and it is taken as told: the mail may have left.
+ */
+export type DeliveryClaim = {
+  // When it was written, in ISO 8601: a claim that is old was left behind.
+  at: string;
+  mailed?: Record<string, ToldStretch[]>;
+  begun?: Record<string, Stretch[]>;
+  merged?: string[];
+};
+
 /** Hours of a day, in minutes since midnight: from the first to the one they end at. */
 export type DayHours = { from: number; to: number }[];
 
@@ -118,6 +132,8 @@ export const alertSpot = pgTable(
     // after a look, or not at all, so what mail said is kept apart from what the list said:
     // a mail says how `told` differs from it.
     mailed: jsonb("mailed").$type<ToldStretch[]>().default([]).notNull(),
+    // The open hours that a mail said to begin, and are not over.
+    mailBegun: jsonb("mail_begun").$type<Stretch[]>().default([]).notNull(),
     // When the forecast that the last look read at the spot was fetched.
     forecastFetchedAt: timestamp("forecast_fetched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -281,6 +297,8 @@ export const notificationDelivery = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     // When it was sent, or given up.
     settledAt: timestamp("settled_at", { withTimezone: true }),
+    // What it tells, while it is leaving.
+    claim: jsonb("claim").$type<DeliveryClaim>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
