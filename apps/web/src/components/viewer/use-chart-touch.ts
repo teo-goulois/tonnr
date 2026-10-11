@@ -91,7 +91,9 @@ export function useChartTouch({
     };
     element.addEventListener("pointermove", mouse);
     element.addEventListener("touchstart", begin, { passive: true });
-    element.addEventListener("touchmove", move, { passive: false });
+    // The drawer arbitrates moves on document in capture phase. Inspect an active
+    // chart gesture before that listener can swallow it or start dismissing the sheet.
+    window.addEventListener("touchmove", move, { passive: false, capture: true });
     element.addEventListener("touchend", reset);
     element.addEventListener("touchcancel", reset);
     element.addEventListener("contextmenu", contextMenu);
@@ -101,7 +103,7 @@ export function useChartTouch({
       cancelAnimationFrame(frame);
       element.removeEventListener("pointermove", mouse);
       element.removeEventListener("touchstart", begin);
-      element.removeEventListener("touchmove", move);
+      window.removeEventListener("touchmove", move, true);
       element.removeEventListener("touchend", reset);
       element.removeEventListener("touchcancel", reset);
       element.removeEventListener("contextmenu", contextMenu);

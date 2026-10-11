@@ -16,7 +16,10 @@ read the same moment. Tide inspection also shows the other crossings of that wat
 Lifting the finger returns to the usual reading.
 
 Moving more than eight CSS pixels before the hold completes leaves the gesture to native
-scrolling. Only active inspection cancels a touch move, through a non-passive listener.
+scrolling. Only active inspection cancels a touch move, through a non-passive capture
+listener on the window. It runs before the drawer’s document capture listener, which can
+otherwise swallow the move before it reaches the chart. Pending holds let moves continue
+to the drawer and native scrolling.
 A second finger, cancellation or loss of focus ends inspection. Mouse and keyboard chart
 navigation keep their existing behavior.
 

@@ -5,12 +5,14 @@ import { CHART_HOLD_MS, nearestChartPoint, useChartTouch } from "./use-chart-tou
 
 afterEach(() => {
   cleanup();
+  document.body.replaceChildren();
   vi.useRealTimers();
 });
 
 function setup() {
   vi.useFakeTimers();
   const element = document.createElement("div");
+  document.body.append(element);
   element.getBoundingClientRect = () => ({ left: 10, width: 330 }) as DOMRect;
   const hook = renderHook(() => useChartTouch({ start: 0, end: 100, left: 30 }));
   act(() => hook.result.current.ref(element));
@@ -62,6 +64,30 @@ describe("touch chart inspection", () => {
     expect(touch("touchmove", x, y).defaultPrevented).toBe(false);
     advance(CHART_HOLD_MS + 1);
     expect(result.current.time).toBeUndefined();
+  });
+
+  it("claims a held gesture before the drawer document capture listener", () => {
+    const { result, touch, advance } = setup();
+    const drawerMove = vi.fn((event: Event) => event.stopPropagation());
+    document.addEventListener("touchmove", drawerMove, true);
+    try {
+      touch("touchstart");
+      advance(CHART_HOLD_MS);
+      expect(touch("touchmove", 340).defaultPrevented).toBe(true);
+      advance(20);
+      expect(result.current.time).toBe(100);
+      expect(drawerMove).not.toHaveBeenCalled();
+      touch("touchend", 340, 50, 0);
+      expect(result.current.time).toBeUndefined();
+
+      touch("touchstart");
+      expect(touch("touchmove", 220).defaultPrevented).toBe(false);
+      expect(drawerMove).toHaveBeenCalledOnce();
+      advance(CHART_HOLD_MS);
+      expect(result.current.time).toBeUndefined();
+    } finally {
+      document.removeEventListener("touchmove", drawerMove, true);
+    }
   });
 
   it("does not inspect a quick tap or a cancelled gesture", () => {
