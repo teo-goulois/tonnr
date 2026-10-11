@@ -18,10 +18,11 @@ afterEach(() => {
 
 // A provider on this machine, which counts the requests it gets and the answers it sees closed.
 async function provider(handler: Handler) {
-  const seen = { requests: 0, closed: 0, userAgent: "" };
+  const seen = { requests: 0, closed: 0, userAgent: "", headers: {} as http.IncomingHttpHeaders };
   const server = http.createServer((request, response) => {
     seen.requests += 1;
     seen.userAgent = request.headers["user-agent"] ?? "";
+    seen.headers = request.headers;
     response.on("close", () => {
       seen.closed += 1;
     });
@@ -54,6 +55,27 @@ describe("fetchText and fetchJson", () => {
     expect(await Effect.runPromise(fetchText(url))).toBe('{"height": 2.5}');
     expect(await Effect.runPromise(fetchJson(url))).toEqual({ height: 2.5 });
     expect(seen.userAgent).toMatch(/^[a-z]+\/\d/);
+  });
+
+  it("send what a provider asks for with a request, and still say who is asking", async () => {
+    const { url, seen } = await provider((_, response) => response.end('{"height": 2.5}'));
+    const headers = { apikey: "a-key", "user-agent": "someone else" };
+
+    expect(await Effect.runPromise(fetchJson(url, headers))).toEqual({ height: 2.5 });
+    expect(seen.headers.apikey).toBe("a-key");
+    expect(seen.userAgent).toMatch(/^[a-z]+\/\d/);
+  });
+
+  it("keep nothing of what was sent with a request in the error of a refusal", async () => {
+    const { url } = await provider((_, response) => {
+      response.statusCode = 401;
+      response.end("no");
+    });
+
+    const error = await failure(fetchText(url, { apikey: "a-key" }));
+
+    expect(error).toMatchObject({ status: 401, retryable: false });
+    expect(JSON.stringify(error)).not.toContain("a-key");
   });
 
   it("report an answer that is not JSON, without asking again", async () => {

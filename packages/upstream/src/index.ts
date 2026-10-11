@@ -25,18 +25,24 @@ class StatusError extends Error {
   }
 }
 
+/**
+ * What a provider asks to be sent with a request, such as the key of an account in the header
+ * it names. A key goes here and never in the address: an error keeps the address.
+ */
+export type RequestHeaders = Readonly<Record<string, string>>;
+
 /** Fetches a document from a provider and reads its body, retrying network failures and 5xx answers. */
 const fetchBody = Effect.fn("fetchBody")(function* <Body>(
   url: string,
   read: (response: Response) => Promise<Body>,
-  retry = true,
+  { retry = true, headers = {} }: { retry?: boolean; headers?: RequestHeaders } = {},
 ) {
   // One step for the request and its body: the signal that stops the request, on a timeout or
   // when the run is interrupted, then stops the download too.
   const request = Effect.tryPromise({
     try: async (signal) => {
       const response = await fetch(url, {
-        headers: { "user-agent": USER_AGENT },
+        headers: { ...headers, "user-agent": USER_AGENT },
         signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
       });
       if (!response.ok) {
@@ -106,14 +112,15 @@ const readText = async (response: Response) =>
   new TextDecoder().decode(await readUpTo(response, MAX_TEXT_BYTES));
 
 /** Fetches a text document from a provider. */
-export const fetchText = (url: string) => fetchBody(url, readText);
+export const fetchText = (url: string, headers?: RequestHeaders) =>
+  fetchBody(url, readText, { headers });
 
 /**
  * Fetches a file from a provider as it is, for the formats that are not text. The caller says
  * how large the file may be, so that a provider cannot fill the memory with one answer.
  */
-export const fetchBytes = (url: string, maxBytes: number) =>
-  fetchBody(url, (response) => readUpTo(response, maxBytes));
+export const fetchBytes = (url: string, maxBytes: number, headers?: RequestHeaders) =>
+  fetchBody(url, (response) => readUpTo(response, maxBytes), { headers });
 
 const parseJson = (url: string, text: string) =>
   Effect.try({
@@ -122,8 +129,8 @@ const parseJson = (url: string, text: string) =>
   });
 
 /** Fetches a JSON document from a provider. The caller validates its shape. */
-export const fetchJson = Effect.fn("fetchJson")(function* (url: string) {
-  return yield* parseJson(url, yield* fetchText(url));
+export const fetchJson = Effect.fn("fetchJson")(function* (url: string, headers?: RequestHeaders) {
+  return yield* parseJson(url, yield* fetchText(url, headers));
 });
 
 /**
@@ -131,5 +138,5 @@ export const fetchJson = Effect.fn("fetchJson")(function* (url: string) {
  * callers to wait half a minute after a refusal: the caller's next scheduled run asks again.
  */
 export const fetchJsonOnce = Effect.fn("fetchJsonOnce")(function* (url: string) {
-  return yield* parseJson(url, yield* fetchBody(url, readText, false));
+  return yield* parseJson(url, yield* fetchBody(url, readText, { retry: false }));
 });
