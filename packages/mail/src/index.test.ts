@@ -1,8 +1,11 @@
+import net from "node:net";
+
 import { failingAdapter, memoryAdapter } from "@opencoredev/email-sdk/testing";
 import { unosend } from "@opencoredev/email-sdk/unosend";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createMailer, readSender, readSmtp } from "./index";
+import { smtpOut } from "./smtp";
 import { localeOf, verificationMail } from "./verification";
 
 // No test sends a mail: the library's adapter in memory stands for the way out.
@@ -96,51 +99,119 @@ describe("the mailer of an instance", () => {
   });
 });
 
-describe("a mail over SMTP that is given up", () => {
-  const server = { SMTP_URL: "smtps://mail.example.org", EMAIL_FROM: "hello@example.org" };
-  // An SMTP server that takes a while, as the library's adapter meets it: giving up answers
-  // at once, and the connection goes on.
-  function slow(ms: number) {
-    const left: unknown[] = [];
-    const out = memoryAdapter("smtp");
-    const adapter: typeof out = {
-      ...out,
-      send: (message, context) =>
-        new Promise((resolve, reject) => {
-          context.signal?.addEventListener("abort", () => reject(new Error("given up")), {
-            once: true,
-          });
-          setTimeout(() => {
-            left.push(message);
-            resolve(out.send(message, context));
-          }, ms);
-        }),
+describe("a mail over SMTP, to a server of this machine that stands for one", () => {
+  // A server that speaks enough SMTP to take a mail, or that says nothing at all. Each
+  // connection it was given is counted when it ends.
+  async function serving(speaks: boolean) {
+    const taken: string[] = [];
+    let ended = 0;
+    const server = net.createServer((socket) => {
+      socket.on("error", () => {});
+      socket.on("close", () => {
+        ended += 1;
+      });
+      // What is sent to a server that says nothing is read all the same, or it would not see
+      // the connection end.
+      if (!speaks) return void socket.resume();
+      let data = false;
+      let kept = "";
+      socket.write("220 localhost ESMTP\r\n");
+      socket.on("data", (chunk) => {
+        kept += String(chunk);
+        for (;;) {
+          if (data) {
+            const end = kept.indexOf("\r\n.\r\n");
+            if (end === -1) return;
+            taken.push(kept.slice(0, end));
+            kept = kept.slice(end + 5);
+            data = false;
+            socket.write("250 kept\r\n");
+            continue;
+          }
+          const at = kept.indexOf("\r\n");
+          if (at === -1) return;
+          const verb = kept.slice(0, 4).toUpperCase();
+          kept = kept.slice(at + 2);
+          if (verb === "EHLO") socket.write("250 localhost\r\n");
+          else if (verb === "DATA") {
+            data = true;
+            socket.write("354 go on\r\n");
+          } else if (verb === "QUIT") socket.end("221 bye\r\n");
+          else socket.write("250 ok\r\n");
+        }
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as net.AddressInfo;
+    return {
+      at: { host: "127.0.0.1", port, secure: false, requireTLS: false, timeoutMs: 2000 },
+      taken,
+      ended: () => ended,
+      close: () => new Promise<void>((resolve) => server.close(() => resolve())),
     };
-    return { adapter, left };
   }
+  const message = {
+    from: { email: "hello@example.org", name: "Tonnr" },
+    to: "ana@example.org",
+    subject: "A subject",
+    text: "Text",
+    html: "<p>Text</p>",
+    headers: [
+      { name: "List-Unsubscribe", value: "<https://api.example.org/off?u=a&k=b>" },
+      { name: "List-Unsubscribe-Post", value: "List-Unsubscribe=One-Click" },
+    ],
+  };
+  const context = { adapter: "smtp", operation: "send" as const, attempt: 1 };
 
-  it("may still leave after `send` has answered, and never after `sendToTheEnd` has", async () => {
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const hasty = slow(60);
-    expect(await createMailer(server, hasty.adapter, 10)?.send(mail)).toBe("failed");
-    expect(hasty.left).toHaveLength(0);
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    // It left all the same.
-    expect(hasty.left).toHaveLength(1);
+  it("leaves with its sender, its subject, its two bodies and its headers", async () => {
+    const server = await serving(true);
 
-    const patient = slow(60);
-    expect(await createMailer(server, patient.adapter, 10)?.sendToTheEnd(mail)).toBe("accepted");
-    expect(patient.left).toHaveLength(1);
-    logged.mockRestore();
+    const sent = await smtpOut(server.at).send(message, context);
+
+    expect(sent).toMatchObject({ adapter: "smtp", accepted: ["ana@example.org"] });
+    expect(server.taken).toHaveLength(1);
+    for (const part of [
+      "From: Tonnr <hello@example.org>",
+      "To: ana@example.org",
+      "Subject: A subject",
+      "List-Unsubscribe: <https://api.example.org/off?u=a&k=b>",
+      "List-Unsubscribe-Post: List-Unsubscribe=One-Click",
+      "text/plain",
+      "text/html",
+    ]) {
+      expect(server.taken[0]).toContain(part);
+    }
+    await server.close();
   });
 
-  it("is given up in time through a provider's API, where giving up closes the request", async () => {
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { adapter } = slow(60);
+  it("closes its connection when it is given up, so that nothing leaves after the answer", async () => {
+    const server = await serving(false);
+    const giveUp = AbortSignal.timeout(100);
 
-    expect(
-      await createMailer(settings, { ...adapter, name: "unosend" }, 10)?.sendToTheEnd(mail),
-    ).toBe("failed");
+    await expect(
+      smtpOut(server.at).send(message, { ...context, signal: giveUp }),
+    ).rejects.toThrow();
+
+    // The server that never answered sees the connection go, and took nothing.
+    await vi.waitFor(() => expect(server.ended()).toBe(1));
+    expect(server.taken).toEqual([]);
+    await server.close();
+  });
+
+  it("answers `failed` in the time a mail is given, through the mailer", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const server = await serving(false);
+    const mailer = createMailer(
+      { SMTP_URL: `smtps://127.0.0.1:${server.at.port}`, EMAIL_FROM: "hello@example.org" },
+      undefined,
+      100,
+    );
+    const started = Date.now();
+
+    expect(await mailer?.send(mail)).toBe("failed");
+    expect(Date.now() - started).toBeLessThan(1500);
+    await vi.waitFor(() => expect(server.ended()).toBe(1));
+    await server.close();
     logged.mockRestore();
   });
 });

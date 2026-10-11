@@ -148,21 +148,26 @@ export function stillOpen(now: Date, spot: Watched, open: OpenOf, said: Interval
 
 /**
  * What is left of hours that were said to begin, when the message leaves later than it was
- * written: of the hours that are still open, those that begin within the account's notice, or
- * have begun, and of which enough is left. Hours that have become later ones are not "on".
+ * written. Of the hours that are still open: `due`, those that begin within the account's
+ * notice, or have begun, and of which enough is left, and `later`, those that have become
+ * later hours. These are not "on": they are said when they begin.
  */
-export function stillBegins(
+export function rereadBeginning(
   now: Date,
   spot: Watched,
   open: OpenOf,
   said: Interval[],
   noticeMinutes: number,
 ) {
-  return stillOpen(now, spot, open, said).filter(
-    (piece) =>
-      piece.start.getTime() - noticeMinutes * MINUTE_MS <= now.getTime() &&
-      piece.end.getTime() - WORTH_MINUTES * MINUTE_MS > now.getTime(),
-  );
+  const left = stillOpen(now, spot, open, said);
+  const isLater = (piece: Interval) =>
+    piece.start.getTime() - noticeMinutes * MINUTE_MS > now.getTime();
+  return {
+    due: left.filter(
+      (piece) => !isLater(piece) && piece.end.getTime() - WORTH_MINUTES * MINUTE_MS > now.getTime(),
+    ),
+    later: left.filter(isLater),
+  };
 }
 
 /** The hours in which an account is sent nothing, on its own clock. They may run past midnight. */

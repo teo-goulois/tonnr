@@ -650,6 +650,36 @@ describe("what a mail says of a spot", () => {
   });
 });
 
+describe("what mail told of a piece that the last look missed", () => {
+  it("is not moved onto other hours that stand nearby", () => {
+    const { mail, piece, mailed } = mailbox();
+    mail("14T07", [piece("15T09", "15T13")]);
+
+    // The list has moved it a little, to 11:00, and the last look missed it. Another piece
+    // stands from 08:00 to 10:00, which overlaps what mail told and is not it.
+    const told = [
+      piece("15T09", "15T13", { last: sea("15T11", "15T15"), missed: 1 }),
+      piece("15T08", "15T10"),
+    ];
+    expect(mail("14T10", told, [sea("15T08", "15T10")])).toEqual(["found 15T08-15T10"]);
+    expect(mailed()).toEqual(["15T08-15T10", "15T09-15T13"]);
+  });
+
+  it("is found again where the list has it, without a word when it is near what mail told", () => {
+    const { mail, piece } = mailbox();
+    mail("14T07", [piece("15T09", "15T13")]);
+    mail("14T10", [piece("15T09", "15T13", { last: sea("15T11", "15T15"), missed: 1 })], []);
+
+    expect(
+      mail(
+        "14T13",
+        [piece("15T09", "15T13", { last: sea("15T11", "15T15") })],
+        [sea("15T11", "15T15")],
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("what mail told, under hours that are cut anew", () => {
   it("keeps the hours that are still open, and takes none that the change opened", () => {
     const windows: SeaWindow[] = [{ sea: sea("15T08", "15T17"), seen: 3 }];

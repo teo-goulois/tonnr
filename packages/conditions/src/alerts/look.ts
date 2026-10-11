@@ -314,19 +314,41 @@ export function planMail(
   // The present hours that told pieces are at.
   const found = told.filter((piece) => piece.missed === 0).map(lastOf);
   const standing = once(ahead(present).filter((piece) => overlapsAny(piece, found)));
-  // A told piece that the last look missed is neither there nor gone yet: what mail told of
-  // it stays as it is, and nothing is said.
-  const missed = ahead(told.filter((piece) => piece.missed > 0).map(lastOf));
-  const isHeld = (piece: ToldPiece) =>
-    overlapsAny(lastOf(piece), missed) && !overlapsAny(lastOf(piece), standing);
-  const held = ahead(mailed).filter(isHeld);
+
+  // What mail told is followed through what the list told: a mailed piece is the told pieces
+  // whose hours, as they were told or as they are now, overlap where mail left it. When one of
+  // them was missed by the last look, it is neither there nor gone yet: what mail told of it
+  // stays as it is and nothing is said, whatever other hours stand nearby. Otherwise it is
+  // looked for where the list has it now.
+  const held: ToldPiece[] = [];
+  const followed: ToldPiece[] = [];
+  for (const piece of mailed) {
+    // A mailed piece is followed until the hours it is at are over.
+    const at = lastOf(piece);
+    if (at.end.getTime() <= now) continue;
+    const its = told.filter((one) => overlap(at, one) > 0 || overlap(at, lastOf(one)) > 0);
+    if (its.some((one) => one.missed > 0)) {
+      held.push(piece);
+      continue;
+    }
+    const places = its.map(lastOf);
+    followed.push(
+      places.length === 0
+        ? piece
+        : {
+            ...piece,
+            last: {
+              start: new Date(Math.min(...places.map((place) => place.start.getTime()))),
+              end: new Date(Math.max(...places.map((place) => place.end.getTime()))),
+            },
+          },
+    );
+  }
 
   const plan = planLook(
     {
       windows: standing.map((piece) => ({ sea: piece, seen: LOOKS_TO_TELL })),
-      told: mailed
-        .filter((piece) => !isHeld(piece))
-        .map((piece) => ({ ...piece, missed: LOOKS_TO_CALL_OFF - 1 })),
+      told: followed.map((piece) => ({ ...piece, missed: LOOKS_TO_CALL_OFF - 1 })),
     },
     standing,
     {

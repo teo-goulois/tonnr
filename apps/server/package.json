@@ -25,6 +25,7 @@
     "@repo/mail": "workspace:*",
     "better-auth": "catalog:",
     "hono": "^4.13.7",
+    "nodemailer": "10.0.16",
     "varlock": "catalog:",
     "zod": "catalog:"
   },

@@ -14,7 +14,7 @@ The instance sends no mail at all today.
 
 - The API sends mail through `@opencoredev/email-sdk`, with the adapter the instance's settings choose: Unosend when `UNOSEND_API_KEY` is set, any SMTP server when `SMTP_URL` is. `EMAIL_FROM` names the sender. The API does not start with both, nor with one and no sender.
 - The library reports its use to its authors unless it is told not to. It is told not to.
-- A mail is tried once, and whoever waits for it is answered within ten seconds. The library is given no second provider to fall back on, and tries nothing again: a mail that was accepted late would be sent twice. Through Unosend the request is ended at ten seconds. Through SMTP the library holds the connection until the server has said nothing for ten seconds, which can be a few seconds after the answer.
+- A mail is tried once, and whoever waits for it is answered within ten seconds. The library is given no second provider to fall back on, and tries nothing again: a mail that was accepted late would be sent twice. Through Unosend the request is ended at ten seconds. Through SMTP the connection is closed at ten seconds: `packages/mail` opens it itself, since the library's own SMTP adapter answers and lets the connection go on, and a mail could then leave after the answer.
 - With neither, the instance sends no mail and checks no address. Everything else works as before.
 - The API alone sends the mail that checks an address. Since decision 031 the worker sends the alerts' mail, through the same package and counted in the same day's limit.
 - `packages/mail` is where a mail is written and sent. It knows the library and nothing of who signs in.

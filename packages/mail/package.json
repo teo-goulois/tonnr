@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@opencoredev/email-sdk": "2.0.0",
-    "@repo/config": "workspace:*"
+    "@repo/config": "workspace:*",
+    "nodemailer": "10.0.16"
   },
   "devDependencies": {
     "@types/node": "catalog:",

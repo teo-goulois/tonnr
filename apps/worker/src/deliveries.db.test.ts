@@ -18,7 +18,7 @@ import { Effect } from "effect";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { evaluateAlerts } from "./alerts";
-import { ACCOUNT_DAILY_MAILS, ALERT_MAIL_PROVIDER, type MailOut } from "./deliveries";
+import { ACCOUNT_DAILY_MAILS, ALERT_MAIL_PROVIDER, type MailOut, hand, take } from "./deliveries";
 import { tellMoments } from "./moments";
 
 // The mails of the alerts: decision 031, "What is sent, and how". No test sends a mail: the
@@ -207,18 +207,68 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     expect(post.sent()).toEqual([]);
   });
 
-  it("are not sent to an address that was not checked, or to an account that stopped them", async () => {
-    await found();
+  it("wait for an address to be checked, and leave once it is", async () => {
     await database.db.update(user).set({ emailVerified: false });
+    await found();
+    expect(await pass()).toMatchObject({ mails: 0 });
+    expect(await states()).toEqual([["found", "pending"]]);
+
+    // Checked a while later, while the hours are still ahead.
+    await database.db.update(user).set({ emailVerified: true });
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 1 });
+    expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 08:00 to 12:00\n");
+  });
+
+  it("are given up for an address that is still not checked when the hours are over", async () => {
+    await database.db.update(user).set({ emailVerified: false });
+    await found();
+    await pass();
+
+    vi.setSystemTime(new Date(SATURDAY + 13 * HOUR_MS));
     expect(await pass()).toMatchObject({ mails: 0 });
     expect(await states()).toEqual([["found", "expired"]]);
+  });
 
-    await database.db.update(user).set({ emailVerified: true });
-    kept.provider.swell = swellBetween(13, 17);
-    await next();
-    await settings({ byMail: false });
+  it("are not sent to an account that stopped them", async () => {
+    await settings({ quietFrom: 8 * 60, quietTo: 15 * 60 });
+    await found();
+    await settings({ byMail: false, quietFrom: null, quietTo: null });
+    vi.setSystemTime(new Date("2026-10-09T15:00:00Z"));
+
     expect(await pass()).toMatchObject({ mails: 0 });
+    expect(await states()).toEqual([["found", "expired"]]);
     expect(post.sent()).toEqual([]);
+  });
+
+  it("do not keep those behind them waiting, however many cannot leave yet", async () => {
+    // Sixty of an account whose address is not checked, all written before the owner's.
+    await database.db.insert(user).values({ id: "late", name: "Late", email: "late@example.org" });
+    await database.db.insert(alertSettings).values({ userId: "late", byMail: true });
+    const earlier = new Date(AT.getTime() - HOUR_MS);
+    const waiting = Array.from({ length: 60 }, (_, index) => `late-${index}`);
+    await database.db.insert(notification).values(
+      waiting.map((id) => ({
+        id,
+        userId: "late",
+        alertId: null,
+        moment: "evening" as const,
+        key: id,
+        payload: { alertName: null, zone: "UTC", day: "2026-10-10", lines: [] },
+      })),
+    );
+    await database.db.insert(notificationDelivery).values(
+      waiting.map((notificationId) => ({
+        notificationId,
+        channel: "mail" as const,
+        dueAt: earlier,
+        expiresAt: new Date(SATURDAY),
+      })),
+    );
+    await found();
+
+    expect(await pass()).toMatchObject({ mails: 1 });
+    expect(post.sent()[0]?.to).toBe("owner@example.org");
   });
 
   it("say that a window moved or went only when a mail had told it", async () => {
@@ -457,7 +507,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       expect(await states()).toEqual([["begins", "expired"]]);
     });
 
-    it("is not sent of hours that have become later ones, which are not on", async () => {
+    it("waits for hours that have become later ones, and is sent when they begin", async () => {
       await waiting();
       // The look of 08:20 finds the swell from 11:00 on.
       kept.provider.swell = swellBetween(11, 15);
@@ -465,10 +515,20 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       await look();
       vi.setSystemTime(new Date(SATURDAY + 9 * HOUR_MS));
 
+      // Not on yet: it waits for the hours as they are now, and says so when they begin.
       expect(await pass()).toMatchObject({ mails: 0 });
-      expect((await states()).filter(([moment]) => moment === "begins")).toEqual([
-        ["begins", "expired"],
+      expect(await deliveries()).toMatchObject([
+        {
+          moment: "begins",
+          state: "pending",
+          dueAt: new Date(SATURDAY + 10.5 * HOUR_MS),
+          expiresAt: new Date(SATURDAY + 15 * HOUR_MS),
+        },
       ]);
+
+      vi.setSystemTime(new Date(SATURDAY + 10.5 * HOUR_MS));
+      expect(await pass()).toMatchObject({ mails: 1 });
+      expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 11:00 to 15:00\n");
     });
 
     it("is not sent once its alert is gone, wherever its spot is then", async () => {
@@ -574,6 +634,111 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     });
   });
 
+  describe("between the moment they are written and the moment they are handed over", () => {
+    // The first step alone: the mail is written, and marked as leaving.
+    const written = async () => {
+      const [due] = await database.db.select().from(notificationDelivery);
+      const taken = await take(database.db, out, due?.notificationId ?? "");
+      if (typeof taken === "string") throw new Error(`not taken: ${taken}`);
+      return { id: due?.notificationId ?? "", taken };
+    };
+    const mailedAt = async () =>
+      (await database.db.select().from(alertSpot))[0]?.mailed.map((piece) => piece.start);
+
+    it("are put back whole when a setting changed, and say what stands under it", async () => {
+      await found();
+      const { id, taken } = await written();
+      expect(await states()).toEqual([["found", "sending"]]);
+      expect(await mailedAt()).toEqual(["2026-10-10T08:00:00.000Z"]);
+
+      // The account switches "found" off, and is answered.
+      await settings({ onFound: false });
+      expect(await hand(database.db, out, id, taken)).toBe("skipped");
+      expect(post.sent()).toEqual([]);
+      expect(await states()).toEqual([["found", "pending"]]);
+      expect(await mailedAt()).toEqual([]);
+
+      // Read again, it has nothing to say to an account that is told no new hours.
+      expect(await pass()).toMatchObject({ mails: 0 });
+      expect(await states()).toEqual([["found", "expired"]]);
+    });
+
+    it("are put back whole when a look changed the hours, and say where they are", async () => {
+      await found();
+      const { id, taken } = await written();
+      kept.provider.swell = swellBetween(13, 17);
+      await next();
+
+      expect(await hand(database.db, out, id, taken)).toBe("skipped");
+      expect(post.sent()).toEqual([]);
+      expect(await pass()).toMatchObject({ mails: 1 });
+      expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 13:00 to 17:00\n");
+      expect(post.sent()[0]?.text).not.toContain("08:00");
+    });
+
+    it("are handed over when nothing changed", async () => {
+      await found();
+      const { id, taken } = await written();
+
+      expect(await hand(database.db, out, id, taken)).toBe("sent");
+      expect(post.sent()).toHaveLength(1);
+      expect(await states()).toEqual([["found", "sent"]]);
+    });
+
+    it("are given up when the account stopped its mails", async () => {
+      await found();
+      const { id, taken } = await written();
+      await settings({ byMail: false, mailKey: null });
+
+      expect(await hand(database.db, out, id, taken)).toBe("expired");
+      expect(post.sent()).toEqual([]);
+    });
+
+    it("are given up, for an evening, once the day it lists has begun", async () => {
+      await settings({ onFound: false, onEvening: true, eveningMinutes: 20 * 60 });
+      await found();
+      // Looked at until 23:20, and told at 23:59, a minute before the day it lists.
+      for (let look = 0; look < 4; look += 1) await next();
+      vi.setSystemTime(new Date("2026-10-09T23:59:00Z"));
+      expect(await pass(null)).toMatchObject({ evenings: 1 });
+      const { id, taken } = await written();
+
+      vi.setSystemTime(new Date(SATURDAY + 60 * 1000));
+      expect(await hand(database.db, out, id, taken)).toBe("expired");
+      expect(post.sent()).toEqual([]);
+    });
+  });
+
+  it("say later what a spot that could not be read has to say, after the others", async () => {
+    // Two spots of one alert, told at the same looks.
+    await database.db
+      .insert(spot)
+      .values({ id: "away", userId: "owner", name: "Away", latitude: 43.6, longitude: -1.47 });
+    await database.db.insert(alertSpot).values({ spotId: "away", alertId: "bay", position: 1 });
+    await found();
+    // The look at one of them is too old to be believed.
+    await database.db
+      .update(alertSpot)
+      .set({ lookedAt: new Date(Date.now() - 7 * HOUR_MS) })
+      .where(eq(alertSpot.spotId, "away"));
+
+    expect(await pass()).toMatchObject({ mails: 1 });
+    expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 08:00 to 12:00\n");
+    expect(post.sent()[0]?.text).not.toContain("Away");
+    expect(await states()).toEqual([["found", "pending"]]);
+
+    // It is read again, and says the rest.
+    await database.db.update(alertSpot).set({ lookedAt: new Date() });
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 1 });
+    expect(post.sent()[1]?.text).toContain("Away\n  Sat 10 Oct, 08:00 to 12:00\n");
+    expect(post.sent()[1]?.text).not.toContain("Home");
+    // With nothing left to say, it has been sent.
+    vi.advanceTimersByTime(20 * 60 * 1000);
+    expect(await pass()).toMatchObject({ mails: 0 });
+    expect(await states()).toEqual([["found", "sent"]]);
+  });
+
   it("follow the quiet hours as they are when they leave, not as they were", async () => {
     await found();
     // Due at once, and the account then asks for quiet until 13:00.
@@ -613,7 +778,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       ...out,
       mailer: {
         // The provider takes the first, and the worker stops before it can write so.
-        sendToTheEnd: async (mail: Parameters<MailOut["mailer"]["send"]>[0]) => {
+        send: async (mail: Parameters<MailOut["mailer"]["send"]>[0]) => {
           const outcome = await post.mailer.send(mail);
           if (!stops) return outcome;
           stops = false;
@@ -648,7 +813,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     const slow = {
       ...out,
       mailer: {
-        sendToTheEnd: async (mail: Parameters<MailOut["mailer"]["send"]>[0]) => {
+        send: async (mail: Parameters<MailOut["mailer"]["send"]>[0]) => {
           entered();
           await leaving;
           return post.mailer.send(mail);

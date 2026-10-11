@@ -5,8 +5,9 @@ import {
   EmailRouteError,
   EmailSdkError,
 } from "@opencoredev/email-sdk";
-import { smtp } from "@opencoredev/email-sdk/smtp";
 import { unosend } from "@opencoredev/email-sdk/unosend";
+
+import { smtpOut } from "./smtp";
 
 // How the instance sends a mail: decision 026. This knows the library and the two ways out,
 // and nothing of who signs in. Nothing here is logged of a mail but how it failed.
@@ -42,19 +43,10 @@ export type Mailer = {
   /**
    * Sends a mail, once, and answers within ten seconds. `accepted` when the provider took it,
    * which is not yet a mail in a mailbox. `failed` when it did not, or did not say in time:
-   * the mail may still arrive then. An SMTP server that stopped answering is let go of a few
-   * seconds after the answer, when its connection has said nothing for ten seconds.
+   * what it was sent by then may still arrive, and nothing more is sent after the answer. The
+   * request to a provider's API is closed, and so is the connection to an SMTP server.
    */
   send: (mail: Mail) => Promise<"accepted" | "failed">;
-  /**
-   * Sends a mail, once, and answers only when nothing more of it can leave: for whoever holds
-   * something until then, as the worker holds an account while its alert mail leaves. Over
-   * SMTP, a mail that is given up after its ten seconds may still leave, since its connection
-   * goes on. So this one waits for the server instead, which is let go of when it has said
-   * nothing for ten seconds at one step. Through a provider's API, giving up closes the
-   * request, and this is `send`.
-   */
-  sendToTheEnd: (mail: Mail) => Promise<"accepted" | "failed">;
 };
 
 // How long a mail may take to leave. A sign-up waits for it.
@@ -141,7 +133,7 @@ export function createMailer(
   }
 
   const via = key ? ("unosend" as const) : ("smtp" as const);
-  const out = adapter ?? (key ? unosend({ apiKey: key }) : smtp(readSmtp(server ?? "")));
+  const out = adapter ?? (key ? unosend({ apiKey: key }) : smtpOut(readSmtp(server ?? "")));
   const client = createEmailClient({
     adapters: [out],
     // The library reports its use to its authors unless told not to.
@@ -150,21 +142,19 @@ export function createMailer(
     retry: { maxAttempts: 1 },
   });
 
-  const hand = async ({ to, subject, text, html, headers }: Mail, signal?: AbortSignal) => {
-    try {
-      await client.send(
-        { from, to, subject, text, html, ...(headers ? { headers } : {}) },
-        signal ? { signal } : {},
-      );
-      return "accepted" as const;
-    } catch (error) {
-      console.error(`mail: not accepted by ${via} (${failureOf(error)})`);
-      return "failed" as const;
-    }
-  };
   return {
     via,
-    send: (mail) => hand(mail, AbortSignal.timeout(sendMs)),
-    sendToTheEnd: (mail) => hand(mail, via === "smtp" ? undefined : AbortSignal.timeout(sendMs)),
+    send: async ({ to, subject, text, html, headers }) => {
+      try {
+        await client.send(
+          { from, to, subject, text, html, ...(headers ? { headers } : {}) },
+          { signal: AbortSignal.timeout(sendMs) },
+        );
+        return "accepted";
+      } catch (error) {
+        console.error(`mail: not accepted by ${via} (${failureOf(error)})`);
+        return "failed";
+      }
+    },
   };
 }
