@@ -289,7 +289,8 @@ const NOTHING = { data: undefined, isPending: false, isError: false };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="grid gap-m">
+    // Named after its title, so that an address opens the page at it: `#wind-station-panel`.
+    <section id={title.toLowerCase().replaceAll(" ", "-")} className="grid scroll-mt-m gap-m">
       <h2 className="text-l font-medium">{title}</h2>
       {children}
     </section>
