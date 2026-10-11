@@ -39,6 +39,9 @@ services:
     init: true
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/app
+      # Taken from the root .env when it is set there, and left unset otherwise: the worker then
+      # leaves Météo-France's stations out.
+      METEO_FRANCE_API_KEY:
     depends_on:
       postgres:
         condition: service_healthy

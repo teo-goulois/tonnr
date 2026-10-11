@@ -7,7 +7,7 @@ import { breakSources } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
-import { ingest, providers, retiredProviderIds } from "./ingest";
+import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import {
   announceWorker,
   type Done,
@@ -25,6 +25,10 @@ import { pruneReadings } from "./store";
 // What the jobs read and write, and where the worker says what it does: decision 022.
 const db = jobDatabase(ENV);
 const state = stateDatabase(ENV);
+
+// A provider that asks for an account is fetched only with the instance's key for it.
+const providers = providersOf(ENV);
+const retiredProviderIds = retiredProviderIdsOf(ENV);
 
 // The forecasts the alerts read, which the API keeps and reads too.
 const forecasts = createForecasts(db);
@@ -100,16 +104,17 @@ function attemptOf<Result>(
   };
 }
 
-// A provider taken out of the code leaves its queue in the database, with a schedule that would
-// keep queueing runs that nothing works. Only the queues listed as retired are deleted: any
-// other one may belong to a newer worker running next to this one.
+// A provider taken out of the code, or one whose key the instance no longer holds, leaves its
+// queue in the database, with a schedule that would keep queueing runs that nothing works. Only
+// the queues listed as retired are deleted: any other one may belong to a newer worker running
+// next to this one.
 for (const id of retiredProviderIds) {
   const queue = `ingest-${id}`;
   try {
     if (await boss.getQueue(queue)) {
       // Deleting a queue deletes its schedule with it.
       await boss.deleteQueue(queue);
-      console.log(`Removed ${queue}, whose provider is retired`);
+      console.log(`Removed ${queue}, whose provider this instance does not fetch from`);
     }
   } catch (error) {
     // The next start tries again, and the other providers must still run.

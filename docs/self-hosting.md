@@ -33,7 +33,7 @@ To check the instance:
 Run the same three services: `postgres:18` with its volume mounted at `/var/lib/postgresql`, an image built from `apps/server/Dockerfile`, and one built from `apps/worker/Dockerfile`. Both builds take the repository root as their context.
 
 - The API needs `DATABASE_URL` and the three values above. It listens on `PORT`, 3000 by default, and answers `GET /` with `OK` for a health check.
-- The worker needs `DATABASE_URL` only, the same as the API's. It listens on no port.
+- The worker needs `DATABASE_URL` only, the same as the API's. It listens on no port. `METEO_FRANCE_API_KEY` is optional: "Météo-France's wind stations" below says what it adds.
 - A container with a missing or malformed value stops at once and names it.
 
 The services may start in any order, and together.
@@ -274,9 +274,25 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
 - The log keeps how a mail failed, never to whom it went.
 
+## Météo-France's wind stations
+
+An instance fetches the wind of Météo-France's stations only with a key of its own. Without one it runs with the other providers, and shows none of these stations. Decision 032 gives the rules.
+
+1. Open a free account on `portail-api.meteofrance.fr`.
+2. Subscribe to the API "Package Observations".
+3. Under "Générer Token", choose "API Key" and a duration in seconds. The longest is 94608000, three years.
+4. Set `METEO_FRANCE_API_KEY` to the key: in the root `.env` with Docker Compose, or in the worker's environment on another platform. From a clone, set it in `apps/server/.env`.
+5. Start the worker again. Its log shows `Scheduled ingest-meteofrance`, then lines such as `meteofrance: 777 stations, 1482 new readings`.
+
+- The worker sends Météo-France three requests every six minutes. The subscription allows 100 a minute.
+- The subscription ends after two years, on the date the portal shows, and the key at the end of its duration. The API then refuses the worker, and the page "Instance" of the admin shows the job as failed. Renew the subscription on the portal, or make a new key.
+- A new key does not end the one before it, so a key that leaked stays good until its own end.
+- The data is under the Licence Ouverte 2.0. Show "Météo-France" with a station's data: the API returns it as the station's attribution.
+- Without the key, the worker stops fetching at its next start. The stations it stored stay, with their last readings.
+
 ## What an instance owes the data providers
 
-The worker calls the providers from your server, each on its schedule, from every ten minutes to once an hour. You answer to them for your instance.
+The worker calls the providers from your server, each on its schedule, from every few minutes to once an hour. You answer to them for your instance.
 
 - Read [Data sources](data-sources.md) before you open an instance to other people. It says what each provider allows.
 - Show a station's attribution wherever you show its data. The API returns it with every station.

@@ -7,13 +7,15 @@ import { fmi } from "./providers/fmi";
 import { hidrografico } from "./providers/hidrografico";
 import { irishLights } from "./providers/irish-lights";
 import { marineInstitute } from "./providers/marine-institute";
+import { METEO_FRANCE_ID, meteoFrance } from "./providers/meteo-france";
 import { ndbc } from "./providers/ndbc";
 import { openwindmap } from "./providers/openwindmap";
 import { queensland } from "./providers/queensland";
 import type { Provider } from "./providers/provider";
 import { saveSnapshot } from "./store";
 
-export const providers: readonly Provider[] = [
+// The providers that ask for no account: every instance fetches from them.
+const open: readonly Provider[] = [
   candhis,
   copernicus,
   fmi,
@@ -25,9 +27,22 @@ export const providers: readonly Provider[] = [
   queensland,
 ];
 
-// Providers taken out of the list above. The worker deletes their queue when it starts. Their
-// stations and readings stay until someone deletes them.
-export const retiredProviderIds: readonly string[] = ["cefas"];
+/** The keys an instance may hold, for the providers that ask for an account. Decision 032. */
+export type ProviderKeys = { METEO_FRANCE_API_KEY?: string | undefined };
+
+/** The providers an instance fetches from: the open ones, and those whose key it holds. */
+export function providersOf(keys: ProviderKeys): readonly Provider[] {
+  return [...open, ...(keys.METEO_FRANCE_API_KEY ? [meteoFrance(keys.METEO_FRANCE_API_KEY)] : [])];
+}
+
+/**
+ * The providers whose queue the worker deletes when it starts: those taken out of the list
+ * above, and those whose key the instance does not hold. Their stations and readings stay until
+ * someone deletes them.
+ */
+export function retiredProviderIdsOf(keys: ProviderKeys): readonly string[] {
+  return ["cefas", ...(keys.METEO_FRANCE_API_KEY ? [] : [METEO_FRANCE_ID])];
+}
 
 /** Fetches what a provider publishes now and stores it. */
 export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Database) {

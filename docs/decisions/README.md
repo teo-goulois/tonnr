@@ -35,3 +35,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [029. Reading charts by touch](029-touch-chart-inspection.md)
 - [030. Finding a place by its name](030-place-search.md)
 - [031. An alert of its own, set on spots](031-alerts.md)
+- [032. Météo-France's wind stations, and a provider that asks for a key](032-meteo-france-wind.md)

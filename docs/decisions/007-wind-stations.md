@@ -18,6 +18,6 @@ Surfers read the wind next to the swell, and La Bouée shows wind stations on it
 ## Consequences
 
 - OpenWindMap's license asks that the other sensors an application combines with its data be open too. The NDBC stations relayed for partners have unchecked terms, so this needs settling with OpenWindMap, or those stations dropped, before a public release.
-- Météo-France's stations are not integrated. Its observation API needs a free key, to be set as `METEO_FRANCE_API_KEY`.
+- Météo-France's stations were left out, because its observation API needs a key. Decision 032 added them, for an instance that sets `METEO_FRANCE_API_KEY`.
 - Airport observations (METAR) are a checked candidate for worldwide coverage and are not integrated. They need a coastal filter to keep their volume down.
 - A wind station's reading can be at most ten minutes old, the polling interval.
