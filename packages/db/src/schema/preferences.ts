@@ -15,3 +15,20 @@ export const savedShortcuts = pgTable("saved_shortcuts", {
   overrides: jsonb("overrides").$type<Record<string, string>>().notNull(),
   savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
 });
+
+// The units a wind speed may be read in: knots, kilometres an hour, metres a second, miles an
+// hour. The API speaks in metres a second whatever is chosen here.
+export const WIND_SPEED_UNITS = ["kn", "kmh", "ms", "mph"] as const;
+export type WindSpeedUnit = (typeof WIND_SPEED_UNITS)[number];
+
+/**
+ * The units a user chose to read measurements in, on every device. A user without a row reads
+ * them in the units the apps start with. Decision 033.
+ */
+export const unitPreferences = pgTable("unit_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  windSpeed: text("wind_speed").$type<WindSpeedUnit>().notNull(),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+});

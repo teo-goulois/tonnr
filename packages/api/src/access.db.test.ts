@@ -62,6 +62,8 @@ const takesASession = everyProcedure.filter(
 const ANSWERS_AN_ACCOUNT = [
   "preferences.getShortcuts",
   "preferences.saveShortcuts",
+  "preferences.getUnits",
+  "preferences.saveUnits",
   "privateData",
   "v1.account.get",
   "v1.account.sendVerification",
