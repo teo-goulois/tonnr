@@ -1091,7 +1091,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const { to, asked } = searching(FOUND);
       const cookie = await signUpOperator();
       const { key } = await makeKey(cookie);
-      const path = "/v1/places?q=plage%20des%20galets&latitude=47.84&longitude=-4.35&locale=fr";
+      const path =
+        "/v1/places?q=plage%20des%20galets&latitude=47.84&longitude=-4.35&zoom=9.2&locale=fr";
 
       const found = await send("GET", path, { cookie }, to);
       expect([found.status, found.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
@@ -1116,7 +1117,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         },
       });
       expect(asked).toEqual([
-        "https://places.example.org/api?q=plage+des+galets&limit=5&lang=fr&lat=47.8&lon=-4.3",
+        "https://places.example.org/api?q=plage+des+galets&limit=10&layer=city&layer=district" +
+          "&layer=locality&layer=county&layer=state&layer=country&layer=other" +
+          "&lang=fr&lat=47.8&lon=-4.3&zoom=9",
       ]);
 
       expect((await send("GET", path, { key }, to)).status).toBe(403);
@@ -1131,11 +1134,18 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ).toBe(400);
       const overRpc = (json: object) =>
         send("POST", "/rpc/v1/places/search", { cookie, origin: APP, body: { json } }, to);
+      // Each of them alone, beside a number that is one: a refusal is then that value's own.
       for (const wrong of [
-        { latitude: null, longitude: null },
-        { latitude: true, longitude: [] },
+        { latitude: null, longitude: 0 },
+        { latitude: 0, longitude: null },
+        { latitude: true, longitude: 0 },
+        { latitude: 0, longitude: [] },
+        { latitude: "", longitude: 0 },
+        { latitude: 91, longitude: 0 },
+        { latitude: 0, longitude: 0, zoom: false },
         { limit: true },
         { limit: "many" },
+        { limit: 2.5 },
       ]) {
         expect((await overRpc({ q: "plage", ...wrong })).status).toBe(400);
       }
@@ -1145,6 +1155,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         q: "plage des galets",
         latitude: 47.84,
         longitude: -4.35,
+        zoom: 9.2,
         locale: "fr",
       });
       expect(again.status).toBe(200);
@@ -1168,6 +1179,23 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const said = [...vi.mocked(console.error).mock.calls, ...logged.mock.calls].flat().join(" ");
       expect(said).toContain("places: the search service answered 429");
       expect(said).not.toContain("phare");
+    });
+
+    it("says that a search may be made again at once after one the service called wrong", async () => {
+      const { to, asked } = searching(400);
+      const cookie = await signUp("visitor");
+
+      const wrong = await send("GET", "/v1/places?q=phare", { cookie }, to);
+      expect([wrong.status, wrong.headers.get("Retry-After")]).toEqual([503, "0"]);
+      const again = await send(
+        "POST",
+        "/rpc/v1/places/search",
+        { cookie, origin: APP, body: { json: { q: "plage" } } },
+        to,
+      );
+      expect([again.status, again.headers.get("Retry-After")]).toEqual([503, "0"]);
+      // Nothing rested: both reached the service.
+      expect(asked).toHaveLength(2);
     });
   });
 

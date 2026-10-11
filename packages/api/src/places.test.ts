@@ -45,6 +45,9 @@ const ANSWER = {
   ],
 };
 
+// What every search asks for: towns and named places, no street and no house.
+const LAYERS =
+  "&layer=city&layer=district&layer=locality&layer=county&layer=state&layer=country&layer=other";
 const AT = Date.parse("2026-10-11T10:00:20Z");
 const MINUTE = 60_000;
 const wanted = (query: string, more: Partial<PlaceSearch> = {}): PlaceSearch => ({
@@ -123,6 +126,30 @@ describe("readPlaces", () => {
     ]);
   });
 
+  it("gives once a place said twice in the same words, and stops at the number wanted", () => {
+    const feature = (name: string, city: string, coordinates: [number, number]) => ({
+      geometry: { coordinates },
+      properties: { name, city, country: "Land" },
+    });
+    const document = {
+      features: [
+        feature("Stream", "Town", [1, 2]),
+        feature("Stream", "Town", [1.1, 2.1]),
+        // The same name in another town is another place.
+        feature("Stream", "Village", [3, 4]),
+        feature("Beach", "Town", [5, 6]),
+      ],
+    };
+
+    expect(readPlaces(document)?.map((place) => [place.name, ...place.location])).toEqual([
+      ["Stream", "Land", "Town"],
+      ["Stream", "Land", "Village"],
+      ["Beach", "Land", "Town"],
+    ]);
+    // The first of the two is kept: the service put it first.
+    expect(readPlaces(document, 2)?.map((place) => place.longitude)).toEqual([1, 3]);
+  });
+
   it.each([null, "nothing", { features: "none" }, []])("reads no list in %j", (document) => {
     expect(readPlaces(document)).toBeNull();
   });
@@ -138,7 +165,8 @@ describe("the search of places", () => {
 
     expect(Result.isSuccess(first) && first.success).toHaveLength(3);
     expect(again).toEqual(first);
-    expect(asked).toEqual(["https://places.example.org/api?q=Plage+des+galets&limit=5"]);
+    // Twice the five places wanted, since the service gives some of them twice.
+    expect(asked).toEqual([`https://places.example.org/api?q=Plage+des+galets&limit=10${LAYERS}`]);
 
     at(AT + 11 * MINUTE);
     await run(places.search(wanted("Plage des galets"), "ana"));
@@ -158,18 +186,33 @@ describe("the search of places", () => {
     expect(asked).toHaveLength(5);
   });
 
-  it("says the language, and where the map is to a tenth of a degree", async () => {
+  it("says the language, where the map is to a tenth of a degree, and how close it is", async () => {
     const { places, asked } = testPlaces(ANSWER, AT);
+    const near = { latitude: 47.8372, longitude: -4.3518 };
 
-    await run(
-      places.search(
-        wanted("phare", { locale: "fr", near: { latitude: 47.8372, longitude: -4.3518 } }),
-        "ana",
-      ),
-    );
+    await run(places.search(wanted("phare", { locale: "fr", near }), "ana"));
+    await run(places.search(wanted("phare", { limit: 10, near: { ...near, zoom: 9.6 } }), "ana"));
 
     expect(asked).toEqual([
-      "https://places.example.org/api?q=phare&limit=5&lang=fr&lat=47.8&lon=-4.4",
+      `https://places.example.org/api?q=phare&limit=10${LAYERS}&lang=fr&lat=47.8&lon=-4.4`,
+      // Never more than twenty asked for.
+      `https://places.example.org/api?q=phare&limit=20${LAYERS}&lat=47.8&lon=-4.4&zoom=10`,
+    ]);
+  });
+
+  it("gives as many places as wanted, of the more it asked for", async () => {
+    const feature = (name: string) => ({
+      geometry: { coordinates: [1, 2] },
+      properties: { name, country: "Land" },
+    });
+    const { places } = testPlaces({ features: ["a", "a", "b", "c", "d"].map(feature) }, AT);
+
+    const found = await run(places.search(wanted("anything", { limit: 3 }), "ana"));
+
+    expect(Result.isSuccess(found) && found.success.map((place) => place.name)).toEqual([
+      "a",
+      "b",
+      "c",
     ]);
   });
 

@@ -6,19 +6,14 @@ import { protectedProcedure } from "../index";
 import { PLACES_SOURCE } from "../places";
 import { hasControlCharacter } from "../text";
 
-// A number as a query string writes it, or as JSON does. Nothing else is read as one: `null`
-// is not zero, and `true` is not one.
-const numeric = <Checked extends z.ZodType<number, number>>(checked: Checked) =>
-  z
-    .union([
-      z.number(),
-      z
-        .string()
-        .trim()
-        .regex(/^-?\d+(\.\d+)?$/)
-        .transform(Number),
-    ])
-    .pipe(checked);
+// A number as JSON gives it, or as a query string writes it. Nothing else is read as one: `null`
+// is not zero, and `true` is not one. The reference then shows the number and its bounds.
+const NUMBER = /^-?\d+(\.\d+)?$/;
+const numeric = <Checked extends z.ZodType<number>>(checked: Checked) =>
+  z.preprocess(
+    (given) => (typeof given === "string" && NUMBER.test(given.trim()) ? Number(given) : given),
+    checked,
+  );
 
 const placeSchema = z.object({
   name: z.string(),
@@ -37,8 +32,10 @@ export const placesRouter = {
       path: "/places",
       summary: "Places by their name, to find a point of the map",
       description:
-        "Towns, beaches, streets and addresses of OpenStreetMap whose name matches. Given " +
-        "together, `latitude` and `longitude` bring forward the places near that point. The " +
+        "Towns, their parts, and what OpenStreetMap names on the ground, a beach or a headland, " +
+        "whose name matches. Streets and houses are left out. Given together, `latitude` and " +
+        "`longitude` bring forward the places near that point, and `zoom` says how wide near " +
+        "is: the zoom of the map the search is made from. The " +
         "instance asks a search service for them and keeps nothing of a search. An account " +
         "may search so many times a minute: beyond, the answer is 429. It is 503 when the " +
         "service fails and while it is then left alone. Both say in `Retry-After` when to " +
@@ -57,6 +54,8 @@ export const placesRouter = {
             .refine((q) => !hasControlCharacter(q), "must not contain control characters"),
           latitude: numeric(z.number().min(-90).max(90)).optional(),
           longitude: numeric(z.number().min(-180).max(180)).optional(),
+          // How close the map is, as its zoom. It says how wide "near" is.
+          zoom: numeric(z.number().min(0).max(22)).optional(),
           // The language the names are wanted in, where a place has one in it.
           locale: z.enum(["en", "fr"]).optional(),
           limit: numeric(z.number().int().min(1).max(10)).default(5),
@@ -78,9 +77,11 @@ export const placesRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      const { q, latitude, longitude, locale, limit } = input;
+      const { q, latitude, longitude, zoom, locale, limit } = input;
       const near =
-        latitude !== undefined && longitude !== undefined ? { latitude, longitude } : undefined;
+        latitude !== undefined && longitude !== undefined
+          ? { latitude, longitude, zoom }
+          : undefined;
       const result = await Effect.runPromise(
         Effect.result(
           context.places.search({ query: q, near, locale, limit }, context.session.user.id),
@@ -101,9 +102,8 @@ export const placesRouter = {
       }
       // The address that was asked holds what the caller typed: the log gets the status alone.
       console.error(`places: the search service answered ${failure.status ?? "no list of places"}`);
-      if (failure.retryAfterSeconds !== undefined) {
-        context.reply.retryAfterSeconds = failure.retryAfterSeconds;
-      }
+      // A search the service called wrong starts no rest: the next one may be made at once.
+      context.reply.retryAfterSeconds = failure.retryAfterSeconds ?? 0;
       throw new ORPCError("SERVICE_UNAVAILABLE", {
         message: "The search of places did not answer. Try again in a moment.",
       });

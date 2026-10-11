@@ -33,6 +33,12 @@ const REST_MS = 30 * 1000;
 // An answer is kept this long, for the same search asked again, and so many of them at most.
 const KEPT_MS = 10 * MINUTE_MS;
 const KEPT_ANSWERS = 500;
+// What the service is asked for: towns, their parts, and what has a name on the ground, a beach
+// or a headland. Streets and houses are left out: a street named after a town came before the
+// town, and a spot is not put on the map from a shop's address.
+const LAYERS = ["city", "district", "locality", "county", "state", "country", "other"];
+// The service is asked for twice the places wanted, since it gives some of them twice.
+const ASKED_MOST = 20;
 
 export type Place = {
   name: string;
@@ -44,8 +50,9 @@ export type Place = {
 
 export type PlaceSearch = {
   query: string;
-  // Where the map is, so that the places near it come first.
-  near?: { latitude: number; longitude: number } | undefined;
+  // Where the map is, so that the places near it are brought forward, and how close it is, as
+  // its zoom: the closer the map, the smaller the stretch of coast that counts as near.
+  near?: { latitude: number; longitude: number; zoom?: number | undefined } | undefined;
   locale?: "en" | "fr" | undefined;
   limit: number;
 };
@@ -87,15 +94,19 @@ const featureSchema = z.object({
 const answerSchema = z.object({ features: z.array(z.unknown()) });
 
 /**
- * Reads Photon's answer, a GeoJSON collection. A feature that cannot be read is left out, and so
- * is one that has no name of any kind. Null when the document is not such a collection.
+ * Reads Photon's answer, a GeoJSON collection, up to `limit` places. A feature that cannot be
+ * read is left out, and so is one that has no name of any kind. A place said twice in the same
+ * words, as the two banks of a stream are, is given once. Null when the document is not such a
+ * collection.
  */
-export function readPlaces(document: unknown): Place[] | null {
+export function readPlaces(document: unknown, limit = Number.POSITIVE_INFINITY): Place[] | null {
   const answer = answerSchema.safeParse(document);
   if (!answer.success) return null;
 
   const places: Place[] = [];
+  const said = new Set<string>();
   for (const feature of answer.data.features) {
+    if (places.length >= limit) break;
     const read = featureSchema.safeParse(feature);
     if (!read.success) continue;
     const { name, housenumber, street, ...around } = read.data.properties;
@@ -114,16 +125,16 @@ export function readPlaces(document: unknown): Place[] | null {
     const called = label ?? within.shift();
     if (!called) continue;
 
+    // A town in a county of its name is said once.
+    const location = within
+      .filter((part, index) => part !== called && within.indexOf(part) === index)
+      .reverse();
+    const words = [called, ...location].join("\n");
+    if (said.has(words)) continue;
+    said.add(words);
+
     const [longitude, latitude] = read.data.geometry.coordinates;
-    places.push({
-      name: called,
-      // A town in a county of its name is said once.
-      location: within
-        .filter((part, index) => part !== called && within.indexOf(part) === index)
-        .reverse(),
-      latitude,
-      longitude,
-    });
+    places.push({ name: called, location, latitude, longitude });
   }
   return places;
 }
@@ -135,11 +146,15 @@ const rounded = (degrees: number) => Math.round(degrees * 10) / 10;
 function addressOf(service: string, search: PlaceSearch) {
   const address = new URL("api", service.endsWith("/") ? service : `${service}/`);
   address.searchParams.set("q", search.query);
-  address.searchParams.set("limit", String(search.limit));
+  address.searchParams.set("limit", String(Math.min(ASKED_MOST, search.limit * 2)));
+  for (const layer of LAYERS) address.searchParams.append("layer", layer);
   if (search.locale) address.searchParams.set("lang", search.locale);
   if (search.near) {
     address.searchParams.set("lat", String(rounded(search.near.latitude)));
     address.searchParams.set("lon", String(rounded(search.near.longitude)));
+    if (search.near.zoom !== undefined) {
+      address.searchParams.set("zoom", String(Math.round(search.near.zoom)));
+    }
   }
   return address.toString();
 }
@@ -154,11 +169,14 @@ type Ask = (address: string) => Effect.Effect<unknown, UpstreamError>;
 export function createPlaces(
   settings: { PLACES_URL?: string | undefined },
   ask: Ask = fetchJsonOnce,
-  clock: () => number = Date.now,
+  // What the limits, the rest and the kept answers are timed by, in milliseconds: time since the
+  // process started, which never goes back. The clock of the day can be set back by hours, and
+  // would then keep an account that had asked too much waiting for as long.
+  clock: () => number = () => performance.now(),
 ) {
   const service = settings.PLACES_URL ?? PUBLIC_SERVICE;
   const kept = new Map<string, { places: Place[]; until: number }>();
-  // The minute of the clock the counts are of. It only goes forward: a clock set back starts
+  // The minute the counts are of. It only goes forward: a clock that did go back would start
   // no count again.
   let minute = 0;
   let asked = 0;
@@ -223,7 +241,7 @@ export function createPlaces(
         retryAfterSeconds: status === 400 ? undefined : rest(),
       });
     }
-    const places = readPlaces(answered.success);
+    const places = readPlaces(answered.success, wanted.limit);
     if (!places) return yield* new PlacesFailed({ retryAfterSeconds: rest() });
 
     kept.delete(address);
