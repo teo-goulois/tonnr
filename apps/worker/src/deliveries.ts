@@ -245,6 +245,9 @@ type Said = {
   lines: AlertLine[];
   spotIds: string[];
   windows: string[][];
+  // Whether deciding it wrote something to a spot it says nothing of: what its way out told
+  // there, brought in line.
+  aligned: boolean;
   claim: {
     told: Record<string, ToldStretch[]>;
     begun: Record<string, Stretch[]>;
@@ -257,6 +260,7 @@ const saying = (moment: Said["moment"], alertName: string | null): Said => ({
   lines: [],
   spotIds: [],
   windows: [],
+  aligned: false,
   claim: { told: {}, begun: {}, merged: [] },
 });
 // A claim as its delivery keeps it: what a mail told is named apart from what a push told, as
@@ -419,6 +423,7 @@ async function newsOf(
           .update(alertSpot)
           .set(toldAs(channel, told))
           .where(linkOf(one.alert.id, one.place.id));
+        said.aligned = true;
       }
       continue;
     }
@@ -882,7 +887,11 @@ async function takeBy(
       alertId: made.alertId,
       moment: made.moment,
       day: made.payload.day,
-      stamp,
+      // Read again now that this step has written what it had to: hours it brought in line at
+      // a spot it says nothing of are no change to write the message anew for.
+      stamp: said.aligned
+        ? (await writtenFrom(tx, channel, made, { alerts, settingsRow })).stamp
+        : stamp,
       later,
     };
     if (!mailOut) {

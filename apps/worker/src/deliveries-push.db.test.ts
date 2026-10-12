@@ -1005,6 +1005,31 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     expect(pushes()[0]?.body).not.toContain("Home");
   });
 
+  it("leave at the pass that wrote them, when another spot of the alert had hours of its own to forget", async () => {
+    await database.db
+      .insert(spot)
+      .values({ id: "away", userId: "owner", name: "Away", latitude: 43.6, longitude: -1.47 });
+    await database.db.insert(alertSpot).values({ spotId: "away", alertId: "bay", position: 1 });
+    await found();
+    // Push told one of them these hours already, with others that are over since: it has
+    // nothing to say of that spot, and something to forget there.
+    await database.db
+      .update(alertSpot)
+      .set({
+        pushed: [
+          { start: hour(-20), end: hour(-18), missed: 0 },
+          { start: hour(8), end: hour(12), missed: 0 },
+        ],
+      })
+      .where(eq(alertSpot.spotId, "away"));
+
+    expect(await pass()).toMatchObject({ pushes: 1 });
+    expect(pushes()[0]?.body).toContain("Home: Sat 10 Oct, 08:00 to 12:00\n");
+    expect(pushes()[0]?.body).not.toContain("Away");
+    const [away] = await database.db.select().from(alertSpot).where(eq(alertSpot.spotId, "away"));
+    expect(away?.pushed.map((piece) => piece.start)).toEqual([hour(8)]);
+  });
+
   it("follow the quiet hours as they are when they leave, not as they were", async () => {
     await found();
     // Due at once, and the account then asks for quiet until 13:00.
@@ -1892,6 +1917,27 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
 
       vi.setSystemTime(new Date("2026-10-09T13:00:00Z"));
       expect(await pass(out, mail)).toMatchObject({ mails: 1, pushes: 1 });
+    });
+
+    it("leave the mail at the pass that wrote it, when another spot had hours of its own to forget", async () => {
+      await database.db
+        .insert(spot)
+        .values({ id: "away", userId: "owner", name: "Away", latitude: 43.6, longitude: -1.47 });
+      await database.db.insert(alertSpot).values({ spotId: "away", alertId: "bay", position: 1 });
+      await found();
+      await database.db
+        .update(alertSpot)
+        .set({
+          mailed: [
+            { start: hour(-20), end: hour(-18), missed: 0 },
+            { start: hour(8), end: hour(12), missed: 0 },
+          ],
+        })
+        .where(eq(alertSpot.spotId, "away"));
+
+      expect(await pass(null, mail)).toMatchObject({ mails: 1 });
+      expect(post.sent()[0]?.text).toContain("Home\n  Sat 10 Oct, 08:00 to 12:00\n");
+      expect(post.sent()[0]?.text).not.toContain("Away");
     });
 
     it("go to the end of what is being handed over when the other could not read what is due", async () => {
