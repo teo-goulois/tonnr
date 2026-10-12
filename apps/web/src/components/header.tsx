@@ -1,7 +1,7 @@
 import { APP_NAME } from "@repo/config/app";
 import { Button, buttonVariants } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { BellIcon, StarIcon } from "@repo/ui/icon";
+import { BellIcon, BookmarkIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 
@@ -45,7 +45,7 @@ export default function Header({ className }: { className?: string }) {
           search={(previous) => ({ ...previous, panel: "saved" as const })}
           className={buttonVariants({ variant: "ghost" })}
         >
-          <StarIcon aria-hidden />
+          <BookmarkIcon aria-hidden />
           {m.saved_title()}
         </Link>
         <Link

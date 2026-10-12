@@ -11,7 +11,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { ListsIcon, PlusIcon, StarBoldIcon, StarIcon } from "@repo/ui/icon";
+import { BookmarkFillIcon, BookmarkIcon, ListsIcon, PlusIcon } from "@repo/ui/icon";
 import { useState } from "react";
 
 import { type Freshness, formatAgo } from "@/lib/format";
@@ -59,7 +59,7 @@ export function ReadingAge({
 type StationActionsProps = {
   // The station, the surf break or the spot to save.
   item: SavedItem;
-  // Undefined for a visitor without an account, who only sees the star: it offers to sign in.
+  // Undefined for a visitor without an account, who only sees the bookmark: it offers to sign in.
   lists: SavedList[] | undefined;
   onToggleFavorite: () => void;
   onToggleList: (list: SavedList, add: boolean) => void;
@@ -72,7 +72,7 @@ type StationActionsProps = {
 const NAME_MOST = 60;
 
 /**
- * Saves a station, a surf break or a spot of the user's own: the star for the favorites, the menu
+ * Saves a station, a surf break or a spot of the user's own: the bookmark for the favorites, the menu
  * for the other lists.
  */
 export function StationActions({
@@ -99,9 +99,9 @@ export function StationActions({
         onClick={onToggleFavorite}
       >
         {isFavorite ? (
-          <StarBoldIcon data-slot="icon" aria-hidden />
+          <BookmarkFillIcon data-slot="icon" aria-hidden />
         ) : (
-          <StarIcon data-slot="icon" aria-hidden />
+          <BookmarkIcon data-slot="icon" aria-hidden />
         )}
       </Button>
       {lists && (

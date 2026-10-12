@@ -1,5 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { ChevronLeftIcon } from "@repo/ui/icon";
+import { cn } from "@repo/ui/lib/utils";
 import { useId } from "react";
 
 import { m } from "@/paraglide/messages.js";
@@ -12,7 +13,7 @@ type ViewerScreenProps = Pick<
 >;
 
 /**
- * A panel of the map as a phone shows it when it is a tab's: the whole screen above the bar of
+ * A panel of the map as a phone shows it when it is a tab's: the whole screen under the bar of
  * tabs, in place of the map. It has no button that closes it, since the bar leads elsewhere.
  * Decision 040.
  */
@@ -53,7 +54,25 @@ export function ViewerScreen({
           <div className="-mt-1.5 -mr-xs flex shrink-0 items-center gap-xxs">{actions}</div>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-m sm:p-l">{children}</div>
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain p-m sm:p-l",
+          // The screen ends above the bar of tabs, which floats over it.
+          "pb-[calc(var(--spacing-m)+var(--bottom-nav-lift,0px))] sm:pb-[calc(var(--spacing-l)+var(--bottom-nav-lift,0px))]",
+        )}
+      >
+        {children}
+      </div>
+      {/* What scrolls fades out before the bar, and does not show around it. The fade is no
+          taller than the room left under the screen's end, which it leaves whole. */}
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 bottom-0",
+          "h-[calc(var(--bottom-nav-lift,0px)+var(--spacing-m))]",
+          "bg-[linear-gradient(to_top,var(--neutral-1)_var(--bottom-nav-lift,0px),transparent)]",
+        )}
+      />
     </section>
   );
 }

@@ -796,8 +796,11 @@ export function DesignSystemPage() {
       </Section>
 
       <Section title="Bottom navigation">
-        {/* The bar a phone goes from one screen to another by, at a phone's width. */}
-        <BottomNav className="edge max-w-sm rounded-(--radius-xs)" />
+        {/* The bar a phone goes from one screen to another by, at a phone's width, on what it
+            floats over. */}
+        <div className="max-w-sm rounded-(--radius-xs) bg-neutral-3 pt-s">
+          <BottomNav />
+        </div>
       </Section>
 
       <Section title="List chips">

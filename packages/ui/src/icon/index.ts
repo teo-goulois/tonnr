@@ -93,17 +93,26 @@ export { IconSparkle4Outline18 as SparkleIcon } from "nucleo-ui-outline-18/compo
 export { IconArrowDoorOutOutline18 as LogOutIcon } from "nucleo-ui-outline-18/components/IconArrowDoorOutOutline18";
 export { IconArrowUpOutline18 as ArrowUpIcon } from "nucleo-ui-outline-18/components/IconArrowUpOutline18";
 export { IconBellOutline18 as BellIcon } from "nucleo-ui-outline-18/components/IconBellOutline18";
+export { IconBookmarkOutline18 as BookmarkIcon } from "nucleo-ui-outline-18/components/IconBookmarkOutline18";
 export { IconCircleUserOutline18 as UserIcon } from "nucleo-ui-outline-18/components/IconCircleUserOutline18";
 export { IconCrosshairs2Outline18 as LocateIcon } from "nucleo-ui-outline-18/components/IconCrosshairs2Outline18";
-export { IconListFavsOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconListFavsOutline18";
+export { IconBookmarkListOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconBookmarkListOutline18";
 export { IconLockOutline18 as LockIcon } from "nucleo-ui-outline-18/components/IconLockOutline18";
 export { IconMapOutline18 as MapIcon } from "nucleo-ui-outline-18/components/IconMapOutline18";
 export { IconShareRightOutline18 as ShareIcon } from "nucleo-ui-outline-18/components/IconShareRightOutline18";
+export { IconUserOutline18 as PersonIcon } from "nucleo-ui-outline-18/components/IconUserOutline18";
 export { IconPinOutline18 as PinIcon } from "nucleo-ui-outline-18/components/IconPinOutline18";
 export { IconPinPlusOutline18 as PinPlusIcon } from "nucleo-ui-outline-18/components/IconPinPlusOutline18";
 export { IconTrashOutline18 as TrashIcon } from "nucleo-ui-outline-18/components/IconTrashOutline18";
 export { IconWaterWaveOutline18 as WaveIcon } from "nucleo-ui-outline-18/components/IconWaterWaveOutline18";
 export { IconWindOutline18 as WindIcon } from "nucleo-ui-outline-18/components/IconWindOutline18";
+
+// What is on, drawn full — Nucleo UI fill 18, each the fill of a line above: the tab in view of a
+// phone's bar, and what is saved.
+export { IconBellFill18 as BellFillIcon } from "nucleo-ui-fill-18/components/IconBellFill18";
+export { IconBookmarkFill18 as BookmarkFillIcon } from "nucleo-ui-fill-18/components/IconBookmarkFill18";
+export { IconMapFill18 as MapFillIcon } from "nucleo-ui-fill-18/components/IconMapFill18";
+export { IconUserFill18 as PersonFillIcon } from "nucleo-ui-fill-18/components/IconUserFill18";
 
 // Small interface primitives — Nucleo Micro Bold, except LoaderIcon which keeps
 // its Lucide artwork.

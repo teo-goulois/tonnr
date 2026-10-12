@@ -74,13 +74,14 @@ export function ViewerSkeleton({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* The sea's timeline: across a phone, beside the legend on a wide screen. */}
+      {/* The sea's timeline: across a phone, above its bar of tabs, and beside the legend on a
+          wide screen. */}
       {SEA_TIMELINE_SHOWN && (
         <div
           aria-hidden
           className={cn(
             floating,
-            "absolute inset-x-s bottom-s flex items-end gap-xs rounded-(--radius-xs) p-xs",
+            "absolute inset-x-s bottom-[calc(var(--spacing-s)+var(--bottom-nav-lift,0px))] flex items-end gap-xs rounded-(--radius-xs) p-xs",
             "lg:right-[calc(var(--spacing-s)+2.5rem)] lg:bottom-s lg:left-[calc(var(--spacing-s)*2+16rem)] lg:max-w-160",
           )}
         >

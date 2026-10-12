@@ -27,4 +27,4 @@ An account kept spots and nothing about stations. A surfer who reads the same fe
 - No route returns several stations or several breaks by their ids. A client that shows a list asks for each one, or finds them among those it has already loaded.
 - Two lists of one account may have the same name.
 - A station that is deleted leaves the lists it was in. No job deletes a station today. A break removed from the catalogue by `job breaks-remove` leaves the lists it was in.
-- The map marks a saved station with a star. It does not mark a saved break yet.
+- The map marks a saved station with a bookmark, which was a star until [decision 040](040-phone-navigation.md) made the bookmark the sign of what is saved. It does not mark a saved break yet.

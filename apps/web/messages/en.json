@@ -192,7 +192,7 @@
   "saved_sign_in_prompt": "Sign in to save buoys, surf breaks and your own spots, and group them in lists.",
   "recents_title": "Recently viewed",
   "recents_clear": "Clear",
-  "saved_empty": "Nothing saved in a list yet. Open a buoy, a surf break or one of your spots and press its star.",
+  "saved_empty": "Nothing saved in a list yet. Open a buoy, a surf break or one of your spots and press its bookmark.",
   "saved_list_empty": "This list is empty.",
   "saved_load_failed": "Your lists could not be loaded.",
   "saved_new_list": "New list",

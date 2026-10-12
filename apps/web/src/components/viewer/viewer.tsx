@@ -857,7 +857,7 @@ export function Viewer({
     if (signedIn) onCopySpot(sharedSpot);
     else requireAccount(m.auth_reason_copy_spot({ name: sharedSpot.name }));
   }
-  // What the star and the menu of the panel save: the station, the break when it is known, or
+  // What the bookmark and the menu of the panel save: the station, the break when it is known, or
   // the spot when it is the account's own.
   const shownItem: SavedItem | undefined = shown.breakId
     ? shown.found.data && { breakId: shown.breakId }
@@ -1042,11 +1042,15 @@ export function Viewer({
   return (
     <div
       className="relative min-h-0 overflow-hidden"
-      // On a phone the timeline takes the bottom of the map, and the map's credits sit above it.
+      // On a phone the bar of tabs floats over the bottom of the map, and the timeline stands
+      // above it: the map's credits sit above both.
       style={
-        !wide && timelineHeight > 0
+        !wide
           ? ({
-              "--map-credits-lift": `calc(${timelineHeight}px + var(--spacing-s))`,
+              "--map-credits-lift":
+                timelineHeight > 0
+                  ? `calc(${timelineHeight}px + var(--spacing-s) + var(--bottom-nav-lift, 0px))`
+                  : "var(--bottom-nav-lift, 0px)",
             } as CSSProperties)
           : undefined
       }
@@ -1166,7 +1170,7 @@ export function Viewer({
               "absolute",
               wide
                 ? "right-[calc(var(--spacing-s)+2.5rem)] bottom-s left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
-                : "inset-x-s bottom-s",
+                : "inset-x-s bottom-[calc(var(--spacing-s)+var(--bottom-nav-lift,0px))]",
             )}
             time={seaTime}
             times={seaTimes}

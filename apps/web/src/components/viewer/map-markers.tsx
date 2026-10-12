@@ -1,4 +1,4 @@
-import { ArrowUpIcon, PinIcon, StarBoldIcon, WaveIcon } from "@repo/ui/icon";
+import { ArrowUpIcon, BookmarkFillIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps, CSSProperties } from "react";
 
@@ -208,7 +208,7 @@ export function BuoyPill({
           {formatSeconds(periodSeconds)}
         </span>
       )}
-      {saved && <StarBoldIcon aria-hidden className="size-2.5 shrink-0" />}
+      {saved && <BookmarkFillIcon aria-hidden className="size-2.5 shrink-0" />}
     </button>
   );
 }

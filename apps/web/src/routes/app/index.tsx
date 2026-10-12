@@ -683,7 +683,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     setLists((all) =>
       all.some((other) => other.id === list.id)
         ? all.map((other) => (other.id === list.id ? list : other))
-        : // The favorites the star had drawn before the account had any.
+        : // The favorites the bookmark had drawn before the account had any.
           [list, ...all.filter((other) => other.id !== "favorites")],
     );
 
@@ -1037,7 +1037,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     );
   }
 
-  // The star answers at once: the list changes on the screen, then the API confirms it.
+  // The bookmark answers at once: the list changes on the screen, then the API confirms it.
   function save(listId: string, item: SavedItem, add: boolean) {
     // The ids of the item's kind once it is added to them or taken out.
     const changed = (ids: string[], id: string) =>

@@ -92,7 +92,12 @@ function RootDocument() {
           <CommandPalette />
           <ShortcutSettings />
           <Outlet />
-          <Toaster />
+          {/* A toast stands above a phone's bar of tabs, which floats over the bottom of the
+              screen: `index.css` says by how much, and by nothing where there is no bar. */}
+          <Toaster
+            offset={{ bottom: "calc(24px + var(--bottom-nav-lift, 0px))" }}
+            mobileOffset={{ bottom: "calc(16px + var(--bottom-nav-lift, 0px))" }}
+          />
         </ThemeProvider>
         {isDevtoolsEnabled && <TanStackRouterDevtools position="bottom-left" />}
         {isDevtoolsEnabled && (
