@@ -12,6 +12,7 @@ import {
   visitorClosure,
 } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
+import { providerCalls } from "@repo/db/schema/forecasts";
 import { workerProcess } from "@repo/db/schema/instance";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -23,6 +24,7 @@ import { publicProcedure } from "./index";
 import { procedureName } from "./procedures";
 import { appRouter, v1Router } from "./routers/index";
 import { createUsage, type Usage } from "./usage";
+import { STRONG_DEMAND_AT } from "./visitors";
 
 const KEY = /^key_[A-Za-z0-9_-]{43}$/;
 const AT = new Date("2026-10-09T08:00:00Z");
@@ -170,6 +172,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     // An instance answers the visitors of its web app until an operator closes it to them.
     await db.delete(visitorClosure);
     await db.delete(operatorAction);
+    // Nor has the instance asked its forecast provider anything today.
+    await db.delete(providerCalls);
     await db.insert(user).values([
       { id: "owner", name: "Owner", email: "owner@example.org" },
       { id: "second", name: "Second", email: "second@example.org" },
@@ -464,7 +468,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     it("is answered no more once an operator closes the instance, and is told why", async () => {
       expect(await call(v1Router.visitors.get, undefined, fromSite(WEB))).toEqual({ open: true });
 
-      expect(await openToVisitors(false)).toEqual({ open: false, closedAt: expect.any(Date) });
+      expect(await openToVisitors(false)).toEqual({
+        open: false,
+        closedAt: expect.any(Date),
+        busy: false,
+      });
 
       await expect(stations(fromSite(WEB))).rejects.toMatchObject({
         code: "UNAUTHORIZED",
@@ -489,7 +497,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     it("is answered again once the instance is opened", async () => {
       await openToVisitors(false);
 
-      expect(await openToVisitors(true, "second")).toEqual({ open: true, closedAt: null });
+      expect(await openToVisitors(true, "second")).toEqual({
+        open: true,
+        closedAt: null,
+        busy: false,
+      });
       expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
     });
 
@@ -511,11 +523,77 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
 
     it("tells the operator since when the instance is closed", async () => {
       const before = await call(v1Router.instance.state, undefined, bySession("owner"));
-      expect(before.visitors).toEqual({ closedAt: null });
+      expect(before.visitors).toEqual({ closedAt: null, busy: false, closesAt: 4400 });
 
       const { closedAt } = await openToVisitors(false);
       const after = await call(v1Router.instance.state, undefined, bySession("owner"));
-      expect(after.visitors).toEqual({ closedAt });
+      expect(after.visitors).toEqual({ closedAt, busy: false, closesAt: 4400 });
+    });
+
+    describe("while demand is strong", () => {
+      // What the instance counted of its requests to the forecast provider, in a bucket, in the
+      // day that holds the present moment or in one before.
+      const counted = (bucket: string, calls: number, daysAgo = 0) =>
+        database.db.insert(providerCalls).values({
+          provider: "open-meteo",
+          bucket,
+          start: sql`date_trunc('day', now(), 'UTC') - make_interval(days => ${daysAgo})`,
+          calls,
+        });
+
+      it("is four fifths of the day's requests for the people who look", () => {
+        expect(STRONG_DEMAND_AT).toBe(4400);
+      });
+
+      it("is answered up to it, and no more from it on, with no operator", async () => {
+        await counted("day:people", STRONG_DEMAND_AT - 1);
+        expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
+        expect(await call(v1Router.visitors.get, undefined, fromSite(WEB))).toEqual({
+          open: true,
+        });
+
+        await database.db.update(providerCalls).set({ calls: STRONG_DEMAND_AT });
+        await expect(stations(fromSite(WEB))).rejects.toMatchObject({
+          code: "UNAUTHORIZED",
+          data: { visitors: "closed" },
+        });
+        expect(await call(v1Router.visitors.get, undefined, fromSite(null))).toEqual({
+          open: false,
+        });
+        // Nobody closed it, and nothing is recorded: it opens again by itself.
+        expect(await database.db.select().from(visitorClosure)).toEqual([]);
+        expect(await database.db.select().from(operatorAction)).toEqual([]);
+      });
+
+      it("leaves an account and a key as they were", async () => {
+        const { key } = await makeKey();
+        await counted("day:people", STRONG_DEMAND_AT);
+
+        expect(await stations(bySession("visitor", WEB))).toEqual({ stations: [] });
+        expect(await stations(byKey(key))).toEqual({ stations: [] });
+      });
+
+      it("is not what the alerts asked, nor what was asked the day before", async () => {
+        await counted("day:alerts", 2500);
+        await counted("hour", 4000);
+        await counted("day:people", 5500, 1);
+
+        expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
+      });
+
+      it("tells the operator, who opens the instance and finds it closed still", async () => {
+        await counted("day:people", STRONG_DEMAND_AT);
+
+        const state = await call(v1Router.instance.state, undefined, bySession("owner"));
+        expect(state.visitors).toEqual({ closedAt: null, busy: true, closesAt: 4400 });
+        expect(await openToVisitors(true)).toEqual({ open: false, closedAt: null, busy: true });
+
+        // Closed by an operator as well, it stays closed when the day turns.
+        const closed = await openToVisitors(false);
+        expect(closed).toEqual({ open: false, closedAt: expect.any(Date), busy: true });
+        await database.db.delete(providerCalls);
+        await expect(stations(fromSite(WEB))).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      });
     });
 
     it("is counted apart from a request that comes from nowhere", async () => {

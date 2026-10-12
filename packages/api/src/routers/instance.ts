@@ -16,7 +16,7 @@ import { z } from "zod";
 import type { Database } from "@repo/db";
 
 import { adminProcedure, publicProcedure } from "../index";
-import { visitorsClosedAt } from "../visitors";
+import { isDemandStrong, STRONG_DEMAND_AT, visitorsClosedAt } from "../visitors";
 
 const ADMIN_ONLY =
   "Takes the signed-in session of an operator of the instance, in a request that names the " +
@@ -271,9 +271,16 @@ export const instanceRouter = {
           }),
         ),
         database: z.object({ sizeBytes: z.number() }),
-        // Since when the instance answers no visitor of its web app. Null while it answers
-        // them: decision 039.
-        visitors: z.object({ closedAt: z.date().nullable() }),
+        // Whether the instance answers the visitors of its web app: decision 039.
+        visitors: z.object({
+          // Since when an operator has it answer none. Null while none has.
+          closedAt: z.date().nullable(),
+          // Whether demand is strong, which closes the instance to visitors by itself until
+          // the day ends, in UTC: the requests of the day for the people who look, under
+          // `forecasts`, have reached `closesAt`.
+          busy: z.boolean(),
+          closesAt: z.number(),
+        }),
         // The mail the API sends: through what, and how many mails it counted today, in UTC,
         // against what it lets out in a day. A mail is counted before it leaves, and stays
         // counted when it did not. `via` is null on an instance that sends none.
@@ -359,7 +366,7 @@ export const instanceRouter = {
         jobs: jobs.map((row) => describeJob(row, at)),
         providers,
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
-        visitors: { closedAt },
+        visitors: { closedAt, busy: isDemandStrong(calls), closesAt: STRONG_DEMAND_AT },
         mail: {
           via: context.verification.via,
           today: mails.get("day") ?? 0,

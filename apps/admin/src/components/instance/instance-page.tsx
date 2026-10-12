@@ -178,7 +178,11 @@ export function InstancePage({
   const forecasts = state?.forecasts as InstanceState["forecasts"] | undefined;
   const mail = state?.mail as InstanceState["mail"] | undefined;
   const visitors = state?.visitors as InstanceState["visitors"] | undefined;
+  // No operator closed the instance to visitors. It may still answer none, by itself, while
+  // demand is strong. An API of the version before says nothing of that.
   const isOpen = visitors?.closedAt === null;
+  const isBusy = isOpen && visitors.busy === true;
+  const closesAt = (visitors?.closesAt as number | undefined) ?? null;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
@@ -190,15 +194,22 @@ export function InstancePage({
           ) : (
             <span className="grid justify-items-start gap-xs">
               <span className="flex flex-wrap items-center gap-xs">
-                <Badge variant={isOpen ? "success" : "warning"}>
-                  {isOpen ? m.visitors_open() : m.visitors_closed()}
+                <Badge variant={isOpen && !isBusy ? "success" : "warning"}>
+                  {!isOpen ? m.visitors_closed() : isBusy ? m.visitors_busy() : m.visitors_open()}
                 </Badge>
                 <span className="text-s text-neutral-7">
                   {visitors.closedAt
                     ? m.visitors_closed_note({ ago: formatAgo(visitors.closedAt, now) })
-                    : m.visitors_open_note()}
+                    : isBusy
+                      ? m.visitors_busy_note({ count: formatCount(closesAt ?? 0) })
+                      : m.visitors_open_note()}
                 </span>
               </span>
+              {isOpen && !isBusy && closesAt !== null && (
+                <span className="text-s text-neutral-7">
+                  {m.visitors_auto_note({ count: formatCount(closesAt) })}
+                </span>
+              )}
               <Button
                 variant="outline"
                 size="sm"

@@ -8,7 +8,7 @@ import { admitKey, type KeyState, readAuthorization } from "./keys";
 import { procedureName } from "./procedures";
 import { admitLink } from "./shares";
 import { outcomeOf } from "./usage";
-import { isFromWebApp, visitorsClosed, visitorsClosedAt } from "./visitors";
+import { answersVisitors, isFromWebApp, visitorsClosed } from "./visitors";
 
 export const o = os.$context<Context>();
 
@@ -116,14 +116,14 @@ export const linkProcedure = knownProcedure.route({
 /**
  * Answers a caller the instance knows: an account by its session, a program by an API key, or
  * whoever was given the link of a shared list. It answers a visitor of the web app as well,
- * who has no account, until an operator closes the instance to them: decision 039. For the data
- * everyone shares. `context.caller` says which of them is calling.
+ * who has no account, until an operator closes the instance to them, or demand is strong:
+ * decision 039. For the data everyone shares. `context.caller` says which of them is calling.
  */
 export const callerProcedure = knownProcedure.use(async ({ context, next }) => {
   const { named } = context;
   if (named.via === "none") throw new ORPCError("UNAUTHORIZED");
   // Read at each call of a visitor, so that the instance is closed for all of them at once.
-  if (named.via === "visitor" && (await visitorsClosedAt(context.db)) !== null) {
+  if (named.via === "visitor" && !(await answersVisitors(context.db))) {
     throw visitorsClosed();
   }
 

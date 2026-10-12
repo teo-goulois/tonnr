@@ -1,9 +1,11 @@
+import { FORECAST_PROVIDER } from "@repo/conditions/forecasts/open-meteo";
+import { currentCalls } from "@repo/db/calls";
 import { visitorClosure } from "@repo/db/schema/access";
 import { z } from "zod";
 
 import { recordAction } from "../actions";
 import { adminProcedure, linkProcedure } from "../index";
-import { visitorsClosedAt } from "../visitors";
+import { answersVisitors, isDemandStrong, STRONG_DEMAND_AT, visitorsClosedAt } from "../visitors";
 
 const ADMIN_ONLY =
   "Takes the signed-in session of an operator of the instance, in a request that names the " +
@@ -18,13 +20,15 @@ export const visitorsRouter = {
       description:
         "Takes neither a key nor a session. A visitor is whoever opens the web app without an " +
         "account: the API answers their requests, which name the web app's site in `Origin`, " +
-        "with the data everyone shares, until an operator closes the instance to them. It " +
-        "then answers them 401, with `visitors: closed` in the error's `data`, and the web " +
-        "app asks for an account. A program calls with a key either way. Decision 039.",
+        "with the data everyone shares, until an operator closes the instance to them, or " +
+        `demand is strong: once the instance has sent ${STRONG_DEMAND_AT} requests to its ` +
+        "forecast provider in a day, UTC's, for the people who look, and until that day " +
+        "ends. It then answers them 401, with `visitors: closed` in the error's `data`, and " +
+        "the web app asks for an account. A program calls with a key either way. Decision 039.",
       tags: ["Instance"],
     })
     .output(z.object({ open: z.boolean() }))
-    .handler(async ({ context }) => ({ open: (await visitorsClosedAt(context.db)) === null })),
+    .handler(async ({ context }) => ({ open: await answersVisitors(context.db) })),
 
   update: adminProcedure
     .route({
@@ -35,15 +39,20 @@ export const visitorsRouter = {
         `${ADMIN_ONLY} Closed, the instance answers the accounts, the keys and the links of ` +
         "shared lists as before, and no visitor: the web app asks them for an account. It " +
         "takes effect at the next call of each visitor. Closing an instance that is closed " +
-        "changes nothing and records nothing, and so does opening one that is open.",
+        "changes nothing and records nothing, and so does opening one that is open. An " +
+        "instance that an operator opens still answers no visitor while demand is strong: " +
+        "`busy` says so.",
       tags: ["Instance"],
     })
     .input(z.object({ open: z.boolean() }))
     .output(
       z.object({
+        // Whether the instance answers visitors now.
         open: z.boolean(),
-        // Since when the instance answers no visitor. Null while it answers them.
+        // Since when an operator has it answer none. Null while none has.
         closedAt: z.date().nullable(),
+        // Whether demand is strong, which closes it by itself until the day ends, in UTC.
+        busy: z.boolean(),
       }),
     )
     .handler(async ({ input, context }) => {
@@ -67,6 +76,7 @@ export const visitorsRouter = {
         }
         return visitorsClosedAt(tx);
       });
-      return { open: closedAt === null, closedAt };
+      const busy = isDemandStrong(await currentCalls(context.db, FORECAST_PROVIDER));
+      return { open: closedAt === null && !busy, closedAt, busy };
     }),
 };

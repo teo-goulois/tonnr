@@ -329,10 +329,11 @@ Anyone opens your web app without an account and reads the map: the buoys, the b
 
 - The API knows a visitor by where the request says it comes from: `CORS_ORIGIN`, in `Origin`. A browser writes that header itself. A program can write it too, and then reads what a visitor reads: use a key for a program of yours, which is counted and limited.
 - A visitor spends your forecast budget as an account does. The page "Instance" of the admin app shows the requests sent today, and the page of the counts shows the calls under "Visitors of the web app".
-- When too many come, close the instance to visitors from the page "Instance", or from its command palette. The web app then asks whoever has no account to sign in or to create one. Accounts, keys and shared lists work as before. The same button opens it again.
+- The instance closes to visitors by itself once it has sent 4,400 forecast requests in a day for the people who look, four fifths of what it lets itself send them: the rest of the day's forecasts is for your accounts. It opens again at midnight, UTC. The page "Instance" says when it has, and there is nothing to set.
+- Before that, when too many come, close the instance to visitors yourself from the page "Instance", or from its command palette. The web app then asks whoever has no account to sign in or to create one. Accounts, keys and shared lists work as before. The same button opens it again.
 - Without the admin app, an operator does it with their session: `curl --cookie session.txt -X PUT -H 'Content-Type: application/json' -H 'Origin: https://api.example.org' -d '{"open":false}' https://api.example.org/v1/visitors`. `Origin` is your `ADMIN_ORIGIN`, or the API's own address on an instance that names none.
 - `GET /v1/visitors` says whether the instance answers visitors, to anyone.
-- It takes effect at once, with no restart. An instance answers visitors until you close it, and stays as you left it across restarts and updates.
+- It takes effect at once, with no restart. What you set stays across restarts and updates, and holds whatever the day's count says: an instance you closed stays closed past midnight.
 - Update the API before the web app: a web app of this version in front of an older API shows its visitors a map that loads nothing.
 
 ## Checking addresses by mail

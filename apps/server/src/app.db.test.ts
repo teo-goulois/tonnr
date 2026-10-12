@@ -1284,6 +1284,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect(await bodyOf(await send("PUT", "/v1/visitors", open))).toEqual({
         open: true,
         closedAt: null,
+        busy: false,
       });
       expect((await send("GET", "/v1/stations", { origin: APP })).status).toBe(200);
     });
