@@ -54,6 +54,14 @@ describe("what the editor draws of the tide", () => {
     ]);
     // The first point is read with the one after it.
     expect(meetsTide(tide, at(0), rising)).toBe(true);
+    // At its height the tide is already falling, and at its lowest already rising: a point is
+    // read with the one after it, as the API reads an hour.
+    expect([meetsTide(tide, at(6), rising), meetsTide(tide, at(6), falling)]).toEqual([
+      false,
+      true,
+    ]);
+    // The last point has only the one before it.
+    expect(meetsTide(tide, at(12), falling)).toBe(true);
   });
 
   it("asks both when both are asked", () => {

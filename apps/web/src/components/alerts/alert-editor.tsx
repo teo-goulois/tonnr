@@ -32,11 +32,13 @@ import {
   asked,
   changedParts,
   isSetRange,
+  leftAfterSave,
   loosened,
   rangeAfter,
   rangeWords,
   sliderEnds,
   thumbsOf,
+  withoutGone,
 } from "./alert-words";
 import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
@@ -77,14 +79,21 @@ type AlertEditorProps = {
   mailWaits?: boolean;
   isSaving: boolean;
   // The alert as it is written, what of it differs from the alert that is saved, and what the
-  // account answered about mail when it was asked.
-  onSave: (draft: AlertDraft, changed: Partial<AlertDraft>, byMail?: boolean) => void;
+  // account answered about mail when it was asked. Answers the alert once it is saved, and
+  // nothing when it could not be.
+  onSave: (
+    draft: AlertDraft,
+    changed: Partial<AlertDraft>,
+    byMail?: boolean,
+  ) => Promise<Alert | undefined>;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
   // Starts another alert from this one as it is written.
   onCopy: (draft: AlertDraft) => void;
-  // Goes back to the spot's alerts. What was written and not saved is given up.
+  // Asks to go back to the spot's alerts.
   onClose: () => void;
+  // Says whether something is written here that leaving would lose.
+  onUnsaved: (hasUnsaved: boolean) => void;
 };
 
 /**
@@ -155,6 +164,7 @@ export function AlertEditor({
   onDelete,
   onCopy,
   onClose,
+  onUnsaved,
 }: AlertEditorProps) {
   const id = useId();
   // The wind is written in the unit its reader chose: the editor is drawn again when it changes.
@@ -180,31 +190,20 @@ export function AlertEditor({
   );
   // What was changed here, part by part. The rest is the alert as it is saved, now: a part left
   // alone follows the alert if it changes elsewhere meanwhile, as its switch does in the list.
-  // What was written while a save was on its way is still here when the answer comes.
+  // A part that is changed stays so until its own save has answered: what was written while a
+  // save was on its way is still here when the answer comes, whatever was read meanwhile.
   const [changed, setChanged] = useState<Partial<AlertDraft>>({});
   const draft = useMemo(() => ({ ...saved, ...changed }), [saved, changed]);
   const set = <Key extends keyof AlertDraft>(key: Key, value: AlertDraft[Key]) =>
     setChanged((current) => ({ ...current, [key]: value }));
-  // What the API has caught up with is no longer a change made here: a part that is saved, or
-  // that became the same elsewhere, follows the alert again. A neighbour that was deleted
-  // meanwhile is no longer asked for.
+  // A neighbour that was deleted meanwhile is no longer asked for.
   useEffect(() => {
-    setChanged((current) => {
-      const known = new Set(spots.map((one) => one.id));
-      const isKnown = (spotId: string) => spotId === spot.id || known.has(spotId);
-      const cleaned =
-        current.spotIds && !current.spotIds.every(isKnown)
-          ? { ...current, spotIds: current.spotIds.filter(isKnown) }
-          : current;
-      const still = changedParts(cleaned, saved);
-      const isSame =
-        cleaned === current && Object.keys(still).length === Object.keys(current).length;
-      return isSame ? current : still;
-    });
-  }, [saved, spots, spot.id]);
+    const known = new Set(spots.map((one) => one.id));
+    setChanged((current) =>
+      withoutGone(current, (spotId) => spotId === spot.id || known.has(spotId)),
+    );
+  }, [spots, spot.id]);
   const [isConfirming, setIsConfirming] = useState(false);
-  // Leaving with something written and not saved is asked twice.
-  const [isLeaving, setIsLeaving] = useState(false);
   // Mail is offered, and taken unless the account says no.
   const [wantsMail, setWantsMail] = useState(true);
 
@@ -373,8 +372,10 @@ export function AlertEditor({
   const isBusy = isSaving || isDeleting;
   const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isBusy;
   // Something was written here that leaving would lose: a change, or a new alert that asks
-  // something already.
+  // something already. The panel is told, since it is the panel that leaves.
   const hasUnsaved = alert ? Object.keys(parts).length > 0 : asksSomething;
+  useEffect(() => onUnsaved(hasUnsaved), [hasUnsaved, onUnsaved]);
+  useEffect(() => () => onUnsaved(false), [onUnsaved]);
 
   return (
     <form
@@ -383,37 +384,28 @@ export function AlertEditor({
         event.preventDefault();
         if (!canSave) return;
         const name = draft.name.trim();
-        onSave(
-          { ...draft, name, criteria: sent },
+        const sending = { ...draft, name, criteria: sent };
+        void onSave(
+          sending,
           {
             ...parts,
             ...(parts.name === undefined ? {} : { name }),
             ...(parts.criteria === undefined ? {} : { criteria: sent }),
           },
           asksMail ? wantsMail : undefined,
-        );
+        ).then((answer) => {
+          // What was sent is saved: a part that was not changed again since follows the alert.
+          if (answer) setChanged((current) => leftAfterSave(current, sending));
+        });
       }}
     >
-      {isLeaving && (
-        <div className="edge grid justify-items-start gap-xs rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]">
-          <p className="text-s">{m.alert_leave_unsaved()}</p>
-          <div className="flex flex-wrap gap-xs">
-            <Button type="button" size="sm" variant="secondary" onClick={onClose}>
-              {m.alert_leave()}
-            </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setIsLeaving(false)}>
-              {m.alert_stay()}
-            </Button>
-          </div>
-        </div>
-      )}
       <div className="flex items-center gap-s">
         <Button
           type="button"
           variant="ghost"
           size="icon"
           aria-label={m.alert_back({ spot: spot.name })}
-          onClick={() => (hasUnsaved ? setIsLeaving(true) : onClose())}
+          onClick={onClose}
         >
           <ChevronLeftIcon data-slot="icon" aria-hidden />
         </Button>

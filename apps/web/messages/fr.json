@@ -481,7 +481,7 @@
   "alert_leave": "Quitter sans enregistrer",
   "alert_stay": "Continuer",
   "alert_tide_chart": "La marée à {spot} sur les deux jours qui viennent",
-  "alert_tide_caption": "La marée à {spot} sur les deux jours qui viennent. Plus vive là où elle convient à l'alerte.",
+  "alert_tide_caption": "La marée à {spot} sur les deux jours qui viennent. Plus vive là où la marée seule convient à l'alerte, à peu près : les créneaux plus bas disent ce que l'alerte trouve.",
   "alert_summary_swell": "Houle",
   "alert_summary_wind": "Vent",
   "alert_summary_tide": "Marée",

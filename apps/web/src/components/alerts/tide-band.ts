@@ -26,12 +26,12 @@ export function tideAhead(points: TidePoint[], now: number) {
 function tideAt(points: TidePoint[], time: number) {
   const next = points.findIndex((point) => point.time.getTime() >= time);
   if (next === -1) return undefined;
-  const after = points[next]!;
-  const before = points[next - 1] ?? (after.time.getTime() === time ? points[next + 1] : undefined);
-  if (!before) return undefined;
-  // At the first point, the one after it says which way the tide goes.
-  const [from, to] =
-    before.time.getTime() <= after.time.getTime() ? [before, after] : [after, before];
+  // At a point, the tide goes the way it goes from there on, as the API reads it: at its
+  // height it is already falling. The last point has only the one before it to say.
+  const isAt = points[next]!.time.getTime() === time;
+  const from = isAt && points[next + 1] ? points[next]! : points[next - 1];
+  const to = isAt && points[next + 1] ? points[next + 1]! : points[next]!;
+  if (!from) return undefined;
   const span = to.time.getTime() - from.time.getTime();
   const ratio = span === 0 ? 0 : (time - from.time.getTime()) / span;
   return {

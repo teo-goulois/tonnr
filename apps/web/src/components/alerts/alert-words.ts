@@ -301,3 +301,40 @@ export function changedParts(changed: Partial<AlertDraft>, saved: AlertDraft) {
       .map((key) => [key, changed[key]]),
   ) as Partial<AlertDraft>;
 }
+
+/**
+ * What is left of what was changed in an editor once a save has answered: the parts that were
+ * changed again since they were sent. The others are saved, and follow the alert from then on.
+ * It is asked of the save itself, and not of whatever the alert is seen to be meanwhile: a part
+ * put back to what it was while its save was on its way is a change, and is kept.
+ */
+export function leftAfterSave(changed: Partial<AlertDraft>, sent: AlertDraft) {
+  return Object.fromEntries(
+    (Object.keys(changed) as (keyof AlertDraft)[])
+      .filter((key) => changed[key] !== undefined && !samePart(key, changed[key]!, sent[key]))
+      .map((key) => [key, changed[key]]),
+  ) as Partial<AlertDraft>;
+}
+
+/**
+ * What was changed, without the spots that are no longer the user's: a neighbour that was
+ * deleted meanwhile is no longer asked for. The same object when none is gone.
+ */
+export function withoutGone(changed: Partial<AlertDraft>, isKnown: (spotId: string) => boolean) {
+  return changed.spotIds && !changed.spotIds.every(isKnown)
+    ? { ...changed, spotIds: changed.spotIds.filter(isKnown) }
+    : changed;
+}
+
+/** What a spot's panel writes: an alert that is saved, or a new one, which may start from a copy. */
+export type Written = { alertId?: string; initial?: AlertDraft };
+
+/**
+ * What becomes of a request to write something else in a spot's panel, or to go back to its
+ * list (`null`): nothing when the alert asked for is the one that is open, a question when
+ * something was written that would be lost, and otherwise the way there.
+ */
+export function leaveFor(open: Written | null, asked: Written | null, hasUnsaved: boolean) {
+  if (open && asked?.alertId !== undefined && asked.alertId === open.alertId) return "stay";
+  return open && hasUnsaved ? "ask" : "go";
+}

@@ -5,11 +5,14 @@ import {
   asked,
   changedParts,
   conditionsKey,
+  leaveFor,
+  leftAfterSave,
   loosened,
   rangeAfter,
   samePart,
   sliderEnds,
   thumbsOf,
+  withoutGone,
 } from "./alert-words";
 
 describe("the conditions as they are sent", () => {
@@ -190,5 +193,72 @@ describe("what of a draft differs from the alert that is saved", () => {
     expect(changedParts({ criteria: { swellHeightMeters: { min: 1.2 } } }, saved)).toEqual({
       criteria: { swellHeightMeters: { min: 1.2 } },
     });
+  });
+});
+
+describe("what a save leaves of what was changed", () => {
+  const sent: AlertDraft = {
+    name: "Dawn",
+    criteria: { swellHeightMeters: { min: 1 } },
+    enabled: true,
+    shortestMinutes: 60,
+    spotIds: ["north"],
+  };
+
+  it("is nothing when nothing was changed since it was sent", () => {
+    expect(
+      leftAfterSave(
+        { name: " Dawn ", shortestMinutes: 60, criteria: { swellHeightMeters: { min: 1 } } },
+        sent,
+      ),
+    ).toEqual({});
+  });
+
+  it("keeps a part that was changed again while its save was on its way", () => {
+    // One hour was sent, and two were put back meanwhile: two is what was last chosen, whatever
+    // the alert was seen to be in between.
+    expect(leftAfterSave({ shortestMinutes: 120, name: "Dawn" }, sent)).toEqual({
+      shortestMinutes: 120,
+    });
+    expect(leftAfterSave({ enabled: false }, sent)).toEqual({ enabled: false });
+  });
+});
+
+describe("what was changed, once a neighbour is gone", () => {
+  const isKnown = (spotId: string) => spotId !== "gone";
+
+  it("no longer asks for a spot that is no longer the user's", () => {
+    expect(withoutGone({ name: "Dawn", spotIds: ["north", "gone"] }, isKnown)).toEqual({
+      name: "Dawn",
+      spotIds: ["north"],
+    });
+  });
+
+  it("is the same when none is gone, and when the spots were not changed", () => {
+    const changed = { spotIds: ["north", "south"] };
+    expect(withoutGone(changed, isKnown)).toBe(changed);
+    const other = { shortestMinutes: 60 };
+    expect(withoutGone(other, isKnown)).toBe(other);
+  });
+});
+
+describe("a request to write something else in a spot's panel", () => {
+  it("goes there at once when nothing is open, or nothing would be lost", () => {
+    expect(leaveFor(null, { alertId: "bay" }, false)).toBe("go");
+    expect(leaveFor({ alertId: "bay" }, { alertId: "big" }, false)).toBe("go");
+    expect(leaveFor({ alertId: "bay" }, null, false)).toBe("go");
+  });
+
+  it("asks first when something was written that would be lost", () => {
+    expect(leaveFor({ alertId: "bay" }, { alertId: "big" }, true)).toBe("ask");
+    expect(leaveFor({ alertId: "bay" }, null, true)).toBe("ask");
+    // A copy takes the place of what it is made from, and of a new alert that is not saved.
+    expect(leaveFor({ alertId: "bay" }, { initial: {} as AlertDraft }, true)).toBe("ask");
+    expect(leaveFor({}, {}, true)).toBe("ask");
+  });
+
+  it("leaves the alert that is open as it is when that alert is asked for", () => {
+    expect(leaveFor({ alertId: "bay" }, { alertId: "bay" }, true)).toBe("stay");
+    expect(leaveFor({ alertId: "bay" }, { alertId: "bay" }, false)).toBe("stay");
   });
 });

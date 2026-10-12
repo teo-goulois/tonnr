@@ -1,11 +1,11 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
 import { AlertEditor } from "../alerts/alert-editor";
-import type { AlertDraft } from "../alerts/alert-words";
+import { type Written, leaveFor } from "../alerts/alert-words";
 import { SpotAlerts } from "../alerts/spot-alerts";
 import { tideAhead } from "../alerts/tide-band";
 import type { Alerting } from "../alerts/types";
@@ -36,10 +36,9 @@ type SpotPanelProps = PointConditionsProps & {
   alertAsked: { count: number; alertId?: string };
 };
 
-// The alert that is being written in the panel: one that is saved, or a new one, which may
-// start from a copy. `key` stays the same from a new alert to the alert it is saved as, so that
-// what is written meanwhile is kept.
-type Writing = { key: number; alertId?: string; initial?: AlertDraft };
+// The alert that is being written in the panel. `key` stays the same from a new alert to the
+// alert it is saved as, so that what is written meanwhile is kept.
+type Writing = Written & { key: number };
 
 /** The week and the tide at a spot of the user's own, and what they say of it. */
 export function SpotPanel({
@@ -66,17 +65,41 @@ export function SpotPanel({
     alertAsked.count > 0 && alertAsked.alertId ? { key: 0, alertId: alertAsked.alertId } : null,
   );
   const written = useRef(0);
-  const write = (what: Omit<Writing, "key">) => {
-    written.current += 1;
-    setWriting({ ...what, key: written.current });
-    setTab("alert");
+  // Whether the editor holds something that leaving it would lose, as it says, and where the
+  // panel was asked to go while it does.
+  const unsaved = useRef(false);
+  const [leavingFor, setLeavingFor] = useState<{ to: Written | null } | null>(null);
+  const onUnsaved = useCallback((hasUnsaved: boolean) => {
+    unsaved.current = hasUnsaved;
+    // Once what was written is saved, there is nothing left to ask about.
+    if (!hasUnsaved) setLeavingFor(null);
+  }, []);
+  const go = (to: Written | null) => {
+    setLeavingFor(null);
+    if (to) {
+      written.current += 1;
+      setWriting({ ...to, key: written.current });
+    } else {
+      setWriting(null);
+    }
   };
-  const writer = useRef(write);
-  writer.current = write;
-  useEffect(() => {
-    if (alertAsked.count === 0) return;
+  // Writes something else, or goes back to the list: at once when nothing would be lost, and
+  // after a second word otherwise. The alert that is open stays as it is when it is asked for.
+  const leave = (to: Written | null) => {
     setTab("alert");
-    if (alertAsked.alertId) writer.current({ alertId: alertAsked.alertId });
+    const what = leaveFor(writing, to, unsaved.current);
+    if (what === "go") go(to);
+    if (what === "ask") setLeavingFor({ to });
+  };
+  const leaver = useRef(leave);
+  leaver.current = leave;
+  const asked = useRef(alertAsked.count);
+  useEffect(() => {
+    // Asked again since the panel opened: what it opened on is already there.
+    if (alertAsked.count === asked.current) return;
+    asked.current = alertAsked.count;
+    setTab("alert");
+    if (alertAsked.alertId) leaver.current({ alertId: alertAsked.alertId });
   }, [alertAsked.count, alertAsked.alertId]);
   const [isEditing, setIsEditing] = useState(false);
   // A spot that was just added is offered an alert once the offer to describe it is answered.
@@ -152,7 +175,7 @@ export function SpotPanel({
         <div className="edge grid justify-items-start gap-xs rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]">
           <p className="text-s">{m.alert_offer()}</p>
           <div className="flex flex-wrap gap-xs">
-            <Button size="sm" variant="secondary" onClick={() => write({})}>
+            <Button size="sm" variant="secondary" onClick={() => leave({})}>
               {m.alert_create()}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setOffersAlert(false)}>
@@ -192,54 +215,72 @@ export function SpotPanel({
           // before its settings are: they say whether it is asked about mail, with that alert.
           (alerting.alerts.data && (own.length > 0 || alerting.settings.data) ? (
             shown ? (
-              <AlertEditor
-                key={shown.key}
-                now={now}
-                spot={found}
-                spots={spots}
-                alert={alert}
-                initial={shown.initial}
-                tide={tide}
-                zone={alerting.settings.data?.zone ?? undefined}
-                preview={alerting.preview}
-                onTry={alerting.onTry}
-                isSaving={alerting.isSaving}
-                // Asked once, as an alert is made, of an account that never answered, on an
-                // instance that sends mail.
-                asksMail={
-                  !alert &&
-                  alerting.settings.data?.byMail === null &&
-                  alerting.settings.data.mail !== "off"
-                }
-                mailWaits={alerting.settings.data?.mail === "unchecked"}
-                onSave={(draft, changed, byMail) => {
-                  const { key } = shown;
-                  void alerting.onSave(alert, draft, changed, byMail).then((saved) => {
-                    // A new alert that is saved is the one that is written from then on, unless
-                    // the panel has moved on to something else meanwhile.
-                    if (!saved || alert) return;
-                    setWriting((current) =>
-                      current?.key === key ? { key, alertId: saved.id } : current,
-                    );
-                  });
-                }}
-                isDeleting={alerting.isDeleting}
-                onDelete={alerting.onDelete}
-                onCopy={(draft) =>
-                  write({ initial: { ...draft, name: m.alert_copy_name({ name: draft.name }) } })
-                }
-                onClose={() => setWriting(null)}
-              />
+              <div className="grid gap-m">
+                {leavingFor && (
+                  <div className="edge grid justify-items-start gap-xs rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]">
+                    <p className="text-s">{m.alert_leave_unsaved()}</p>
+                    <div className="flex flex-wrap gap-xs">
+                      <Button size="sm" variant="secondary" onClick={() => go(leavingFor.to)}>
+                        {m.alert_leave()}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setLeavingFor(null)}>
+                        {m.alert_stay()}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <AlertEditor
+                  key={shown.key}
+                  now={now}
+                  spot={found}
+                  spots={spots}
+                  alert={alert}
+                  initial={shown.initial}
+                  tide={tide}
+                  zone={alerting.settings.data?.zone ?? undefined}
+                  preview={alerting.preview}
+                  onTry={alerting.onTry}
+                  isSaving={alerting.isSaving}
+                  // Asked once, as an alert is made, of an account that never answered, on an
+                  // instance that sends mail.
+                  asksMail={
+                    !alert &&
+                    alerting.settings.data?.byMail === null &&
+                    alerting.settings.data.mail !== "off"
+                  }
+                  mailWaits={alerting.settings.data?.mail === "unchecked"}
+                  onSave={(draft, changed, byMail) => {
+                    const { key } = shown;
+                    return alerting.onSave(alert, draft, changed, byMail).then((saved) => {
+                      // A new alert that is saved is the one that is written from then on, unless
+                      // the panel has moved on to something else meanwhile.
+                      if (saved && !alert) {
+                        setWriting((current) =>
+                          current?.key === key ? { key, alertId: saved.id } : current,
+                        );
+                      }
+                      return saved;
+                    });
+                  }}
+                  isDeleting={alerting.isDeleting}
+                  onDelete={alerting.onDelete}
+                  onCopy={(draft) =>
+                    leave({ initial: { ...draft, name: m.alert_copy_name({ name: draft.name }) } })
+                  }
+                  onClose={() => leave(null)}
+                  onUnsaved={onUnsaved}
+                />
+              </div>
             ) : (
               <SpotAlerts
                 spot={found}
                 spots={spots}
                 alerts={own}
-                onOpen={(one) => write({ alertId: one.id })}
+                onOpen={(one) => leave({ alertId: one.id })}
                 // A second alert on a spot is not named as the first: the spot's name, and its
                 // rank among the spot's alerts.
                 onNew={() =>
-                  write(
+                  leave(
                     own.length === 0
                       ? {}
                       : {

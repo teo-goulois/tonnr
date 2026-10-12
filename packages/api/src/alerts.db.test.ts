@@ -528,6 +528,23 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect([await windowsOf(made.id), await toldAt(made.id)]).toEqual([[], []]);
     });
 
+    it("moves two spots that share two alerts at the same moment, and neither is refused", async () => {
+      // Each spot joined the two alerts in another order: whatever holds a spot's alerts holds
+      // them in one order, or two moves would wait for one another.
+      const one = await make({ name: "One", spotIds: ["north", "south"] });
+      const other = await make({ name: "Other", spotIds: ["south", "north"] });
+
+      for (let round = 1; round <= 6; round += 1) {
+        await Promise.all([
+          call(v1Router.spots.update, { id: "north", latitude: 43.64 + round / 1000 }, by("ana")),
+          call(v1Router.spots.update, { id: "south", latitude: 43.6 + round / 1000 }, by("ana")),
+        ]);
+      }
+
+      // Each move read both alerts anew.
+      expect([await revisionOf(one.id), await revisionOf(other.id)]).toEqual([12, 12]);
+    });
+
     it("deletes the alert a spot joined while the spot was being deleted", async () => {
       // An alert made on the spot by a request that has not finished: the spot is held.
       await meanwhile(

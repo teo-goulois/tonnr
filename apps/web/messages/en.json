@@ -481,7 +481,7 @@
   "alert_leave": "Leave without saving",
   "alert_stay": "Keep writing",
   "alert_tide_chart": "The tide at {spot} over the next two days",
-  "alert_tide_caption": "The tide at {spot} over the next two days. Brighter where it suits the alert.",
+  "alert_tide_caption": "The tide at {spot} over the next two days. Brighter where the tide alone suits the alert, roughly: the windows below say what the alert finds.",
   "alert_summary_swell": "Swell",
   "alert_summary_wind": "Wind",
   "alert_summary_tide": "Tide",
