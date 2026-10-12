@@ -54,13 +54,15 @@ export type Sample = {
 };
 
 /**
- * The energy of one wave along a metre of its crest, in kilojoules: the power of the sea in deep
- * water, ρg²H²T/64π, times the period. The figure surf forecasts print: a 1 m swell of 10 s
- * carries 49 kJ, a 2 m swell of 14 s carries 384 kJ.
+ * The energy of one wave along a metre of its crest, in kilojoules, as surf forecasts print it:
+ * a regular wave of the sea's height and of the period of its peak, ρg²H²T²/16π. A 1 m sea of
+ * 10 s gives 196 kJ, a 2 m sea of 14 s gives 1,537 kJ. It ranks seas more than it measures them:
+ * a real sea of that significant height carries a quarter of it, and a mean period reads lower
+ * than a peak one. Decision 036.
  */
 export function waveEnergy(heightMeters: number | null, periodSeconds: number | null) {
   if (heightMeters === null || periodSeconds === null) return null;
-  return 0.4903 * heightMeters ** 2 * periodSeconds ** 2;
+  return 1.9612 * heightMeters ** 2 * periodSeconds ** 2;
 }
 
 export type Metric = {
@@ -89,7 +91,7 @@ export function metrics(): Record<MetricKey, Metric> {
   return {
     height: {
       key: "height",
-      label: m.details_swell(),
+      label: m.details_waves(),
       unit: heightUnit(),
       digits: 1,
       scale: WAVE_HEIGHT_SCALE,
@@ -210,20 +212,41 @@ export function measuredSamples(readings: Reading[]): Sample[] {
     .sort((a, b) => a.time - b.time);
 }
 
-export function modelSamples(hours: Forecast["hours"]): Sample[] {
-  return hours.map((hour) => ({
-    time: hour.time.getTime(),
-    height: hour.waveHeightMeters,
-    period: hour.wavePeriodSeconds,
-    energy: waveEnergy(hour.waveHeightMeters, hour.wavePeriodSeconds),
-    wind: toKnots(hour.windSpeedMetersPerSecond),
-    gust: toKnots(hour.windGustMetersPerSecond),
-    windDirection: hour.windDirectionDegrees,
-    waveDirection: hour.waveDirectionDegrees,
-    cloud: hour.cloudCoverPercent,
-    rain: hour.precipitationMillimeters,
-    air: hour.airTemperatureCelsius,
-  }));
+/** Which period a buoy gives, as far as the model can answer in kind. */
+export type PeriodKind = "peak" | "mean";
+
+/** The kind of the period `periodOf` reads on a buoy. A significant period counts as a mean one. */
+export function periodKindOf(reading: Reading | null | undefined): PeriodKind {
+  return reading && reading.peakPeriodSeconds === null && periodOf(reading) !== null
+    ? "mean"
+    : "peak";
+}
+
+/**
+ * The model's hours as samples. Its period is the one of the peak, which a surfer reads, or the
+ * mean one beside a buoy that gives no peak: a peak period beside a mean one would read as a gap
+ * of a second or more that is not in the sea. A model without a peak period gives its mean one.
+ */
+export function modelSamples(hours: Forecast["hours"], kind: PeriodKind = "peak"): Sample[] {
+  return hours.map((hour) => {
+    const period =
+      kind === "peak"
+        ? (hour.wavePeakPeriodSeconds ?? hour.wavePeriodSeconds)
+        : hour.wavePeriodSeconds;
+    return {
+      time: hour.time.getTime(),
+      height: hour.waveHeightMeters,
+      period,
+      energy: waveEnergy(hour.waveHeightMeters, period),
+      wind: toKnots(hour.windSpeedMetersPerSecond),
+      gust: toKnots(hour.windGustMetersPerSecond),
+      windDirection: hour.windDirectionDegrees,
+      waveDirection: hour.waveDirectionDegrees,
+      cloud: hour.cloudCoverPercent,
+      rain: hour.precipitationMillimeters,
+      air: hour.airTemperatureCelsius,
+    };
+  });
 }
 
 export type NumericKey = MetricKey | WeatherKey | "gust";

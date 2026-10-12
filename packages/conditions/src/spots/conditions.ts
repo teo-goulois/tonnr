@@ -47,11 +47,13 @@ export const assessSpot = Effect.fn("assessSpot")(function* (
     })?.extremes ?? [];
 
   const hours = forecast.hours.map((hour) => {
+    // An alert reads the sea a panel shows: the whole sea, with the period of its peak when the
+    // model gives one. The names are those its conditions were saved under. Decision 036.
     const conditions: HourConditions = {
       time: hour.time,
-      swellHeightMeters: hour.swellHeightMeters,
-      swellPeriodSeconds: hour.swellPeriodSeconds,
-      swellDirectionDegrees: hour.swellDirectionDegrees,
+      swellHeightMeters: hour.waveHeightMeters,
+      swellPeriodSeconds: hour.wavePeakPeriodSeconds ?? hour.wavePeriodSeconds,
+      swellDirectionDegrees: hour.waveDirectionDegrees,
       windSpeedMetersPerSecond: hour.windSpeedMetersPerSecond,
       windDirectionDegrees: hour.windDirectionDegrees,
       tideHeightMeters: tideAt.get(hour.time.getTime()) ?? null,

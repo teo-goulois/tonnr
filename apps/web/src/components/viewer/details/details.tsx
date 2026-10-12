@@ -16,7 +16,14 @@ import { m } from "@/paraglide/messages.js";
 import { type PointConditionsProps, TideChart } from "../point-conditions";
 import type { Reading, Station } from "../types";
 import { ForecastGrid } from "./forecast-grid";
-import { DAY_MS, HOUR_MS, measuredSamples, modelSamples, nightsBetween } from "./metrics";
+import {
+  DAY_MS,
+  HOUR_MS,
+  measuredSamples,
+  modelSamples,
+  nightsBetween,
+  periodKindOf,
+} from "./metrics";
 import {
   About,
   Block,
@@ -220,7 +227,9 @@ export function Details({
 }: DetailsOfProps) {
   const measured = useMemo(() => measuredSamples(readings ?? []), [readings]);
   const hours = conditions.forecast.data?.hours;
-  const model = useMemo(() => modelSamples(hours ?? []), [hours]);
+  // Beside a buoy, the model's period is of the kind the buoy gives.
+  const periodKind = periodKindOf(latest);
+  const model = useMemo(() => modelSamples(hours ?? [], periodKind), [hours, periodKind]);
   const point = conditions.forecast.data?.point;
 
   const props: DetailsProps = {

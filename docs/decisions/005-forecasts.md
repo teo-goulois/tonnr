@@ -1,6 +1,6 @@
 # 005. Forecast source
 
-Status: accepted on 2026-10-08. Decision 023 changed how a forecast is kept and what the instance asks of the provider: read it for both.
+Status: accepted on 2026-10-08. Decision 023 changed how a forecast is kept and what the instance asks of the provider: read it for both. Decision 036 chose the wave model, which this one left to the provider, and changed the credit.
 
 ## Context
 

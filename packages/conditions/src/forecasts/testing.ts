@@ -14,7 +14,6 @@ const DAY = 24 * HOUR;
 export function answer(
   at: number,
   waves: (seconds: number) => number | null = () => 1.5,
-  swell: (seconds: number) => number = () => 1.2,
 ): ForecastData {
   const today = Math.floor(at / 1000 / DAY) * DAY;
   const time = Array.from(
@@ -22,19 +21,16 @@ export function answer(
     (_, index) => today - KEPT_PAST_DAYS * DAY + index * HOUR,
   );
   const flat = (value: number) => time.map(() => value);
+  const waveHeightMeters = time.map(waves);
   return {
     point: { latitude: 43.625, longitude: -1.4583 },
+    model: waveHeightMeters.some((height) => height !== null) ? "ecmwf_wam" : null,
     hours: {
       time,
-      waveHeightMeters: time.map(waves),
+      waveHeightMeters,
       wavePeriodSeconds: flat(8),
-      waveDirectionDegrees: flat(300),
-      swellHeightMeters: time.map(swell),
-      swellPeriodSeconds: flat(11),
-      swellDirectionDegrees: flat(295),
-      windWaveHeightMeters: flat(0.4),
-      windWavePeriodSeconds: flat(4),
-      windWaveDirectionDegrees: flat(320),
+      wavePeakPeriodSeconds: flat(11),
+      waveDirectionDegrees: flat(295),
       windSpeedMetersPerSecond: flat(5),
       windGustMetersPerSecond: flat(8),
       windDirectionDegrees: flat(90),
@@ -77,14 +73,13 @@ export function memoryStore(clock: () => Date = () => new Date()) {
 
 /** A provider that answers, or fails with what it is told to. Each question is two requests. */
 export function provider() {
-  // `behind` is how far the provider's clock is behind this one's, in milliseconds, `waves` the
-  // wave height it gives for an hour, and `swell` the height of the swell in it.
+  // `behind` is how far the provider's clock is behind this one's, in milliseconds, and `waves`
+  // the wave height it gives for an hour.
   const state = {
     asked: 0,
     fails: null as null | (() => unknown),
     behind: 0,
     waves: (() => 1.5) as (seconds: number) => number | null,
-    swell: (() => 1.2) as (seconds: number) => number,
   };
   const fetch: Parameters<typeof makeForecasts>[1] = (_cell, spend) =>
     Effect.gen(function* () {
@@ -92,7 +87,7 @@ export function provider() {
       yield* spend;
       state.asked += 1;
       if (state.fails) return yield* Effect.fail(state.fails() as never);
-      return answer(Date.now() - state.behind, state.waves, state.swell);
+      return answer(Date.now() - state.behind, state.waves);
     });
   return { fetch, state };
 }

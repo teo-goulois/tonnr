@@ -46,7 +46,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     vi.useFakeTimers({ toFake: ["Date", "performance"] });
     vi.setSystemTime(AT);
     kept = testForecasts();
-    kept.provider.swell = swellBetween(8, 12);
+    kept.provider.waves = swellBetween(8, 12);
     post = testMailer();
     out = {
       mailer: post.mailer,
@@ -180,7 +180,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     expect(await deliveries()).toEqual([]);
 
     await settings({ byMail: false });
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
     expect(await deliveries()).toEqual([]);
     expect(await pass()).toMatchObject({ mails: 0 });
@@ -274,7 +274,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
   it("say that a window moved or went only when a mail had told it", async () => {
     await found();
     await pass();
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
 
     expect(await pass()).toMatchObject({ mails: 1 });
@@ -286,7 +286,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     // An account that says yes to mail after a window was told is not mailed its going.
     await database.db.delete(notification);
     await database.db.update(alertSpot).set({ mailed: [] });
-    kept.provider.swell = () => 0.2;
+    kept.provider.waves = () => 0.2;
     await next();
     await next();
     expect(await states()).toEqual([["gone", "pending"]]);
@@ -299,7 +299,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     // Quiet all morning: nothing leaves before 15:00.
     await settings({ quietFrom: 8 * 60, quietTo: 15 * 60 });
     await found();
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
 
     vi.setSystemTime(new Date("2026-10-09T15:00:00Z"));
@@ -318,7 +318,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
   it("say nothing of hours that came and went while they waited", async () => {
     await settings({ quietFrom: 8 * 60, quietTo: 20 * 60 });
     await found();
-    kept.provider.swell = () => 0.2;
+    kept.provider.waves = () => 0.2;
     await next();
     await next();
 
@@ -334,11 +334,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
   it("tell the hours that still stand when others of the alert went as they waited", async () => {
     await settings({ quietFrom: 8 * 60, quietTo: 20 * 60 });
     // Saturday morning and Sunday morning.
-    kept.provider.swell = (seconds) =>
+    kept.provider.waves = (seconds) =>
       Math.max(swellBetween(8, 12)(seconds), swellBetween(32, 36)(seconds));
     await found();
     // Sunday's goes, and two looks say so.
-    kept.provider.swell = swellBetween(8, 12);
+    kept.provider.waves = swellBetween(8, 12);
     await next();
     await next();
 
@@ -356,7 +356,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     await settings({ quietFrom: 8 * 60, quietTo: 20 * 60 });
     await found();
     await settings({ onChange: false });
-    kept.provider.swell = () => 0.2;
+    kept.provider.waves = () => 0.2;
     await next();
     await next();
 
@@ -377,7 +377,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     expect(await states()).toEqual([["begins", "pending"]]);
 
     // The look of 08:20 finds no swell.
-    kept.provider.swell = () => 0.2;
+    kept.provider.waves = () => 0.2;
     vi.setSystemTime(new Date(SATURDAY + 8 * HOUR_MS + 20 * 60 * 1000));
     await look();
     vi.setSystemTime(new Date(SATURDAY + 9 * HOUR_MS));
@@ -427,7 +427,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       Array.from({ length: 7 }, (_, day) =>
         day === 5 ? [{ from: from * 60, to: to * 60 }] : [{ from: 0, to: 24 * 60 }],
       );
-    kept.provider.swell = swellBetween(8, 17);
+    kept.provider.waves = swellBetween(8, 17);
     await settings({ week: week(8, 10) });
     await found();
     await pass();
@@ -445,10 +445,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
   it("tell hours that outlasted what was written, when the mail leaves after those were over", async () => {
     // Quiet from Friday 11:00 until Saturday 10:45: the hours told, 08:00 to 10:00, are over.
     await settings({ quietFrom: 11 * 60, quietTo: 10 * 60 + 45 });
-    kept.provider.swell = swellBetween(8, 10);
+    kept.provider.waves = swellBetween(8, 10);
     await found();
     // Two hours more: not a move that is told.
-    kept.provider.swell = swellBetween(8, 12);
+    kept.provider.waves = swellBetween(8, 12);
     for (let look = 0; look < 6; look += 1) await next();
     expect(await states()).toEqual([["found", "pending"]]);
 
@@ -461,11 +461,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     await found();
     await pass();
     await settings({ onChange: false });
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
     await settings({ onChange: true });
     // Sunday morning is new: its mail says that, and nothing of Saturday's move.
-    kept.provider.swell = (seconds) =>
+    kept.provider.waves = (seconds) =>
       Math.max(swellBetween(13, 17)(seconds), swellBetween(32, 36)(seconds));
     await next();
     await next();
@@ -510,7 +510,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     it("waits for hours that have become later ones, and is sent when they begin", async () => {
       await waiting();
       // The look of 08:20 finds the swell from 11:00 on.
-      kept.provider.swell = swellBetween(11, 15);
+      kept.provider.waves = swellBetween(11, 15);
       vi.setSystemTime(new Date(SATURDAY + 8 * HOUR_MS + 20 * 60 * 1000));
       await look();
       vi.setSystemTime(new Date(SATURDAY + 9 * HOUR_MS));
@@ -550,7 +550,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     it("says what is on, then what was written with it once that begins, each once", async () => {
       // The sea works in the morning and again in the afternoon.
       await settings({ onFound: false, onBegin: true, noticeMinutes: 30 });
-      kept.provider.swell = (seconds) =>
+      kept.provider.waves = (seconds) =>
         Math.max(swellBetween(8, 10)(seconds), swellBetween(13, 15)(seconds));
       await found();
       for (let look = 0; look < 6; look += 1) await next();
@@ -683,7 +683,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       });
       await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
       // Small on Saturday morning, big in its afternoon.
-      kept.provider.swell = (seconds) => {
+      kept.provider.waves = (seconds) => {
         const hour = (seconds * 1000 - SATURDAY) / HOUR_MS;
         return hour >= 8 && hour < 12 ? 1.2 : hour >= 14 && hour < 18 ? 2.5 : 0.2;
       };
@@ -716,7 +716,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       await found();
       await pass();
       // The big days go: the small ones stay as they were.
-      kept.provider.swell = swellBetween(8, 12);
+      kept.provider.waves = swellBetween(8, 12);
       await next();
       await next();
 
@@ -838,7 +838,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     it("are put back whole when a look changed the hours, and say where they are", async () => {
       await found();
       const { id, taken } = await written();
-      kept.provider.swell = swellBetween(13, 17);
+      kept.provider.waves = swellBetween(13, 17);
       await next();
 
       expect(await hand(database.db, out, id, taken)).toBe("skipped");
@@ -869,7 +869,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       // Nothing was told: an account that says yes again is told these hours as new ones.
       expect(await mailedAt()).toEqual([]);
       await settings({ byMail: true });
-      kept.provider.swell = swellBetween(13, 17);
+      kept.provider.waves = swellBetween(13, 17);
       await next();
       expect(await pass()).toMatchObject({ mails: 1 });
       expect(post.sent()[0]?.subject).toBe("The bay: a window is taking shape");
@@ -975,7 +975,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     // Two that wait together, of one alert.
     await settings({ quietFrom: 8 * 60, quietTo: 15 * 60 });
     await found();
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
     vi.setSystemTime(new Date("2026-10-09T15:00:00Z"));
     const said = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -1056,7 +1056,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     await stop;
     expect(stopped).toBe(true);
     // Once it is answered, nothing leaves.
-    kept.provider.swell = swellBetween(13, 17);
+    kept.provider.waves = swellBetween(13, 17);
     await next();
     expect(await pass()).toMatchObject({ mails: 0 });
     expect(post.sent()).toHaveLength(1);
@@ -1076,7 +1076,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     }
     await found();
     expect(await pass()).toMatchObject({ mails: 1 });
-    kept.provider.swell = swellBetween(11, 15);
+    kept.provider.waves = swellBetween(11, 15);
     await next();
 
     expect(await pass()).toMatchObject({ mails: 0 });
@@ -1089,7 +1089,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
 
     // Another day: the alert's next mail says where the hours are, against what mail told.
     await database.db.delete(providerCalls);
-    kept.provider.swell = swellBetween(14, 18);
+    kept.provider.waves = swellBetween(14, 18);
     await next();
     expect(await pass()).toMatchObject({ mails: 1 });
     expect(post.sent()[1]?.text).toContain(

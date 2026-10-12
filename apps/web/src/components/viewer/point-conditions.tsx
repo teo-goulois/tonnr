@@ -52,6 +52,15 @@ export type PointConditionsProps = {
   onTideExtend?: (direction: -1 | 1) => void;
 };
 
+// The model the waves come from, and whether its period is the mean one: a model without a peak
+// period leaves that column empty at every hour.
+function waveModelLine({ waveModel, hours }: Forecast) {
+  const said = { model: waveModel.name, kilometers: waveModel.resolutionKilometers };
+  return hours.some((hour) => hour.wavePeakPeriodSeconds !== null)
+    ? m.source_wave_model(said)
+    : m.source_wave_model_mean(said);
+}
+
 /**
  * Where a panel's figures come from. `origin` credits what stands at the point, with its licence,
  * and the forecast and the tide follow once they are known.
@@ -89,6 +98,7 @@ export function Sources({
         <Skeleton className="h-(--line-xs) w-3/4 rounded-(--radius-xs)" />
       )}
       {forecast && <p>{m.source_forecast({ attribution: forecast.source.attribution })}</p>}
+      {forecast && <p>{waveModelLine(forecast)}</p>}
       {tides && <p>{m.source_tide({ datum: tides.datum, source: tides.station.source.name })}</p>}
     </footer>
   );

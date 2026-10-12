@@ -5,18 +5,49 @@ import { z } from "zod";
 const MARINE_URL = "https://marine-api.open-meteo.com/v1/marine";
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
 
-export const FORECAST_SOURCE = {
+// The wave models asked for, best first: the first that has a sea at the point answers. The
+// order is the one they came in against the buoys. Météo-France's has no peak period here: its
+// period is a mean one, which reads more than a second lower. Decision 036.
+export const WAVE_MODELS = [
+  { id: "ecmwf_wam", name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 9 },
+  { id: "ecmwf_wam025", name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 25 },
+  { id: "meteofrance_wave", name: "MFWAM", producer: "Météo-France", resolutionKilometers: 8 },
+] as const;
+
+export type WaveModel = (typeof WAVE_MODELS)[number];
+export type WaveModelId = WaveModel["id"];
+
+const waveModelIds = WAVE_MODELS.map((model) => model.id) as [WaveModelId, ...WaveModelId[]];
+
+export function waveModel(id: WaveModelId): WaveModel {
+  return WAVE_MODELS.find((model) => model.id === id) ?? WAVE_MODELS[0];
+}
+
+const source = (waves: string) => ({
   name: "Open-Meteo",
   url: "https://open-meteo.com/",
-  // Open-Meteo asks for a credit to DWD beside its own, for the wave forecast.
-  attribution: "Weather data by Open-Meteo.com. Wave forecast from the German Weather Service DWD.",
+  attribution: `Weather data by Open-Meteo.com.${waves}`,
   // The data is CC BY 4.0. The free API that serves it is for non-commercial use only.
   license: {
     type: "cc-by-4.0",
     url: "https://creativecommons.org/licenses/by/4.0/",
     commercialUse: false,
   },
-};
+});
+
+/**
+ * Who the forecast of a point is credited to: Open-Meteo, which serves it, and the producer of
+ * the wave model that answered. No producer is named for a point without a sea.
+ */
+export function forecastSource(model: WaveModelId | null) {
+  return source(model ? ` Wave forecast from ${waveModel(model).producer}.` : "");
+}
+
+// The credit of what covers several points, such as an alert on several spots: every producer a
+// wave forecast may come from.
+export const FORECAST_SOURCE = source(
+  ` Wave forecasts from ${[...new Set(WAVE_MODELS.map((model) => model.producer))].join(" and ")}.`,
+);
 
 // The name the instance counts its requests under.
 export const FORECAST_PROVIDER = "open-meteo";
@@ -57,7 +88,7 @@ export function cellOf(point: { latitude: number; longitude: number }): Cell {
 
 // One span for every question: the two days before today, and eight days from today. The API
 // gives seven at most, so that a forecast fetched before midnight still answers after it. The
-// provider counts ten days of nine values as one call, as it does three days.
+// provider counts ten days of four values as one call, as it does three days.
 export const KEPT_PAST_DAYS = 2;
 export const KEPT_DAYS = 8;
 
@@ -85,17 +116,15 @@ function hasOneValuePerHour(hourly: { time: number[] } & Record<string, unknown[
   );
 }
 
+// The whole sea, swell and wind sea together, as a buoy measures it: its height, its mean period,
+// the period of its peak, and where it comes from. No model of the list gives a swell apart that
+// stood against the buoys.
 const marineHourly = z.object({
   time: times,
   wave_height: series,
   wave_period: series,
+  wave_peak_period: series,
   wave_direction: series,
-  swell_wave_height: series,
-  swell_wave_period: series,
-  swell_wave_direction: series,
-  wind_wave_height: series,
-  wind_wave_period: series,
-  wind_wave_direction: series,
 });
 
 const marineSchema = z.object({
@@ -123,14 +152,12 @@ const columns = z.object({
   // Seconds since 1970, one for each hour, in order.
   time: times,
   waveHeightMeters: series,
+  // The mean period of the whole sea.
   wavePeriodSeconds: series,
+  // The period of the waves that carry the most energy: the one a buoy gives as its peak, and
+  // the one a surfer reads. Null at every hour when the model gives none.
+  wavePeakPeriodSeconds: series,
   waveDirectionDegrees: series,
-  swellHeightMeters: series,
-  swellPeriodSeconds: series,
-  swellDirectionDegrees: series,
-  windWaveHeightMeters: series,
-  windWavePeriodSeconds: series,
-  windWaveDirectionDegrees: series,
   windSpeedMetersPerSecond: series,
   windGustMetersPerSecond: series,
   windDirectionDegrees: series,
@@ -142,24 +169,26 @@ const columns = z.object({
 });
 
 /**
- * A forecast as it is kept: the model's grid point, and one column for each value, hour by
- * hour. A row of the database is read through this, so a row written by other code is refused
- * instead of trusted.
+ * A forecast as it is kept: the model's grid point, the wave model that answered, and one column
+ * for each value, hour by hour. The model is null when none has a sea at the point. A row of the
+ * database is read through this, so a row written by other code is refused instead of trusted.
  */
 export const forecastData = z.object({
   point: z.object({ latitude: z.number(), longitude: z.number() }),
+  model: z.enum(waveModelIds).nullable(),
   hours: columns.refine(hasOneValuePerHour),
 });
 
 export type ForecastData = z.infer<typeof forecastData>;
 
 /**
- * Merges Open-Meteo's marine and weather answers into one forecast, hour by hour. Returns an
- * error when an answer has changed shape, and when the two do not cover the same hours: each
- * request starts at the provider's own midnight, and one sent before it with one sent after
- * would leave a day without wind.
+ * Merges Open-Meteo's marine and weather answers into one forecast, hour by hour. The marine
+ * answer is the one of `model`, which is kept with the forecast when it has a sea at the point.
+ * Returns an error when an answer has changed shape, and when the two do not cover the same
+ * hours: each request starts at the provider's own midnight, and one sent before it with one
+ * sent after would leave a day without wind.
  */
-export function buildForecast(marineJson: unknown, weatherJson: unknown) {
+export function buildForecast(model: WaveModelId, marineJson: unknown, weatherJson: unknown) {
   const marine = marineSchema.safeParse(marineJson);
   const weather = weatherSchema.safeParse(weatherJson);
   if (!marine.success || !weather.success) {
@@ -178,17 +207,13 @@ export function buildForecast(marineJson: unknown, weatherJson: unknown) {
 
   const data: ForecastData = {
     point: { latitude: marine.data.latitude, longitude: marine.data.longitude },
+    model: waves.wave_height.some((height) => height !== null) ? model : null,
     hours: {
       time: waves.time,
       waveHeightMeters: waves.wave_height,
       wavePeriodSeconds: waves.wave_period,
+      wavePeakPeriodSeconds: waves.wave_peak_period,
       waveDirectionDegrees: waves.wave_direction,
-      swellHeightMeters: waves.swell_wave_height,
-      swellPeriodSeconds: waves.swell_wave_period,
-      swellDirectionDegrees: waves.swell_wave_direction,
-      windWaveHeightMeters: waves.wind_wave_height,
-      windWavePeriodSeconds: waves.wind_wave_period,
-      windWaveDirectionDegrees: waves.wind_wave_direction,
       windSpeedMetersPerSecond: wind.wind_speed_10m,
       windGustMetersPerSecond: wind.wind_gusts_10m,
       windDirectionDegrees: wind.wind_direction_10m,
@@ -223,8 +248,9 @@ const oneMoreTry = {
 };
 
 /**
- * Asks Open-Meteo for the forecast of a cell: one request for the waves, and one for the wind
- * and the weather.
+ * Asks Open-Meteo for the forecast of a cell: one request for the wind and the weather, and one
+ * for the waves of the first model. A later model is asked only when the one before has no sea
+ * at the point, so nearly every cell costs two requests.
  * `spend` counts a request before it is sent, and fails when the instance may send no more.
  */
 export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) => {
@@ -233,19 +259,23 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
       Effect.flatMap(() => fetchJsonOnce(address)),
       Effect.retry(oneMoreTry),
     );
+  const askWaves = (model: WaveModelId) =>
+    ask(
+      url(MARINE_URL, cell, {
+        hourly: Object.keys(marineHourly.shape)
+          .filter((name) => name !== "time")
+          .join(","),
+        models: model,
+        // Take the nearest sea cell: a spot on the shore would otherwise fall on land.
+        cell_selection: "sea",
+      }),
+    );
 
   return Effect.gen(function* () {
-    const [marineJson, weatherJson] = yield* Effect.all(
+    const [first, ...others] = waveModelIds;
+    const [firstJson, weatherJson] = yield* Effect.all(
       [
-        ask(
-          url(MARINE_URL, cell, {
-            hourly: Object.keys(marineHourly.shape)
-              .filter((name) => name !== "time")
-              .join(","),
-            // Take the nearest sea cell: a spot on the shore would otherwise fall on land.
-            cell_selection: "sea",
-          }),
-        ),
+        askWaves(first),
         ask(
           url(WEATHER_URL, cell, {
             hourly: Object.keys(weatherHourly.shape)
@@ -258,7 +288,12 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
       { concurrency: 2 },
     );
 
-    const data = buildForecast(marineJson, weatherJson);
+    let data = buildForecast(first, firstJson, weatherJson);
+    for (const model of others) {
+      if (data instanceof ForecastFormatError) return yield* data;
+      if (data.model !== null) return data;
+      data = buildForecast(model, yield* askWaves(model), weatherJson);
+    }
     if (data instanceof ForecastFormatError) return yield* data;
     return data;
   });

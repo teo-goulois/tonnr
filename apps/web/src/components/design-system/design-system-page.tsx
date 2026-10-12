@@ -220,14 +220,14 @@ const SAMPLE_FORECAST: Forecast = {
   source: {
     name: "Open-Meteo",
     url: "https://open-meteo.com/",
-    attribution:
-      "Weather data by Open-Meteo.com. Wave forecast from the German Weather Service DWD.",
+    attribution: "Weather data by Open-Meteo.com. Wave forecast from ECMWF.",
     license: {
       type: "cc-by-4.0",
       url: "https://creativecommons.org/licenses/by/4.0/",
       commercialUse: false,
     },
   },
+  waveModel: { name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 9 },
   fetchedAt: new Date(SAMPLE_NOW),
   stale: false,
   hours: Array.from({ length: 96 }, (_, index) => {
@@ -236,13 +236,8 @@ const SAMPLE_FORECAST: Forecast = {
       time: new Date(SAMPLE_NOW - 6 * HOUR_MS + index * HOUR_MS),
       waveHeightMeters: height,
       wavePeriodSeconds: 9,
+      wavePeakPeriodSeconds: 11,
       waveDirectionDegrees: 290,
-      swellHeightMeters: height * 0.8,
-      swellPeriodSeconds: 11,
-      swellDirectionDegrees: 285,
-      windWaveHeightMeters: height * 0.3,
-      windWavePeriodSeconds: 4,
-      windWaveDirectionDegrees: 250,
       windSpeedMetersPerSecond: 6 + 3 * Math.sin(index / 9),
       windGustMetersPerSecond: 10,
       windDirectionDegrees: 250,

@@ -87,7 +87,14 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     expect(found.hours).toHaveLength(3 * 24);
     expect(found.hours[0]?.time).toEqual(new Date("2026-10-08T00:00:00Z"));
     expect(found.source.attribution).toContain("Open-Meteo");
-    expect(found.source.attribution).toContain("DWD");
+    // The producer of the model that answered, and the model itself.
+    expect(found.source.attribution).toContain("ECMWF");
+    expect(found.waveModel).toEqual({
+      name: "ECMWF WAM",
+      producer: "ECMWF",
+      resolutionKilometers: 9,
+    });
+    expect(found.hours[0]).toMatchObject({ wavePeriodSeconds: 8, wavePeakPeriodSeconds: 11 });
   });
 
   it("gives an older forecast when the provider cannot be asked, and says so", async () => {
@@ -109,7 +116,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
 
     expect(found.spots[0]).toMatchObject({ forecastFetchedAt: AT, forecastStale: false });
     expect(found.spots[0]?.hours).toHaveLength(24);
-    expect(found.forecastSource.attribution).toContain("DWD");
+    expect(found.forecastSource.attribution).toContain("ECMWF");
     // One fetch answered both the point and the spot, which are in one cell.
     await forecast();
     expect(kept.provider.asked).toBe(1);

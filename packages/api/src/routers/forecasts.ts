@@ -3,7 +3,7 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { MAX_FORECAST_DAYS, MAX_PAST_DAYS } from "@repo/conditions/forecasts/forecasts";
-import { FORECAST_SOURCE } from "@repo/conditions/forecasts/open-meteo";
+import { forecastSource, waveModel } from "@repo/conditions/forecasts/open-meteo";
 import { callerProcedure } from "../index";
 
 const measurement = z.number().nullable();
@@ -27,7 +27,7 @@ export const forecastsRouter = {
     .route({
       method: "GET",
       path: "/forecasts",
-      summary: "Hourly wave, swell, wind, and weather forecast at a point",
+      summary: "Hourly wave, wind, and weather forecast at a point",
       tags: ["Forecasts"],
     })
     .input(
@@ -57,6 +57,13 @@ export const forecastsRouter = {
           attribution: z.string(),
           license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
         }),
+        // The model the waves come from: the first of the instance's list that has a sea at
+        // the point.
+        waveModel: z.object({
+          name: z.string(),
+          producer: z.string(),
+          resolutionKilometers: z.number(),
+        }),
         // When the instance fetched this forecast. It is not when the model ran.
         fetchedAt: z.date(),
         // True when the provider could not be asked and this is an older forecast, up to a
@@ -65,15 +72,14 @@ export const forecastsRouter = {
         hours: z.array(
           z.object({
             time: z.date(),
+            // The whole sea, swell and wind sea together, as a buoy measures it.
             waveHeightMeters: measurement,
+            // Its mean period.
             wavePeriodSeconds: measurement,
+            // The period of its peak, the one a buoy gives as its peak period. Null at every
+            // hour when the model gives none.
+            wavePeakPeriodSeconds: measurement,
             waveDirectionDegrees: measurement,
-            swellHeightMeters: measurement,
-            swellPeriodSeconds: measurement,
-            swellDirectionDegrees: measurement,
-            windWaveHeightMeters: measurement,
-            windWavePeriodSeconds: measurement,
-            windWaveDirectionDegrees: measurement,
             windSpeedMetersPerSecond: measurement,
             windGustMetersPerSecond: measurement,
             windDirectionDegrees: measurement,
@@ -89,11 +95,17 @@ export const forecastsRouter = {
     .handler(async ({ input, context }) => {
       const result = await Effect.runPromise(Effect.result(context.forecasts.get(input)));
       if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      const { hours, ...forecast } = result.success;
-      if (!hours) {
+      const { hours, model, ...forecast } = result.success;
+      if (!hours || !model) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this point." });
       }
 
-      return { ...forecast, hours, source: FORECAST_SOURCE };
+      const { name, producer, resolutionKilometers } = waveModel(model);
+      return {
+        ...forecast,
+        hours,
+        source: forecastSource(model),
+        waveModel: { name, producer, resolutionKilometers },
+      };
     }),
 };

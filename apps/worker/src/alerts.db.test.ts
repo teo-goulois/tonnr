@@ -41,7 +41,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     vi.useFakeTimers({ toFake: ["Date", "performance"] });
     vi.setSystemTime(AT);
     kept = testForecasts();
-    kept.provider.swell = swellBetween(8, 12);
+    kept.provider.waves = swellBetween(8, 12);
     await database.db.delete(notification);
     await database.db.delete(alert);
     await database.db.delete(alertSettings);
@@ -102,7 +102,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       });
       await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
       // Small on Saturday morning, big in its afternoon.
-      kept.provider.swell = (seconds) => {
+      kept.provider.waves = (seconds) => {
         const hour = (seconds * 1000 - SATURDAY) / HOUR_MS;
         return hour >= 8 && hour < 12 ? 1.2 : hour >= 14 && hour < 18 ? 2.5 : 0.2;
       };
@@ -130,7 +130,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       await run();
       await next();
       // The big days go: the small ones stay as they were.
-      kept.provider.swell = swellBetween(8, 12);
+      kept.provider.waves = swellBetween(8, 12);
       await next();
 
       const seen = await database.db
@@ -193,9 +193,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       await run();
       await next();
 
-      kept.provider.swell = swellBetween(11, 15);
+      kept.provider.waves = swellBetween(11, 15);
       expect(await next()).toMatchObject({ created: 1 });
-      kept.provider.swell = () => 0.2;
+      kept.provider.waves = () => 0.2;
       expect(await next()).toMatchObject({ created: 0 });
       expect(await toldAt()).toEqual([{ ...saturday(11, 15), missed: 1 }]);
       expect(await next()).toMatchObject({ created: 1 });
@@ -216,7 +216,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       expect(await said()).toEqual([["found", { spot: "Home", open: [saturday(8, 10)] }]]);
 
       // The sea moves to the afternoon: it is kept in mind, and its told hours are called off.
-      kept.provider.swell = swellBetween(13, 17);
+      kept.provider.waves = swellBetween(13, 17);
       await next();
       await next();
       expect((await said()).at(-1)).toEqual([
@@ -243,7 +243,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     it("read the account's days and hours on its own clock", async () => {
       // Auckland is thirteen hours ahead: Saturday from 08:00 to 14:00 UTC runs across its
       // midnight, and an account that goes on Sunday mornings there has the hours after it.
-      kept.provider.swell = swellBetween(8, 14);
+      kept.provider.waves = swellBetween(8, 14);
       await settings({
         zone: "Pacific/Auckland",
         week: [[], [], [], [], [], [], [{ from: 0, to: 600 }]],
@@ -296,7 +296,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     it("date a look from the moment it is applied, in a run that takes long", async () => {
       // A run that begins at 08:20 and comes to this alert two hours later.
       const slow = testForecasts();
-      slow.provider.swell = swellBetween(8, 12);
+      slow.provider.waves = swellBetween(8, 12);
       const fetched = slow.forecasts.get;
       let isLate = true;
       const forecasts = {
@@ -319,9 +319,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     it("tell of the same moment at two looks of one morning, each for itself", async () => {
       await run();
       await next();
-      kept.provider.swell = swellBetween(11, 15);
+      kept.provider.waves = swellBetween(11, 15);
       await next();
-      kept.provider.swell = swellBetween(8, 12);
+      kept.provider.waves = swellBetween(8, 12);
       await next();
 
       expect((await said()).map(([moment]) => moment)).toEqual(["found", "moved", "moved"]);
@@ -348,7 +348,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       expect(await next()).toMatchObject({ created: 0 });
       expect(await toldAt()).toEqual([{ ...saturday(10, 12), missed: 0 }]);
 
-      kept.provider.swell = swellBetween(8, 15);
+      kept.provider.waves = swellBetween(8, 15);
       expect(await next()).toMatchObject({ created: 1 });
       expect((await said()).at(-1)).toEqual([
         "moved",
@@ -379,7 +379,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       // Hours that were told are followed without a word when changes are switched off.
       await settings({ onFound: true, onChange: false });
       expect(await next()).toMatchObject({ created: 1 });
-      kept.provider.swell = swellBetween(13, 17);
+      kept.provider.waves = swellBetween(13, 17);
       expect(await next()).toMatchObject({ created: 0 });
       expect(await toldAt()).toEqual([{ ...saturday(13, 17), missed: 0 }]);
     });
@@ -404,7 +404,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     it("do not count it against a window that was told", async () => {
       await run();
       await next();
-      kept.provider.swell = () => 0.2;
+      kept.provider.waves = () => 0.2;
       await next();
 
       kept.provider.fails = providerDown;
@@ -465,7 +465,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
         .values({ id: "far", userId: "owner", name: "Far", latitude: 47.84, longitude: -4.35 });
       await database.db.insert(alertSpot).values({ spotId: "far", alertId: "bay", position: 1 });
       const some = testForecasts();
-      some.provider.swell = swellBetween(8, 12);
+      some.provider.waves = swellBetween(8, 12);
       const fetched = some.forecasts.get;
       const forecasts = {
         ...some.forecasts,
@@ -510,7 +510,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     // Forecasts during whose fetching something is done to the database.
     const meanwhile = (change: () => Promise<unknown>) => {
       const during = testForecasts();
-      during.provider.swell = swellBetween(8, 12);
+      during.provider.waves = swellBetween(8, 12);
       const fetched = during.forecasts.get;
       const forecasts = {
         ...during.forecasts,
@@ -571,7 +571,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
   describe("of an alert that changed while its forecast was fetched", () => {
     const changing = (change: () => Promise<unknown>) => {
       const during = testForecasts();
-      during.provider.swell = swellBetween(8, 12);
+      during.provider.waves = swellBetween(8, 12);
       const fetched = during.forecasts.get;
       return {
         ...during.forecasts,

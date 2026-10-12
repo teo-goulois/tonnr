@@ -185,7 +185,8 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
   const [open, setOpen] = useState(false);
   if (!latest) return null;
 
-  // A buoy gives one period among three, and the model's is a mean one: the list says which.
+  // A buoy gives one period among three: the list says which, and the model is drawn beside it
+  // with its own of that kind.
   const period =
     latest.peakPeriodSeconds !== null
       ? m.station_period_peak()

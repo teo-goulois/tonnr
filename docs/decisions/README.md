@@ -39,3 +39,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [033. The units a reader chooses](033-units.md)
 - [034. A spot made public by a request](034-public-spots.md)
 - [035. A list shared by a link](035-shared-lists.md)
+- [036. One wave model, read the same way everywhere](036-wave-model.md)

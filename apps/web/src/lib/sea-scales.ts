@@ -54,15 +54,18 @@ export const WAVE_PERIOD_SCALE: ScaleStop[] = [
   { value: 20, color: "#5b16c9" },
 ];
 
-/** Wave energy, in kilojoules per metre of crest. One hue too, from a ripple to a heavy swell. */
+/**
+ * Wave energy, in kilojoules per metre of crest, as `waveEnergy` counts it. One hue too, from a
+ * ripple to a heavy swell: 1 m of 10 s is near 200, 2 m of 14 s near 1,500.
+ */
 export const WAVE_ENERGY_SCALE: ScaleStop[] = [
   { value: 0, color: "#f6cdd9" },
-  { value: 100, color: "#f3a3bb" },
-  { value: 250, color: "#ee769c" },
-  { value: 500, color: "#e64b80" },
-  { value: 1000, color: "#d62667" },
-  { value: 2000, color: "#b51252" },
-  { value: 4000, color: "#8a0c40" },
+  { value: 400, color: "#f3a3bb" },
+  { value: 1000, color: "#ee769c" },
+  { value: 2000, color: "#e64b80" },
+  { value: 4000, color: "#d62667" },
+  { value: 8000, color: "#b51252" },
+  { value: 16000, color: "#8a0c40" },
 ];
 
 /** Cloud cover, in percent of the sky. One gray that thickens: a clear sky leaves its cell empty. */

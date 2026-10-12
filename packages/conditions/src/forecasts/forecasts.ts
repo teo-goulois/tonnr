@@ -112,13 +112,8 @@ export function hoursFor(data: ForecastData, asked: Asked, at: number) {
       time: new Date(seconds * 1000),
       waveHeightMeters,
       wavePeriodSeconds: values.wavePeriodSeconds[index] ?? null,
+      wavePeakPeriodSeconds: values.wavePeakPeriodSeconds[index] ?? null,
       waveDirectionDegrees: values.waveDirectionDegrees[index] ?? null,
-      swellHeightMeters: values.swellHeightMeters[index] ?? null,
-      swellPeriodSeconds: values.swellPeriodSeconds[index] ?? null,
-      swellDirectionDegrees: values.swellDirectionDegrees[index] ?? null,
-      windWaveHeightMeters: values.windWaveHeightMeters[index] ?? null,
-      windWavePeriodSeconds: values.windWavePeriodSeconds[index] ?? null,
-      windWaveDirectionDegrees: values.windWaveDirectionDegrees[index] ?? null,
       windSpeedMetersPerSecond: values.windSpeedMetersPerSecond[index] ?? null,
       windGustMetersPerSecond: values.windGustMetersPerSecond[index] ?? null,
       windDirectionDegrees: values.windDirectionDegrees[index] ?? null,
@@ -256,9 +251,9 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
 
   return {
     /**
-     * Hourly waves, swell, and wind at a point. `hours` is null when the point has no sea
-     * nearby over the hours asked for. `stale` says that the provider could not be asked and
-     * that this is an older answer, with or without hours.
+     * Hourly waves and wind at a point, with the wave model they come from. `hours` is null
+     * when the point has no sea nearby over the hours asked for. `stale` says that the provider
+     * could not be asked and that this is an older answer, with or without hours.
      */
     get: Effect.fn("getForecast")(function* (query: ForecastQuery) {
       const cell = cellOf(query);
@@ -283,6 +278,7 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
       }
       return {
         point: found.data.point,
+        model: found.data.model,
         hours,
         fetchedAt: found.fetchedAt,
         stale: found.stale,
