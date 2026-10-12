@@ -16,12 +16,13 @@ export type Alerting = {
   isSaving: boolean;
   // Saves an alert: a new one, whole, when `alert` is undefined, and otherwise what of it was
   // changed. `byMail` is what the account answered when it was asked whether it wants mail.
+  // Answers the alert as it is saved, or nothing when it could not be.
   onSave: (
     alert: Alert | undefined,
     draft: AlertDraft,
     changed: Partial<AlertDraft>,
     byMail?: boolean,
-  ) => void;
+  ) => Promise<Alert | undefined>;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
   // The alerts whose switch is being saved.

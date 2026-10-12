@@ -9,9 +9,9 @@ import {
 import { Slider } from "@repo/ui/components/ui/slider";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { TrashIcon } from "@repo/ui/icon";
+import { ChevronLeftIcon, CopyIcon, TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 import { formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
@@ -38,8 +38,10 @@ import {
   sliderEnds,
   thumbsOf,
 } from "./alert-words";
+import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
 import { HourStrip } from "./hour-strip";
+import type { TidePoint } from "./tide-band";
 
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.
@@ -56,10 +58,13 @@ type AlertEditorProps = {
   // The spot whose panel this is, and the user's spots, for the neighbours an alert may hold.
   spot: Spot;
   spots: Spot[];
-  // The alert the spot is in. Undefined while it has none.
+  // The alert that is written. Undefined for one that is not saved yet.
   alert: Alert | undefined;
-  // True once the offer of an alert was taken elsewhere on the panel.
-  opened?: boolean;
+  // What a new alert starts from, when it is the copy of another.
+  initial?: AlertDraft;
+  // The tide at the spot over the two days ahead, drawn beside what is asked of it. Empty
+  // where no tide station is near.
+  tide: TidePoint[];
   // The time zone the account's days are read in. Undefined until it has set one: the browser's.
   zone: string | undefined;
   // What the draft gives at its spots, and how to ask for it.
@@ -76,6 +81,10 @@ type AlertEditorProps = {
   onSave: (draft: AlertDraft, changed: Partial<AlertDraft>, byMail?: boolean) => void;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
+  // Starts another alert from this one as it is written.
+  onCopy: (draft: AlertDraft) => void;
+  // Goes back to the spot's alerts. What was written and not saved is given up.
+  onClose: () => void;
 };
 
 /**
@@ -87,6 +96,7 @@ function Slot({
   words,
   shown = words,
   isSet,
+  isWide = false,
   children,
 }: {
   label: string;
@@ -94,6 +104,8 @@ function Slot({
   words: string;
   shown?: ReactNode;
   isSet: boolean;
+  // Wider, for a part that is set beside a chart.
+  isWide?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -113,7 +125,7 @@ function Slot({
       >
         {shown}
       </PopoverTrigger>
-      <PopoverPopup className="grid w-72 gap-s text-s">
+      <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
         <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
         {children}
       </PopoverPopup>
@@ -122,7 +134,7 @@ function Slot({
 }
 
 /**
- * The alert of a spot, said in one sentence whose parts open what changes them, with what it
+ * An alert of a spot, said in one sentence whose parts open what changes them, with what it
  * gives over the days ahead. Decision 031.
  */
 export function AlertEditor({
@@ -130,7 +142,8 @@ export function AlertEditor({
   spot,
   spots,
   alert,
-  opened = false,
+  initial,
+  tide,
   zone,
   preview,
   onTry,
@@ -140,6 +153,8 @@ export function AlertEditor({
   onSave,
   isDeleting,
   onDelete,
+  onCopy,
+  onClose,
 }: AlertEditorProps) {
   const id = useId();
   // The wind is written in the unit its reader chose: the editor is drawn again when it changes.
@@ -154,14 +169,14 @@ export function AlertEditor({
             shortestMinutes: alert.shortestMinutes,
             spotIds: alert.spotIds,
           }
-        : {
+        : (initial ?? {
             name: spot.name,
             criteria: {},
             enabled: true,
             shortestMinutes: 120,
             spotIds: [spot.id],
-          },
-    [alert, spot.id, spot.name],
+          }),
+    [alert, initial, spot.id, spot.name],
   );
   // What was changed here, part by part. The rest is the alert as it is saved, now: a part left
   // alone follows the alert if it changes elsewhere meanwhile, as its switch does in the list.
@@ -187,24 +202,11 @@ export function AlertEditor({
       return isSame ? current : still;
     });
   }, [saved, spots, spot.id]);
-  // A spot with no alert shows the offer of one, until it is taken. An alert that was deleted
-  // leaves nothing of what was written of it, and the offer comes back.
-  const [wasOpened, setWasOpened] = useState(false);
-  const [wasDeleted, setWasDeleted] = useState(false);
-  const isOpen = alert !== undefined || wasOpened || (opened && !wasDeleted);
   const [isConfirming, setIsConfirming] = useState(false);
+  // Leaving with something written and not saved is asked twice.
+  const [isLeaving, setIsLeaving] = useState(false);
   // Mail is offered, and taken unless the account says no.
   const [wantsMail, setWantsMail] = useState(true);
-  const hadAlert = useRef(alert !== undefined);
-  useEffect(() => {
-    if (hadAlert.current && !alert) {
-      setChanged({});
-      setWasOpened(false);
-      setWasDeleted(true);
-      setIsConfirming(false);
-    }
-    hadAlert.current = alert !== undefined;
-  }, [alert]);
 
   const { criteria } = draft;
   const sent = useMemo(() => asked(criteria), [criteria]);
@@ -212,24 +214,9 @@ export function AlertEditor({
 
   // The preview follows the draft while the editor is open, and is let go of when it closes.
   useEffect(() => {
-    if (isOpen) {
-      onTry({ criteria: sent, shortestMinutes: draft.shortestMinutes, spotIds: draft.spotIds });
-    } else {
-      onTry(null);
-    }
-  }, [isOpen, sent, draft.shortestMinutes, draft.spotIds, onTry]);
+    onTry({ criteria: sent, shortestMinutes: draft.shortestMinutes, spotIds: draft.spotIds });
+  }, [sent, draft.shortestMinutes, draft.spotIds, onTry]);
   useEffect(() => () => onTry(null), [onTry]);
-
-  if (!isOpen) {
-    return (
-      <div className="grid justify-items-start gap-s">
-        <p className="text-s text-neutral-7">{m.alert_none()}</p>
-        <Button type="button" variant="secondary" onClick={() => setWasOpened(true)}>
-          {m.alert_create()}
-        </Button>
-      </div>
-    );
-  }
 
   const setCriteria = (next: AlertCriteria) => set("criteria", next);
   // What was tried at the spots of the draft, in their order. An answer may still be of the
@@ -242,7 +229,23 @@ export function AlertEditor({
     now,
   );
   const current = ahead[0];
-  const tides = ahead.flatMap((hour) => hour.tideHeightMeters ?? []);
+  // What the tide does here: the hours that were tried, and the curve that is drawn.
+  const tides = [
+    ...ahead.flatMap((hour) => hour.tideHeightMeters ?? []),
+    ...tide.map((point) => point.value),
+  ];
+  // The tide beside what is asked of it, in each of the two parts that ask something of it.
+  const tideChart = tide.length > 1 && (
+    <div className="grid gap-xxs">
+      <AlertTideChart
+        label={m.alert_tide_chart({ spot: spot.name })}
+        points={tide}
+        range={criteria.tideHeightMeters}
+        trend={criteria.tideTrend}
+      />
+      <span className="text-xs text-neutral-7">{m.alert_tide_caption({ spot: spot.name })}</span>
+    </div>
+  );
 
   function range(key: RangeKey, any: string, said: (range: string) => string) {
     const scale = RANGES[key];
@@ -258,8 +261,15 @@ export function AlertEditor({
     );
     const thumbs = thumbsOf(key, value, ends);
     const isSet = isSetRange(value);
+    const isTide = key === "tideHeightMeters";
     return (
-      <Slot label={label} isSet={isSet} words={isSet ? said(rangeWords(key, value)) : any}>
+      <Slot
+        label={label}
+        isSet={isSet}
+        isWide={isTide}
+        words={isSet ? said(rangeWords(key, value)) : any}
+      >
+        {isTide && tideChart}
         <Slider
           value={thumbs}
           min={ends[0]}
@@ -362,6 +372,9 @@ export function AlertEditor({
   // Saving and deleting take turns: neither is asked while the other is on its way.
   const isBusy = isSaving || isDeleting;
   const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isBusy;
+  // Something was written here that leaving would lose: a change, or a new alert that asks
+  // something already.
+  const hasUnsaved = alert ? Object.keys(parts).length > 0 : asksSomething;
 
   return (
     <form
@@ -381,7 +394,29 @@ export function AlertEditor({
         );
       }}
     >
+      {isLeaving && (
+        <div className="edge grid justify-items-start gap-xs rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]">
+          <p className="text-s">{m.alert_leave_unsaved()}</p>
+          <div className="flex flex-wrap gap-xs">
+            <Button type="button" size="sm" variant="secondary" onClick={onClose}>
+              {m.alert_leave()}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setIsLeaving(false)}>
+              {m.alert_stay()}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-s">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={m.alert_back({ spot: spot.name })}
+          onClick={() => (hasUnsaved ? setIsLeaving(true) : onClose())}
+        >
+          <ChevronLeftIcon data-slot="icon" aria-hidden />
+        </Button>
         <Input
           className="flex-1"
           value={draft.name}
@@ -418,8 +453,10 @@ export function AlertEditor({
         <Slot
           label={m.alert_label_tide_trend()}
           isSet={criteria.tideTrend !== undefined}
+          isWide
           words={trends.find((trend) => trend.value === (criteria.tideTrend ?? "any"))?.label ?? ""}
         >
+          {tideChart}
           <ToggleGroup
             variant="outline"
             size="sm"
@@ -635,6 +672,16 @@ export function AlertEditor({
       <div className="flex flex-wrap items-center gap-xs">
         <Button type="submit" isPending={isSaving} disabled={!canSave}>
           {m.alert_save()}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={m.alert_copy({ name: draft.name })}
+          disabled={isBusy || !asksSomething}
+          onClick={() => onCopy({ ...draft, criteria: sent })}
+        >
+          <CopyIcon data-slot="icon" aria-hidden />
         </Button>
         {alert &&
           (isConfirming ? (

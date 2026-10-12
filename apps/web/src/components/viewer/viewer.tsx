@@ -319,6 +319,9 @@ function useShown(isOpen: boolean, current: Selection) {
 }
 
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
+// No alert was asked for at the spot that is drawn: the same value at every render.
+const NO_ALERT_ASKED = { count: 0 };
+
 export function Viewer({
   now,
   theme,
@@ -534,8 +537,13 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
-  // The spot whose alert was last asked for from the list of alerts, and how many times one was.
-  const [alertAsked, setAlertAsked] = useState<{ spotId?: string; count: number }>({ count: 0 });
+  // The alert that was last asked for from the list of alerts, the spot it is opened at, and
+  // how many times one was.
+  const [alertAsked, setAlertAsked] = useState<{
+    spotId?: string;
+    alertId?: string;
+    count: number;
+  }>({ count: 0 });
   const ownSpots = spots.data;
   const spotList = useMemo(() => ownSpots ?? [], [ownSpots]);
   // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
@@ -562,7 +570,7 @@ export function Viewer({
           onDescribe={describeSpot}
           spots={spotList}
           alerting={alerting}
-          alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked.count : 0}
+          alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked : NO_ALERT_ASKED}
         />
       );
     }
@@ -1066,7 +1074,11 @@ export function Viewer({
           onOpenAlert={(alert) => {
             const [first] = alert.spotIds;
             if (!first) return;
-            setAlertAsked((asked) => ({ spotId: first, count: asked.count + 1 }));
+            setAlertAsked((asked) => ({
+              spotId: first,
+              alertId: alert.id,
+              count: asked.count + 1,
+            }));
             onSelectSpot(first);
           }}
           switching={alerting.switching}

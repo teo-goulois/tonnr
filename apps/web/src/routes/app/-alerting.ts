@@ -35,7 +35,6 @@ function loadable<Data>(query: {
 // English, and name ids.
 function refusalOf(error: unknown, otherwise: string) {
   const code = (error as { code?: unknown } | null)?.code;
-  if (code === "CONFLICT") return m.alert_refused_taken();
   if (code === "FORBIDDEN") return m.alert_refused_full();
   if (code === "NOT_FOUND") return m.alert_refused_gone();
   return otherwise;
@@ -174,7 +173,7 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
           ...device,
           ...(byMail === undefined ? {} : { byMailIfNone: byMail }),
         });
-    void asked
+    return asked
       .then((saved) => {
         // The alert is in the list at once: its editor reads it there.
         queryClient.setQueryData(alertsKey, (answer) =>
@@ -188,8 +187,12 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
         );
         toast.success(m.alert_saved({ name: saved.name }));
         if (!alert) void queryClient.invalidateQueries({ queryKey: settingsOptions.queryKey });
+        return saved as Alert | undefined;
       })
-      .catch((error: unknown) => void toast.error(refusalOf(error, m.alert_save_failed())))
+      .catch((error: unknown) => {
+        toast.error(refusalOf(error, m.alert_save_failed()));
+        return undefined;
+      })
       .finally(refresh);
   };
 

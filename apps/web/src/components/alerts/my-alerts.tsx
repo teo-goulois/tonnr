@@ -4,6 +4,7 @@ import { Switch } from "@repo/ui/components/ui/switch";
 import { m } from "@/paraglide/messages.js";
 
 import type { Alert, Loadable, Spot } from "../viewer/types";
+import { AlertSummary } from "./alert-summary";
 
 type MyAlertsProps = {
   alerts: Loadable<Alert[]>;
@@ -15,7 +16,7 @@ type MyAlertsProps = {
   onSwitch: (alert: Alert, enabled: boolean) => void;
 };
 
-/** The user's alerts, each with the spots it is set on and its switch. */
+/** The user's alerts, each with the spots it is set on, what it asks, and its switch. */
 export function MyAlerts({ alerts, spots, onOpen, switching, onSwitch }: MyAlertsProps) {
   if (alerts.isPending) {
     return (
@@ -41,6 +42,10 @@ export function MyAlerts({ alerts, spots, onOpen, switching, onSwitch }: MyAlert
             <span className="truncate font-medium">{alert.name}</span>
             <span className="truncate text-s text-neutral-7">
               {alert.spotIds.flatMap((spotId) => nameOf(spotId) ?? []).join(" · ")}
+            </span>
+            {/* Two alerts of one spot are told apart by what they ask. */}
+            <span className="line-clamp-2 text-s text-neutral-7">
+              <AlertSummary alert={alert} />
             </span>
           </button>
           <Switch
