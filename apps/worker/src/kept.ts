@@ -41,12 +41,21 @@ export const toldStretch = (piece: ToldPiece): ToldStretch => ({
   ...(piece.last ? { last: stretch(piece.last) } : {}),
 });
 
-/** An hour of the sea as a look read it, as a window keeps it. */
-export const seaHour = (hour: SeaFigures & { time: Date }): SeaHour => ({
+/**
+ * An hour of the sea as a look read it, as a window keeps it. The swell apart is kept for an
+ * alert that asks about it, so that what is told of that alert can say it.
+ */
+export const seaHour = (hour: SeaFigures & { time: Date }, withSwell: boolean): SeaHour => ({
   time: hour.time.toISOString(),
-  swellHeightMeters: hour.swellHeightMeters,
-  swellPeriodSeconds: hour.swellPeriodSeconds,
-  swellDirectionDegrees: hour.swellDirectionDegrees,
+  waveHeightMeters: hour.waveHeightMeters,
+  wavePeakPeriodSeconds: hour.wavePeakPeriodSeconds,
+  waveDirectionDegrees: hour.waveDirectionDegrees,
+  ...(withSwell
+    ? {
+        primarySwellHeightMeters: hour.primarySwellHeightMeters ?? null,
+        primarySwellDirectionDegrees: hour.primarySwellDirectionDegrees ?? null,
+      }
+    : {}),
   windSpeedMetersPerSecond: hour.windSpeedMetersPerSecond,
   windDirectionDegrees: hour.windDirectionDegrees,
   tideHeightMeters: hour.tideHeightMeters,

@@ -26,8 +26,8 @@ describe("the conditions as they are sent", () => {
   it("leave out a range with neither end and a part that is not there", () => {
     expect(
       asked({
-        swellHeightMeters: {},
-        swellPeriodSeconds: { min: undefined },
+        waveHeightMeters: {},
+        wavePeakPeriodSeconds: { min: undefined },
         windSpeedMetersPerSecond: undefined,
         tideTrend: "rising",
       }),
@@ -35,18 +35,18 @@ describe("the conditions as they are sent", () => {
   });
 
   it("keep an end at zero", () => {
-    expect(asked({ swellHeightMeters: { min: 0 } })).toEqual({ swellHeightMeters: { min: 0 } });
+    expect(asked({ waveHeightMeters: { min: 0 } })).toEqual({ waveHeightMeters: { min: 0 } });
   });
 
   it("are the same conditions in whatever order they come", () => {
-    const one = { swellHeightMeters: { min: 1, max: 2 }, tideTrend: "rising" as const };
-    const other = { tideTrend: "rising" as const, swellHeightMeters: { max: 2, min: 1 } };
+    const one = { waveHeightMeters: { min: 1, max: 2 }, tideTrend: "rising" as const };
+    const other = { tideTrend: "rising" as const, waveHeightMeters: { max: 2, min: 1 } };
 
     expect(conditionsKey(one)).toBe(conditionsKey(other));
-    expect(conditionsKey(one)).toBe(conditionsKey({ ...one, swellPeriodSeconds: {} }));
+    expect(conditionsKey(one)).toBe(conditionsKey({ ...one, wavePeakPeriodSeconds: {} }));
     expect(conditionsKey(one)).not.toBe(conditionsKey({ ...one, tideTrend: "falling" }));
     expect(conditionsKey(one)).not.toBe(
-      conditionsKey({ ...one, swellHeightMeters: { min: 1, max: 2.1 } }),
+      conditionsKey({ ...one, waveHeightMeters: { min: 1, max: 2.1 } }),
     );
   });
 });
@@ -65,32 +65,32 @@ describe("a range set with its slider", () => {
   });
 
   it("leaves a side open when its thumb goes to the end of the line", () => {
-    const ends = sliderEnds("swellHeightMeters", { min: 1, max: 2 });
-    const before = thumbsOf("swellHeightMeters", { min: 1, max: 2 }, ends);
+    const ends = sliderEnds("waveHeightMeters", { min: 1, max: 2 });
+    const before = thumbsOf("waveHeightMeters", { min: 1, max: 2 }, ends);
 
-    expect(rangeAfter("swellHeightMeters", { min: 1, max: 2 }, before, [1, 5], ends)).toEqual({
+    expect(rangeAfter("waveHeightMeters", { min: 1, max: 2 }, before, [1, 5], ends)).toEqual({
       min: 1,
     });
-    expect(rangeAfter("swellHeightMeters", { min: 1 }, [1, 5], [0, 5], ends)).toBeUndefined();
+    expect(rangeAfter("waveHeightMeters", { min: 1 }, [1, 5], [0, 5], ends)).toBeUndefined();
   });
 
   it("holds an end that is kept past the usual ends of the line", () => {
     // Seven metres are more than the line usually shows.
     const swell = { min: 1, max: 7 };
-    const ends = sliderEnds("swellHeightMeters", swell);
+    const ends = sliderEnds("waveHeightMeters", swell);
     expect(ends).toEqual([0, 7]);
-    const before = thumbsOf("swellHeightMeters", swell, ends);
+    const before = thumbsOf("waveHeightMeters", swell, ends);
 
     // Moving the other thumb takes nothing from it.
-    expect(rangeAfter("swellHeightMeters", swell, before, [1.5, 7], ends)).toEqual({
+    expect(rangeAfter("waveHeightMeters", swell, before, [1.5, 7], ends)).toEqual({
       min: 1.5,
       max: 7,
     });
   });
 
   it("holds a least that is more than the line usually shows, and a most that is less", () => {
-    expect(sliderEnds("swellPeriodSeconds", { min: 30 })).toEqual([4, 30]);
-    expect(thumbsOf("swellPeriodSeconds", { min: 30 }, [4, 30])).toEqual([30, 30]);
+    expect(sliderEnds("wavePeakPeriodSeconds", { min: 30 })).toEqual([4, 30]);
+    expect(thumbsOf("wavePeakPeriodSeconds", { min: 30 }, [4, 30])).toEqual([30, 30]);
     expect(sliderEnds("tideHeightMeters", { max: -1 }, [0.5, 5])).toEqual([-1, 5]);
   });
 
@@ -131,8 +131,8 @@ describe("a condition loosened by a notch", () => {
 
   it("asks nothing any more once it would pass the whole compass", () => {
     expect(
-      loosened({ swellDirectionDegrees: { from: 0, to: 350 } }, "swellDirectionDegrees"),
-    ).toEqual({ swellDirectionDegrees: undefined });
+      loosened({ waveDirectionDegrees: { from: 0, to: 350 } }, "waveDirectionDegrees"),
+    ).toEqual({ waveDirectionDegrees: undefined });
   });
 
   it("never narrows a range, below zero as above", () => {
@@ -153,8 +153,10 @@ describe("a condition loosened by a notch", () => {
   });
 
   it("stops at the least and the most the API takes", () => {
-    expect(loosened({ swellPeriodSeconds: { min: 0, max: 40 } }, "swellPeriodSeconds")).toEqual({
-      swellPeriodSeconds: { min: 0, max: 40 },
+    expect(
+      loosened({ wavePeakPeriodSeconds: { min: 0, max: 40 } }, "wavePeakPeriodSeconds"),
+    ).toEqual({
+      wavePeakPeriodSeconds: { min: 0, max: 40 },
     });
     expect(loosened({ tideHeightMeters: { min: -5 } }, "tideHeightMeters")).toEqual({
       tideHeightMeters: { min: -5 },
@@ -169,15 +171,15 @@ describe("a condition loosened by a notch", () => {
 describe("what an alert asks of the swell apart", () => {
   it("is said and loosened as what it asks of the whole sea is", () => {
     expect(rangeWords("primarySwellHeightMeters", { min: 0.8 })).toBe(
-      rangeWords("swellHeightMeters", { min: 0.8 }),
+      rangeWords("waveHeightMeters", { min: 0.8 }),
     );
     // A height by two tenths, and a sector by a notch at each end.
     expect(
       loosened({ primarySwellHeightMeters: { min: 0.8 } }, "primarySwellHeightMeters"),
     ).toEqual({ primarySwellHeightMeters: { min: 0.6 } });
-    const { swellDirectionDegrees: waves } = loosened(
-      { swellDirectionDegrees: { from: 250, to: 310 } },
-      "swellDirectionDegrees",
+    const { waveDirectionDegrees: waves } = loosened(
+      { waveDirectionDegrees: { from: 250, to: 310 } },
+      "waveDirectionDegrees",
     );
     const { primarySwellDirectionDegrees: swell } = loosened(
       { primarySwellDirectionDegrees: { from: 250, to: 310 } },
@@ -189,11 +191,11 @@ describe("what an alert asks of the swell apart", () => {
   it("is sent with the rest, and left out when nothing is asked of it", () => {
     expect(
       asked({
-        swellHeightMeters: { min: 1 },
+        waveHeightMeters: { min: 1 },
         primarySwellHeightMeters: { min: 0.8 },
         primarySwellDirectionDegrees: undefined,
       }),
-    ).toEqual({ swellHeightMeters: { min: 1 }, primarySwellHeightMeters: { min: 0.8 } });
+    ).toEqual({ waveHeightMeters: { min: 1 }, primarySwellHeightMeters: { min: 0.8 } });
     expect(asked({ primarySwellHeightMeters: {} })).toEqual({});
   });
 });
@@ -201,7 +203,7 @@ describe("what an alert asks of the swell apart", () => {
 describe("what of a draft differs from the alert that is saved", () => {
   const saved: AlertDraft = {
     name: "The bay",
-    criteria: { swellHeightMeters: { min: 1 } },
+    criteria: { waveHeightMeters: { min: 1 } },
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north", "south"],
@@ -214,7 +216,7 @@ describe("what of a draft differs from the alert that is saved", () => {
       changedParts(
         {
           name: "The bay ",
-          criteria: { swellHeightMeters: { min: 1 }, tideHeightMeters: {} },
+          criteria: { waveHeightMeters: { min: 1 }, tideHeightMeters: {} },
           enabled: true,
           spotIds: ["south", "north"],
         },
@@ -229,8 +231,8 @@ describe("what of a draft differs from the alert that is saved", () => {
       enabled: false,
     });
     expect(changedParts({ spotIds: ["north"] }, saved)).toEqual({ spotIds: ["north"] });
-    expect(changedParts({ criteria: { swellHeightMeters: { min: 1.2 } } }, saved)).toEqual({
-      criteria: { swellHeightMeters: { min: 1.2 } },
+    expect(changedParts({ criteria: { waveHeightMeters: { min: 1.2 } } }, saved)).toEqual({
+      criteria: { waveHeightMeters: { min: 1.2 } },
     });
   });
 });
@@ -239,8 +241,8 @@ describe("what a save leaves of what was changed", () => {
   it("is nothing when nothing was changed since it was sent", () => {
     expect(
       leftAfterSave(
-        { name: " Dawn ", shortestMinutes: 60, criteria: { swellHeightMeters: { min: 1 } } },
-        { name: "Dawn", shortestMinutes: 60, criteria: { swellHeightMeters: { min: 1 } } },
+        { name: " Dawn ", shortestMinutes: 60, criteria: { waveHeightMeters: { min: 1 } } },
+        { name: "Dawn", shortestMinutes: 60, criteria: { waveHeightMeters: { min: 1 } } },
       ),
     ).toEqual({});
   });
@@ -262,7 +264,7 @@ describe("what a save leaves of what was changed", () => {
 describe("what an editor holds of an alert between two saves", () => {
   const saved: AlertDraft = {
     name: "The bay",
-    criteria: { swellHeightMeters: { min: 1 } },
+    criteria: { waveHeightMeters: { min: 1 } },
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north"],
@@ -381,7 +383,7 @@ describe("what an editor holds of an alert between two saves", () => {
 
   it("follows a new alert once it is saved whole, and keeps what was written meanwhile", () => {
     const fresh: AlertDraft = { ...saved, name: "North", criteria: {} };
-    const whole = { ...fresh, criteria: { swellHeightMeters: { min: 1 } } };
+    const whole = { ...fresh, criteria: { waveHeightMeters: { min: 1 } } };
     const asked = sending(setPart(NOTHING_DRAFTED, fresh, "criteria", whole.criteria), whole);
     const renamed = setPart(asked, fresh, "name", "Dawn");
 
@@ -396,7 +398,7 @@ describe("what was changed, once a neighbour is gone", () => {
   const isKnown = (spotId: string) => spotId !== "gone";
   const written: AlertDraft = {
     name: "The bay",
-    criteria: { swellHeightMeters: { min: 1 } },
+    criteria: { waveHeightMeters: { min: 1 } },
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north", "south"],

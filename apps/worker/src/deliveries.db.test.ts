@@ -67,7 +67,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       id: "bay",
       userId: "owner",
       name: "The bay",
-      criteria: { swellHeightMeters: { min: 1 } },
+      criteria: { waveHeightMeters: { min: 1 } },
     });
     await db.insert(alertSpot).values({ spotId: "home", alertId: "bay", position: 0 });
     // An account that goes at any hour, wants its alerts by mail, and has no quiet hours.
@@ -538,7 +538,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
         id: "other",
         userId: "owner",
         name: "Another",
-        criteria: { swellHeightMeters: { min: 1 } },
+        criteria: { waveHeightMeters: { min: 1 } },
       });
       await database.db.insert(alertSpot).values({ spotId: "home", alertId: "other", position: 0 });
       vi.setSystemTime(new Date(SATURDAY + 9 * HOUR_MS));
@@ -679,7 +679,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
         id: "big",
         userId: "owner",
         name: "Big days",
-        criteria: { swellHeightMeters: { min: 2 } },
+        criteria: { waveHeightMeters: { min: 2 } },
       });
       await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
       // Small on Saturday morning, big in its afternoon.

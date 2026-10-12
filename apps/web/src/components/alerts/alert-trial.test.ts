@@ -65,15 +65,15 @@ describe("what a trial gives", () => {
     const hours = [
       hour("10:00", ["windSpeedMetersPerSecond"]),
       hour("11:00", ["windSpeedMetersPerSecond"]),
-      hour("12:00", ["swellPeriodSeconds"]),
+      hour("12:00", ["wavePeakPeriodSeconds"]),
       // Two conditions rule this one out: it is neither's alone.
-      hour("13:00", ["windSpeedMetersPerSecond", "swellPeriodSeconds"]),
+      hour("13:00", ["windSpeedMetersPerSecond", "wavePeakPeriodSeconds"]),
       hour("14:00"),
     ];
 
     expect(heldBack(hours)).toEqual([
       ["windSpeedMetersPerSecond", 2],
-      ["swellPeriodSeconds", 1],
+      ["wavePeakPeriodSeconds", 1],
     ]);
   });
 });

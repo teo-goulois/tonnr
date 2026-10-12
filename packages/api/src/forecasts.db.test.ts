@@ -64,7 +64,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
   const conditions = (input: Record<string, number> = {}) =>
     call(
       v1Router.alerts.preview,
-      { spotIds: ["home"], criteria: { swellHeightMeters: { min: 1 } }, ...input },
+      { spotIds: ["home"], criteria: { waveHeightMeters: { min: 1 } }, ...input },
       context(),
     );
   const refusal = async (asked: Promise<unknown>) => {
@@ -105,8 +105,8 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
 
     expect(found.hours[0]).toMatchObject({
       waveHeightMeters: 1.5,
-      swellHeightMeters: 1.2,
-      swellDirectionDegrees: 290,
+      primarySwellHeightMeters: 1.2,
+      primarySwellDirectionDegrees: 290,
     });
     expect(found.swellModels).toEqual([
       {
@@ -131,7 +131,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     const elsewhere = await asking({ primarySwellDirectionDegrees: { from: 180, to: 250 } });
 
     expect(met.spots[0]?.hours[0]).toMatchObject({
-      swellHeightMeters: 1.5,
+      waveHeightMeters: 1.5,
       primarySwellHeightMeters: 1.2,
       primarySwellDirectionDegrees: 290,
       unmet: [],

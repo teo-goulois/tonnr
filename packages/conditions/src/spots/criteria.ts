@@ -21,9 +21,9 @@ const arc = z.object({
 });
 
 export const criteriaSchema = z.strictObject({
-  swellHeightMeters: range(0, 30).optional(),
-  swellPeriodSeconds: range(0, 40).optional(),
-  swellDirectionDegrees: arc.optional(),
+  waveHeightMeters: range(0, 30).optional(),
+  wavePeakPeriodSeconds: range(0, 40).optional(),
+  waveDirectionDegrees: arc.optional(),
   primarySwellHeightMeters: range(0, 30).optional(),
   primarySwellDirectionDegrees: arc.optional(),
   windSpeedMetersPerSecond: range(0, 120).optional(),
@@ -32,13 +32,23 @@ export const criteriaSchema = z.strictObject({
   tideTrend: z.enum(["rising", "falling"]).optional(),
 }) satisfies z.ZodType<SpotCriteria>;
 
+/** Whether conditions ask something of the swell apart from the wind sea. */
+export function asksSwell(criteria: SpotCriteria) {
+  return (
+    criteria.primarySwellHeightMeters !== undefined ||
+    criteria.primarySwellDirectionDegrees !== undefined
+  );
+}
+
 /** What is known about the sea at a spot for one hour. Null is a value nobody could give. */
 export type HourConditions = {
   time: Date;
-  swellHeightMeters: number | null;
-  swellPeriodSeconds: number | null;
-  swellDirectionDegrees: number | null;
-  // The first swell apart from the wind sea. The three above are the whole sea: decision 036.
+  waveHeightMeters: number | null;
+  wavePeakPeriodSeconds: number | null;
+  waveDirectionDegrees: number | null;
+  // The first swell apart from the wind sea. The three above are the whole sea, with the
+  // period of its peak: null where the model gives no peak period, and a condition on it is
+  // then not met.
   primarySwellHeightMeters: number | null;
   primarySwellDirectionDegrees: number | null;
   windSpeedMetersPerSecond: number | null;
@@ -78,16 +88,19 @@ export function unmetCriteria(hour: HourConditions, criteria: SpotCriteria): Cri
     if (!met) unmet.push(criterion);
   };
 
-  if (criteria.swellHeightMeters) {
-    check("swellHeightMeters", isInRange(hour.swellHeightMeters, criteria.swellHeightMeters));
+  if (criteria.waveHeightMeters) {
+    check("waveHeightMeters", isInRange(hour.waveHeightMeters, criteria.waveHeightMeters));
   }
-  if (criteria.swellPeriodSeconds) {
-    check("swellPeriodSeconds", isInRange(hour.swellPeriodSeconds, criteria.swellPeriodSeconds));
-  }
-  if (criteria.swellDirectionDegrees) {
+  if (criteria.wavePeakPeriodSeconds) {
     check(
-      "swellDirectionDegrees",
-      isInArc(hour.swellDirectionDegrees, criteria.swellDirectionDegrees),
+      "wavePeakPeriodSeconds",
+      isInRange(hour.wavePeakPeriodSeconds, criteria.wavePeakPeriodSeconds),
+    );
+  }
+  if (criteria.waveDirectionDegrees) {
+    check(
+      "waveDirectionDegrees",
+      isInArc(hour.waveDirectionDegrees, criteria.waveDirectionDegrees),
     );
   }
   if (criteria.primarySwellHeightMeters) {

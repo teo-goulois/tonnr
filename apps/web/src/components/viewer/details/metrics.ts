@@ -267,8 +267,8 @@ export function modelSamples(hours: Forecast["hours"], kind: PeriodKind = "peak"
       windDirection: hour.windDirectionDegrees,
       waveDirection: hour.waveDirectionDegrees,
       // An API of the version before gives no swell: the row then stays out of the table.
-      swell: hour.swellHeightMeters ?? null,
-      swellDirection: hour.swellDirectionDegrees ?? null,
+      swell: hour.primarySwellHeightMeters ?? null,
+      swellDirection: hour.primarySwellDirectionDegrees ?? null,
       cloud: hour.cloudCoverPercent,
       rain: hour.precipitationMillimeters,
       air: hour.airTemperatureCelsius,

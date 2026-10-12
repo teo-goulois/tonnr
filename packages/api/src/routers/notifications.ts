@@ -32,9 +32,12 @@ const payloadSchema = z.object({
       // What the forecast gave for the first of the open hours.
       sea: z
         .object({
-          swellHeightMeters: measure,
-          swellPeriodSeconds: measure,
-          swellDirectionDegrees: measure,
+          waveHeightMeters: measure,
+          wavePeakPeriodSeconds: measure,
+          waveDirectionDegrees: measure,
+          // The first swell apart from the wind sea, for an alert that asks about it.
+          primarySwellHeightMeters: measure.optional(),
+          primarySwellDirectionDegrees: measure.optional(),
           windSpeedMetersPerSecond: measure,
           windDirectionDegrees: measure,
           tideHeightMeters: measure,

@@ -18,8 +18,8 @@ const content = (more: Partial<AlertMailContent> = {}): AlertMailContent => ({
       open: [{ start: at("12T06:00"), end: at("12T10:00") }],
       sea: {
         at: at("12T06:00"),
-        swellHeightMeters: 1.8,
-        swellPeriodSeconds: 11,
+        waveHeightMeters: 1.8,
+        wavePeakPeriodSeconds: 11,
         windSpeedMetersPerSecond: 5,
       },
       forecastFetchedAt: at("11T18:20"),
@@ -51,6 +51,45 @@ describe("the mail of an alert", () => {
     );
     expect(mail.text).toContain("Régler tes alertes : https://app.example.org/fr/app?panel=alerts");
     expect(mail.text).toContain("Ne plus recevoir ces mails : https://app.example.org/fr/mail-off");
+  });
+
+  it("says the swell alone beside the waves, for an alert that asks about it", () => {
+    const [line] = content().lines;
+    const sea = { at: at("12T06:00"), waveHeightMeters: 1.8, wavePeakPeriodSeconds: 11 };
+    const asking = alertMail(
+      content({
+        lines: [
+          {
+            ...line!,
+            sea: {
+              ...sea,
+              waveDirectionDegrees: 270,
+              primarySwellHeightMeters: 1.2,
+              primarySwellDirectionDegrees: 290,
+              windSpeedMetersPerSecond: 5,
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(asking.text).toContain(
+      "vagues 1,8 m, 11 s, O 270° ; houle seule 1,2 m, ONO 290° ; vent 10 nd",
+    );
+    // An alert that asks nothing of the swell keeps none, and its mail says none.
+    expect(alertMail(content()).text).not.toContain("houle");
+    // Nor does one that asks where no model gives a swell apart.
+    const without = alertMail(
+      content({
+        lines: [
+          {
+            ...line!,
+            sea: { ...sea, primarySwellHeightMeters: null, windSpeedMetersPerSecond: 5 },
+          },
+        ],
+      }),
+    );
+    expect(without.text).not.toContain("houle");
   });
 
   it("carries what lets a mail program switch alert mails off in one press", () => {
@@ -105,8 +144,8 @@ describe("the mail of an alert", () => {
             // Nothing is said of the sea for hours that are gone, but when it was read.
             sea: {
               at: at("12T06:00"),
-              swellHeightMeters: 0.4,
-              swellPeriodSeconds: 6,
+              waveHeightMeters: 0.4,
+              wavePeakPeriodSeconds: 6,
               windSpeedMetersPerSecond: 9,
             },
             forecastFetchedAt: at("11T18:20"),
@@ -138,9 +177,9 @@ describe("the mail of an alert", () => {
             gone: [{ start: at("13T06:00"), end: at("13T10:00") }],
             sea: {
               at: at("12T09:00"),
-              swellHeightMeters: 1.8,
-              swellPeriodSeconds: 11,
-              swellDirectionDegrees: 270,
+              waveHeightMeters: 1.8,
+              wavePeakPeriodSeconds: 11,
+              waveDirectionDegrees: 270,
               windSpeedMetersPerSecond: 5,
               windDirectionDegrees: 90,
             },
@@ -156,7 +195,7 @@ describe("the mail of an alert", () => {
         "  Wed 14 Oct, 08:00 to 12:00",
         "  Moved: Mon 12 Oct, 11:00 to 15:00 (it was Mon 12 Oct, 08:00 to 12:00)",
         "  No longer forecast: Tue 13 Oct, 08:00 to 12:00",
-        // Where the swell and the wind come from, each with its figure.
+        // Where the waves and the wind come from, each with its figure.
         "  Forecast for Mon 12 Oct, 11:00: waves 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
       ].join("\n"),
     );
@@ -255,8 +294,8 @@ describe("the mail of an alert", () => {
             open: [{ start: at("12T06:00"), end: at("12T10:00") }],
             sea: {
               at: at("12T06:00"),
-              swellHeightMeters: 1.8,
-              swellPeriodSeconds: 11,
+              waveHeightMeters: 1.8,
+              wavePeakPeriodSeconds: 11,
               windSpeedMetersPerSecond: 5,
             },
             station: {

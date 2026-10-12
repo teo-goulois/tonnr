@@ -46,7 +46,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - A forecast is kept with the model that answered, and `GET /v1/forecasts` gives it as `waveModel`: its name, who produces it, and the size of its grid. Decision 037 made it a list, `waveModels`. Its hours gain `wavePeakPeriodSeconds` and lose the swell and the wind sea.
 - A panel reads the height of the whole sea, the period of its peak, and its direction. The row is called "Waves". A model without a peak period gives its mean one, and the credits of the panel say so.
 - The energy is the one surf forecasts print: ρg²H²T²/16π, 1.96 H²T² in kilojoules, with the height of the whole sea and the period of its peak.
-- An alert reads the same three values. Its conditions keep the names they were saved under, `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees`: no saved alert is changed.
+- An alert reads the same three values. Its conditions keep the names they were saved under, `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees`: no saved alert is changed. Decision 038 renamed them, with a migration.
 - Beside a buoy, the model's period is of the kind the buoy gives: the peak one for a buoy that has it, the mean one for a buoy that gives a significant or a mean period.
 - The credit is what each party asks for, shown as links beside the data: the provider's own words with a link to it and to the licence, the credit to DWD that its marine API asks of every user, and for ECMWF the words its terms give for a service, with its licence and its disclaimer. A panel and a mail also say that the values were rounded and converted, since the licence asks that changes be told. What covers several points, an alert on several spots or a mail, credits every producer of the list. `docs/data-sources.md` quotes what each asks.
 
@@ -58,7 +58,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - **The height of one model with the period of another.** A first proposal did it. Two models do not cut the sea into the same swells.
 - **MFWAM read from Copernicus Marine**, for its peak period and its swells. It came out a little behind ECMWF, every three hours where ECMWF is hourly, and nine days ahead where ECMWF gives fifteen. Its files are grids, read with a library the instance does not have. It stays the way to a swell apart, and to a use that is paid: its licence allows it, and the provider's free API does not.
 - **The power of the sea in kW/m.** It is the figure with a physical meaning. No surf forecast prints it, and Téo reads the other.
-- **New names for an alert's conditions.** The names say swell and the values are the whole sea. Renaming them changes saved alerts, the API and the mails, and a swell apart may come back: it waits for that decision.
+- **New names for an alert's conditions.** The names say swell and the values are the whole sea. Renaming them changes saved alerts, the API and the mails, and a swell apart may come back: it waits for that decision. Decision 038 took it.
 
 ## Consequences
 
@@ -67,7 +67,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - A forecast kept in the shape before names no model and is refused: each cell is fetched again the first time it is asked for after the deployment.
 - A point with no sea costs four requests where it cost two, since every model is asked. A point with a sea costs two, as before, at nearly every surf break: of 640, ECMWF at 9 km had a sea at 637.
 - An alert set on a period of ten seconds or more now meets the period a surfer reads. It was checked against a mean period, about three seconds lower. An alert saved before the change keeps its numbers and may tell more often.
-- The sentence of an alert, its mails and its pushes say "waves" since 2026-10-12, as the panel does: they said "swell" for the whole sea. The conditions keep their saved names.
+- The sentence of an alert, its mails and its pushes say "waves" since 2026-10-12, as the panel does: they said "swell" for the whole sea. Decision 038 renamed the conditions.
 - The API no longer gives a swell or a wind sea. It may change freely until its first public release: decision 003.
 - Near the coast every model is weaker. Within 2 km of the shore ECMWF's height was right 77 times in 100, against 93 beyond 10 km. A model with a grid of 3 or 4 km did no better there. One of 1.5 km did, by ten points, where it exists: `docs/data-sources.md` lists them, and decision 037 reads that one.
 - DWD is credited though no value shown is DWD's: the provider's marine page asks it of every user. The credit says who asks, so that it claims nothing of the waves. The first version of this decision left DWD out, and Téo asked the same day that the credit follow what is asked.

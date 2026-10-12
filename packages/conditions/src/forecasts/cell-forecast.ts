@@ -67,8 +67,8 @@ export function layWaves(
     wavePeriodSeconds: [...data.hours.wavePeriodSeconds],
     wavePeakPeriodSeconds: [...data.hours.wavePeakPeriodSeconds],
     waveDirectionDegrees: [...data.hours.waveDirectionDegrees],
-    swellHeightMeters: [...data.hours.swellHeightMeters],
-    swellDirectionDegrees: [...data.hours.swellDirectionDegrees],
+    primarySwellHeightMeters: [...data.hours.primarySwellHeightMeters],
+    primarySwellDirectionDegrees: [...data.hours.primarySwellDirectionDegrees],
   };
   const models: ForecastData["models"] = [];
   const swellModels: ForecastData["swellModels"] = [];
@@ -85,23 +85,27 @@ export function layWaves(
       hours.wavePeriodSeconds[index] = fine.meanPeriod[at] ?? null;
       hours.wavePeakPeriodSeconds[index] = fine.peakPeriod[at] ?? null;
       hours.waveDirectionDegrees[index] = fine.direction[at] ?? null;
-      hours.swellHeightMeters[index] = fine.swellHeight[at] ?? null;
-      hours.swellDirectionDegrees[index] = fine.swellDirection[at] ?? null;
+      hours.primarySwellHeightMeters[index] = fine.swellHeight[at] ?? null;
+      hours.primarySwellDirectionDegrees[index] = fine.swellDirection[at] ?? null;
       listed(models, fine.model, seconds);
-      listed(swellModels, hours.swellHeightMeters[index] === null ? null : fine.model, seconds);
+      listed(
+        swellModels,
+        hours.primarySwellHeightMeters[index] === null ? null : fine.model,
+        seconds,
+      );
       isFine = true;
     } else {
       const apart = swell ? swellAt(swell, seconds) : null;
       // The swell is another model's than the waves here, and a part is never more than the
       // whole: it is given no higher than the whole sea of its hour.
       const whole = hours.waveHeightMeters[index] ?? null;
-      hours.swellHeightMeters[index] =
+      hours.primarySwellHeightMeters[index] =
         apart && whole !== null ? Math.min(apart.height, whole) : (apart?.height ?? null);
-      hours.swellDirectionDegrees[index] = apart?.direction ?? null;
+      hours.primarySwellDirectionDegrees[index] = apart?.direction ?? null;
       listed(models, hours.waveHeightMeters[index] === null ? null : modelAt(seconds), seconds);
       listed(swellModels, apart && swell ? swell.model : null, seconds);
     }
-    hasSwell ||= hours.swellHeightMeters[index] !== null;
+    hasSwell ||= hours.primarySwellHeightMeters[index] !== null;
   }
   if (!isFine && !hasSwell) return data;
   // The grid point is the fine model's when it answered: it is the one nearest the spot.

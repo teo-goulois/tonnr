@@ -4,6 +4,7 @@ import { type Interval, openHours } from "@repo/conditions/alerts/open";
 import { availabilityOf, cutOf, settingsOf, zoneOf } from "@repo/conditions/alerts/settings";
 import { type Forecasts, MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
+import { asksSwell } from "@repo/conditions/spots/criteria";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { accountSuspension } from "@repo/db/schema/access";
@@ -219,7 +220,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
                       hour.time.getTime() + HOUR_MS > window.sea.start.getTime() &&
                       hour.time.getTime() < window.sea.end.getTime(),
                   )
-                  .map(seaHour),
+                  .map((hour) => seaHour(hour, asksSwell(row.criteria))),
               })),
             );
           }
@@ -235,7 +236,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
             .where(and(eq(alertSpot.alertId, row.id), eq(alertSpot.spotId, place.id)));
 
           for (const told of plan.tell) {
-            lines[told.moment].push(lineOf(told, place, hours, fetchedAt));
+            lines[told.moment].push(lineOf(told, place, hours, fetchedAt, asksSwell(row.criteria)));
           }
         }
         await tx
@@ -282,6 +283,7 @@ function lineOf(
   place: { id: string; name: string },
   hours: Hours,
   fetchedAt: Date,
+  withSwell: boolean,
 ): NotificationPayload["lines"][number] {
   const open = "open" in told ? told.open : [];
   const first = open[0]?.start.getTime();
@@ -292,7 +294,7 @@ function lineOf(
     forecastFetchedAt: fetchedAt.toISOString(),
     open: open.map(stretch),
     ...("before" in told ? { before: told.before.map(stretch) } : {}),
-    ...(hour ? { sea: figuresOf(seaHour(hour)) } : {}),
+    ...(hour ? { sea: figuresOf(seaHour(hour, withSwell)) } : {}),
   };
 }
 

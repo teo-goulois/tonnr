@@ -38,9 +38,12 @@ export type AlertLine = {
   // of them, or the one the message leaves in when they have begun.
   sea?: {
     at: Date;
-    swellHeightMeters: number | null;
-    swellPeriodSeconds: number | null;
-    swellDirectionDegrees?: number | null;
+    waveHeightMeters: number | null;
+    wavePeakPeriodSeconds: number | null;
+    waveDirectionDegrees?: number | null;
+    // The first swell apart from the wind sea: there for an alert that asks about it.
+    primarySwellHeightMeters?: number | null;
+    primarySwellDirectionDegrees?: number | null;
     windSpeedMetersPerSecond: number | null;
     windDirectionDegrees?: number | null;
   };
@@ -96,6 +99,8 @@ const WORDS = {
     forecastFor: (hour: string) => `Forecast for ${hour}`,
     // The whole sea, as a panel shows it: decision 036.
     waves: "waves",
+    // The swell apart from the wind sea, said for an alert that asks about it: decision 038.
+    swell: "swell alone",
     wind: "wind",
     knots: "kn",
     points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSW,SW,WSW,W,WNW,NW,NNW",
@@ -124,6 +129,7 @@ const WORDS = {
     goneRow: (hours: string) => `Plus prévu : ${hours}`,
     forecastFor: (hour: string) => `Prévu pour ${hour}`,
     waves: "vagues",
+    swell: "houle seule",
     wind: "vent",
     knots: "nd",
     points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
@@ -224,11 +230,19 @@ export function alertWords(said: AlertSaid) {
     const figures =
       sea && (line.open.length > 0 || line.moved)
         ? [
-            sea.swellHeightMeters !== null &&
+            sea.waveHeightMeters !== null &&
               [
-                `${words.waves} ${height(sea.swellHeightMeters)}`,
-                sea.swellPeriodSeconds !== null && `${number(sea.swellPeriodSeconds, 0)} s`,
-                typeof sea.swellDirectionDegrees === "number" && from(sea.swellDirectionDegrees),
+                `${words.waves} ${height(sea.waveHeightMeters)}`,
+                sea.wavePeakPeriodSeconds !== null && `${number(sea.wavePeakPeriodSeconds, 0)} s`,
+                typeof sea.waveDirectionDegrees === "number" && from(sea.waveDirectionDegrees),
+              ]
+                .filter(Boolean)
+                .join(", "),
+            typeof sea.primarySwellHeightMeters === "number" &&
+              [
+                `${words.swell} ${height(sea.primarySwellHeightMeters)}`,
+                typeof sea.primarySwellDirectionDegrees === "number" &&
+                  from(sea.primarySwellDirectionDegrees),
               ]
                 .filter(Boolean)
                 .join(", "),

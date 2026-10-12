@@ -15,7 +15,11 @@ function openMeteo(waves?: (seconds: number) => number | null): ForecastData {
   return {
     ...data,
     swellModels: [],
-    hours: { ...data.hours, swellHeightMeters: none, swellDirectionDegrees: [...none] },
+    hours: {
+      ...data.hours,
+      primarySwellHeightMeters: none,
+      primarySwellDirectionDegrees: [...none],
+    },
   };
 }
 // 1.5 m of 11 s from 295° at every hour, from ECMWF's model.
@@ -112,8 +116,8 @@ describe("the swell apart laid over a forecast", () => {
 
     // Three hours of the fine model, then the world's: 2.3 m at the fourth hour, and a third of
     // the way to 2.6 m at the fifth.
-    expect(laid.hours.swellHeightMeters.slice(0, 5)).toEqual([0.5, 0.6, 0.7, 2.3, 2.4]);
-    expect(laid.hours.swellDirectionDegrees.slice(0, 5)).toEqual([260, 260, 260, 255, 255]);
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 5)).toEqual([0.5, 0.6, 0.7, 2.3, 2.4]);
+    expect(laid.hours.primarySwellDirectionDegrees.slice(0, 5)).toEqual([260, 260, 260, 255, 255]);
     expect(laid.swellModels).toEqual([
       { id: "nws_ww3", from: start },
       { id: "mfwam", from: start + 3 * HOUR },
@@ -125,7 +129,7 @@ describe("the swell apart laid over a forecast", () => {
   it("is empty where the fine model has waves and no swell: the world's does not fill in", () => {
     const laid = layWaves(tall, fine([0.8, 0.9, 1], [null, 0.6, null]), world([2, 2.3]));
 
-    expect(laid.hours.swellHeightMeters.slice(0, 4)).toEqual([null, 0.6, null, 2.3]);
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 4)).toEqual([null, 0.6, null, 2.3]);
     expect(laid.swellModels).toEqual([
       { id: "nws_ww3", from: start + HOUR },
       { id: "mfwam", from: start + 3 * HOUR },
@@ -135,8 +139,8 @@ describe("the swell apart laid over a forecast", () => {
   it("goes from one value to the next between two fields, with the bearing of the nearer", () => {
     const laid = layWaves(tall, null, world([1, 1.6, 1.6], [200, 290, 290]));
 
-    expect(laid.hours.swellHeightMeters.slice(0, 4)).toEqual([1, 1.2, 1.4, 1.6]);
-    expect(laid.hours.swellDirectionDegrees.slice(0, 4)).toEqual([200, 200, 290, 290]);
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 4)).toEqual([1, 1.2, 1.4, 1.6]);
+    expect(laid.hours.primarySwellDirectionDegrees.slice(0, 4)).toEqual([200, 200, 290, 290]);
     // Nothing else moved: the waves, their model and the grid point are Open-Meteo's.
     expect(laid.hours.waveHeightMeters).toEqual(tall.hours.waveHeightMeters);
     expect(laid.models).toEqual(tall.models);
@@ -148,7 +152,7 @@ describe("the swell apart laid over a forecast", () => {
     const laid = layWaves(tall, null, world([1, null, 1.6]));
 
     // The first field, nothing up to the third, the third, and nothing after it.
-    expect(laid.hours.swellHeightMeters.slice(0, 8)).toEqual([
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 8)).toEqual([
       1,
       null,
       null,
@@ -164,7 +168,7 @@ describe("the swell apart laid over a forecast", () => {
     // Waves of 1.5 m from one model, and a swell of 2 m from the other.
     const laid = layWaves(base, null, world([2, 1.2]));
 
-    expect(laid.hours.swellHeightMeters.slice(0, 4)).toEqual([1.5, 1.5, 1.47, 1.2]);
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 4)).toEqual([1.5, 1.5, 1.47, 1.2]);
     expect(laid.hours.waveHeightMeters.slice(0, 4)).toEqual([1.5, 1.5, 1.5, 1.5]);
   });
 });

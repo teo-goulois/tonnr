@@ -104,8 +104,8 @@ export const forecastsRouter = {
             waveDirectionDegrees: measurement,
             // The first swell apart from the wind sea: its height, and where it comes from. It
             // is less sure than the whole sea, and null where no model gives one.
-            swellHeightMeters: measurement,
-            swellDirectionDegrees: measurement,
+            primarySwellHeightMeters: measurement,
+            primarySwellDirectionDegrees: measurement,
             windSpeedMetersPerSecond: measurement,
             windGustMetersPerSecond: measurement,
             windDirectionDegrees: measurement,

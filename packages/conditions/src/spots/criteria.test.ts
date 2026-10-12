@@ -11,9 +11,9 @@ import {
 
 const hour: HourConditions = {
   time: new Date("2026-10-08T10:00:00Z"),
-  swellHeightMeters: 1.6,
-  swellPeriodSeconds: 11,
-  swellDirectionDegrees: 290,
+  waveHeightMeters: 1.6,
+  wavePeakPeriodSeconds: 11,
+  waveDirectionDegrees: 290,
   // Of that sea of 1.6 m, a swell of 1.1 m from further north.
   primarySwellHeightMeters: 1.1,
   primarySwellDirectionDegrees: 310,
@@ -44,9 +44,9 @@ describe("isInArc", () => {
 describe("unmetCriteria", () => {
   it("returns nothing when every criterion is met", () => {
     const criteria = {
-      swellHeightMeters: { min: 1, max: 2.5 },
-      swellPeriodSeconds: { min: 9 },
-      swellDirectionDegrees: { from: 270, to: 330 },
+      waveHeightMeters: { min: 1, max: 2.5 },
+      wavePeakPeriodSeconds: { min: 9 },
+      waveDirectionDegrees: { from: 270, to: 330 },
       windSpeedMetersPerSecond: { max: 5 },
       windDirectionDegrees: { from: 45, to: 135 },
       tideHeightMeters: { min: 1.5, max: 3.5 },
@@ -58,13 +58,13 @@ describe("unmetCriteria", () => {
 
   it("names the criteria that are not met", () => {
     const criteria = {
-      swellHeightMeters: { min: 2 },
+      waveHeightMeters: { min: 2 },
       windSpeedMetersPerSecond: { max: 2 },
       tideTrend: "falling" as const,
     };
 
     expect(unmetCriteria(hour, criteria)).toEqual([
-      "swellHeightMeters",
+      "waveHeightMeters",
       "windSpeedMetersPerSecond",
       "tideTrend",
     ]);
@@ -76,15 +76,15 @@ describe("unmetCriteria", () => {
     expect(unmetCriteria(unknownTide, { tideHeightMeters: { min: 0 } })).toEqual([
       "tideHeightMeters",
     ]);
-    expect(unmetCriteria(unknownTide, { swellHeightMeters: { min: 1 } })).toEqual([]);
+    expect(unmetCriteria(unknownTide, { waveHeightMeters: { min: 1 } })).toEqual([]);
   });
 
   it("checks the swell apart on its own figures, not on the whole sea's", () => {
     // The whole sea is high enough and from the right side: the swell in it is neither.
     expect(
       unmetCriteria(hour, {
-        swellHeightMeters: { min: 1.5 },
-        swellDirectionDegrees: { from: 270, to: 300 },
+        waveHeightMeters: { min: 1.5 },
+        waveDirectionDegrees: { from: 270, to: 300 },
         primarySwellHeightMeters: { min: 1.5 },
         primarySwellDirectionDegrees: { from: 270, to: 300 },
       }),
@@ -166,7 +166,7 @@ describe("findWindows", () => {
 
 describe("criteriaSchema", () => {
   it("rejects a range whose minimum is above its maximum", () => {
-    expect(criteriaSchema.safeParse({ swellHeightMeters: { min: 3, max: 1 } }).success).toBe(false);
+    expect(criteriaSchema.safeParse({ waveHeightMeters: { min: 3, max: 1 } }).success).toBe(false);
   });
 
   it("rejects a criterion it does not know", () => {

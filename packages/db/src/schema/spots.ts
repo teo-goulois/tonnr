@@ -24,11 +24,13 @@ type Arc = { from: number; to: number };
  * criterion left out is not checked.
  */
 export type SpotCriteria = {
-  swellHeightMeters?: Range;
-  swellPeriodSeconds?: Range;
-  swellDirectionDegrees?: Arc;
+  waveHeightMeters?: Range;
+  wavePeakPeriodSeconds?: Range;
+  waveDirectionDegrees?: Arc;
   // The first swell apart from the wind sea, where a model gives one: decision 038. The three
-  // above are the whole sea since decision 036, under the names they were saved with.
+  // above are the whole sea, with the period of its peak. Until 2026-10-12 they were saved as
+  // `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees`: a migration renamed
+  // them in every alert.
   primarySwellHeightMeters?: Range;
   primarySwellDirectionDegrees?: Arc;
   windSpeedMetersPerSecond?: Range;

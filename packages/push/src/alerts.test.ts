@@ -8,9 +8,9 @@ const at = (time: string) => new Date(`2026-10-${time}:00Z`);
 const morning = [{ start: at("12T06:00"), end: at("12T10:00") }];
 const sea = {
   at: at("12T06:00"),
-  swellHeightMeters: 1.8,
-  swellPeriodSeconds: 11,
-  swellDirectionDegrees: 270,
+  waveHeightMeters: 1.8,
+  wavePeakPeriodSeconds: 11,
+  waveDirectionDegrees: 270,
   windSpeedMetersPerSecond: 5,
   windDirectionDegrees: 90,
 };
@@ -273,7 +273,7 @@ describe("the push of an alert", () => {
               ...spot,
               spotName: "x",
               open: morning,
-              sea: { ...sea, swellDirectionDegrees: degrees, windDirectionDegrees: degrees + 180 },
+              sea: { ...sea, waveDirectionDegrees: degrees, windDirectionDegrees: degrees + 180 },
             },
           ],
         }),

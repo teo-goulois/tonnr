@@ -451,14 +451,14 @@ export function AlertEditor({
       {/* The alert, said. Every underlined part opens what changes it. */}
       <p className="text-l text-pretty">
         {m.alert_says_waves()}{" "}
-        {range("swellHeightMeters", m.alert_any_height(), (said) =>
+        {range("waveHeightMeters", m.alert_any_height(), (said) =>
           m.alert_height_of({ range: said }),
         )}
         ,{" "}
-        {range("swellPeriodSeconds", m.alert_any_period(), (said) =>
+        {range("wavePeakPeriodSeconds", m.alert_any_period(), (said) =>
           m.alert_period_of({ range: said }),
         )}
-        , {sector("swellDirectionDegrees", current?.swellDirectionDegrees, { from: 250, to: 310 })},{" "}
+        , {sector("waveDirectionDegrees", current?.waveDirectionDegrees, { from: 250, to: 310 })},{" "}
         {m.alert_says_wind()}{" "}
         {range("windSpeedMetersPerSecond", m.alert_any_wind(), (said) =>
           m.alert_wind_at({ range: said }),
@@ -527,12 +527,12 @@ export function AlertEditor({
         <p className="text-s text-pretty text-neutral-7">
           {m.alert_advanced_about()}
           {current &&
-            current.swellHeightMeters !== null &&
+            current.waveHeightMeters !== null &&
             current.primarySwellHeightMeters != null && (
               <>
                 {" "}
                 {m.alert_advanced_now({
-                  waves: formatHeight(current.swellHeightMeters),
+                  waves: formatHeight(current.waveHeightMeters),
                   swell: formatHeight(current.primarySwellHeightMeters),
                 })}
               </>
@@ -619,10 +619,9 @@ export function AlertEditor({
                       {first && (
                         <span className="text-neutral-7">
                           {[
-                            first.swellHeightMeters !== null &&
-                              formatHeight(first.swellHeightMeters),
-                            first.swellPeriodSeconds !== null &&
-                              formatSeconds(first.swellPeriodSeconds),
+                            first.waveHeightMeters !== null && formatHeight(first.waveHeightMeters),
+                            first.wavePeakPeriodSeconds !== null &&
+                              formatSeconds(first.wavePeakPeriodSeconds),
                             asksSwell &&
                               first.primarySwellHeightMeters != null &&
                               m.alert_preview_swell({

@@ -42,7 +42,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
       id: "bay",
       userId: "owner",
       name: "The bay",
-      criteria: { swellHeightMeters: { min: 1 } },
+      criteria: { waveHeightMeters: { min: 1 } },
     });
     // An account that goes at any hour, by night as by day: its hours are the sea's.
     await database.db.insert(alertSettings).values({ userId: "owner", daylightOnly: false });
@@ -320,7 +320,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
         id: "big",
         userId: "owner",
         name: "Big days",
-        criteria: { swellHeightMeters: { min: 2 } },
+        criteria: { waveHeightMeters: { min: 2 } },
       });
     });
 

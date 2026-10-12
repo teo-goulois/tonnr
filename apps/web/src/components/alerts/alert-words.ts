@@ -13,21 +13,20 @@ import { m } from "@/paraglide/messages.js";
 import type { AlertCriteria } from "../viewer/types";
 
 export type CriterionKey = keyof AlertCriteria;
-// `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees` are the whole sea, under
-// the names an alert's conditions were first saved with. The swell apart from the wind sea is
-// `primarySwellHeightMeters` and `primarySwellDirectionDegrees`: decision 038.
+// The first three are the whole sea, with the period of its peak. The swell apart from the wind
+// sea is `primarySwellHeightMeters` and `primarySwellDirectionDegrees`: decision 038.
 export type RangeKey =
-  | "swellHeightMeters"
-  | "swellPeriodSeconds"
+  | "waveHeightMeters"
+  | "wavePeakPeriodSeconds"
   | "primarySwellHeightMeters"
   | "windSpeedMetersPerSecond"
   | "tideHeightMeters";
 export type ArcKey =
-  | "swellDirectionDegrees"
+  | "waveDirectionDegrees"
   | "primarySwellDirectionDegrees"
   | "windDirectionDegrees";
 const ARC_KEYS: readonly CriterionKey[] = [
-  "swellDirectionDegrees",
+  "waveDirectionDegrees",
   "primarySwellDirectionDegrees",
   "windDirectionDegrees",
 ];
@@ -57,7 +56,7 @@ export const RANGES: Record<
     ceiling: number;
   }
 > = {
-  swellHeightMeters: {
+  waveHeightMeters: {
     label: m.alert_label_wave_height,
     // Written and set in the reader's unit, and kept in metres. In feet a step is half a foot.
     unit: (value) => `${value} ${heightUnit()}`,
@@ -76,7 +75,7 @@ export const RANGES: Record<
     floor: 0,
     ceiling: 30,
   },
-  swellPeriodSeconds: {
+  wavePeakPeriodSeconds: {
     label: m.alert_label_wave_period,
     unit: (value) => m.unit_seconds({ value }),
     least: 4,
@@ -146,9 +145,9 @@ export const RANGES: Record<
 };
 
 export const CRITERION_LABELS: Record<CriterionKey, () => string> = {
-  swellHeightMeters: m.alert_label_wave_height,
-  swellPeriodSeconds: m.alert_label_wave_period,
-  swellDirectionDegrees: m.alert_label_wave_from,
+  waveHeightMeters: m.alert_label_wave_height,
+  wavePeakPeriodSeconds: m.alert_label_wave_period,
+  waveDirectionDegrees: m.alert_label_wave_from,
   primarySwellHeightMeters: m.alert_label_swell_height,
   primarySwellDirectionDegrees: m.alert_label_swell_from,
   windSpeedMetersPerSecond: m.alert_label_wind_speed,
@@ -285,7 +284,7 @@ export function loosened(criteria: AlertCriteria, key: CriterionKey): AlertCrite
   if (!range) return criteria;
   const { step, floor, ceiling, kept, shown } = RANGES[key];
   // A period loosens by a second, a height by two tenths, the wind by two knots.
-  const by = key === "swellPeriodSeconds" ? step : step * 2;
+  const by = key === "wavePeakPeriodSeconds" ? step : step * 2;
   return {
     ...criteria,
     [key]: {

@@ -32,9 +32,9 @@ export function AlertSummary({ alert }: { alert: Pick<Alert, "criteria" | "short
     [
       m.alert_summary_waves(),
       [
-        ...range("swellHeightMeters"),
-        ...range("swellPeriodSeconds"),
-        ...sector(criteria.swellDirectionDegrees),
+        ...range("waveHeightMeters"),
+        ...range("wavePeakPeriodSeconds"),
+        ...sector(criteria.waveDirectionDegrees),
       ],
     ],
     [

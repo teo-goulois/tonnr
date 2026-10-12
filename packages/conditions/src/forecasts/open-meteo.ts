@@ -135,8 +135,8 @@ const columns = z.object({
   // The first swell apart from the wind sea: its height, and where it comes from. Open-Meteo's
   // models give none that stood against the buoys, so these are empty until another source
   // fills them: decision 038.
-  swellHeightMeters: series,
-  swellDirectionDegrees: series,
+  primarySwellHeightMeters: series,
+  primarySwellDirectionDegrees: series,
   windSpeedMetersPerSecond: series,
   windGustMetersPerSecond: series,
   windDirectionDegrees: series,
@@ -200,8 +200,8 @@ export function buildForecast(model: OpenMeteoModelId, marineJson: unknown, weat
       wavePeriodSeconds: waves.wave_period,
       wavePeakPeriodSeconds: waves.wave_peak_period,
       waveDirectionDegrees: waves.wave_direction,
-      swellHeightMeters: waves.time.map(() => null),
-      swellDirectionDegrees: waves.time.map(() => null),
+      primarySwellHeightMeters: waves.time.map(() => null),
+      primarySwellDirectionDegrees: waves.time.map(() => null),
       windSpeedMetersPerSecond: wind.wind_speed_10m,
       windGustMetersPerSecond: wind.wind_gusts_10m,
       windDirectionDegrees: wind.wind_direction_10m,

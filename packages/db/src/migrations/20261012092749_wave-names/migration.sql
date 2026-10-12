@@ -1,0 +1,8 @@
+-- The whole sea is named for what it is: decision 038. An alert's conditions, the hours a window
+-- keeps and what a notification says of the sea called it "swell", from when a model's swell was
+-- what they read. The values do not change, and nothing else in these columns bears those names:
+-- a name a user wrote is kept with its quotes escaped, which these patterns do not match.
+UPDATE "alert" SET "criteria" = replace(replace(replace("criteria"::text, '"swellHeightMeters":', '"waveHeightMeters":'), '"swellPeriodSeconds":', '"wavePeakPeriodSeconds":'), '"swellDirectionDegrees":', '"waveDirectionDegrees":')::jsonb WHERE "criteria"::text ~ '"swell(HeightMeters|PeriodSeconds|DirectionDegrees)":';--> statement-breakpoint
+UPDATE "spot" SET "criteria" = replace(replace(replace("criteria"::text, '"swellHeightMeters":', '"waveHeightMeters":'), '"swellPeriodSeconds":', '"wavePeakPeriodSeconds":'), '"swellDirectionDegrees":', '"waveDirectionDegrees":')::jsonb WHERE "criteria"::text ~ '"swell(HeightMeters|PeriodSeconds|DirectionDegrees)":';--> statement-breakpoint
+UPDATE "alert_window" SET "hours" = replace(replace(replace("hours"::text, '"swellHeightMeters":', '"waveHeightMeters":'), '"swellPeriodSeconds":', '"wavePeakPeriodSeconds":'), '"swellDirectionDegrees":', '"waveDirectionDegrees":')::jsonb WHERE "hours"::text ~ '"swell(HeightMeters|PeriodSeconds|DirectionDegrees)":';--> statement-breakpoint
+UPDATE "alert_notification" SET "payload" = replace(replace(replace("payload"::text, '"swellHeightMeters":', '"waveHeightMeters":'), '"swellPeriodSeconds":', '"wavePeakPeriodSeconds":'), '"swellDirectionDegrees":', '"waveDirectionDegrees":')::jsonb WHERE "payload"::text ~ '"swell(HeightMeters|PeriodSeconds|DirectionDegrees)":';

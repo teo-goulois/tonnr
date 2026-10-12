@@ -26,9 +26,13 @@ export type ToldStretch = Stretch & { missed: number; last?: Stretch };
 
 /** What the forecast and the tide give at a spot for one hour, as a notification keeps it. */
 export type SeaFigures = {
-  swellHeightMeters: number | null;
-  swellPeriodSeconds: number | null;
-  swellDirectionDegrees: number | null;
+  waveHeightMeters: number | null;
+  wavePeakPeriodSeconds: number | null;
+  waveDirectionDegrees: number | null;
+  // The first swell apart from the wind sea, kept for an alert that asks about it and for no
+  // other: what is told of such an alert says it. Decision 038.
+  primarySwellHeightMeters?: number | null;
+  primarySwellDirectionDegrees?: number | null;
   windSpeedMetersPerSecond: number | null;
   windDirectionDegrees: number | null;
   tideHeightMeters: number | null;

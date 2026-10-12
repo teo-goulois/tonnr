@@ -554,11 +554,11 @@ export const alertsRouter = {
             hours: z.array(
               z.object({
                 time: z.date(),
-                swellHeightMeters: z.number().nullable(),
-                swellPeriodSeconds: z.number().nullable(),
-                swellDirectionDegrees: z.number().nullable(),
+                waveHeightMeters: z.number().nullable(),
+                wavePeakPeriodSeconds: z.number().nullable(),
+                waveDirectionDegrees: z.number().nullable(),
                 // The first swell apart from the wind sea, where a model gives one. The three
-                // above are the whole sea, under the names an alert's conditions keep.
+                // above are the whole sea, with the period of its peak.
                 primarySwellHeightMeters: z.number().nullable(),
                 primarySwellDirectionDegrees: z.number().nullable(),
                 windSpeedMetersPerSecond: z.number().nullable(),

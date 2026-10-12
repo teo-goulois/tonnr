@@ -53,7 +53,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
       id: "bay",
       userId: "owner",
       name: "The bay",
-      criteria: { swellHeightMeters: { min: 1 } },
+      criteria: { waveHeightMeters: { min: 1 } },
     });
     await database.db.insert(alertSpot).values({ spotId: "home", alertId: "bay", position: 0 });
     // An account that goes at any hour, by night as by day: its hours are the sea's.
@@ -92,13 +92,43 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
   const settings = (changes: Partial<typeof alertSettings.$inferInsert>) =>
     database.db.update(alertSettings).set(changes).where(eq(alertSettings.userId, "owner"));
 
+  it("keep the swell apart for an alert that asks about it, and for no other", async () => {
+    // The test's provider gives a swell of 1.2 m from 290° in whatever waves there are.
+    await database.db.insert(alert).values({
+      id: "clean",
+      userId: "owner",
+      name: "Clean swell",
+      criteria: { waveHeightMeters: { min: 1 }, primarySwellHeightMeters: { min: 1 } },
+    });
+    await database.db.insert(alertSpot).values({ spotId: "home", alertId: "clean", position: 0 });
+    await run();
+    await next();
+
+    const hoursOf = async (alertId: string) =>
+      (await database.db.select().from(alertWindow).where(eq(alertWindow.alertId, alertId)))[0]
+        ?.hours[0];
+    expect(await hoursOf("clean")).toMatchObject({
+      waveHeightMeters: 1.2,
+      primarySwellHeightMeters: 1.2,
+      primarySwellDirectionDegrees: 290,
+    });
+    expect(await hoursOf("bay")).toMatchObject({ waveHeightMeters: 1.2 });
+    expect(await hoursOf("bay")).not.toHaveProperty("primarySwellHeightMeters");
+    // What is told of each says what it keeps.
+    const told = Object.fromEntries(
+      (await notifications()).map((row) => [row.alertId, row.payload.lines[0]?.sea]),
+    );
+    expect(told.clean).toMatchObject({ primarySwellHeightMeters: 1.2 });
+    expect(told.bay).not.toHaveProperty("primarySwellHeightMeters");
+  });
+
   describe("of a spot that is in two alerts", () => {
     beforeEach(async () => {
       await database.db.insert(alert).values({
         id: "big",
         userId: "owner",
         name: "Big days",
-        criteria: { swellHeightMeters: { min: 2 } },
+        criteria: { waveHeightMeters: { min: 2 } },
       });
       await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
       // Small on Saturday morning, big in its afternoon.
@@ -178,7 +208,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
               forecastFetchedAt: new Date().toISOString(),
               open: [saturday(8, 12)],
               // What the forecast gives for the first of its hours.
-              sea: { swellHeightMeters: 1.2, swellPeriodSeconds: 11, windSpeedMetersPerSecond: 5 },
+              sea: {
+                waveHeightMeters: 1.2,
+                wavePeakPeriodSeconds: 11,
+                windSpeedMetersPerSecond: 5,
+              },
             },
           ],
         },
@@ -533,7 +567,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
         id: "theirs",
         userId: "other",
         name: "Theirs",
-        criteria: { swellHeightMeters: { min: 1 } },
+        criteria: { waveHeightMeters: { min: 1 } },
       });
       await database.db
         .insert(alertSpot)

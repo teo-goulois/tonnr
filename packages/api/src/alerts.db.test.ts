@@ -25,7 +25,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
   // Friday 9 October 2026, 08:00 UTC. The forecast of the tests has a swell of 1.2 m at every
   // hour, and the tide is known along this coast.
   const AT = new Date("2026-10-09T08:00:00Z");
-  const swell = { swellHeightMeters: { min: 1 } };
+  const swell = { waveHeightMeters: { min: 1 } };
 
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let usage: Usage;
@@ -182,7 +182,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       const big = await make({
         name: "Big days",
         spotIds: ["south", "north"],
-        criteria: { swellHeightMeters: { min: 2.5 } },
+        criteria: { waveHeightMeters: { min: 2.5 } },
         shortestMinutes: 60,
       });
 
@@ -199,7 +199,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect([await windowsOf(small.id), await windowsOf(big.id)]).toEqual([["north"], ["north"]]);
       await call(
         v1Router.alerts.update,
-        { id: big.id, criteria: { swellHeightMeters: { min: 3 } } },
+        { id: big.id, criteria: { waveHeightMeters: { min: 3 } } },
         by("ana"),
       );
       // One that starts over forgets its own, and nothing of the other's.
@@ -214,7 +214,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
 
     it.each([
       ["no condition at all", { criteria: {} }],
-      ["a condition with neither end", { criteria: { swellHeightMeters: {} } }],
+      ["a condition with neither end", { criteria: { waveHeightMeters: {} } }],
       ["no spot", { spotIds: [] }],
       ["a spot named twice", { spotIds: ["north", "north"] }],
       [
@@ -224,7 +224,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       ["no name", { name: "  " }],
       ["a shortest window of half an hour", { shortestMinutes: 30 }],
       ["a shortest window of an hour and a half", { shortestMinutes: 90 }],
-      ["a condition that is none", { criteria: { swellHeightMeters: { min: 3, max: 1 } } }],
+      ["a condition that is none", { criteria: { waveHeightMeters: { min: 3, max: 1 } } }],
     ])("is refused with %s", async (_what, input) => {
       await expect(make(input as never)).rejects.toEqual(refusal("BAD_REQUEST"));
     });
@@ -342,11 +342,11 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
 
       const asked = await call(
         v1Router.alerts.update,
-        { id: made.id, criteria: { swellHeightMeters: { min: 2 } } },
+        { id: made.id, criteria: { waveHeightMeters: { min: 2 } } },
         by("ana"),
       );
 
-      expect(asked.criteria).toEqual({ swellHeightMeters: { min: 2 } });
+      expect(asked.criteria).toEqual({ waveHeightMeters: { min: 2 } });
       expect(await revisionOf(made.id)).toBe(1);
       expect(await windowsOf(made.id)).toEqual([]);
       expect(await toldAt(made.id)).toEqual([]);
@@ -356,7 +356,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       await see(made.id, "north");
       await call(
         v1Router.alerts.update,
-        { id: made.id, criteria: { swellHeightMeters: { min: 2 } } },
+        { id: made.id, criteria: { waveHeightMeters: { min: 2 } } },
         by("ana"),
       );
       expect(await revisionOf(made.id)).toBe(1);
@@ -472,10 +472,10 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
 
     it("keeps what a condition with neither end leaves, and no word of it", async () => {
       const made = await make({
-        criteria: { swellHeightMeters: { min: 1 }, tideHeightMeters: {} },
+        criteria: { waveHeightMeters: { min: 1 }, tideHeightMeters: {} },
       });
 
-      expect(made.criteria).toEqual({ swellHeightMeters: { min: 1 } });
+      expect(made.criteria).toEqual({ waveHeightMeters: { min: 1 } });
     });
 
     // Two requests at once, the first held back until the second has come to wait for it.
