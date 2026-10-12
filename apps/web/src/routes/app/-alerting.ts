@@ -7,6 +7,7 @@ import type { AlertDraft, AlertTrial } from "@/components/alerts/alert-words";
 import type { AlertSettingsChange } from "@/components/alerts/alert-settings";
 import type { Alerting } from "@/components/alerts/types";
 import type { Alert, AlertSettings, Loadable } from "@/components/viewer/types";
+import { hasUnsaved, leaveWith } from "@/lib/unsaved";
 import { writesInTurn } from "@/lib/writes-in-turn";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
@@ -39,6 +40,14 @@ function refusalOf(error: unknown, otherwise: string) {
   if (code === "FORBIDDEN") return m.alert_refused_full();
   if (code === "NOT_FOUND") return m.alert_refused_gone();
   return otherwise;
+}
+
+// The panel that holds the editor of an alert, as an address names it: a spot's, unless a
+// station or a break takes its place, in the map of the account or in that of a shared list.
+// Whatever opens over it, a buoy, the bell, the saved lists, leaves it where it is.
+function editorAt(search: unknown) {
+  const at = search as { station?: string; break?: string; spot?: string; shared?: string };
+  return at.station || at.break || !at.spot ? undefined : `${at.shared ?? ""}:${at.spot}`;
 }
 
 const sameSpots = (one: string[], other: string[]) =>
@@ -153,20 +162,22 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
   }, [settings, pending]);
 
   // What is written of an alert and not saved is not lost without a word: whatever leaves the
-  // spot it is written at waits for an answer. The panel closed, another selection, a link and
-  // the browser's own way back are all one thing to the router.
-  const unsaved = useRef(false);
-  const onUnsaved = useCallback((hasUnsaved: boolean) => {
-    unsaved.current = hasUnsaved;
-  }, []);
-  const hasUnsaved = useCallback(() => unsaved.current, []);
-  const spotOf = (search: unknown) => (search as { spot?: string } | undefined)?.spot;
-  const blocker = useBlocker({
-    shouldBlockFn: ({ current, next }) =>
-      unsaved.current &&
-      (current.pathname !== next.pathname || spotOf(current.search) !== spotOf(next.search)),
-    enableBeforeUnload: () => unsaved.current,
-    withResolver: true,
+  // panel it is written in waits for an answer. The panel closed, another selection, a link and
+  // the browser's own way back are all one thing to the router. `lib/unsaved` holds the
+  // question, and answers it "stay" when it no longer stands.
+  useBlocker({
+    shouldBlockFn: ({ current, next }) => {
+      if (!hasUnsaved()) return false;
+      if (current.pathname === next.pathname && editorAt(current.search) === editorAt(next.search))
+        return false;
+      return new Promise<boolean>((resolve) => {
+        leaveWith(
+          () => resolve(false),
+          () => resolve(true),
+        );
+      });
+    },
+    enableBeforeUnload: hasUnsaved,
   });
 
   const create = useMutation(orpc.v1.alerts.create.mutationOptions());
@@ -262,10 +273,6 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
         })
         .catch((error: unknown) => void toast.error(refusalOf(error, m.alert_delete_failed())))
         .finally(refresh),
-    onUnsaved,
-    hasUnsaved,
-    leaving:
-      blocker.status === "blocked" ? { onLeave: blocker.proceed, onStay: blocker.reset } : null,
     switching,
     onSwitch: flip,
     onSettingsChange: changeSettings,

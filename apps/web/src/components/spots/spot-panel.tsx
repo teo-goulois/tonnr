@@ -1,12 +1,12 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { answerLeaving, leaveWith } from "@/lib/unsaved";
 import { m } from "@/paraglide/messages.js";
 
 import { AlertEditor } from "../alerts/alert-editor";
-import { type Written, leaveFor } from "../alerts/alert-words";
+import { type Written, isOpenAlert } from "../alerts/alert-words";
 import { SpotAlerts } from "../alerts/spot-alerts";
 import { tideAhead } from "../alerts/tide-band";
 import type { Alerting } from "../alerts/types";
@@ -66,23 +66,7 @@ export function SpotPanel({
     alertAsked.count > 0 && alertAsked.alertId ? { key: 0, alertId: alertAsked.alertId } : null,
   );
   const written = useRef(0);
-  // Whether the editor holds something that leaving it would lose, as it says, and where the
-  // panel was asked to go while it does.
-  const unsaved = useRef(false);
-  const [leavingFor, setLeavingFor] = useState<{ to: Written | null } | null>(null);
-  const tellUnsaved = alerting.onUnsaved;
-  const onUnsaved = useCallback(
-    (hasUnsaved: boolean) => {
-      unsaved.current = hasUnsaved;
-      // The route is told too: it is what is asked to leave the spot.
-      tellUnsaved(hasUnsaved);
-      // Once what was written is saved, there is nothing left to ask about.
-      if (!hasUnsaved) setLeavingFor(null);
-    },
-    [tellUnsaved],
-  );
   const go = (to: Written | null) => {
-    setLeavingFor(null);
     if (to) {
       written.current += 1;
       setWriting({ ...to, key: written.current });
@@ -91,23 +75,15 @@ export function SpotPanel({
     }
   };
   // Writes something else, or goes back to the list: at once when nothing would be lost, and
-  // after a second word otherwise. The alert that is open stays as it is when it is asked for.
+  // once its user has said so otherwise. The alert that is open stays as it is when it is the
+  // one asked for, and a question that was asked about leaving it no longer stands.
   const leave = (to: Written | null) => {
     setTab("alert");
-    const what = leaveFor(writing, to, unsaved.current);
-    if (what === "go") go(to);
-    // The alert that is open was asked for again: an older question no longer stands.
-    setLeavingFor(what === "ask" ? { to } : null);
+    if (isOpenAlert(writing, to)) answerLeaving("stay");
+    else leaveWith(() => go(to));
   };
   const leaver = useRef(leave);
   leaver.current = leave;
-  // What asks to leave the spot itself waits for the same answer.
-  const routeLeaving = alerting.leaving;
-  const stay = (open: boolean) => {
-    if (open) return;
-    setLeavingFor(null);
-    routeLeaving?.onStay();
-  };
   const asked = useRef(alertAsked.count);
   useEffect(() => {
     // Asked again since the panel opened: what it opened on is already there.
@@ -230,69 +206,46 @@ export function SpotPanel({
           // before its settings are: they say whether it is asked about mail, with that alert.
           (alerting.alerts.data && (own.length > 0 || alerting.settings.data) ? (
             shown ? (
-              <>
-                {/* Asked over whatever is open: what asks to leave may be another panel. */}
-                <Dialog open={leavingFor !== null || routeLeaving !== null} onOpenChange={stay}>
-                  <DialogPopup className="w-full max-w-sm gap-l p-l">
-                    <div className="grid gap-xs">
-                      <DialogTitle>{m.alert_leave_title()}</DialogTitle>
-                      <DialogDescription>{m.alert_leave_unsaved()}</DialogDescription>
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-xs">
-                      <Button variant="ghost" onClick={() => stay(false)}>
-                        {m.alert_stay()}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => (leavingFor ? go(leavingFor.to) : routeLeaving?.onLeave())}
-                      >
-                        {m.alert_leave()}
-                      </Button>
-                    </div>
-                  </DialogPopup>
-                </Dialog>
-                <AlertEditor
-                  key={shown.key}
-                  now={now}
-                  spot={found}
-                  spots={spots}
-                  alert={alert}
-                  initial={shown.initial}
-                  tide={tide}
-                  zone={alerting.settings.data?.zone ?? undefined}
-                  preview={alerting.preview}
-                  onTry={alerting.onTry}
-                  isSaving={alerting.isSaving}
-                  // Asked once, as an alert is made, of an account that never answered, on an
-                  // instance that sends mail.
-                  asksMail={
-                    !alert &&
-                    alerting.settings.data?.byMail === null &&
-                    alerting.settings.data.mail !== "off"
-                  }
-                  mailWaits={alerting.settings.data?.mail === "unchecked"}
-                  onSave={(draft, changed, byMail) => {
-                    const { key } = shown;
-                    return alerting.onSave(alert, draft, changed, byMail).then((saved) => {
-                      // A new alert that is saved is the one that is written from then on, unless
-                      // the panel has moved on to something else meanwhile.
-                      if (saved && !alert) {
-                        setWriting((current) =>
-                          current?.key === key ? { key, alertId: saved.id } : current,
-                        );
-                      }
-                      return saved;
-                    });
-                  }}
-                  isDeleting={alerting.isDeleting}
-                  onDelete={alerting.onDelete}
-                  onCopy={(draft) =>
-                    leave({ initial: { ...draft, name: m.alert_copy_name({ name: draft.name }) } })
-                  }
-                  onClose={() => leave(null)}
-                  onUnsaved={onUnsaved}
-                />
-              </>
+              <AlertEditor
+                key={shown.key}
+                now={now}
+                spot={found}
+                spots={spots}
+                alert={alert}
+                initial={shown.initial}
+                tide={tide}
+                zone={alerting.settings.data?.zone ?? undefined}
+                preview={alerting.preview}
+                onTry={alerting.onTry}
+                isSaving={alerting.isSaving}
+                // Asked once, as an alert is made, of an account that never answered, on an
+                // instance that sends mail.
+                asksMail={
+                  !alert &&
+                  alerting.settings.data?.byMail === null &&
+                  alerting.settings.data.mail !== "off"
+                }
+                mailWaits={alerting.settings.data?.mail === "unchecked"}
+                onSave={(draft, changed, byMail) => {
+                  const { key } = shown;
+                  return alerting.onSave(alert, draft, changed, byMail).then((saved) => {
+                    // A new alert that is saved is the one that is written from then on, unless
+                    // the panel has moved on to something else meanwhile.
+                    if (saved && !alert) {
+                      setWriting((current) =>
+                        current?.key === key ? { key, alertId: saved.id } : current,
+                      );
+                    }
+                    return saved;
+                  });
+                }}
+                isDeleting={alerting.isDeleting}
+                onDelete={alerting.onDelete}
+                onCopy={(draft) =>
+                  leave({ initial: { ...draft, name: m.alert_copy_name({ name: draft.name }) } })
+                }
+                onClose={() => leave(null)}
+              />
             ) : (
               <SpotAlerts
                 spot={found}

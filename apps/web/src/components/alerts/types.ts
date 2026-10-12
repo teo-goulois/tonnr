@@ -25,13 +25,6 @@ export type Alerting = {
   ) => Promise<Alert | undefined>;
   isDeleting: boolean;
   onDelete: (alert: Alert) => void;
-  // The editor of an alert says whether it holds something that leaving its spot would lose,
-  // and whoever is about to leave asks.
-  onUnsaved: (hasUnsaved: boolean) => void;
-  hasUnsaved: () => boolean;
-  // Set while something asks to leave the spot whose alert is being written and not saved: the
-  // panel closed, another selection, another page. It waits for one of the two answers.
-  leaving: { onLeave: () => void; onStay: () => void } | null;
   // The alerts whose switch is being saved.
   switching: string[];
   onSwitch: (alert: Alert, enabled: boolean) => void;

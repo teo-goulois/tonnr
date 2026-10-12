@@ -327,18 +327,24 @@ export function leftAfterSave(changed: Partial<AlertDraft>, sent: Partial<AlertD
 export type Drafting = { changed: Partial<AlertDraft>; sending: Partial<AlertDraft> | null };
 export const NOTHING_DRAFTED: Drafting = { changed: {}, sending: null };
 
-// What was changed without the parts that say what the alert says. The same object when every
-// part still differs.
-function differing(changed: Partial<AlertDraft>, saved: AlertDraft) {
-  const still = changedParts(changed, saved);
-  return Object.keys(still).length === Object.keys(changed).length ? changed : still;
+// What was changed without the parts that say what the alert says, which follow the alert
+// again. A part that the save on its way sent is kept whatever it says: what was sent may be
+// something else, and the part is held against that save's answer. The same object when
+// nothing is let go of.
+function differing(drafting: Drafting, changed: Partial<AlertDraft>, saved: AlertDraft) {
+  const kept = (Object.keys(changed) as (keyof AlertDraft)[]).filter(
+    (key) =>
+      changed[key] !== undefined &&
+      (drafting.sending?.[key] !== undefined || !samePart(key, changed[key]!, saved[key])),
+  );
+  if (kept.length === Object.keys(changed).length) return changed;
+  return Object.fromEntries(kept.map((key) => [key, changed[key]])) as Partial<AlertDraft>;
 }
 
 /**
  * A part is set. Put back to what the alert says, it is no longer a change: left there, it
- * would hide what the alert becomes elsewhere, and be sent with the next save. Unless a save is
- * on its way: what that save sent may be something else, and what is set now is kept to be
- * held against its answer.
+ * would hide what the alert becomes elsewhere, and be sent with the next save. Unless the save
+ * that is on its way sent that very part.
  */
 export function setPart<Key extends keyof AlertDraft>(
   drafting: Drafting,
@@ -346,19 +352,23 @@ export function setPart<Key extends keyof AlertDraft>(
   key: Key,
   value: AlertDraft[Key],
 ): Drafting {
-  const changed = { ...drafting.changed, [key]: value };
-  return { ...drafting, changed: drafting.sending ? changed : differing(changed, saved) };
+  return {
+    ...drafting,
+    changed: differing(drafting, { ...drafting.changed, [key]: value }, saved),
+  };
+}
+
+/** The parts that differ from the alert as it is saved: what the next save sends. */
+export function partsToSave(drafting: Drafting, saved: AlertDraft) {
+  return changedParts(drafting.changed, saved);
 }
 
 /**
- * The parts that would be lost were the editor left now: those that differ from the alert as
- * it is saved, or as it will be once the save that is on its way has answered.
+ * Whether leaving the editor now would lose something: a part that differs from the alert as
+ * it is saved, or a save that has not answered. What was sent is not saved until it is.
  */
-export function unsavedParts(drafting: Drafting, saved: AlertDraft) {
-  return changedParts(
-    drafting.changed,
-    drafting.sending ? { ...saved, ...drafting.sending } : saved,
-  );
+export function isUnsaved(drafting: Drafting, saved: AlertDraft) {
+  return drafting.sending !== null || Object.keys(partsToSave(drafting, saved)).length > 0;
 }
 
 /**
@@ -377,11 +387,10 @@ export function afterAnswer(
 
 /**
  * The alert was read again. A part that says what the alert now says is no longer a change,
- * unless a save is on its way: until it answers, nothing that was written is let go of.
+ * unless the save that is on its way sent it: until that save answers, the part is kept.
  */
 export function afterRead(drafting: Drafting, saved: AlertDraft): Drafting {
-  if (drafting.sending) return drafting;
-  const changed = differing(drafting.changed, saved);
+  const changed = differing(drafting, drafting.changed, saved);
   return changed === drafting.changed ? drafting : { ...drafting, changed };
 }
 
@@ -399,12 +408,9 @@ export function withoutGone(changed: Partial<AlertDraft>, isKnown: (spotId: stri
 export type Written = { alertId?: string; initial?: AlertDraft };
 
 /**
- * What becomes of a request to write something else in a spot's panel, or to go back to its
- * list (`null`): nothing when the alert asked for is the one that is open, a question when
- * something was written that would be lost, and otherwise the way there.
+ * Whether what a spot's panel is asked to write is the alert that is open in it: that alert
+ * then stays as it is, with what is written of it.
  */
-export function leaveFor(open: Written | null, asked: Written | null, hasUnsaved: boolean) {
-  // No editor is open: there is nothing to leave.
-  if (open && asked?.alertId !== undefined && asked.alertId === open.alertId) return "stay";
-  return open && hasUnsaved ? "ask" : "go";
+export function isOpenAlert(open: Written | null, asked: Written | null) {
+  return open !== null && asked?.alertId !== undefined && asked.alertId === open.alertId;
 }

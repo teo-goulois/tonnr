@@ -15,6 +15,7 @@ import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 import { formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import { holdUnsaved } from "@/lib/unsaved";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../viewer/bearing";
@@ -34,13 +35,14 @@ import {
   afterAnswer,
   afterRead,
   isSetRange,
+  isUnsaved,
   loosened,
+  partsToSave,
   rangeAfter,
   rangeWords,
   setPart,
   sliderEnds,
   thumbsOf,
-  unsavedParts,
   withoutGone,
 } from "./alert-words";
 import { AlertTideChart } from "./alert-tide-chart";
@@ -104,8 +106,6 @@ type AlertEditorProps = {
   onCopy: (draft: AlertDraft) => void;
   // Asks to go back to the spot's alerts.
   onClose: () => void;
-  // Says whether something is written here that leaving would lose.
-  onUnsaved: (hasUnsaved: boolean) => void;
 };
 
 /**
@@ -176,7 +176,6 @@ export function AlertEditor({
   onDelete,
   onCopy,
   onClose,
-  onUnsaved,
 }: AlertEditorProps) {
   const id = useId();
   // The wind is written in the unit its reader chose: the editor is drawn again when it changes.
@@ -379,16 +378,17 @@ export function AlertEditor({
   // The spots that may share the alert: the user's others, whatever alerts they are in.
   const neighbours = spots.filter((one) => one.id !== spot.id);
   const isFull = draft.spotIds.length >= SPOTS_MOST;
-  const parts = unsavedParts(drafting, saved);
+  const parts = partsToSave(drafting, saved);
   const isDirty = !alert || Object.keys(parts).length > 0;
   // Saving and deleting take turns: neither is asked while the other is on its way.
   const isBusy = isSaving || isDeleting;
   const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isBusy;
-  // Something was written here that leaving would lose, whether or not it can be saved yet.
-  // The panel is told, since it is the panel that leaves.
-  const hasUnsaved = Object.keys(parts).length > 0;
-  useEffect(() => onUnsaved(hasUnsaved), [hasUnsaved, onUnsaved]);
-  useEffect(() => () => onUnsaved(false), [onUnsaved]);
+  // Something is written here that leaving would lose: a part that was changed, a save that
+  // has not answered, or a new alert that asks something already, as a copy does before it is
+  // touched. Whatever is about to leave asks `lib/unsaved`.
+  const isHeld = isUnsaved(drafting, saved) || (!alert && asksSomething);
+  useEffect(() => holdUnsaved(isHeld), [isHeld]);
+  useEffect(() => () => holdUnsaved(false), []);
 
   return (
     <form

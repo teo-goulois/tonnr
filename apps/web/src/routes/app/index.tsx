@@ -876,6 +876,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     orpc.v1.spots.update.mutationOptions({
       onSuccess: (updated) => {
         keepSpot(updated);
+        // A spot that moved has another sea: what an alert was tried at there is tried again.
+        void queryClient.invalidateQueries({ queryKey: orpc.v1.alerts.preview.key() });
         toast.success(m.spot_changed({ name: updated.name }));
       },
       onError: (error) => toast.error(error.message),

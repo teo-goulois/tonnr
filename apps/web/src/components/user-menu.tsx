@@ -14,6 +14,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
 import { useUnits } from "@/lib/units";
+import { leaveWith } from "@/lib/unsaved";
 import { m } from "@/paraglide/messages.js";
 
 import { openUnitsSettings, unitsInALine } from "./shared/units-settings";
@@ -59,16 +60,21 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
         )}
         <MenuItem
           onClick={() =>
-            void authClient.signOut({
-              fetchOptions: {
-                // What was loaded for the account must not outlive the session, and the
-                // product's pages take one: the visitor goes back to the landing page.
-                onSuccess: () => {
-                  queryClient.clear();
-                  void navigate({ to: "/" });
-                },
-              },
-            })
+            // Something written and not saved is asked about before the session ends: once it
+            // has, there is no staying.
+            leaveWith(
+              () =>
+                void authClient.signOut({
+                  fetchOptions: {
+                    // What was loaded for the account must not outlive the session, and the
+                    // product's pages take one: the visitor goes back to the landing page.
+                    onSuccess: () => {
+                      queryClient.clear();
+                      void navigate({ to: "/" });
+                    },
+                  },
+                }),
+            )
           }
         >
           <LogOutIcon aria-hidden />

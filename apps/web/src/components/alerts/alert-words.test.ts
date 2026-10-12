@@ -8,15 +8,16 @@ import {
   afterAnswer,
   afterRead,
   conditionsKey,
-  leaveFor,
+  isOpenAlert,
+  isUnsaved,
   leftAfterSave,
   loosened,
+  partsToSave,
   rangeAfter,
   samePart,
   setPart,
   sliderEnds,
   thumbsOf,
-  unsavedParts,
   withoutGone,
 } from "./alert-words";
 
@@ -247,7 +248,7 @@ describe("what an editor holds of an alert between two saves", () => {
     // of its name sends its name alone.
     const elsewhere = { ...saved, enabled: false };
     const named = setPart(afterRead(on, elsewhere), elsewhere, "name", "Dawn");
-    expect(unsavedParts(named, elsewhere)).toEqual({ name: "Dawn" });
+    expect(partsToSave(named, elsewhere)).toEqual({ name: "Dawn" });
   });
 
   it("lets go of a part once the alert says the same elsewhere", () => {
@@ -264,13 +265,13 @@ describe("what an editor holds of an alert between two saves", () => {
     const two = setPart(one, saved, "shortestMinutes", 120);
     expect(two.changed).toEqual({ shortestMinutes: 120 });
     // It would be lost by leaving: the save will have stored one hour.
-    expect(unsavedParts(two, saved)).toEqual({ shortestMinutes: 120 });
+    expect(isUnsaved(two, saved)).toBe(true);
     // The alert is read again as it still is, by a refresh that has nothing to do with it.
     expect(afterRead(two, { ...saved })).toBe(two);
 
     const answered = afterAnswer(two, sent, { ...saved, shortestMinutes: 60 });
     expect(answered).toEqual({ changed: { shortestMinutes: 120 }, sending: null });
-    expect(unsavedParts(answered, { ...saved, shortestMinutes: 60 })).toEqual({
+    expect(partsToSave(answered, { ...saved, shortestMinutes: 60 })).toEqual({
       shortestMinutes: 120,
     });
   });
@@ -287,14 +288,32 @@ describe("what an editor holds of an alert between two saves", () => {
     expect(answered).toEqual({ changed: { enabled: true }, sending: null });
   });
 
-  it("lets go of a part that says what the alert answered with, though no save sent it", () => {
-    // Two hours are put back while the name is on its way: the alert still asks two.
+  it("lets go at once of a part put back while a save of another part is on its way", () => {
+    // The name is on its way. The switch is put off and on again: it is no longer a change,
+    // whatever the name's save does. Switched off elsewhere, the alert is off here, and the
+    // answer leaves nothing to send.
     const sent = { name: "Dawn" };
     const named = sending(setPart(NOTHING_DRAFTED, saved, "name", "Dawn"), sent);
-    const back = setPart(named, saved, "shortestMinutes", 120);
-    expect(back.changed).toEqual({ name: "Dawn", shortestMinutes: 120 });
+    const off = setPart(named, saved, "enabled", false);
+    const on = setPart(off, saved, "enabled", true);
+    expect(on.changed).toEqual({ name: "Dawn" });
 
-    expect(afterAnswer(back, sent, { ...saved, name: "Dawn" })).toEqual(NOTHING_DRAFTED);
+    const elsewhere = { ...saved, enabled: false, name: "Dawn" };
+    const answered = afterAnswer(afterRead(on, { ...saved, enabled: false }), sent, elsewhere);
+    expect(answered).toEqual(NOTHING_DRAFTED);
+  });
+
+  it("lets go of a part that says what the alert answered with, though no save sent it", () => {
+    // Switched off here while the name is on its way, and switched off elsewhere meanwhile:
+    // the answer comes with the alert off, as it was set here.
+    const sent = { name: "Dawn" };
+    const named = sending(setPart(NOTHING_DRAFTED, saved, "name", "Dawn"), sent);
+    const off = setPart(named, saved, "enabled", false);
+    expect(off.changed).toEqual({ name: "Dawn", enabled: false });
+
+    expect(afterAnswer(off, sent, { ...saved, name: "Dawn", enabled: false })).toEqual(
+      NOTHING_DRAFTED,
+    );
   });
 
   it("holds nothing once a save has answered with all that was written", () => {
@@ -303,8 +322,12 @@ describe("what an editor holds of an alert between two saves", () => {
       setPart(setPart(NOTHING_DRAFTED, saved, "name", "Dawn"), saved, "shortestMinutes", 60),
       sent,
     );
-    expect(unsavedParts(written, saved)).toEqual({});
-    expect(afterAnswer(written, sent, { ...saved, ...sent })).toEqual(NOTHING_DRAFTED);
+    // Until the save has answered, what it sent is not saved: leaving would lose it were the
+    // save to fail.
+    expect(isUnsaved(written, saved)).toBe(true);
+    const done = afterAnswer(written, sent, { ...saved, ...sent });
+    expect(done).toEqual(NOTHING_DRAFTED);
+    expect(isUnsaved(done, { ...saved, ...sent })).toBe(false);
   });
 
   it("keeps everything when the save failed", () => {
@@ -313,15 +336,14 @@ describe("what an editor holds of an alert between two saves", () => {
 
     const failed = afterAnswer(written, sent, undefined);
     expect(failed).toEqual({ changed: { name: "Dawn" }, sending: null });
-    expect(unsavedParts(failed, saved)).toEqual({ name: "Dawn" });
+    expect(partsToSave(failed, saved)).toEqual({ name: "Dawn" });
+    expect(isUnsaved(failed, saved)).toBe(true);
   });
 
   it("counts a name written on a new alert that asks nothing yet", () => {
     const fresh: AlertDraft = { ...saved, name: "North", criteria: {} };
-    expect(unsavedParts(NOTHING_DRAFTED, fresh)).toEqual({});
-    expect(unsavedParts(setPart(NOTHING_DRAFTED, fresh, "name", "Dawn"), fresh)).toEqual({
-      name: "Dawn",
-    });
+    expect(isUnsaved(NOTHING_DRAFTED, fresh)).toBe(false);
+    expect(isUnsaved(setPart(NOTHING_DRAFTED, fresh, "name", "Dawn"), fresh)).toBe(true);
   });
 
   it("follows a new alert once it is saved whole, and keeps what was written meanwhile", () => {
@@ -355,23 +377,18 @@ describe("what was changed, once a neighbour is gone", () => {
   });
 });
 
-describe("a request to write something else in a spot's panel", () => {
-  it("goes there at once when nothing is open, or nothing would be lost", () => {
-    expect(leaveFor(null, { alertId: "bay" }, false)).toBe("go");
-    expect(leaveFor({ alertId: "bay" }, { alertId: "big" }, false)).toBe("go");
-    expect(leaveFor({ alertId: "bay" }, null, false)).toBe("go");
+describe("what a spot's panel is asked to write", () => {
+  it("is the alert that is open when it names that alert", () => {
+    expect(isOpenAlert({ alertId: "bay" }, { alertId: "bay" })).toBe(true);
   });
 
-  it("asks first when something was written that would be lost", () => {
-    expect(leaveFor({ alertId: "bay" }, { alertId: "big" }, true)).toBe("ask");
-    expect(leaveFor({ alertId: "bay" }, null, true)).toBe("ask");
-    // A copy takes the place of what it is made from, and of a new alert that is not saved.
-    expect(leaveFor({ alertId: "bay" }, { initial: {} as AlertDraft }, true)).toBe("ask");
-    expect(leaveFor({}, {}, true)).toBe("ask");
-  });
-
-  it("leaves the alert that is open as it is when that alert is asked for", () => {
-    expect(leaveFor({ alertId: "bay" }, { alertId: "bay" }, true)).toBe("stay");
-    expect(leaveFor({ alertId: "bay" }, { alertId: "bay" }, false)).toBe("stay");
+  it("is something else for another alert, a new one, a copy, or the list", () => {
+    expect(isOpenAlert({ alertId: "bay" }, { alertId: "big" })).toBe(false);
+    expect(isOpenAlert({ alertId: "bay" }, {})).toBe(false);
+    expect(isOpenAlert({ alertId: "bay" }, { initial: {} as AlertDraft })).toBe(false);
+    expect(isOpenAlert({ alertId: "bay" }, null)).toBe(false);
+    // A new alert that is being written is not the one a second new alert asks for.
+    expect(isOpenAlert({}, {})).toBe(false);
+    expect(isOpenAlert(null, { alertId: "bay" })).toBe(false);
   });
 });

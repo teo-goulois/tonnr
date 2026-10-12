@@ -1,4 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { LeaveDialog } from "@/components/alerts/leave-dialog";
+import { hasUnsaved } from "@/lib/unsaved";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import {
@@ -355,6 +357,8 @@ function useShown(isOpen: boolean, current: Selection) {
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
 // No alert was asked for at the spot that is drawn: the same value at every render.
 const NO_ALERT_ASKED = { count: 0 };
+// A panel that holds something written and not saved stays open while that is asked about.
+const mayDismissSelection = () => !hasUnsaved();
 
 export function Viewer({
   now,
@@ -608,8 +612,6 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
-  const hasUnsavedAlert = alerting.hasUnsaved;
-  const mayLeaveAlert = useCallback(() => !hasUnsavedAlert(), [hasUnsavedAlert]);
   // The alert that was last asked for from the list of alerts, the spot it is opened at, and
   // how many times one was.
   const [alertAsked, setAlertAsked] = useState<{
@@ -975,7 +977,7 @@ export function Viewer({
         onSnapChange={setSheetShare}
         onRest={rest.onRest}
         // An alert that is written and not saved keeps its panel open until it is answered for.
-        mayDismiss={mayLeaveAlert}
+        mayDismiss={mayDismissSelection}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
           shown.spotId ? (
@@ -1244,7 +1246,12 @@ export function Viewer({
           {...accountPrompt}
           onRead={onReadNotification}
           onOpenAlert={(alert) => {
-            const [first] = alert.spotIds;
+            // At the spot that is open when the alert is set on it, where it may be being
+            // written already, and otherwise at the first of its spots.
+            const first =
+              selectedSpotId !== undefined && alert.spotIds.includes(selectedSpotId)
+                ? selectedSpotId
+                : alert.spotIds[0];
             if (!first) return;
             setAlertAsked((asked) => ({
               spotId: first,
@@ -1258,6 +1265,7 @@ export function Viewer({
           onSettingsChange={alerting.onSettingsChange}
         />
       </ViewerDrawer>
+      <LeaveDialog />
     </div>
   );
 }
