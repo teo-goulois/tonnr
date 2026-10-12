@@ -40,6 +40,22 @@ export const accountSuspension = pgTable("account_suspension", {
 });
 
 /**
+ * The instance closed to the visitors of its web app, who have no account: while the row is
+ * there, the API answers none of them and the web app asks for an account. An operator writes
+ * it and deletes it, and `operator_action` says who. An instance answers its visitors until
+ * one does. Decision 039 gives the rules.
+ */
+export const visitorClosure = pgTable(
+  "visitor_closure",
+  {
+    // The instance has one door, and the table one row at most.
+    id: text("id").primaryKey().default("instance"),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check("visitor_closure_one_row", sql`${table.id} = 'instance'`)],
+);
+
+/**
  * Whoever consumes the API with keys: a person, a team or a program, as the operator names it.
  * The operator creates it and makes its keys. It is not an account that signs in: it has no
  * password and no session. Decision 020 gives the rules.
@@ -135,8 +151,9 @@ export const developerCalls = pgTable(
 );
 
 // Who a count belongs to: a key, the accounts that called with a session, all together, the
-// readers of the lists shared by a link, all together too, or no one the instance knows.
-export const USAGE_VIA = ["key", "session", "link", "none"] as const;
+// readers of the lists shared by a link, all together too, the visitors of the web app, who
+// have no account, all together as well, or no one the instance knows.
+export const USAGE_VIA = ["key", "session", "link", "visitor", "none"] as const;
 // What came of a call. Decision 020 says which answer gets which word.
 export const USAGE_OUTCOMES = ["answered", "invalid", "refused", "limited", "failed"] as const;
 
@@ -184,6 +201,8 @@ export const OPERATOR_ACTIONS = [
   "account.resume",
   "spot.publish",
   "spot.refuse",
+  "visitors.close",
+  "visitors.open",
 ] as const;
 
 /**

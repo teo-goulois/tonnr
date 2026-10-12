@@ -23,6 +23,7 @@ const VIA: Record<string, () => string> = {
   key: m.via_key,
   session: m.via_session,
   link: m.via_link,
+  visitor: m.via_visitor,
   none: m.via_none,
 };
 

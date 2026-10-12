@@ -1,6 +1,6 @@
 # 035. A list shared by a link
 
-Status: accepted on 2026-10-12. Téo asked for it that day: from the lists, "share a list: it makes a link one sends to friends", who then "have a map with only the spots, buoys and so on that the list holds", and a password one may put on it. Asked whether a friend needs an account, he answered: "no, the link is enough, but with the possibility for the friend to create an account and see the shared list among their lists."
+Status: accepted on 2026-10-12. Téo asked for it that day: from the lists, "share a list: it makes a link one sends to friends", who then "have a map with only the spots, buoys and so on that the list holds", and a password one may put on it. Asked whether a friend needs an account, he answered: "no, the link is enough, but with the possibility for the friend to create an account and see the shared list among their lists." Amended the same day by [decision 039](039-visitors.md): `/app` takes a visitor with no link either, and a link still opens its list while the instance is closed to visitors.
 
 ## Context
 

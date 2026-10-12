@@ -236,7 +236,7 @@ The version before deletes a spot without holding its alert first. Next to the n
 
 ## Accounts, the operator, and API keys
 
-The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. Anyone else gets 401, the health check and the reference aside. Decisions 019 and 020 give the rules.
+The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. It also answers your web app for a visitor who has no account, until you close the instance to them: see "Visitors of the web app" below. Anyone else gets 401, the health check and the reference aside. Decisions 019, 020 and 039 give the rules.
 
 Anyone who can reach the API can create an account with an email address and a password. Tonnr does not check the address yet. An account reads the data everyone shares and keeps its own spots and lists.
 
@@ -284,7 +284,7 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - A developer account's limit is a number of calls in an hour of the clock, UTC's, shared by its keys. A call over it gets 429, with `Retry-After`. Leave `callsPerHour` out for no limit. An account calls with its session without a limit.
 - `GET /v1/usage/series` and `GET /v1/usage/breakdown` give the calls by hour or by day, by developer account, by key and by procedure. The API keeps no address and no record of a call: it counts them, writes the counts every thirty seconds, and deletes them after thirteen months. A key's counts show when its developer account calls and what it asks for.
 - `GET /v1/developers/<id>/members` lists the accounts that may read a developer account, `POST` to it with `{"accountId": "<account id>"}` adds one, and `DELETE /v1/developers/<id>/members/<account id>` takes one out. A member signs in and reads, at `GET /v1/console` and under `/v1/console/usage`, the account's limit, its keys by name and their calls. It never reads a key, your contact or your note, and changes nothing. Name the account you know to be theirs, by the identifier they give you: an address proves nothing of who holds an account, checked or not. Decision 027 gives the rules.
-- `GET /v1/actions` lists what the operators did to the developer accounts, their members and the keys: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
+- `GET /v1/actions` lists what the operators did to the developer accounts, their members, the keys and the accounts, and when they closed the instance to visitors or opened it: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
 - `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
 - `GET /v1/accounts/{id}` gives one account: whether it is suspended, and how many sessions it has open. `DELETE /v1/accounts/{id}/sessions` closes its sessions, which is what to do with your own when a device is lost. `PATCH /v1/accounts/{id}` with `{"suspended": true}` closes them and keeps the account from signing in, until the same call with `false`. What a suspended account owns stays, and what it shared stays visible. An operator is not suspended: take its rights away first. Decision 025 gives the rules.
 - `GET /v1/instance` gives the state of the instance: whether a worker runs, what each of its jobs last did and when it last worked, each provider's stations, when the API started and which addresses it holds, the size of the database, the requests sent to the forecast provider this day, this hour and this minute against what the instance lets itself send, and the mails counted today. A job is late when none of its runs started for the time its schedule leaves between two, and a tenth of it more, ten minutes at least. What failed is given as a kind: the worker's log has the error itself. Decision 022 gives the rules.
@@ -311,6 +311,18 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 - Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
 - Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
 - Its page "Moderation" lists the spots that accounts ask to make public (decision 034). Nobody answers them without an operator: on an instance that has none, a request waits. Accepting publishes a spot's name, its point and what its owner says of it in your catalogue, under the ODbL. The terms of use that accounts agree to are the web app's page `/terms`: it is a first text, and what your instance promises is yours to write there.
+
+## Visitors of the web app
+
+Anyone opens your web app without an account and reads the map: the buoys, the breaks of the catalogue, the forecasts and the tides. Saving a spot, a list or an alert takes an account. Decision 039 gives the rules.
+
+- The API knows a visitor by where the request says it comes from: `CORS_ORIGIN`, in `Origin`. A browser writes that header itself. A program can write it too, and then reads what a visitor reads: use a key for a program of yours, which is counted and limited.
+- A visitor spends your forecast budget as an account does. The page "Instance" of the admin app shows the requests sent today, and the page of the counts shows the calls under "Visitors of the web app".
+- When too many come, close the instance to visitors from the page "Instance", or from its command palette. The web app then asks whoever has no account to sign in or to create one. Accounts, keys and shared lists work as before. The same button opens it again.
+- Without the admin app, an operator does it with their session: `curl --cookie session.txt -X PUT -H 'Content-Type: application/json' -H 'Origin: https://api.example.org' -d '{"open":false}' https://api.example.org/v1/visitors`. `Origin` is your `ADMIN_ORIGIN`, or the API's own address on an instance that names none.
+- `GET /v1/visitors` says whether the instance answers visitors, to anyone.
+- It takes effect at once, with no restart. An instance answers visitors until you close it, and stays as you left it across restarts and updates.
+- Update the API before the web app: a web app of this version in front of an older API shows its visitors a map that loads nothing.
 
 ## Checking addresses by mail
 

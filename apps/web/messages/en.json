@@ -95,6 +95,8 @@
   "auth_password_too_short": "Use at least 8 characters.",
   "auth_failed": "That did not work. Try again.",
   "auth_suspended": "This account is suspended.",
+  "wall_title": "A lot of people are here right now",
+  "wall_text": "Sign in or create your account to open {name}.",
   "verify_not_checked": "Address not checked",
   "verify_send_again": "Send the mail again",
   "verify_expect": "You should get a mail at {email}: its link checks your address. If none comes, ask again from the account menu.",

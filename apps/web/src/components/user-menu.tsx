@@ -66,8 +66,8 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
               () =>
                 void authClient.signOut({
                   fetchOptions: {
-                    // What was loaded for the account must not outlive the session, and the
-                    // product's pages take one: the visitor goes back to the landing page.
+                    // What was loaded for the account must not outlive the session: whoever
+                    // signs out goes back to the landing page.
                     onSuccess: () => {
                       queryClient.clear();
                       // Whatever was unsaved was asked about before the session ended.

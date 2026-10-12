@@ -7,7 +7,8 @@ import { routeTree } from "./routeTree.gen";
 import { createQueryClient, orpc } from "./utils/orpc";
 
 export const getRouter = () => {
-  const queryClient = createQueryClient();
+  // The product's route asks again who it takes, and shows what it asks for: decision 039.
+  const queryClient = createQueryClient({ onClosedToVisitors: () => void router.invalidate() });
 
   const router = createTanStackRouter({
     routeTree,

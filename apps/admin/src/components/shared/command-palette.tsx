@@ -160,6 +160,16 @@ export function CommandPalette() {
           hotkey: bindings["new-developer"],
           run: () => void navigate({ to: "/developers", search: { new: true } }),
         },
+        {
+          value: `${m.visitors_close_command()} visitors wall login busy demand`,
+          label: m.visitors_close_command(),
+          run: () => void navigate({ to: "/instance", search: { visitors: "close" } }),
+        },
+        {
+          value: `${m.visitors_open_command()} visitors wall login everyone`,
+          label: m.visitors_open_command(),
+          run: () => void navigate({ to: "/instance", search: { visitors: "open" } }),
+        },
       ],
     },
     {

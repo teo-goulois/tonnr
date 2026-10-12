@@ -95,6 +95,8 @@
   "auth_password_too_short": "Utilise au moins 8 caractères.",
   "auth_failed": "Ça n'a pas marché. Réessaie.",
   "auth_suspended": "Ce compte est suspendu.",
+  "wall_title": "Beaucoup de demande en ce moment",
+  "wall_text": "Connecte-toi ou crée ton compte pour accéder à {name}.",
   "verify_not_checked": "Adresse non vérifiée",
   "verify_send_again": "Renvoyer le mail",
   "verify_expect": "Tu devrais recevoir un mail à {email} : son lien vérifie ton adresse. S’il n’arrive pas, redemande-le depuis le menu du compte.",

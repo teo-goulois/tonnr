@@ -3,7 +3,14 @@ import type { Session } from "@repo/auth";
 import { testForecasts } from "@repo/conditions/forecasts/testing";
 
 import { testPlaces, testVerification } from "./testing";
-import { apiKey, developer, operator } from "@repo/db/schema/access";
+import {
+  apiKey,
+  apiUsage,
+  developer,
+  operator,
+  operatorAction,
+  visitorClosure,
+} from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { workerProcess } from "@repo/db/schema/instance";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
@@ -44,15 +51,19 @@ const everyName = everyProcedure.map(([name]) => name);
 // The procedures a key may call: the data everyone shares. Each is named, so that a new
 // procedure answers a key only once someone adds it here on purpose.
 // The procedures that answer anyone: the two health checks, what the link of an alert mail
-// does, which carries a key of its own (decision 031), and what opens the link of a shared
-// list, which is its own key too (decision 035).
+// does, which carries a key of its own (decision 031), what opens the link of a shared list,
+// which is its own key too (decision 035), and what says whether the instance answers the
+// visitors of its web app (decision 039).
 const ANSWERS_ANYONE = [
   "healthCheck",
   "v1.instance.health",
   "v1.alerts.mailOff",
   "v1.alerts.mailOffPage",
   "v1.shared.open",
+  "v1.visitors.get",
 ];
+// A visitor of the web app, who has no account, is answered by the same ones, while the
+// instance is open to visitors.
 const ANSWERS_A_KEY = [
   "v1.breaks.get",
   "v1.breaks.list",
@@ -156,6 +167,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     await db.delete(developer);
     // Their spots, keys and operator rows go with the accounts.
     await db.delete(user);
+    // An instance answers the visitors of its web app until an operator closes it to them.
+    await db.delete(visitorClosure);
+    await db.delete(operatorAction);
     await db.insert(user).values([
       { id: "owner", name: "Owner", email: "owner@example.org" },
       { id: "second", name: "Second", email: "second@example.org" },
@@ -196,6 +210,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
   const byKey = (key: string) => ({ context: context({ authorization: `Bearer ${key}` }) });
   // Made when a test runs: the database is not there before.
   const anonymous = () => ({ context: context() });
+  // A request that names no one, from the site it says it comes from: the web app's is a
+  // visitor's.
+  const fromSite = (site: string | null) => ({ context: context({ site }) });
+  const openToVisitors = (open: boolean, by = "owner") =>
+    call(v1Router.visitors.update, { open }, bySession(by));
 
   const makeDeveloper = (name = "a developer", callsPerHour: number | null = null) =>
     call(v1Router.developers.create, { name, callsPerHour }, bySession("owner"));
@@ -358,6 +377,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.publications.refuse",
         "v1.usage.series",
         "v1.usage.breakdown",
+        "v1.visitors.update",
       ]);
     });
 
@@ -401,6 +421,117 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       expect(await database.db.select().from(apiKey)).toEqual([]);
       expect(await database.db.select().from(developer)).toMatchObject([
         { id: made.id, suspendedAt: null },
+      ]);
+    });
+  });
+
+  describe("a visitor of the web app, who has no account", () => {
+    // The map's procedure takes no input, so calling it would ask the forecast provider.
+    it.each(
+      everyProcedure.filter(([name]) => ANSWERS_A_KEY.includes(name) && !name.includes("maps")),
+    )("gets past the door of %s", async (_, procedure) => {
+      const outcome = await call(procedure, undefined as never, fromSite(WEB)).then(
+        () => "answered",
+        (error: { code?: string }) => error.code,
+      );
+      expect(["answered", "BAD_REQUEST"]).toContain(outcome);
+    });
+
+    it.each(takesASession)("is refused %s, which takes a session", async (_, procedure) => {
+      await expect(call(procedure, undefined as never, fromSite(WEB))).rejects.toEqual(
+        refusal("UNAUTHORIZED"),
+      );
+    });
+
+    it("is whoever comes from the web app, and from no other site", async () => {
+      expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
+
+      // `null` in words is what a page without an origin of its own sends.
+      for (const site of [ADMIN, "https://elsewhere.example", "null", `${WEB}.example`, null]) {
+        const refused = await stations(fromSite(site)).catch((error: unknown) => error);
+        expect(refused).toMatchObject({ code: "UNAUTHORIZED" });
+        // The instance is open: nothing says that an account would be let in where they are not.
+        expect(refused).not.toHaveProperty("data.visitors");
+      }
+    });
+
+    it("is answered no more once an operator closes the instance, and is told why", async () => {
+      expect(await call(v1Router.visitors.get, undefined, fromSite(WEB))).toEqual({ open: true });
+
+      expect(await openToVisitors(false)).toEqual({ open: false, closedAt: expect.any(Date) });
+
+      await expect(stations(fromSite(WEB))).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        data: { visitors: "closed" },
+      });
+      // Asked from anywhere, with no name: the web app asks before it draws the map.
+      for (const site of [WEB, null]) {
+        expect(await call(v1Router.visitors.get, undefined, fromSite(site))).toEqual({
+          open: false,
+        });
+      }
+    });
+
+    it("leaves an account, a key and a shared list's reader as they were", async () => {
+      const { key } = await makeKey();
+      await openToVisitors(false);
+
+      expect(await stations(bySession("visitor", WEB))).toEqual({ stations: [] });
+      expect(await stations(byKey(key))).toEqual({ stations: [] });
+    });
+
+    it("is answered again once the instance is opened", async () => {
+      await openToVisitors(false);
+
+      expect(await openToVisitors(true, "second")).toEqual({ open: true, closedAt: null });
+      expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
+    });
+
+    it("records who closed the instance and who opened it, once for each change", async () => {
+      await openToVisitors(true);
+      await openToVisitors(false);
+      const { closedAt } = await openToVisitors(false, "second");
+      await openToVisitors(true, "second");
+      await openToVisitors(true);
+
+      const done = await database.db.select().from(operatorAction).orderBy(operatorAction.at);
+      expect(done.map((action) => [action.action, action.operatorId])).toEqual([
+        ["visitors.close", "owner"],
+        ["visitors.open", "second"],
+      ]);
+      // Closed twice, it is closed since the first time.
+      expect(closedAt).toEqual(done[0]?.at);
+    });
+
+    it("tells the operator since when the instance is closed", async () => {
+      const before = await call(v1Router.instance.state, undefined, bySession("owner"));
+      expect(before.visitors).toEqual({ closedAt: null });
+
+      const { closedAt } = await openToVisitors(false);
+      const after = await call(v1Router.instance.state, undefined, bySession("owner"));
+      expect(after.visitors).toEqual({ closedAt });
+    });
+
+    it("is counted apart from a request that comes from nowhere", async () => {
+      await usage.flush();
+      await database.db.delete(apiUsage);
+
+      await stations(fromSite(WEB));
+      await openToVisitors(false);
+      await stations(fromSite(WEB)).catch(() => {});
+      await stations(fromSite(null)).catch(() => {});
+      await usage.flush();
+
+      const counted = await database.db.select().from(apiUsage);
+      expect(
+        counted
+          .filter((row) => row.procedure === "v1.stations.list")
+          .map(({ via, outcome, calls }) => ({ via, outcome, calls }))
+          .sort((a, b) => `${a.via}${a.outcome}`.localeCompare(`${b.via}${b.outcome}`)),
+      ).toEqual([
+        { via: "none", outcome: "refused", calls: 1 },
+        { via: "visitor", outcome: "answered", calls: 1 },
+        { via: "visitor", outcome: "refused", calls: 1 },
       ]);
     });
   });

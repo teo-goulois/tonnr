@@ -4,7 +4,14 @@ import { createAuth } from "@repo/auth";
 import { suspensionHooks } from "@repo/auth/suspension";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { createEmailVerificationToken } from "better-auth/api";
-import { accountSuspension, apiKey, apiUsage, developer, operator } from "@repo/db/schema/access";
+import {
+  accountSuspension,
+  apiKey,
+  apiUsage,
+  developer,
+  operator,
+  visitorClosure,
+} from "@repo/db/schema/access";
 import { alertSettings } from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
 import { stationList } from "@repo/db/schema/lists";
@@ -99,6 +106,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     await database.db.delete(apiUsage);
     await database.db.delete(developer);
     await database.db.delete(user);
+    // An instance answers the visitors of its web app until an operator closes it to them.
+    await database.db.delete(visitorClosure);
   });
 
   function send(method: string, path: string, by: By = {}, to = app) {
@@ -1221,6 +1230,62 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect(left).toBeGreaterThan(0);
       expect(left).toBeLessThanOrEqual(3600);
       expect(await refused.json()).toMatchObject({ json: { code: "TOO_MANY_REQUESTS" } });
+    });
+  });
+
+  describe("a visitor of the web app", () => {
+    it("reads what everyone shares with no account, from the web app and from nowhere else", async () => {
+      const read = await send("GET", "/v1/stations", { origin: APP });
+      expect([read.status, read.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      const called = await send("POST", "/rpc/v1/stations/list", {
+        origin: APP,
+        body: { json: {} },
+      });
+      expect(called.status).toBe(200);
+      // A page of the web app that names itself by its address.
+      expect((await send("GET", "/v1/stations", { referer: `${APP}/app` })).status).toBe(200);
+
+      for (const origin of [undefined, ELSEWHERE, ADMIN, API, "null"]) {
+        expect((await send("GET", "/v1/stations", { origin })).status).toBe(401);
+      }
+      // Nothing of an account, which a visitor has not.
+      expect((await send("GET", "/v1/spots", { origin: APP })).status).toBe(401);
+      expect((await send("GET", "/v1/account", { origin: APP })).status).toBe(401);
+    });
+
+    it("is asked for an account once an operator closes the instance, and told so on both transports", async () => {
+      const cookie = await signUpOperator();
+      expect(await bodyOf(await send("GET", "/v1/visitors"))).toEqual({ open: true });
+
+      // The instance is closed from the admin's site, and from no page of the web app.
+      const close = { cookie, body: { open: false } };
+      expect((await send("PUT", "/v1/visitors", { ...close, origin: APP })).status).toBe(403);
+      expect((await send("GET", "/v1/stations", { origin: APP })).status).toBe(200);
+      expect((await send("PUT", "/v1/visitors", { ...close, origin: ADMIN })).status).toBe(200);
+
+      const refusal = { code: "UNAUTHORIZED", data: { visitors: "closed" } };
+      const read = await send("GET", "/v1/stations", { origin: APP });
+      expect([read.status, await bodyOf(read)]).toMatchObject([401, refusal]);
+      const called = await send("POST", "/rpc/v1/stations/list", {
+        origin: APP,
+        body: { json: {} },
+      });
+      expect([called.status, await bodyOf(called)]).toMatchObject([401, { json: refusal }]);
+      expect(await bodyOf(await send("GET", "/v1/visitors", { origin: APP }))).toEqual({
+        open: false,
+      });
+
+      // An account reads as before, and whoever comes from elsewhere is told nothing more.
+      expect((await send("GET", "/v1/stations", { cookie, origin: APP })).status).toBe(200);
+      const elsewhere = await bodyOf<{ data?: unknown }>(await send("GET", "/v1/stations"));
+      expect(elsewhere.data).toBeUndefined();
+
+      const open = { cookie, origin: ADMIN, body: { open: true } };
+      expect(await bodyOf(await send("PUT", "/v1/visitors", open))).toEqual({
+        open: true,
+        closedAt: null,
+      });
+      expect((await send("GET", "/v1/stations", { origin: APP })).status).toBe(200);
     });
   });
 

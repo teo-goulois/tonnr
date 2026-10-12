@@ -104,7 +104,9 @@ export function createApp({
               "Every call names its caller: an account, by the session cookie it gets when it " +
               "signs in, or a program, by an API key. A key reads the data everyone shares. " +
               "What belongs to an account takes that account's session, and each such route " +
-              "says so.",
+              "says so. The instance's web app also reads the data everyone shares for a " +
+              "visitor who has no account, while the instance is open to them: " +
+              "`GET /visitors` says whether it is.",
           },
           components: {
             securitySchemes: {

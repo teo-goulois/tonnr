@@ -1,4 +1,5 @@
 import { Badge } from "@repo/ui/components/ui/badge";
+import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
   Table,
@@ -11,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 
 import { CallsMeter } from "@/components/shared/calls-meter";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { InstanceState, Job } from "@/lib/api";
 import { formatAgo, formatBytes, formatCount, formatDuration } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -37,6 +39,12 @@ type InstancePageProps = {
   // Undefined while it loads.
   state: InstanceState | undefined;
   now: number;
+  // The dialog that is asked for: the one that closes the app to visitors, or the one that
+  // opens it to them. It shows only while the instance does the other.
+  askingVisitors: "close" | "open" | undefined;
+  onAskingVisitorsChange: (asking: "close" | "open" | undefined) => void;
+  // Closes the instance to the visitors of its web app, or opens it. Rejects when it fails.
+  onVisitorsChange: (open: boolean) => Promise<unknown>;
 };
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -144,17 +152,53 @@ function WorkerFact({ workers, now }: { workers: Worker[]; now: number }) {
   );
 }
 
-/** The state of the instance: its programs, what each job of the worker last did, its data. */
-export function InstancePage({ state, now }: InstancePageProps) {
+/**
+ * The state of the instance: its programs, what each job of the worker last did, its data, and
+ * whether it answers the visitors of its web app, which an operator changes here.
+ */
+export function InstancePage({
+  state,
+  now,
+  askingVisitors,
+  onAskingVisitorsChange,
+  onVisitorsChange,
+}: InstancePageProps) {
   // An API of the version before this page's says nothing of forecasts: the admin and the API
   // are not deployed together, and the section waits rather than fail.
   const forecasts = state?.forecasts as InstanceState["forecasts"] | undefined;
   const mail = state?.mail as InstanceState["mail"] | undefined;
+  const visitors = state?.visitors as InstanceState["visitors"] | undefined;
+  const isOpen = visitors?.closedAt === null;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
 
       <dl className="grid gap-x-l gap-y-m sm:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]">
+        <Fact label={m.instance_visitors()}>
+          {!visitors ? (
+            <Skeleton className="h-6 w-40" />
+          ) : (
+            <span className="grid justify-items-start gap-xs">
+              <span className="flex flex-wrap items-center gap-xs">
+                <Badge variant={isOpen ? "success" : "warning"}>
+                  {isOpen ? m.visitors_open() : m.visitors_closed()}
+                </Badge>
+                <span className="text-s text-neutral-7">
+                  {visitors.closedAt
+                    ? m.visitors_closed_note({ ago: formatAgo(visitors.closedAt, now) })
+                    : m.visitors_open_note()}
+                </span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAskingVisitorsChange(isOpen ? "close" : "open")}
+              >
+                {isOpen ? m.visitors_close() : m.visitors_reopen()}
+              </Button>
+            </span>
+          )}
+        </Fact>
         <Fact label={m.instance_worker()}>
           {state ? (
             <WorkerFact workers={state.workers} now={now} />
@@ -384,6 +428,26 @@ export function InstancePage({ state, now }: InstancePageProps) {
           </Table>
         </section>
       )}
+
+      {/* One dialog for each way, so that neither changes its words while it closes: the
+          instance does the other by then. */}
+      <ConfirmDialog
+        open={askingVisitors === "close" && visitors?.closedAt === null}
+        onOpenChange={(open) => onAskingVisitorsChange(open ? "close" : undefined)}
+        title={m.visitors_close_title()}
+        body={m.visitors_close_body()}
+        confirmLabel={m.visitors_close()}
+        onConfirm={() => onVisitorsChange(false)}
+      />
+      <ConfirmDialog
+        open={askingVisitors === "open" && visitors != null && visitors.closedAt !== null}
+        onOpenChange={(open) => onAskingVisitorsChange(open ? "open" : undefined)}
+        title={m.visitors_open_title()}
+        body={m.visitors_open_body()}
+        confirmLabel={m.visitors_reopen()}
+        variant="default"
+        onConfirm={() => onVisitorsChange(true)}
+      />
     </>
   );
 }

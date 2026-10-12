@@ -14,8 +14,9 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - A user keeps buoys, wind stations, surf breaks and their own spots as favorites and sorts them into lists. Decision 017 gives the model.
 - A user shares a list by a link, with a password if they wish. Whoever has the link sees the map with that list alone, their private spots in it too, and needs no account. Decision 035 gives the rules.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
-- An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, or a program with a key that the operator gave it.
-- Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, and the accounts that signed up. Decision 020 covers it.
+- Anyone opens the map without an account: the buoys, the breaks, the forecasts and the tides. An account is for what a user keeps: spots, lists and alerts. Whoever runs the instance may close the map to visitors while demand is strong: they are then asked to sign in or to create an account. Decision 039 gives the rules.
+- An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, a program with a key that the operator gave it, or the web app for a visitor.
+- Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, the accounts that signed up, and whether the map is open to visitors. Decision 020 covers it.
 
 Tonnr lives at `tonnr.app`. Decision 013 records the name.
 

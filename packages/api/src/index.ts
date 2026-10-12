@@ -8,6 +8,7 @@ import { admitKey, type KeyState, readAuthorization } from "./keys";
 import { procedureName } from "./procedures";
 import { admitLink } from "./shares";
 import { outcomeOf } from "./usage";
+import { isFromWebApp, visitorsClosed, visitorsClosedAt } from "./visitors";
 
 export const o = os.$context<Context>();
 
@@ -16,13 +17,15 @@ export const publicProcedure = o;
 
 /**
  * Who a request names, before anything is asked of it: a key the instance knows, an account by
- * its session, the link of a shared list, or no one. `key` then says whether it named a key or
- * a link all the same: such a request is refused, and never passed over to look for a session.
+ * its session, the link of a shared list, or no one. A request that names no one and comes from
+ * the web app is a visitor's. Of any other, `key` says whether it named a key or a link all the
+ * same: such a request is refused, and never passed over to look for a session.
  */
 type Named =
   | { via: "key"; keyId: string; state: KeyState }
   | { via: "session"; userId: string }
   | { via: "link"; listId: string }
+  | { via: "visitor" }
   | { via: "none"; key: boolean };
 
 async function nameOf(context: Context): Promise<Named> {
@@ -38,17 +41,21 @@ async function nameOf(context: Context): Promise<Named> {
   }
 
   const userId = context.session?.user.id;
-  return userId ? { via: "session", userId } : { via: "none", key: false };
+  if (userId) return { via: "session", userId };
+  return isFromWebApp(context.site, context.server.webOrigin)
+    ? { via: "visitor" }
+    : { via: "none", key: false };
 }
 
 /**
- * Who calls: an account, known by its session, a program, known by its key, or whoever was
- * given the link of a shared list.
+ * Who calls: an account, known by its session, a program, known by its key, whoever was given
+ * the link of a shared list, or a visitor of the web app, who has no account.
  */
 export type Caller =
   | { via: "session"; userId: string }
   | { via: "key"; keyId: string }
-  | { via: "link"; listId: string };
+  | { via: "link"; listId: string }
+  | { via: "visitor" };
 
 /**
  * Finds out who a request names, refuses a key that does not work or has used its hour's limit,
@@ -97,8 +104,9 @@ const knownProcedure = publicProcedure.use(async ({ context, next, procedure }) 
 });
 
 /**
- * Answers anyone, and counts the call: for what a link in a mail does, which carries a key of
- * its own and comes with no session. Decision 031 names the one thing that is built on it.
+ * Answers anyone, and counts the call: for what a link does, in a mail or to a shared list,
+ * which carries a key of its own and comes with no session, and for what tells a visitor
+ * whether the instance answers them. Decisions 031, 035 and 039 name what is built on it.
  */
 export const linkProcedure = knownProcedure.route({
   // The reference says that such a route asks for neither a key nor a session.
@@ -107,19 +115,26 @@ export const linkProcedure = knownProcedure.route({
 
 /**
  * Answers a caller the instance knows: an account by its session, a program by an API key, or
- * whoever was given the link of a shared list. For the data everyone shares. `context.caller`
- * says which of them is calling.
+ * whoever was given the link of a shared list. It answers a visitor of the web app as well,
+ * who has no account, until an operator closes the instance to them: decision 039. For the data
+ * everyone shares. `context.caller` says which of them is calling.
  */
-export const callerProcedure = knownProcedure.use(({ context, next }) => {
+export const callerProcedure = knownProcedure.use(async ({ context, next }) => {
   const { named } = context;
   if (named.via === "none") throw new ORPCError("UNAUTHORIZED");
+  // Read at each call of a visitor, so that the instance is closed for all of them at once.
+  if (named.via === "visitor" && (await visitorsClosedAt(context.db)) !== null) {
+    throw visitorsClosed();
+  }
 
   const caller: Caller =
     named.via === "key"
       ? { via: "key", keyId: named.keyId }
       : named.via === "link"
         ? { via: "link", listId: named.listId }
-        : { via: "session", userId: named.userId };
+        : named.via === "visitor"
+          ? { via: "visitor" }
+          : { via: "session", userId: named.userId };
   return next({ context: { caller } });
 });
 
@@ -137,6 +152,7 @@ export const protectedProcedure = knownProcedure
         message: "A list's link reads its list and shared data. This takes a signed-in session.",
       });
     }
+    // A visitor has no session either, whether or not the instance answers visitors.
     if (context.named.via === "none" || !context.session?.user) {
       throw new ORPCError("UNAUTHORIZED");
     }

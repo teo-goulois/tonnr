@@ -53,12 +53,14 @@ export const actionsRouter = {
     .route({
       method: "GET",
       path: "/actions",
-      summary: "What the operators did to the developer accounts, the keys and the accounts",
+      summary:
+        "What the operators did to the developer accounts, the keys, the accounts and the instance",
       description:
         `${ADMIN_ONLY} The latest first. Each change made through the API is recorded with ` +
         "it: creating, changing, suspending, resuming and deleting a developer account, adding " +
         "a member to it and taking one out, making and revoking a key, closing an account's " +
-        "sessions, suspending an account and letting it in again. A record of a member names " +
+        "sessions, suspending an account and letting it in again, closing the instance to the " +
+        "visitors of its web app and opening it again. A record of a member names " +
         "the developer account and the account. A key is named and never shown. The commands " +
         "run on the server are not recorded: whoever runs them is no account. A record is kept " +
         "thirteen months. Pages follow one another through `after`.",

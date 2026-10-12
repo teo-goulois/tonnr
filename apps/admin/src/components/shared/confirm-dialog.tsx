@@ -11,17 +11,20 @@ type ConfirmDialogProps = {
   // What the action does that cannot be taken back.
   body: string;
   confirmLabel: string;
+  // Left out for what cannot be undone, or takes something away. `default` for what gives.
+  variant?: "destructive" | "default";
   // Does it. The dialog closes when it succeeds, and stays open when it fails.
   onConfirm: () => Promise<unknown>;
 };
 
-/** Asks before something that cannot be undone. */
+/** Asks before something that cannot be undone, or that everyone sees at once. */
 export function ConfirmDialog({
   open,
   onOpenChange,
   title,
   body,
   confirmLabel,
+  variant = "destructive",
   onConfirm,
 }: ConfirmDialogProps) {
   const [isPending, setPending] = useState(false);
@@ -38,7 +41,7 @@ export function ConfirmDialog({
             {m.cancel()}
           </Button>
           <Button
-            variant="destructive"
+            variant={variant}
             isPending={isPending}
             onClick={() => {
               setPending(true);

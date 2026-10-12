@@ -86,6 +86,10 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_suspended()];
     case "account.resume":
       return [m.action_account_resumed()];
+    case "visitors.close":
+      return [m.action_visitors_closed()];
+    case "visitors.open":
+      return [m.action_visitors_opened()];
     // An API of a later version records what this admin has no words for yet.
     default:
       return [m.action_unknown({ action: action.action })];
@@ -95,11 +99,18 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
 const linked = "focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline";
 
 /**
- * What an action was done to: a developer account, or an account, each a link while it exists.
- * A record of a member names both: the developer account is here, and the sentence names the
- * account.
+ * What an action was done to: a developer account, or an account, each a link while it exists,
+ * or the instance itself. A record of a member names both: the developer account is here, and
+ * the sentence names the account.
  */
 function Subject({ action, existing }: { action: OperatorAction; existing: ReadonlySet<string> }) {
+  if (action.action.startsWith("visitors.")) {
+    return (
+      <Link to="/instance" className={linked}>
+        {m.nav_instance()}
+      </Link>
+    );
+  }
   if (action.accountId !== null && action.developerId === null) {
     // The record keeps an account's identifier alone: its name is the one it has now.
     return action.accountName === null ? (

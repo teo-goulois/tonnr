@@ -16,6 +16,7 @@ import { z } from "zod";
 import type { Database } from "@repo/db";
 
 import { adminProcedure, publicProcedure } from "../index";
+import { visitorsClosedAt } from "../visitors";
 
 const ADMIN_ONLY =
   "Takes the signed-in session of an operator of the instance, in a request that names the " +
@@ -253,6 +254,9 @@ export const instanceRouter = {
           }),
         ),
         database: z.object({ sizeBytes: z.number() }),
+        // Since when the instance answers no visitor of its web app. Null while it answers
+        // them: decision 039.
+        visitors: z.object({ closedAt: z.date().nullable() }),
         // The mail the API sends: through what, and how many mails it counted today, in UTC,
         // against what it lets out in a day. A mail is counted before it leaves, and stays
         // counted when it did not. `via` is null on an instance that sends none.
@@ -280,7 +284,7 @@ export const instanceRouter = {
     .handler(async ({ context }) => {
       const { db } = context;
 
-      const [workers, jobs, providers, sized, cells, calls, mails] = await Promise.all([
+      const [workers, jobs, providers, sized, cells, calls, mails, closedAt] = await Promise.all([
         db
           .select()
           .from(workerProcess)
@@ -314,6 +318,7 @@ export const instanceRouter = {
         countForecastCells(db),
         currentCalls(db, FORECAST_PROVIDER),
         currentCalls(db, MAIL_PROVIDER),
+        visitorsClosedAt(db),
       ]);
 
       const at = new Date(Number(sized.rows[0]?.at));
@@ -336,6 +341,7 @@ export const instanceRouter = {
         jobs: jobs.map((row) => describeJob(row, at)),
         providers,
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
+        visitors: { closedAt },
         mail: {
           via: context.verification.via,
           today: mails.get("day") ?? 0,

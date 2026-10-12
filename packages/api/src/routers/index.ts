@@ -23,11 +23,12 @@ import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
 import { tidesRouter } from "./tides";
 import { usageRouter } from "./usage";
+import { visitorsRouter } from "./visitors";
 
 // The API, version 1. Once released it only grows: a breaking change goes in a new version.
 // Every procedure asks who calls: decision 019 says which take a key and which a session,
-// decision 020 which take the admin's site as well, and decision 027 which take a member of a
-// developer account.
+// decision 020 which take the admin's site as well, decision 027 which take a member of a
+// developer account, and decision 039 which answer a visitor of the web app.
 export const v1Router = {
   account: accountRouter,
   accounts: accountsRouter,
@@ -49,6 +50,7 @@ export const v1Router = {
   stations: stationsRouter,
   tides: tidesRouter,
   usage: usageRouter,
+  visitors: visitorsRouter,
 };
 
 export const appRouter = {
