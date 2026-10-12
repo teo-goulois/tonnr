@@ -200,7 +200,9 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
           }
 
           // What the look saw takes the place of what was known of the spot.
-          await tx.delete(alertWindow).where(eq(alertWindow.spotId, place.id));
+          await tx
+            .delete(alertWindow)
+            .where(and(eq(alertWindow.alertId, row.id), eq(alertWindow.spotId, place.id)));
           if (plan.windows.length > 0) {
             await tx.insert(alertWindow).values(
               plan.windows.map((window) => ({
@@ -230,7 +232,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
               forecastFetchedAt: fetchedAt,
               ...(mailed === kept.mailed ? {} : { mailed }),
             })
-            .where(eq(alertSpot.spotId, place.id));
+            .where(and(eq(alertSpot.alertId, row.id), eq(alertSpot.spotId, place.id)));
 
           for (const told of plan.tell) {
             lines[told.moment].push(lineOf(told, place, hours, fetchedAt));

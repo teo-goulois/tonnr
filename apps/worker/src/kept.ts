@@ -106,10 +106,20 @@ export async function watchedOf(
     alertIds.length === 0
       ? []
       : await tx.select().from(alertWindow).where(inArray(alertWindow.alertId, alertIds));
-  const bySpot = Map.groupBy(windows, (window) => window.spotId);
-  return links.map((one) => ({ ...one, windows: bySpot.get(one.place.id) ?? [] }));
+  // A spot may be in several alerts: its windows are those of the alert the link is of.
+  const byLink = Map.groupBy(windows, (window) => linkKey(window.alertId, window.spotId));
+  return links.map((one) => ({
+    ...one,
+    windows: byLink.get(linkKey(one.alert.id, one.place.id)) ?? [],
+  }));
 }
 export type Link = Awaited<ReturnType<typeof watchedOf>>[number];
+
+/** What names a spot of an alert among those of other alerts: a spot may be in several. */
+export const linkKey = (alertId: string, spotId: string) => `${alertId}:${spotId}`;
+
+/** The spots of each alert, alert by alert, in the order they were read. */
+export const byAlert = (links: Link[]) => [...Map.groupBy(links, (one) => one.alert.id).values()];
 
 /** A spot of an alert as the rules of the moments read it. */
 export const watched = (one: Link, now: Date): Watched => ({
@@ -123,7 +133,10 @@ export const watched = (one: Link, now: Date): Watched => ({
   begun: running(one.link.begun, now).map(interval),
 });
 
-/** The hours of a sea window an account can use, by its settings and its alert's. */
+/**
+ * The hours of a sea window an account can use, by its settings and its alert's, at the spots
+ * of one alert: the shortest window is the alert's, and a spot is named once.
+ */
 export function openOf(links: Link[], availability: Availability) {
   const of = new Map(links.map((one) => [one.place.id, one]));
   return (spotId: string, sea: Interval) => {

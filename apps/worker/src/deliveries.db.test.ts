@@ -673,6 +673,87 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     });
   });
 
+  describe("of a spot that is in two alerts", () => {
+    beforeEach(async () => {
+      await database.db.insert(alert).values({
+        id: "big",
+        userId: "owner",
+        name: "Big days",
+        criteria: { swellHeightMeters: { min: 2 } },
+      });
+      await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
+      // Small on Saturday morning, big in its afternoon.
+      kept.provider.swell = (seconds) => {
+        const hour = (seconds * 1000 - SATURDAY) / HOUR_MS;
+        return hour >= 8 && hour < 12 ? 1.2 : hour >= 14 && hour < 18 ? 2.5 : 0.2;
+      };
+    });
+    const mailOf = (subject: string) => post.sent().find((mail) => mail.subject === subject);
+    const hour = (at: number) => new Date(SATURDAY + at * HOUR_MS).toISOString();
+
+    it("leave apart, each under its alert's name with its hours, and each keeps what it told", async () => {
+      await found();
+
+      expect(await pass()).toMatchObject({ mails: 2, failed: 0 });
+      const small = mailOf("The bay: a window is taking shape");
+      const big = mailOf("Big days: a window is taking shape");
+      expect(small?.text).toContain("Sat 10 Oct, 08:00 to 12:00");
+      expect(small?.text).toContain("Sat 10 Oct, 14:00 to 18:00");
+      expect(big?.text).toContain("Sat 10 Oct, 14:00 to 18:00");
+      expect(big?.text).not.toContain("08:00 to 12:00");
+
+      const links = await database.db.select().from(alertSpot).orderBy(alertSpot.alertId);
+      expect(links.map((row) => [row.alertId, row.mailed.map((piece) => piece.start)])).toEqual([
+        ["bay", [hour(8), hour(14)]],
+        ["big", [hour(14)]],
+      ]);
+      // Nothing is left to say: what one told is not news to the other.
+      expect(await pass()).toMatchObject({ mails: 0 });
+      expect(post.sent()).toHaveLength(2);
+    });
+
+    it("say that hours went under the alert that lost them, and nothing under the other", async () => {
+      await found();
+      await pass();
+      // The big days go: the small ones stay as they were.
+      kept.provider.swell = swellBetween(8, 12);
+      await next();
+      await next();
+
+      expect(await pass()).toMatchObject({ mails: 2 });
+      expect(
+        post
+          .sent()
+          .slice(2)
+          .map((mail) => mail.subject)
+          .sort(),
+      ).toEqual([
+        "Big days: the window is no longer forecast",
+        "The bay: the window is no longer forecast",
+      ]);
+      const links = await database.db.select().from(alertSpot).orderBy(alertSpot.alertId);
+      expect(links.map((row) => [row.alertId, row.mailed.map((piece) => piece.start)])).toEqual([
+        ["bay", [hour(8)]],
+        ["big", []],
+      ]);
+    });
+
+    it("list it under each alert in the evening's mail, with that alert's hours", async () => {
+      await settings({ onFound: false, onEvening: true, eveningMinutes: 20 * 60 });
+      await found();
+      await next();
+      await next();
+      vi.setSystemTime(new Date("2026-10-09T20:00:00Z"));
+
+      expect(await pass()).toMatchObject({ evenings: 1, mails: 1 });
+      const text = post.sent()[0]?.text ?? "";
+      expect(text).toContain(
+        "Home (The bay)\n  Sat 10 Oct, 08:00 to 12:00\n  Sat 10 Oct, 14:00 to 18:00\n",
+      );
+      expect(text).toContain("Home (Big days)\n  Sat 10 Oct, 14:00 to 18:00\n");
+    });
+  });
+
   describe("the evening before", () => {
     // Friday, 20:00, for an account that is told then: the last look was at 17:20.
     const evening = async (more: Parameters<typeof settings>[0] = {}) => {

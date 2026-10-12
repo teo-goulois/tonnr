@@ -210,13 +210,24 @@ const finish = (tx: Transaction, ids: string[], now: Date) =>
       ),
     );
 
-// Writes what a mail told to the spots, and settles what it said in the place of.
-async function tell(tx: Transaction, claim: DeliveryClaim, now: Date) {
-  for (const [spotId, mailed] of Object.entries(claim.mailed ?? {})) {
-    await tx.update(alertSpot).set({ mailed }).where(eq(alertSpot.spotId, spotId));
+// A spot of an alert: a spot may be in several, and each keeps what it was told there.
+const linkOf = (alertId: string, spotId: string) =>
+  and(eq(alertSpot.alertId, alertId), eq(alertSpot.spotId, spotId));
+
+// Writes what a mail told to the spots of its alert, and settles what it said in the place of.
+// An evening's mail tells nothing to a spot: it has no alert of its own.
+async function tell(tx: Transaction, alertId: string | null, claim: DeliveryClaim, now: Date) {
+  for (const [spotId, mailed] of alertId ? Object.entries(claim.mailed ?? {}) : []) {
+    await tx
+      .update(alertSpot)
+      .set({ mailed })
+      .where(linkOf(alertId ?? "", spotId));
   }
-  for (const [spotId, mailBegun] of Object.entries(claim.begun ?? {})) {
-    await tx.update(alertSpot).set({ mailBegun }).where(eq(alertSpot.spotId, spotId));
+  for (const [spotId, mailBegun] of alertId ? Object.entries(claim.begun ?? {}) : []) {
+    await tx
+      .update(alertSpot)
+      .set({ mailBegun })
+      .where(linkOf(alertId ?? "", spotId));
   }
   if (claim.merged?.length) await finish(tx, claim.merged, now);
 }
@@ -248,7 +259,7 @@ async function honour(tx: Transaction, alertId: string, now: Date) {
       isLeaving = true;
       continue;
     }
-    await tell(tx, claim, now);
+    await tell(tx, alertId, claim, now);
     await tx.update(notificationDelivery).set({ claim: null }).where(delivery(id, "sending"));
   }
   return isLeaving;
@@ -292,7 +303,7 @@ async function newsOf(tx: Transaction, links: Link[], settings: AlertSettings, n
     const mailed = plan.mailed.map(toldStretch);
     if (plan.tell.length === 0) {
       if (JSON.stringify(mailed) !== JSON.stringify(one.link.mailed)) {
-        await tx.update(alertSpot).set({ mailed }).where(eq(alertSpot.spotId, one.place.id));
+        await tx.update(alertSpot).set({ mailed }).where(linkOf(one.alert.id, one.place.id));
       }
       continue;
     }
@@ -429,17 +440,23 @@ function eveningOf(
   const { day } = made.payload;
   if (!day || !isEveningOf(day, settings, now)) return null;
   const whole = dayOf(day, zoneOf(settings));
-  const of = new Map(links.map((one) => [one.place.id, one]));
-  const open = openOf(links, availabilityOf(settings));
+  const availability = availabilityOf(settings);
   const said = saying("evening", null);
   for (const line of made.payload.lines) {
-    const one = of.get(line.spotId);
+    // The spot under the alert it was listed with: it may be in several. A line written before
+    // lines named their alert is of the spot's first.
+    const one = links.find(
+      (link) => link.place.id === line.spotId && (!line.alertId || line.alertId === link.alert.id),
+    );
     const fetchedAt = one?.link.forecastFetchedAt;
     // The spot left the alert it was listed under, or the account.
-    if (!one || !fetchedAt || (line.alertId && line.alertId !== one.alert.id)) continue;
-    const left = stillOpen(now, watched(one, now), open, line.open.map(interval)).filter((piece) =>
-      overlaps(piece, whole),
-    );
+    if (!one || !fetchedAt) continue;
+    const left = stillOpen(
+      now,
+      watched(one, now),
+      openOf([one], availability),
+      line.open.map(interval),
+    ).filter((piece) => overlaps(piece, whole));
     const [begins] = left;
     if (!begins) continue;
     said.lines.push({
@@ -753,7 +770,7 @@ export async function hand(db: Database, out: MailOut, notificationId: string, t
     if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) return giveUp("pending");
 
     const outcome = await out.mailer.send(taken.mail);
-    await tell(tx, mine.claim, now);
+    await tell(tx, taken.alertId, mine.claim, now);
     // What it has left to say stays on its way. A mail the provider did not take is not
     // tried again: it may have left all the same.
     await tx

@@ -117,10 +117,10 @@ async function spotIdsOf(db: Database | Transaction, alertIds: string[]) {
 }
 
 /**
- * Checks that spots may join an alert: each is the caller's, and in no other alert. The rows are
- * held until the transaction ends, so that a spot cannot be deleted or taken meanwhile.
+ * Checks that spots may join an alert: each is the caller's. A spot may be in other alerts. The
+ * rows are held until the transaction ends, so that a spot cannot be deleted meanwhile.
  */
-async function claimSpots(tx: Transaction, userId: string, spotIds: string[], alertId?: string) {
+async function claimSpots(tx: Transaction, userId: string, spotIds: string[]) {
   if (spotIds.length === 0) return;
   const owned = await tx
     .select({ id: spot.id })
@@ -131,17 +131,6 @@ async function claimSpots(tx: Transaction, userId: string, spotIds: string[], al
   const missing = spotIds.find((id) => !known.has(id));
   // Another account's spot is reported as missing, as it is everywhere.
   if (missing) throw new ORPCError("NOT_FOUND", { message: `No spot "${missing}".` });
-
-  const taken = await tx
-    .select({ spotId: alertSpot.spotId, alertId: alertSpot.alertId })
-    .from(alertSpot)
-    .where(inArray(alertSpot.spotId, spotIds));
-  const elsewhere = taken.find((row) => row.alertId !== alertId);
-  if (elsewhere) {
-    throw new ORPCError("CONFLICT", {
-      message: `Spot "${elsewhere.spotId}" is already in an alert. A spot is in one alert at most.`,
-    });
-  }
 }
 
 /**
@@ -157,7 +146,16 @@ export async function forgetSeen(tx: Transaction, alertId: string, spotId?: stri
     );
   await tx
     .update(alertSpot)
-    .set({ told: [], mailed: [], mailBegun: [], cutBy: null, begun: [], lookedAt: null })
+    .set({
+      told: [],
+      mailed: [],
+      mailBegun: [],
+      pushed: [],
+      pushBegun: [],
+      cutBy: null,
+      begun: [],
+      lookedAt: null,
+    })
     .where(and(eq(alertSpot.alertId, alertId), spotId ? eq(alertSpot.spotId, spotId) : undefined));
 }
 
@@ -312,7 +310,7 @@ export const alertsRouter = {
       summary: "Set an alert on one spot, or on several that work in the same conditions",
       description:
         "The conditions are checked at each of the spots, with that spot's own forecast and " +
-        "tide. A spot is in one alert at most: one that is in another is refused with 409.",
+        "tide. A spot may be in several alerts, each with its name and its conditions.",
       tags: ["Alerts"],
     })
     .input(
@@ -443,7 +441,7 @@ export const alertsRouter = {
         const after = spotIds ?? before;
         const added = after.filter((spotId) => !before.includes(spotId));
         const removed = before.filter((spotId) => !after.includes(spotId));
-        await claimSpots(tx, userId, added, id);
+        await claimSpots(tx, userId, added);
 
         // What a look reads has changed: one that is under way writes nothing.
         const asksOtherwise =

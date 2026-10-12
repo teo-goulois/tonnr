@@ -92,6 +92,69 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
   const settings = (changes: Partial<typeof alertSettings.$inferInsert>) =>
     database.db.update(alertSettings).set(changes).where(eq(alertSettings.userId, "owner"));
 
+  describe("of a spot that is in two alerts", () => {
+    beforeEach(async () => {
+      await database.db.insert(alert).values({
+        id: "big",
+        userId: "owner",
+        name: "Big days",
+        criteria: { swellHeightMeters: { min: 2 } },
+      });
+      await database.db.insert(alertSpot).values({ spotId: "home", alertId: "big", position: 0 });
+      // Small on Saturday morning, big in its afternoon.
+      kept.provider.swell = (seconds) => {
+        const hour = (seconds * 1000 - SATURDAY) / HOUR_MS;
+        return hour >= 8 && hour < 12 ? 1.2 : hour >= 14 && hour < 18 ? 2.5 : 0.2;
+      };
+    });
+
+    it("look at it for each, and tell each what its own conditions find", async () => {
+      expect(await run()).toEqual({ spots: 2, created: 0, failed: 0, stale: 0 });
+      expect(await next()).toMatchObject({ spots: 2, created: 2 });
+
+      const told = (await notifications()).map((row) => [
+        row.alertId,
+        row.payload.alertName,
+        row.payload.lines.flatMap((line) => line.open),
+      ]);
+      expect(told).toHaveLength(2);
+      expect(told).toEqual(
+        expect.arrayContaining([
+          ["bay", "The bay", [saturday(8, 12), saturday(14, 18)]],
+          ["big", "Big days", [saturday(14, 18)]],
+        ]),
+      );
+    });
+
+    it("keep for each what it saw and told there, whatever the other does", async () => {
+      await run();
+      await next();
+      // The big days go: the small ones stay as they were.
+      kept.provider.swell = swellBetween(8, 12);
+      await next();
+
+      const seen = await database.db
+        .select()
+        .from(alertWindow)
+        .orderBy(alertWindow.alertId, alertWindow.seaStart);
+      expect(seen.map((row) => [row.alertId, row.seaStart.toISOString(), row.seen])).toEqual([
+        ["bay", saturday(8, 12).start, 3],
+      ]);
+      const links = await database.db.select().from(alertSpot).orderBy(alertSpot.alertId);
+      expect(links.map((row) => [row.alertId, row.told])).toEqual([
+        // The afternoon was missed once by each: two looks call it off.
+        [
+          "bay",
+          [
+            { ...saturday(8, 12), missed: 0 },
+            { ...saturday(14, 18), missed: 1 },
+          ],
+        ],
+        ["big", [{ ...saturday(14, 18), missed: 1 }]],
+      ]);
+    });
+  });
+
   describe("of a window", () => {
     it("tell it once two in a row have found it, and once only", async () => {
       expect(await run()).toEqual({ spots: 1, created: 0, failed: 0, stale: 0 });

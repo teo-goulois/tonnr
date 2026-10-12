@@ -53,16 +53,17 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
     lookedAt: string,
     window = { start: "10T08:00", end: "10T12:00", seen: 2 },
     spotId = "home",
+    alertId = "bay",
   ) => {
     await database.db
       .insert(alertSpot)
-      .values({ spotId, alertId: "bay", position: 0, lookedAt: at(lookedAt) })
+      .values({ spotId, alertId, position: 0, lookedAt: at(lookedAt) })
       .onConflictDoUpdate({
         target: [alertSpot.spotId, alertSpot.alertId],
         set: { lookedAt: at(lookedAt) },
       });
     await database.db.insert(alertWindow).values({
-      alertId: "bay",
+      alertId,
       spotId,
       seaStart: at(window.start),
       seaEnd: at(window.end),
@@ -310,6 +311,52 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
 
       expect(result).toMatchObject({ begins: 0, failed: 0 });
       expect(await told()).toEqual([]);
+    });
+  });
+
+  describe("at a spot that is in two alerts", () => {
+    beforeEach(async () => {
+      await database.db.insert(alert).values({
+        id: "big",
+        userId: "owner",
+        name: "Big days",
+        criteria: { swellHeightMeters: { min: 2 } },
+      });
+    });
+
+    it("say that it is on for each, of the hours that are its own", async () => {
+      await seen("10T06:20", { start: "10T08:00", end: "10T10:00", seen: 2 });
+      await seen("10T06:20", { start: "10T12:00", end: "10T14:00", seen: 2 }, "home", "big");
+
+      expect(await run("10T08:00")).toMatchObject({ begins: 1 });
+      expect(await run("10T12:00")).toMatchObject({ begins: 1 });
+      expect(
+        (await told()).map((row) => [row.alertId, row.payload.lines.map((line) => line.open)]),
+      ).toEqual([
+        ["bay", [[stretch("10T08:00", "10T10:00")]]],
+        ["big", [[stretch("10T12:00", "10T14:00")]]],
+      ]);
+      // Each remembers what it said to begin, and nothing of the other's.
+      const links = await database.db.select().from(alertSpot).orderBy(alertSpot.alertId);
+      expect(links.map((row) => [row.alertId, row.begun])).toEqual([
+        ["bay", []],
+        ["big", [stretch("10T12:00", "10T14:00")]],
+      ]);
+    });
+
+    it("list it under each in the evening, with that alert's hours", async () => {
+      await settings({ zone: "Europe/Paris", eveningMinutes: 19 * 60 });
+      await seen("09T15:20");
+      await seen("09T15:20", { start: "10T10:00", end: "10T14:00", seen: 2 }, "home", "big");
+
+      expect(await run("09T17:00")).toMatchObject({ evenings: 1 });
+      const [said] = await told();
+      expect(
+        said?.payload.lines.map((line) => [line.spotId, line.alertId, line.alertName, line.open]),
+      ).toEqual([
+        ["home", "bay", "The bay", [stretch("10T08:00", "10T12:00")]],
+        ["home", "big", "Big days", [stretch("10T10:00", "10T14:00")]],
+      ]);
     });
   });
 

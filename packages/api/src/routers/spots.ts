@@ -57,9 +57,8 @@ const spotSchema = z.object({
   // The owner's latest request to make the spot public, and what was answered. Null for a spot
   // that was never asked to be: it is its owner's alone.
   publication: publicationSchema.nullable(),
-  // The alert the spot is in, for its owner. Null for a spot in none, and for anyone else:
-  // an alert is its owner's alone (decision 031).
-  alertId: z.string().nullable(),
+  // The alerts the spot is in, the oldest first. None for a spot in none (decision 031).
+  alertIds: z.array(z.string()),
   // Whether the caller owns the spot. The owner's identity is not exposed.
   isOwner: z.boolean(),
   createdAt: z.date(),
@@ -120,7 +119,7 @@ async function publicationsOf(db: Database | Transaction, spotIds: string[]) {
 function describeSpot(
   row: typeof spot.$inferSelect,
   userId: string | undefined,
-  alertId: string | null,
+  alertIds: string[],
   publication: Publication | undefined,
 ) {
   return {
@@ -131,7 +130,7 @@ function describeSpot(
     longitude: row.longitude,
     characteristics: describeCharacteristics(row.characteristics),
     publication: row.userId === userId ? describePublication(publication) : null,
-    alertId: row.userId === userId ? alertId : null,
+    alertIds: row.userId === userId ? alertIds : [],
     isOwner: row.userId === userId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -146,35 +145,61 @@ function notFound(id: string) {
 // What a transaction answers to be started over.
 const AGAIN = Symbol("again");
 
+// The alerts spots are in, the oldest first, by spot.
+async function alertsOf(
+  db: Database | Transaction,
+  where: { userId: string } | { spotId: string },
+) {
+  const rows = await db
+    .select({ spotId: alertSpot.spotId, alertId: alertSpot.alertId })
+    .from(alertSpot)
+    .innerJoin(alert, eq(alert.id, alertSpot.alertId))
+    .where("userId" in where ? eq(alert.userId, where.userId) : eq(alertSpot.spotId, where.spotId))
+    .orderBy(asc(alert.createdAt), asc(alert.id));
+  const bySpot = new Map<string, string[]>();
+  for (const row of rows) bySpot.set(row.spotId, [...(bySpot.get(row.spotId) ?? []), row.alertId]);
+  return bySpot;
+}
+
 /**
- * Holds a spot of the caller's, and before it the alert it is in. Whatever writes to an alert's
+ * Holds a spot of the caller's, and before it the alerts it is in. Whatever writes to an alert's
  * spots holds the alert first, as the worker does for the whole of a look: two transactions
  * that took them in opposite orders would wait for one another, and one would be refused. The
- * spot's alert is read before anything is held, so it is read again once both are: `AGAIN` when
- * the spot joined or left an alert meanwhile. Null for a spot the caller does not own.
+ * alerts are held in the order of their ids, as whatever holds several does. They are read
+ * before anything is held, so they are read again once all is: `AGAIN` when the spot joined or
+ * left an alert meanwhile. Null for a spot the caller does not own.
  */
 async function holdSpot(tx: Transaction, userId: string, id: string) {
-  const itsAlert = async () => {
-    const [membership] = await tx
+  const itsAlerts = async () => {
+    const rows = await tx
       .select({ alertId: alertSpot.alertId })
       .from(alertSpot)
       .innerJoin(spot, eq(spot.id, alertSpot.spotId))
-      .where(and(eq(alertSpot.spotId, id), eq(spot.userId, userId)));
-    return membership?.alertId ?? null;
+      .where(and(eq(alertSpot.spotId, id), eq(spot.userId, userId)))
+      .orderBy(asc(alertSpot.alertId));
+    return rows.map((row) => row.alertId);
   };
-  const alertId = await itsAlert();
-  if (alertId)
-    await tx.select({ id: alert.id }).from(alert).where(eq(alert.id, alertId)).for("update");
+  const alertIds = await itsAlerts();
+  if (alertIds.length > 0) {
+    await tx
+      .select({ id: alert.id })
+      .from(alert)
+      .where(inArray(alert.id, alertIds))
+      .orderBy(asc(alert.id))
+      .for("update");
+  }
   const [held] = await tx
     .select()
     .from(spot)
     .where(and(eq(spot.id, id), eq(spot.userId, userId)))
     .for("update");
   if (!held) return null;
-  return (await itsAlert()) === alertId ? { spot: held, alertId } : AGAIN;
+  const now = await itsAlerts();
+  const isSame = now.length === alertIds.length && now.every((one, at) => one === alertIds[at]);
+  return isSame ? { spot: held, alertIds } : AGAIN;
 }
 
-/** Runs a change to a spot, and again when the spot's alert changed as it was taken hold of. */
+/** Runs a change to a spot, and again when the spot's alerts changed as it was taken hold of. */
 async function changingSpot<Result>(
   db: Database,
   change: (tx: Transaction) => Promise<Result | typeof AGAIN>,
@@ -184,7 +209,7 @@ async function changingSpot<Result>(
     if (result !== AGAIN) return result;
   }
   throw new ORPCError("CONFLICT", {
-    message: "The spot's alert was changed at the same moment. Try again.",
+    message: "The spot's alerts were changed at the same moment. Try again.",
   });
 }
 
@@ -255,7 +280,7 @@ export const spotsRouter = {
         });
       }
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
-      return describeSpot(created, userId, null, undefined);
+      return describeSpot(created, userId, [], undefined);
     }),
 
   list: protectedProcedure
@@ -264,18 +289,18 @@ export const spotsRouter = {
     .handler(async ({ context }) => {
       const userId = context.session.user.id;
       const rows = await context.db
-        .select({ spot, alertId: alertSpot.alertId })
+        .select()
         .from(spot)
-        .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
         .where(eq(spot.userId, userId))
         .orderBy(asc(spot.createdAt));
+      const alerts = await alertsOf(context.db, { userId });
       const publications = await publicationsOf(
         context.db,
-        rows.map((row) => row.spot.id),
+        rows.map((row) => row.id),
       );
       return {
         spots: rows.map((row) =>
-          describeSpot(row.spot, userId, row.alertId, publications.get(row.spot.id)),
+          describeSpot(row, userId, alerts.get(row.id) ?? [], publications.get(row.id)),
         ),
       };
     }),
@@ -295,13 +320,13 @@ export const spotsRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const [row] = await context.db
-        .select({ spot, alertId: alertSpot.alertId })
+        .select()
         .from(spot)
-        .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
         .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
       if (!row) throw notFound(input.id);
-      const publications = await publicationsOf(context.db, [row.spot.id]);
-      return describeSpot(row.spot, userId, row.alertId, publications.get(row.spot.id));
+      const alerts = await alertsOf(context.db, { spotId: row.id });
+      const publications = await publicationsOf(context.db, [row.id]);
+      return describeSpot(row, userId, alerts.get(row.id) ?? [], publications.get(row.id));
     }),
 
   update: protectedProcedure
@@ -350,15 +375,16 @@ export const spotsRouter = {
         // writes nothing.
         const moved =
           updated.latitude !== before.latitude || updated.longitude !== before.longitude;
-        if (held.alertId && moved) {
-          await forgetSeen(tx, held.alertId, id);
+        if (held.alertIds.length > 0 && moved) {
+          for (const alertId of held.alertIds) await forgetSeen(tx, alertId, id);
           await tx
             .update(alert)
             .set({ revision: sql`${alert.revision} + 1` })
-            .where(eq(alert.id, held.alertId));
+            .where(inArray(alert.id, held.alertIds));
         }
+        const alerts = await alertsOf(tx, { spotId: id });
         const publications = await publicationsOf(tx, [id]);
-        return describeSpot(updated, userId, held.alertId, publications.get(id));
+        return describeSpot(updated, userId, alerts.get(id) ?? [], publications.get(id));
       });
     }),
 
@@ -397,11 +423,11 @@ export const spotsRouter = {
         // cannot both pass the limit.
         await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
         const [row] = await tx
-          .select({ spot, alertId: alertSpot.alertId })
+          .select()
           .from(spot)
-          .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
           .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
         if (!row) throw notFound(input.id);
+        const alertIds = (await alertsOf(tx, { spotId: input.id })).get(input.id) ?? [];
 
         const latest = (await publicationsOf(tx, [input.id])).get(input.id);
         if (latest?.status === "accepted") {
@@ -413,7 +439,7 @@ export const spotsRouter = {
             .set({ note })
             .where(eq(spotPublication.id, latest.id))
             .returning();
-          return describeSpot(row.spot, userId, row.alertId, waiting ?? latest);
+          return describeSpot(row, userId, alertIds, waiting ?? latest);
         }
 
         const [pending] = await tx
@@ -429,7 +455,7 @@ export const spotsRouter = {
           .insert(spotPublication)
           .values({ id: crypto.randomUUID(), spotId: input.id, userId, note })
           .returning();
-        return describeSpot(row.spot, userId, row.alertId, asked);
+        return describeSpot(row, userId, alertIds, asked);
       });
     }),
 
@@ -450,16 +476,16 @@ export const spotsRouter = {
       const userId = context.session.user.id;
       return context.db.transaction(async (tx) => {
         const [row] = await tx
-          .select({ spot, alertId: alertSpot.alertId })
+          .select()
           .from(spot)
-          .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
           .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
         if (!row) throw notFound(input.id);
+        const alertIds = (await alertsOf(tx, { spotId: input.id })).get(input.id) ?? [];
         await tx
           .delete(spotPublication)
           .where(and(eq(spotPublication.spotId, input.id), eq(spotPublication.status, "pending")));
         const publications = await publicationsOf(tx, [input.id]);
-        return describeSpot(row.spot, userId, row.alertId, publications.get(input.id));
+        return describeSpot(row, userId, alertIds, publications.get(input.id));
       });
     }),
 
@@ -469,7 +495,7 @@ export const spotsRouter = {
       path: "/spots/{id}",
       summary: "Delete a spot the caller owns",
       description:
-        "The spot leaves its alert. An alert whose last spot is deleted is deleted with it.",
+        "The spot leaves its alerts. An alert whose last spot is deleted is deleted with it.",
       tags: ["Spots"],
     })
     .input(z.object({ id: z.string() }))
@@ -480,20 +506,19 @@ export const spotsRouter = {
         const held = await holdSpot(tx, userId, input.id);
         if (held === AGAIN) return AGAIN;
         if (!held) throw notFound(input.id);
-        const membership = held.alertId ? { alertId: held.alertId } : null;
         const [deleted] = await tx
           .delete(spot)
           .where(and(eq(spot.id, input.id), eq(spot.userId, userId)))
           .returning({ id: spot.id });
         if (!deleted) throw notFound(input.id);
 
-        if (membership) {
+        if (held.alertIds.length > 0) {
           // An alert set on nothing is no alert. One that keeps other spots is read anew.
-          const emptied = await tx
+          await tx
             .delete(alert)
             .where(
               and(
-                eq(alert.id, membership.alertId),
+                inArray(alert.id, held.alertIds),
                 notExists(
                   tx
                     .select({ spotId: alertSpot.spotId })
@@ -501,14 +526,11 @@ export const spotsRouter = {
                     .where(eq(alertSpot.alertId, alert.id)),
                 ),
               ),
-            )
-            .returning({ id: alert.id });
-          if (emptied.length === 0) {
-            await tx
-              .update(alert)
-              .set({ revision: sql`${alert.revision} + 1` })
-              .where(eq(alert.id, membership.alertId));
-          }
+            );
+          await tx
+            .update(alert)
+            .set({ revision: sql`${alert.revision} + 1` })
+            .where(inArray(alert.id, held.alertIds));
         }
         return deleted;
       });

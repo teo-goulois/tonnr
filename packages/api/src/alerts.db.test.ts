@@ -11,7 +11,7 @@ import {
 import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "./context";
@@ -102,8 +102,17 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       .onConflictDoNothing();
     await database.db
       .update(alertSpot)
-      .set({ told: [TOLD], mailed: [TOLD], cutBy: "as it was", begun: [BEGUN], lookedAt: AT })
-      .where(eq(alertSpot.spotId, spotId));
+      .set({
+        told: [TOLD],
+        mailed: [TOLD],
+        mailBegun: [BEGUN],
+        pushed: [TOLD],
+        pushBegun: [BEGUN],
+        cutBy: "as it was",
+        begun: [BEGUN],
+        lookedAt: AT,
+      })
+      .where(and(eq(alertSpot.alertId, alertId), eq(alertSpot.spotId, spotId)));
     await database.db.update(alert).set({ lookedAt: AT }).where(eq(alert.id, alertId));
   };
   const windowsOf = async (alertId: string) =>
@@ -117,6 +126,9 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         (row) =>
           row.told.length > 0 ||
           row.mailed.length > 0 ||
+          row.mailBegun.length > 0 ||
+          row.pushed.length > 0 ||
+          row.pushBegun.length > 0 ||
           row.cutBy ||
           row.begun.length > 0 ||
           row.lookedAt,
@@ -141,31 +153,58 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect((await call(v1Router.alerts.list, undefined, by("ana"))).alerts).toEqual([made]);
     });
 
-    it("says in a spot's answer which alert it is in, to its owner alone", async () => {
+    it("says in a spot's answer which alerts it is in, the oldest first, to its owner alone", async () => {
       const made = await make();
+      const second = await make({ name: "Big days", spotIds: ["south", "north"] });
+      // Made in the same instant, as a test makes them: which is older is said here.
+      await database.db
+        .update(alert)
+        .set({ createdAt: new Date(made.createdAt.getTime() + 1000) })
+        .where(eq(alert.id, second.id));
 
       const spots = (await call(v1Router.spots.list, undefined, by("ana"))).spots;
-      expect(spots.map((one) => [one.id, one.alertId])).toEqual([
-        ["north", made.id],
-        ["south", null],
-        ["far", null],
+      expect(spots.map((one) => [one.id, one.alertIds])).toEqual([
+        ["north", [made.id, second.id]],
+        ["south", [second.id]],
+        ["far", []],
       ]);
       expect(await call(v1Router.spots.get, { id: "north" }, by("ana"))).toMatchObject({
-        alertId: made.id,
+        alertIds: [made.id, second.id],
       });
+      // A spot is its owner's alone, and so are the alerts on it.
       await expect(call(v1Router.spots.get, { id: "north" }, by("ben"))).rejects.toEqual(
         refusal("NOT_FOUND"),
       );
     });
 
-    it("keeps a spot in one alert at most", async () => {
-      await make();
+    it("may be one of several on a spot, each with its name, its conditions and its spots", async () => {
+      const small = await make({ name: "Small and clean" });
+      const big = await make({
+        name: "Big days",
+        spotIds: ["south", "north"],
+        criteria: { swellHeightMeters: { min: 2.5 } },
+        shortestMinutes: 60,
+      });
 
-      await expect(make({ name: "Another", spotIds: ["south", "north"] })).rejects.toEqual(
-        refusal("CONFLICT"),
+      const { alerts } = await call(v1Router.alerts.list, undefined, by("ana"));
+      expect(alerts.map((one) => [one.name, one.spotIds, one.shortestMinutes])).toEqual(
+        expect.arrayContaining([
+          ["Small and clean", ["north"], 120],
+          ["Big days", ["south", "north"], 60],
+        ]),
       );
-      // Nothing of the refused alert was kept: the other spot is free.
-      expect((await make({ name: "Another", spotIds: ["south"] })).spotIds).toEqual(["south"]);
+      // Each keeps what it saw and told at the spot they share.
+      await see(small.id, "north");
+      await see(big.id, "north");
+      expect([await windowsOf(small.id), await windowsOf(big.id)]).toEqual([["north"], ["north"]]);
+      await call(
+        v1Router.alerts.update,
+        { id: big.id, criteria: { swellHeightMeters: { min: 3 } } },
+        by("ana"),
+      );
+      // One that starts over forgets its own, and nothing of the other's.
+      expect([await toldAt(small.id), await toldAt(big.id)]).toEqual([["north"], []]);
+      expect([await windowsOf(small.id), await windowsOf(big.id)]).toEqual([["north"], []]);
     });
 
     it("is set on the caller's own spots only", async () => {
@@ -249,9 +288,10 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
     });
 
     it("saves no answer when the alert is not made", async () => {
-      await make();
-      // The spot is in an alert already: the second is refused, and its answer with it.
-      await expect(make({ byMailIfNone: true } as never)).rejects.toEqual(refusal("CONFLICT"));
+      // The spot is another account's: the alert is refused, and its answer with it.
+      await expect(make({ spotIds: ["bens"], byMailIfNone: true } as never)).rejects.toEqual(
+        refusal("NOT_FOUND"),
+      );
       expect(await mailOf("ana")).toBeNull();
     });
 
@@ -361,12 +401,17 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       });
       expect(await windowsOf(made.id)).toEqual(["south"]);
       expect(await revisionOf(made.id)).toBe(1);
-      // The spot that left is free for another alert.
-      expect((await make({ name: "North alone", spotIds: ["north"] })).spotIds).toEqual(["north"]);
-      // And one that is in another alert cannot be taken from it.
-      await expect(
-        call(v1Router.alerts.update, { id: made.id, spotIds: ["south", "north"] }, by("ana")),
-      ).rejects.toEqual(refusal("CONFLICT"));
+      // A spot that is in another alert may come back to this one, and stays in both.
+      const alone = await make({ name: "North alone", spotIds: ["north"] });
+      const back = await call(
+        v1Router.alerts.update,
+        { id: made.id, spotIds: ["south", "north"] },
+        by("ana"),
+      );
+      expect(back.spotIds).toEqual(["south", "north"]);
+      expect(await call(v1Router.alerts.get, { id: alone.id }, by("ana"))).toMatchObject({
+        spotIds: ["north"],
+      });
     });
 
     it("goes when it is deleted, and leaves its spots", async () => {
@@ -379,10 +424,10 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         refusal("NOT_FOUND"),
       );
       const spots = (await call(v1Router.spots.list, undefined, by("ana"))).spots;
-      expect(spots.map((one) => [one.id, one.alertId])).toEqual([
-        ["north", null],
-        ["south", null],
-        ["far", null],
+      expect(spots.map((one) => [one.id, one.alertIds])).toEqual([
+        ["north", []],
+        ["south", []],
+        ["far", []],
       ]);
     });
   });
@@ -403,6 +448,26 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       await expect(call(v1Router.alerts.get, { id: made.id }, by("ana"))).rejects.toEqual(
         refusal("NOT_FOUND"),
       );
+    });
+
+    it("leaves every alert it is in: one it was the last spot of goes, the others are read anew", async () => {
+      const shared = await make({ spotIds: ["north", "south"] });
+      const alone = await make({ name: "North alone" });
+      const big = await make({ name: "North on big days" });
+      await see(shared.id, "north");
+      await see(alone.id, "north");
+
+      await call(v1Router.spots.delete, { id: "north" }, by("ana"));
+
+      for (const gone of [alone, big]) {
+        await expect(call(v1Router.alerts.get, { id: gone.id }, by("ana"))).rejects.toEqual(
+          refusal("NOT_FOUND"),
+        );
+      }
+      expect(await call(v1Router.alerts.get, { id: shared.id }, by("ana"))).toMatchObject({
+        spotIds: ["south"],
+      });
+      expect([await revisionOf(shared.id), await windowsOf(shared.id)]).toEqual([1, []]);
     });
 
     it("keeps what a condition with neither end leaves, and no word of it", async () => {
@@ -489,9 +554,27 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect(await toldAt(made.id)).toEqual(["north"]);
 
       const moved = await call(v1Router.spots.update, { id: "north", latitude: 43.64 }, by("ana"));
-      expect(moved).toMatchObject({ latitude: 43.64, alertId: made.id });
+      expect(moved).toMatchObject({ latitude: 43.64, alertIds: [made.id] });
       expect([await revisionOf(made.id), await windowsOf(made.id)]).toEqual([1, []]);
       expect(await toldAt(made.id)).toEqual([]);
+    });
+
+    it("forgets what each of its alerts saw at a spot that moves, and nothing at their other spots", async () => {
+      const small = await make({ name: "Small and clean", spotIds: ["north", "south"] });
+      const big = await make({ name: "Big days" });
+      for (const [alertId, spotId] of [
+        [small.id, "north"],
+        [small.id, "south"],
+        [big.id, "north"],
+      ] as const) {
+        await see(alertId, spotId);
+      }
+
+      await call(v1Router.spots.update, { id: "north", latitude: 43.64 }, by("ana"));
+
+      expect([await revisionOf(small.id), await revisionOf(big.id)]).toEqual([1, 1]);
+      expect([await windowsOf(small.id), await windowsOf(big.id)]).toEqual([["south"], []]);
+      expect([await toldAt(small.id), await toldAt(big.id)]).toEqual([["south"], []]);
     });
   });
 

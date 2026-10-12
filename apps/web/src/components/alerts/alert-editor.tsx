@@ -354,10 +354,8 @@ export function AlertEditor({
   const held = heldBack(ahead).slice(0, 2);
   const nameOf = (spotId: string) => spots.find((one) => one.id === spotId)?.name ?? "";
   const asksTide = sent.tideHeightMeters !== undefined || sent.tideTrend !== undefined;
-  // The spots that may share the alert: the user's, in no other alert.
-  const neighbours = spots.filter(
-    (one) => one.id !== spot.id && (one.alertId === null || one.alertId === alert?.id),
-  );
+  // The spots that may share the alert: the user's others, whatever alerts they are in.
+  const neighbours = spots.filter((one) => one.id !== spot.id);
   const isFull = draft.spotIds.length >= SPOTS_MOST;
   const parts = changedParts(changed, saved);
   const isDirty = !alert || Object.keys(parts).length > 0;

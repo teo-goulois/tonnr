@@ -19,8 +19,10 @@ import { Effect, Result } from "effect";
 
 import { type MailOut, queueMail, sendDeliveries } from "./deliveries";
 import {
+  byAlert,
   fromNow,
   interval,
+  linkKey,
   openOf,
   running,
   seaAt,
@@ -157,30 +159,34 @@ async function tellEvening(db: Database, userId: string) {
     if (!day) return 0;
 
     const links = await watchedOf(tx, { userId });
-    const of = new Map(links.map((one) => [one.place.id, one]));
-    const lines: Line[] = hoursOfDay(
-      day,
-      zone,
-      now,
-      links.map((one) => watched(one, now)),
-      openOf(links, availabilityOf(settings)),
-    ).flatMap(({ spotId, pieces }) => {
-      const one = of.get(spotId);
-      const [first] = pieces;
-      if (!one || !first) return [];
-      return [
-        {
-          spotId,
-          spotName: one.place.name,
-          alertId: one.alert.id,
-          alertName: one.alert.name,
-          open: pieces.map(stretch),
-          ...seaOf(one.windows, fromNow(first.start, now)),
-          ...(one.link.forecastFetchedAt
-            ? { forecastFetchedAt: one.link.forecastFetchedAt.toISOString() }
-            : {}),
-        },
-      ];
+    const availability = availabilityOf(settings);
+    // Alert by alert: a spot that is in two of them is listed under each, with its own hours.
+    const lines: Line[] = byAlert(links).flatMap((spots) => {
+      const of = new Map(spots.map((one) => [one.place.id, one]));
+      return hoursOfDay(
+        day,
+        zone,
+        now,
+        spots.map((one) => watched(one, now)),
+        openOf(spots, availability),
+      ).flatMap(({ spotId, pieces }) => {
+        const one = of.get(spotId);
+        const [first] = pieces;
+        if (!one || !first) return [];
+        return [
+          {
+            spotId,
+            spotName: one.place.name,
+            alertId: one.alert.id,
+            alertName: one.alert.name,
+            open: pieces.map(stretch),
+            ...seaOf(one.windows, fromNow(first.start, now)),
+            ...(one.link.forecastFetchedAt
+              ? { forecastFetchedAt: one.link.forecastFetchedAt.toISOString() }
+              : {}),
+          },
+        ];
+      });
     });
     // An evening with nothing to list sends nothing, and may still have something later.
     if (lines.length === 0) return 0;
@@ -303,7 +309,7 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
   const settingsRows = yield* store(() =>
     db.select().from(alertSettings).where(inArray(alertSettings.userId, userIds)),
   );
-  const windowsAt = Map.groupBy(windows, (window) => window.spotId);
+  const windowsAt = Map.groupBy(windows, (window) => linkKey(window.alertId, window.spotId));
   const settingsOfUser = new Map(settingsRows.map((row) => [row.userId, row]));
   const linksOfAlert = Map.groupBy(links, (one) => one.alertId);
 
@@ -334,7 +340,7 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
         started,
         spots.map((one) => ({
           spotId: one.place.id,
-          windows: (windowsAt.get(one.place.id) ?? []).map((window) => ({
+          windows: (windowsAt.get(linkKey(alertId, one.place.id)) ?? []).map((window) => ({
             sea: { start: window.seaStart, end: window.seaEnd },
             seen: window.seen,
           })),
