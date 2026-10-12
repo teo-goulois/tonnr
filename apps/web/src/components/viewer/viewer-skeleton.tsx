@@ -77,7 +77,7 @@ export function ViewerSkeleton({ className }: { className?: string }) {
         aria-hidden
         className={cn(
           floating,
-          "absolute inset-x-s bottom-s flex items-end gap-xs rounded-(--radius-xs) p-xs",
+          "absolute inset-x-s bottom-[calc(var(--spacing-s)+var(--nav-lift,0px))] flex items-end gap-xs rounded-(--radius-xs) p-xs",
           "lg:right-[calc(var(--spacing-s)+2.5rem)] lg:bottom-s lg:left-[calc(var(--spacing-s)*2+16rem)] lg:max-w-160",
         )}
       >

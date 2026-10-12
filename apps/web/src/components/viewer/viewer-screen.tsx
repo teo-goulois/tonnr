@@ -1,5 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { ChevronLeftIcon } from "@repo/ui/icon";
+import { cn } from "@repo/ui/lib/utils";
 import { useId } from "react";
 
 import { m } from "@/paraglide/messages.js";
@@ -53,7 +54,20 @@ export function ViewerScreen({
           <div className="-mt-1.5 -mr-xs flex shrink-0 items-center gap-xxs">{actions}</div>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-m sm:p-l">{children}</div>
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain p-m sm:p-l",
+          // PROTOTYPE: under a bar that floats, a screen ends above it.
+          "pb-[calc(var(--spacing-m)+var(--nav-lift,0px))] sm:pb-[calc(var(--spacing-l)+var(--nav-lift,0px))]",
+        )}
+      >
+        {children}
+      </div>
+      {/* PROTOTYPE: what scrolls fades out before it goes under a bar that floats. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--nav-lift,0px)*1.3)] bg-linear-to-t from-neutral-1 from-60% to-transparent"
+      />
     </section>
   );
 }

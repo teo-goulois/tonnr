@@ -60,7 +60,10 @@ import { toast } from "sonner";
 import { AccountPanel } from "@/components/account/account-panel";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
+import { cn } from "@repo/ui/lib/utils";
+
 import { BottomNav } from "@/components/shared/bottom-nav";
+import { NAV_ART, NAV_LOOKS } from "@/lib/nav-prototype";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -790,8 +793,33 @@ export function DesignSystemPage() {
       </Section>
 
       <Section title="Bottom navigation">
-        {/* The bar a phone goes from one screen to another by, at a phone's width. */}
-        <BottomNav className="edge max-w-sm rounded-(--radius-xs)" />
+        {/* PROTOTYPE: the looks of the bar that are compared, each in the two arts of its tabs. */}
+        <div id="nav-prototype" className="grid w-[390px] gap-m">
+          {NAV_LOOKS.map((look, index) => (
+            <div key={look} className="grid gap-xs">
+              <p className="text-s text-neutral-7">{index}</p>
+              {NAV_ART.map((art) => (
+                <div
+                  key={art}
+                  data-nav-sample={`${look}-${art}`}
+                  className={cn(
+                    "edge overflow-hidden",
+                    look === "floating" ? "bg-neutral-4 pt-s" : "bg-neutral-1",
+                  )}
+                >
+                  <BottomNav
+                    sample={{
+                      look,
+                      art,
+                      tab: art === "a" ? "map" : "saved",
+                      unread: art === "a" ? 2 : 0,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section title="List chips">

@@ -1,11 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
 
 import { AuthPromptProvider } from "@/components/auth/auth-prompt";
 import Header from "@/components/header";
+import { useNavPrototype } from "@/lib/nav-prototype";
 
-import { BottomNav } from "./bottom-nav";
+import { BottomNav, NavPrototypeSwitch } from "./bottom-nav";
 import { UnitsFromAccount } from "./units-account";
 
 type AppShellProps = {
@@ -22,6 +24,9 @@ type AppShellProps = {
 export function AppShell({ nav = true, children }: AppShellProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  // PROTOTYPE: a bar that floats takes no row of its own. What stands at the bottom of a screen
+  // reads how far it is lifted from `--nav-lift`.
+  const isFloating = useNavPrototype().look === "floating" && nav;
 
   return (
     // What the account owns is loaded again once someone signs in, and the route asks again
@@ -33,10 +38,26 @@ export function AppShell({ nav = true, children }: AppShellProps) {
       }}
     >
       <UnitsFromAccount />
-      <div className="grid h-svh grid-rows-[auto_minmax(0,1fr)_auto]">
+      <div
+        className={cn(
+          "relative grid h-svh grid-rows-[auto_minmax(0,1fr)_auto]",
+          isFloating &&
+            "max-lg:[--nav-lift:calc(3.75rem+max(var(--spacing-s),env(safe-area-inset-bottom)))]",
+        )}
+      >
         <Header className="row-start-1 max-lg:hidden" />
         <div className="row-start-2 grid min-h-0 grid-rows-[minmax(0,1fr)]">{children}</div>
-        {nav && <BottomNav className="row-start-3 lg:hidden" />}
+        {nav && (
+          <BottomNav
+            className={cn(
+              "lg:hidden",
+              isFloating ? "absolute inset-x-0 bottom-0 z-30" : "row-start-3",
+            )}
+          />
+        )}
+        {nav && (
+          <NavPrototypeSwitch className="absolute top-s left-1/2 z-30 mt-1.5 -translate-x-1/2 lg:hidden" />
+        )}
       </div>
     </AuthPromptProvider>
   );

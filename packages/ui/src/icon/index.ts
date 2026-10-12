@@ -105,6 +105,20 @@ export { IconTrashOutline18 as TrashIcon } from "nucleo-ui-outline-18/components
 export { IconWaterWaveOutline18 as WaveIcon } from "nucleo-ui-outline-18/components/IconWaterWaveOutline18";
 export { IconWindOutline18 as WindIcon } from "nucleo-ui-outline-18/components/IconWindOutline18";
 
+// PROTOTYPE of the phone's bar: the art its tabs are compared in, each with the fill that says it
+// is the tab in view. What Téo keeps is named for good, and the rest goes.
+export { IconBellFill18 as BellFillIcon } from "nucleo-ui-fill-18/components/IconBellFill18";
+export { IconBookmarkFill18 as BookmarkFillIcon } from "nucleo-ui-fill-18/components/IconBookmarkFill18";
+export { IconBookmarkOutline18 as BookmarkIcon } from "nucleo-ui-outline-18/components/IconBookmarkOutline18";
+export { IconCompassFill18 as CompassFillIcon } from "nucleo-ui-fill-18/components/IconCompassFill18";
+export { IconCompassOutline18 as CompassIcon } from "nucleo-ui-outline-18/components/IconCompassOutline18";
+export { IconMapFill18 as MapFillIcon } from "nucleo-ui-fill-18/components/IconMapFill18";
+export { IconStarOutline18 as StarLineIcon } from "nucleo-ui-outline-18/components/IconStarOutline18";
+export { IconUserFill18 as PersonFillIcon } from "nucleo-ui-fill-18/components/IconUserFill18";
+export { IconUserOutline18 as PersonIcon } from "nucleo-ui-outline-18/components/IconUserOutline18";
+export { IconUserShortHairFill18 as PersonHairFillIcon } from "nucleo-ui-fill-18/components/IconUserShortHairFill18";
+export { IconUserShortHairOutline18 as PersonHairIcon } from "nucleo-ui-outline-18/components/IconUserShortHairOutline18";
+
 // Small interface primitives — Nucleo Micro Bold, except LoaderIcon which keeps
 // its Lucide artwork.
 export { CheckIcon } from "./check-icon";

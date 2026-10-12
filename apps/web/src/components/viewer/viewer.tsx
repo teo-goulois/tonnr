@@ -966,9 +966,12 @@ export function Viewer({
       className="relative min-h-0 overflow-hidden"
       // On a phone the timeline takes the bottom of the map, and the map's credits sit above it.
       style={
-        !wide && timelineHeight > 0
+        !wide
           ? ({
-              "--map-credits-lift": `calc(${timelineHeight}px + var(--spacing-s))`,
+              "--map-credits-lift":
+                timelineHeight > 0
+                  ? `calc(${timelineHeight}px + var(--spacing-s) + var(--nav-lift, 0px))`
+                  : "var(--nav-lift, 0px)",
             } as CSSProperties)
           : undefined
       }
@@ -1088,7 +1091,7 @@ export function Viewer({
               "absolute",
               wide
                 ? "right-[calc(var(--spacing-s)+2.5rem)] bottom-s left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
-                : "inset-x-s bottom-s",
+                : "inset-x-s bottom-[calc(var(--spacing-s)+var(--nav-lift,0px))]",
             )}
             time={seaTime}
             times={seaTimes}
