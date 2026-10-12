@@ -7,7 +7,7 @@ import type { AlertDraft, AlertTrial } from "@/components/alerts/alert-words";
 import type { AlertSettingsChange } from "@/components/alerts/alert-settings";
 import type { Alerting } from "@/components/alerts/types";
 import type { Alert, AlertSettings, Loadable } from "@/components/viewer/types";
-import { hasUnsaved, leaveWith } from "@/lib/unsaved";
+import { answerLeaving, hasUnsaved, leaveWith } from "@/lib/unsaved";
 import { writesInTurn } from "@/lib/writes-in-turn";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
@@ -169,8 +169,15 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
   useBlocker({
     shouldBlockFn: ({ current, next, action }) => {
       if (!hasUnsaved()) return false;
-      if (current.pathname === next.pathname && editorAt(current.search) === editorAt(next.search))
+      if (
+        current.pathname === next.pathname &&
+        editorAt(current.search) === editorAt(next.search)
+      ) {
+        // The editor stays where it is. A question that was asked about leaving it was asked
+        // from another page of the history: it no longer stands.
+        answerLeaving("stay");
         return false;
+      }
       if (action === "PUSH" || action === "REPLACE") {
         // Nothing has moved yet: the navigation waits for the answer.
         return new Promise<boolean>((resolve) => {

@@ -447,6 +447,21 @@ export function withoutGone(
   return spotIds.every(isKnown) ? changed : { ...changed, spotIds: spotIds.filter(isKnown) };
 }
 
+/**
+ * The user's spots were read again. What was written of the alert's spots no longer asks for
+ * one that is gone, and what that leaves is held against the alert as any part is: spots that
+ * are now those the alert has are no longer a change, and follow the alert from then on.
+ */
+export function afterSpotsRead(
+  drafting: Drafting,
+  saved: AlertDraft,
+  isKnown: (spotId: string) => boolean,
+  isSaved: boolean,
+): Drafting {
+  const changed = withoutGone(drafting.changed, saved, isKnown, isSaved);
+  return afterRead(changed === drafting.changed ? drafting : { ...drafting, changed }, saved);
+}
+
 /** What a spot's panel writes: an alert that is saved, or a new one, which may start from a copy. */
 export type Written = { alertId?: string; initial?: AlertDraft };
 

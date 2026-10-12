@@ -34,6 +34,7 @@ import {
   NOTHING_DRAFTED,
   afterAnswer,
   afterRead,
+  afterSpotsRead,
   isSetRange,
   isUnsaved,
   loosened,
@@ -43,7 +44,6 @@ import {
   setPart,
   sliderEnds,
   thumbsOf,
-  withoutGone,
 } from "./alert-words";
 import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
@@ -222,10 +222,7 @@ export function AlertEditor({
   // itself what they are once it is read again, and may say more than that one is gone.
   const isSaved = alert !== undefined;
   useEffect(() => {
-    setDrafting((current) => {
-      const kept = withoutGone(current.changed, saved, isKnown, isSaved);
-      return kept === current.changed ? current : { ...current, changed: kept };
-    });
+    setDrafting((current) => afterSpotsRead(current, saved, isKnown, isSaved));
   }, [isKnown, saved, isSaved]);
   const [isConfirming, setIsConfirming] = useState(false);
   // The advanced part is open on an alert that asks something of the swell apart, and stays as

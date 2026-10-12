@@ -7,6 +7,7 @@ import {
   NOTHING_DRAFTED,
   afterAnswer,
   afterRead,
+  afterSpotsRead,
   conditionsKey,
   isOpenAlert,
   isUnsaved,
@@ -432,6 +433,42 @@ describe("what was changed, once a neighbour is gone", () => {
     expect(withoutGone(changed, written, isKnown, false)).toBe(changed);
     const other = { shortestMinutes: 60 };
     expect(withoutGone(other, written, isKnown, false)).toBe(other);
+  });
+});
+
+describe("the spots that were written, once the user's spots are read again", () => {
+  const saved: AlertDraft = {
+    name: "The bay",
+    criteria: { waveHeightMeters: { min: 1 } },
+    enabled: true,
+    shortestMinutes: 120,
+    spotIds: ["north"],
+  };
+
+  it("follow the alert again when what is left of them is what the alert has", () => {
+    // A neighbour is added here, and deleted elsewhere before it is saved.
+    const added = setPart(NOTHING_DRAFTED, saved, "spotIds", ["north", "gone"]);
+    const pruned = afterSpotsRead(added, saved, (spotId) => spotId !== "gone", true);
+    expect(pruned).toEqual(NOTHING_DRAFTED);
+    // So a spot that another device adds to the alert is not taken out by the next save.
+    const elsewhere = { ...saved, spotIds: ["north", "south"] };
+    const named = setPart(afterRead(pruned, elsewhere), elsewhere, "name", "Dawn");
+    expect(partsToSave(named, elsewhere)).toEqual({ name: "Dawn" });
+  });
+
+  it("stay a change when what is left of them is not what the alert has", () => {
+    const added = setPart(NOTHING_DRAFTED, saved, "spotIds", ["north", "south", "gone"]);
+    expect(afterSpotsRead(added, saved, (spotId) => spotId !== "gone", true).changed).toEqual({
+      spotIds: ["north", "south"],
+    });
+  });
+
+  it("are kept while the save that sent them is on its way", () => {
+    const sent = { spotIds: ["north", "gone"] };
+    const sending = { ...setPart(NOTHING_DRAFTED, saved, "spotIds", sent.spotIds), sending: sent };
+    expect(afterSpotsRead(sending, saved, (spotId) => spotId !== "gone", true).changed).toEqual({
+      spotIds: ["north"],
+    });
   });
 });
 
