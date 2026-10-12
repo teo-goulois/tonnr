@@ -1,5 +1,5 @@
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { type ComponentProps, type ReactNode, Suspense, lazy } from "react";
+import { type ComponentProps, Fragment, type ReactNode, Suspense, lazy } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -97,7 +97,25 @@ export function Sources({
       ) : (
         <Skeleton className="h-(--line-xs) w-3/4 rounded-(--radius-xs)" />
       )}
-      {forecast && <p>{m.source_forecast({ attribution: forecast.source.attribution })}</p>}
+      {forecast && (
+        <p>
+          {m.source_forecast()}{" "}
+          {forecast.source.credits.map((credit, index) => (
+            <Fragment key={credit.url}>
+              {index > 0 && ". "}
+              <a
+                className="underline underline-offset-2 hover:text-neutral-10"
+                href={credit.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {credit.text}
+              </a>
+            </Fragment>
+          ))}
+          .{forecast.source.notice && ` ${forecast.source.notice}`} {m.source_forecast_changes()}
+        </p>
+      )}
       {forecast && <p>{waveModelLine(forecast)}</p>}
       {tides && <p>{m.source_tide({ datum: tides.datum, source: tides.station.source.name })}</p>}
     </footer>

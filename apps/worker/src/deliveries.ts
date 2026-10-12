@@ -15,7 +15,7 @@ import {
   settingsOf,
   zoneOf,
 } from "@repo/conditions/alerts/settings";
-import { FORECAST_SOURCE } from "@repo/conditions/forecasts/open-meteo";
+import { FORECAST_SOURCE } from "@repo/conditions/forecasts/wave-models";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { countCalls } from "@repo/db/calls";

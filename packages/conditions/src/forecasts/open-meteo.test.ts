@@ -10,8 +10,6 @@ import {
   forecastBudget,
   forecastData,
   ForecastFormatError,
-  forecastSource,
-  FORECAST_SOURCE,
 } from "./open-meteo";
 
 // 2026-10-08 00:00, 01:00 and 02:00 UTC.
@@ -136,22 +134,6 @@ describe("buildForecast", () => {
     const changed = { latitude: 43.6, longitude: -1.4, hourly: { time: times } };
 
     expect(buildForecast("ecmwf_wam", changed, weather())).toBeInstanceOf(ForecastFormatError);
-  });
-});
-
-describe("who a forecast is credited to", () => {
-  it("names the producer of the model that answered, beside the provider", () => {
-    expect(forecastSource("ecmwf_wam").attribution).toBe(
-      "Weather data by Open-Meteo.com. Wave forecast from ECMWF.",
-    );
-    expect(forecastSource("meteofrance_wave").attribution).toContain("Météo-France");
-    expect(forecastSource(null).attribution).toBe("Weather data by Open-Meteo.com.");
-  });
-
-  it("names every producer for what covers several points", () => {
-    expect(FORECAST_SOURCE.attribution).toBe(
-      "Weather data by Open-Meteo.com. Wave forecasts from ECMWF and Météo-France.",
-    );
   });
 });
 

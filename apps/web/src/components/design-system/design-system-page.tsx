@@ -1,3 +1,4 @@
+import { forecastSource } from "@repo/conditions/forecasts/wave-models";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import {
@@ -217,16 +218,7 @@ const SAMPLE_WIND_STATION = {
 };
 const SAMPLE_FORECAST: Forecast = {
   point: { latitude: 48.3, longitude: -5 },
-  source: {
-    name: "Open-Meteo",
-    url: "https://open-meteo.com/",
-    attribution: "Weather data by Open-Meteo.com. Wave forecast from ECMWF.",
-    license: {
-      type: "cc-by-4.0",
-      url: "https://creativecommons.org/licenses/by/4.0/",
-      commercialUse: false,
-    },
-  },
+  source: forecastSource(["ecmwf_wam"]),
   waveModel: { name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 9 },
   fetchedAt: new Date(SAMPLE_NOW),
   stale: false,

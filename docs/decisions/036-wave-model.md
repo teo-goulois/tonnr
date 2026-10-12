@@ -48,7 +48,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - The energy is the one surf forecasts print: ρg²H²T²/16π, 1.96 H²T² in kilojoules, with the height of the whole sea and the period of its peak.
 - An alert reads the same three values. Its conditions keep the names they were saved under, `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees`: no saved alert is changed.
 - Beside a buoy, the model's period is of the kind the buoy gives: the peak one for a buoy that has it, the mean one for a buoy that gives a significant or a mean period.
-- The credit names the producer of the model that answered beside the provider: "Weather data by Open-Meteo.com. Wave forecast from ECMWF." What covers several points, an alert on several spots or a mail, names every producer of the list.
+- The credit is what each party asks for, shown as links beside the data: the provider's own words with a link to it and to the licence, the credit to DWD that its marine API asks of every user, and for ECMWF the words its terms give for a service, with its licence and its disclaimer. A panel and a mail also say that the values were rounded and converted, since the licence asks that changes be told. What covers several points, an alert on several spots or a mail, credits every producer of the list. `docs/data-sources.md` quotes what each asks.
 
 ## Rejected
 
@@ -70,7 +70,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - The sentence of an alert and its mails still say "swell". The values are the whole sea.
 - The API no longer gives a swell or a wind sea. It may change freely until its first public release: decision 003.
 - Near the coast every model is weaker. Within 2 km of the shore ECMWF's height was right 77 times in 100, against 93 beyond 10 km. A model with a grid of 3 or 4 km did no better there. One of 1.5 km did, by ten points, where it exists: `docs/data-sources.md` lists them. None is read.
-- The provider's marine page asks every user to credit DWD. No value shown comes from DWD any more, so the credit names who produced what is shown. Whether the provider minds has not been asked.
+- DWD is credited though no value shown is DWD's: the provider's marine page asks it of every user. The credit says who asks, so that it claims nothing of the waves. The first version of this decision left DWD out, and Téo asked the same day that the credit follow what is asked.
 - The mean period beside a buoy is not the buoy's own statistic. The model's is the energy period, a buoy's is a zero-crossing or a significant one, and they differ by up to a fifth.
 - The comparison is one month and a half of autumn. The southern hemisphere is Australia and Samoa alone. The forecast of five days earlier was compared at 29 buoys, not at 461. Compare again after a winter.
 - The third model of the list answered at no real point that was tried: with the nearest sea cell taken, ECMWF at 25 km had a sea wherever MFWAM had one. It is covered by its test alone.

@@ -8,4 +8,4 @@ The forecast of a point now gives the height of the whole sea with the period of
 
 The row is called "Waves", since it holds the swell and the wind sea together. The energy is now the figure surf forecasts print, four times the one shown before. An alert reads the same height, period and direction as the panel. Beside a buoy that gives no peak period, the model is drawn with its mean one, so the two can be compared.
 
-The credits of a panel name the wave model and its grid.
+The credits of a panel name the wave model and its grid, and link to who serves the forecast and who produced it.

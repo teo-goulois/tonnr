@@ -2,7 +2,7 @@ import type { SpotCriteria } from "@repo/db/schema/spots";
 import { Effect } from "effect";
 
 import type { Forecasts } from "../forecasts/forecasts";
-import { FORECAST_SOURCE } from "../forecasts/open-meteo";
+import { FORECAST_SOURCE } from "../forecasts/wave-models";
 import { predictTideExtremes, predictTideTimeline } from "../tides/tide-prediction";
 import { findWindows, tideTrendAt, unmetCriteria, type HourConditions } from "./criteria";
 

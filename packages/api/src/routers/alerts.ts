@@ -22,7 +22,7 @@ import { z } from "zod";
 
 import { linkProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
-import { forecastUnavailable } from "./forecasts";
+import { forecastSourceSchema, forecastUnavailable } from "./forecasts";
 
 // Decision 031. An alert and an account's settings are their owner's alone: every procedure here
 // takes a session, and reads and writes nothing of another account.
@@ -575,12 +575,7 @@ export const alertsRouter = {
             forecastStale: z.boolean(),
           }),
         ),
-        forecastSource: z.object({
-          name: z.string(),
-          url: z.string(),
-          attribution: z.string(),
-          license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
-        }),
+        forecastSource: forecastSourceSchema,
       }),
     )
     .handler(async ({ input, context }) => {

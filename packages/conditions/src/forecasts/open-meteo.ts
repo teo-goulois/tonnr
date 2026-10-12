@@ -2,52 +2,10 @@ import { fetchJsonOnce, UpstreamError } from "@repo/upstream";
 import { Effect, Schedule, Schema } from "effect";
 import { z } from "zod";
 
+import { type WaveModelId, waveModelIds } from "./wave-models";
+
 const MARINE_URL = "https://marine-api.open-meteo.com/v1/marine";
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
-
-// The wave models asked for, best first: the first that has a sea at the point answers. The
-// order is the one they came in against the buoys. Météo-France's has no peak period here: its
-// period is a mean one, which reads more than a second lower. Decision 036.
-export const WAVE_MODELS = [
-  { id: "ecmwf_wam", name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 9 },
-  { id: "ecmwf_wam025", name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 25 },
-  { id: "meteofrance_wave", name: "MFWAM", producer: "Météo-France", resolutionKilometers: 8 },
-] as const;
-
-export type WaveModel = (typeof WAVE_MODELS)[number];
-export type WaveModelId = WaveModel["id"];
-
-const waveModelIds = WAVE_MODELS.map((model) => model.id) as [WaveModelId, ...WaveModelId[]];
-
-export function waveModel(id: WaveModelId): WaveModel {
-  return WAVE_MODELS.find((model) => model.id === id) ?? WAVE_MODELS[0];
-}
-
-const source = (waves: string) => ({
-  name: "Open-Meteo",
-  url: "https://open-meteo.com/",
-  attribution: `Weather data by Open-Meteo.com.${waves}`,
-  // The data is CC BY 4.0. The free API that serves it is for non-commercial use only.
-  license: {
-    type: "cc-by-4.0",
-    url: "https://creativecommons.org/licenses/by/4.0/",
-    commercialUse: false,
-  },
-});
-
-/**
- * Who the forecast of a point is credited to: Open-Meteo, which serves it, and the producer of
- * the wave model that answered. No producer is named for a point without a sea.
- */
-export function forecastSource(model: WaveModelId | null) {
-  return source(model ? ` Wave forecast from ${waveModel(model).producer}.` : "");
-}
-
-// The credit of what covers several points, such as an alert on several spots: every producer a
-// wave forecast may come from.
-export const FORECAST_SOURCE = source(
-  ` Wave forecasts from ${[...new Set(WAVE_MODELS.map((model) => model.producer))].join(" and ")}.`,
-);
 
 // The name the instance counts its requests under.
 export const FORECAST_PROVIDER = "open-meteo";

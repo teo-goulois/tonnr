@@ -121,6 +121,8 @@ const WORDS = {
     station: (name: string, distance: string) => `Waves at ${name}, ${distance} away`,
     open: "Open the spot",
     forecast: "Forecast",
+    // What the licence of the forecast asks to be said: its values were changed.
+    rounded: "These values are rounded and written in your units.",
     readings: "Readings",
     fetched: "forecast fetched",
     settings: "Set your alerts",
@@ -147,6 +149,7 @@ const WORDS = {
     station: (name: string, distance: string) => `Vagues à ${name}, à ${distance}`,
     open: "Ouvrir le spot",
     forecast: "Prévisions",
+    rounded: "Ces valeurs sont arrondies et écrites dans tes unités.",
     readings: "Mesures",
     fetched: "prévision lue",
     settings: "Régler tes alertes",
@@ -288,7 +291,7 @@ export function alertMail(content: AlertMailContent): Mail {
     return { title, rows, url: line.spotUrl };
   });
   // Who the forecast and the readings are credited to.
-  const credits = [`${words.forecast}${colon} ${content.forecastCredit}`];
+  const credits = [`${words.forecast}${colon} ${content.forecastCredit} ${words.rounded}`];
   const measured = [
     ...new Set(
       content.lines.flatMap((line) =>

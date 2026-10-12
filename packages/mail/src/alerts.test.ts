@@ -45,7 +45,10 @@ describe("the mail of an alert", () => {
       "Prévu pour lun. 12 oct., 08:00 : houle 1,8 m, 11 s ; vent 10 nd (prévision lue dim. 11 oct., 20:20)",
     );
     expect(mail.text).toContain("Ouvrir le spot : https://app.example.org/fr/app?spot=s1");
-    expect(mail.text).toContain("Prévisions : Weather data by Open-Meteo.com.\n");
+    // The credit, and what its licence asks to be said of values that were changed.
+    expect(mail.text).toContain(
+      "Prévisions : Weather data by Open-Meteo.com. Ces valeurs sont arrondies et écrites dans tes unités.\n",
+    );
     expect(mail.text).toContain("Régler tes alertes : https://app.example.org/fr/app?panel=alerts");
     expect(mail.text).toContain("Ne plus recevoir ces mails : https://app.example.org/fr/mail-off");
   });

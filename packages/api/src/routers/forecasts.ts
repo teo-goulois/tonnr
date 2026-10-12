@@ -3,10 +3,23 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { MAX_FORECAST_DAYS, MAX_PAST_DAYS } from "@repo/conditions/forecasts/forecasts";
-import { forecastSource, waveModel } from "@repo/conditions/forecasts/open-meteo";
+import { forecastSource, waveModel } from "@repo/conditions/forecasts/wave-models";
 import { callerProcedure } from "../index";
 
 const measurement = z.number().nullable();
+
+/**
+ * Who a forecast is credited to. `credits` are to be shown as links beside the data, with
+ * `notice` when there is one. `attribution` says the same as one text.
+ */
+export const forecastSourceSchema = z.object({
+  name: z.string(),
+  url: z.string(),
+  attribution: z.string(),
+  license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
+  credits: z.array(z.object({ text: z.string(), url: z.string() })),
+  notice: z.string().nullable(),
+});
 
 /** The answer when no forecast can be given: why, as far as a caller is told. */
 export function forecastUnavailable(failure: { _tag: string }) {
@@ -51,12 +64,7 @@ export const forecastsRouter = {
       z.object({
         // The model grid point the forecast was computed for.
         point: z.object({ latitude: z.number(), longitude: z.number() }),
-        source: z.object({
-          name: z.string(),
-          url: z.string(),
-          attribution: z.string(),
-          license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean() }),
-        }),
+        source: forecastSourceSchema,
         // The model the waves come from: the first of the instance's list that has a sea at
         // the point.
         waveModel: z.object({
@@ -104,7 +112,7 @@ export const forecastsRouter = {
       return {
         ...forecast,
         hours,
-        source: forecastSource(model),
+        source: forecastSource([model]),
         waveModel: { name, producer, resolutionKilometers },
       };
     }),
