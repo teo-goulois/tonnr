@@ -206,19 +206,28 @@ An account that says yes is mailed what its alerts tell, at the address it signe
 
 ### Alerts by push
 
-Push is being built: this version reads the two keys below, and sends nothing yet. An instance will send push once it holds a pair of keys, which tells a browser's push service who sends. A command of the worker, `push-keys`, makes the pair: `pnpm --filter worker run job push-keys` from a checkout, and "Running one job" above says how a job is run in the container. It prints the two lines to set, on its standard output and nothing else there, and writes them nowhere: they are yours to put in the file and to keep. On an instance that holds a pair it says so first, since a new pair ends every subscription made with the old one.
+An account that lets a browser be notified is sent what its alerts tell by push, to each browser it subscribed from. The worker sends these pushes, by the rules an alert mail leaves by. The web app's part is being built: until a browser can subscribe there, no account has a subscription and nothing is sent. An instance sends push once it holds a pair of keys, which tells a browser's push service who sends. A command of the worker, `push-keys`, makes the pair: `pnpm --filter worker run job push-keys` from a checkout, and "Running one job" above says how a job is run in the container. It prints the two lines to set, on its standard output and nothing else there, and writes them nowhere: they are yours to put in the file and to keep. On an instance that holds a pair it says so first, since a new pair ends every subscription made with the old one.
 
 Set the two values in `apps/server/.env`, then run `docker compose up --detach` again: it makes the containers anew with what the file holds, which `docker compose restart` does not.
 
-| Variable            | Who will read it    | What it is for                                                                  |
-| ------------------- | ------------------- | ------------------------------------------------------------------------------- |
-| `VAPID_PUBLIC_KEY`  | The API, the worker | Given to the web app by the API, for a browser to subscribe with. It is public. |
-| `VAPID_PRIVATE_KEY` | The worker          | What the worker signs each push with. Keep it as you keep the API's secret.     |
+| Variable            | Who reads it        | What it is for                                                                           |
+| ------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| `VAPID_PUBLIC_KEY`  | The API, the worker | Given to the web app by the API, for a browser to subscribe with. It is public.          |
+| `VAPID_PRIVATE_KEY` | The worker          | What the worker signs each push with. Keep it as you keep the API's secret.              |
+| `CORS_ORIGIN`       | The worker          | The web app's address: it names your instance to a push service, and a push opens there. |
 
 - With Docker Compose the worker reads `apps/server/.env` as the API does, so there is nothing more to set. On another platform, give the API the public key, and the worker both.
 - Set both, or neither. An instance without them sends no push.
 - The public key is a point of the curve P-256 as its 65 bytes, and the private key 32 bytes, each in base64url with no padding: 87 and 43 characters. A value of another shape stops the container at its start, which names the variable.
-- Keep the pair. A browser subscribes to one public key: with another pair, every subscription made before stops working.
+- Keep the pair. A browser subscribes to one public key: with another pair, every subscription made before stops working. A push service then refuses each push, and does not say that the subscription is gone: the worker keeps it and logs `push: not taken (status 403)`, until the browser subscribes again.
+- A worker whose public key is not its private key's does not start, and says which variable is wrong. A worker without a pair, or without `CORS_ORIGIN`, sends no push and says nothing of it: what waits for a browser is given up when its hours are over.
+- A push goes to the push service of the browser that subscribed, and to no other address: Google's for Chrome and the browsers built on it, Mozilla's, Apple's, Microsoft's. The worker needs the way out to them, over `https` on port 443, and follows no redirection.
+- What a push says is encrypted for the browser: the push service learns which of its browsers is written to and when, and nothing of the alert. It learns your web app's address, which signs with your keys.
+- An account is sent 24 pushes a day at most, however many browsers it has. A push that the limit holds back is not sent later.
+- A push waits for the end of the account's quiet hours, as a mail does, and is written then. The push service is told to keep it until the hours it speaks of are over, and for the evening before until midnight: a device that was off until then is not told.
+- A push is given ten seconds for all the browsers of an account together. While it is handed over, the account's alerts, its settings and its subscriptions are held, so that a browser that is forgotten is answered once the push has left. Past the ten seconds its connections are closed, and it is not sent again: it may have left.
+- A subscription that its push service says is gone, by a 404 or a 410, is deleted. When an account has none left, the push is given up.
+- The worker's log holds how a push failed, by the push service's status or the kind of failure. It never holds the address of a subscription, which is all it takes to write to that browser.
 
 ### Coming from an earlier version
 

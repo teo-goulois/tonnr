@@ -17,7 +17,7 @@ import { spot } from "@repo/db/schema/spots";
 import { and, asc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
-import { type MailOut, queueMail, sendDeliveries } from "./deliveries";
+import { type MailOut, type PushOut, queueDeliveries, sendDeliveries } from "./deliveries";
 import {
   byAlert,
   fromNow,
@@ -126,7 +126,7 @@ async function tellBeginning(db: Database, alertId: string) {
       payload: { alertName: held.name, zone: zoneOf(settings), lines },
     };
     await tx.insert(notification).values(made);
-    await queueMail(tx, made, settings, now);
+    await queueDeliveries(tx, made, settings, now);
     return 1;
   });
 }
@@ -206,7 +206,7 @@ async function tellEvening(db: Database, userId: string) {
       .values(made)
       .onConflictDoNothing()
       .returning({ id: notification.id });
-    if (inserted.length > 0) await queueMail(tx, made, settings, now);
+    if (inserted.length > 0) await queueDeliveries(tx, made, settings, now);
     // The day is listed, by this or by a notification that already listed that very stretch.
     // What the account set keeps the time it was set at, and its days only go forward.
     await tx
@@ -223,22 +223,24 @@ async function tellEvening(db: Database, userId: string) {
   });
 }
 
-type Told = { begins: number; evenings: number; mails: number; failed: number };
+type Told = { begins: number; evenings: number; mails: number; pushes: number; failed: number };
 
 /** What a run of the moments did, as the worker says it of a job: decision 022. */
-export function momentsDone({ begins, evenings, mails, failed }: Told) {
-  return { counts: { begins, evenings, mails, failed }, degraded: failed > 0 };
+export function momentsDone({ begins, evenings, mails, pushes, failed }: Told) {
+  return { counts: { begins, evenings, mails, pushes, failed }, degraded: failed > 0 };
 }
 
 /**
  * Tells what begins and, at an account's evening hour, what the next day holds: one
  * notification for an alert whose open hours begin, and one for an account's evening. Then it
- * sends the alert mails that are due, with what `out` gives, and none without it. One thing
- * that fails does not stop the others, and what was told before it is counted.
+ * sends the alert mails and the pushes that are due, with what `mail` and `push` give, and
+ * none by a way out it is given nothing for. One thing that fails does not stop the others,
+ * and what was told before it is counted.
  */
 export const tellMoments = Effect.fn("tellMoments")(function* (
   db: Database,
-  out: MailOut | null = null,
+  mail: MailOut | null = null,
+  push: PushOut | null = null,
 ) {
   const started = new Date();
   const store = <Value>(read: () => Promise<Value>) =>
@@ -280,26 +282,30 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
   let failed = 0;
   // What is on its way out leaves whether anything is told now or not.
   const send = function* () {
-    const mails = yield* Effect.result(sendDeliveries(db, out));
-    if (Result.isFailure(mails)) {
+    const sent = yield* Effect.result(sendDeliveries(db, { mail, push }));
+    if (Result.isFailure(sent)) {
       failed += 1;
-      yield* Effect.logWarning(`moments: the mails could not be read (${mails.failure._tag})`);
-      return 0;
-    }
-    failed += mails.success.failed;
-    if (
-      mails.success.sent + mails.success.failed + mails.success.held + mails.success.expired >
-      0
-    ) {
-      yield* Effect.logInfo(
-        `mail: ${mails.success.sent} alert mails sent, ${mails.success.failed} failed, ${mails.success.held} held back by a limit, ${mails.success.expired} no longer worth sending`,
+      yield* Effect.logWarning(
+        `moments: what is on its way out could not be read (${sent.failure._tag})`,
       );
+      return { mails: 0, pushes: 0 };
     }
-    return mails.success.sent;
+    for (const [name, what, counts] of [
+      ["mail", "alert mails", sent.success.mail],
+      ["push", "alert pushes", sent.success.push],
+    ] as const) {
+      failed += counts.failed;
+      if (counts.sent + counts.failed + counts.held + counts.expired > 0) {
+        yield* Effect.logInfo(
+          `${name}: ${counts.sent} ${what} sent, ${counts.failed} failed, ${counts.held} held back by a limit, ${counts.expired} no longer worth sending`,
+        );
+      }
+    }
+    return { mails: sent.success.mail.sent, pushes: sent.success.push.sent };
   };
   if (links.length === 0) {
-    const mails = yield* send();
-    return { begins, evenings, mails, failed } satisfies Told;
+    const { mails, pushes } = yield* send();
+    return { begins, evenings, mails, pushes, failed } satisfies Told;
   }
   const alertIds = [...new Set(links.map((one) => one.alertId))];
   const userIds = [...new Set(links.map((one) => one.userId))];
@@ -388,6 +394,6 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
   yield* Effect.logInfo(
     `moments: ${alertIds.length} alerts of ${userIds.length} accounts, ${begins} told that it is on, ${evenings} evenings, ${failed} failed`,
   );
-  const mails = yield* send();
-  return { begins, evenings, mails, failed } satisfies Told;
+  const { mails, pushes } = yield* send();
+  return { begins, evenings, mails, pushes, failed } satisfies Told;
 });

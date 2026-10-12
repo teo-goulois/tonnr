@@ -165,6 +165,8 @@ export function recut(
  * were told. `found` are the sea windows a fresh forecast gives now: a spot whose forecast is
  * not fresh is not looked at, and nothing of it changes. The answer gives the sea windows to
  * keep in place of the known ones, the open hours that stand as told, and the moments to tell.
+ * `moves` says which of the hours that stand as told are told hours that have become others,
+ * whether that is told or not: what names a window from one message to the next follows them.
  */
 export function planLook(
   known: { windows: SeaWindow[]; told: ToldPiece[] },
@@ -203,6 +205,9 @@ export function planLook(
   const claimed = new Set<string>();
   const standing: ToldPiece[] = [];
   const moved: { open: Interval[]; before: Interval }[] = [];
+  // What told hours have become, whenever what stands as told is no longer the hours that
+  // were: said as a move or followed without a word, it is the same window.
+  const moves: { open: Interval[]; before: Interval }[] = [];
   const gone: Interval[] = [];
   // Pieces that are at the same hours, since two told windows joined, become the same thing.
   const becomes = new Map<string, Interval[]>();
@@ -240,6 +245,7 @@ export function planLook(
       // What it has become is what stands as told from here on: said, or with changes switched
       // off kept in line without a word.
       standing.push(...become.map((other) => ({ ...other, missed: 0 })));
+      moves.push({ open: become, before: { start: piece.start, end: piece.end } });
       if (!quiet.change)
         moved.push({ open: become, before: { start: piece.start, end: piece.end } });
     } else {
@@ -283,7 +289,7 @@ export function planLook(
   }
   if (gone.length > 0) tell.push({ moment: "gone", before: gone });
 
-  return { windows, told: once(standing), tell };
+  return { windows, told: once(standing), tell, moves };
 }
 
 /**
@@ -300,7 +306,8 @@ export function planLook(
  * `mailed` is what mail told at the spot, `told` what the last look left as told there, and
  * `present` the open hours of the windows that look found. What a mail says are hours of
  * `present`, as they are: where a told piece was last found is a stretch that may hold hours
- * that do not work, and only says which of the present hours are its own.
+ * that do not work, and only says which of the present hours are its own. `moves` gives the
+ * hours of `mailed` that have become others in what comes back, said or not.
  */
 export function planMail(
   mailed: ToldPiece[],
@@ -359,5 +366,5 @@ export function planMail(
       ...(context.quiet ? { quiet: context.quiet } : {}),
     },
   );
-  return { mailed: once([...plan.told, ...held]), tell: plan.tell };
+  return { mailed: once([...plan.told, ...held]), tell: plan.tell, moves: plan.moves };
 }

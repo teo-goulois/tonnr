@@ -111,10 +111,11 @@ export function alertPush(content: AlertPushContent): Push {
             .join(" · ")}`;
     return line(row, LINE_CHARACTERS);
   });
-  const [only] = blocks;
-  if (only && blocks.length === 1) {
-    // What a station measured as the window began, or what the forecast gave for the hour.
-    const sea = only.station ?? only.forecast;
+  const [first] = blocks;
+  if (first && spots.length === 1) {
+    // What a station measured as the window began, or what the forecast gave for the hour:
+    // for the first of its hours, when an evening lists the spot under several alerts.
+    const sea = first.station ?? first.forecast;
     if (sea) rows.push(line(sea, LINE_CHARACTERS));
   }
   if (spots.length > SPOTS) rows.push(MORE[content.locale](spots.length - SPOTS));

@@ -20,9 +20,10 @@ export type Stretch = { start: string; end: string };
 /**
  * Open hours that were told at a spot, the looks in a row that found none of them since, and
  * the hours they were at the last look that found them, when a move too small to tell took
- * them from the told ones.
+ * them from the told ones. `since` is kept of what push told: where the hours began when push
+ * first told them, when they have moved since. It names the window from one push to the next.
  */
-export type ToldStretch = Stretch & { missed: number; last?: Stretch };
+export type ToldStretch = Stretch & { missed: number; last?: Stretch; since?: string };
 
 /** What the forecast and the tide give at a spot for one hour, as a notification keeps it. */
 export type SeaFigures = {
@@ -44,14 +45,16 @@ export type SeaHour = SeaFigures & { time: string };
 
 /**
  * What a delivery that is leaving tells, kept with it until it has left: by spot, the hours
- * mail has told once it has, the hours mail has said to begin, and the deliveries it says in
- * the place of. It is written to the spots when the mail is handed over. A worker that stopped
- * before leaves it here, and it is taken as told: the mail may have left.
+ * its way out has told once it has, the hours it has said to begin, and the deliveries it says
+ * in the place of. It is written to the spots when the message is handed over. A worker that
+ * stopped before leaves it here, and it is taken as told: the message may have left.
  */
 export type DeliveryClaim = {
   // When it was written, in ISO 8601: a claim that is old was left behind.
   at: string;
+  // The hours told, under the name of the way out that tells them: a mail's or a push's.
   mailed?: Record<string, ToldStretch[]>;
+  pushed?: Record<string, ToldStretch[]>;
   begun?: Record<string, Stretch[]>;
   merged?: string[];
 };
@@ -72,7 +75,8 @@ export const DELIVERY_STATES = [
   "failed",
   // Its hour passed while it waited: the window it spoke of is over, or gone.
   "expired",
-  // Held back by the account's or the instance's limit of mails for the day.
+  // Held back by the account's or the instance's limit of mails for the day, or by the
+  // account's limit of pushes.
   "held",
 ] as const;
 

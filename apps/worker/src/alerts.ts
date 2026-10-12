@@ -10,6 +10,7 @@ import { isSuspended } from "@repo/db/accounts";
 import { accountSuspension } from "@repo/db/schema/access";
 import {
   type NotificationPayload,
+  type ToldStretch,
   alert,
   alertSettings,
   alertSpot,
@@ -21,8 +22,8 @@ import { spot } from "@repo/db/schema/spots";
 import { and, asc, eq, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
-import { queueMail } from "./deliveries";
-import { figuresOf, seaHour, stretch, toldPiece, toldStretch } from "./kept";
+import { queueDeliveries } from "./deliveries";
+import { figuresOf, named, seaHour, stretch, toldPiece, toldStretch } from "./kept";
 import { StoreError } from "./store";
 
 // Decision 031. The worker looks at each alert every three hours, at each of its spots, and
@@ -183,22 +184,32 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
             quiet: { found: !settings.onFound, change: !settings.onChange },
           });
 
-          // What mail told follows what no mail says. Hours that are cut otherwise are cut
-          // again as what was told is, from the sea as it was known: hours that the change
-          // opened stay new to mail. And an account that switched changes off is kept in line
-          // at each look, so that switching them back on tells nothing of what moved meanwhile.
-          let mailed = kept.mailed;
-          if (settled) {
-            mailed = recut({ windows, told: mailed.map(toldPiece) }, open).map(toldStretch);
-          }
-          if (!settings.onChange && mailed.length > 0) {
-            mailed = planMail(
-              mailed.map(toldPiece),
-              plan.told,
-              plan.windows.flatMap((window) => open(window.sea)),
-              { now, quiet: { found: true, change: true } },
-            ).mailed.map(toldStretch);
-          }
+          // What a way out told follows what none of its messages says. Hours that are cut
+          // otherwise are cut again as what was told is, from the sea as it was known: hours
+          // that the change opened stay new to it. And an account that switched changes off is
+          // kept in line at each look, so that switching them back on tells nothing of what
+          // moved meanwhile. What comes back is what was kept, itself, when nothing changed.
+          // A name follows a window through both, for what push told: a push is shown under it.
+          const inLine = (told: ToldStretch[], follow = false) => {
+            let followed = told;
+            if (settled) {
+              const cut = recut({ windows, told: followed.map(toldPiece) }, open).map(toldStretch);
+              followed = follow ? named(followed, cut) : cut;
+            }
+            if (!settings.onChange && followed.length > 0) {
+              const kept = planMail(
+                followed.map(toldPiece),
+                plan.told,
+                plan.windows.flatMap((window) => open(window.sea)),
+                { now, quiet: { found: true, change: true } },
+              );
+              const quiet = kept.mailed.map(toldStretch);
+              followed = follow ? named(followed, quiet, kept.moves) : quiet;
+            }
+            return followed;
+          };
+          const mailed = inLine(kept.mailed);
+          const pushed = inLine(kept.pushed, true);
 
           // What the look saw takes the place of what was known of the spot.
           await tx
@@ -232,6 +243,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
               lookedAt: now,
               forecastFetchedAt: fetchedAt,
               ...(mailed === kept.mailed ? {} : { mailed }),
+              ...(pushed === kept.pushed ? {} : { pushed }),
             })
             .where(and(eq(alertSpot.alertId, row.id), eq(alertSpot.spotId, place.id)));
 
@@ -267,7 +279,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
         // Each notification that was written leaves by the ways out its account chose.
         for (const { id } of made) {
           const row = rows.find((one) => one.id === id);
-          if (row) await queueMail(tx, row, settings, now);
+          if (row) await queueDeliveries(tx, row, settings, now);
         }
         return made.length;
       }),

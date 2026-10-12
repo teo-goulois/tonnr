@@ -42,6 +42,74 @@ export const toldStretch = (piece: ToldPiece): ToldStretch => ({
 });
 
 /**
+ * The name of a window a way out told, from one of its messages to the next: where its hours
+ * began when they were first told. A push is shown under it, so that what is said of a window
+ * that moved, or that went, takes the place of what was said of it before.
+ */
+export const windowOf = (told: Pick<ToldStretch, "start" | "since">) => told.since ?? told.start;
+
+const overlap = (one: Stretch, other: Stretch) =>
+  Math.min(new Date(one.end).getTime(), new Date(other.end).getTime()) -
+  Math.max(new Date(one.start).getTime(), new Date(other.start).getTime());
+
+/**
+ * Gives what a way out tells now the names of the windows it told before. Hours that begin
+ * where told hours did are those hours. Hours that moved are the hours they were, which `moves`
+ * says: where they are now, and where they were told. Hours that are a part of told hours, as
+ * when a change of the account's hours cut them, are a part of that window. Any others are a
+ * window of their own, named by where they begin.
+ *
+ * No two windows have one name: of hours that would share one, as the two parts of a window
+ * that was cut in its middle, the first keep it, and the others are named by where they begin.
+ * So what is said under a name is said of one window, and a newer word on it leaves nothing
+ * unsaid of another.
+ */
+export function named(
+  before: ToldStretch[],
+  after: ToldStretch[],
+  moves: { open: Interval[]; before: Interval }[] = [],
+): ToldStretch[] {
+  const at = (moment: string | Date) => new Date(moment).getTime();
+  const toldAt = (start: string | Date) => before.find((told) => at(told.start) === at(start));
+  const taken = new Set<string>();
+  // A name that is free, or the hours' own beginning, or that with a sign after it: a name is
+  // only ever compared with another.
+  const free = (name: string, own: string) => {
+    let given = taken.has(name) ? own : name;
+    while (taken.has(given)) given += "+";
+    taken.add(given);
+    return given;
+  };
+  const names = new Map<ToldStretch, string>();
+  // Hours that are told again where they were keep their name before any other is given.
+  for (const piece of after) {
+    const same = toldAt(piece.start);
+    if (same) names.set(piece, free(windowOf(same), piece.start));
+  }
+  for (const piece of after.toSorted((one, other) => at(one.start) - at(other.start))) {
+    if (names.has(piece)) continue;
+    // Where it was told before it moved: of the told hours that became it, the nearest.
+    const [was] = moves
+      .filter((move) => move.open.some((open) => at(open.start) === at(piece.start)))
+      .map((move) => move.before)
+      .toSorted(
+        (one, other) =>
+          Math.abs(at(one.start) - at(piece.start)) - Math.abs(at(other.start) - at(piece.start)),
+      );
+    const [part] = before
+      .filter((told) => overlap(told, piece) > 0)
+      .toSorted((one, other) => overlap(other, piece) - overlap(one, piece));
+    const told = (was && toldAt(was.start)) ?? part;
+    names.set(piece, free(told ? windowOf(told) : piece.start, piece.start));
+  }
+  return after.map((piece) => {
+    const { since: _since, ...hours } = piece;
+    const name = names.get(piece) ?? piece.start;
+    return name === piece.start ? hours : { ...hours, since: name };
+  });
+}
+
+/**
  * An hour of the sea as a look read it, as a window keeps it. The swell apart is kept for an
  * alert that asks about it, so that what is told of that alert can say it.
  */

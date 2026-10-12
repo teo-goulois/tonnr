@@ -33,8 +33,9 @@ export type Device = { endpoint: string; p256dh: string; auth: string };
 /**
  * What became of a push to one browser. `taken`: its push service took it, which is not yet a
  * notification on a screen. `gone`: the push service says that the subscription is no more.
- * `refused`: it was not sent, or the push service answered that it does not take it. `failed`:
- * the push service did not answer, or not in time.
+ * `refused`: it did not leave, since it was not sent or the push service answered that it does
+ * not take it. `failed`: nobody knows, since the push service did not answer, or not in time,
+ * or answered that it failed itself: it may have taken the push all the same.
  */
 export type Outcome = "taken" | "gone" | "refused" | "failed";
 
@@ -59,7 +60,8 @@ const TOKEN_KEPT_MS = 60 * 60 * 1000;
 /**
  * The pusher of an instance, from its keys. Null without keys: the instance then sends no push.
  * It throws on settings that cannot be right, so that the worker does not start with them.
- * `subject` is the address that names the instance to a push service: the web app's.
+ * `subject` is the address that names the instance to a push service: the web app's. Without
+ * it there is no pusher either, once the keys are known to be a pair.
  *
  * A push goes only to an address that a push service of the browsers gave, unless a test names
  * another with `allows`. A test may also give its own `post`, which asks no one, and less time
@@ -67,7 +69,7 @@ const TOKEN_KEPT_MS = 60 * 60 * 1000;
  */
 export function createPusher(
   settings: PushSettings,
-  subject: string,
+  subject: string | undefined,
   options: { allows?: (address: string) => boolean; post?: Post; sendMs?: number } = {},
 ): Pusher | null {
   const { VAPID_PUBLIC_KEY: publicKey, VAPID_PRIVATE_KEY: privateKey } = settings;
@@ -76,6 +78,7 @@ export function createPusher(
     throw new Error("Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, or neither");
   }
   const keys = readVapidKeys(publicKey, privateKey);
+  if (subject === undefined) return null;
   if (!URL.canParse(subject)) throw new Error("A push names its instance by an address");
   const allows = options.allows ?? isPushEndpoint;
   const give = options.post ?? post;
@@ -139,7 +142,8 @@ export function createPusher(
         if (status >= 200 && status < 300) return "taken";
         // The two answers by which a push service says that a subscription is no more.
         if (status === 404 || status === 410) return "gone";
-        return not("refused", `status ${status}`);
+        // A push service that fails does not say what it did with the push before.
+        return not(status >= 500 ? "failed" : "refused", `status ${status}`);
       } catch (error) {
         return not("failed", error instanceof Error ? error.name : "unknown");
       }

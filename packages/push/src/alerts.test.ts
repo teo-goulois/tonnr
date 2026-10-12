@@ -174,6 +174,25 @@ describe("the push of an alert", () => {
       });
     });
 
+    it("says the sea at a spot that is the only one, under one alert or under several", () => {
+      const withSea = (alertName: string, open = morning) => ({
+        ...listed("s1", alertName, open),
+        sea,
+      });
+
+      expect(evening([withSea("La baie")]).body).toBe(
+        "Le banc (La baie): Mon 12 Oct, 08:00 to 12:00\nForecast for Mon 12 Oct, 08:00: waves 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
+      );
+      // What the forecast gave for the first of its hours, said once.
+      expect(evening([withSea("La baie"), withSea("Gros jours", afternoon)]).body).toBe(
+        "Le banc: (La baie) Mon 12 Oct, 08:00 to 12:00 · (Gros jours) Mon 12 Oct, 14:00 to 18:00\nForecast for Mon 12 Oct, 08:00: waves 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
+      );
+      // And nothing of the sea when it lists two spots.
+      expect(
+        evening([withSea("La baie"), { ...withSea("La baie"), spotId: "s2" }]).body.split("\n"),
+      ).toHaveLength(2);
+    });
+
     it("counts spots, not the alerts of one: the second spot is told, and the rest are more", () => {
       // One spot under three alerts is one spot, and nothing more.
       const one = evening([listed("s1", "A"), listed("s1", "B"), listed("s1", "C")]).body;

@@ -82,8 +82,20 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
     it("say that it is on, once, and not before", async () => {
       await seen("10T06:20");
 
-      expect(await run("10T07:45")).toEqual({ begins: 0, evenings: 0, mails: 0, failed: 0 });
-      expect(await run("10T08:00")).toEqual({ begins: 1, evenings: 0, mails: 0, failed: 0 });
+      expect(await run("10T07:45")).toEqual({
+        begins: 0,
+        evenings: 0,
+        mails: 0,
+        pushes: 0,
+        failed: 0,
+      });
+      expect(await run("10T08:00")).toEqual({
+        begins: 1,
+        evenings: 0,
+        mails: 0,
+        pushes: 0,
+        failed: 0,
+      });
       const [said] = await told();
       expect(said).toMatchObject({
         userId: "owner",
@@ -242,7 +254,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
 
       await settings({ onBegin: true });
       await database.db.insert(accountSuspension).values({ userId: "owner" });
-      expect(await run("10T08:15")).toEqual({ begins: 0, evenings: 0, mails: 0, failed: 0 });
+      expect(await run("10T08:15")).toEqual({
+        begins: 0,
+        evenings: 0,
+        mails: 0,
+        pushes: 0,
+        failed: 0,
+      });
       expect(await told()).toEqual([]);
     });
   });
@@ -389,7 +407,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
       await seen("09T15:20");
 
       expect(await run("09T16:45")).toMatchObject({ evenings: 0 });
-      expect(await run("09T17:00")).toEqual({ begins: 0, evenings: 1, mails: 0, failed: 0 });
+      expect(await run("09T17:00")).toEqual({
+        begins: 0,
+        evenings: 1,
+        mails: 0,
+        pushes: 0,
+        failed: 0,
+      });
       const [said] = await told();
       expect(said).toMatchObject({
         userId: "owner",
@@ -494,10 +518,12 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
   });
 
   it("says of a run that told everyone that it went well", () => {
-    expect(momentsDone({ begins: 2, evenings: 1, mails: 3, failed: 0 })).toEqual({
-      counts: { begins: 2, evenings: 1, mails: 3, failed: 0 },
+    expect(momentsDone({ begins: 2, evenings: 1, mails: 3, pushes: 4, failed: 0 })).toEqual({
+      counts: { begins: 2, evenings: 1, mails: 3, pushes: 4, failed: 0 },
       degraded: false,
     });
-    expect(momentsDone({ begins: 0, evenings: 0, mails: 0, failed: 1 }).degraded).toBe(true);
+    expect(momentsDone({ begins: 0, evenings: 0, mails: 0, pushes: 0, failed: 1 }).degraded).toBe(
+      true,
+    );
   });
 });

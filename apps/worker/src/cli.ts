@@ -3,7 +3,7 @@ import { Effect } from "effect";
 
 import { evaluateAlerts } from "./alerts";
 import { addBreaksFile, fetchBreaks, removeBreaksOf } from "./breaks/command";
-import { mailOutOf } from "./deliveries";
+import { mailOutOf, pushOutOf } from "./deliveries";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts } from "./forecasts";
@@ -43,8 +43,9 @@ const db = createDb(ENV);
 try {
   if (provider) await Effect.runPromise(ingest(provider, db));
   else if (job === "exposure") console.log(await Effect.runPromise(updateExposure(db)));
-  else if (job === "moments") await Effect.runPromise(tellMoments(db, mailOutOf(ENV)));
-  else if (job === "push-keys") {
+  else if (job === "moments") {
+    await Effect.runPromise(tellMoments(db, mailOutOf(ENV), pushOutOf(ENV)));
+  } else if (job === "push-keys") {
     // The pair alone goes to the standard output, so that it can be sent to a file.
     const made = pushKeys(Boolean(ENV.VAPID_PUBLIC_KEY || ENV.VAPID_PRIVATE_KEY));
     for (const note of made.notes) console.error(note);

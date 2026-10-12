@@ -44,6 +44,18 @@ describe("the pusher of an instance", () => {
     expect(() => createPusher(settings, "the web app")).toThrow("by an address");
   });
 
+  it("is none without an address that names the instance, once its keys are known to be a pair", () => {
+    const other = makeVapidKeys();
+
+    expect(createPusher(settings, undefined)).toBeNull();
+    expect(() =>
+      createPusher({ ...settings, VAPID_PUBLIC_KEY: other.publicKey }, undefined),
+    ).toThrow("not the public key of VAPID_PRIVATE_KEY");
+    expect(() => createPusher({ VAPID_PUBLIC_KEY: made.publicKey }, undefined)).toThrow(
+      "or neither",
+    );
+  });
+
   it("asks nothing of anyone when it is made", () => {
     const asked = vi.fn(() => Promise.reject(new Error("no network in a test")));
     vi.stubGlobal("fetch", asked);
@@ -163,8 +175,10 @@ describe("the pusher of an instance", () => {
       taken: [200, 201, 202],
       // The two answers that say a subscription is no more.
       gone: [404, 410],
-      refused: [301, 307, 400, 401, 403, 413, 429, 500, 503],
-      failed: [0],
+      // An answer that says no: the push did not leave.
+      refused: [301, 307, 400, 401, 403, 413, 429],
+      // No answer, or one that says the push service failed: it may have taken it.
+      failed: [500, 503, 0],
     });
   });
 
