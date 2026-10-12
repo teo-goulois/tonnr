@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { AdminShell } from "@/components/shared/admin-shell";
 import { Loader } from "@/components/shared/loader";
 import { signedIn } from "@/lib/guard";
+import { useWaiting } from "@/lib/use-waiting";
 import { isRefusal, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_operator")({
@@ -38,14 +39,8 @@ function OperatorLayout() {
     }),
   );
   const account = asked.data ?? context.account;
-  // The spots that wait for an answer, counted beside the page that answers them.
-  const waiting = useQuery(
-    orpc.v1.publications.list.queryOptions({
-      input: { status: "pending" },
-      refetchInterval: EVERY,
-      meta: { quiet: true },
-    }),
-  );
+  // What waits for an answer in the moderation, counted beside the page that answers it.
+  const waiting = useWaiting();
   // The guard above asks again: it sends an account that is no longer signed in to the
   // sign-in, and one that no longer runs the instance to the console. It is also the guard
   // that drops what the page loaded for an account when another one is signed in.
@@ -63,7 +58,7 @@ function OperatorLayout() {
   return (
     // The screens belong to the account they were drawn for. Another account gets new ones,
     // which have read nothing: see `readBy`.
-    <AdminShell key={account.id} account={account} waiting={waiting.data?.publications.length}>
+    <AdminShell key={account.id} account={account} waiting={waiting.spots + waiting.guides}>
       <Outlet />
     </AdminShell>
   );

@@ -11,6 +11,10 @@ import { AccountPrompt } from "@/components/viewer/saved-panel";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 
+import { points } from "../guides/contributions-panel";
+import { RANKS } from "../guides/guide-words";
+import { RankBadge } from "../guides/rank";
+import type { Standing } from "../viewer/types";
 import { UsernameForm } from "./username-form";
 
 type AccountPanelProps = {
@@ -28,6 +32,10 @@ type AccountPanelProps = {
   onSignOut: () => void;
   // Opens how the account wants to be told of its alerts, one step into this panel.
   onOpenAlertSettings: () => void;
+  // Where the account stands in the guides, once the API has said. Decision 041.
+  standing?: Pick<Standing, "score" | "rank"> | undefined;
+  // Opens what the account wrote in the guides, one step into this panel.
+  onOpenContributions: () => void;
 };
 
 // A language is named in itself, whatever language the screen is read in.
@@ -65,6 +73,8 @@ export function AccountPanel({
   onCreateAccount,
   onSignOut,
   onOpenAlertSettings,
+  standing,
+  onOpenContributions,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const [isNaming, setNaming] = useState(false);
@@ -73,9 +83,12 @@ export function AccountPanel({
     <div className="grid gap-l">
       {account ? (
         <div className="grid justify-items-start gap-xxs">
-          {/* An account is called by its username once it has one. */}
-          <p className="max-w-full truncate font-medium">
-            {account.username ? `@${account.username}` : account.name}
+          {/* An account is called by its username once it has one, with the rank it reached. */}
+          <p className="flex max-w-full items-center gap-xs font-medium">
+            <span className="truncate">
+              {account.username ? `@${account.username}` : account.name}
+            </span>
+            {standing?.rank && <RankBadge rank={standing.rank} />}
           </p>
           <p className="max-w-full truncate text-s text-neutral-7">{account.email}</p>
           {account.username !== undefined &&
@@ -119,6 +132,29 @@ export function AccountPanel({
           onSignIn={onSignIn}
           onCreateAccount={onCreateAccount}
         />
+      )}
+
+      {/* What the account wrote in the guides of the spots, and where it stands. */}
+      {account && (
+        <Section title={m.community_title()}>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenContributions}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.contributions_title()}</span>
+              <span className="text-s text-neutral-7">
+                {standing && standing.score > 0
+                  ? [points(standing.score), standing.rank && RANKS[standing.rank].name()]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : m.contributions_hint()}
+              </span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
+        </Section>
       )}
 
       {/* The units every measurement is written in, on every screen. Decision 033. */}

@@ -1,6 +1,6 @@
 # Product vision
 
-Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Changed again on 2026-10-12: a spot is made public by a request, and shared through a list. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
+Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Changed again on 2026-10-12: a spot is made public by a request, and shared through a list, and the accounts that know a public spot write its guide. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
 
 ## Audience and problem
 
@@ -10,13 +10,15 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 
 - A user adds a spot: a point on the map and a name. They find the place by searching for a beach or a town, or pick it from a catalogue of known surf breaks, then put a marker where the wave breaks. Their own point stays private. They may ask that it be made public: it joins the catalogue only once a moderator has checked that it is known to all, so that nobody publishes a secret spot by accident. Decision 034 gives the rules.
 - The user may describe their spot as a surf guide would: its type, its bottom, the tides and the directions it likes.
+- An account writes what it knows of a public spot, one line of its guide at a time: what the wave is like, how to get there, where to enter the water, what to watch for, and what the place asks of whoever surfs it. A moderator, or the accounts that keep the spot, confirm it: everyone then reads it, under its author's username. How crowded a spot is, how its locals take a visitor and the level it asks are answered by each account for itself, and shown as how the answers spread. What an account wrote and that was confirmed counts for a score and a rank, named after surfing's tours. Téo wants a surfer who arrives somewhere new to find how every spot works, written by the people who surf it. Decision 041 gives the rules.
 - The user sets an alert on a spot, with the conditions that make it work: swell height, period and direction, wind, and tide. Tonnr tells them when measurements or forecasts match. Téo said on 2026-10-11 what an alert is and when it speaks: decision 031 holds it.
 - A user keeps buoys, wind stations, surf breaks and their own spots as favorites and sorts them into lists. Decision 017 gives the model.
 - A user shares a list by a link, with a password if they wish. Whoever has the link sees the map with that list alone, their private spots in it too, and needs no account. Decision 035 gives the rules.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
 - Anyone opens the map without an account: the buoys, the breaks, the forecasts and the tides. An account is for what a user keeps: spots, lists and alerts. While demand is strong the map closes to visitors, by itself or when whoever runs the instance says so: they are then asked to sign in or to create an account. Decision 039 gives the rules.
+- An account has a username, which is what others read of it. Sign-up asks for it.
 - An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, a program with a key that the operator gave it, or the web app for a visitor.
-- Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, the accounts that signed up, and whether the map is open to visitors. Decision 020 covers it.
+- Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, the accounts that signed up, what users ask to show to everyone, and whether the map is open to visitors. Decision 020 covers it.
 
 Tonnr lives at `tonnr.app`. Decision 013 records the name.
 

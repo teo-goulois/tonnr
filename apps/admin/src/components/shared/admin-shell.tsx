@@ -110,7 +110,8 @@ export function Shell({ account, home, nav, commands, children }: ShellProps) {
 }
 
 type AdminShellProps = Pick<ShellProps, "account" | "children"> & {
-  // How many spots wait for an answer in the moderation. Shown beside its page once known.
+  // How many spots and contributions wait for an answer in the moderation. Shown beside its
+  // page once known.
   waiting?: number;
 };
 

@@ -104,6 +104,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "alerts" } }),
         },
         {
+          value: `${m.contributions_title()} contributions guides community rank score points`,
+          label: m.contributions_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "contributions" } }),
+        },
+        {
           value: `${m.account_settings()} settings account preferences ${m.units_title()} units knots nœuds km/h feet pieds celsius fahrenheit`,
           label: m.account_settings(),
           run: () => void navigate({ to: "/app", search: { panel: "account" } }),

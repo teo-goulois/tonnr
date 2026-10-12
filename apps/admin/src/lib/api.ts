@@ -14,6 +14,8 @@ export type Account = Answer<V1["accounts"]["list"]>["accounts"][number];
 export type AccountDetail = Answer<V1["accounts"]["get"]>;
 export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];
 export type Publication = Answer<V1["publications"]["list"]>["publications"][number];
+// A contribution to a break's guide, as an operator reads it.
+export type Review = Answer<V1["reviews"]["list"]>["reviews"][number];
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;
 export type Job = InstanceState["jobs"][number];

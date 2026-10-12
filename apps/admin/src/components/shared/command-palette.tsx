@@ -144,6 +144,11 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/moderation" }),
         },
         {
+          value: `${m.nav_moderation()} ${m.moderation_kind_guides()} guides contributions lines contested confirm`,
+          label: `${m.nav_moderation()} : ${m.moderation_kind_guides()}`,
+          run: () => void navigate({ to: "/moderation", search: { kind: "guides" } }),
+        },
+        {
           value: `${m.nav_instance()} instance state status worker jobs providers health`,
           label: m.nav_instance(),
           run: () => void navigate({ to: "/instance" }),

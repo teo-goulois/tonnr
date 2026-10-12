@@ -1,6 +1,6 @@
 # 041. Guides that accounts write, and a rank for writing them
 
-Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built, and so is the API of the contributions, of what an operator answers them, and of the score and the rank. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
+Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built, and so are the contributions: the guide of a break in the web app, what an operator answers in the admin, what the accounts that keep a break say, the score and the rank. The link that makes friends and sponsors is not. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
 
 ## Context
 

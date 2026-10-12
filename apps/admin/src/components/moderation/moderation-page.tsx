@@ -155,7 +155,52 @@ function Request({ publication, now, onAccept, onRefuse }: RequestProps) {
   );
 }
 
+export type ModerationKind = "spots" | "guides";
+
 type ModerationPageProps = {
+  kind: ModerationKind;
+  onKindChange: (kind: ModerationKind) => void;
+  // How many of each kind wait for the operator.
+  waiting: Record<ModerationKind, number>;
+  // What the kind in view shows.
+  children: ReactNode;
+};
+
+/**
+ * What users ask the instance to show to everyone, for an operator to answer: the spots their
+ * owners asked to make public, and what accounts wrote of the breaks.
+ */
+export function ModerationPage({ kind, onKindChange, waiting, children }: ModerationPageProps) {
+  const counted = (count: number) =>
+    count > 0 && (
+      <Badge variant="warning" className="ml-xs tabular-nums">
+        <span className="sr-only">{m.moderation_waiting()}</span>
+        {count}
+      </Badge>
+    );
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-s">
+        <h1 className="text-l font-medium">{m.nav_moderation()}</h1>
+        <Tabs value={kind} onValueChange={(value) => onKindChange(value as ModerationKind)}>
+          <TabsList aria-label={m.moderation_kind()}>
+            <TabsTab value="spots">
+              {m.moderation_kind_spots()}
+              {counted(waiting.spots)}
+            </TabsTab>
+            <TabsTab value="guides">
+              {m.moderation_kind_guides()}
+              {counted(waiting.guides)}
+            </TabsTab>
+          </TabsList>
+        </Tabs>
+      </div>
+      {children}
+    </>
+  );
+}
+
+type SpotRequestsProps = {
   status: PublicationStatus;
   onStatusChange: (status: PublicationStatus) => void;
   // Undefined while the requests load.
@@ -167,7 +212,7 @@ type ModerationPageProps = {
  * The spots their owners asked to make public, for an operator to accept into the catalogue or
  * to refuse. Decision 034.
  */
-export function ModerationPage({ status, onStatusChange, publications, now }: ModerationPageProps) {
+export function SpotRequests({ status, onStatusChange, publications, now }: SpotRequestsProps) {
   const queryClient = useQueryClient();
   const [accepting, setAccepting] = useState<Publication | null>(null);
   const [refusing, setRefusing] = useState<Publication | null>(null);
@@ -211,8 +256,8 @@ export function ModerationPage({ status, onStatusChange, publications, now }: Mo
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-s">
-        <h1 className="text-l font-medium">{m.nav_moderation()}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-s">
+        <p className="max-w-(--container-3xl) text-neutral-7">{m.moderation_intro()}</p>
         <Tabs value={status} onValueChange={(value) => onStatusChange(value as PublicationStatus)}>
           <TabsList variant="segment" aria-label={m.moderation_status()}>
             <TabsTab value="pending">{m.moderation_pending()}</TabsTab>
@@ -221,7 +266,6 @@ export function ModerationPage({ status, onStatusChange, publications, now }: Mo
           </TabsList>
         </Tabs>
       </div>
-      <p className="max-w-(--container-3xl) text-neutral-7">{m.moderation_intro()}</p>
 
       {!publications ? (
         <Loader />

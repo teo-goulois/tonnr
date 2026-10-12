@@ -80,6 +80,12 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_spot_published()];
     case "spot.refuse":
       return [m.action_spot_refused()];
+    case "contribution.accept":
+      return [m.action_contribution_accepted()];
+    case "contribution.refuse":
+      return [m.action_contribution_refused()];
+    case "contribution.keep":
+      return [m.action_contribution_kept()];
     case "account.sign_out":
       return [m.action_signed_out({ count: formatCount(action.changes?.sessions ?? 0) })];
     case "account.suspend":

@@ -30,6 +30,16 @@ export type AlertSettings = Answer<V1["alerts"]["getSettings"]>;
 /** What conditions give at spots, before they are saved. */
 export type AlertPreview = Answer<V1["alerts"]["preview"]>;
 
+/** The guide of a surf break: what is written of it, line by line. Decision 041. */
+export type Guide = Answer<V1["guides"]["get"]>;
+export type GuideLine = Guide["lines"][number];
+/** What the signed-in account wrote of a break, and what it may do there. */
+export type GuideOwn = Answer<V1["guides"]["mine"]>;
+/** What the signed-in account wrote in the guides, and where it stands. */
+export type Standing = Answer<V1["contributions"]["mine"]>;
+export type Contribution = Standing["contributions"][number];
+export type Rank = NonNullable<Standing["rank"]>;
+
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {
   data: Data | undefined;

@@ -111,7 +111,7 @@ function points(given: WordOf<"bestSwellDirections">[] | null) {
 }
 
 // A characteristic that is said in a list of words, with the words it may be said in.
-type ListedField = Exclude<keyof Characteristics, "offshoreDirectionDegrees">;
+export type ListedField = Exclude<keyof Characteristics, "offshoreDirectionDegrees">;
 export type CharacteristicField = {
   [Field in ListedField]: {
     key: Field;
@@ -140,6 +140,18 @@ export const CHARACTERISTIC_FIELDS: CharacteristicField[] = [
   { key: "bestSwellDirections", label: m.break_best_swell, words: compassWords },
   { key: "bestWindDirections", label: m.break_best_wind, words: compassWords },
 ];
+
+/** The words of one characteristic as they read: its points with their arrows, or its words. */
+export function readCharacteristic(key: ListedField, given: readonly string[]): ReactNode {
+  if (key === "bestSwellDirections" || key === "bestWindDirections") {
+    return points(COMPASS.filter((point) => given.includes(point)));
+  }
+  const field = CHARACTERISTIC_FIELDS.find((one) => one.key === key);
+  return field?.words
+    .filter(({ word }) => given.includes(word))
+    .map(({ reading }) => reading())
+    .join(", ");
+}
 
 /**
  * What is known of a place where the sea is surfed, as a list. Nothing is shown of a place of

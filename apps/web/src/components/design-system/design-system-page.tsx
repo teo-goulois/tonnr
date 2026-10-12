@@ -58,6 +58,7 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { GuideSamples } from "@/components/design-system/guide-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
 import { BottomNav } from "@/components/shared/bottom-nav";
@@ -824,12 +825,14 @@ export function DesignSystemPage() {
           <div className="edge rounded-(--radius-xs) p-m">
             <AccountPanel
               account={{ name: "maelle_lg", email: "maelle@example.org", username: "maelle_lg" }}
+              standing={{ score: 180, rank: "cs" }}
               check={{ isSending: false, onSend: () => {} }}
               onUsernameSave={refuseTaken}
               onSignIn={() => {}}
               onCreateAccount={() => {}}
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
+              onOpenContributions={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -841,6 +844,7 @@ export function DesignSystemPage() {
               onCreateAccount={() => {}}
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
+              onOpenContributions={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -852,9 +856,14 @@ export function DesignSystemPage() {
               onCreateAccount={() => {}}
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
+              onOpenContributions={() => {}}
             />
           </div>
         </div>
+      </Section>
+
+      <Section title="Guide of a break, and contributions">
+        <GuideSamples />
       </Section>
 
       <Section title="Viewer skeleton">

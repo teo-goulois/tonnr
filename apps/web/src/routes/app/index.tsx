@@ -44,6 +44,7 @@ import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 import { useAlerting } from "./-alerting";
+import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useSharedList } from "./-shared";
 
@@ -60,7 +61,9 @@ export const Route = createFileRoute("/app/")({
     // then still leads there, and is taken to it.
     alerts: z.enum(["mine", "settings"]).optional(),
     // The part of the account's panel in view: its first screen when left out.
-    settings: z.enum(["alerts"]).optional(),
+    settings: z.enum(["alerts", "contributions"]).optional(),
+    // The tab a break's panel opens on: its forecast when left out.
+    tab: z.enum(["guide"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
     // The list the map shows alone: one of the account's or one it kept, by its id, or one that
@@ -322,6 +325,10 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     signedIn,
     isShown: isSettingAlerts || selectedSpotId !== undefined,
   });
+  // What is written of the break in view, and what its reader does there.
+  const guided = useGuiding({ breakId: selectedBreakId, signedIn });
+  // Where the account stands in the guides, read where it shows: in the account's panel.
+  const standing = useStanding({ signedIn, isShown: panel === "account" });
   // A browser that has push on says so again when the app loads. The devices are read where they
   // show: with the settings of the alerts.
   const push = usePush({ account: session.data?.user.id, isShown: isSettingAlerts });
@@ -1095,6 +1102,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         history: loadable(history),
         historyDays,
         found: loadable(found),
+        guide: guided.guide,
+        own: guided.own,
         spot: {
           data: spot,
           isPending: !spot && (askedSpot.isLoading || (signedIn && spots.isLoading)),
@@ -1137,6 +1146,9 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
       alerting={alerting}
+      guiding={guided.guiding}
+      guideAsked={search.tab === "guide"}
+      onOpenGuide={(id) => void navigate({ search: { ...mode, break: id, tab: "guide" } })}
       push={push}
       alertsTab={search.alerts === "mine" ? "mine" : "news"}
       onAlertsTabChange={(tab) =>
@@ -1157,6 +1169,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
           ? { isSending: verification.isSending, onSend: verification.send }
           : undefined,
         onUsernameSave: saveUsername,
+        standing,
         onSignOut: signOut,
       }}
       settingsPart={search.settings}

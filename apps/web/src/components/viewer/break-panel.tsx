@@ -1,23 +1,37 @@
+import { useState } from "react";
+
 import { m } from "@/paraglide/messages.js";
 
-import { BreakCharacteristics } from "./break-characteristics";
-import { Details } from "./details/details";
+import { BreakGuide } from "../guides/break-guide";
+import type { Guiding } from "../guides/types";
+import { Details, type DetailsTab } from "./details/details";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { type PointConditionsProps, Sources } from "./point-conditions";
-import type { Loadable, SurfBreak } from "./types";
+import type { Guide, GuideOwn, Loadable, SurfBreak } from "./types";
 
 type BreakPanelProps = PointConditionsProps & {
   found: Loadable<SurfBreak>;
+  // What is written of the break, what the reader wrote of it, and what the guide does for
+  // them: decision 041.
+  guide: Loadable<Guide>;
+  own: GuideOwn | undefined;
+  guiding: Guiding;
+  // True when the panel opens on the guide, as it does from a contribution to it.
+  opensOnGuide?: boolean;
   // The buoy the sea is read on at this break, and how to open its panel over this one.
   nearby?: Nearby;
   nearbyWind?: NearbyWind;
   onOpenBuoy?: (stationId: string) => void;
 };
 
-/** The week and the tide at a surf break of the catalogue, and what is known of the break. */
+/** The week and the tide at a surf break of the catalogue, and what is written of the break. */
 export function BreakPanel({
   now,
   found,
+  guide,
+  own,
+  guiding,
+  opensOnGuide = false,
   forecast,
   tides,
   extremes,
@@ -26,6 +40,7 @@ export function BreakPanel({
   nearbyWind,
   onOpenBuoy,
 }: BreakPanelProps) {
+  const [tab, setTab] = useState<DetailsTab>(opensOnGuide ? "guide" : "forecast");
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
@@ -42,6 +57,8 @@ export function BreakPanel({
   return (
     <Details
       spot={found.data}
+      tab={tab}
+      onTabChange={setTab}
       now={now}
       forecast={forecast}
       tides={tides}
@@ -51,7 +68,9 @@ export function BreakPanel({
       nearbyWind={nearbyWind}
       offshoreFrom={found.data?.characteristics.offshoreDirectionDegrees}
       onOpenStation={onOpenBuoy}
-      guide={found.data && <BreakCharacteristics found={found.data} />}
+      guide={
+        found.data && <BreakGuide found={found.data} guide={guide} own={own} guiding={guiding} />
+      }
       footer={
         <Sources
           origin={origin}

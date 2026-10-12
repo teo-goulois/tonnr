@@ -35,6 +35,8 @@ import {
   type SpotSearch,
 } from "@/components/spots/new-spot-panel";
 import type { Alerting } from "@/components/alerts/types";
+import { ContributionsPanel } from "@/components/guides/contributions-panel";
+import type { Guiding } from "@/components/guides/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
 import { ListChips } from "@/components/lists/list-chips";
 import { ListPanel } from "@/components/lists/list-panel";
@@ -75,6 +77,8 @@ import { StationPanel } from "./station-panel";
 import {
   type AlertNotification,
   type Forecast,
+  type Guide,
+  type GuideOwn,
   type JoinedList,
   type ListView,
   type Loadable,
@@ -82,6 +86,7 @@ import {
   type SavedItem,
   type SavedList,
   type Spot,
+  type Standing,
   type Station,
   type StationReadings,
   type SurfBreak,
@@ -111,7 +116,7 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
 /** The part of the account's panel that is one step into it: how to be told of the alerts. */
-export type SettingsPart = "alerts";
+export type SettingsPart = "alerts" | "contributions";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -163,6 +168,9 @@ type ViewerProps = {
     // How many days of readings the history holds.
     historyDays: number;
     found: Loadable<SurfBreak>;
+    // What is written of the selected break, and what the reader wrote of it.
+    guide: Loadable<Guide>;
+    own: GuideOwn | undefined;
     spot: Loadable<Spot>;
     // The forecast and the tide at the selected station or break.
     forecast: Loadable<Forecast>;
@@ -198,6 +206,11 @@ type ViewerProps = {
   notifications: Loadable<AlertNotification[]>;
   // The alerts of the account, its settings, and what the screens do with them.
   alerting: Alerting;
+  // What the guide of a break does for its reader: decision 041.
+  guiding: Guiding;
+  // Whether the address asks for the guide of the break it selects, and what opens one.
+  guideAsked: boolean;
+  onOpenGuide: (breakId: string) => void;
   // Push on this device, and the account's devices.
   push: Pushing;
   // The part of the alerts panel in view.
@@ -211,6 +224,8 @@ type ViewerProps = {
     // Given when the account's address is not checked yet, on an instance that checks addresses.
     check?: { isSending: boolean; onSend: () => void };
     onUsernameSave: (username: string) => Promise<string | undefined>;
+    // What the account wrote in the guides, and where it stands.
+    standing: Loadable<Standing>;
     onSignOut: () => void;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
@@ -356,6 +371,8 @@ function sameSelection(one: Selection, other: Selection) {
     sameLoadable(one.history, other.history) &&
     one.historyDays === other.historyDays &&
     sameLoadable(one.found, other.found) &&
+    sameLoadable(one.guide, other.guide) &&
+    one.own === other.own &&
     sameLoadable(one.spot, other.spot) &&
     sameLoadable(one.forecast, other.forecast) &&
     sameLoadable(one.tides, other.tides) &&
@@ -368,6 +385,7 @@ function sameSelection(one: Selection, other: Selection) {
 // A drawer that holds no surf break has none to say anything of.
 const NO_BREAK: Loadable<SurfBreak> = { data: undefined, isPending: false, isError: false };
 const NO_SPOT: Loadable<Spot> = { data: undefined, isPending: false, isError: false };
+const NO_GUIDE: Loadable<Guide> = { data: undefined, isPending: false, isError: false };
 
 /**
  * What a drawer shows, and what of it is drawn. The drawer keeps its content while it slides
@@ -420,6 +438,9 @@ export function Viewer({
   savedBreaks,
   notifications,
   alerting,
+  guiding,
+  guideAsked,
+  onOpenGuide,
   push,
   alertsTab,
   onAlertsTabChange,
@@ -631,6 +652,8 @@ export function Viewer({
     breakId: undefined,
     spotId: undefined,
     found: NO_BREAK,
+    guide: NO_GUIDE,
+    own: undefined,
     spot: NO_SPOT,
     nearby: undefined,
     nearbyWind: undefined,
@@ -706,6 +729,10 @@ export function Viewer({
         key={drawn.breakId}
         now={now}
         found={drawn.found}
+        guide={drawn.guide}
+        own={drawn.own}
+        guiding={guiding}
+        opensOnGuide={guideAsked}
         forecast={drawn.forecast}
         tides={drawn.tides}
         extremes={drawn.extremes}
@@ -743,6 +770,8 @@ export function Viewer({
     alerting,
     alertAsked,
     beginAlert,
+    guiding,
+    guideAsked,
   ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
@@ -861,6 +890,7 @@ export function Viewer({
   };
   // How to be told of the alerts is an account's: a visitor has the account's first screen.
   const alertSettings = settingsPart === "alerts" && signedIn;
+  const ownContributions = settingsPart === "contributions" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -1423,8 +1453,16 @@ export function Viewer({
           if (!open) onPanelChange(undefined);
         }}
         wide={wide}
-        title={alertSettings ? m.command_alerts_settings() : m.account_menu()}
-        onBack={alertSettings ? () => onSettingsPartChange(undefined) : undefined}
+        title={
+          alertSettings
+            ? m.command_alerts_settings()
+            : ownContributions
+              ? m.contributions_title()
+              : m.account_menu()
+        }
+        onBack={
+          alertSettings || ownContributions ? () => onSettingsPartChange(undefined) : undefined
+        }
       >
         {alertSettings ? (
           <AlertSettingsForm
@@ -1434,6 +1472,8 @@ export function Viewer({
             push={push}
             now={now}
           />
+        ) : ownContributions ? (
+          <ContributionsPanel standing={account.standing} onOpenBreak={onOpenGuide} />
         ) : (
           <AccountPanel
             account={account.user}
@@ -1442,6 +1482,8 @@ export function Viewer({
             {...accountPrompt}
             onSignOut={account.onSignOut}
             onOpenAlertSettings={() => onSettingsPartChange("alerts")}
+            standing={account.standing.data}
+            onOpenContributions={() => onSettingsPartChange("contributions")}
           />
         )}
       </ViewerTab>
