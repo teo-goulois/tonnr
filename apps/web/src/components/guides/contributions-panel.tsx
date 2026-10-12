@@ -1,5 +1,6 @@
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
+import { Meter, MeterIndicator, MeterLabel, MeterTrack } from "@repo/ui/components/ui/meter";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 
 import { m } from "@/paraglide/messages.js";
@@ -8,8 +9,6 @@ import { CHARACTERISTIC_FIELDS, readCharacteristic } from "../viewer/break-chara
 import type { Contribution, Loadable, Standing } from "../viewer/types";
 import { isTextLine, RANKS, TEXT_LINES } from "./guide-words";
 import { RankBadge } from "./rank";
-import { RankLadder } from "./rank-ladder";
-import { points } from "./ranks";
 
 // What became of a contribution, as its author reads it, and the color that says so.
 const STATES: Record<
@@ -23,6 +22,11 @@ const STATES: Record<
   superseded: { label: m.contribution_superseded, variant: "neutral" },
   withdrawn: { label: m.contribution_withdrawn, variant: "neutral" },
 };
+
+/** A number of points, as it is written. */
+export function points(count: number) {
+  return count === 1 ? m.contributions_point_one() : m.contributions_points({ count });
+}
 
 /** The line a contribution is of, and what it says, as they read. */
 export function readContribution(one: Pick<Contribution, "line" | "value">) {
@@ -47,9 +51,8 @@ type ContributionsPanelProps = {
 };
 
 /**
- * What an account wrote in the guides and what became of it, with where the account stands: the
- * emblem of the rank it reached, its score, and the way to the next rank. An account that has
- * reached none reads the first one in gray: what there is to reach. Decision 041.
+ * What an account wrote in the guides and what became of it, with where the account stands: its
+ * score, the rank it reached, and how far the next one is. Decision 041.
  */
 export function ContributionsPanel({ standing, onOpenBreak }: ContributionsPanelProps) {
   const known = standing.data;
@@ -58,37 +61,48 @@ export function ContributionsPanel({ standing, onOpenBreak }: ContributionsPanel
       <p className="text-s text-neutral-7">{m.contributions_failed()}</p>
     ) : (
       <div className="grid gap-s" aria-hidden>
-        <Skeleton className="h-14 w-full" />
         <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-5 w-full" />
         <Skeleton className="h-5 w-full" />
       </div>
     );
   }
   const { next } = known;
-  // The emblem at the head: the account's, or in gray the first there is to reach.
-  const emblem = known.rank ?? next?.rank;
 
   return (
     <div className="grid gap-l">
       <div className="grid gap-s">
-        <div className="flex items-center gap-s">
-          {emblem && <RankBadge rank={emblem} size={56} locked={known.rank === null} aria-hidden />}
-          <div className="grid min-w-0">
-            <p className="text-l font-medium">
-              {known.rank ? RANKS[known.rank].name() : m.contributions_no_rank()}
-            </p>
-            <p className="text-s text-neutral-7 tabular-nums">{points(known.score)}</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-s gap-y-xxs">
+          <p className="text-l font-medium tabular-nums">{points(known.score)}</p>
+          {known.rank ? (
+            <span className="inline-flex items-center gap-xs text-s text-neutral-7">
+              <RankBadge rank={known.rank} />
+              {RANKS[known.rank].name()}
+            </span>
+          ) : (
+            <span className="text-s text-neutral-7">{m.contributions_no_rank()}</span>
+          )}
         </div>
-        <RankLadder score={known.score} rank={known.rank} />
-        <p className="text-s">
-          {next
-            ? m.contributions_next({
-                points: points(Math.max(0, next.from - known.score)),
-                rank: RANKS[next.rank].short(),
-              })
-            : m.contributions_top()}
-        </p>
+        {next ? (
+          <Meter value={Math.min(known.score, next.from)} min={0} max={next.from}>
+            <div className="flex items-baseline justify-between gap-s text-s">
+              <MeterLabel>
+                {m.contributions_progress({ rank: RANKS[next.rank].short() })}
+              </MeterLabel>
+              <span className="text-neutral-7 tabular-nums">
+                {m.contributions_next({
+                  points: points(Math.max(0, next.from - known.score)),
+                  rank: RANKS[next.rank].short(),
+                })}
+              </span>
+            </div>
+            <MeterTrack>
+              <MeterIndicator />
+            </MeterTrack>
+          </Meter>
+        ) : (
+          <p className="text-s text-neutral-7">{m.contributions_top()}</p>
+        )}
         <p className="text-s text-neutral-7">{m.contributions_scale()}</p>
         {known.sponsorships > 0 && (
           <p className="text-s">

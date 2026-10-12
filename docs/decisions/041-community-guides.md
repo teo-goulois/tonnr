@@ -43,8 +43,7 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 - A contribution to a break that later leaves the catalogue still counts. A row keeps the id of the break it was written of, so that a line still counts once then, however often its author wrote it.
 - The version before this one accepts a spot without writing its row. The API writes the rows that are missing each time it starts, so that a spot accepted while a version is being deployed is counted.
 - A rank is a threshold of the score, and is kept for life: the QS from 20 points, the CS from 150, the CT from 600. A break described whole is 80 points. A rank is written the day it is reached, in `rank_award`, and stays when a contribution is refused afterwards and the score goes down.
-- A rank is drawn as an emblem, after the username, wherever the account is read: on what it wrote in a guide, in its own panel and its menu, among its friends, and on its link. Téo asked for it on 2026-10-12: a badge for each rank, "more visual than QS alone", and one way to write a username with its rank. The three are pins that carry waves, one more at each rank and drawn as the water of the app's wave icon is, and each has an outline of its own, so that none is told by its color alone: a coin, a shield, then a shield that wears a crown. They were drawn for the ranks and copy no mark of a tour.
-- The account's panel draws the way from one rank to the next: the emblem of each, in gray until it is reached, and how far the score has come. The web app tells an account of a rank the day it reaches it, once on a browser. The browser keeps the last rank it read for the account, and one that reads a rank for the first time says nothing, since the rank may be an old one. The API keeps nothing of it.
+- A rank shows beside the username on what the account wrote in a guide, in its own account panel, and to its friends.
 
 ### The username
 
@@ -76,6 +75,7 @@ Later, in no order:
 - A question the day after an alert told: was the account there, and how was it. The answers are summed over time and never shown as they come, so that nobody reads there where it is good now.
 - A draw each month for a small gift, among the accounts that had a contribution confirmed that month: one ticket for each contribution, up to a cap.
 - A ranking by season, which the rows allow.
+- An emblem for each rank, in place of its initials. Three were drawn on 2026-10-12, with the way from one rank to the next and a word to the account the day it reaches one. Téo set them aside the same day: the branch `prototype/rank-emblems` keeps them.
 
 ## Rejected
 
@@ -94,6 +94,6 @@ Later, in no order:
 - An account is seen by others for the first time: by its username, its rank, and what it wrote. A break still names no account. A line of its guide names its author.
 - The product vision assumes that there is no friends list. That ends with the link.
 - An account agrees to a licence when it contributes, as it does when it asks to publish a spot, and the terms of use of the web app say which.
-- The scale of points, the thresholds of the ranks and the numbers above were not Téo's: he left them to whoever built this. They are constants of `packages/api/src/community.ts`, but the thresholds of the ranks: `packages/config/src/ranks.ts` says those, for the API and for the web app, which draws the way to each.
-- The tours' names are the World Surf League's. Whether they may stand as ranks is to check before the app is widely known. The emblems are the app's own.
+- The scale of points, the thresholds of the ranks and the numbers above were not Téo's: he left them to whoever built this. They are constants of `packages/api/src/community.ts`.
+- The tours' names are the World Surf League's. Whether they may stand as ranks is to check before the app is widely known.
 - A draw is the instance's to answer for: its rules, and the address it asks of the winner and of no one else.

@@ -1,14 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
 import { useUsername } from "@/components/account/username";
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
 import type { GuideLineName, Guiding } from "@/components/guides/types";
 import { isTextLine } from "@/components/guides/guide-words";
-import { tellRank } from "@/components/guides/rank-reached";
-import { isHigherRank, keepSeenRank, seenRank } from "@/components/guides/ranks";
-import type { Guide, GuideOwn, Loadable, Rank } from "@/components/viewer/types";
+import type { Guide, GuideOwn, Loadable, Standing } from "@/components/viewer/types";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
@@ -27,34 +25,31 @@ function refusalOf(error: unknown) {
 }
 
 /**
- * Tells the account of a rank it reached since this browser last read where it stands, over
- * whatever screen it is on. A browser that reads it for the first time says nothing: the rank
- * may be an old one. `rank` is undefined while the API has not said.
+ * What the signed-in account wrote in the guides, and where it stands: its score and its rank.
+ * It is asked for where it shows, in the account's panel. `account` is the id of the account
+ * that is signed in: an answer is kept under it, since a session can become another account's
+ * in another tab, and what was kept for the first is not the second's.
  */
-export function useRankReached({
+export function useStanding({
   account,
-  rank,
-  onSee,
+  isShown,
 }: {
   account: string | undefined;
-  rank: Rank | null | undefined;
-  // Opens what the account wrote, where its rank is.
-  onSee: () => void;
+  isShown: boolean;
 }) {
-  // What opens it is the route's of the moment the button is pressed, not of the day it was told.
-  const see = useRef(onSee);
-  useEffect(() => {
-    see.current = onSee;
-  });
-  useEffect(() => {
-    if (account === undefined || rank === undefined) return;
-    const seen = seenRank(account);
-    if (seen === rank) return;
-    keepSeenRank(account, rank);
-    if (seen !== undefined && rank !== null && isHigherRank(rank, seen)) {
-      tellRank(rank, () => see.current());
-    }
-  }, [account, rank]);
+  const asked = useQuery(
+    orpc.v1.contributions.mine.queryOptions({
+      queryKey: [...orpc.v1.contributions.mine.queryKey(), account],
+      enabled: account !== undefined && isShown,
+      meta: { quiet: true },
+    }),
+  );
+  const standing: Loadable<Standing> = {
+    data: account === undefined ? undefined : asked.data,
+    isPending: asked.isLoading,
+    isError: asked.isError,
+  };
+  return standing;
 }
 
 /**
@@ -89,19 +84,6 @@ export function useGuiding({
     refetchInterval: (query) => ((query.state.data?.waiting.length ?? 0) > 0 ? WAITING_MS : false),
   });
   const isWaiting = signedIn && (own.data?.waiting.length ?? 0) > 0;
-  // What waited here and waits no more was answered: where its author stands may have changed,
-  // and is read again. What it wrote of another break is another count.
-  const waitingCount = signedIn ? own.data?.waiting.length : undefined;
-  const waited = useRef<{ of: string; count: number }>(undefined);
-  useEffect(() => {
-    if (waitingCount === undefined) return;
-    const of = `${account}:${breakId}`;
-    const before = waited.current;
-    waited.current = { of, count: waitingCount };
-    if (before?.of === of && waitingCount < before.count) {
-      void queryClient.invalidateQueries({ queryKey: orpc.v1.contributions.key() });
-    }
-  }, [account, breakId, waitingCount, queryClient]);
   const guide = useQuery(
     orpc.v1.guides.get.queryOptions({
       input: { breakId: breakId ?? "", language: getLocale() },

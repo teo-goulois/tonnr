@@ -12,21 +12,16 @@ import { MailIcon, LogOutIcon, SettingsIcon, UserIcon } from "@repo/ui/icon";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useSignOut } from "@/components/auth/use-sign-out";
-import { Username } from "@/components/guides/rank";
-import type { Rank } from "@/components/viewer/types";
 import { m } from "@/paraglide/messages.js";
 
 type UserMenuProps = {
   name: string;
-  // What others read of the account. An account that has chosen none is called by its name.
-  username: string | null | undefined;
-  rank: Rank | null | undefined;
   email: string;
   // Given when the account's address is not checked yet, on an instance that checks addresses.
   check?: { isSending: boolean; onSend: () => void };
 };
 
-export default function UserMenu({ name, username, rank, email, check }: UserMenuProps) {
+export default function UserMenu({ name, email, check }: UserMenuProps) {
   const navigate = useNavigate();
   const signOut = useSignOut();
 
@@ -38,11 +33,7 @@ export default function UserMenu({ name, username, rank, email, check }: UserMen
       <MenuPopup align="end" className="min-w-56">
         <MenuGroup>
           <MenuGroupLabel className="grid">
-            {username ? (
-              <Username name={username} rank={rank} className="text-neutral-10" />
-            ) : (
-              <span className="truncate text-neutral-10">{name}</span>
-            )}
+            <span className="truncate text-neutral-10">{name}</span>
             <span className="truncate font-normal">{email}</span>
             {check && <span className="font-normal">{m.verify_not_checked()}</span>}
           </MenuGroupLabel>

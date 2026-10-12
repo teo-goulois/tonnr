@@ -13,7 +13,6 @@ import { z } from "zod";
 
 import { useUsername } from "@/components/account/username";
 import { useOwnAccount } from "@/components/auth/use-own-account";
-import { useStanding } from "@/components/guides/use-standing";
 import { useSendVerification } from "@/components/auth/use-send-verification";
 import { useSignOut } from "@/components/auth/use-sign-out";
 import { SharedDoor } from "@/components/lists/shared-door";
@@ -37,7 +36,7 @@ import type {
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
 import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import { authClient } from "@/lib/auth-client";
-import { isTabPanel, tabSearch } from "@/lib/phone-nav";
+import { isTabPanel } from "@/lib/phone-nav";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
@@ -46,7 +45,7 @@ import { orpc } from "@/utils/orpc";
 
 import { useAlerting } from "./-alerting";
 import { useFriends } from "./-friends";
-import { useGuiding, useRankReached } from "./-guiding";
+import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useRecentViews } from "./-recents";
 import { useSharedList } from "./-shared";
@@ -333,29 +332,16 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   });
   // What is written of the break in view, and what its reader does there.
   const guided = useGuiding({ breakId: selectedBreakId, account: session.data?.user.id });
+  // Where the account stands in the guides, read where it shows: in the account's panel.
+  const standing = useStanding({
+    account: session.data?.user.id,
+    isShown: panel === "account",
+  });
   // A browser that has push on says so again when the app loads. The devices are read where they
   // show: with the settings of the alerts.
   const push = usePush({ account: session.data?.user.id, isShown: isSettingAlerts });
   // Who is signed in, for the account's panel.
   const own = useOwnAccount();
-  // Where the account stands in the guides, read where it shows: in the account's panel, and
-  // from the start for an account that has a username, which is told of a rank it reaches.
-  const standing = useStanding({
-    account: session.data?.user.id,
-    isAsked: panel === "account" || own.account?.username != null,
-  });
-  useRankReached({
-    account: session.data?.user.id,
-    rank: standing.data?.rank,
-    // The account's tab, with nothing selected: a phone shows a selection before a tab.
-    onSee: () =>
-      void navigate({
-        search: (previous) => ({
-          ...tabSearch("account", previous),
-          settings: "contributions" as const,
-        }),
-      }),
-  });
   const verification = useSendVerification();
   const signOut = useSignOut();
   const saveUsername = useUsername();

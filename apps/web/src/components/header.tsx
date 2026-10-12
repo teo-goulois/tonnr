@@ -8,7 +8,6 @@ import { Link } from "@tanstack/react-router";
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
 import { useOwnAccount } from "@/components/auth/use-own-account";
 import { useSendVerification } from "@/components/auth/use-send-verification";
-import { useStanding } from "@/components/guides/use-standing";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useUnreadAlerts } from "@/components/shared/use-unread-alerts";
 import { authClient } from "@/lib/auth-client";
@@ -26,8 +25,6 @@ export default function Header({ className }: { className?: string }) {
   const { account } = useOwnAccount();
   const verification = useSendVerification();
   const needsCheck = account?.checksAddresses === true && !account.emailVerified;
-  // The rank an account reached is drawn beside its username, here as everywhere.
-  const standing = useStanding({ account: account?.id, isAsked: account?.username != null });
 
   return (
     <header
@@ -71,10 +68,8 @@ export default function Header({ className }: { className?: string }) {
           <Skeleton className="size-10 rounded-full" />
         ) : session ? (
           <UserMenu
-            // An account is called by its username once it has one, with the rank it reached.
-            name={session.user.name}
-            username={session.user.username}
-            rank={standing.data?.rank}
+            // An account is called by its username once it has one.
+            name={session.user.username ? `@${session.user.username}` : session.user.name}
             email={session.user.email}
             check={
               needsCheck

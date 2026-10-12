@@ -2,6 +2,7 @@ import { toast } from "sonner";
 
 import { BreakGuide } from "@/components/guides/break-guide";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
+import { Author, RankBadge } from "@/components/guides/rank";
 import type { Guiding } from "@/components/guides/types";
 import type { Guide, GuideLine, GuideOwn, Standing, SurfBreak } from "@/components/viewer/types";
 
@@ -236,6 +237,14 @@ const framed = "edge rounded-(--radius-xs) p-m";
 export function GuideSamples() {
   return (
     <div className="grid gap-m">
+      <div className="flex flex-wrap items-center gap-m">
+        <RankBadge rank="qs" />
+        <RankBadge rank="cs" />
+        <RankBadge rank="ct" />
+        <Author by={{ username: "maelle_lg", rank: "cs" }} />
+        <Author by={{ username: "newcomer", rank: null }} />
+        <Author by={null} />
+      </div>
       <div className="grid gap-m lg:grid-cols-2">
         {/* An account that keeps the break: it confirms and contests, and its own text waits. */}
         <div className={framed}>
