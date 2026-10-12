@@ -12,10 +12,12 @@ import { listViewSchema, viewOf } from "./lists";
 const MAX_MEMBERS_PER_LIST = 100;
 const MAX_JOINED_PER_USER = 50;
 
-// What a link of a list ends with, and the password it may ask for.
+// What a link of a list ends with, and what it may ask for: its password, or the pass that
+// stood for it since it was given.
 const linkInput = z.object({
   token: z.string().max(64),
   password: z.string().max(72).optional(),
+  pass: z.string().max(64).optional(),
 });
 
 function noLink() {
@@ -38,7 +40,8 @@ export const sharedRouter = {
         "Takes neither a key nor a session: the link is what opens the list. A link that " +
         "asks for a password answers `locked` until it is given one, and 403 for a wrong one. " +
         "Ten wrong ones in a quarter of an hour close it for the rest of it. With the list " +
-        "comes `pass`, for a list with a password: a reader sends `Authorization: List " +
+        "comes `pass`, for a list with a password, which this route takes in its place from " +
+        "then on: a reader sends `Authorization: List " +
         "<token>.<pass>`, or `List <token>` without one, to read the stations, the breaks, " +
         "the forecasts and the tides as an account does. The list's owner and an account " +
         "that kept it are known by their session, and are asked no password. Decision 035.",
@@ -73,8 +76,11 @@ export const sharedRouter = {
             .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)))
         : [];
       const access = list.userId === userId ? "owner" : kept ? "member" : "link";
-      // A request that carries the link with its pass has given the password before.
-      const passed = context.named.via === "link" && context.named.listId === list.id;
+      // A request that carries the link with its pass has given the password before, and so
+      // has an account that gives the pass it was read with before it signed in.
+      const passed =
+        (context.named.via === "link" && context.named.listId === list.id) ||
+        (input.pass !== undefined && input.pass === passOf(share));
 
       if (access === "link" && !passed && share.passwordHash !== null) {
         if (input.password === undefined) return { locked: true as const };
@@ -103,7 +109,7 @@ export const sharedRouter = {
         `${MAX_MEMBERS_PER_LIST} accounts.`,
       tags: ["Lists"],
     })
-    .input(linkInput.extend({ pass: z.string().max(64).optional() }))
+    .input(linkInput)
     .output(z.object({ id: z.string() }))
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;

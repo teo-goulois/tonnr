@@ -191,6 +191,11 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
     expect(await code(call(v1Router.breaks.list, {}, byLink(`${token}.${opened.pass}`)))).toBe(
       "answered",
     );
+    // The pass opens the list for an account that read it before it signed in.
+    expect(await call(v1Router.shared.open, { token }, by("cleo"))).toEqual({ locked: true });
+    expect(
+      await call(v1Router.shared.open, { token, pass: opened.pass! }, by("cleo")),
+    ).toMatchObject({ locked: false, list: { access: "link" } });
     // With its pass the link opens the list again, and keeps it for an account.
     expect(
       await call(v1Router.shared.open, { token }, byLink(`${token}.${opened.pass}`)),
