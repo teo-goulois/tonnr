@@ -9,7 +9,8 @@ import {
   StationRow,
   StationRowSkeleton,
 } from "../viewer/saved-panel";
-import type { ListView, SavedBreak, Station } from "../viewer/types";
+import type { JoinedList, ListView, SavedBreak, SavedList, Station } from "../viewer/types";
+import { ListChips } from "./list-chips";
 
 type ListPanelProps = {
   now: number;
@@ -30,6 +31,11 @@ type ListPanelProps = {
   onShare?: () => void;
   onSignIn: () => void;
   onCreateAccount: () => void;
+  // The account's lists and those it kept, to go from this one to another, or back to all.
+  // None for a visitor, who has this list alone.
+  lists: SavedList[];
+  joined: JoinedList[];
+  onPick: ((listId: string | undefined) => void) | undefined;
 };
 
 /**
@@ -51,11 +57,23 @@ export function ListPanel({
   onShare,
   onSignIn,
   onCreateAccount,
+  lists,
+  joined,
+  onPick,
 }: ListPanelProps) {
   const size = list.stationIds.length + list.breakIds.length + list.spots.length;
 
   return (
     <div className="grid gap-l">
+      {onPick && (
+        <ListChips
+          lists={lists}
+          joined={joined}
+          // A list opened by its link is none of the account's until it is kept.
+          current={list.access === "link" ? undefined : list.id}
+          onPick={onPick}
+        />
+      )}
       {size === 0 ? (
         <p className="text-neutral-7">{m.saved_list_empty()}</p>
       ) : (

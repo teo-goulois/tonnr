@@ -12,13 +12,16 @@ import {
   CommandPanel,
   CommandSeparator,
 } from "@repo/ui/components/ui/command";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 
+import { authClient } from "@/lib/auth-client";
 import { useShortcut, useShortcuts } from "@/lib/shortcuts";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, setLocale } from "@/paraglide/runtime.js";
+import { orpc } from "@/utils/orpc";
 
 import { ShortcutKeys } from "./shortcut-keys";
 import { openShortcutSettings } from "./shortcut-settings";
@@ -48,6 +51,16 @@ export function CommandPalette() {
   }
 
   useShortcut("command-palette", bindings, () => handleOpenChange(!open));
+
+  // The account's lists are asked for when the palette first opens, and not before.
+  const session = authClient.useSession();
+  const saved = useQuery(
+    orpc.v1.lists.list.queryOptions({
+      enabled: open && Boolean(session.data),
+      meta: { quiet: true },
+    }),
+  );
+  const lists = [...(saved.data?.lists ?? []), ...(saved.data?.joined ?? [])];
 
   const isDark = resolvedTheme === "dark";
   const groups: PaletteGroup[] = [
@@ -106,6 +119,20 @@ export function CommandPalette() {
           : []),
       ],
     },
+    // The account's lists, each shown alone on the map: a list is found by typing its name.
+    ...(lists.length > 0
+      ? [
+          {
+            value: "lists",
+            label: m.command_group_lists(),
+            items: lists.map((list) => ({
+              value: `${list.isDefault ? m.saved_favorites() : list.name} list liste ${list.id}`,
+              label: list.isDefault ? m.saved_favorites() : list.name,
+              run: () => void navigate({ to: "/app", search: { list: list.id, panel: "saved" } }),
+            })),
+          },
+        ]
+      : []),
     {
       value: "preferences",
       label: m.command_group_preferences(),

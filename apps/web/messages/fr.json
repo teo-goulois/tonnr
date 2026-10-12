@@ -559,11 +559,10 @@
   "share_renewed": "La liste a un nouveau lien. Celui d'avant n'ouvre plus rien.",
   "share_stop": "Arrêter le partage",
   "share_stopped": "La liste est de nouveau à toi seul.",
-  "list_view": "Voir {name} seule sur la carte",
   "lists_joined": "Partagées avec moi",
-  "list_alone_own": "Ta liste, seule sur la carte",
+  "list_alone_own": "La carte montre cette liste seule",
   "list_alone_shared": "Partagée avec toi",
-  "list_exit": "Toutes les listes",
+  "list_exit": "Tout afficher de nouveau",
   "list_gone": "Cette liste n'est plus partagée avec toi.",
   "list_keep": "Garder dans mes listes",
   "list_keep_text": "Gardée, la liste reste dans tes enregistrés : tu n'as plus besoin de son lien.",
@@ -575,5 +574,11 @@
   "spot_copy": "Copier {name} dans mes spots",
   "spot_shared": "Partagé avec toi",
   "terms_shared_title": "Ce que tu partages par un lien",
-  "terms_shared_text": "Une liste que tu partages par un lien est lue par quiconque a le lien, tes spots privés qui s'y trouvent aussi, et il peut copier ce qu'il lit. Tu peux lui mettre un mot de passe, lui donner un nouveau lien, et arrêter le partage à tout moment."
+  "terms_shared_text": "Une liste que tu partages par un lien est lue par quiconque a le lien, tes spots privés qui s'y trouvent aussi, et il peut copier ce qu'il lit. Tu peux lui mettre un mot de passe, lui donner un nouveau lien, et arrêter le partage à tout moment.",
+  "saved_new_list_here": "Nouvelle liste…",
+  "saved_new_list_text": "Elle est créée avec ceci dedans.",
+  "saved_list_name": "Nom de la liste",
+  "lists_filter": "Voir une liste seule",
+  "lists_all": "Tout",
+  "command_group_lists": "Listes"
 }

@@ -1,4 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
+import { Input } from "@repo/ui/components/ui/input";
 import {
   Menu,
   MenuCheckboxItem,
@@ -9,7 +11,8 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { ListsIcon, StarBoldIcon, StarIcon } from "@repo/ui/icon";
+import { ListsIcon, PlusIcon, StarBoldIcon, StarIcon } from "@repo/ui/icon";
+import { useState } from "react";
 
 import { type Freshness, formatAgo } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -60,8 +63,13 @@ type StationActionsProps = {
   lists: SavedList[] | undefined;
   onToggleFavorite: () => void;
   onToggleList: (list: SavedList, add: boolean) => void;
+  // Makes a list by that name, with the item in it.
+  onCreateList: (name: string) => void;
   onManageLists: () => void;
 };
+
+// A list's name, as long as the API takes it.
+const NAME_MOST = 60;
 
 /**
  * Saves a station, a surf break or a spot of the user's own: the star for the favorites, the menu
@@ -72,9 +80,14 @@ export function StationActions({
   lists,
   onToggleFavorite,
   onToggleList,
+  onCreateList,
   onManageLists,
 }: StationActionsProps) {
   const isFavorite = lists?.some((list) => list.isDefault && holds(list, item)) ?? false;
+  // The favorites exist from the first thing saved to them: the menu has them before that.
+  const hasFavorites = lists?.some((list) => list.isDefault) ?? false;
+  const [isNaming, setIsNaming] = useState(false);
+  const [name, setName] = useState("");
 
   return (
     <>
@@ -101,6 +114,15 @@ export function StationActions({
           <MenuPopup align="end" className="min-w-56">
             <MenuGroup>
               <MenuGroupLabel>{m.saved_add_to_list()}</MenuGroupLabel>
+              {!hasFavorites && (
+                <MenuCheckboxItem
+                  checked={false}
+                  onCheckedChange={onToggleFavorite}
+                  closeOnClick={false}
+                >
+                  {m.saved_favorites()}
+                </MenuCheckboxItem>
+              )}
               {lists.map((list) => (
                 <MenuCheckboxItem
                   key={list.id}
@@ -113,11 +135,58 @@ export function StationActions({
                 </MenuCheckboxItem>
               ))}
             </MenuGroup>
-            {lists.length > 0 && <MenuSeparator />}
+            <MenuSeparator />
+            <MenuItem onClick={() => setIsNaming(true)}>
+              <PlusIcon aria-hidden className="size-3.5" />
+              {m.saved_new_list_here()}
+            </MenuItem>
             <MenuItem onClick={onManageLists}>{m.saved_manage_lists()}</MenuItem>
           </MenuPopup>
         </Menu>
       )}
+
+      <Dialog
+        open={isNaming}
+        onOpenChange={(open) => {
+          setIsNaming(open);
+          if (!open) setName("");
+        }}
+      >
+        <DialogPopup className="w-full max-w-sm gap-l p-l">
+          <div className="grid gap-xs">
+            <DialogTitle>{m.saved_new_list()}</DialogTitle>
+            <DialogDescription>{m.saved_new_list_text()}</DialogDescription>
+          </div>
+          <form
+            className="grid gap-l"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const named = name.trim();
+              if (!named) return;
+              onCreateList(named);
+              setIsNaming(false);
+              setName("");
+            }}
+          >
+            <Input
+              aria-label={m.saved_list_name()}
+              placeholder={m.saved_list_name()}
+              maxLength={NAME_MOST}
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <div className="flex justify-end gap-xs">
+              <Button type="button" variant="ghost" onClick={() => setIsNaming(false)}>
+                {m.action_cancel()}
+              </Button>
+              <Button type="submit" disabled={!name.trim()}>
+                {m.saved_create_list()}
+              </Button>
+            </div>
+          </form>
+        </DialogPopup>
+      </Dialog>
     </>
   );
 }

@@ -1124,7 +1124,13 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       onBoundsChange={setBounds}
       onSave={save}
-      onCreateList={(name) => createList.mutate({ name })}
+      onCreateList={(name, item) =>
+        createList.mutate(
+          { name },
+          // A list made from something's menu holds it from the start.
+          { onSuccess: (list) => item && save(list.id, item, true) },
+        )
+      }
       onDeleteList={(list) => deleteList.mutate({ id: list.id })}
       onReadNotification={(notification) => markRead.mutate({ id: notification.id })}
     />

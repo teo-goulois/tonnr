@@ -19,6 +19,7 @@ import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot, HeightChip } from "./map-markers";
+import { ListChips } from "../lists/list-chips";
 import { listName, sizeOf } from "./station-actions";
 import {
   type JoinedList,
@@ -276,11 +277,15 @@ export function SavedPanel({
   }
 
   const all = lists.data ?? [];
+  const pick = (listId: string | undefined) => {
+    if (listId) onViewList(listId);
+  };
   const isEmpty = all.every((list) => sizeOf(list) === 0);
   const ownSpots = new Map((spots.data ?? []).map((spot) => [spot.id, spot]));
 
   return (
     <div className="grid gap-l">
+      <ListChips lists={all} joined={joined} current={undefined} onPick={pick} />
       <section className="grid gap-xs">
         <div className="flex items-center justify-between gap-s">
           <h3 className="min-w-0 truncate font-medium">
@@ -350,14 +355,6 @@ export function SavedPanel({
               </div>
             ) : (
               <div className="flex shrink-0 items-center gap-xxs">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={m.list_view({ name: listName(list) })}
-                  onClick={() => onViewList(list.id)}
-                >
-                  <MapIcon data-slot="icon" aria-hidden />
-                </Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"

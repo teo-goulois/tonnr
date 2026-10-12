@@ -1,7 +1,15 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { ListsIcon, LocateIcon, LockIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
+import {
+  ListsIcon,
+  LocateIcon,
+  LockIcon,
+  MinusIcon,
+  PinPlusIcon,
+  PlusIcon,
+  XIcon,
+} from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type CSSProperties,
@@ -205,7 +213,8 @@ type ViewerProps = {
   onBoundsChange: (bounds: Bounds) => void;
   // `listId` is a list's id, or "favorites".
   onSave: (listId: string, item: SavedItem, add: boolean) => void;
-  onCreateList: (name: string) => void;
+  // Makes a list, with what is given in it from the start.
+  onCreateList: (name: string, item?: SavedItem) => void;
   onDeleteList: (list: SavedList) => void;
   // The one list the map shows alone, when it shows one: the account's, one it kept, or one
   // opened by its link (decision 035). The stations and the breaks given above are then its own.
@@ -824,20 +833,35 @@ export function Viewer({
 
       {/* The map says which list it shows alone. A press opens the list. */}
       {listView && panel !== "saved" && (
-        <Button
-          variant="outline"
-          size="sm"
+        <div
           className={cn(
-            floating,
-            "absolute left-1/2 max-w-[60vw] -translate-x-1/2",
+            "absolute left-1/2 flex max-w-[70vw] -translate-x-1/2 items-center gap-xxs",
             // Under the legend on a phone, where the legend is at the top.
             wide ? "top-s" : "top-[4.75rem]",
           )}
-          onClick={() => onPanelChange("saved")}
         >
-          <ListsIcon data-slot="icon" aria-hidden />
-          <span className="truncate">{listName(listView)}</span>
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(floating, "min-w-0")}
+            onClick={() => onPanelChange("saved")}
+          >
+            <ListsIcon data-slot="icon" aria-hidden />
+            <span className="truncate">{listName(listView)}</span>
+          </Button>
+          {/* Back to the whole map, for an account: a visitor has the list alone. */}
+          {onExitList && (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className={floating}
+              aria-label={m.list_exit()}
+              onClick={onExitList}
+            >
+              <XIcon data-slot="icon" aria-hidden />
+            </Button>
+          )}
+        </div>
       )}
 
       {(waveStations.isPending || waveStations.isError) && !listView && (
@@ -1013,6 +1037,7 @@ export function Viewer({
                   lists={signedIn ? (lists.data ?? []) : undefined}
                   onToggleFavorite={toggleFavorite}
                   onToggleList={(list, add) => onSave(list.id, shownItem, add)}
+                  onCreateList={(name) => onCreateList(name, shownItem)}
                   onManageLists={() => onPanelChange("saved")}
                 />
               )}
@@ -1129,17 +1154,11 @@ export function Viewer({
           if (!open) onPanelChange(undefined);
         }}
         wide={wide}
-        title={listView ? listName(listView) : m.saved_title()}
+        // An account goes from one list to another by the chips of the panel, which stays the
+        // panel of what it saved. A visitor has one list, which gives the panel its name.
+        title={listView && !onExitList ? listName(listView) : m.saved_title()}
         description={
           listView && (listView.access === "owner" ? m.list_alone_own() : m.list_alone_shared())
-        }
-        actions={
-          listView &&
-          onExitList && (
-            <Button variant="ghost" size="sm" onClick={onExitList}>
-              {m.list_exit()}
-            </Button>
-          )
         }
       >
         {listView ? (
@@ -1157,6 +1176,9 @@ export function Viewer({
             onLeave={onLeaveList}
             onShare={() => setSharingId(listView.id)}
             {...accountPrompt}
+            lists={lists.data ?? []}
+            joined={joined}
+            onPick={onExitList && ((id) => (id ? onViewList(id) : onExitList()))}
           />
         ) : (
           <SavedPanel

@@ -559,11 +559,10 @@
   "share_renewed": "The list has a new link. The one before opens nothing.",
   "share_stop": "Stop sharing",
   "share_stopped": "The list is yours alone again.",
-  "list_view": "Show {name} alone on the map",
   "lists_joined": "Shared with me",
-  "list_alone_own": "Your list, alone on the map",
+  "list_alone_own": "The map shows this list alone",
   "list_alone_shared": "Shared with you",
-  "list_exit": "All lists",
+  "list_exit": "Show everything again",
   "list_gone": "This list is no longer shared with you.",
   "list_keep": "Keep in my lists",
   "list_keep_text": "Kept, the list stays in your saved things: you no longer need its link.",
@@ -575,5 +574,11 @@
   "spot_copy": "Copy {name} into my spots",
   "spot_shared": "Shared with you",
   "terms_shared_title": "What you share by a link",
-  "terms_shared_text": "A list you share by a link is read by whoever has the link, your private spots in it too, and they may copy what they read. You may give it a password, give it a new link, and stop sharing at any time."
+  "terms_shared_text": "A list you share by a link is read by whoever has the link, your private spots in it too, and they may copy what they read. You may give it a password, give it a new link, and stop sharing at any time.",
+  "saved_new_list_here": "New list…",
+  "saved_new_list_text": "It is made with this in it.",
+  "saved_list_name": "Name of the list",
+  "lists_filter": "Show one list alone",
+  "lists_all": "All",
+  "command_group_lists": "Lists"
 }
