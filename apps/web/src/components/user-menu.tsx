@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { leftPushHere } from "@/lib/push-here";
 import { useUnits } from "@/lib/units";
 import { leaveWith } from "@/lib/unsaved";
 import { m } from "@/paraglide/messages.js";
@@ -30,6 +31,18 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const units = useUnits();
+
+  const signOut = async () => {
+    const answer = await authClient.signOut().catch(() => null);
+    // A sign-out that did not happen leaves everything as it was.
+    if (!answer || answer.error) return;
+    // The API forgot this browser's push with the session: the browser lets go of it too.
+    await leftPushHere();
+    // What was loaded for the account must not outlive the session: whoever signs out goes
+    // back to the landing page. Whatever was unsaved was asked about before the session ended.
+    queryClient.clear();
+    void navigate({ to: "/", ignoreBlocker: true });
+  };
 
   return (
     <Menu>
@@ -59,24 +72,9 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
           </MenuItem>
         )}
         <MenuItem
-          onClick={() =>
-            // Something written and not saved is asked about before the session ends: once it
-            // has, there is no staying.
-            leaveWith(
-              () =>
-                void authClient.signOut({
-                  fetchOptions: {
-                    // What was loaded for the account must not outlive the session: whoever
-                    // signs out goes back to the landing page.
-                    onSuccess: () => {
-                      queryClient.clear();
-                      // Whatever was unsaved was asked about before the session ended.
-                      void navigate({ to: "/", ignoreBlocker: true });
-                    },
-                  },
-                }),
-            )
-          }
+          // Something written and not saved is asked about before the session ends: once it
+          // has, there is no staying.
+          onClick={() => leaveWith(() => void signOut())}
         >
           <LogOutIcon aria-hidden />
           {m.auth_sign_out()}

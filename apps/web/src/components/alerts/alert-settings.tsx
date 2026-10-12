@@ -1,5 +1,4 @@
 import { localTime, momentOf } from "@repo/conditions/alerts/clock";
-import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -8,10 +7,12 @@ import { Switch } from "@repo/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import { type ReactNode, useId, useState } from "react";
 
+import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 
 import type { AlertSettings, Loadable } from "../viewer/types";
+import { PushSetting } from "./push-setting";
 
 /** What a control of the settings changes: one setting, as the API takes it. */
 export type AlertSettingsChange = Partial<
@@ -42,6 +43,9 @@ type AlertSettingsFormProps = {
   deviceZone: string;
   // Each control saves what it changes, at once.
   onChange: (change: AlertSettingsChange) => void;
+  // Push on this device, and the account's devices.
+  push: Pushing;
+  now: number;
 };
 
 const DAY_MINUTES = 24 * 60;
@@ -70,34 +74,26 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A setting with its switch, or with a word in its place for one that is not there yet. */
+/** A setting with its switch. */
 function Setting({
   label,
   hint,
   checked,
   onCheckedChange,
-  soon = false,
 }: {
   label: string;
   hint?: string;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
-  soon?: boolean;
 }) {
   const id = useId();
   return (
     <div className="flex items-start justify-between gap-m">
       <div className="grid gap-xxs">
-        <span id={id} className={soon ? "text-neutral-7" : undefined}>
-          {label}
-        </span>
+        <span id={id}>{label}</span>
         {hint && <span className="text-s text-neutral-7">{hint}</span>}
       </div>
-      {soon ? (
-        <Badge variant="neutral">{m.alert_settings_soon()}</Badge>
-      ) : (
-        <Switch aria-labelledby={id} checked={checked} onCheckedChange={onCheckedChange} />
-      )}
+      <Switch aria-labelledby={id} checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }
@@ -212,7 +208,13 @@ function DayHours({
 }
 
 /** How an account wants to be told, for all its alerts: decision 031. */
-export function AlertSettingsForm({ settings, deviceZone, onChange }: AlertSettingsFormProps) {
+export function AlertSettingsForm({
+  settings,
+  deviceZone,
+  onChange,
+  push,
+  now,
+}: AlertSettingsFormProps) {
   const id = useId();
   if (settings.isPending) {
     return (
@@ -435,7 +437,7 @@ export function AlertSettingsForm({ settings, deviceZone, onChange }: AlertSetti
             )}
           </>
         )}
-        <Setting label={m.alert_settings_push()} hint={m.alert_settings_push_hint()} soon />
+        <PushSetting {...push} now={now} />
       </Section>
 
       <Section title={m.alert_settings_zone()}>

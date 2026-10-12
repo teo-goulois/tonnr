@@ -57,6 +57,7 @@ import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
+import { PushSetting } from "@/components/alerts/push-setting";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -85,9 +86,11 @@ import type {
   TideExtremes,
   TideTimeline,
 } from "@/components/viewer/types";
+import type { PushDevice } from "@/lib/push";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@/lib/sea-scales";
 import { formatHeight, formatWind } from "@/lib/units";
 import { useShortcuts } from "@/lib/shortcuts";
+import type { PushState } from "@/lib/use-push";
 
 const VARIANTS = [
   "default",
@@ -321,6 +324,48 @@ function Row({ children }: { children: ReactNode }) {
 }
 
 // Every shared component with its variants and states. Development only.
+// The account's devices, and every state push can be in on one of them: decision 031, "Push".
+const SAMPLE_DEVICES: PushDevice[] = [
+  {
+    id: "here",
+    label: "Chrome · macOS",
+    createdAt: new Date(SAMPLE_NOW - 40 * 24 * 60 * 60 * 1000),
+    seenAt: new Date(SAMPLE_NOW - 4 * 60 * 1000),
+  },
+  {
+    id: "phone",
+    label: "Safari · iPhone",
+    createdAt: new Date(SAMPLE_NOW - 12 * 24 * 60 * 60 * 1000),
+    seenAt: new Date(SAMPLE_NOW - 3 * 24 * 60 * 60 * 1000),
+  },
+  {
+    id: "unnamed",
+    label: null,
+    createdAt: new Date(SAMPLE_NOW - 90 * 24 * 60 * 60 * 1000),
+    seenAt: new Date(SAMPLE_NOW - 61 * 24 * 60 * 60 * 1000),
+  },
+];
+const PUSH_STATES: [name: string, state: PushState, devices?: PushDevice[]][] = [
+  ["Asking the instance", { kind: "loading" }],
+  ["The instance could not be asked", { kind: "unknown" }],
+  ["The browser could not be read", { kind: "unsure" }, SAMPLE_DEVICES.slice(1)],
+  ["An instance with no keys", { kind: "none" }, SAMPLE_DEVICES.slice(1)],
+  ["A browser that cannot", { kind: "unable" }, SAMPLE_DEVICES.slice(1)],
+  ["An iPhone, not on the Home Screen", { kind: "home-screen" }],
+  ["The browser's leave refused", { kind: "refused" }, SAMPLE_DEVICES.slice(1)],
+  ["Off", { kind: "off", isBusy: false, failure: null }],
+  ["On", { kind: "on", isBusy: false, failure: null }, SAMPLE_DEVICES],
+  ["A request on its way", { kind: "off", isBusy: true, failure: null }],
+  ["Being switched off", { kind: "on", isBusy: true, failure: null }, SAMPLE_DEVICES],
+  ["A request that failed", { kind: "off", isBusy: false, failure: "on" }],
+  ["Switching off failed", { kind: "on", isBusy: false, failure: "off" }, SAMPLE_DEVICES],
+  [
+    "As many devices as an account keeps",
+    { kind: "off", isBusy: false, failure: "full" },
+    SAMPLE_DEVICES.slice(1),
+  ],
+];
+
 export function DesignSystemPage() {
   const bindings = useShortcuts();
   const [layers, setLayers] = useState<MapLayers>({
@@ -845,6 +890,26 @@ export function DesignSystemPage() {
             nearby={{ station: SAMPLE_WIND_STATION, distanceKm: 27 }}
             now={SAMPLE_NOW}
           />
+        </div>
+      </Section>
+
+      <Section title="Push on this device">
+        <div className="grid gap-m lg:grid-cols-2">
+          {PUSH_STATES.map(([name, state, devices = []]) => (
+            <div key={name} className="edge grid content-start gap-s rounded-(--radius-xs) p-m">
+              <p className="text-s text-neutral-7">{name}</p>
+              <PushSetting
+                state={state}
+                devices={{ data: devices, ...LOADED }}
+                deviceId={state.kind === "on" ? "here" : null}
+                removing={name === "On" ? ["unnamed"] : []}
+                now={SAMPLE_NOW}
+                onSwitch={() => {}}
+                onRemove={() => {}}
+                onRetry={() => {}}
+              />
+            </div>
+          ))}
         </div>
       </Section>
 

@@ -40,6 +40,7 @@ import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
@@ -185,6 +186,8 @@ type ViewerProps = {
   notifications: Loadable<AlertNotification[]>;
   // The alerts of the account, its settings, and what the screens do with them.
   alerting: Alerting;
+  // Push on this device, and the account's devices.
+  push: Pushing;
   // The part of the alerts panel in view.
   alertsTab: AlertsTab;
   onAlertsTabChange: (tab: AlertsTab) => void;
@@ -388,6 +391,7 @@ export function Viewer({
   savedBreaks,
   notifications,
   alerting,
+  push,
   alertsTab,
   onAlertsTabChange,
   onLayersChange,
@@ -1263,6 +1267,7 @@ export function Viewer({
           switching={alerting.switching}
           onSwitchAlert={alerting.onSwitch}
           onSettingsChange={alerting.onSettingsChange}
+          push={push}
         />
       </ViewerDrawer>
       <LeaveDialog />

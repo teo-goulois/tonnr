@@ -37,9 +37,9 @@ services:
       context: .
       dockerfile: apps/worker/Dockerfile
     init: true
-    # The worker sends the alerts' mail: it reads the way out and the two public addresses where
-    # the API does. Without them it sends none. The pair of push keys is in that file too, for
-    # the push that is being built.
+    # The worker sends the alerts' mail and their push: it reads the mail's way out, the two
+    # public addresses and the pair of push keys where the API does. Without the mail's way out
+    # it sends no mail, and without the pair no push.
     env_file:
       - path: apps/server/.env
         required: false

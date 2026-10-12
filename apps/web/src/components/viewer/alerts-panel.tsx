@@ -14,6 +14,7 @@ import type { ComponentType } from "react";
 
 import { formatAgo, formatClock, formatDay, formatDayAndClock, formatSeconds } from "@/lib/format";
 import { formatDistance, formatHeight, useUnits } from "@/lib/units";
+import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
 
 import { type AlertSettingsChange, AlertSettingsForm } from "../alerts/alert-settings";
@@ -99,6 +100,7 @@ type AlertsPanelProps = {
   switching: string[];
   onSwitchAlert: (alert: Alert, enabled: boolean) => void;
   onSettingsChange: (change: AlertSettingsChange) => void;
+  push: Pushing;
 };
 
 /** What the visitor's alerts told them, the alerts themselves, and how they want to be told. */
@@ -116,6 +118,7 @@ export function AlertsPanel({
   switching,
   onSwitchAlert,
   onSettingsChange,
+  push,
   ...news
 }: AlertsPanelProps) {
   if (!signedIn) {
@@ -152,6 +155,8 @@ export function AlertsPanel({
           settings={settings}
           deviceZone={deviceZone}
           onChange={onSettingsChange}
+          push={push}
+          now={news.now}
         />
       </TabsPanel>
     </Tabs>

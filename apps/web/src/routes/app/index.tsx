@@ -39,6 +39,7 @@ import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 import { useAlerting } from "./-alerting";
+import { usePush } from "./-push";
 import { useSharedList } from "./-shared";
 
 export const Route = createFileRoute("/app/")({
@@ -304,6 +305,9 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     signedIn,
     isShown: panel === "alerts" || selectedSpotId !== undefined,
   });
+  // A browser that has push on says so again when the app loads. The devices are read where they
+  // show: in the settings of the alerts panel.
+  const push = usePush({ account: session.data?.user.id, isShown: panel === "alerts" });
 
   const loaded = useMemo(() => {
     const byId = new Map<string, Station>();
@@ -1080,6 +1084,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       savedBreaks={savedBreaks}
       notifications={loadable(notifications)}
       alerting={alerting}
+      push={push}
       alertsTab={search.alerts ?? "news"}
       onAlertsTabChange={(tab) =>
         void navigate({
