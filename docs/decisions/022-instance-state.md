@@ -1,6 +1,6 @@
 # 022. The state of an instance
 
-Status: asked for by Téo on 2026-10-09. Amended on 2026-10-12, when he asked for a way to know from outside that a deployment took: see "What anyone is told" below. Not built: the history of a job's runs, the revision of the code that runs, and an alert when something stops.
+Status: asked for by Téo on 2026-10-09. Amended on 2026-10-12, when he asked for a way to know from outside that a deployment took: see "What anyone is told" below. Not built: the history of a job's runs, and an alert when something stops.
 
 ## Context
 
@@ -52,7 +52,8 @@ Asked by Téo on 2026-10-12, after a deployment whose worker nobody but an opera
 - A deployment took once a start is later than the moment it was asked for. `pnpm run deploy:api` and `pnpm run deploy:worker` read the health before they ask Easypanel, then wait ten minutes at most for a later start: the API's, or a worker's that is ready and runs. A wait that ends without one fails the command, since a build that fails leaves the container before answering. `pnpm run deploy:status` reads the health and asks nothing.
 - The commands read the health at the address `DEPLOYED_API_URL` names in the root `.env`. Without it they ask and do not wait, as they did.
 - An answer is kept five seconds for each process, so that a route that asks no one who they are does not query the database at every call.
-- A start says that a new container runs, not which code it runs. The revision is still not built: the images are built without the repository's history. Easypanel builds what `main` holds when it is asked.
+- A start says that a new container runs, not which code it runs. So each process also says the commit its image was built from, in `revision`: the API in its health and in the state, the worker in its row of `worker_process`, which both of them answer. The admin's page of the instance shows it, and the two deploy commands say whether what started is `main`'s head.
+- The commit is read when the image is built, by `scripts/revision.mjs`. Of the repository's history the build is given what names the commit that is checked out, and nothing else: `.git/HEAD`, the heads of the branches and `.git/packed-refs`. The image keeps the commit in a file, `revision`, and none of the history. A build that is given no history, as one made from a worktree or from an archive, may be told the commit in the build argument `GIT_SHA`. A process that was told nothing says null, as one that runs from its sources does.
 
 ### The admin
 

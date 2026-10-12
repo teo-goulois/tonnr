@@ -2,12 +2,23 @@ import { serve } from "@hono/node-server";
 
 import { createApp } from "./app";
 import { ENV } from "./env.server";
+import { readRevision } from "./revision";
 import { auth, db, forecasts, places, usage, verification } from "./services";
 
 // The moment the process started, which the migrations may have followed by minutes: the state
 // of the instance shows it, to tell whether a deployment took.
 const startedAt = new Date(Date.now() - process.uptime() * 1000);
-const app = createApp({ env: ENV, db, auth, usage, forecasts, places, verification, startedAt });
+const app = createApp({
+  env: ENV,
+  db,
+  auth,
+  usage,
+  forecasts,
+  places,
+  verification,
+  startedAt,
+  revision: readRevision(),
+});
 
 const server = serve(
   {

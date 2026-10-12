@@ -28,6 +28,8 @@ type Services = {
   verification: Context["verification"];
   // When the process started. Without it, when this app was made.
   startedAt?: Date;
+  // The commit the program was built from, when it knows.
+  revision?: string | null;
 };
 
 // An answer was given to one caller, so no cache between the API and its callers may keep it.
@@ -56,6 +58,7 @@ export function createApp({
   places,
   verification,
   startedAt = new Date(),
+  revision = null,
 }: Services) {
   const app = new Hono();
 
@@ -165,7 +168,7 @@ export function createApp({
       places,
       verification,
       reply: {} as Context["reply"],
-      server: { startedAt, webOrigin },
+      server: { startedAt, webOrigin, revision },
     };
 
     const answered =

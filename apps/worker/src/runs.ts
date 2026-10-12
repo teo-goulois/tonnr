@@ -119,7 +119,7 @@ const ago = (seconds: number) => sql`now() - make_interval(secs => ${seconds})`;
  * notes the moment every queue is scheduled, and `stop` ends the saying. Each saying writes
  * the whole row, so a start that could not be written is written by the next one.
  */
-export async function announceWorker(db: Database) {
+export async function announceWorker(db: Database, revision: string | null = null) {
   const id = crypto.randomUUID();
   // This program's clock measures the time that passed. The database's says what time it is.
   const started = performance.now();
@@ -135,6 +135,7 @@ export async function announceWorker(db: Database) {
           startedAt: ago(sinceStart),
           readyAt: ready === null ? null : ago(sinceStart - ready),
           seenAt: sql`now()`,
+          revision,
         })
         .onConflictDoUpdate({
           target: workerProcess.id,

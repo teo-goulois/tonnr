@@ -238,7 +238,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       await db.delete(workerProcess);
       expect(await call(v1Router.instance.health, undefined, anonymous())).toEqual({
         at: expect.any(Date),
-        api: { startedAt: new Date("2026-10-09T08:00:00Z") },
+        // A program that runs from its sources does not know its commit.
+        api: { startedAt: new Date("2026-10-09T08:00:00Z"), revision: null },
         worker: null,
       });
 
@@ -256,12 +257,17 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           startedAt: sql`now() - interval '5 minutes'`,
           readyAt: null,
           seenAt: sql`now() - interval '10 seconds'`,
+          revision: "b".repeat(40),
         },
       ]);
       const later = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_000);
-      const { worker } = await call(v1Router.instance.health, undefined, anonymous());
+      const built = anonymous();
+      built.context.server = { ...built.context.server, revision: "a".repeat(40) };
+      const { api, worker } = await call(v1Router.instance.health, undefined, built);
       later.mockRestore();
-      expect(worker).toMatchObject({ readyAt: null, running: true });
+      // Each says the commit its image was built from.
+      expect(api.revision).toBe("a".repeat(40));
+      expect(worker).toMatchObject({ readyAt: null, running: true, revision: "b".repeat(40) });
       expect(Date.now() - worker!.startedAt.getTime()).toBeLessThan(10 * 60 * 1000);
       await db.delete(workerProcess);
     });

@@ -124,9 +124,11 @@ describe.skipIf(!TEST_DATABASE_URL)("what the worker says of itself", () => {
       (await database.db.select().from(workerProcess).where(eq(workerProcess.id, id)))[0];
 
     it("says when it started, when it was ready, and that it is still there", async () => {
-      const worker = await announceWorker(database.db);
+      const worker = await announceWorker(database.db, "c".repeat(40));
 
       const started = (await rowOf(worker.id))!;
+      // With the commit its image was built from, when it knows it.
+      expect(started.revision).toBe("c".repeat(40));
       expect(started.readyAt).toBeNull();
       expect(started.startedAt.getTime()).toBeLessThanOrEqual(started.seenAt.getTime());
 

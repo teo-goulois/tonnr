@@ -10,6 +10,7 @@ import { mailOutOf, pushOutOf } from "./deliveries";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
+import { readRevision } from "./revision";
 import {
   announceWorker,
   type Done,
@@ -36,7 +37,7 @@ const retiredProviderIds = retiredProviderIdsOf(ENV);
 const forecasts = createForecasts(db);
 
 // The worker says it is there before anything else, so that one which fails to start shows.
-const worker = await announceWorker(state);
+const worker = await announceWorker(state, readRevision());
 
 const boss = new PgBoss(ENV.DATABASE_URL);
 

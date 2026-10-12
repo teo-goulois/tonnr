@@ -1,5 +1,11 @@
 **/node_modules
+
+# Of the repository's history a build is given what names the commit that is checked out, and
+# nothing else: `scripts/revision.mjs` reads it, and the image keeps the commit alone.
 .git
+!.git/HEAD
+!.git/packed-refs
+!.git/refs/heads
 
 **/dist
 **/build

@@ -205,6 +205,8 @@
   "program_starting": "Démarre",
   "program_not_starting": "Ne démarre pas",
   "tried_ago": "Dernier essai {ago}",
+  "process_revision": "Commit",
+  "revision_unknown": "Commit inconnu",
   "started_ago": "Démarré {ago}",
   "seen_ago": "Vu pour la dernière fois {ago}",
   "worker_never_seen": "Aucun worker vu depuis un jour.",

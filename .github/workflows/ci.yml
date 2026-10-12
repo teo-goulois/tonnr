@@ -132,6 +132,17 @@ jobs:
           test "$(docker inspect --format '{{.State.ExitCode}}' "$(docker compose ps --all --quiet worker)")" = 0
       - name: Start the API on the database the worker migrated
         run: docker compose up --detach --wait --wait-timeout 120 server
+      - name: Check that both images know the commit they were built from
+        run: |
+          docker compose exec -T server node --input-type=module --eval "
+            const built = process.argv[1];
+            const health = await (await fetch('http://localhost:3000/v1/health')).json();
+            // The worker that ran above left its row, with the commit it was built from.
+            for (const [what, revision] of [['API', health.api.revision], ['worker', health.worker?.revision]]) {
+              if (revision !== built) throw new Error('the ' + what + ' says ' + revision + ', not ' + built);
+            }
+            console.log('both built from', built);
+          " "$(git rev-parse HEAD)"
       - name: Check that the API knows its callers and reads that database
         run: |
           docker compose exec -T server node --input-type=module --eval "

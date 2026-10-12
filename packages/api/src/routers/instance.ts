@@ -107,7 +107,13 @@ export function describeJob(row: JobRow, now: Date) {
 const HEALTH_KEPT_MS = 5 * 1000;
 type Health = {
   at: Date;
-  worker: { startedAt: Date; readyAt: Date | null; seenAt: Date; running: boolean } | null;
+  worker: {
+    startedAt: Date;
+    readyAt: Date | null;
+    seenAt: Date;
+    running: boolean;
+    revision: string | null;
+  } | null;
 };
 const healthKept = new WeakMap<Database, { until: number; health: Promise<Health> }>();
 
@@ -123,6 +129,7 @@ async function readHealth(db: Database): Promise<Health> {
       startedAt: workerProcess.startedAt,
       readyAt: workerProcess.readyAt,
       seenAt: workerProcess.seenAt,
+      revision: workerProcess.revision,
     })
     .from(workerProcess)
     .orderBy(desc(workerProcess.startedAt), desc(workerProcess.id))
@@ -154,7 +161,9 @@ export const instanceRouter = {
       description:
         "Answers anyone, and is not counted. It says when this API process started, and of " +
         "the worker process that started last: when it started, when it had scheduled its " +
-        "queues, when it was last seen, and whether that was in the last two minutes. A " +
+        "queues, when it was last seen, and whether that was in the last two minutes. Each " +
+        "comes with `revision`, the commit its image was built from, null for a program that " +
+        "does not know it. A " +
         "deployment took once a start is later than the moment it was asked for: " +
         "`pnpm run deploy:api` and `pnpm run deploy:worker` wait for that. The answer is up " +
         "to five seconds old. Decision 022.",
@@ -166,7 +175,7 @@ export const instanceRouter = {
       z.object({
         // The database's clock when the answer was made.
         at: z.date(),
-        api: z.object({ startedAt: z.date() }),
+        api: z.object({ startedAt: z.date(), revision: z.string().nullable() }),
         // Null on an instance where no worker ever started.
         worker: z
           .object({
@@ -175,13 +184,17 @@ export const instanceRouter = {
             readyAt: z.date().nullable(),
             seenAt: z.date(),
             running: z.boolean(),
+            revision: z.string().nullable(),
           })
           .nullable(),
       }),
     )
     .handler(async ({ context }) => {
       const health = await healthOf(context.db);
-      return { ...health, api: { startedAt: context.server.startedAt } };
+      return {
+        ...health,
+        api: { startedAt: context.server.startedAt, revision: context.server.revision ?? null },
+      };
     }),
 
   state: adminProcedure
@@ -203,6 +216,8 @@ export const instanceRouter = {
         at: z.date(),
         api: z.object({
           startedAt: z.date(),
+          // The commit its image was built from. Null for a process that does not know it.
+          revision: z.string().nullable(),
           // The web app's address and the admin's site, as this process holds them.
           webOrigin: z.string(),
           adminSites: z.array(z.string()),
@@ -222,6 +237,8 @@ export const instanceRouter = {
             seenAt: z.date(),
             // Whether it was seen in the last two minutes.
             running: z.boolean(),
+            // The commit its image was built from. Null for one that did not know it.
+            revision: z.string().nullable(),
           }),
         ),
         jobs: z.array(
@@ -327,6 +344,7 @@ export const instanceRouter = {
         at,
         api: {
           startedAt: context.server.startedAt,
+          revision: context.server.revision ?? null,
           webOrigin: context.server.webOrigin,
           adminSites: [...context.adminSites],
           usageWrittenAt: usage.lastWrittenAt,

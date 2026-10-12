@@ -206,6 +206,8 @@
   "program_not_starting": "Does not start",
   "tried_ago": "Last try {ago}",
   "started_ago": "Started {ago}",
+  "process_revision": "Commit",
+  "revision_unknown": "Commit not known",
   "seen_ago": "Last seen {ago}",
   "worker_never_seen": "No worker was seen in the last day.",
   "usage_written_ago": "Last written {ago}",

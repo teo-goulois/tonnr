@@ -102,6 +102,16 @@ function LastAttempt({ job, now }: { job: Job; now: number }) {
 
 type Worker = InstanceState["workers"][number];
 
+/** The commit a process's image was built from, by its first seven characters. */
+function Revision({ of }: { of: string | null }) {
+  if (!of) return <span className="block text-s text-neutral-7">{m.revision_unknown()}</span>;
+  return (
+    <code className="block font-mono text-s text-neutral-7" title={of}>
+      {of.slice(0, 7)}
+    </code>
+  );
+}
+
 /** Where a worker process is: one that says it is there and is not ready yet is starting. */
 function ProcessState({ worker }: { worker: Worker }) {
   if (worker.running) {
@@ -208,7 +218,10 @@ export function InstancePage({
         </Fact>
         <Fact label={m.instance_api()}>
           {state ? (
-            m.started_ago({ ago: formatAgo(state.api.startedAt, now) })
+            <>
+              {m.started_ago({ ago: formatAgo(state.api.startedAt, now) })}
+              <Revision of={state.api.revision} />
+            </>
           ) : (
             <Skeleton className="h-6 w-40" />
           )}
@@ -407,6 +420,7 @@ export function InstancePage({
               <TableRow>
                 <TableHead>{m.process_started()}</TableHead>
                 <TableHead>{m.process_seen()}</TableHead>
+                <TableHead>{m.process_revision()}</TableHead>
                 <TableHead>{m.state()}</TableHead>
               </TableRow>
             </TableHeader>
@@ -418,6 +432,9 @@ export function InstancePage({
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-neutral-7">
                     {formatAgo(worker.seenAt, now)}
+                  </TableCell>
+                  <TableCell>
+                    <Revision of={worker.revision} />
                   </TableCell>
                   <TableCell>
                     <ProcessState worker={worker} />

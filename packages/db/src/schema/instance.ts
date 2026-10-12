@@ -13,6 +13,8 @@ export const workerProcess = pgTable("worker_process", {
   readyAt: timestamp("ready_at", { withTimezone: true }),
   // Written again every thirty seconds.
   seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+  // The commit the process's image was built from. Null for a process that did not know it.
+  revision: text("revision"),
 });
 
 // How an attempt of a job ended. `degraded`: it ran to its end and some of its work failed.

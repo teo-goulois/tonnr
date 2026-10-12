@@ -2,6 +2,11 @@ FROM node:26-slim AS base
 RUN npm install -g pnpm@12.6.0
 WORKDIR /app
 COPY . .
+# The commit the image is built from, which the program says when it is asked how it runs. It is
+# read from what the build was given of the repository's history, which does not stay in the
+# image. A build that was given none may be told the commit in `GIT_SHA`.
+ARG GIT_SHA=""
+RUN GIT_SHA="$GIT_SHA" node scripts/revision.mjs > revision && rm -rf .git
 
 FROM base AS builder
 # The app and the workspace packages it uses, with the tools that build them. The whole

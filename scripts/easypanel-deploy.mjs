@@ -8,9 +8,12 @@
 // Easypanel swaps a container with no outage, and a build that fails leaves the old one
 // answering: the API's own address does not tell a deployment that took from one that did not.
 // The API's health does: it says when the API started, and when the worker that started last
-// did (decision 022). The command reads it before it asks, and waits for a later start.
+// did, each with the commit its image was built from (decision 022). The command reads it before
+// it asks, waits for a later start, and says whether what started is `main`'s head.
 // `DEPLOYED_API_URL` names the API to read it from. Without it the command asks and does not
 // wait, and so it does with `--no-wait`.
+
+import { execFileSync } from "node:child_process";
 
 const ADDRESSES = {
   api: "EASYPANEL_API_DEPLOY_URL",
@@ -35,10 +38,12 @@ async function readHealth() {
     return {
       at: time(health.at),
       api: time(health.api.startedAt),
+      apiRevision: health.api.revision ?? null,
       worker: health.worker && {
         startedAt: time(health.worker.startedAt),
         readyAt: time(health.worker.readyAt),
         running: health.worker.running,
+        revision: health.worker.revision ?? null,
       },
     };
   } catch {
@@ -54,13 +59,39 @@ function ago(from, to) {
   return `${Math.round(seconds / 86_400)} days ago`;
 }
 
-function describe(health) {
-  const lines = [`The API started ${ago(health.api, health.at)}.`];
+/** The commit `main` is at on the remote, or null when git does not say. */
+function headOfMain() {
+  try {
+    const answer = execFileSync("git", ["ls-remote", "origin", "refs/heads/main"], {
+      encoding: "utf8",
+      timeout: 20_000,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return /^[0-9a-f]{40}/.exec(answer)?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** A commit as it is said beside `main`'s head: the same, another, or not known. */
+function built(revision, head) {
+  if (!revision) return "from a commit it does not know";
+  const short = revision.slice(0, 7);
+  if (!head) return `from ${short}`;
+  return revision === head
+    ? `from ${short}, the head of main`
+    : `from ${short}, and main is at ${head.slice(0, 7)}`;
+}
+
+function describe(health, head) {
+  const lines = [
+    `The API started ${ago(health.api, health.at)}, ${built(health.apiRevision, head)}.`,
+  ];
   if (!health.worker) lines.push("No worker ever started.");
   else {
-    const { startedAt, readyAt, running } = health.worker;
+    const { startedAt, readyAt, running, revision } = health.worker;
     lines.push(
-      `The worker that started last did ${ago(startedAt, health.at)}: ` +
+      `The worker that started last did ${ago(startedAt, health.at)}, ${built(revision, head)}: ` +
         (readyAt === null ? "it has not scheduled its queues, " : "it scheduled its queues, ") +
         (running ? "and it runs." : "and it was not seen in the last two minutes."),
     );
@@ -78,7 +109,7 @@ if (service === "status") {
     console.error(`${api}/v1/health did not answer: the API is down, or from before it had one.`);
     process.exit(1);
   }
-  console.log(describe(health));
+  console.log(describe(health, headOfMain()));
   process.exit(0);
 }
 
@@ -142,7 +173,9 @@ while (Date.now() - asked < WAIT_MS) {
   const now = await readHealth();
   if (now && took(now)) {
     const waited = Math.round((Date.now() - asked) / 1000);
-    console.log(`The new ${service} runs, ${waited} s after it was asked for.\n${describe(now)}`);
+    console.log(
+      `The new ${service} runs, ${waited} s after it was asked for.\n${describe(now, headOfMain())}`,
+    );
     process.exit(0);
   }
 }

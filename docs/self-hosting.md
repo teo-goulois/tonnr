@@ -40,7 +40,9 @@ The services may start in any order, and together.
 
 On Easypanel, each service has a deploy address under "Deployments". Put it in the root `.env`, as `.env.example` shows, and `pnpm run deploy:api` or `pnpm run deploy:worker` deploys the service from your machine. Keep the address secret: whoever knows it can deploy.
 
-Easypanel swaps a container with no outage, and a build that fails leaves the one before answering, so the API's address alone does not say whether a deployment took. Name your API's address in `DEPLOYED_API_URL`, in the same file: the two commands then wait until the new API, or a new worker, has started, and fail when none did in ten minutes. `pnpm run deploy:status` says since when both run. They read `GET /v1/health`, which answers anyone: when the API started, and when the worker that started last did. Any monitor can read it too.
+Easypanel swaps a container with no outage, and a build that fails leaves the one before answering, so the API's address alone does not say whether a deployment took. Name your API's address in `DEPLOYED_API_URL`, in the same file: the two commands then wait until the new API, or a new worker, has started, and fail when none did in ten minutes. `pnpm run deploy:status` says since when both run. They read `GET /v1/health`, which answers anyone: when the API started, and when the worker that started last did, each with the commit its image was built from. Any monitor can read it too.
+
+The commit comes from the repository the image is built in: a build reads which commit is checked out, and keeps nothing else of the history. A platform that builds from an archive, with no `.git` folder, gives none: hand it the commit in the build argument `GIT_SHA`, or the health says null there.
 
 ## The web app, on Cloudflare
 

@@ -33,5 +33,7 @@ export type Context = {
   places: Places;
   // The process that answers, as the state of the instance shows it: when it started, and the
   // web app's address as it holds it. Both are the server's to say.
-  server: { startedAt: Date; webOrigin: string };
+  // `revision` is the commit the program was built from, null or left out where it does not
+  // know: a program that runs from its sources.
+  server: { startedAt: Date; webOrigin: string; revision?: string | null };
 };
