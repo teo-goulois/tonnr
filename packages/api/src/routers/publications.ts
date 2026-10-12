@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { breakContribution } from "@repo/db/schema/community";
 import { PUBLICATION_STATES, spot, spotPublication, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { recordAction } from "../actions";
 import { inBbox } from "../bbox";
 import { characteristicsSchema, describeCharacteristics } from "../characteristics";
 import { adminProcedure } from "../index";
+import { settleRanks } from "../standings";
 import { hasControlCharacter } from "../text";
 
 const ADMIN_ONLY =
@@ -264,6 +266,24 @@ export const publicationsRouter = {
           .where(eq(spotPublication.id, input.id))
           .returning();
         if (!linked || !request) throw noRequest(input.id);
+
+        // The break is a contribution of whoever asked: it counts for them, and stays theirs
+        // to be counted when they delete the spot. The break itself names no account, and
+        // neither does anything that is answered of this row to another. Decision 041.
+        const now = new Date();
+        await tx.insert(breakContribution).values({
+          id: crypto.randomUUID(),
+          breakId,
+          userId: request.userId,
+          line: "place",
+          value: held.spot.name,
+          license: "ODbL-1.0",
+          status: "confirmed",
+          decidedBy: operatorId,
+          decidedAt: now,
+          confirmedAt: now,
+        });
+        await settleRanks(tx, [request.userId]);
 
         await recordAction(tx, {
           operatorId,

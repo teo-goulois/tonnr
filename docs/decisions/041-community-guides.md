@@ -1,6 +1,6 @@
 # 041. Guides that accounts write, and a rank for writing them
 
-Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
+Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built, and so is the API of the contributions, of what an operator answers them, and of the score and the rank. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
 
 ## Context
 
@@ -14,24 +14,33 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 
 ### What an account writes
 
-- An account contributes to a break of the catalogue, one line of its guide at a time: one of the catalogue's lists of words, or a short text on the access, on where to enter the water, on the hazards, or on the rules of the place.
-- How crowded a break is, how its locals take a visitor, and the level it asks are not one account's to state. Each account gives its own answer, and the guide shows how the answers spread once enough accounts gave one.
-- A contribution is a row: the account, the break, the line, the value, the time, and what became of it. Nothing overwrites one. The guide shows the latest confirmed value of each line.
+- An account contributes to a break of the catalogue, one line of its guide at a time: one of the catalogue's lists of words, or a short text on the access, on where to enter the water, on the hazards, or on the rules of the place. A text is three to five hundred characters, on one line, and says the language it is written in: the guide gives a reader the text of their language when someone wrote one, and another otherwise.
+- How crowded a break is, how its locals take a visitor, and the level it asks are not one account's to state. Each account gives its own answer, and the guide shows how the answers spread once three accounts gave one. An answer is changed in place, goes with its account, and counts for nothing.
+- A contribution is a row: the account, the break, the line, the value, the time, and what became of it. Nothing overwrites one: an account that writes a line again closes what it had waiting there, and the row stays. The guide shows the latest confirmed value of each line.
 - A value of a guide says where it comes from: the list the break was added from, or a contribution. Nothing is copied into a guide from `surf_break_record`.
+- The catalogue's own columns are never written by a contribution. What was confirmed is laid over them when a break is read, by `GET /v1/breaks` as by the guide, so that a contribution that is refused later needs no undoing, and what the list said is never lost.
+- A row keeps the terms its author agreed to when they sent it: the Open Database License for a list of words, as decision 034 has it for a break, and the Database Contents License for a text, which is the one that goes with the first for what a database holds. Téo left the choice open: it is made here, and is his to change before the instance has texts of other people.
 - A guide is written on a break, which is public already: nothing here publishes a place. Decision 034 stays the one way a spot becomes a break.
 - A break stays public, and what was written on it stays. When its author's account is deleted it names nobody, as a break made of a spot does.
 
 ### Who says it is right
 
 - An operator reads a contribution before it shows, in the admin's moderation, beside the requests of decision 034. That is the first step and it does not last: one operator cannot judge a car park on another coast.
-- Then the accounts that keep the break confirm a contribution, or contest it with a reason: they hold the break in a list, or have a spot of their own on it. What is contested comes to the operator.
-- An account with enough confirmed contributions sees its lists of words shown at once, marked as waiting to be confirmed. A text always waits for someone to read it.
+- An account that had three contributions confirmed sees its lists of words shown at once, marked as waiting to be confirmed. Such a list is not what the guide says yet: it stands beside the line, and `GET /v1/breaks` does not answer it. A text always waits for the operator.
+- The accounts that keep the break say whether a list that shows is right: they hold the break in a list of their own, or have a spot of their own on it. Two of them confirm it, and it is then what the line says. An account confirms once it had a contribution of its own confirmed, and with a checked address where the instance checks addresses: keeping a break is one press, and would let an account made for it confirm whatever its maker wrote.
+- An account that keeps the break contests what shows, confirmed or not, with a reason. A contest changes nothing by itself, so that contesting hides nothing: it comes to the operator, who refuses the contribution or keeps it. An account contests a contribution once.
+- A list that was confirmed closes the others that showed on its line: they were written of what the line said before.
+- Who confirmed and who contested is answered to no other account, and counted where it is said at all: a name would tell which breaks an account keeps. The operator reads who contested, as they read who asks to publish a spot.
+- An operator refuses a contribution at any time, one that was confirmed too. The line then says what it said before.
+- An account has thirty contributions waiting at most, writes sixty in a day and contests twenty.
 
 ### The score and the rank
 
 - The score is computed from the rows and kept nowhere. The scale may change, and then applies to everything already written.
-- Only what was confirmed counts. A request of decision 034 that was accepted counts as a contribution, the ones made before this too.
-- A rank is a threshold of the score, and is kept for life. The ranks carry the names of surfing's tours, from the QS to the CT.
+- Only what was confirmed counts: 5 points for a list of words, 10 for a text. A line of a break counts once for an account, however often it wrote it.
+- A request of decision 034 that was accepted counts 20. Accepting writes a row for it, on a line of its own, so that it still counts once its owner deletes the spot, and a migration wrote one for each request accepted before. That row is answered to its owner alone: a break still names no account.
+- A contribution to a break that later leaves the catalogue still counts.
+- A rank is a threshold of the score, and is kept for life: the QS from 20 points, the CS from 150, the CT from 600. A break described whole is 80 points. A rank is written the day it is reached, in `rank_award`, and stays when a contribution is refused afterwards and the score goes down.
 - A rank shows beside the username on what the account wrote in a guide, in its own account panel, and to its friends.
 
 ### The username
@@ -76,7 +85,7 @@ Later, in no order:
 - A break of the catalogue can be corrected from the app, by a contribution.
 - An account is seen by others for the first time: by its username, its rank, and what it wrote. A break still names no account. A line of its guide names its author.
 - The product vision assumes that there is no friends list. That ends with the link.
-- An account agrees to a licence when it contributes, as it does when it asks to publish a spot. The catalogue's words go under the ODbL of decision 034. The licence of a text is not chosen: the ODbL is a database's.
-- Not chosen either: the scale of points, the thresholds of the ranks, and how many answers make a spread worth showing.
+- An account agrees to a licence when it contributes, as it does when it asks to publish a spot, and the terms of use of the web app say which.
+- The scale of points, the thresholds of the ranks and the numbers above were not Téo's: he left them to whoever built this. They are constants of `packages/api/src/community.ts`.
 - The tours' names are the World Surf League's. Whether they may stand as ranks is to check before the app is widely known.
 - A draw is the instance's to answer for: its rules, and the address it asks of the winner and of no one else.

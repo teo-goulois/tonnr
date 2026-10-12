@@ -212,6 +212,9 @@ export const OPERATOR_ACTIONS = [
   "account.username_remove",
   "spot.publish",
   "spot.refuse",
+  "contribution.accept",
+  "contribution.refuse",
+  "contribution.keep",
   "visitors.close",
   "visitors.open",
 ] as const;
@@ -230,6 +233,8 @@ export type OperatorChanges = {
   sessions?: number;
   // The break of the catalogue that publishing a spot made.
   breakId?: string;
+  // The contribution to a guide that was confirmed, refused, or kept though contested.
+  contributionId?: string;
 };
 
 /**

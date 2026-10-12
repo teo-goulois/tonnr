@@ -44,6 +44,8 @@ const actionSchema = z.object({
       sessions: z.number().optional(),
       // The break of the catalogue that publishing a spot made.
       breakId: z.string().optional(),
+      // The contribution to a guide that was confirmed, refused, or kept though contested.
+      contributionId: z.string().optional(),
     })
     .nullable(),
 });

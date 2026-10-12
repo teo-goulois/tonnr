@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
 import { characteristicsSchema } from "../characteristics";
+import type { WordLine } from "../community";
+import { confirmedWordsOf } from "../guides";
 import { callerProcedure } from "../index";
 
 const breakSchema = z.object({
@@ -12,7 +14,9 @@ const breakSchema = z.object({
   name: z.string(),
   latitude: z.number(),
   longitude: z.number(),
-  // A break of which only the place is known has ten nulls here.
+  // A break of which only the place is known has ten nulls here. A list of words that an
+  // account wrote and that was confirmed stands here in place of the list's: decision 041.
+  // `GET /breaks/{id}/guide` says which.
   characteristics: characteristicsSchema,
   // The places the break lies in, from the widest to the nearest.
   location: z.array(z.string()).nullable(),
@@ -28,7 +32,11 @@ const breakSchema = z.object({
   }),
 });
 
-function describeBreak(row: typeof surfBreak.$inferSelect) {
+// What the catalogue holds of a break, with what was confirmed of it laid over.
+function describeBreak(
+  row: typeof surfBreak.$inferSelect,
+  confirmed: Partial<Record<WordLine, string[]>> = {},
+) {
   return {
     id: row.id,
     name: row.name,
@@ -45,6 +53,9 @@ function describeBreak(row: typeof surfBreak.$inferSelect) {
       bestSwellDirections: row.bestSwellDirections,
       bestWindDirections: row.bestWindDirections,
       offshoreDirectionDegrees: row.offshoreDirectionDegrees,
+      // The words of a contribution are the catalogue's: they were checked when it was
+      // written, and the answer is checked again as it leaves.
+      ...(confirmed as Partial<z.infer<typeof characteristicsSchema>>),
     },
     location: row.location,
     timezone: row.timezone,
@@ -109,8 +120,13 @@ export const breaksRouter = {
         .limit(input.limit + 1);
 
       const page = rows.slice(0, input.limit);
+      // One more query for the page, whatever its length.
+      const confirmed = await confirmedWordsOf(
+        context.db,
+        page.map((row) => row.id),
+      );
       return {
-        breaks: page.map(describeBreak),
+        breaks: page.map((row) => describeBreak(row, confirmed.get(row.id))),
         next: rows.length > input.limit ? (page.at(-1)?.id ?? null) : null,
       };
     }),
@@ -127,6 +143,6 @@ export const breaksRouter = {
     .handler(async ({ input, context }) => {
       const [row] = await context.db.select().from(surfBreak).where(eq(surfBreak.id, input.id));
       if (!row) throw new ORPCError("NOT_FOUND", { message: `No break "${input.id}".` });
-      return describeBreak(row);
+      return describeBreak(row, (await confirmedWordsOf(context.db, [row.id])).get(row.id));
     }),
 };

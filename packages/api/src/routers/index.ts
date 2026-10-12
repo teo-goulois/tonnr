@@ -8,8 +8,10 @@ import { actionsRouter } from "./actions";
 import { alertsRouter } from "./alerts";
 import { breaksRouter } from "./breaks";
 import { consoleRouter } from "./console";
+import { contributionsRouter } from "./contributions";
 import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
+import { guidesRouter } from "./guides";
 import { instanceRouter } from "./instance";
 import { keysRouter } from "./keys";
 import { listsRouter } from "./lists";
@@ -18,6 +20,7 @@ import { notificationsRouter } from "./notifications";
 import { placesRouter } from "./places";
 import { preferencesRouter } from "./preferences";
 import { publicationsRouter } from "./publications";
+import { reviewsRouter } from "./reviews";
 import { pushRouter } from "./push";
 import { sharedRouter } from "./shared";
 import { spotsRouter } from "./spots";
@@ -37,8 +40,10 @@ export const v1Router = {
   alerts: alertsRouter,
   breaks: breaksRouter,
   console: consoleRouter,
+  contributions: contributionsRouter,
   developers: developersRouter,
   forecasts: forecastsRouter,
+  guides: guidesRouter,
   instance: instanceRouter,
   keys: keysRouter,
   lists: listsRouter,
@@ -47,6 +52,7 @@ export const v1Router = {
   places: placesRouter,
   publications: publicationsRouter,
   push: pushRouter,
+  reviews: reviewsRouter,
   shared: sharedRouter,
   spots: spotsRouter,
   stations: stationsRouter,
