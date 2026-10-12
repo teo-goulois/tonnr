@@ -1400,7 +1400,8 @@ export function StationMap({
 
   return (
     <>
-      <div ref={container} className="size-full" />
+      {/* The tone of the map's place while it waits, which the map covers as it draws. */}
+      <div ref={container} className="size-full bg-neutral-2" />
       {overlay &&
         createPortal(
           <div

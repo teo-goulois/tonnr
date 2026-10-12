@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { SharedDoor } from "@/components/lists/shared-door";
-import Loader from "@/components/loader";
 import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
 import {
   WIND_NEARBY_KM,
@@ -31,6 +30,7 @@ import type {
   Station,
 } from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
+import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import { authClient } from "@/lib/auth-client";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useStoredState } from "@/lib/use-stored-state";
@@ -75,7 +75,7 @@ function AppRoute() {
   if (!shared) return <ViewerRoute />;
   // Whether an account reads the link is known before it is opened: an account opens it with
   // its session, and a visitor with the link alone.
-  if (session.isPending) return <Loader />;
+  if (session.isPending) return <ViewerSkeleton />;
   return <SharedRoute key={shared} token={shared} signedIn={Boolean(session.data)} />;
 }
 

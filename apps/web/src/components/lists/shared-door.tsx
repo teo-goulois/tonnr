@@ -5,9 +5,8 @@ import { LockIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 
+import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import { m } from "@/paraglide/messages.js";
-
-import Loader from "../loader";
 
 type SharedDoorProps = {
   // What stands between the reader and the list: nothing yet known, a password, a link that
@@ -25,7 +24,8 @@ export function SharedDoor({ state, refusal, isChecking, onPassword, onRetry }: 
   const [password, setPassword] = useState("");
   const passwordId = useId();
 
-  if (state === "opening") return <Loader />;
+  // The map is what comes, so its place is what waits.
+  if (state === "opening") return <ViewerSkeleton />;
 
   return (
     <div className="grid min-h-0 place-items-center p-m">

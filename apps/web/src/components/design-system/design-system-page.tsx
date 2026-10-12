@@ -76,6 +76,7 @@ import {
 import { NearbyWindStation } from "@/components/viewer/details/parts";
 import { SeaChart } from "@/components/viewer/sea-chart";
 import { TideChart } from "@/components/viewer/tide-chart";
+import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import type { MapLayers } from "@/components/viewer/station-map";
 import { StationPanel } from "@/components/viewer/station-panel";
 import type {
@@ -730,6 +731,11 @@ export function DesignSystemPage() {
           times={SAMPLE_SEA_TIMES}
           onTimeChange={setSeaTime}
         />
+      </Section>
+
+      <Section title="Viewer skeleton">
+        {/* The map's place before the map, in a frame of a screen's proportions. */}
+        <ViewerSkeleton className="h-144 rounded-(--radius-xs)" />
       </Section>
 
       <Section title="Chart">

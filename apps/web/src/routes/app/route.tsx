@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute, useRouter } from "@tanstack/react-router";
 
 import { LoginWall } from "@/components/auth/login-wall";
+import { AppPending } from "@/components/shared/app-pending";
 import { AppShell } from "@/components/shared/app-shell";
 import { authClient } from "@/lib/auth-client";
 import { readWithoutLink } from "@/lib/shared-link";
@@ -12,6 +13,12 @@ export const Route = createFileRoute("/app")({
   // The session's cookie belongs to the browser: the server that renders has none to send.
   ssr: false,
   component: AppLayout,
+  // What the server sends in the product's place, and what a browser that comes from another
+  // page shows at once: the bar and the map's place, until the API has answered. It is taken
+  // away as soon as it has, with no time it must stay.
+  pendingComponent: AppPending,
+  pendingMs: 0,
+  pendingMinMs: 0,
   // The product takes whoever comes: an account, the link of a shared list, which the API knows
   // its reader by (decision 035), or a visitor with neither, whom the API answers until an
   // operator closes the instance to them. The product then asks for an account in place of the

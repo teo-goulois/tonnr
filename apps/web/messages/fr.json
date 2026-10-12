@@ -138,6 +138,7 @@
   "map_from": "de {direction}",
   "map_wind_speed": "vent {speed}",
   "map_loading": "Chargement des bouées",
+  "app_loading": "Chargement de la carte",
   "map_load_failed": "Les bouées n'ont pas pu être chargées.",
   "map_zoom_in": "Zoomer",
   "map_zoom_out": "Dézoomer",

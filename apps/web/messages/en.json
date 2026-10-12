@@ -138,6 +138,7 @@
   "map_from": "from {direction}",
   "map_wind_speed": "wind {speed}",
   "map_loading": "Loading buoys",
+  "app_loading": "Loading the map",
   "map_load_failed": "The buoys could not be loaded.",
   "map_zoom_in": "Zoom in",
   "map_zoom_out": "Zoom out",
