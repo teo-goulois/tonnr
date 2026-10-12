@@ -33,5 +33,6 @@ Asked by Téo on 2026-10-11, after he tried three prototypes of a screen that se
 - The web app offers to describe a spot once, when it has just been saved, and the offer may wait. The direction the wind blows off the shore is kept when the API is given it, and the web app does not ask for it.
 - An alert is to be offered next, and is not built. What an alert is, how many a spot has, and when it speaks are being decided with Téo, in a decision that will replace 008.
 - Until then `criteria` and `alerts_enabled` stay on the spot, and the worker reads them as before. The web app sets neither, so no alert is computed for a spot it made.
-- The user's spots stand on the map above the catalogue, each a disc with a pin where a break has a wave, and are listed apart from the lists of decision 017, which hold no spot.
+- The user's spots stand on the map above the catalogue, each a disc with a pin where a break has a wave, and are listed apart from the lists of decision 017. Since 2026-10-12 a list may hold them too.
+- The web app says that a spot is private where it is added and where it is read: only its owner sees it.
 - The web app warns when the marker stands within 150 meters of a spot the account already has, and saves all the same if asked: two spots may share a place, and a name.

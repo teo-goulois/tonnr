@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { LocateIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
+import { LocateIcon, LockIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type CSSProperties,
@@ -614,14 +614,15 @@ export function Viewer({
     promptAuth({ reason, onSignedIn: then });
   }
 
-  // What the star and the menu of the panel save: the station, or the break when it is known.
+  // A spot is saved and deleted by its owner alone.
+  const ownSpot = shownSpot?.data?.isOwner ? shownSpot.data : undefined;
+  // What the star and the menu of the panel save: the station, the break when it is known, or
+  // the spot when it is the account's own.
   const shownItem: SavedItem | undefined = shown.breakId
     ? shown.found.data && { breakId: shown.breakId }
     : shown.id
       ? { stationId: shown.id }
-      : undefined;
-  // A spot is deleted by its owner alone.
-  const ownSpot = shownSpot?.data?.isOwner ? shownSpot.data : undefined;
+      : ownSpot && { spotId: ownSpot.id };
 
   // Adding a spot takes an account, which a visitor is asked for first.
   function addSpot() {
@@ -825,7 +826,11 @@ export function Viewer({
           shown.spotId ? (
             shown.spot.data ? (
               shown.spot.data.isOwner ? (
-                m.spot_own()
+                // A spot is its owner's alone until it is asked to be shared.
+                <span className="inline-flex items-center gap-xxs">
+                  <LockIcon aria-hidden className="size-3.5" />
+                  {m.spot_own()}
+                </span>
               ) : (
                 m.spot_public()
               )
@@ -863,15 +868,8 @@ export function Viewer({
           )
         }
         actions={
-          ownSpot ? (
-            <SpotActions
-              key={ownSpot.id}
-              name={ownSpot.name}
-              isDeleting={isDeletingSpot}
-              onDelete={() => onDeleteSpot(ownSpot)}
-            />
-          ) : (
-            shownItem && (
+          <>
+            {shownItem && (
               <StationActions
                 item={shownItem}
                 lists={signedIn ? (lists.data ?? []) : undefined}
@@ -879,8 +877,16 @@ export function Viewer({
                 onToggleList={(list, add) => onSave(list.id, shownItem, add)}
                 onManageLists={() => onPanelChange("saved")}
               />
-            )
-          )
+            )}
+            {ownSpot && (
+              <SpotActions
+                key={ownSpot.id}
+                name={ownSpot.name}
+                isDeleting={isDeletingSpot}
+                onDelete={() => onDeleteSpot(ownSpot)}
+              />
+            )}
+          </>
         }
       >
         <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>

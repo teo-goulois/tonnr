@@ -497,6 +497,24 @@ function ViewerRoute() {
       },
     }),
   );
+  const addSpot = useMutation(
+    orpc.v1.lists.addSpot.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
+  const removeSpotFromList = useMutation(
+    orpc.v1.lists.removeSpot.mutationOptions({
+      onSuccess: replaceList,
+      onError: (error) => {
+        toast.error(error.message);
+        void refreshLists();
+      },
+    }),
+  );
   const createList = useMutation(
     orpc.v1.lists.create.mutationOptions({
       onSuccess: (list) => setLists((all) => [...all, list]),
@@ -650,6 +668,14 @@ function ViewerRoute() {
     orpc.v1.spots.delete.mutationOptions({
       onSuccess: ({ id }) => {
         void setSpots((all) => all.filter((one) => one.id !== id));
+        // The spot left the lists it was in.
+        setLists((all) =>
+          all.map((list) =>
+            list.spotIds.includes(id)
+              ? { ...list, spotIds: list.spotIds.filter((other) => other !== id) }
+              : list,
+          ),
+        );
         // What was kept of the spot alone goes too: its address would show it again.
         queryClient.removeQueries({ queryKey: orpc.v1.spots.get.queryKey({ input: { id } }) });
         // Its panel closes, unless another was opened meanwhile.
@@ -692,10 +718,12 @@ function ViewerRoute() {
     // The ids of the item's kind once it is added to them or taken out.
     const changed = (ids: string[], id: string) =>
       add ? [...ids.filter((other) => other !== id), id] : ids.filter((other) => other !== id);
-    const withItem = (list: Pick<SavedList, "stationIds" | "breakIds">) =>
-      "breakId" in item
-        ? { breakIds: changed(list.breakIds, item.breakId) }
-        : { stationIds: changed(list.stationIds, item.stationId) };
+    const withItem = (list: Pick<SavedList, "stationIds" | "breakIds" | "spotIds">) =>
+      "spotId" in item
+        ? { spotIds: changed(list.spotIds, item.spotId) }
+        : "breakId" in item
+          ? { breakIds: changed(list.breakIds, item.breakId) }
+          : { stationIds: changed(list.stationIds, item.stationId) };
     setLists((all) => {
       const isTarget = (list: SavedList) =>
         listId === "favorites" ? list.isDefault : list.id === listId;
@@ -708,7 +736,8 @@ function ViewerRoute() {
             isDefault: true,
             stationIds: [],
             breakIds: [],
-            ...withItem({ stationIds: [], breakIds: [] }),
+            spotIds: [],
+            ...withItem({ stationIds: [], breakIds: [], spotIds: [] }),
             createdAt: today,
             updatedAt: today,
           },
@@ -717,7 +746,9 @@ function ViewerRoute() {
       }
       return all.map((list) => (isTarget(list) ? { ...list, ...withItem(list) } : list));
     });
-    if ("breakId" in item) {
+    if ("spotId" in item) {
+      (add ? addSpot : removeSpotFromList).mutate({ id: listId, spotId: item.spotId });
+    } else if ("breakId" in item) {
       (add ? addBreak : removeBreak).mutate({ id: listId, breakId: item.breakId });
     } else {
       (add ? addStation : removeStation).mutate({ id: listId, stationId: item.stationId });

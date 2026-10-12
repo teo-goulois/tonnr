@@ -22,11 +22,17 @@ export function listName(list: Pick<SavedList, "name" | "isDefault">) {
   return list.isDefault ? m.saved_favorites() : list.name;
 }
 
-/** Whether a list holds a station or a surf break. */
+/** Whether a list holds a station, a surf break or a spot. */
 export function holds(list: SavedList, item: SavedItem) {
+  if ("spotId" in item) return list.spotIds.includes(item.spotId);
   return "breakId" in item
     ? list.breakIds.includes(item.breakId)
     : list.stationIds.includes(item.stationId);
+}
+
+/** How many things a list holds, of every kind. */
+export function sizeOf(list: SavedList) {
+  return list.stationIds.length + list.breakIds.length + list.spotIds.length;
 }
 
 /** How recent a station's latest reading is, in words and with its dot. */
@@ -48,7 +54,7 @@ export function ReadingAge({
 }
 
 type StationActionsProps = {
-  // The station or the surf break to save.
+  // The station, the surf break or the spot to save.
   item: SavedItem;
   // Undefined for a visitor without an account, who only sees the star: it offers to sign in.
   lists: SavedList[] | undefined;
@@ -57,7 +63,10 @@ type StationActionsProps = {
   onManageLists: () => void;
 };
 
-/** Saves a station or a surf break: the star for the favorites, the menu for the other lists. */
+/**
+ * Saves a station, a surf break or a spot of the user's own: the star for the favorites, the menu
+ * for the other lists.
+ */
 export function StationActions({
   item,
   lists,

@@ -11,8 +11,8 @@ export type TideTimeline = Answer<V1["tides"]["timeline"]>;
 export type TideExtremes = Answer<V1["tides"]["extremes"]>;
 export type SurfBreak = Answer<V1["breaks"]["get"]>;
 export type SavedList = Answer<V1["lists"]["list"]>["lists"][number];
-/** What a list holds: a station or a surf break, each named by its id. */
-export type SavedItem = { stationId: string } | { breakId: string };
+/** What a list holds: a station, a surf break or a spot of the user's own, each named by its id. */
+export type SavedItem = { stationId: string } | { breakId: string } | { spotId: string };
 /** What a list shows of a surf break it holds. */
 export type SavedBreak = Pick<SurfBreak, "id" | "name">;
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];

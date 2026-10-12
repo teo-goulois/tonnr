@@ -13,7 +13,7 @@ import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
+import { LockIcon, PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
 import { useId } from "react";
 
 import { m } from "@/paraglide/messages.js";
@@ -245,9 +245,16 @@ export function NewSpotPanel({
             />
           </div>
 
-          <Button type="submit" disabled={!name} isPending={isSaving}>
-            {m.spot_save()}
-          </Button>
+          <div className="grid gap-xs">
+            <Button type="submit" disabled={!name} isPending={isSaving}>
+              {m.spot_save()}
+            </Button>
+            {/* Said before the spot is saved: nobody publishes a secret spot by accident. */}
+            <p className="flex items-start gap-xxs text-s text-neutral-7">
+              <LockIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              {m.spot_private_hint()}
+            </p>
+          </div>
         </form>
       )}
     </div>

@@ -1,7 +1,15 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { PinIcon, PinPlusIcon, PlusIcon, TrashIcon, WaveIcon, XIcon } from "@repo/ui/icon";
+import {
+  LockIcon,
+  PinIcon,
+  PinPlusIcon,
+  PlusIcon,
+  TrashIcon,
+  WaveIcon,
+  XIcon,
+} from "@repo/ui/icon";
 import { useState } from "react";
 
 import { formatSeconds, freshnessOf } from "@/lib/format";
@@ -9,7 +17,7 @@ import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot, HeightChip } from "./map-markers";
-import { listName } from "./station-actions";
+import { listName, sizeOf } from "./station-actions";
 import {
   type Loadable,
   type SavedBreak,
@@ -147,13 +155,21 @@ function BreakRow({
   );
 }
 
-/** A spot of the user's own: its name, which opens it. */
-function SpotRow({ spot, onSelect }: { spot: Spot; onSelect: () => void }) {
+/** A spot of the user's own: its name, which opens it. In a list, it can be taken out of it. */
+function SpotRow({
+  spot,
+  onSelect,
+  onRemove,
+}: {
+  spot: Spot;
+  onSelect: () => void;
+  onRemove?: () => void;
+}) {
   return (
-    <li>
+    <li className="flex items-center gap-xxs">
       <button
         type="button"
-        className={`${rowLayout} focus-ring w-full cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
+        className={`${rowLayout} focus-ring cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
         onClick={onSelect}
       >
         <span
@@ -164,6 +180,16 @@ function SpotRow({ spot, onSelect }: { spot: Spot; onSelect: () => void }) {
         </span>
         <span className="min-w-0 flex-1 truncate">{spot.name}</span>
       </button>
+      {onRemove && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={m.saved_remove_station({ name: spot.name })}
+          onClick={onRemove}
+        >
+          <XIcon data-slot="icon" aria-hidden />
+        </Button>
+      )}
     </li>
   );
 }
@@ -175,7 +201,7 @@ type SavedPanelProps = {
   // The stations and the surf breaks the lists name, by id. One that is still loading is missing.
   stations: Map<string, Station>;
   breaks: Map<string, SavedBreak>;
-  // The user's own spots, which are no part of a list.
+  // The user's own spots: all of them come first, and a list shows those it holds.
   spots: Loadable<Spot[]>;
   onSelectSpot: (spotId: string) => void;
   onAddSpot: () => void;
@@ -188,7 +214,7 @@ type SavedPanelProps = {
   onDeleteList: (list: SavedList) => void;
 };
 
-/** The visitor's lists of stations and surf breaks, the favorites first. */
+/** The visitor's spots, then their lists of stations, surf breaks and spots, the favorites first. */
 export function SavedPanel({
   now,
   signedIn,
@@ -234,7 +260,8 @@ export function SavedPanel({
   }
 
   const all = lists.data ?? [];
-  const isEmpty = all.every((list) => list.stationIds.length + list.breakIds.length === 0);
+  const isEmpty = all.every((list) => sizeOf(list) === 0);
+  const ownSpots = new Map((spots.data ?? []).map((spot) => [spot.id, spot]));
 
   return (
     <div className="grid gap-l">
@@ -260,11 +287,17 @@ export function SavedPanel({
             <StationRowSkeleton />
           </ul>
         ) : spots.data?.length ? (
-          <ul className="-mx-xs grid gap-xxs">
-            {spots.data.map((spot) => (
-              <SpotRow key={spot.id} spot={spot} onSelect={() => onSelectSpot(spot.id)} />
-            ))}
-          </ul>
+          <>
+            <p className="flex items-center gap-xxs text-s text-neutral-7">
+              <LockIcon aria-hidden className="size-3.5 shrink-0" />
+              {m.spots_private()}
+            </p>
+            <ul className="-mx-xs grid gap-xxs">
+              {spots.data.map((spot) => (
+                <SpotRow key={spot.id} spot={spot} onSelect={() => onSelectSpot(spot.id)} />
+              ))}
+            </ul>
+          </>
         ) : (
           <p className="text-s text-neutral-7">{m.spots_empty()}</p>
         )}
@@ -279,7 +312,7 @@ export function SavedPanel({
             <h3 className="min-w-0 truncate font-medium">
               {listName(list)}
               <span className="ml-xs text-s font-normal text-neutral-7 tabular-nums">
-                {list.stationIds.length + list.breakIds.length}
+                {sizeOf(list)}
               </span>
             </h3>
             {!list.isDefault &&
@@ -311,7 +344,7 @@ export function SavedPanel({
                 </Button>
               ))}
           </div>
-          {list.stationIds.length + list.breakIds.length === 0 ? (
+          {sizeOf(list) === 0 ? (
             <p className="text-s text-neutral-7">{m.saved_list_empty()}</p>
           ) : (
             <ul className="-mx-xs grid gap-xxs">
@@ -340,6 +373,21 @@ export function SavedPanel({
                   />
                 ) : (
                   <StationRowSkeleton key={breakId} />
+                );
+              })}
+              {list.spotIds.map((spotId) => {
+                const spot = ownSpots.get(spotId);
+                return spot ? (
+                  <SpotRow
+                    key={spotId}
+                    spot={spot}
+                    onSelect={() => onSelectSpot(spotId)}
+                    onRemove={() => onRemove(list, { spotId })}
+                  />
+                ) : (
+                  // A spot the list names before the account's spots are read. One that was
+                  // deleted meanwhile leaves no row.
+                  spots.isPending && <StationRowSkeleton key={spotId} />
                 );
               })}
             </ul>
