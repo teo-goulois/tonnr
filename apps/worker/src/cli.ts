@@ -10,11 +10,13 @@ import { createForecasts } from "./forecasts";
 import { ingest, providersOf } from "./ingest";
 import { tellMoments } from "./moments";
 import { grantOperator, removeOperator } from "./operators";
+import { pushKeys } from "./push-keys";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
 // `... job moments`, or `... job exposure`. Five more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
-// `... job operator <account id>` and `... job operator-remove <account id>`.
+// `... job operator <account id>` and `... job operator-remove <account id>`. One reads and
+// writes nothing: `... job push-keys` makes the pair of keys an instance sends push with.
 const [job, ...rest] = process.argv.slice(2);
 // A provider that asks for an account is a job only with the instance's key for it.
 const providers = providersOf(ENV);
@@ -28,7 +30,7 @@ const commands = {
   "operator-remove": removeOperator,
 };
 const command = Object.entries(commands).find(([name]) => name === job)?.[1];
-const others = ["alerts", "moments", "exposure", ...Object.keys(commands)];
+const others = ["alerts", "moments", "exposure", "push-keys", ...Object.keys(commands)];
 
 if (!provider && !others.includes(job ?? "")) {
   const names = [...providers.map((candidate) => candidate.id), ...others];
@@ -42,7 +44,12 @@ try {
   if (provider) await Effect.runPromise(ingest(provider, db));
   else if (job === "exposure") console.log(await Effect.runPromise(updateExposure(db)));
   else if (job === "moments") await Effect.runPromise(tellMoments(db, mailOutOf(ENV)));
-  else if (command) {
+  else if (job === "push-keys") {
+    // The pair alone goes to the standard output, so that it can be sent to a file.
+    const made = pushKeys(Boolean(ENV.VAPID_PUBLIC_KEY || ENV.VAPID_PRIVATE_KEY));
+    for (const note of made.notes) console.error(note);
+    for (const line of made.lines) console.log(line);
+  } else if (command) {
     const outcome = await command(db, rest);
     for (const line of outcome.lines) (outcome.ok ? console.log : console.error)(line);
     if (!outcome.ok) process.exitCode = 1;

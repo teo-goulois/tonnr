@@ -89,7 +89,7 @@ docker compose exec -T postgres pg_dump -U postgres --format=custom app > tonnr-
 
 ## Running one job
 
-Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `moments`, or `exposure`. The jobs of the catalogue of breaks take a value, and the next section gives them.
+Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>` runs one job once and exits. A job is a provider's name, such as `ndbc`, or `alerts`, `moments`, or `exposure`. The jobs of the catalogue of breaks take a value, and the next section gives them. `push-keys` makes a pair of keys, and "Alerts by push" says what for.
 
 ## Filling the catalogue of surf breaks
 
@@ -204,7 +204,7 @@ An account that says yes is mailed what its alerts tell, at the address it signe
 
 ### Alerts by push
 
-Push is being built: this version reads the two keys below, and sends nothing yet. An instance will send push once it holds a pair of keys, which tells a browser's push service who sends. A command of the worker, `push-keys`, is being written to make the pair: `pnpm --filter worker run job push-keys` from a checkout, and "Running one job" above says how a job is run in the container.
+Push is being built: this version reads the two keys below, and sends nothing yet. An instance will send push once it holds a pair of keys, which tells a browser's push service who sends. A command of the worker, `push-keys`, makes the pair: `pnpm --filter worker run job push-keys` from a checkout, and "Running one job" above says how a job is run in the container. It prints the two lines to set, on its standard output and nothing else there, and writes them nowhere: they are yours to put in the file and to keep. On an instance that holds a pair it says so first, since a new pair ends every subscription made with the old one.
 
 Set the two values in `apps/server/.env`, then run `docker compose up --detach` again: it makes the containers anew with what the file holds, which `docker compose restart` does not.
 
