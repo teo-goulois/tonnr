@@ -11,6 +11,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { sql } from "drizzle-orm";
+
 import { user } from "./auth";
 
 type Range = { min?: number; max?: number };
@@ -102,9 +104,10 @@ export type SpotCharacteristics = {
 };
 
 /**
- * A place where the sea is surfed. The catalogue is what a user picks a spot from, and it holds
- * nothing a user wrote. A break is added once, by hand, and belongs to the instance from then
- * on: nothing brings it back in line with the list it came from.
+ * A place where the sea is surfed. The catalogue is what a user picks a spot from. A break is
+ * added once, by hand, and belongs to the instance from then on: nothing brings it back in line
+ * with the list it came from. Of what a user wrote it holds one thing: a spot they asked to make
+ * public, once an operator accepted it (decision 034).
  */
 export const surfBreak = pgTable(
   "surf_break",
@@ -178,6 +181,10 @@ export const spot = pgTable(
     name: text("name").notNull(),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
+    // Left from decision 006, and read by nothing: a spot is its owner's alone, and what is
+    // public of it is the break an operator made of it (decision 034). The version before this
+    // one still reads the column while this one is deployed (decision 009), so it stays one
+    // release, and the next drops it.
     visibility: text("visibility", { enum: ["private", "public"] })
       .default("private")
       .notNull(),
@@ -198,6 +205,49 @@ export const spot = pgTable(
   (table) => [
     index("spot_userId_idx").on(table.userId),
     index("spot_breakId_idx").on(table.breakId),
+  ],
+);
+
+// What became of a request to publish a spot.
+export const PUBLICATION_STATES = ["pending", "accepted", "refused"] as const;
+
+/**
+ * A spot's owner asked that it be made public, and what an operator answered. Nothing of the spot
+ * is copied here: the operator reads the spot as it is, and accepting makes a break of it in the
+ * catalogue. Decision 034 gives the rules.
+ */
+export const spotPublication = pgTable(
+  "spot_publication",
+  {
+    id: text("id").primaryKey(),
+    // A spot that is deleted takes its requests with it. The break made of it stays.
+    spotId: text("spot_id")
+      .notNull()
+      .references(() => spot.id, { onDelete: "cascade" }),
+    // The owner, who asked.
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // What the owner tells the operator, to say that the spot is known. Theirs to leave out.
+    note: text("note"),
+    status: text("status", { enum: PUBLICATION_STATES }).default("pending").notNull(),
+    // Why it was refused, as the owner reads it.
+    reason: text("reason"),
+    // The operator who answered. Null once their account is deleted.
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    // The break of the catalogue that accepting made.
+    breakId: text("break_id").references(() => surfBreak.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("spot_publication_spotId_createdAt_idx").on(table.spotId, table.createdAt),
+    index("spot_publication_status_createdAt_idx").on(table.status, table.createdAt),
+    index("spot_publication_userId_idx").on(table.userId),
+    // A spot waits for one answer at a time.
+    uniqueIndex("spot_publication_pending_idx")
+      .on(table.spotId)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 

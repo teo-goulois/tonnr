@@ -2,8 +2,8 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { alert, alertSpot } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { spot, surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, eq, notExists, sql } from "drizzle-orm";
+import { PUBLICATION_STATES, spot, spotPublication, surfBreak } from "@repo/db/schema/spots";
+import { and, asc, count, desc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -12,11 +12,13 @@ import {
   describeCharacteristics,
   keptCharacteristics,
 } from "../characteristics";
-import { type Caller, callerProcedure, protectedProcedure } from "../index";
+import { protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
 import { type Transaction, forgetSeen } from "./alerts";
 
 const MAX_SPOTS_PER_USER = 100;
+// How many of an account's spots wait for an operator's answer at once.
+const MAX_PENDING_PER_USER = 10;
 
 const spotFields = {
   name: z
@@ -27,8 +29,21 @@ const spotFields = {
     .refine((name) => !hasControlCharacter(name), "must not contain control characters"),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  visibility: z.enum(["private", "public"]),
 };
+
+// What became of the owner's latest request to make the spot public: decision 034.
+const publicationSchema = z.object({
+  status: z.enum(PUBLICATION_STATES),
+  // What the owner told the operator.
+  note: z.string().nullable(),
+  // Why the operator refused. Null otherwise.
+  reason: z.string().nullable(),
+  // The break of the catalogue the spot became. Null until it is accepted, and once that
+  // break has left the catalogue.
+  breakId: z.string().nullable(),
+  requestedAt: z.date(),
+  decidedAt: z.date().nullable(),
+});
 
 const spotSchema = z.object({
   id: z.string(),
@@ -39,6 +54,9 @@ const spotSchema = z.object({
   // What its owner says the spot is like, in the words the catalogue has for a break. Null
   // where they have not said.
   characteristics: characteristicsSchema,
+  // The owner's latest request to make the spot public, and what was answered. Null for a spot
+  // that was never asked to be: it is its owner's alone.
+  publication: publicationSchema.nullable(),
   // The alert the spot is in, for its owner. Null for a spot in none, and for anyone else:
   // an alert is its owner's alone (decision 031).
   alertId: z.string().nullable(),
@@ -53,7 +71,6 @@ const spotSchema = z.object({
 const saidOfTheSpot = characteristicsInput.nullable();
 
 const defaultedFields = {
-  visibility: spotFields.visibility.default("private"),
   characteristics: saidOfTheSpot.default(null),
 };
 // A spot starts from a break of the catalogue, or from a point of the caller's own.
@@ -73,10 +90,38 @@ const fromPointSchema = z.object({
   ...defaultedFields,
 });
 
+type Publication = typeof spotPublication.$inferSelect;
+
+function describePublication(row: Publication | undefined) {
+  if (!row) return null;
+  return {
+    status: row.status,
+    note: row.note,
+    reason: row.reason,
+    breakId: row.breakId,
+    requestedAt: row.createdAt,
+    decidedAt: row.decidedAt,
+  };
+}
+
+/** The latest request of each of these spots, by the spot's id. */
+async function publicationsOf(db: Database | Transaction, spotIds: string[]) {
+  const latest = new Map<string, Publication>();
+  if (spotIds.length === 0) return latest;
+  const rows = await db
+    .select()
+    .from(spotPublication)
+    .where(inArray(spotPublication.spotId, spotIds))
+    .orderBy(desc(spotPublication.createdAt), desc(spotPublication.id));
+  for (const row of rows) if (!latest.has(row.spotId)) latest.set(row.spotId, row);
+  return latest;
+}
+
 function describeSpot(
   row: typeof spot.$inferSelect,
   userId: string | undefined,
   alertId: string | null,
+  publication: Publication | undefined,
 ) {
   return {
     id: row.id,
@@ -84,8 +129,8 @@ function describeSpot(
     name: row.name,
     latitude: row.latitude,
     longitude: row.longitude,
-    visibility: row.visibility,
     characteristics: describeCharacteristics(row.characteristics),
+    publication: row.userId === userId ? describePublication(publication) : null,
     alertId: row.userId === userId ? alertId : null,
     isOwner: row.userId === userId,
     createdAt: row.createdAt,
@@ -93,12 +138,7 @@ function describeSpot(
   };
 }
 
-// A private spot that is not the caller's is reported as missing, so its existence stays private.
-// The account a caller is. A key is no account, so it sees a spot as a stranger does.
-function accountOf(caller: Caller) {
-  return caller.via === "session" ? caller.userId : undefined;
-}
-
+// A spot that is not the caller's is reported as missing, so its existence stays private.
 function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No spot "${id}".` });
 }
@@ -215,7 +255,7 @@ export const spotsRouter = {
         });
       }
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
-      return describeSpot(created, userId, null);
+      return describeSpot(created, userId, null, undefined);
     }),
 
   list: protectedProcedure
@@ -229,29 +269,39 @@ export const spotsRouter = {
         .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
         .where(eq(spot.userId, userId))
         .orderBy(asc(spot.createdAt));
-      return { spots: rows.map((row) => describeSpot(row.spot, userId, row.alertId)) };
+      const publications = await publicationsOf(
+        context.db,
+        rows.map((row) => row.spot.id),
+      );
+      return {
+        spots: rows.map((row) =>
+          describeSpot(row.spot, userId, row.alertId, publications.get(row.spot.id)),
+        ),
+      };
     }),
 
-  get: callerProcedure
+  get: protectedProcedure
     .route({
       method: "GET",
       path: "/spots/{id}",
-      summary: "One spot, if it is public or the caller's",
+      summary: "One of the caller's spots",
+      description:
+        "A spot is its owner's alone. What is public of it is the break of the catalogue that " +
+        "an operator made of it, at `GET /breaks/{id}`.",
       tags: ["Spots"],
     })
     .input(z.object({ id: z.string() }))
     .output(spotSchema)
     .handler(async ({ input, context }) => {
-      const userId = accountOf(context.caller);
+      const userId = context.session.user.id;
       const [row] = await context.db
         .select({ spot, alertId: alertSpot.alertId })
         .from(spot)
         .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
-        .where(eq(spot.id, input.id));
-      if (!row || (row.spot.visibility === "private" && row.spot.userId !== userId)) {
-        throw notFound(input.id);
-      }
-      return describeSpot(row.spot, userId, row.alertId);
+        .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
+      if (!row) throw notFound(input.id);
+      const publications = await publicationsOf(context.db, [row.spot.id]);
+      return describeSpot(row.spot, userId, row.alertId, publications.get(row.spot.id));
     }),
 
   update: protectedProcedure
@@ -307,7 +357,109 @@ export const spotsRouter = {
             .set({ revision: sql`${alert.revision} + 1` })
             .where(eq(alert.id, held.alertId));
         }
-        return describeSpot(updated, userId, held.alertId);
+        const publications = await publicationsOf(tx, [id]);
+        return describeSpot(updated, userId, held.alertId, publications.get(id));
+      });
+    }),
+
+  requestPublication: protectedProcedure
+    .route({
+      method: "PUT",
+      path: "/spots/{id}/publication",
+      summary: "Ask that one of the caller's spots be made public",
+      description:
+        "The spot stays its owner's alone until an operator of the instance accepts: it then " +
+        "becomes a break of the catalogue, with its name, its point and what its owner says " +
+        "it is like, under the Open Database License. The spot's answer says what became of " +
+        "the request, in `publication`. Asking again while a request waits changes its note. " +
+        `An account has at most ${MAX_PENDING_PER_USER} spots waiting for an answer.`,
+      tags: ["Spots"],
+    })
+    .input(
+      z.object({
+        id: z.string(),
+        // What tells the operator that the spot is known to all.
+        note: z
+          .string()
+          .trim()
+          .max(280)
+          .refine((note) => !hasControlCharacter(note), "must not contain control characters")
+          .optional(),
+      }),
+    )
+    .output(spotSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      const note = input.note || null;
+
+      return context.db.transaction(async (tx) => {
+        // Locking the account row makes its requests run one after the other, so two at once
+        // cannot both pass the limit.
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
+        const [row] = await tx
+          .select({ spot, alertId: alertSpot.alertId })
+          .from(spot)
+          .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
+          .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
+        if (!row) throw notFound(input.id);
+
+        const latest = (await publicationsOf(tx, [input.id])).get(input.id);
+        if (latest?.status === "accepted") {
+          throw new ORPCError("CONFLICT", { message: "This spot is already public." });
+        }
+        if (latest?.status === "pending") {
+          const [waiting] = await tx
+            .update(spotPublication)
+            .set({ note })
+            .where(eq(spotPublication.id, latest.id))
+            .returning();
+          return describeSpot(row.spot, userId, row.alertId, waiting ?? latest);
+        }
+
+        const [pending] = await tx
+          .select({ total: count() })
+          .from(spotPublication)
+          .where(and(eq(spotPublication.userId, userId), eq(spotPublication.status, "pending")));
+        if ((pending?.total ?? 0) >= MAX_PENDING_PER_USER) {
+          throw new ORPCError("FORBIDDEN", {
+            message: `An account has at most ${MAX_PENDING_PER_USER} spots waiting for an answer.`,
+          });
+        }
+        const [asked] = await tx
+          .insert(spotPublication)
+          .values({ id: crypto.randomUUID(), spotId: input.id, userId, note })
+          .returning();
+        return describeSpot(row.spot, userId, row.alertId, asked);
+      });
+    }),
+
+  cancelPublication: protectedProcedure
+    .route({
+      method: "DELETE",
+      path: "/spots/{id}/publication",
+      summary: "Take back a request to make a spot public, while it waits",
+      description:
+        "A request that was answered stays as it is: a spot that became a break of the " +
+        "catalogue is not taken out of it this way. Taking back a request that does not wait " +
+        "changes nothing.",
+      tags: ["Spots"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(spotSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({ spot, alertId: alertSpot.alertId })
+          .from(spot)
+          .leftJoin(alertSpot, eq(alertSpot.spotId, spot.id))
+          .where(and(eq(spot.id, input.id), eq(spot.userId, userId)));
+        if (!row) throw notFound(input.id);
+        await tx
+          .delete(spotPublication)
+          .where(and(eq(spotPublication.spotId, input.id), eq(spotPublication.status, "pending")));
+        const publications = await publicationsOf(tx, [input.id]);
+        return describeSpot(row.spot, userId, row.alertId, publications.get(input.id));
       });
     }),
 

@@ -37,3 +37,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [031. An alert of its own, set on spots](031-alerts.md)
 - [032. Météo-France's wind stations, and a provider that asks for a key](032-meteo-france-wind.md)
 - [033. The units a reader chooses](033-units.md)
+- [034. A spot made public by a request](034-public-spots.md)

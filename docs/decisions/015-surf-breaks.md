@@ -20,7 +20,7 @@ No open list of the world's surf breaks exists. What was measured on 2026-10-08:
 
 ## Decision
 
-- The catalogue is a table of its own, `surf_break`. It holds what open sources list, each row with its source, its licence and its attribution. It holds nothing a user wrote.
+- The catalogue is a table of its own, `surf_break`. It holds what open sources list, each row with its source, its licence and its attribution. It holds nothing a user wrote, until [decision 034](034-public-spots.md): a spot its owner asked to make public, once an operator accepts it.
 - A user's spot stays what decision 006 made it: a name, a point, criteria, an owner. It may start from a break. It then takes the break's name and point unless the request gives others, and keeps them as its own. `spot.break_id` remembers the break.
 - The first source is OpenStreetMap. Once a week the worker asks Overpass for every object tagged `sport=surfing`, in one request. `isSurfBreak` in `apps/worker/src/breaks/osm.ts` keeps a named object that is not a business, a facility or a river wave, and its tests are the rule. On 2026-10-08 it kept 340 of the 1,279 objects.
 - An import makes the catalogue hold what the source lists now. A break already known keeps its id. A break the source no longer lists is deleted, and the spots made from it lose only the link.

@@ -1,6 +1,6 @@
 # Product vision
 
-Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
+Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Changed again on 2026-10-12: a spot is made public by a request, and shared through a list. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
 
 ## Audience and problem
 
@@ -8,11 +8,10 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 
 ## What Tonnr does
 
-- A user adds a spot: a point on the map and a name. They find the place by searching for a beach or a town, or pick it from a catalogue of known surf breaks, then put a marker where the wave breaks. Their own point stays private. It joins the catalogue only after moderation, so that nobody publishes a secret spot by accident.
+- A user adds a spot: a point on the map and a name. They find the place by searching for a beach or a town, or pick it from a catalogue of known surf breaks, then put a marker where the wave breaks. Their own point stays private. They may ask that it be made public: it joins the catalogue only once a moderator has checked that it is known to all, so that nobody publishes a secret spot by accident. Decision 034 gives the rules.
 - The user may describe their spot as a surf guide would: its type, its bottom, the tides and the directions it likes.
 - The user sets an alert on a spot, with the conditions that make it work: swell height, period and direction, wind, and tide. Tonnr tells them when measurements or forecasts match. Téo said on 2026-10-11 what an alert is and when it speaks: decision 031 holds it.
-- A spot is private, public, or shared with chosen people.
-- A user keeps buoys and wind stations as favorites and sorts them into lists. Decision 017 gives the model.
+- A user keeps buoys, wind stations, surf breaks and their own spots as favorites and sorts them into lists. Decision 017 gives the model.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
 - An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, or a program with a key that the operator gave it.
 - Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, and the accounts that signed up. Decision 020 covers it.
@@ -29,7 +28,7 @@ Tonnr is free and not commercial for now. It is open source: the repository is p
 - Tides, computed from open harmonic constants. Téo rates them as essential. Decision 002 covers the source.
 - History for a point, switched on when a user first shows interest in that point.
 - Alerts when a spot is forecast to work. They are recorded and listed by the API, and sent by email to an account that said yes. Sending them by web push is not built.
-- A catalogue of surf breaks that the instance's operator fills once, from OpenStreetMap or from a file, each break with what is known of it: its type, its bottom, the tides and the directions it likes. Decisions 015 and 024 cover it. Publishing a user's spot after moderation is not built.
+- A catalogue of surf breaks that the instance's operator fills once, from OpenStreetMap or from a file, each break with what is known of it: its type, its bottom, the tides and the directions it likes. Decisions 015 and 024 cover it. A user's spot joins it after moderation: decision 034.
 
 A mobile app follows the first release. The API runs as its own service, and notifications are designed for mobile push from the start.
 

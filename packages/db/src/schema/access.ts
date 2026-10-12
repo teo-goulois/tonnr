@@ -182,6 +182,8 @@ export const OPERATOR_ACTIONS = [
   "account.sign_out",
   "account.suspend",
   "account.resume",
+  "spot.publish",
+  "spot.refuse",
 ] as const;
 
 /**
@@ -196,6 +198,8 @@ export type OperatorChanges = {
   note?: true;
   // How many open sessions of an account were closed.
   sessions?: number;
+  // The break of the catalogue that publishing a spot made.
+  breakId?: string;
 };
 
 /**

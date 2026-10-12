@@ -71,7 +71,8 @@ export const breaksRouter = {
       summary: "The catalogue of surf breaks, in an area or by name",
       description:
         "The breaks the instance knows, to pick a spot from, each with what is known of it. " +
-        "The catalogue holds no spot a user created. Pages follow one another through `after`, " +
+        "Of the spots users created, the catalogue holds those an operator accepted to make " +
+        "public, with `community` as their provider. Pages follow one another through `after`, " +
         "so the whole catalogue can be read.",
       tags: ["Breaks"],
     })

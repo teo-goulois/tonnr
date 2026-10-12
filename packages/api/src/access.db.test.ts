@@ -50,7 +50,6 @@ const ANSWERS_A_KEY = [
   "v1.breaks.list",
   "v1.forecasts.get",
   "v1.maps.waveHeight",
-  "v1.spots.get",
   "v1.stations.get",
   "v1.stations.list",
   "v1.stations.readings",
@@ -97,9 +96,13 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.notifications.list",
   "v1.notifications.markRead",
   "v1.places.search",
+  // A spot is its owner's alone, and so is what they ask of it: decision 034.
+  "v1.spots.cancelPublication",
   "v1.spots.create",
   "v1.spots.delete",
+  "v1.spots.get",
   "v1.spots.list",
+  "v1.spots.requestPublication",
   "v1.spots.update",
 ];
 // The procedures that take an operator's session, from the web app as well: what the instance
@@ -302,6 +305,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.keys.list",
         "v1.keys.create",
         "v1.keys.revoke",
+        "v1.publications.list",
+        "v1.publications.accept",
+        "v1.publications.refuse",
         "v1.usage.series",
         "v1.usage.breakdown",
       ]);
@@ -400,28 +406,17 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       await expect(call(v1Router.keys.list, {}, both)).rejects.toEqual(refusal("FORBIDDEN"));
     });
 
-    it("sees a spot as a stranger does, its maker's too", async () => {
-      await database.db.insert(spot).values([
-        {
-          id: "shown",
-          userId: "owner",
-          name: "Shown",
-          latitude: 48,
-          longitude: -4.5,
-          visibility: "public",
-        },
-        { id: "kept", userId: "owner", name: "Kept", latitude: 48, longitude: -4.5 },
-      ]);
+    it("reads no spot, its maker's either", async () => {
+      await database.db
+        .insert(spot)
+        .values({ id: "kept", userId: "owner", name: "Kept", latitude: 48, longitude: -4.5 });
       const { key } = await makeKey();
 
-      expect(await call(v1Router.spots.get, { id: "shown" }, byKey(key))).toMatchObject({
-        name: "Shown",
-      });
       // Alone, or with its maker's session beside it: a key is judged as a key.
       const both = { context: context({ session: "owner", authorization: `Bearer ${key}` }) };
       for (const caller of [byKey(key), both]) {
         await expect(call(v1Router.spots.get, { id: "kept" }, caller)).rejects.toEqual(
-          refusal("NOT_FOUND"),
+          refusal("FORBIDDEN"),
         );
       }
       expect(await call(v1Router.spots.get, { id: "kept" }, bySession("owner"))).toMatchObject({

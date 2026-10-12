@@ -214,18 +214,20 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     ).rejects.toEqual(refusal("BAD_REQUEST"));
   });
 
-  it("lets only its owner say what a spot is like, and shows a public one's to anyone", async () => {
+  it("lets only its owner say what a spot is like, and shows it to no one else", async () => {
     const made = await call(
       v1Router.spots.create,
-      { ...point, visibility: "public", characteristics: { breakTypes: ["point"] } },
+      { ...point, characteristics: { breakTypes: ["point"] } },
       by("ana"),
     );
 
     await expect(
       call(v1Router.spots.update, { id: made.id, characteristics: null }, by("ben")),
     ).rejects.toEqual(refusal("NOT_FOUND"));
-    const seen = await call(v1Router.spots.get, { id: made.id }, by("ben"));
-    expect(seen).toMatchObject({ isOwner: false });
+    await expect(call(v1Router.spots.get, { id: made.id }, by("ben"))).rejects.toEqual(
+      refusal("NOT_FOUND"),
+    );
+    const seen = await call(v1Router.spots.get, { id: made.id }, by("ana"));
     expect(seen.characteristics).toEqual({ ...UNSAID, breakTypes: ["point"] });
   });
 });

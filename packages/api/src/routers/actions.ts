@@ -42,6 +42,8 @@ const actionSchema = z.object({
       note: z.literal(true).optional(),
       // How many open sessions of an account were closed.
       sessions: z.number().optional(),
+      // The break of the catalogue that publishing a spot made.
+      breakId: z.string().optional(),
     })
     .nullable(),
 });

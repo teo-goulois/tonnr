@@ -142,7 +142,6 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
     });
 
     it("says in a spot's answer which alert it is in, to its owner alone", async () => {
-      await database.db.update(spot).set({ visibility: "public" }).where(eq(spot.id, "north"));
       const made = await make();
 
       const spots = (await call(v1Router.spots.list, undefined, by("ana"))).spots;
@@ -154,11 +153,9 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect(await call(v1Router.spots.get, { id: "north" }, by("ana"))).toMatchObject({
         alertId: made.id,
       });
-      // The spot is public, and the alert on it is not.
-      expect(await call(v1Router.spots.get, { id: "north" }, by("ben"))).toMatchObject({
-        alertId: null,
-        isOwner: false,
-      });
+      await expect(call(v1Router.spots.get, { id: "north" }, by("ben"))).rejects.toEqual(
+        refusal("NOT_FOUND"),
+      );
     });
 
     it("keeps a spot in one alert at most", async () => {
