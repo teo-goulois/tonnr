@@ -60,6 +60,7 @@ import { toast } from "sonner";
 import { AccountPanel } from "@/components/account/account-panel";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
+import { RankSamples } from "@/components/design-system/rank-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
 import { BottomNav } from "@/components/shared/bottom-nav";
@@ -869,6 +870,10 @@ export function DesignSystemPage() {
 
       <Section title="Guide of a break, and contributions">
         <GuideSamples />
+      </Section>
+
+      <Section title="Ranks: the emblems, a username, and the ladder">
+        <RankSamples />
       </Section>
 
       <Section title="Friends, and the link that makes them">

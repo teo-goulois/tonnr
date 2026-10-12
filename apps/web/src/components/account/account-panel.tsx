@@ -11,9 +11,9 @@ import { AccountPrompt } from "@/components/viewer/saved-panel";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 
-import { points } from "../guides/contributions-panel";
 import { RANKS } from "../guides/guide-words";
-import { RankBadge } from "../guides/rank";
+import { Username } from "../guides/rank";
+import { points } from "../guides/ranks";
 import type { Standing } from "../viewer/types";
 import { UsernameForm } from "./username-form";
 
@@ -90,11 +90,12 @@ export function AccountPanel({
       {account ? (
         <div className="grid justify-items-start gap-xxs">
           {/* An account is called by its username once it has one, with the rank it reached. */}
-          <p className="flex max-w-full items-center gap-xs font-medium">
-            <span className="truncate">
-              {account.username ? `@${account.username}` : account.name}
-            </span>
-            {standing?.rank && <RankBadge rank={standing.rank} />}
+          <p className="max-w-full font-medium">
+            {account.username ? (
+              <Username name={account.username} rank={standing?.rank} size={20} />
+            ) : (
+              <span className="block truncate">{account.name}</span>
+            )}
           </p>
           <p className="max-w-full truncate text-s text-neutral-7">{account.email}</p>
           {account.username !== undefined &&

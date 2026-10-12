@@ -8,4 +8,4 @@ The Guide tab of a surf spot now takes what you know of it, one line at a time. 
 
 What you write is read first, by a moderator. Once it is confirmed, everyone reads it under your username. After three confirmed contributions, your lists of words go online at once, and the people who keep the spot say whether they are right. If you keep a spot yourself, you can do the same for what others wrote there, or contest it.
 
-What was confirmed counts for a score, and for a rank named after surfing's tours: the QS, the CS, then the CT. Your contributions and your rank are in the account's panel, under "My contributions".
+What was confirmed counts for a score, and for a rank named after surfing's tours: the QS, the CS, then the CT. Each rank has an emblem, which follows your username wherever others read it, and the app tells you the day you reach one. Your contributions, your rank and the way to the next one are in the account's panel, under "My contributions".

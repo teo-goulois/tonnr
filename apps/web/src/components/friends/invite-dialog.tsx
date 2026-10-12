@@ -12,7 +12,7 @@ import { XIcon } from "@repo/ui/icon";
 import { UsernameForm } from "@/components/account/username-form";
 import { m } from "@/paraglide/messages.js";
 
-import { RankBadge } from "../guides/rank";
+import { Username } from "../guides/rank";
 import type { Invitation } from "./types";
 
 type InviteDialogProps = {
@@ -49,11 +49,11 @@ export function InviteDialog({
       <DialogPopup className="w-[min(26rem,calc(100vw-2rem))] gap-m p-l">
         <div className="flex items-start justify-between gap-s">
           <div className="grid gap-xs">
-            <DialogTitle className="flex flex-wrap items-center gap-xs">
+            <DialogTitle className="flex flex-wrap items-center gap-x-xs">
               {inviter ? (
                 <>
-                  {m.invite_title({ username: inviter.username })}
-                  {inviter.rank && <RankBadge rank={inviter.rank} />}
+                  <Username name={inviter.username} rank={inviter.rank} size={24} />
+                  <span>{m.invite_title_after()}</span>
                 </>
               ) : invitation?.isGone ? (
                 m.invite_gone()

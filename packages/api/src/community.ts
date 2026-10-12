@@ -1,3 +1,4 @@
+import { RANK_FROM as FROM } from "@repo/config/ranks";
 import {
   type CONTRIBUTION_LINES,
   GUIDE_TEXT_LINES,
@@ -82,9 +83,9 @@ export function pointsOf(line: ContributionLine) {
   return isTextLine(line) ? POINTS.text : POINTS.words;
 }
 
-// The score each rank is reached at. A break described whole, its eight lines of words and its
-// four texts, is 80 points: the first rank is a few lines, the last several breaks.
-export const RANK_FROM: Record<Rank, number> = { qs: 20, cs: 150, ct: 600 };
+// The score each rank is reached at. `packages/config` says it, for the web app too, which draws
+// the way to each: every rank the database keeps has one.
+export const RANK_FROM: Record<Rank, number> = FROM;
 
 /** The ranks a score has reached, from the first. */
 export function ranksAt(score: number): Rank[] {

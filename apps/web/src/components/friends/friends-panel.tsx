@@ -10,7 +10,7 @@ import { UsernameForm } from "@/components/account/username-form";
 import { m } from "@/paraglide/messages.js";
 
 import { readContribution } from "../guides/contributions-panel";
-import { RankBadge } from "../guides/rank";
+import { Username } from "../guides/rank";
 import type { Friend } from "../viewer/types";
 import { QrCode } from "./qr-code";
 import type { Friending } from "./types";
@@ -101,10 +101,11 @@ function FriendRow({
         }}
       >
         <span className="flex min-w-0 flex-wrap items-center gap-x-xs gap-y-xxs">
-          <span className="truncate font-medium">
-            {friend.username ? `@${friend.username}` : m.friends_no_name()}
-          </span>
-          {friend.rank && <RankBadge rank={friend.rank} />}
+          {friend.username ? (
+            <Username name={friend.username} rank={friend.rank} className="font-medium" />
+          ) : (
+            <span className="truncate font-medium">{m.friends_no_name()}</span>
+          )}
           {friend.sponsored && (
             <Badge variant={friend.sponsored === "counted" ? "success" : "neutral"}>
               {friend.sponsored === "counted"
