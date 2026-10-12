@@ -9,6 +9,8 @@ const hour = (peak: number | null): Forecast["hours"][number] => ({
   wavePeriodSeconds: 9,
   wavePeakPeriodSeconds: peak,
   waveDirectionDegrees: 280,
+  swellHeightMeters: 1.4,
+  swellDirectionDegrees: 275,
   windSpeedMetersPerSecond: 5,
   windGustMetersPerSecond: 8,
   windDirectionDegrees: 90,
@@ -39,6 +41,8 @@ describe("the model's samples", () => {
     const [sample] = modelSamples([hour(12)]);
 
     expect(sample).toMatchObject({ height: 2, period: 12, waveDirection: 280 });
+    // The swell apart goes beside the whole sea.
+    expect(sample).toMatchObject({ swell: 1.4, swellDirection: 275 });
     expect(sample?.energy).toBeCloseTo(waveEnergy(2, 12) ?? 0);
   });
 

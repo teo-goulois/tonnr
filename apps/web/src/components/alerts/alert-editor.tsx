@@ -216,6 +216,13 @@ export function AlertEditor({
     });
   }, [spots, spot.id]);
   const [isConfirming, setIsConfirming] = useState(false);
+  // The advanced part is open on an alert that asks something of the swell apart, and stays as
+  // its reader left it.
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(
+    () =>
+      saved.criteria.primarySwellHeightMeters !== undefined ||
+      saved.criteria.primarySwellDirectionDegrees !== undefined,
+  );
   // Mail is offered, and taken unless the account says no.
   const [wantsMail, setWantsMail] = useState(true);
 
@@ -375,6 +382,8 @@ export function AlertEditor({
   const held = heldBack(ahead).slice(0, 2);
   const nameOf = (spotId: string) => spots.find((one) => one.id === spotId)?.name ?? "";
   const asksTide = sent.tideHeightMeters !== undefined || sent.tideTrend !== undefined;
+  const asksSwell =
+    sent.primarySwellHeightMeters !== undefined || sent.primarySwellDirectionDegrees !== undefined;
   // The spots that may share the alert: the user's others, whatever alerts they are in.
   const neighbours = spots.filter((one) => one.id !== spot.id);
   const isFull = draft.spotIds.length >= SPOTS_MOST;
@@ -502,6 +511,44 @@ export function AlertEditor({
         .
       </p>
 
+      {/* The swell apart from the wind sea, for whoever wants to ask about it. It opens by
+          itself on an alert that already asks something of the swell. */}
+      <details
+        className="group grid gap-xs"
+        open={isAdvancedOpen}
+        onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
+      >
+        <summary className="focus-ring w-fit cursor-pointer rounded-(--radius-xs) text-s text-neutral-8 outline-none hover:text-neutral-10">
+          {m.alert_advanced()}
+        </summary>
+        <p className="text-s text-pretty text-neutral-7">
+          {m.alert_advanced_about()}
+          {current &&
+            current.swellHeightMeters !== null &&
+            current.primarySwellHeightMeters !== null && (
+              <>
+                {" "}
+                {m.alert_advanced_now({
+                  waves: formatHeight(current.swellHeightMeters),
+                  swell: formatHeight(current.primarySwellHeightMeters),
+                })}
+              </>
+            )}
+        </p>
+        <p className="text-l text-pretty">
+          {m.alert_says_swell()}{" "}
+          {range("primarySwellHeightMeters", m.alert_any_swell_height(), (said) =>
+            m.alert_swell_height_of({ range: said }),
+          )}
+          ,{" "}
+          {sector("primarySwellDirectionDegrees", current?.primarySwellDirectionDegrees, {
+            from: 250,
+            to: 310,
+          })}
+          .
+        </p>
+      </details>
+
       {/* What the sentence gives, over the days ahead. */}
       <div className="grid gap-s" aria-live="polite">
         {!asksSomething ? (
@@ -573,6 +620,11 @@ export function AlertEditor({
                               formatHeight(first.swellHeightMeters),
                             first.swellPeriodSeconds !== null &&
                               formatSeconds(first.swellPeriodSeconds),
+                            asksSwell &&
+                              first.primarySwellHeightMeters !== null &&
+                              m.alert_preview_swell({
+                                height: formatHeight(first.primarySwellHeightMeters),
+                              }),
                             first.windSpeedMetersPerSecond !== null &&
                               formatWind(toKnots(first.windSpeedMetersPerSecond)),
                           ]

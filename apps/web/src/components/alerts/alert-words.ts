@@ -13,12 +13,25 @@ import { m } from "@/paraglide/messages.js";
 import type { AlertCriteria } from "../viewer/types";
 
 export type CriterionKey = keyof AlertCriteria;
+// `swellHeightMeters`, `swellPeriodSeconds` and `swellDirectionDegrees` are the whole sea, under
+// the names an alert's conditions were first saved with. The swell apart from the wind sea is
+// `primarySwellHeightMeters` and `primarySwellDirectionDegrees`: decision 038.
 export type RangeKey =
   | "swellHeightMeters"
   | "swellPeriodSeconds"
+  | "primarySwellHeightMeters"
   | "windSpeedMetersPerSecond"
   | "tideHeightMeters";
-export type ArcKey = "swellDirectionDegrees" | "windDirectionDegrees";
+export type ArcKey =
+  | "swellDirectionDegrees"
+  | "primarySwellDirectionDegrees"
+  | "windDirectionDegrees";
+const ARC_KEYS: readonly CriterionKey[] = [
+  "swellDirectionDegrees",
+  "primarySwellDirectionDegrees",
+  "windDirectionDegrees",
+];
+const isArcKey = (key: CriterionKey): key is ArcKey => ARC_KEYS.includes(key);
 export type Range = NonNullable<AlertCriteria[RangeKey]>;
 export type Arc = NonNullable<AlertCriteria[ArcKey]>;
 
@@ -75,6 +88,25 @@ export const RANGES: Record<
     floor: 0,
     ceiling: 40,
   },
+  primarySwellHeightMeters: {
+    label: m.alert_label_swell_height,
+    // Written and set in the reader's unit, and kept in metres. In feet a step is half a foot.
+    unit: (value) => `${value} ${heightUnit()}`,
+    least: 0,
+    get most() {
+      return Math.round(heightIn(5));
+    },
+    get step() {
+      return getUnits().height === "ft" ? 0.5 : 0.1;
+    },
+    digits: 1,
+    shown: (kept) =>
+      getUnits().height === "ft" ? Math.round(heightIn(kept) * 2) / 2 : Math.round(kept * 10) / 10,
+    kept: (shown) => Math.round(metersFrom(shown) * 100) / 100,
+    // The API's bounds are of the height as it is kept, in metres, whatever unit it is read in.
+    floor: 0,
+    ceiling: 30,
+  },
   windSpeedMetersPerSecond: {
     label: m.alert_label_wind_speed,
     // Written and set in the reader's unit, and kept in metres a second. The bounds are those of
@@ -117,6 +149,8 @@ export const CRITERION_LABELS: Record<CriterionKey, () => string> = {
   swellHeightMeters: m.alert_label_wave_height,
   swellPeriodSeconds: m.alert_label_wave_period,
   swellDirectionDegrees: m.alert_label_wave_from,
+  primarySwellHeightMeters: m.alert_label_swell_height,
+  primarySwellDirectionDegrees: m.alert_label_swell_from,
   windSpeedMetersPerSecond: m.alert_label_wind_speed,
   windDirectionDegrees: m.alert_label_wind_from,
   tideHeightMeters: m.alert_label_tide_height,
@@ -237,7 +271,7 @@ const ARC_NOTCH = 15;
  */
 export function loosened(criteria: AlertCriteria, key: CriterionKey): AlertCriteria {
   if (key === "tideTrend") return { ...criteria, tideTrend: undefined };
-  if (key === "swellDirectionDegrees" || key === "windDirectionDegrees") {
+  if (isArcKey(key)) {
     const arc = criteria[key];
     if (!arc) return criteria;
     const sweep = (arc.to - arc.from + 360) % 360 || 360;

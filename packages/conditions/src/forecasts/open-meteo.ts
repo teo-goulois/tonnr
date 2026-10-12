@@ -132,6 +132,11 @@ const columns = z.object({
   // the one a surfer reads. Null at every hour when the model gives none.
   wavePeakPeriodSeconds: series,
   waveDirectionDegrees: series,
+  // The first swell apart from the wind sea: its height, and where it comes from. Open-Meteo's
+  // models give none that stood against the buoys, so these are empty until another source
+  // fills them: decision 038.
+  swellHeightMeters: series,
+  swellDirectionDegrees: series,
   windSpeedMetersPerSecond: series,
   windGustMetersPerSecond: series,
   windDirectionDegrees: series,
@@ -151,6 +156,8 @@ const columns = z.object({
 export const forecastData = z.object({
   point: z.object({ latitude: z.number(), longitude: z.number() }),
   models: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })),
+  // The models the swell apart comes from, listed the same way.
+  swellModels: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })),
   hours: columns.refine(hasOneValuePerHour),
 });
 
@@ -186,12 +193,15 @@ export function buildForecast(model: OpenMeteoModelId, marineJson: unknown, weat
     models: waves.wave_height.some((height) => height !== null)
       ? [{ id: model, from: waves.time[0] ?? 0 }]
       : [],
+    swellModels: [],
     hours: {
       time: waves.time,
       waveHeightMeters: waves.wave_height,
       wavePeriodSeconds: waves.wave_period,
       wavePeakPeriodSeconds: waves.wave_peak_period,
       waveDirectionDegrees: waves.wave_direction,
+      swellHeightMeters: waves.time.map(() => null),
+      swellDirectionDegrees: waves.time.map(() => null),
       windSpeedMetersPerSecond: wind.wind_speed_10m,
       windGustMetersPerSecond: wind.wind_gusts_10m,
       windDirectionDegrees: wind.wind_direction_10m,

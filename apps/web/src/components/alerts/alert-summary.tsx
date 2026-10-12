@@ -38,6 +38,10 @@ export function AlertSummary({ alert }: { alert: Pick<Alert, "criteria" | "short
       ],
     ],
     [
+      m.alert_summary_swell(),
+      [...range("primarySwellHeightMeters"), ...sector(criteria.primarySwellDirectionDegrees)],
+    ],
+    [
       m.alert_summary_wind(),
       [...range("windSpeedMetersPerSecond"), ...sector(criteria.windDirectionDegrees)],
     ],

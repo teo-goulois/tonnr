@@ -24,6 +24,8 @@ export const criteriaSchema = z.strictObject({
   swellHeightMeters: range(0, 30).optional(),
   swellPeriodSeconds: range(0, 40).optional(),
   swellDirectionDegrees: arc.optional(),
+  primarySwellHeightMeters: range(0, 30).optional(),
+  primarySwellDirectionDegrees: arc.optional(),
   windSpeedMetersPerSecond: range(0, 120).optional(),
   windDirectionDegrees: arc.optional(),
   tideHeightMeters: range(-5, 20).optional(),
@@ -36,6 +38,9 @@ export type HourConditions = {
   swellHeightMeters: number | null;
   swellPeriodSeconds: number | null;
   swellDirectionDegrees: number | null;
+  // The first swell apart from the wind sea. The three above are the whole sea: decision 036.
+  primarySwellHeightMeters: number | null;
+  primarySwellDirectionDegrees: number | null;
   windSpeedMetersPerSecond: number | null;
   windDirectionDegrees: number | null;
   tideHeightMeters: number | null;
@@ -83,6 +88,18 @@ export function unmetCriteria(hour: HourConditions, criteria: SpotCriteria): Cri
     check(
       "swellDirectionDegrees",
       isInArc(hour.swellDirectionDegrees, criteria.swellDirectionDegrees),
+    );
+  }
+  if (criteria.primarySwellHeightMeters) {
+    check(
+      "primarySwellHeightMeters",
+      isInRange(hour.primarySwellHeightMeters, criteria.primarySwellHeightMeters),
+    );
+  }
+  if (criteria.primarySwellDirectionDegrees) {
+    check(
+      "primarySwellDirectionDegrees",
+      isInArc(hour.primarySwellDirectionDegrees, criteria.primarySwellDirectionDegrees),
     );
   }
   if (criteria.windSpeedMetersPerSecond) {

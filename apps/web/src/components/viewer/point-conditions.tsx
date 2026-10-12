@@ -56,18 +56,30 @@ export type PointConditionsProps = {
 // The models the waves come from, in the order of the hours: the first, then each one after it
 // with the moment it takes over. A model without a peak period leaves that column empty at every
 // hour, and the line of a forecast that has no other says that its period is the mean one.
-function waveModelLines({ waveModels, hours }: Forecast) {
+function waveModelLines({ waveModels, swellModels, hours }: Forecast) {
   const hasPeak = hours.some((hour) => hour.wavePeakPeriodSeconds !== null);
-  return waveModels.map((model, index) => {
+  const said = (model: Forecast["waveModels"][number]) => {
     const wide = model.resolutionKilometers;
-    const said = {
+    return {
       model: model.name,
       kilometers: Number.isInteger(wide) ? String(wide) : formatNumber(wide, 1),
     };
-    if (index > 0)
-      return m.source_wave_model_from({ ...said, date: formatDayAndClock(model.from) });
-    return hasPeak ? m.source_wave_model(said) : m.source_wave_model_mean(said);
-  });
+  };
+  const then = (model: Forecast["waveModels"][number]) =>
+    m.source_wave_model_from({ ...said(model), date: formatDayAndClock(model.from) });
+  return [
+    ...waveModels.map((model, index) =>
+      index > 0
+        ? then(model)
+        : hasPeak
+          ? m.source_wave_model(said(model))
+          : m.source_wave_model_mean(said(model)),
+    ),
+    // The swell apart, which is less sure than the whole sea, with the models it comes from.
+    ...swellModels.map((model, index) =>
+      index > 0 ? then(model) : m.source_swell_model(said(model)),
+    ),
+  ];
 }
 
 /**

@@ -100,6 +100,47 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     expect(found.hours[0]).toMatchObject({ wavePeriodSeconds: 8, wavePeakPeriodSeconds: 11 });
   });
 
+  it("gives the swell apart beside the whole sea, with the model it comes from", async () => {
+    const found = await forecast({ days: 1 });
+
+    expect(found.hours[0]).toMatchObject({
+      waveHeightMeters: 1.5,
+      swellHeightMeters: 1.2,
+      swellDirectionDegrees: 290,
+    });
+    expect(found.swellModels).toEqual([
+      {
+        name: "MFWAM",
+        producer: "Météo-France",
+        resolutionKilometers: 9,
+        from: new Date("2026-10-09T00:00:00Z"),
+      },
+    ]);
+    // Both producers are credited.
+    const credited = found.source.credits.map((credit) => credit.text).join(" ");
+    expect(credited).toContain("ECMWF");
+    expect(credited).toContain("Météo-France");
+  });
+
+  it("holds an alert's hours to what it asks of the swell apart, not of the whole sea", async () => {
+    const asking = (criteria: object) =>
+      call(v1Router.alerts.preview, { spotIds: ["home"], criteria, days: 1 }, context());
+    // The whole sea is 1.5 m, and the swell in it 1.2 m from 290°.
+    const met = await asking({ primarySwellHeightMeters: { min: 1 } });
+    const tooSmall = await asking({ primarySwellHeightMeters: { min: 1.4 } });
+    const elsewhere = await asking({ primarySwellDirectionDegrees: { from: 180, to: 250 } });
+
+    expect(met.spots[0]?.hours[0]).toMatchObject({
+      swellHeightMeters: 1.5,
+      primarySwellHeightMeters: 1.2,
+      primarySwellDirectionDegrees: 290,
+      unmet: [],
+    });
+    expect(tooSmall.spots[0]?.hours[0]?.unmet).toEqual(["primarySwellHeightMeters"]);
+    expect(elsewhere.spots[0]?.hours[0]?.unmet).toEqual(["primarySwellDirectionDegrees"]);
+    expect(tooSmall.spots[0]?.windows).toEqual([]);
+  });
+
   it("gives an older forecast when the provider cannot be asked, and says so", async () => {
     await forecast();
     vi.advanceTimersByTime(5 * 3600 * 1000);

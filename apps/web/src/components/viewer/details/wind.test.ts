@@ -32,6 +32,8 @@ function sample(
     gust,
     windDirection: from,
     waveDirection: null,
+    swell: null,
+    swellDirection: null,
     cloud: null,
     rain: null,
     air: null,

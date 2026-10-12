@@ -1,6 +1,6 @@
 # 036. One wave model, read the same way everywhere
 
-Status: accepted by Téo on 2026-10-12, after a comparison of the models with the buoys that he asked for. It amends decision 005, which took the model the provider chose, and decision 023 for the values asked for and the credit. Decision 037 added a finer model where one has its sea, which this one left unbuilt. Not built: the swell apart from the wind sea.
+Status: accepted by Téo on 2026-10-12, after a comparison of the models with the buoys that he asked for. It amends decision 005, which took the model the provider chose, and decision 023 for the values asked for and the credit. Decision 037 added a finer model where one has its sea, which this one left unbuilt. Decision 038 gave the swell apart from the wind sea, from other stores than this decision's provider.
 
 ## Context
 

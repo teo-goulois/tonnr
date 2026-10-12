@@ -51,12 +51,16 @@ describe("buildForecast", () => {
 
     expect(forecast.point).toEqual({ latitude: 43.625, longitude: -1.4583282 });
     expect(forecast.models).toEqual([{ id: "ecmwf_wam", from: times[0] }]);
+    expect(forecast.swellModels).toEqual([]);
     expect(forecast.hours).toEqual({
       time: times,
       waveHeightMeters: [2.34, 2.48, null],
       wavePeriodSeconds: [7.25, 7.45, 7.5],
       wavePeakPeriodSeconds: [9.9, 10.05, 10.2],
       waveDirectionDegrees: [311, 312, 313],
+      // Open-Meteo is asked for no swell apart.
+      swellHeightMeters: [null, null, null],
+      swellDirectionDegrees: [null, null, null],
       windSpeedMetersPerSecond: [14.73, 12.1, null],
       windGustMetersPerSecond: [16, 15.2, null],
       windDirectionDegrees: [312, 310, null],

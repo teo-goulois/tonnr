@@ -14,6 +14,9 @@ const hour: HourConditions = {
   swellHeightMeters: 1.6,
   swellPeriodSeconds: 11,
   swellDirectionDegrees: 290,
+  // Of that sea of 1.6 m, a swell of 1.1 m from further north.
+  primarySwellHeightMeters: 1.1,
+  primarySwellDirectionDegrees: 310,
   windSpeedMetersPerSecond: 3,
   windDirectionDegrees: 90,
   tideHeightMeters: 2.4,
@@ -74,6 +77,35 @@ describe("unmetCriteria", () => {
       "tideHeightMeters",
     ]);
     expect(unmetCriteria(unknownTide, { swellHeightMeters: { min: 1 } })).toEqual([]);
+  });
+
+  it("checks the swell apart on its own figures, not on the whole sea's", () => {
+    // The whole sea is high enough and from the right side: the swell in it is neither.
+    expect(
+      unmetCriteria(hour, {
+        swellHeightMeters: { min: 1.5 },
+        swellDirectionDegrees: { from: 270, to: 300 },
+        primarySwellHeightMeters: { min: 1.5 },
+        primarySwellDirectionDegrees: { from: 270, to: 300 },
+      }),
+    ).toEqual(["primarySwellHeightMeters", "primarySwellDirectionDegrees"]);
+    expect(
+      unmetCriteria(hour, {
+        primarySwellHeightMeters: { min: 1 },
+        primarySwellDirectionDegrees: { from: 290, to: 330 },
+      }),
+    ).toEqual([]);
+  });
+
+  it("counts a condition on the swell as not met where no model gives a swell apart", () => {
+    const without = { ...hour, primarySwellHeightMeters: null, primarySwellDirectionDegrees: null };
+
+    expect(unmetCriteria(without, { primarySwellHeightMeters: { max: 3 } })).toEqual([
+      "primarySwellHeightMeters",
+    ]);
+    expect(unmetCriteria(without, { primarySwellDirectionDegrees: { from: 0, to: 0 } })).toEqual([
+      "primarySwellDirectionDegrees",
+    ]);
   });
 
   it("checks nothing when no criterion is set", () => {

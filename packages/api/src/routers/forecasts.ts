@@ -76,6 +76,16 @@ export const forecastsRouter = {
             from: z.date(),
           }),
         ),
+        // The models the swell apart comes from, listed the same way. Empty when no model gives
+        // one at the point.
+        swellModels: z.array(
+          z.object({
+            name: z.string(),
+            producer: z.string(),
+            resolutionKilometers: z.number(),
+            from: z.date(),
+          }),
+        ),
         // When the instance fetched this forecast. It is not when the model ran.
         fetchedAt: z.date(),
         // True when the provider could not be asked and this is an older forecast, up to a
@@ -92,6 +102,10 @@ export const forecastsRouter = {
             // hour when the model gives none.
             wavePeakPeriodSeconds: measurement,
             waveDirectionDegrees: measurement,
+            // The first swell apart from the wind sea: its height, and where it comes from. It
+            // is less sure than the whole sea, and null where no model gives one.
+            swellHeightMeters: measurement,
+            swellDirectionDegrees: measurement,
             windSpeedMetersPerSecond: measurement,
             windGustMetersPerSecond: measurement,
             windDirectionDegrees: measurement,
@@ -107,19 +121,22 @@ export const forecastsRouter = {
     .handler(async ({ input, context }) => {
       const result = await Effect.runPromise(Effect.result(context.forecasts.get(input)));
       if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      const { hours, models, ...forecast } = result.success;
+      const { hours, models, swellModels, ...forecast } = result.success;
       if (!hours || models.length === 0) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this point." });
       }
 
+      const named = (list: typeof models) =>
+        list.map(({ id, from }) => {
+          const { name, producer, resolutionKilometers } = waveModel(id);
+          return { name, producer, resolutionKilometers, from };
+        });
       return {
         ...forecast,
         hours,
-        source: forecastSource(models.map((model) => model.id)),
-        waveModels: models.map(({ id, from }) => {
-          const { name, producer, resolutionKilometers } = waveModel(id);
-          return { name, producer, resolutionKilometers, from };
-        }),
+        source: forecastSource([...models, ...swellModels].map((model) => model.id)),
+        waveModels: named(models),
+        swellModels: named(swellModels),
       };
     }),
 };

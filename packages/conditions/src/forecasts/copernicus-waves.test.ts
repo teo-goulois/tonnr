@@ -4,9 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   cellsNear,
   datasetUrl,
-  FineWavesFormatError,
   layoutOf,
   makeFineWaves,
+  makeSwell,
+  STORES,
+  WaveStoreFormatError,
 } from "./copernicus-waves";
 
 const HOUR_MS = 3600 * 1000;
@@ -17,7 +19,7 @@ const NOW = START_MS + (3 * 24 + 2) * HOUR_MS;
 const STORE = "https://store.example.org/arco/waves.zarr";
 const CATALOGUE = "https://stac.marine.copernicus.eu/metadata/NWSHELF_ANALYSISFORECAST_WAV_004_014";
 const DATASET = "cmems_mod_nws_wav_anfc_1.5km_PT1H-i_202511";
-const NAMES = ["VHM0", "VTPK", "VTM10", "VMDR"];
+const NAMES = ["VHM0", "VTPK", "VTM10", "VMDR", "VHM0_SW1", "VMDR_SW1"];
 const FILL = -32767;
 
 // A store of ten hours, six rows and four columns, cut in pieces of six hours and two by two
@@ -62,7 +64,14 @@ const RECORD = {
     },
   },
 };
-const SCALES: Record<string, number> = { VHM0: 0.002, VTPK: 0.01, VTM10: 0.01, VMDR: 0.1 };
+const SCALES: Record<string, number> = {
+  VHM0: 0.002,
+  VTPK: 0.01,
+  VTM10: 0.01,
+  VMDR: 0.1,
+  VHM0_SW1: 0.002,
+  VMDR_SW1: 0.1,
+};
 const DESCRIPTION = {
   metadata: Object.fromEntries(
     NAMES.flatMap((name) => [
@@ -115,12 +124,69 @@ const PIECES: Record<string, Uint8Array> = {
   "VTM10/1.2.0": seaAt(() => 901, 4),
   "VMDR/0.2.0": seaAt(() => 2537, 6),
   "VMDR/1.2.0": seaAt(() => 2544, 4),
+  // The first swell: none at the first hour that is read, the store's third.
+  "VHM0_SW1/0.2.0": seaAt((hour) => (hour === 2 ? FILL : 80 + hour * 10), 6),
+  "VHM0_SW1/1.2.0": seaAt((hour) => 140 + hour * 10, 4),
+  "VMDR_SW1/0.2.0": seaAt(() => 2601, 6),
+  "VMDR_SW1/1.2.0": seaAt(() => 2612, 4),
   // The pieces around hold land alone, and the store has none for the others.
   "VHM0/0.1.0": piece(() => FILL),
   "VHM0/1.1.0": piece(() => FILL),
 };
 
 /** A store in place of the network. It answers 403 for a piece it does not have, as the real one. */
+// The world's store, read for the swell alone: six fields three hours apart, two rows and two
+// columns of 1/12°, in one piece. Its sea is in the first column: the second is land.
+const WORLD = "https://stac.marine.copernicus.eu/metadata/GLOBAL_ANALYSISFORECAST_WAV_001_027";
+const WORLD_DATASET = "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411";
+const WORLD_STORE = "https://store.example.org/arco/world.zarr";
+const WORLD_NAMES = ["VHM0_SW1", "VMDR_SW1"];
+const worldCut = (piece: number) => Object.fromEntries(WORLD_NAMES.map((name) => [name, piece]));
+const WORLD_RECORD = {
+  assets: {
+    geoChunked: {
+      href: WORLD_STORE,
+      viewDims: {
+        time: {
+          chunkLen: worldCut(6),
+          units: "milliseconds since 1970-01-01 00:00:00Z (no leap seconds)",
+          coords: {
+            type: "minMaxStep",
+            min: START_MS + 3 * 24 * HOUR_MS,
+            max: START_MS + (3 * 24 + 15) * HOUR_MS,
+            step: 3 * HOUR_MS,
+            len: 6,
+          },
+        },
+        latitude: {
+          chunkLen: worldCut(2),
+          coords: { type: "minMaxStep", min: 48.25, max: 48.3333, step: 1 / 12, len: 2 },
+        },
+        longitude: {
+          chunkLen: worldCut(2),
+          coords: { type: "minMaxStep", min: -4.6667, max: -4.5833, step: 1 / 12, len: 2 },
+        },
+      },
+    },
+  },
+};
+const WORLD_DESCRIPTION = {
+  metadata: {
+    "VHM0_SW1/.zarray": DESCRIPTION.metadata["VHM0/.zarray"],
+    "VHM0_SW1/.zattrs": { scale_factor: 0.01, add_offset: 0 },
+    "VMDR_SW1/.zarray": DESCRIPTION.metadata["VHM0/.zarray"],
+    // A direction is stored from 180°, as the real store does.
+    "VMDR_SW1/.zattrs": { scale_factor: 0.01, add_offset: 180 },
+  },
+};
+const worldSea = (stored: (step: number) => number) =>
+  piece((step, _row, column) => (column === 0 ? stored(step) : FILL));
+const WORLD_PIECES: Record<string, Uint8Array> = {
+  "VHM0_SW1/0.0.0": worldSea((step) => 100 + step * 20),
+  "VMDR_SW1/0.0.0": worldSea(() => 7500),
+};
+
+/** The stores in place of the network. One answers 403 for a piece it does not have, as the real one. */
 function store(broken: { product?: number } = {}) {
   const asked: string[] = [];
   vi.stubGlobal("fetch", async (address: string) => {
@@ -132,7 +198,18 @@ function store(broken: { product?: number } = {}) {
     }
     if (address === `${CATALOGUE}/${DATASET}/dataset.stac.json`) return Response.json(RECORD);
     if (address === `${STORE}/.zmetadata`) return Response.json(DESCRIPTION);
-    const found = PIECES[address.slice(STORE.length + 1)];
+    if (address === `${WORLD}/product.stac.json`) {
+      return Response.json({
+        links: [{ rel: "item", href: `${WORLD_DATASET}/dataset.stac.json` }],
+      });
+    }
+    if (address === `${WORLD}/${WORLD_DATASET}/dataset.stac.json`) {
+      return Response.json(WORLD_RECORD);
+    }
+    if (address === `${WORLD_STORE}/.zmetadata`) return Response.json(WORLD_DESCRIPTION);
+    const found = address.startsWith(WORLD_STORE)
+      ? WORLD_PIECES[address.slice(WORLD_STORE.length + 1)]
+      : PIECES[address.slice(STORE.length + 1)];
     return found ? new Response(found) : new Response("no", { status: 403 });
   });
   return asked;
@@ -142,18 +219,18 @@ const PETIT_MINOU = { latitude: 48.3375, longitude: -4.616 };
 
 describe("the record of the product", () => {
   it("names the dataset of the latest version", () => {
-    expect(datasetUrl(PRODUCT)).toBe(`${CATALOGUE}/${DATASET}/dataset.stac.json`);
+    expect(datasetUrl(STORES.fine, PRODUCT)).toBe(`${CATALOGUE}/${DATASET}/dataset.stac.json`);
   });
 
   it("is refused when it holds no such dataset, or changed shape", () => {
-    expect(datasetUrl({ links: [] })).toBeInstanceOf(FineWavesFormatError);
-    expect(datasetUrl({ items: [] })).toBeInstanceOf(FineWavesFormatError);
+    expect(datasetUrl(STORES.fine, { links: [] })).toBeInstanceOf(WaveStoreFormatError);
+    expect(datasetUrl(STORES.fine, { items: [] })).toBeInstanceOf(WaveStoreFormatError);
   });
 });
 
 describe("the layout of the store", () => {
   it("is read from the dataset's record and the store's description", () => {
-    expect(layoutOf(RECORD, DESCRIPTION)).toMatchObject({
+    expect(layoutOf(STORES.fine, RECORD, DESCRIPTION)).toMatchObject({
       root: STORE,
       time: { start: START_MS, step: HOUR_MS, length: 10, piece: 6 },
       latitude: { start: 48.3, step: 0.0135, length: 6, piece: 2 },
@@ -171,10 +248,14 @@ describe("the layout of the store", () => {
       },
     });
 
-    expect(layoutOf(RECORD, stored({ dtype: "<f4" }))).toBeInstanceOf(FineWavesFormatError);
-    expect(layoutOf(RECORD, stored({ chunks: [6, 4, 4] }))).toBeInstanceOf(FineWavesFormatError);
-    expect(layoutOf(RECORD, stored({ compressor: { id: "zstd" } }))).toBeInstanceOf(
-      FineWavesFormatError,
+    expect(layoutOf(STORES.fine, RECORD, stored({ dtype: "<f4" }))).toBeInstanceOf(
+      WaveStoreFormatError,
+    );
+    expect(layoutOf(STORES.fine, RECORD, stored({ chunks: [6, 4, 4] }))).toBeInstanceOf(
+      WaveStoreFormatError,
+    );
+    expect(layoutOf(STORES.fine, RECORD, stored({ compressor: { id: "zstd" } }))).toBeInstanceOf(
+      WaveStoreFormatError,
     );
   });
 
@@ -182,16 +263,16 @@ describe("the layout of the store", () => {
     const record = structuredClone(RECORD);
     record.assets.geoChunked.viewDims.time.units = "hours since 1950-01-01";
 
-    expect(layoutOf(record, DESCRIPTION)).toBeInstanceOf(FineWavesFormatError);
+    expect(layoutOf(STORES.fine, record, DESCRIPTION)).toBeInstanceOf(WaveStoreFormatError);
   });
 });
 
 describe("the cells near a point", () => {
-  const layout = layoutOf(RECORD, DESCRIPTION);
-  if (layout instanceof FineWavesFormatError) throw layout;
+  const layout = layoutOf(STORES.fine, RECORD, DESCRIPTION);
+  if (layout instanceof WaveStoreFormatError) throw layout;
 
   it("are those within reach inside the grid, nearest first", () => {
-    const cells = cellsNear(layout, PETIT_MINOU);
+    const cells = cellsNear(layout, PETIT_MINOU, 4);
 
     expect(cells[0]).toMatchObject({ row: 3, column: 1 });
     expect(cells.every((cell) => cell.away <= 4 && cell.row < 6 && cell.column < 4)).toBe(true);
@@ -201,7 +282,7 @@ describe("the cells near a point", () => {
   });
 
   it("are none for a point further from the grid than the reach", () => {
-    expect(cellsNear(layout, { latitude: 48.5, longitude: -4.616 })).toEqual([]);
+    expect(cellsNear(layout, { latitude: 48.5, longitude: -4.616 }, 4)).toEqual([]);
   });
 });
 
@@ -227,6 +308,9 @@ describe("the fine model's waves at a point", () => {
     expect(waves?.peakPeriod).toEqual([11.05, 11.05, 11.05, 11.05, 12.1, 12.1, 12.1, 12.1]);
     expect(waves?.meanPeriod).toEqual([8.85, 8.85, 8.85, 8.85, 9.01, 9.01, 9.01, 9.01]);
     expect(waves?.direction).toEqual([253.7, 253.7, 253.7, 253.7, 254.4, 254.4, 254.4, 254.4]);
+    // Its first swell apart, which it does not have at every hour.
+    expect(waves?.swellHeight).toEqual([null, 0.22, 0.24, 0.26, 0.28, 0.3, 0.32, 0.34]);
+    expect(waves?.swellDirection?.slice(0, 5)).toEqual([260.1, 260.1, 260.1, 260.1, 261.2]);
   });
 
   it("keep what was fetched for the next point nearby", async () => {
@@ -265,5 +349,38 @@ describe("the fine model's waves at a point", () => {
     store();
 
     expect(await run(makeFineWaves()(PETIT_MINOU, NOW + 30 * 24 * HOUR_MS))).toBeNull();
+  });
+});
+
+describe("the swell apart, from the world's model", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is the first swell of the nearest cell that has a sea, every three hours", async () => {
+    store();
+
+    const swell = await Effect.runPromise(makeSwell()(PETIT_MINOU, NOW + 3 * 24 * HOUR_MS));
+
+    expect(swell?.model).toBe("mfwam");
+    // The second row and the first column: the cell nearer the point is land.
+    expect(swell?.point).toEqual({ latitude: 48.33333, longitude: -4.6667 });
+    expect(swell?.time.slice(0, 2)).toEqual([
+      (START_MS + 3 * 24 * HOUR_MS) / 1000,
+      (START_MS + (3 * 24 + 3) * HOUR_MS) / 1000,
+    ]);
+    expect(swell?.swellHeight).toEqual([1, 1.2, 1.4, 1.6, 1.8, 2]);
+    // 7,500 hundredths of a degree from 180°.
+    expect(swell?.swellDirection).toEqual([255, 255, 255, 255, 255, 255]);
+  });
+
+  it("is read everywhere, and is none where the store has no sea within reach", async () => {
+    const asked = store();
+
+    // Hossegor: the store of the test has no piece there.
+    expect(await Effect.runPromise(makeSwell()({ latitude: 43.66, longitude: -1.44 }, NOW))).toBe(
+      null,
+    );
+    expect(asked.length).toBeGreaterThan(0);
   });
 });

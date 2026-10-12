@@ -54,6 +54,9 @@ export const assessSpot = Effect.fn("assessSpot")(function* (
       swellHeightMeters: hour.waveHeightMeters,
       swellPeriodSeconds: hour.wavePeakPeriodSeconds ?? hour.wavePeriodSeconds,
       swellDirectionDegrees: hour.waveDirectionDegrees,
+      // The swell apart, which the advanced part of an alert may ask about: decision 038.
+      primarySwellHeightMeters: hour.swellHeightMeters,
+      primarySwellDirectionDegrees: hour.swellDirectionDegrees,
       windSpeedMetersPerSecond: hour.windSpeedMetersPerSecond,
       windDirectionDegrees: hour.windDirectionDegrees,
       tideHeightMeters: tideAt.get(hour.time.getTime()) ?? null,

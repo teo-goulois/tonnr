@@ -14,6 +14,7 @@ import {
   loosened,
   partsToSave,
   rangeAfter,
+  rangeWords,
   samePart,
   setPart,
   sliderEnds,
@@ -162,6 +163,38 @@ describe("a condition loosened by a notch", () => {
 
   it("lets the tide go either way", () => {
     expect(loosened({ tideTrend: "rising" }, "tideTrend")).toEqual({ tideTrend: undefined });
+  });
+});
+
+describe("what an alert asks of the swell apart", () => {
+  it("is said and loosened as what it asks of the whole sea is", () => {
+    expect(rangeWords("primarySwellHeightMeters", { min: 0.8 })).toBe(
+      rangeWords("swellHeightMeters", { min: 0.8 }),
+    );
+    // A height by two tenths, and a sector by a notch at each end.
+    expect(
+      loosened({ primarySwellHeightMeters: { min: 0.8 } }, "primarySwellHeightMeters"),
+    ).toEqual({ primarySwellHeightMeters: { min: 0.6 } });
+    const { swellDirectionDegrees: waves } = loosened(
+      { swellDirectionDegrees: { from: 250, to: 310 } },
+      "swellDirectionDegrees",
+    );
+    const { primarySwellDirectionDegrees: swell } = loosened(
+      { primarySwellDirectionDegrees: { from: 250, to: 310 } },
+      "primarySwellDirectionDegrees",
+    );
+    expect(swell).toEqual(waves);
+  });
+
+  it("is sent with the rest, and left out when nothing is asked of it", () => {
+    expect(
+      asked({
+        swellHeightMeters: { min: 1 },
+        primarySwellHeightMeters: { min: 0.8 },
+        primarySwellDirectionDegrees: undefined,
+      }),
+    ).toEqual({ swellHeightMeters: { min: 1 }, primarySwellHeightMeters: { min: 0.8 } });
+    expect(asked({ primarySwellHeightMeters: {} })).toEqual({});
   });
 });
 

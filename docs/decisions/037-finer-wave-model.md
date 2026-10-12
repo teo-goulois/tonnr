@@ -56,5 +56,5 @@ Decision 005 took a provider that answers point by point because "decoding their
 - The layout is read from the dataset's record, as decision 010 reads another: it is not a documented API. A change there is a format error, and the module must then be read again against the record.
 - The store answers 403 for a piece it does not have, which is read as land. A refusal of one piece would read the same.
 - The gain was measured on a month, at moorings, on the hours the model had last computed. How it does five days ahead was not measured.
-- The store also holds a first swell, a second swell and the wind sea. They are not read: decision 036 says why.
+- The store also holds a first swell, a second swell and the wind sea. Decision 038 reads the first swell.
 - Checked against the real store on 2026-10-12: at Le Petit Minou the forecast took the fine model to 2026-10-18 23:00 UTC and ECMWF from the next hour, and gave 1.086 m with a peak of 11.22 s at noon, the same four values as Python's Zarr library reads in that cell at that hour. No test calls the store: they read one made of a few values.

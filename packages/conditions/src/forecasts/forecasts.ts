@@ -115,6 +115,8 @@ export function hoursFor(data: ForecastData, asked: Asked, at: number) {
       wavePeriodSeconds: values.wavePeriodSeconds[index] ?? null,
       wavePeakPeriodSeconds: values.wavePeakPeriodSeconds[index] ?? null,
       waveDirectionDegrees: values.waveDirectionDegrees[index] ?? null,
+      swellHeightMeters: values.swellHeightMeters[index] ?? null,
+      swellDirectionDegrees: values.swellDirectionDegrees[index] ?? null,
       windSpeedMetersPerSecond: values.windSpeedMetersPerSecond[index] ?? null,
       windGustMetersPerSecond: values.windGustMetersPerSecond[index] ?? null,
       windDirectionDegrees: values.windDirectionDegrees[index] ?? null,
@@ -267,7 +269,7 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForec
   return {
     /**
      * Hourly waves and wind at a point, with the wave models they come from, each from its first
-     * hour. `hours` is null when the point has no sea nearby over the hours asked for. `stale`
+     * hour, and the same for the swell apart. `hours` is null when the point has no sea nearby over the hours asked for. `stale`
      * says that the provider could not be asked and that this is an older answer, with or
      * without hours.
      */
@@ -297,6 +299,10 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForec
         models:
           hours && hours[0] && hours.at(-1)
             ? modelsOver(found.data.models, hours[0].time, hours.at(-1)!.time)
+            : [],
+        swellModels:
+          hours && hours[0] && hours.at(-1)
+            ? modelsOver(found.data.swellModels, hours[0].time, hours.at(-1)!.time)
             : [],
         hours,
         fetchedAt: found.fetchedAt,

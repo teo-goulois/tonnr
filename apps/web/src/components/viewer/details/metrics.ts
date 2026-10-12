@@ -46,6 +46,10 @@ export type Sample = {
   gust: number | null;
   windDirection: number | null;
   waveDirection: number | null;
+  // The first swell apart from the wind sea, and where it comes from. The model's alone: a buoy
+  // reads the whole sea.
+  swell: number | null;
+  swellDirection: number | null;
   // The sky under cloud in percent, the rain of the hour in millimetres, the air in °C. The
   // model's alone: a buoy reads none of them.
   cloud: number | null;
@@ -73,8 +77,8 @@ export type Metric = {
   scale: ScaleStop[];
   // A scale of one hue: a cell takes it as a tint, stronger with the value.
   tinted: boolean;
-  // The bearing that goes with the value: where the waves or the wind come from.
-  direction?: "waveDirection" | "windDirection";
+  // The bearing that goes with the value: where the waves, the swell or the wind come from.
+  direction?: "waveDirection" | "swellDirection" | "windDirection";
   // The lowest value a lane starts from. The others start from zero.
   floor?: number;
   // A value written without a color: the air's temperature has no scale here.
@@ -168,6 +172,24 @@ export function weatherMetrics(): Record<WeatherKey, Metric> {
   };
 }
 
+/**
+ * The swell apart from the wind sea, as the week's table writes it under the waves: a height on
+ * the waves' own scale, with the bearing the swell comes from.
+ */
+export function swellMetric(): Metric {
+  return {
+    key: "swell",
+    label: m.details_swell(),
+    unit: heightUnit(),
+    digits: 1,
+    scale: WAVE_HEIGHT_SCALE,
+    tinted: false,
+    direction: "swellDirection",
+    shown: (value) => heightIn(value),
+    kept: (shown) => metersFrom(shown),
+  };
+}
+
 /** A value in the unit it is written in, to the digits it is written with. */
 function written(metric: Metric, value: number) {
   return Number((metric.shown ? metric.shown(value) : value).toFixed(metric.digits));
@@ -204,6 +226,8 @@ export function measuredSamples(readings: Reading[]): Sample[] {
         gust: toKnots(reading.windGustMetersPerSecond),
         windDirection: reading.windDirectionDegrees,
         waveDirection: reading.peakDirectionDegrees,
+        swell: null,
+        swellDirection: null,
         cloud: null,
         rain: null,
         air: null,
@@ -242,6 +266,8 @@ export function modelSamples(hours: Forecast["hours"], kind: PeriodKind = "peak"
       gust: toKnots(hour.windGustMetersPerSecond),
       windDirection: hour.windDirectionDegrees,
       waveDirection: hour.waveDirectionDegrees,
+      swell: hour.swellHeightMeters,
+      swellDirection: hour.swellDirectionDegrees,
       cloud: hour.cloudCoverPercent,
       rain: hour.precipitationMillimeters,
       air: hour.airTemperatureCelsius,
@@ -249,7 +275,7 @@ export function modelSamples(hours: Forecast["hours"], kind: PeriodKind = "peak"
   });
 }
 
-export type NumericKey = MetricKey | WeatherKey | "gust";
+export type NumericKey = MetricKey | WeatherKey | "gust" | "swell";
 
 /**
  * A value at a moment, between the two samples around it. Undefined when the nearest samples are
@@ -280,7 +306,7 @@ export function valueAt(samples: Sample[], key: NumericKey, time: number, reach 
 /** The bearing at a moment: the one of the nearest sample, since bearings do not average. */
 export function directionAt(
   samples: Sample[],
-  key: "waveDirection" | "windDirection",
+  key: "waveDirection" | "swellDirection" | "windDirection",
   time: number,
   reach = 2 * HOUR_MS,
 ) {

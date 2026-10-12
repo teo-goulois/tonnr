@@ -218,7 +218,7 @@ const SAMPLE_WIND_STATION = {
 };
 const SAMPLE_FORECAST: Forecast = {
   point: { latitude: 48.3, longitude: -5 },
-  source: forecastSource(["nws_ww3", "ecmwf_wam"]),
+  source: forecastSource(["nws_ww3", "ecmwf_wam", "mfwam"]),
   // The fine model for the first two days, and the other after its last hour.
   waveModels: [
     {
@@ -234,6 +234,20 @@ const SAMPLE_FORECAST: Forecast = {
       from: new Date(SAMPLE_NOW + 42 * HOUR_MS),
     },
   ],
+  swellModels: [
+    {
+      name: "WaveWatch III",
+      producer: "Met Office",
+      resolutionKilometers: 1.5,
+      from: new Date(SAMPLE_NOW - 6 * HOUR_MS),
+    },
+    {
+      name: "MFWAM",
+      producer: "Météo-France",
+      resolutionKilometers: 9,
+      from: new Date(SAMPLE_NOW + 42 * HOUR_MS),
+    },
+  ],
   fetchedAt: new Date(SAMPLE_NOW),
   stale: false,
   hours: Array.from({ length: 96 }, (_, index) => {
@@ -244,6 +258,8 @@ const SAMPLE_FORECAST: Forecast = {
       wavePeriodSeconds: 9,
       wavePeakPeriodSeconds: 11,
       waveDirectionDegrees: 290,
+      swellHeightMeters: height * 0.8,
+      swellDirectionDegrees: 285,
       windSpeedMetersPerSecond: 6 + 3 * Math.sin(index / 9),
       windGustMetersPerSecond: 10,
       windDirectionDegrees: 250,

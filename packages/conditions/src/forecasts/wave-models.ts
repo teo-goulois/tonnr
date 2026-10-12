@@ -1,5 +1,6 @@
 // The wave models a forecast may come from, and what each party asks to be credited with. The
-// wording is theirs, read on 2026-10-12: `docs/data-sources.md` says where. Decisions 036 and 037.
+// wording is theirs, read on 2026-10-12: `docs/data-sources.md` says where. Decisions 036, 037
+// and 038.
 
 /** A credit as it must be shown: its words, and the address they link to. */
 export type Credit = { text: string; url: string };
@@ -79,7 +80,18 @@ export function isInFineZone(point: { latitude: number; longitude: number }) {
   );
 }
 
-export const WAVE_MODELS = [FINE_WAVE_MODEL, ...OPEN_METEO_MODELS] as const;
+// The model whose first swell is read apart from the wind sea, where the fine model does not
+// answer: Météo-France's, over the world, read from Copernicus Marine. It is the model Open-Meteo
+// serves under another name, on the same grid. Decision 038.
+export const SWELL_MODEL = {
+  id: "mfwam",
+  name: "MFWAM",
+  producer: "Météo-France",
+  resolutionKilometers: 9,
+  ...MFWAM,
+} as const;
+
+export const WAVE_MODELS = [FINE_WAVE_MODEL, ...OPEN_METEO_MODELS, SWELL_MODEL] as const;
 
 export type WaveModel = (typeof WAVE_MODELS)[number];
 export type WaveModelId = WaveModel["id"];

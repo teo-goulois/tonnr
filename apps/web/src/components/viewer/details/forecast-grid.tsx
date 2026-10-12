@@ -26,6 +26,7 @@ import {
   formatMetric,
   isNight,
   metrics,
+  swellMetric,
   valueAt,
   weatherMetrics,
 } from "./metrics";
@@ -101,6 +102,9 @@ export function ForecastGrid({
   useUnits();
   const all = metrics();
   const weather = weatherMetrics();
+  const swell = swellMetric();
+  // A point where no model gives a swell apart has no row for it.
+  const hasSwell = model.some((sample) => sample.swell !== null);
   const step = stepHours * HOUR_MS;
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; left: number } | null>(null);
@@ -240,7 +244,7 @@ export function ForecastGrid({
     );
   }
 
-  function directionRow(key: "waveDirection" | "windDirection") {
+  function directionRow(key: "waveDirection" | "swellDirection" | "windDirection") {
     return (
       <tr>
         <RowLabel quiet className={ROW}>
@@ -385,6 +389,9 @@ export function ForecastGrid({
             {valueRows(all.period)}
             {valueRows(all.energy)}
             {directionRow("waveDirection")}
+            {/* The swell apart from the wind sea, under the whole sea it is a part of. */}
+            {hasSwell && valueRows(swell)}
+            {hasSwell && directionRow("swellDirection")}
             {spacer}
             {valueRows(all.wind)}
             {valueRows(all.wind, m.details_gusts(), "gust")}

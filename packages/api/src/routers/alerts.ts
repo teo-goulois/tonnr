@@ -557,6 +557,10 @@ export const alertsRouter = {
                 swellHeightMeters: z.number().nullable(),
                 swellPeriodSeconds: z.number().nullable(),
                 swellDirectionDegrees: z.number().nullable(),
+                // The first swell apart from the wind sea, where a model gives one. The three
+                // above are the whole sea, under the names an alert's conditions keep.
+                primarySwellHeightMeters: z.number().nullable(),
+                primarySwellDirectionDegrees: z.number().nullable(),
                 windSpeedMetersPerSecond: z.number().nullable(),
                 windDirectionDegrees: z.number().nullable(),
                 tideHeightMeters: z.number().nullable(),

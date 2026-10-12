@@ -27,6 +27,10 @@ export type SpotCriteria = {
   swellHeightMeters?: Range;
   swellPeriodSeconds?: Range;
   swellDirectionDegrees?: Arc;
+  // The first swell apart from the wind sea, where a model gives one: decision 038. The three
+  // above are the whole sea since decision 036, under the names they were saved with.
+  primarySwellHeightMeters?: Range;
+  primarySwellDirectionDegrees?: Arc;
   windSpeedMetersPerSecond?: Range;
   windDirectionDegrees?: Arc;
   tideHeightMeters?: Range;
