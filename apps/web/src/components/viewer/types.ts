@@ -40,6 +40,13 @@ export type Standing = Answer<V1["contributions"]["mine"]>;
 export type Contribution = Standing["contributions"][number];
 export type Rank = NonNullable<Standing["rank"]>;
 
+/** A friend of the signed-in account: what it reads of it. */
+export type Friend = Answer<V1["friends"]["list"]>["friends"][number];
+/** A friend, with what they wrote in the guides and that was confirmed. */
+export type FriendDetail = Answer<V1["friends"]["get"]>;
+/** Whose link an invitation is. */
+export type Inviter = Answer<V1["friends"]["open"]>;
+
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {
   data: Data | undefined;

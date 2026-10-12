@@ -36,6 +36,10 @@ type AccountPanelProps = {
   standing?: Pick<Standing, "score" | "rank"> | undefined;
   // Opens what the account wrote in the guides, one step into this panel.
   onOpenContributions: () => void;
+  // How many friends the account has, once the API has said.
+  friendCount?: number | undefined;
+  // Opens the account's link and its friends, one step into this panel.
+  onOpenFriends: () => void;
 };
 
 // A language is named in itself, whatever language the screen is read in.
@@ -75,6 +79,8 @@ export function AccountPanel({
   onOpenAlertSettings,
   standing,
   onOpenContributions,
+  friendCount,
+  onOpenFriends,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const [isNaming, setNaming] = useState(false);
@@ -150,6 +156,23 @@ export function AccountPanel({
                       .filter(Boolean)
                       .join(" · ")
                   : m.contributions_hint()}
+              </span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenFriends}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.friends_title()}</span>
+              <span className="text-s text-neutral-7">
+                {friendCount === undefined || friendCount === 0
+                  ? m.friends_hint()
+                  : friendCount === 1
+                    ? m.friends_count_one()
+                    : m.friends_count({ count: friendCount })}
               </span>
             </span>
             <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />

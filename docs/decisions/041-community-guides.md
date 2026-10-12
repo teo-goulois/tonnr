@@ -1,6 +1,6 @@
 # 041. Guides that accounts write, and a rank for writing them
 
-Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built, and so are the contributions: the guide of a break in the web app, what an operator answers in the admin, what the accounts that keep a break say, the score and the rank. The link that makes friends and sponsors is not. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
+Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. All of its order is built: the username, the contributions with the guide of a break in the web app and what an operator answers in the admin, what the accounts that keep a break say, the score and the rank, and the link that makes friends and sponsors. What it lists as later is not. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
 
 ## Context
 
@@ -55,8 +55,12 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 ### Friends and sponsors
 
 - An account has a link of its own. An account made through it has the link's owner as its sponsor, and the two are friends. An account that exists already and opens the link becomes a friend. There is no search of accounts and no request to answer.
-- A sponsorship succeeds at the sponsored account's first confirmed contribution, and gives its sponsor points then.
-- A friend sees the username, the rank, and the contributions. They see no spot, no alert and no list, but a list shared as decision 035 says.
+- The link ends with sixteen random bytes, kept as they are, and its address in the web app is `/i/<token>`, which the app also draws as a code for a camera. Whoever has the link reads whose it is, a username and a rank, before they sign up. An account gives itself a new link when it likes: the one before then opens nothing, and the friends it made stay.
+- The link goes with the sign-up, and the sign-in library reads it once the account is made: only an account made through a link has a sponsor. An account that exists already, however young, becomes a friend and no more. An account has one sponsor, for good.
+- Opening a link makes nothing by itself: an account becomes a friend at its own word, and has a username by then, since a friend is read by it.
+- A sponsorship succeeds at the sponsored account's first confirmed contribution, and counts 15 points for its sponsor then.
+- A friend sees the username, the rank, and the contributions that were confirmed. They see no spot, no alert and no list, but a list shared as decision 035 says, and no score: with what was written, a score would say how many accounts the friend brought. A spot the friend asked to make public is not among its contributions: a break names no account.
+- Either ends a friendship. The other does not make it again by a link it still holds: whoever ended it does, by opening the other's. An account has two hundred friends at most.
 
 ### Order
 
@@ -77,6 +81,7 @@ Later, in no order:
 - **A draw among the ten best.** They are the same ten every month, and they need no draw to write. A draw among all who contributed speaks to a newcomer.
 - **A list of friends with a search and requests.** A link shown on a car park makes a friend in one step, and is the sponsorship too.
 - **A sponsorship counted at sign-up.** It would pay for accounts that do nothing, and for false ones.
+- **A sponsor for any young account that opens a link.** An account of a few days is one that exists: only the sign-up says that an account was made through a link.
 - **Stars on a contribution.** Whether it is right is what a reader can say.
 - **A username kept as it was typed, beside the one in small letters.** The library offers that second form and checks nothing of it: an account could write another's username there, and be read under it.
 

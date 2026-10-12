@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   jsonb,
   pgTable,
@@ -202,4 +203,66 @@ export const rankAward = pgTable(
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.rank] })],
+);
+
+/**
+ * The link an account gives to whoever it wants as a friend. An account made through it has
+ * the link's owner as its sponsor, and the two are friends. An account that exists already and
+ * opens it becomes a friend. A link is one account's, and the account gives itself a new one
+ * when it likes: the one before then opens nothing.
+ */
+export const accountLink = pgTable("account_link", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  // What the link ends with: sixteen random bytes, kept as they are so that the account copies
+  // its link again.
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Two accounts that are friends: each reads the other's username, rank and contributions, and
+ * nothing else of it. One row for the two, the account whose id sorts first in `userId`.
+ */
+export const friendship = pgTable(
+  "friendship",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    friendId: text("friend_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // Which of the two ended it, and when. The row stays: the other does not make it again by
+    // a link it still holds. Whoever ended it makes it again by opening the other's link.
+    endedBy: text("ended_by"),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.friendId] }),
+    index("friendship_friendId_idx").on(table.friendId),
+    // Compared byte by byte, as `pairOf` sorts them: the order of the database's own collation
+    // is another, and would refuse half of the pairs.
+    check("friendship_order", sql`${table.userId} collate "C" < ${table.friendId} collate "C"`),
+  ],
+);
+
+/**
+ * An account that was made through another's link: the other is its sponsor. It counts for the
+ * sponsor once the account has a contribution confirmed. An account has one sponsor, for good.
+ */
+export const sponsorship = pgTable(
+  "sponsorship",
+  {
+    sponsoredId: text("sponsored_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Null once the sponsor's account is deleted: the row stays, so that the account is not
+    // sponsored a second time.
+    sponsorId: text("sponsor_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("sponsorship_sponsorId_idx").on(table.sponsorId)],
 );

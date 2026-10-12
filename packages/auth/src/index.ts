@@ -4,6 +4,7 @@ import type { Database } from "@repo/db";
 import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
+import { invitations } from "./invitation";
 import { suspensionHooks } from "./suspension";
 import { keepsUsername, usernames } from "./username";
 import { type Verification, VERIFICATION_SECONDS } from "./verification";
@@ -63,8 +64,9 @@ export function createAuth(
         httpOnly: true,
       },
     },
-    // What others read of an account, and what keeps it there: decision 041.
-    hooks: { before: keepsUsername },
+    // What others read of an account, and what keeps it there, then what a link another gave
+    // it makes of a new account: decision 041.
+    hooks: { before: keepsUsername, after: invitations(database) },
     plugins: [usernames(database)],
   });
 }

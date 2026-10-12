@@ -28,8 +28,8 @@ export function points(count: number) {
   return count === 1 ? m.contributions_point_one() : m.contributions_points({ count });
 }
 
-/** The line a contribution is of, and what it says. */
-function said(one: Contribution) {
+/** The line a contribution is of, and what it says, as they read. */
+export function readContribution(one: Pick<Contribution, "line" | "value">) {
   if (one.line === "place") return { label: m.contribution_place(), value: null };
   if (isTextLine(one.line)) {
     return {
@@ -104,6 +104,13 @@ export function ContributionsPanel({ standing, onOpenBreak }: ContributionsPanel
           <p className="text-s text-neutral-7">{m.contributions_top()}</p>
         )}
         <p className="text-s text-neutral-7">{m.contributions_scale()}</p>
+        {known.sponsorships > 0 && (
+          <p className="text-s">
+            {known.sponsorships === 1
+              ? m.contributions_sponsorships_one()
+              : m.contributions_sponsorships({ count: known.sponsorships })}
+          </p>
+        )}
         {known.trusted && <p className="text-s">{m.contributions_trusted()}</p>}
       </div>
 
@@ -112,7 +119,7 @@ export function ContributionsPanel({ standing, onOpenBreak }: ContributionsPanel
       ) : (
         <ul className="grid gap-m">
           {known.contributions.map((one) => {
-            const { label, value } = said(one);
+            const { label, value } = readContribution(one);
             const place = one.break;
             return (
               <li key={one.id} className="grid gap-xxs text-s">

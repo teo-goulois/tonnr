@@ -63,6 +63,8 @@ const ANSWERS_ANYONE = [
   "v1.alerts.mailOffPage",
   "v1.shared.open",
   "v1.visitors.get",
+  // Whose link this is, said to whoever was given the link: decision 041.
+  "v1.friends.open",
 ];
 // A visitor of the web app, who has no account, is answered by the same ones, while the
 // instance is open to visitors.
@@ -114,6 +116,13 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.contributions.withdraw",
   "v1.guides.answer",
   "v1.guides.mine",
+  // An account's link, and the friends it made: decision 041.
+  "v1.friends.accept",
+  "v1.friends.get",
+  "v1.friends.link",
+  "v1.friends.list",
+  "v1.friends.remove",
+  "v1.friends.renewLink",
   "v1.lists.addBreak",
   "v1.lists.addSpot",
   "v1.lists.addStation",

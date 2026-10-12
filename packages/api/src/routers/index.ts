@@ -11,6 +11,7 @@ import { consoleRouter } from "./console";
 import { contributionsRouter } from "./contributions";
 import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
+import { friendsRouter } from "./friends";
 import { guidesRouter } from "./guides";
 import { instanceRouter } from "./instance";
 import { keysRouter } from "./keys";
@@ -43,6 +44,7 @@ export const v1Router = {
   contributions: contributionsRouter,
   developers: developersRouter,
   forecasts: forecastsRouter,
+  friends: friendsRouter,
   guides: guidesRouter,
   instance: instanceRouter,
   keys: keysRouter,

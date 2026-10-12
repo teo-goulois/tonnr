@@ -137,6 +137,7 @@ const STANDING: Standing = {
   rank: "qs",
   next: { rank: "cs", from: 150 },
   confirmed: 9,
+  sponsorships: 2,
   trusted: true,
   contributions: [
     {
@@ -297,6 +298,7 @@ export function GuideSamples() {
                 rank: null,
                 next: { rank: "qs", from: 20 },
                 confirmed: 0,
+                sponsorships: 0,
                 trusted: false,
                 contributions: [],
               },

@@ -35,6 +35,9 @@ import {
   type SpotSearch,
 } from "@/components/spots/new-spot-panel";
 import type { Alerting } from "@/components/alerts/types";
+import { FriendsPanel } from "@/components/friends/friends-panel";
+import { InviteDialog } from "@/components/friends/invite-dialog";
+import type { Friending, Invitation } from "@/components/friends/types";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
 import type { Guiding } from "@/components/guides/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
@@ -116,7 +119,7 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
 /** The part of the account's panel that is one step into it: how to be told of the alerts. */
-export type SettingsPart = "alerts" | "contributions";
+export type SettingsPart = "alerts" | "contributions" | "friends";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -211,6 +214,9 @@ type ViewerProps = {
   // Whether the address asks for the guide of the break it selects, and what opens one.
   guideAsked: boolean;
   onOpenGuide: (breakId: string) => void;
+  // The account's link and its friends, and the link the address names, if it names one.
+  friending: Friending;
+  invitation: Invitation | undefined;
   // Push on this device, and the account's devices.
   push: Pushing;
   // The part of the alerts panel in view.
@@ -226,6 +232,8 @@ type ViewerProps = {
     onUsernameSave: (username: string) => Promise<string | undefined>;
     // What the account wrote in the guides, and where it stands.
     standing: Loadable<Standing>;
+    // How many friends it has, once the API has said.
+    friendCount: number | undefined;
     onSignOut: () => void;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
@@ -441,6 +449,8 @@ export function Viewer({
   guiding,
   guideAsked,
   onOpenGuide,
+  friending,
+  invitation,
   push,
   alertsTab,
   onAlertsTabChange,
@@ -891,6 +901,7 @@ export function Viewer({
   // How to be told of the alerts is an account's: a visitor has the account's first screen.
   const alertSettings = settingsPart === "alerts" && signedIn;
   const ownContributions = settingsPart === "contributions" && signedIn;
+  const ownFriends = settingsPart === "friends" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -1458,10 +1469,14 @@ export function Viewer({
             ? m.command_alerts_settings()
             : ownContributions
               ? m.contributions_title()
-              : m.account_menu()
+              : ownFriends
+                ? m.friends_title()
+                : m.account_menu()
         }
         onBack={
-          alertSettings || ownContributions ? () => onSettingsPartChange(undefined) : undefined
+          alertSettings || ownContributions || ownFriends
+            ? () => onSettingsPartChange(undefined)
+            : undefined
         }
       >
         {alertSettings ? (
@@ -1474,6 +1489,13 @@ export function Viewer({
           />
         ) : ownContributions ? (
           <ContributionsPanel standing={account.standing} onOpenBreak={onOpenGuide} />
+        ) : ownFriends ? (
+          <FriendsPanel
+            username={account.user?.username}
+            onUsernameSave={account.onUsernameSave}
+            friending={friending}
+            onOpenBreak={onOpenGuide}
+          />
         ) : (
           <AccountPanel
             account={account.user}
@@ -1484,6 +1506,8 @@ export function Viewer({
             onOpenAlertSettings={() => onSettingsPartChange("alerts")}
             standing={account.standing.data}
             onOpenContributions={() => onSettingsPartChange("contributions")}
+            friendCount={account.friendCount}
+            onOpenFriends={() => onSettingsPartChange("friends")}
           />
         )}
       </ViewerTab>
@@ -1496,6 +1520,13 @@ export function Viewer({
         spots={signedIn ? spots.data : []}
         onAddSpot={createSpot}
         onAddAlert={createAlert}
+      />
+      {/* Whose link the address names, and what it makes: over whatever the map shows. */}
+      <InviteDialog
+        invitation={invitation}
+        signedIn={signedIn}
+        username={account.user?.username}
+        onUsernameSave={account.onUsernameSave}
       />
       <LeaveDialog />
     </div>

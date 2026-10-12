@@ -1,4 +1,4 @@
-import { Outlet, createFileRoute, useRouter } from "@tanstack/react-router";
+import { Outlet, createFileRoute, useRouter, useRouterState } from "@tanstack/react-router";
 
 import { LoginWall } from "@/components/auth/login-wall";
 import { AppPending } from "@/components/shared/app-pending";
@@ -50,11 +50,22 @@ export const Route = createFileRoute("/app")({
 function AppLayout() {
   const { walled } = Route.useRouteContext();
   const router = useRouter();
+  // The link someone gave the visitor, when the address names one: the wall takes it too.
+  const invite = useRouterState({
+    select: (state) => (state.location.search as { invite?: unknown }).invite,
+  });
 
   return (
     // The wall leads nowhere but in: it has no bar of tabs.
     <AppShell nav={!walled}>
-      {walled ? <LoginWall onSignedIn={() => void router.invalidate()} /> : <Outlet />}
+      {walled ? (
+        <LoginWall
+          onSignedIn={() => void router.invalidate()}
+          invitation={typeof invite === "string" ? invite : undefined}
+        />
+      ) : (
+        <Outlet />
+      )}
     </AppShell>
   );
 }

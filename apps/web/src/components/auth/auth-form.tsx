@@ -24,6 +24,9 @@ type AuthFormProps = {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   onSuccess: () => void;
+  // What the link someone gave the visitor ends with. It goes with a sign-up: the new account
+  // then has the link's owner as its sponsor, and the two are friends. Decision 041.
+  invitation?: string | undefined;
 };
 
 function Field({
@@ -110,7 +113,7 @@ async function announceCheck(email: string) {
 }
 
 /** Signs a visitor in, or creates their account. One form does both, and a link switches. */
-export function AuthForm({ mode, onModeChange, onSuccess }: AuthFormProps) {
+export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthFormProps) {
   const isSignUp = mode === "sign-up";
 
   const form = useForm({
@@ -119,7 +122,11 @@ export function AuthForm({ mode, onModeChange, onSuccess }: AuthFormProps) {
       const answer = isSignUp
         ? // The sign-in library asks every account for a name: a new one gives its username,
           // which is what it is called by.
-          await authClient.signUp.email({ ...value, name: value.username })
+          await authClient.signUp.email({
+            ...value,
+            name: value.username,
+            ...(invitation !== undefined && { invitation }),
+          })
         : await authClient.signIn.email({ email: value.email, password: value.password });
       if (answer.error) {
         // The API says in English why it refuses. A suspended account and a username it does

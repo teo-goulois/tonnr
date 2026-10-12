@@ -110,6 +110,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "contributions" } }),
         },
         {
+          value: `${m.friends_title()} friends link invite sponsor parrain amis`,
+          label: m.friends_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "friends" } }),
+        },
+        {
           value: `${m.account_settings()} settings account preferences ${m.units_title()} units knots nœuds km/h feet pieds celsius fahrenheit`,
           label: m.account_settings(),
           run: () => void navigate({ to: "/app", search: { panel: "account" } }),

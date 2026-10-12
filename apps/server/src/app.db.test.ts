@@ -21,6 +21,7 @@ import {
 } from "@repo/db/schema/access";
 import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
+import { sponsorship } from "@repo/db/schema/community";
 import { stationList } from "@repo/db/schema/lists";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1729,6 +1730,96 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       });
       expect(renamed.status).toBe(200);
       expect((await accountOf(ana)).username).toBe("ana");
+    });
+  });
+
+  // The link an account gives, and what signing up through it makes: decision 041.
+  describe("an account made through another's link", () => {
+    const password = "made-up-for-these-tests";
+    const cookieOf = (response: Response) =>
+      response.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+    const signUpAs = (username: string, invitation?: string) =>
+      send("POST", "/api/auth/sign-up/email", {
+        origin: APP,
+        body: {
+          name: username,
+          username,
+          email: `${username}@example.org`,
+          password,
+          ...(invitation !== undefined && { invitation }),
+        },
+      });
+    const linkOf = async (cookie: string) =>
+      (await bodyOf<{ token: string }>(await send("GET", "/v1/friends/link", { cookie }))).token;
+    type Friend = { username: string | null; sponsored: string | null };
+    const friendsOf = async (cookie: string) =>
+      (await bodyOf<{ friends: Friend[] }>(await send("GET", "/v1/friends", { cookie }))).friends;
+
+    it("has the link's owner as its sponsor, and the two are friends", async () => {
+      const ana = cookieOf(await signUpAs("ana"));
+      const token = await linkOf(ana);
+
+      // Whoever was given the link reads whose it is before they sign up, with no account.
+      const opened = await send("POST", "/v1/friends/open", { origin: APP, body: { token } });
+      expect([opened.status, await bodyOf(opened)]).toEqual([200, { username: "ana", rank: null }]);
+
+      const made = await signUpAs("ben", token);
+      expect(made.status).toBe(200);
+      const ben = cookieOf(made);
+
+      expect(await friendsOf(ben)).toMatchObject([{ username: "ana", sponsored: null }]);
+      expect(await friendsOf(ana)).toMatchObject([{ username: "ben", sponsored: "waiting" }]);
+      expect(await database.db.select().from(sponsorship)).toHaveLength(1);
+    });
+
+    it("is made all the same with a link that opens nothing, and has no sponsor", async () => {
+      const made = await signUpAs("ben", "no-such-link");
+
+      expect(made.status).toBe(200);
+      expect(await friendsOf(cookieOf(made))).toEqual([]);
+      expect(await database.db.select().from(sponsorship)).toEqual([]);
+    });
+
+    it("is the only one with a sponsor: an account that exists becomes a friend, and no more", async () => {
+      const ana = cookieOf(await signUpAs("ana"));
+      const token = await linkOf(ana);
+      const cleo = cookieOf(await signUpAs("cleo"));
+
+      const accepted = await send("POST", "/v1/friends", {
+        cookie: cleo,
+        origin: APP,
+        body: { token },
+      });
+
+      expect(accepted.status).toBe(200);
+      expect(await friendsOf(ana)).toMatchObject([{ username: "cleo", sponsored: null }]);
+      expect(await database.db.select().from(sponsorship)).toEqual([]);
+    });
+
+    it("is sponsored without a username, and makes friends once it has one", async () => {
+      const ana = cookieOf(await signUpAs("ana"));
+      const token = await linkOf(ana);
+      const body = { name: "Dan", email: "dan@example.org", password, invitation: token };
+
+      const made = await send("POST", "/api/auth/sign-up/email", { origin: APP, body });
+
+      expect(made.status).toBe(200);
+      expect(await database.db.select().from(sponsorship)).toHaveLength(1);
+      expect(await friendsOf(ana)).toEqual([]);
+      // A friend is read by a name: the account opens the link once it has one.
+      const dan = cookieOf(made);
+      const open = () => send("POST", "/v1/friends", { cookie: dan, origin: APP, body: { token } });
+      expect((await open()).status).toBe(403);
+      await send("POST", "/api/auth/update-user", {
+        cookie: dan,
+        origin: APP,
+        body: { username: "dan" },
+      });
+      expect((await open()).status).toBe(200);
+      expect(await friendsOf(ana)).toMatchObject([{ username: "dan", sponsored: "waiting" }]);
     });
   });
 

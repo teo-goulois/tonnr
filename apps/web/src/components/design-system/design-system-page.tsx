@@ -58,6 +58,7 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
@@ -826,6 +827,7 @@ export function DesignSystemPage() {
             <AccountPanel
               account={{ name: "maelle_lg", email: "maelle@example.org", username: "maelle_lg" }}
               standing={{ score: 180, rank: "cs" }}
+              friendCount={3}
               check={{ isSending: false, onSend: () => {} }}
               onUsernameSave={refuseTaken}
               onSignIn={() => {}}
@@ -833,6 +835,7 @@ export function DesignSystemPage() {
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
+              onOpenFriends={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -845,6 +848,7 @@ export function DesignSystemPage() {
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
+              onOpenFriends={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -857,6 +861,7 @@ export function DesignSystemPage() {
               onSignOut={() => {}}
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
+              onOpenFriends={() => {}}
             />
           </div>
         </div>
@@ -864,6 +869,10 @@ export function DesignSystemPage() {
 
       <Section title="Guide of a break, and contributions">
         <GuideSamples />
+      </Section>
+
+      <Section title="Friends, and the link that makes them">
+        <FriendSamples />
       </Section>
 
       <Section title="Viewer skeleton">

@@ -19,6 +19,9 @@ type AuthRequest = {
   reason?: string;
   // What the visitor was doing, picked up once they are signed in.
   onSignedIn?: () => void;
+  // What the link someone gave the visitor ends with: an account made through it has the
+  // link's owner as its sponsor. Decision 041.
+  invitation?: string;
 };
 
 const AuthPromptContext = createContext<(request?: AuthRequest) => void>(() => {});
@@ -70,6 +73,7 @@ export function AuthPromptProvider({
           <AuthForm
             mode={mode}
             onModeChange={setMode}
+            invitation={request.invitation}
             onSuccess={() => {
               setOpen(false);
               onSignedIn?.();

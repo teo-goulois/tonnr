@@ -290,8 +290,9 @@ export const contributionsRouter = {
         "became of each, and its standing: a score, computed from the contributions that " +
         "were confirmed and kept nowhere, and a rank, which is kept once it is reached. A " +
         "line of a break counts once, 5 points for a list of words and 10 for a text. A spot " +
-        "that became a break of the catalogue counts 20. The ranks are `qs` from 20 points, " +
-        "`cs` from 150 and `ct` from 600. Decision 041.",
+        "that became a break of the catalogue counts 20, and an account made through the " +
+        "caller's link 15, once it had a contribution confirmed. The ranks are `qs` from 20 " +
+        "points, `cs` from 150 and `ct` from 600. Decision 041.",
       tags: ["Contributions"],
     })
     .output(
@@ -305,6 +306,8 @@ export const contributionsRouter = {
         next: z.object({ rank: z.enum(RANKS), from: z.number() }).nullable(),
         // How many of its contributions are confirmed, each line of a break once.
         confirmed: z.number(),
+        // How many accounts were made through its link and then had a contribution confirmed.
+        sponsorships: z.number(),
         // Whether its lists of words show at once, as waiting to be confirmed.
         trusted: z.boolean(),
         contributions: z.array(contributionSchema),
@@ -331,6 +334,7 @@ export const contributionsRouter = {
         rank: standing.rank,
         next: nextRank(standing.rank),
         confirmed: standing.confirmed,
+        sponsorships: standing.sponsorships,
         trusted: standing.trusted,
         contributions: rows.map((row) =>
           describe(

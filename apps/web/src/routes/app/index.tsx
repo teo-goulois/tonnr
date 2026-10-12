@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -44,6 +44,7 @@ import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 import { useAlerting } from "./-alerting";
+import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useSharedList } from "./-shared";
@@ -61,7 +62,10 @@ export const Route = createFileRoute("/app/")({
     // then still leads there, and is taken to it.
     alerts: z.enum(["mine", "settings"]).optional(),
     // The part of the account's panel in view: its first screen when left out.
-    settings: z.enum(["alerts", "contributions"]).optional(),
+    settings: z.enum(["alerts", "contributions", "friends"]).optional(),
+    // What the link someone gave the reader ends with: whose it is and what it makes are said
+    // over the map. Decision 041.
+    invite: z.string().max(64).optional(),
     // The tab a break's panel opens on: its forecast when left out.
     tab: z.enum(["guide"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
@@ -338,6 +342,20 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   const signOut = useSignOut();
   const saveUsername = useUsername();
   const needsCheck = own.account?.checksAddresses === true && !own.account.emailVerified;
+  // The account's link and its friends, read in the account's panel, and the link the address
+  // names, if it names one.
+  const leaveInvite = useCallback(
+    () =>
+      void navigate({ search: (previous) => ({ ...previous, invite: undefined }), replace: true }),
+    [navigate],
+  );
+  const friended = useFriends({
+    signedIn,
+    username: own.account ? own.account.username : undefined,
+    isShown: panel === "account",
+    invite: search.invite,
+    onInviteDone: leaveInvite,
+  });
 
   // An address from before how to be told was a part of the account's panel is taken there.
   const isOldSettings = search.alerts === "settings";
@@ -1170,8 +1188,11 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
           : undefined,
         onUsernameSave: saveUsername,
         standing,
+        friendCount: friended.friendCount,
         onSignOut: signOut,
       }}
+      friending={friended.friending}
+      invitation={friended.invitation}
       settingsPart={search.settings}
       onSettingsPartChange={(part) =>
         void navigate({
