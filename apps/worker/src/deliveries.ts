@@ -958,13 +958,14 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
     // Taken as told meanwhile, by whoever found it left behind.
     if (!mine?.claim) return "skipped";
     const now = new Date();
-    // Nothing was handed over, and nothing was told.
-    const giveUp = async (state: "pending" | "expired") => {
+    // Nothing was handed over, and nothing was told. Put back on its way, it is read again at
+    // once, or when it is told to.
+    const giveUp = async (state: "pending" | "expired", dueAt = now) => {
       await tx
         .update(notificationDelivery)
         .set(
           state === "pending"
-            ? { state, claim: null, dueAt: now }
+            ? { state, claim: null, dueAt }
             : { state, claim: null, settledAt: now },
         )
         .where(sending);
@@ -987,6 +988,10 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
     // Something it was written from changed, or the hold came too late to last as long as a
     // message may take: it is written anew.
     if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) return giveUp("pending");
+    // The quiet hours may have begun since it was written: it waits for their end, as one that
+    // was not written yet does.
+    const leaves = leavesAt(now, quietHoursOf(settingsOf(settingsRow)));
+    if (leaves.getTime() > now.getTime()) return giveUp("pending", leaves);
 
     let isTaken: boolean;
     if (taken.channel === "mail" && "mailer" in out) {

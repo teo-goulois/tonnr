@@ -854,6 +854,25 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
       expect(service.sent()).toHaveLength(1);
     });
 
+    it("wait for the end of quiet hours that began between the two", async () => {
+      // Quiet from 11:21, a minute after the look that found the window.
+      await settings({ quietFrom: 11 * 60 + 21, quietTo: 13 * 60 });
+      await found();
+      const { id, taken } = await written();
+      expect(await states()).toEqual([["found", "sending"]]);
+
+      vi.setSystemTime(new Date("2026-10-09T11:21:30Z"));
+      expect(await hand(database.db, out, id, taken)).toBe("skipped");
+      expect(service.asked()).toEqual([]);
+      expect(await pushedAt()).toEqual([]);
+      expect(await deliveries()).toMatchObject([
+        { state: "pending", dueAt: new Date("2026-10-09T13:00:00Z") },
+      ]);
+
+      vi.setSystemTime(new Date("2026-10-09T13:00:00Z"));
+      expect(await pass()).toMatchObject({ pushes: 1 });
+    });
+
     it("are handed over when nothing changed", async () => {
       await found();
       const { id, taken } = await written();
@@ -1848,6 +1867,31 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
           pushBegun: [{ start: hour(8), end: hour(12) }],
         },
       ]);
+    });
+
+    it("wait both for the end of quiet hours that began between their two steps", async () => {
+      await settings({ quietFrom: 11 * 60 + 21, quietTo: 13 * 60 });
+      await found();
+      const due = await database.db.select().from(notificationDelivery);
+      const id = due[0]?.notificationId ?? "";
+      const byMail = await take(database.db, mail, id);
+      const byPush = await take(database.db, out, id);
+      if (typeof byMail === "string" || typeof byPush === "string") throw new Error("not taken");
+
+      vi.setSystemTime(new Date("2026-10-09T11:21:30Z"));
+      expect(await hand(database.db, mail, id, byMail)).toBe("skipped");
+      expect(await hand(database.db, out, id, byPush)).toBe("skipped");
+      expect(post.sent()).toEqual([]);
+      expect(service.asked()).toEqual([]);
+      expect(await told()).toEqual({ mailed: [], pushed: [] });
+      for (const channel of ["mail", "push"] as const) {
+        expect(await deliveries(channel)).toMatchObject([
+          { state: "pending", dueAt: new Date("2026-10-09T13:00:00Z") },
+        ]);
+      }
+
+      vi.setSystemTime(new Date("2026-10-09T13:00:00Z"));
+      expect(await pass(out, mail)).toMatchObject({ mails: 1, pushes: 1 });
     });
 
     it("go to the end of what is being handed over when the other could not read what is due", async () => {
