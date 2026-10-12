@@ -939,11 +939,20 @@ export function Viewer({
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
   // Where the map says something of itself: at the top and in the middle. On a phone it stands
-  // under what else floats there.
-  const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : "self-center";
+  // over the legend, at the bottom of the map.
+  const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : undefined;
+  // On a phone the map's buttons and its legend stand at the bottom of the map, under the thumb:
+  // over the bar of tabs, and over a sheet that is open beside the map. A sheet that is raised
+  // leaves them no room, and covers them.
+  const isCovered = !wide && padding.bottom > 0 && sheetShare > SHEET_SNAP_POINTS[0]!;
+  const foot = cn(
+    "bottom-[calc(var(--map-floor)+var(--spacing-s))]",
+    "transition-[bottom,opacity] duration-(--motion-large-duration) ease-theme-large motion-reduce:transition-none",
+    isCovered && "opacity-0",
+  );
 
-  // The account's lists on the map itself: a button under the one that finds the reader unfolds
-  // the row of chips beside it, and folds it again. A chip shows a list alone on the map, and
+  // The account's lists on the map itself: a button beside the one that finds the reader, under it
+  // on a wide screen and over it on a phone, unfolds the row of chips beside it, and folds it again. A chip shows a list alone on the map, and
   // the first one shows everything again. Not while a spot is being added: the map then takes
   // a marker, and shows everything.
   const listCount = (lists.data?.length ?? 0) + joined.length;
@@ -963,7 +972,7 @@ export function Viewer({
         aria-controls={listsId}
         onClick={() => {
           setListsOpen(!listsOpen);
-          // A phone has room for one of the two: the lists unfold where the legend opens.
+          // A phone has room for one of the two: the lists unfold over the legend, where it opens.
           if (!listsOpen && !wide) setLegendChoice(false);
         }}
       >
@@ -1022,11 +1031,49 @@ export function Viewer({
         {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
       </p>
     );
+  const locateButton = (
+    <Button
+      variant="outline"
+      size="icon"
+      className={floating}
+      aria-label={m.locate_me()}
+      aria-pressed={userLocation !== null}
+      isPending={isLocating}
+      onClick={locate}
+    >
+      <LocateIcon data-slot="icon" aria-hidden />
+    </Button>
+  );
+  const zoomButtons = (
+    <div className="grid gap-xxs max-sm:hidden">
+      <Button
+        variant="outline"
+        size="icon"
+        className={floating}
+        aria-label={m.map_zoom_in()}
+        onClick={() => map.current?.zoomBy(1)}
+      >
+        <PlusIcon data-slot="icon" aria-hidden />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        className={floating}
+        aria-label={m.map_zoom_out()}
+        onClick={() => map.current?.zoomBy(-1)}
+      >
+        <MinusIcon data-slot="icon" aria-hidden />
+      </Button>
+    </div>
+  );
   const legend = (
     <MapLegend
-      // At the top on a phone: the bottom is where the sheets rise and where the credits are.
       className={wide ? "absolute bottom-s left-s" : undefined}
-      opens={wide ? "up" : "down"}
+      opens="up"
+      // A phone keeps the title where the thumb pressed it, and has no button for the map's
+      // credits: the legend opens them.
+      titleUnder={!wide}
+      onShowCredits={wide ? undefined : () => map.current?.showCredits()}
       layers={layers}
       onLayersChange={onLayersChange}
       expanded={legendChoice ?? wide}
@@ -1042,15 +1089,16 @@ export function Viewer({
   return (
     <div
       className="relative min-h-0 overflow-hidden"
-      // On a phone the bar of tabs floats over the bottom of the map, and the timeline stands
-      // above it: the map's credits sit above both.
+      // What takes the bottom of a phone's map, which its buttons and its legend stand over: the
+      // bar of tabs, the timeline above it, or the sheet that is open beside the map.
       style={
         !wide
           ? ({
-              "--map-credits-lift":
+              "--map-floor": `max(${
                 timelineHeight > 0
                   ? `calc(${timelineHeight}px + var(--spacing-s) + var(--bottom-nav-lift, 0px))`
-                  : "var(--bottom-nav-lift, 0px)",
+                  : "var(--bottom-nav-lift, 0px)"
+              }, ${padding.bottom}px)`,
             } as CSSProperties)
           : undefined
       }
@@ -1097,23 +1145,30 @@ export function Viewer({
             {legend}
           </>
         ) : (
-          // On a phone they stand one under the other at the top of the map: the bottom is
-          // where the sheets rise. The legend comes first, where the map's skeleton draws it.
-          // The map is moved through the room they leave.
-          <div className="pointer-events-none absolute inset-x-s top-s flex flex-col items-start gap-xs *:pointer-events-auto">
-            {legend}
+          // On a phone they stand one over the other at the bottom of the map, the legend last,
+          // where the map's skeleton draws it. They leave the map's buttons their column, and
+          // the map is moved through the room they leave.
+          <div
+            inert={isCovered}
+            className={cn(
+              "pointer-events-none absolute left-s flex flex-col items-start justify-end gap-xs *:pointer-events-auto",
+              "max-h-[calc(100%-var(--map-floor)-var(--spacing-s)*2)] max-w-[calc(100%-var(--spacing-s)*2-2.5rem-var(--spacing-xs))]",
+              foot,
+            )}
+          >
             {listButton}
             {status}
+            {legend}
           </div>
         )}
 
-        <div
-          // Beside the station's panel when it is open, not under it.
-          className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
-          style={{ translate: `${-padding.right}px 0` }}
-        >
-          {/* A phone adds a spot from the "+" of its bar, with whatever else is added. */}
-          {wide && (
+        {wide ? (
+          <div
+            // Beside the station's panel when it is open, not under it.
+            className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
+            style={{ translate: `${-padding.right}px 0` }}
+          >
+            {/* A phone adds a spot from the "+" of its bar, with whatever else is added. */}
             <Button
               variant="outline"
               size="icon"
@@ -1124,41 +1179,20 @@ export function Viewer({
             >
               <PinPlusIcon data-slot="icon" aria-hidden />
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="icon"
-            className={floating}
-            aria-label={m.locate_me()}
-            aria-pressed={userLocation !== null}
-            isPending={isLocating}
-            onClick={locate}
-          >
-            <LocateIcon data-slot="icon" aria-hidden />
-          </Button>
-          <div className="grid gap-xxs max-sm:hidden">
-            <Button
-              variant="outline"
-              size="icon"
-              className={floating}
-              aria-label={m.map_zoom_in()}
-              onClick={() => map.current?.zoomBy(1)}
-            >
-              <PlusIcon data-slot="icon" aria-hidden />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className={floating}
-              aria-label={m.map_zoom_out()}
-              onClick={() => map.current?.zoomBy(-1)}
-            >
-              <MinusIcon data-slot="icon" aria-hidden />
-            </Button>
+            {locateButton}
+            {zoomButtons}
+            {/* Last, so that no button moves when the account's lists are known. */}
+            {listsButton}
           </div>
-          {/* Last, so that no button moves when the account's lists are known. */}
-          {listsButton}
-        </div>
+        ) : (
+          // On a phone the column stands at the bottom of the map and grows up from the button
+          // that finds the reader: no button moves when the account's lists are known.
+          <div inert={isCovered} className={cn("absolute right-s grid gap-xs", foot)}>
+            {zoomButtons}
+            {listsButton}
+            {locateButton}
+          </div>
+        )}
 
         {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
           across a phone. A drawer opens over it, and it does not move. On a wide screen it leaves

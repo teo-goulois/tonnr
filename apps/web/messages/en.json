@@ -142,6 +142,7 @@
   "map_aging": "Under 3 h",
   "map_old": "Older",
   "map_legend": "Legend",
+  "map_credits": "Map credits",
   "map_sea_now": "Now",
   "map_sea_earlier": "Earlier",
   "map_sea_later": "Later",

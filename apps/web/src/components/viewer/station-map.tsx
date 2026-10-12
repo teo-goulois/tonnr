@@ -112,6 +112,8 @@ export type StationMapHandle = {
   /** Shows these points together, in the part of the map that no drawer covers. */
   fit: (points: MapPoint[]) => void;
   zoomBy: (steps: number) => void;
+  /** Opens the map's credits where it draws them. They fold again when the map is moved. */
+  showCredits: () => void;
 };
 
 type StationMapProps = {
@@ -1423,6 +1425,12 @@ export function StationMap({
       },
       zoomBy: (steps) =>
         map.current?.easeTo({ zoom: map.current.getZoom() + steps, duration: 250 }),
+      showCredits: () => {
+        // What the control's own button does, for a phone that draws no button.
+        const credits = map.current?.getContainer().querySelector(".maplibregl-ctrl-attrib");
+        credits?.classList.add("maplibregl-compact-show");
+        credits?.setAttribute("open", "");
+      },
     }),
     [],
   );

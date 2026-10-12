@@ -1,20 +1,42 @@
 @import "@repo/ui/globals.css";
 
-/* A phone's bar of tabs floats over the bottom of its screen. What stands at the bottom of a
-   screen is lifted by this much to keep clear of it, and by nothing where there is no bar: on a
-   wide screen, which is `lg`, and on the wall of an instance that is closed. Decision 040. */
+/* A phone's bar of tabs floats over the bottom of its screen, this far from its edge. What stands
+   at the bottom of a screen is lifted to keep clear of it, and by nothing where there is no bar:
+   on a wide screen, which is `lg`, and on the wall of an instance that is closed. Decision 040. */
 @media (width < 64rem) {
   :root:has([data-bottom-nav]) {
-    --bottom-nav-lift: calc(3.75rem + max(var(--spacing-s), env(safe-area-inset-bottom)));
+    --bottom-nav-gap: var(--spacing-m);
+    --bottom-nav-lift: calc(3.75rem + var(--bottom-nav-gap));
+  }
+}
+/* From the Home Screen the page reaches the bottom of the phone, under the line it draws there,
+   and no browser says how tall that line is to a page that does not ask to draw under it. */
+@media (width < 64rem) and (display-mode: standalone) {
+  :root:has([data-bottom-nav]) {
+    --bottom-nav-gap: 1.75rem;
   }
 }
 
 /* The map's credits, on the theme's surface and in its type. They leave the legend its corner.
    The map's own stylesheet loads after this one, so each rule names the map to outrank it. */
 .maplibregl-map .maplibregl-ctrl-bottom-right {
-  /* Above the sea's timeline, where a phone shows it across the bottom of the map. */
-  bottom: var(--map-credits-lift, 0px);
   max-width: calc(100% - 18rem);
+}
+/* On a phone the bottom of the map is the reader's thumb's: the credits open at the top, and once
+   they have folded they leave no button there. The legend opens them again. */
+@media (width < 64rem) {
+  .maplibregl-map .maplibregl-ctrl-bottom-right {
+    top: var(--spacing-s);
+    right: var(--spacing-s);
+    bottom: auto;
+    max-width: calc(100% - var(--spacing-s) * 2);
+  }
+  .maplibregl-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
+    margin: 0;
+  }
+  .maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) {
+    display: none;
+  }
 }
 .maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
   background-color: var(--neutral-1);

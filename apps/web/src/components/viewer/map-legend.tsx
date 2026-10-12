@@ -1,5 +1,5 @@
 import { Switch } from "@repo/ui/components/ui/switch";
-import { ChevronDownIcon, LayersIcon } from "@repo/ui/icon";
+import { ChevronDownIcon, InfoIcon, LayersIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useId } from "react";
 
@@ -19,6 +19,11 @@ type MapLegendProps = {
   onExpandedChange: (expanded: boolean) => void;
   // The way the legend grows: down from the top of the map, or up from its bottom.
   opens?: "down" | "up";
+  // Keeps the title under what it opens, where the thumb pressed it: at the bottom of a phone's
+  // map. The legend then takes no more height than it is given, and what it opens scrolls.
+  titleUnder?: boolean;
+  // Given where the map draws no button for its credits: the legend ends with one that opens them.
+  onShowCredits?: () => void;
   // Wind stations and breaks are many: when not all of them are loaded, the legend says how to
   // see the rest.
   windTruncated: boolean;
@@ -104,6 +109,8 @@ export function MapLegend({
   expanded,
   onExpandedChange,
   opens = "down",
+  titleUnder = false,
+  onShowCredits,
   windTruncated,
   breaksTruncated,
   className,
@@ -117,14 +124,15 @@ export function MapLegend({
       aria-label={m.map_layers()}
       className={cn(
         "edge rounded-(--radius-xs) bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
-        expanded ? "w-64" : "w-fit",
+        expanded ? "w-64 max-w-full" : "w-fit",
+        titleUnder && "flex min-h-0 flex-col-reverse",
         className,
       )}
     >
       {/* The title is the button that opens and folds the legend. */}
       <button
         type="button"
-        className="focus-ring flex min-h-10 w-full cursor-pointer items-center gap-xs rounded-[inherit] px-s text-s font-medium"
+        className="focus-ring flex min-h-10 w-full shrink-0 cursor-pointer items-center gap-xs rounded-[inherit] px-s text-s font-medium"
         aria-expanded={expanded}
         aria-controls={expanded ? bodyId : undefined}
         onClick={() => onExpandedChange(!expanded)}
@@ -142,7 +150,10 @@ export function MapLegend({
       </button>
 
       {expanded && (
-        <div id={bodyId} className="grid gap-s px-s pb-s">
+        <div
+          id={bodyId}
+          className={cn("grid gap-s px-s", titleUnder ? "min-h-0 overflow-y-auto pt-s" : "pb-s")}
+        >
           <LayerRow
             label={m.map_wave_height({ unit: heightUnit() })}
             checked={layers.sea}
@@ -198,6 +209,18 @@ export function MapLegend({
           >
             {breaksTruncated && <p className="text-xs text-neutral-7">{m.map_zoom_for_all()}</p>}
           </LayerRow>
+
+          {/* Whose data the map draws: the licences ask that a reader who looks for it finds it. */}
+          {onShowCredits && (
+            <button
+              type="button"
+              className="focus-ring -mx-xxs flex min-h-8 cursor-pointer items-center gap-xs rounded-(--radius-xs) px-xxs text-left text-s text-neutral-7 outline-none hover:text-neutral-10"
+              onClick={onShowCredits}
+            >
+              <InfoIcon aria-hidden className="size-4 shrink-0" />
+              {m.map_credits()}
+            </button>
+          )}
         </div>
       )}
     </section>

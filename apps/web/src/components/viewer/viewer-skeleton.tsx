@@ -9,6 +9,11 @@ import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
 const floating = "edge bg-neutral-1 [--edge-color:var(--neutral-10-transparent)]";
 // A bar that stands for a line of text or a control, still for a reader who asked for no motion.
 const bar = "rounded-(--radius-xs) motion-reduce:animate-none";
+// Where a phone's map has its legend and its buttons: at its bottom, over the bar of tabs, and
+// over the timeline when the map has one. A wide screen has no bar, and its own places.
+const foot = SEA_TIMELINE_SHOWN
+  ? "max-lg:bottom-[calc(var(--spacing-s)*2+3.5rem+var(--bottom-nav-lift,0px))]"
+  : "max-lg:bottom-[calc(var(--spacing-s)+var(--bottom-nav-lift,0px))]";
 
 /** A row of the legend: its name, and the switch that shows its layer. */
 function LegendRow({ width }: { width: string }) {
@@ -34,23 +39,21 @@ export function ViewerSkeleton({ className }: { className?: string }) {
     >
       <span className="sr-only">{m.app_loading()}</span>
 
-      <div aria-hidden className="absolute top-s right-s grid gap-xs">
-        {/* The button that adds a spot: a phone has it in its bar of tabs. */}
+      <div aria-hidden className={cn("absolute right-s grid gap-xs lg:top-s", foot)}>
+        {/* The button that adds a spot: a phone has it beside its bar of tabs. */}
         <div className={cn(floating, "size-10 rounded-full max-lg:hidden")} />
         <div className={cn(floating, "size-10 rounded-full")} />
-        <div className="grid gap-xxs max-sm:hidden">
+        {/* On a phone the column grows up from the button that finds the reader. */}
+        <div className="grid gap-xxs max-lg:-order-1 max-sm:hidden">
           <div className={cn(floating, "size-10 rounded-full")} />
           <div className={cn(floating, "size-10 rounded-full")} />
         </div>
       </div>
 
-      {/* The legend: folded at the top of a phone, open at the bottom of a wide screen. */}
+      {/* The legend, at the bottom of the map: folded on a phone, open on a wide screen. */}
       <div
         aria-hidden
-        className={cn(
-          floating,
-          "absolute top-s left-s rounded-(--radius-xs) lg:top-auto lg:bottom-s lg:w-64",
-        )}
+        className={cn(floating, "absolute left-s rounded-(--radius-xs) lg:bottom-s lg:w-64", foot)}
       >
         <div className="flex min-h-10 items-center gap-xs px-s">
           <Skeleton className={cn(bar, "size-4")} />

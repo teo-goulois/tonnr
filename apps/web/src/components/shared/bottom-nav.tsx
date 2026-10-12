@@ -53,8 +53,8 @@ export function BottomNav({ className }: { className?: string }) {
       className={cn(
         // structure & layout: what is under the bar is still pressed around it
         "pointer-events-none flex items-center gap-xs",
-        // sizing & spacing: clear of what the phone draws at the bottom of its screen
-        "px-s pb-[max(var(--spacing-s),env(safe-area-inset-bottom))]",
+        // sizing & spacing: clear of the edge of the screen, by what `index.css` says
+        "px-s pb-[var(--bottom-nav-gap,var(--spacing-m))]",
         className,
       )}
     >

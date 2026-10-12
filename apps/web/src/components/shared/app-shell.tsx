@@ -36,7 +36,9 @@ export function AppShell({ nav = true, children }: AppShellProps) {
       <UnitsFromAccount />
       <div
         data-bottom-nav={nav ? "" : undefined}
-        className="relative grid h-svh grid-rows-[auto_minmax(0,1fr)]"
+        // What the browser shows of the page, and no more: a browser that draws its own bar over
+        // the page keeps what is fixed above it.
+        className="fixed inset-0 grid grid-rows-[auto_minmax(0,1fr)]"
       >
         <Header className="row-start-1 max-lg:hidden" />
         <div className="row-start-2 grid min-h-0 grid-rows-[minmax(0,1fr)]">{children}</div>
