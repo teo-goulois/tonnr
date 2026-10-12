@@ -385,7 +385,7 @@
   "community_title": "Community",
   "contributions_title": "My contributions",
   "contributions_hint": "What you wrote in the guides, and your rank.",
-  "contributions_point_one": "1 point",
+  "contributions_point_one": "{count} point",
   "contributions_points": "{count} points",
   "contributions_no_rank": "No rank yet",
   "contributions_next": "{points} more to the {rank}",

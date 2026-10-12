@@ -4,6 +4,7 @@ import { Meter, MeterIndicator, MeterLabel, MeterTrack } from "@repo/ui/componen
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 
 import { m } from "@/paraglide/messages.js";
+import { getLocale } from "@/paraglide/runtime.js";
 
 import { CHARACTERISTIC_FIELDS, readCharacteristic } from "../viewer/break-characteristics";
 import type { Contribution, Loadable, Standing } from "../viewer/types";
@@ -23,9 +24,14 @@ const STATES: Record<
   withdrawn: { label: m.contribution_withdrawn, variant: "neutral" },
 };
 
-/** A number of points, as it is written. */
+/**
+ * A number of points, as it is written. Each language says which numbers are one: French says
+ * it of none as well.
+ */
 export function points(count: number) {
-  return count === 1 ? m.contributions_point_one() : m.contributions_points({ count });
+  return new Intl.PluralRules(getLocale()).select(count) === "one"
+    ? m.contributions_point_one({ count })
+    : m.contributions_points({ count });
 }
 
 /** The line a contribution is of, and what it says, as they read. */
