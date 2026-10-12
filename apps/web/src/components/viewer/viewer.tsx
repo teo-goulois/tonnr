@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { LocateIcon, LockIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
+import { ListsIcon, LocateIcon, LockIcon, MinusIcon, PinPlusIcon, PlusIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type CSSProperties,
@@ -23,6 +23,8 @@ import {
 } from "@/components/spots/new-spot-panel";
 import type { Alerting } from "@/components/alerts/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
+import { ListPanel } from "@/components/lists/list-panel";
+import { ShareListDialog } from "@/components/lists/share-dialog";
 import { type SpotEdit, SpotEditor } from "@/components/spots/spot-editor";
 import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
@@ -38,7 +40,7 @@ import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
 import { AccountPrompt, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
-import { ReadingAge, StationActions, holds } from "./station-actions";
+import { ReadingAge, StationActions, holds, listName } from "./station-actions";
 import {
   type Bounds,
   type MapBreak,
@@ -54,6 +56,8 @@ import { StationPanel } from "./station-panel";
 import {
   type AlertNotification,
   type Forecast,
+  type JoinedList,
+  type ListView,
   type Loadable,
   type SavedBreak,
   type SavedItem,
@@ -203,6 +207,27 @@ type ViewerProps = {
   onSave: (listId: string, item: SavedItem, add: boolean) => void;
   onCreateList: (name: string) => void;
   onDeleteList: (list: SavedList) => void;
+  // The one list the map shows alone, when it shows one: the account's, one it kept, or one
+  // opened by its link (decision 035). The stations and the breaks given above are then its own.
+  listView: ListView | undefined;
+  // The lists of others that the account kept.
+  joined: JoinedList[];
+  onViewList: (listId: string) => void;
+  // Back to the whole map. Undefined for a visitor, who has the list alone.
+  onExitList: (() => void) | undefined;
+  onKeepList: () => void;
+  isKeepingList: boolean;
+  onLeaveList: () => void;
+  // The owner shares a list, changes what its link asks, gives it a new link, or stops.
+  sharing: {
+    isSaving: boolean;
+    onShare: (list: SavedList, password?: string | null) => void;
+    onRenew: (list: SavedList) => void;
+    onStop: (list: SavedList) => void;
+  };
+  // A reader makes a spot of their own of a spot that was shared with them.
+  onCopySpot: (spot: Spot) => void;
+  isCopyingSpot: boolean;
   onReadNotification: (notification: AlertNotification) => void;
 };
 
@@ -372,6 +397,16 @@ export function Viewer({
   onSave,
   onCreateList,
   onDeleteList,
+  listView,
+  joined,
+  onViewList,
+  onExitList,
+  onKeepList,
+  isKeepingList,
+  onLeaveList,
+  sharing,
+  onCopySpot,
+  isCopyingSpot,
   onReadNotification,
 }: ViewerProps) {
   const map = useRef<StationMapHandle>(null);
@@ -481,11 +516,38 @@ export function Viewer({
     return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
   }, [breaks, selectedBreakId, loadedBreak]);
   // The spots as the map draws them, and the selected one, which it draws as it does a break.
-  // A spot that is being moved is drawn by its marker alone.
+  // A spot that is being moved is drawn by its marker alone. A list shown alone has its own
+  // spots, which may be someone else's.
   const mapSpots = useMemo(
-    () => (spots.data ?? []).filter((one) => one.id !== editing?.id),
-    [spots.data, editing?.id],
+    () => (listView?.spots ?? spots.data ?? []).filter((one) => one.id !== editing?.id),
+    [listView?.spots, spots.data, editing?.id],
   );
+  // The list whose sharing is open, by its id: the dialog follows what the API answers of it.
+  const [sharingId, setSharingId] = useState<string>();
+  const sharedList = lists.data?.find((list) => list.id === sharingId);
+  // The spots of a list that only their owner sees today, which its link will show.
+  const privateSpots = (list: SavedList | undefined) =>
+    (list?.spotIds ?? []).filter(
+      (id) => spots.data?.find((one) => one.id === id)?.publication?.status !== "accepted",
+    ).length;
+
+  // A list shown alone is brought into view once, when what it holds is known.
+  const fitted = useRef<string>(undefined);
+  const listPoints = useMemo(() => {
+    if (!listView) return undefined;
+    const stations = listView.stationIds.map((id) => savedStations.get(id));
+    const found = listView.breakIds.map((id) => savedBreaks.get(id));
+    const all = [...stations, ...found, ...listView.spots];
+    // Every station and every break of the list has answered, or the map would move twice.
+    return all.every((one) => one !== undefined) ? (all as MapPoint[]) : undefined;
+  }, [listView, savedStations, savedBreaks]);
+  useEffect(() => {
+    if (!listView || !listPoints || fitted.current === listView.id) return;
+    fitted.current = listView.id;
+    // What is selected by the address stays where the map put it.
+    if (listPoints.length > 0 && selection === undefined) map.current?.fit(listPoints);
+  }, [listView, listPoints, selection]);
+  if (!listView && fitted.current) fitted.current = undefined;
   const loadedSpot = selected.spot.data;
   const selectedSpot = loadedSpot?.id === selectedSpotId ? loadedSpot : undefined;
 
@@ -650,6 +712,13 @@ export function Viewer({
 
   // A spot is saved and deleted by its owner alone.
   const ownSpot = shownSpot?.data?.isOwner ? shownSpot.data : undefined;
+  // A spot of someone else's is read in a list they shared, and may be copied.
+  const sharedSpot = shownSpot?.data && !shownSpot.data.isOwner ? shownSpot.data : undefined;
+  function copySpot() {
+    if (!sharedSpot) return;
+    if (signedIn) onCopySpot(sharedSpot);
+    else requireAccount(m.auth_reason_copy_spot({ name: sharedSpot.name }));
+  }
   // What the star and the menu of the panel save: the station, the break when it is known, or
   // the spot when it is the account's own.
   const shownItem: SavedItem | undefined = shown.breakId
@@ -753,7 +822,25 @@ export function Viewer({
         }
       />
 
-      {(waveStations.isPending || waveStations.isError) && (
+      {/* The map says which list it shows alone. A press opens the list. */}
+      {listView && panel !== "saved" && (
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            floating,
+            "absolute left-1/2 max-w-[60vw] -translate-x-1/2",
+            // Under the legend on a phone, where the legend is at the top.
+            wide ? "top-s" : "top-[4.75rem]",
+          )}
+          onClick={() => onPanelChange("saved")}
+        >
+          <ListsIcon data-slot="icon" aria-hidden />
+          <span className="truncate">{listName(listView)}</span>
+        </Button>
+      )}
+
+      {(waveStations.isPending || waveStations.isError) && !listView && (
         <p
           role="status"
           className={cn(
@@ -881,7 +968,7 @@ export function Viewer({
                   </span>
                 )
               ) : (
-                m.spot_public()
+                m.spot_shared()
               )
             ) : (
               !shown.spot.isError && (
@@ -928,6 +1015,17 @@ export function Viewer({
                   onToggleList={(list, add) => onSave(list.id, shownItem, add)}
                   onManageLists={() => onPanelChange("saved")}
                 />
+              )}
+              {sharedSpot && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={m.spot_copy({ name: sharedSpot.name })}
+                  isPending={isCopyingSpot}
+                  onClick={copySpot}
+                >
+                  <PinPlusIcon data-slot="icon" aria-hidden />
+                </Button>
               )}
               {ownSpot && (
                 <SpotActions
@@ -1031,25 +1129,70 @@ export function Viewer({
           if (!open) onPanelChange(undefined);
         }}
         wide={wide}
-        title={m.saved_title()}
+        title={listView ? listName(listView) : m.saved_title()}
+        description={
+          listView && (listView.access === "owner" ? m.list_alone_own() : m.list_alone_shared())
+        }
+        actions={
+          listView &&
+          onExitList && (
+            <Button variant="ghost" size="sm" onClick={onExitList}>
+              {m.list_exit()}
+            </Button>
+          )
+        }
       >
-        <SavedPanel
-          now={now}
-          signedIn={signedIn}
-          lists={lists}
-          stations={savedStations}
-          breaks={savedBreaks}
-          spots={spots}
-          onSelectSpot={onSelectSpot}
-          onAddSpot={addSpot}
-          onSelect={onSelect}
-          {...accountPrompt}
-          onSelectBreak={onSelectBreak}
-          onRemove={(list, item) => onSave(list.id, item, false)}
-          onCreateList={onCreateList}
-          onDeleteList={onDeleteList}
-        />
+        {listView ? (
+          <ListPanel
+            now={now}
+            list={listView}
+            stations={savedStations}
+            breaks={savedBreaks}
+            onSelect={onSelect}
+            onSelectBreak={onSelectBreak}
+            onSelectSpot={onSelectSpot}
+            signedIn={signedIn}
+            onKeep={onKeepList}
+            isKeeping={isKeepingList}
+            onLeave={onLeaveList}
+            onShare={() => setSharingId(listView.id)}
+            {...accountPrompt}
+          />
+        ) : (
+          <SavedPanel
+            now={now}
+            signedIn={signedIn}
+            lists={lists}
+            stations={savedStations}
+            breaks={savedBreaks}
+            spots={spots}
+            onSelectSpot={onSelectSpot}
+            onAddSpot={addSpot}
+            onSelect={onSelect}
+            {...accountPrompt}
+            onSelectBreak={onSelectBreak}
+            onRemove={(list, item) => onSave(list.id, item, false)}
+            onCreateList={onCreateList}
+            onDeleteList={onDeleteList}
+            onViewList={onViewList}
+            onShareList={(list) => setSharingId(list.id)}
+            joined={joined}
+          />
+        )}
       </ViewerDrawer>
+
+      <ShareListDialog
+        list={sharedList}
+        onClose={() => setSharingId(undefined)}
+        privateSpots={privateSpots(sharedList)}
+        isSaving={sharing.isSaving}
+        onShare={(password) => sharedList && sharing.onShare(sharedList, password)}
+        onRenew={() => sharedList && sharing.onRenew(sharedList)}
+        onStop={() => {
+          if (sharedList) sharing.onStop(sharedList);
+          setSharingId(undefined);
+        }}
+      />
 
       <ViewerDrawer
         open={panel === "alerts"}

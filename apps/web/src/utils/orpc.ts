@@ -6,6 +6,7 @@ import type { AppRouterClient } from "@repo/api/routers/index";
 import { toast } from "sonner";
 
 import { ENV } from "../env.public";
+import { linkAuthorization } from "../lib/shared-link";
 
 export function createQueryClient() {
   return new QueryClient({
@@ -29,6 +30,11 @@ export function createQueryClient() {
 
 const link = new RPCLink({
   url: `${ENV.VITE_SERVER_URL.replace(/\/$/, "")}/rpc`,
+  // A visitor who reads a shared list is known by its link, where an account is by its cookie.
+  headers: () => {
+    const authorization = linkAuthorization();
+    return authorization ? { authorization } : {};
+  },
   fetch(url, options) {
     return fetch(url, {
       ...options,

@@ -107,6 +107,8 @@ export type MapPoint = { latitude: number; longitude: number };
 export type StationMapHandle = {
   /** Brings a point to the middle of the part of the map that no drawer covers. */
   focus: (point: MapPoint, minZoom?: number) => void;
+  /** Shows these points together, in the part of the map that no drawer covers. */
+  fit: (points: MapPoint[]) => void;
   zoomBy: (steps: number) => void;
 };
 
@@ -1341,6 +1343,37 @@ export function StationMap({
           offset: visibleCenterOffset(latest.current.padding),
           duration: 600,
         });
+      },
+      fit: (points) => {
+        const instance = map.current;
+        const [first] = points;
+        if (!instance || !first) return;
+        let [west, south, east, north] = [
+          first.longitude,
+          first.latitude,
+          first.longitude,
+          first.latitude,
+        ];
+        for (const point of points) {
+          west = Math.min(west, point.longitude);
+          east = Math.max(east, point.longitude);
+          south = Math.min(south, point.latitude);
+          north = Math.max(north, point.latitude);
+        }
+        const { top, right, bottom, left } = latest.current.padding;
+        instance.fitBounds(
+          [
+            [west, south],
+            [east, north],
+          ],
+          {
+            // Room for the markers and their labels, inside what the drawers leave.
+            padding: { top: top + 72, right: right + 56, bottom: bottom + 56, left: left + 56 },
+            // One point, or a few on one beach, are not shown closer than a bay.
+            maxZoom: 11,
+            duration: 600,
+          },
+        );
       },
       zoomBy: (steps) =>
         map.current?.easeTo({ zoom: map.current.getZoom() + steps, duration: 250 }),

@@ -14,7 +14,11 @@ export type SavedList = Answer<V1["lists"]["list"]>["lists"][number];
 /** What a list holds: a station, a surf break or a spot of the user's own, each named by its id. */
 export type SavedItem = { stationId: string } | { breakId: string } | { spotId: string };
 /** What a list shows of a surf break it holds. */
-export type SavedBreak = Pick<SurfBreak, "id" | "name">;
+export type SavedBreak = Pick<SurfBreak, "id" | "name" | "latitude" | "longitude">;
+/** A list of someone else's that the account opened by its link and kept. */
+export type JoinedList = Answer<V1["lists"]["list"]>["joined"][number];
+/** One list alone, with its spots: its owner's, one that was kept, or one opened by its link. */
+export type ListView = Answer<V1["lists"]["view"]>;
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];
 /** A spot of the user's own: a place they named. */
 export type Spot = Answer<V1["spots"]["list"]>["spots"][number];

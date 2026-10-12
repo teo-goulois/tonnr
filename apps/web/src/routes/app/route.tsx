@@ -7,10 +7,12 @@ export const Route = createFileRoute("/app")({
   // The session's cookie belongs to the browser: the server that renders has none to send.
   ssr: false,
   component: AppLayout,
-  // The API answers no one it does not know, so the product takes a signed-in account.
-  beforeLoad: async () => {
+  // The API answers no one it does not know, so the product takes a signed-in account, or the
+  // link of a shared list: the API knows its reader by it (decision 035).
+  beforeLoad: async ({ location }) => {
     const session = await authClient.getSession();
-    if (!session.data) {
+    const shared = (location.search as { shared?: unknown }).shared;
+    if (!session.data && !shared) {
       throw redirect({
         to: "/login",
       });

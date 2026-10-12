@@ -3,9 +3,11 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
   LockIcon,
+  MapIcon,
   PinIcon,
   PinPlusIcon,
   PlusIcon,
+  ShareIcon,
   TrashIcon,
   WaveIcon,
   XIcon,
@@ -19,6 +21,7 @@ import { m } from "@/paraglide/messages.js";
 import { FreshnessDot, HeightChip } from "./map-markers";
 import { listName, sizeOf } from "./station-actions";
 import {
+  type JoinedList,
   type Loadable,
   type SavedBreak,
   type SavedItem,
@@ -53,7 +56,7 @@ export function AccountPrompt({
 
 const rowLayout = "flex min-h-11 min-w-0 flex-1 items-center gap-xs rounded-(--radius-xs) px-xs";
 
-function StationRowSkeleton() {
+export function StationRowSkeleton() {
   return (
     <li className="flex items-center gap-xxs">
       <div className={rowLayout}>
@@ -66,7 +69,8 @@ function StationRowSkeleton() {
   );
 }
 
-function StationRow({
+/** A station in a list: what it reads now. Whoever owns the list can take it out. */
+export function StationRow({
   station,
   now,
   onSelect,
@@ -75,7 +79,7 @@ function StationRow({
   station: Station;
   now: number;
   onSelect: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }) {
   // The height is written in the reader's unit.
   useUnits();
@@ -106,27 +110,29 @@ function StationRow({
         </span>
         <FreshnessDot freshness={freshness} />
       </button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={m.saved_remove_station({ name: station.name })}
-        onClick={onRemove}
-      >
-        <XIcon data-slot="icon" aria-hidden />
-      </Button>
+      {onRemove && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={m.saved_remove_station({ name: station.name })}
+          onClick={onRemove}
+        >
+          <XIcon data-slot="icon" aria-hidden />
+        </Button>
+      )}
     </li>
   );
 }
 
 /** A surf break in a list: its name, where a station also says what it reads. */
-function BreakRow({
+export function BreakRow({
   found,
   onSelect,
   onRemove,
 }: {
-  found: SavedBreak;
+  found: Pick<SavedBreak, "name">;
   onSelect: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }) {
   return (
     <li className="flex items-center gap-xxs">
@@ -143,25 +149,27 @@ function BreakRow({
         </span>
         <span className="min-w-0 flex-1 truncate">{found.name}</span>
       </button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={m.saved_remove_station({ name: found.name })}
-        onClick={onRemove}
-      >
-        <XIcon data-slot="icon" aria-hidden />
-      </Button>
+      {onRemove && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={m.saved_remove_station({ name: found.name })}
+          onClick={onRemove}
+        >
+          <XIcon data-slot="icon" aria-hidden />
+        </Button>
+      )}
     </li>
   );
 }
 
 /** A spot of the user's own: its name, which opens it. In a list, it can be taken out of it. */
-function SpotRow({
+export function SpotRow({
   spot,
   onSelect,
   onRemove,
 }: {
-  spot: Spot;
+  spot: Pick<Spot, "name">;
   onSelect: () => void;
   onRemove?: () => void;
 }) {
@@ -212,6 +220,11 @@ type SavedPanelProps = {
   onRemove: (list: SavedList, item: SavedItem) => void;
   onCreateList: (name: string) => void;
   onDeleteList: (list: SavedList) => void;
+  // Shows a list alone on the map, and opens what shares it.
+  onViewList: (listId: string) => void;
+  onShareList: (list: SavedList) => void;
+  // The lists of others that the account opened by their link and kept.
+  joined: JoinedList[];
 };
 
 /** The visitor's spots, then their lists of stations, surf breaks and spots, the favorites first. */
@@ -231,6 +244,9 @@ export function SavedPanel({
   onRemove,
   onCreateList,
   onDeleteList,
+  onViewList,
+  onShareList,
+  joined,
 }: SavedPanelProps) {
   const [newName, setNewName] = useState("");
   // Deleting a list takes two presses: the trash, then the button that takes its place.
@@ -315,34 +331,62 @@ export function SavedPanel({
                 {sizeOf(list)}
               </span>
             </h3>
-            {!list.isDefault &&
-              (confirmingId === list.id ? (
-                <div className="flex shrink-0 items-center gap-xxs">
-                  <Button variant="ghost" size="sm" onClick={() => setConfirmingId(null)}>
-                    {m.action_cancel()}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    aria-label={m.saved_delete_list({ name: list.name })}
-                    onClick={() => {
-                      setConfirmingId(null);
-                      onDeleteList(list);
-                    }}
-                  >
-                    {m.action_delete()}
-                  </Button>
-                </div>
-              ) : (
+            {confirmingId === list.id ? (
+              <div className="flex shrink-0 items-center gap-xxs">
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingId(null)}>
+                  {m.action_cancel()}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  aria-label={m.saved_delete_list({ name: list.name })}
+                  onClick={() => {
+                    setConfirmingId(null);
+                    onDeleteList(list);
+                  }}
+                >
+                  {m.action_delete()}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex shrink-0 items-center gap-xxs">
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={m.saved_delete_list({ name: list.name })}
-                  onClick={() => setConfirmingId(list.id)}
+                  aria-label={m.list_view({ name: listName(list) })}
+                  onClick={() => onViewList(list.id)}
                 >
-                  <TrashIcon data-slot="icon" aria-hidden />
+                  <MapIcon data-slot="icon" aria-hidden />
                 </Button>
-              ))}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-pressed={list.share !== null}
+                  aria-label={
+                    list.share
+                      ? m.share_action_on({ name: listName(list) })
+                      : m.share_action_of({ name: listName(list) })
+                  }
+                  onClick={() => onShareList(list)}
+                >
+                  <ShareIcon
+                    data-slot="icon"
+                    aria-hidden
+                    className={list.share ? "text-color-1" : undefined}
+                  />
+                </Button>
+                {!list.isDefault && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={m.saved_delete_list({ name: list.name })}
+                    onClick={() => setConfirmingId(list.id)}
+                  >
+                    <TrashIcon data-slot="icon" aria-hidden />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
           {sizeOf(list) === 0 ? (
             <p className="text-s text-neutral-7">{m.saved_list_empty()}</p>
@@ -394,6 +438,32 @@ export function SavedPanel({
           )}
         </section>
       ))}
+
+      {joined.length > 0 && (
+        <section className="grid gap-xs">
+          <h3 className="font-medium">{m.lists_joined()}</h3>
+          <ul className="-mx-xs grid gap-xxs">
+            {joined.map((list) => (
+              <li key={list.id}>
+                <button
+                  type="button"
+                  className={`${rowLayout} focus-ring w-full cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
+                  onClick={() => onViewList(list.id)}
+                >
+                  <span
+                    aria-hidden
+                    className="grid size-6 shrink-0 place-items-center rounded-full bg-neutral-3 text-neutral-10"
+                  >
+                    <MapIcon className="size-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{listName(list)}</span>
+                  <span className="shrink-0 text-s text-neutral-7 tabular-nums">{list.size}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <form
         className="flex items-center gap-xs"

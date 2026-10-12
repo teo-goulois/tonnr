@@ -11,6 +11,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { SharedDoor } from "@/components/lists/shared-door";
+import Loader from "@/components/loader";
 import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
 import {
   WIND_NEARBY_KM,
@@ -20,7 +22,14 @@ import {
 } from "@/components/viewer/details/parts";
 import { HISTORY_DAYS, HISTORY_DAYS_MOST } from "@/components/viewer/details/wind";
 import type { Bounds, MapLayers, MapPoint } from "@/components/viewer/station-map";
-import type { SavedBreak, SavedItem, SavedList, Spot, Station } from "@/components/viewer/types";
+import type {
+  ListView,
+  SavedBreak,
+  SavedItem,
+  SavedList,
+  Spot,
+  Station,
+} from "@/components/viewer/types";
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
 import { authClient } from "@/lib/auth-client";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -30,6 +39,7 @@ import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 import { useAlerting } from "./-alerting";
+import { useSharedList } from "./-shared";
 
 export const Route = createFileRoute("/app/")({
   validateSearch: z.object({
@@ -43,9 +53,57 @@ export const Route = createFileRoute("/app/")({
     alerts: z.enum(["mine", "settings"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
+    // The list the map shows alone: one of the account's or one it kept, by its id, or one that
+    // is opened by its link, by what the link ends with. Decision 035.
+    list: z.string().optional(),
+    shared: z.string().optional(),
   }),
-  component: ViewerRoute,
+  component: AppRoute,
 });
+
+/** A list opened by its link, and what keeping it for an account takes. */
+type SharedList = {
+  token: string;
+  list: ListView;
+  password: string | undefined;
+  pass: string | null;
+};
+
+function AppRoute() {
+  const { shared } = Route.useSearch();
+  const session = authClient.useSession();
+  if (!shared) return <ViewerRoute />;
+  // Whether an account reads the link is known before it is opened: an account opens it with
+  // its session, and a visitor with the link alone.
+  if (session.isPending) return <Loader />;
+  return <SharedRoute key={shared} token={shared} signedIn={Boolean(session.data)} />;
+}
+
+/** The map with the list a link opens, once the link has opened it. */
+function SharedRoute({ token, signedIn }: { token: string; signedIn: boolean }) {
+  const door = useSharedList(token, signedIn);
+  const navigate = Route.useNavigate();
+  // An account that owns the list, or kept it, reads it as one of its own.
+  const own = door.list && door.list.access !== "link" ? door.list.id : undefined;
+  useEffect(() => {
+    if (own) void navigate({ search: { list: own, panel: "saved" }, replace: true });
+  }, [own, navigate]);
+
+  if (!door.list || own) {
+    return (
+      <SharedDoor
+        state={door.state === "open" ? "opening" : door.state}
+        refusal={door.refusal}
+        isChecking={door.isChecking}
+        onPassword={door.onPassword}
+        onRetry={door.onRetry}
+      />
+    );
+  }
+  return (
+    <ViewerRoute shared={{ token, list: door.list, password: door.password, pass: door.pass }} />
+  );
+}
 
 // What a panel reads of the model: the week ahead, and the two days before now.
 const FORECAST_DAYS = { days: 7, pastDays: 2 };
@@ -128,7 +186,7 @@ function loadable<Data>(query: {
   };
 }
 
-function ViewerRoute() {
+function ViewerRoute({ shared }: { shared?: SharedList }) {
   const search = Route.useSearch();
   const { panel } = search;
   // An empty value selects nothing, and a station wins over a break given with it.
@@ -197,6 +255,34 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
+  // The lists of others that the account kept: the same answer, read for them.
+  const joined = useQuery(
+    orpc.v1.lists.list.queryOptions({
+      enabled: signedIn,
+      select: (answer) => answer.joined,
+      meta: { quiet: true },
+    }),
+  );
+  // The list the map shows alone: the one a link opened, or one the account reads by its id.
+  const listId = shared ? undefined : search.list || undefined;
+  const askedList = useQuery(
+    orpc.v1.lists.view.queryOptions({
+      input: { id: listId ?? "" },
+      enabled: signedIn && listId !== undefined,
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
+  const listView = shared?.list ?? (listId ? askedList.data : undefined);
+  // What every address of the map keeps while a list is shown alone.
+  const mode = shared ? { shared: shared.token } : listId ? { list: listId } : {};
+  // A list that was deleted, or that its owner shares no more, gives the whole map back.
+  const listGone = listId !== undefined && askedList.isError;
+  useEffect(() => {
+    if (!listGone) return;
+    toast.error(m.list_gone());
+    void navigate({ search: (previous) => ({ ...previous, list: undefined }), replace: true });
+  }, [listGone, navigate]);
   const spots = useQuery(
     orpc.v1.spots.list.queryOptions({
       enabled: signedIn,
@@ -228,8 +314,13 @@ function ViewerRoute() {
 
   // A saved station that is neither a buoy nor a wind station in view is fetched on its own.
   const savedIds = useMemo(
-    () => [...new Set((lists.data ?? []).flatMap((list) => list.stationIds))],
-    [lists.data],
+    () => [
+      ...new Set([
+        ...(lists.data ?? []).flatMap((list) => list.stationIds),
+        ...(listView?.stationIds ?? []),
+      ]),
+    ],
+    [lists.data, listView?.stationIds],
   );
   const missingIds = waves.isSuccess ? savedIds.filter((id) => !loaded.has(id)) : [];
   const missing = useQueries({
@@ -253,8 +344,13 @@ function ViewerRoute() {
 
   // A saved break that is not among those in view is fetched on its own, as a saved station is.
   const savedBreakIds = useMemo(
-    () => [...new Set((lists.data ?? []).flatMap((list) => list.breakIds))],
-    [lists.data],
+    () => [
+      ...new Set([
+        ...(lists.data ?? []).flatMap((list) => list.breakIds),
+        ...(listView?.breakIds ?? []),
+      ]),
+    ],
+    [lists.data, listView?.breakIds],
   );
   const breaksInView = breaks.data?.breaks;
   const missingBreaks = useQueries({
@@ -305,22 +401,29 @@ function ViewerRoute() {
       meta: { quiet: true },
     }),
   );
-  // A spot of the account's own is in its list. Another is asked for: it answers when it is
-  // public, and as missing otherwise.
+  // A spot of the account's own is in its list. A spot of someone else's is read in the list
+  // they shared it by. Another is asked for, and answers as missing when it is not the
+  // account's.
   const ownSpot = selectedSpotId
     ? spots.data?.find((candidate) => candidate.id === selectedSpotId)
+    : undefined;
+  const listSpot = selectedSpotId
+    ? listView?.spots.find((candidate) => candidate.id === selectedSpotId)
     : undefined;
   const askedSpot = useQuery(
     orpc.v1.spots.get.queryOptions({
       input: { id: selectedSpotId ?? "" },
-      // An account's list comes first: it says at once whether the spot is one of its own.
-      enabled: selectedSpotId !== undefined && !ownSpot && !(signedIn && spots.isLoading),
+      // An account's list comes first: it says at once whether the spot is one of its own. A
+      // visitor has no spot to ask for.
+      enabled:
+        signedIn && selectedSpotId !== undefined && !ownSpot && !listSpot && !spots.isLoading,
       retry: false,
       meta: { quiet: true },
     }),
   );
   // An answer kept from before does not stand against the API now saying that there is none.
-  const spot = ownSpot ?? (selectedSpotId && !askedSpot.isError ? askedSpot.data : undefined);
+  const spot =
+    ownSpot ?? listSpot ?? (selectedSpotId && !askedSpot.isError ? askedSpot.data : undefined);
   const isSelected = (candidate: { id: string }) => candidate.id === selectedBreakId;
   const placed =
     known ??
@@ -518,6 +621,53 @@ function ViewerRoute() {
       },
     }),
   );
+  // Sharing a list answers with the list as it is then.
+  const sharing = {
+    onSuccess: replaceList,
+    onError: (error: Error) => {
+      toast.error(error.message);
+      void refreshLists();
+    },
+  };
+  const shareList = useMutation(orpc.v1.lists.share.mutationOptions(sharing));
+  const renewShare = useMutation(
+    orpc.v1.lists.renewShare.mutationOptions({
+      ...sharing,
+      onSuccess: (list) => {
+        replaceList(list);
+        toast.success(m.share_renewed());
+      },
+    }),
+  );
+  const unshareList = useMutation(
+    orpc.v1.lists.unshare.mutationOptions({
+      ...sharing,
+      onSuccess: (list) => {
+        replaceList(list);
+        toast.success(m.share_stopped());
+      },
+    }),
+  );
+  // Keeping a list a link opened makes it one the account reads by its id.
+  const keepList = useMutation(
+    orpc.v1.shared.join.mutationOptions({
+      onSuccess: async ({ id }) => {
+        await refreshLists();
+        toast.success(m.list_kept_toast());
+        void navigate({ search: { list: id, panel: "saved" } });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const leaveList = useMutation(
+    orpc.v1.lists.leave.mutationOptions({
+      onSuccess: async () => {
+        await refreshLists();
+        void navigate({ search: { panel: "saved" } });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
   const createList = useMutation(
     orpc.v1.lists.create.mutationOptions({
       onSuccess: (list) => setLists((all) => [...all, list]),
@@ -667,6 +817,17 @@ function ViewerRoute() {
       onError: (error) => toast.error(error.message),
     }),
   );
+  // A spot that was shared becomes one of the reader's own, with what was said of it.
+  const copySpot = useMutation(
+    orpc.v1.spots.create.mutationOptions({
+      onSuccess: (made) => {
+        void setSpots((all) => [...all.filter((one) => one.id !== made.id), made]);
+        toast.success(m.spot_saved({ name: made.name }));
+        void navigate({ search: { spot: made.id } });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
   const deleteSpot = useMutation(
     orpc.v1.spots.delete.mutationOptions({
       onSuccess: ({ id }) => {
@@ -682,7 +843,7 @@ function ViewerRoute() {
         // What was kept of the spot alone goes too: its address would show it again.
         queryClient.removeQueries({ queryKey: orpc.v1.spots.get.queryKey({ input: { id } }) });
         // Its panel closes, unless another was opened meanwhile.
-        if (onScreen.current.selectedSpotId === id) void navigate({ search: {} });
+        if (onScreen.current.selectedSpotId === id) void navigate({ search: mode });
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -796,19 +957,72 @@ function ViewerRoute() {
 
   // The map redraws the breaks when the list changes, so it is given the same one until then.
   const mapBreaks = useMemo(() => breaks.data?.breaks ?? [], [breaks.data]);
+  // A list shown alone gives the map its stations and its breaks, in place of those in view,
+  // whatever the layers say: nothing else is drawn.
+  const listStations = useMemo(
+    () => listView?.stationIds.flatMap((id) => savedStations.get(id) ?? []),
+    [listView?.stationIds, savedStations],
+  );
+  const listBreaks = useMemo(
+    () => listView?.breakIds.flatMap((id) => savedBreaks.get(id) ?? []),
+    [listView?.breakIds, savedBreaks],
+  );
+  const listWaves = useMemo(
+    () => listStations?.filter((station) => station.measures.includes("waves")),
+    [listStations],
+  );
+  const listWind = useMemo(
+    () => listStations?.filter((station) => !station.measures.includes("waves")),
+    [listStations],
+  );
 
   return (
     <Viewer
       now={now}
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       wide={wide}
-      waveStations={loadable(waves)}
-      windStations={wind.data ?? []}
-      windTruncated={wind.data?.length === WIND_LIMIT}
-      breaks={mapBreaks}
-      breaksTruncated={breaks.data?.next != null}
+      waveStations={
+        listWaves ? { data: listWaves, isPending: false, isError: false } : loadable(waves)
+      }
+      windStations={listWind ?? wind.data ?? []}
+      windTruncated={!listView && wind.data?.length === WIND_LIMIT}
+      breaks={listBreaks ?? mapBreaks}
+      breaksTruncated={!listView && breaks.data?.next != null}
       sea={sea.data}
-      layers={layers}
+      layers={listView ? { ...layers, buoys: true, wind: true, breaks: true } : layers}
+      listView={listView}
+      joined={joined.data ?? []}
+      onViewList={(id) => void navigate({ search: { list: id, panel: "saved" } })}
+      onExitList={shared ? undefined : () => void navigate({ search: { panel: "saved" } })}
+      onKeepList={() =>
+        shared &&
+        keepList.mutate({
+          token: shared.token,
+          ...(shared.password !== undefined && { password: shared.password }),
+          ...(shared.pass !== null && { pass: shared.pass }),
+        })
+      }
+      isKeepingList={keepList.isPending}
+      onLeaveList={() => listView && leaveList.mutate({ id: listView.id })}
+      sharing={{
+        isSaving: shareList.isPending || renewShare.isPending || unshareList.isPending,
+        onShare: (list, password) =>
+          shareList.mutate({ id: list.id, ...(password !== undefined && { password }) }),
+        onRenew: (list) => renewShare.mutate({ id: list.id }),
+        onStop: (list) => unshareList.mutate({ id: list.id }),
+      }}
+      onCopySpot={(one) => {
+        const said = Object.fromEntries(
+          Object.entries(one.characteristics).filter(([, value]) => value !== null),
+        );
+        copySpot.mutate({
+          name: one.name,
+          latitude: one.latitude,
+          longitude: one.longitude,
+          ...(Object.keys(said).length > 0 && { characteristics: said }),
+        });
+      }}
+      isCopyingSpot={copySpot.isPending}
       spots={loadable(spots)}
       selectedId={selectedId}
       selectedBreakId={selectedBreakId}
@@ -881,9 +1095,9 @@ function ViewerRoute() {
         onNameChange: (name) => setDraft((current) => ({ ...current, name })),
         onSave: saveSpot,
       }}
-      onSelect={(station) => void navigate({ search: { station } })}
-      onSelectBreak={(id) => void navigate({ search: { break: id } })}
-      onSelectSpot={(id) => void navigate({ search: { spot: id } })}
+      onSelect={(station) => void navigate({ search: { ...mode, station } })}
+      onSelectBreak={(id) => void navigate({ search: { ...mode, break: id } })}
+      onSelectSpot={(id) => void navigate({ search: { ...mode, spot: id } })}
       onDeleteSpot={removeSpot}
       isDeletingSpot={deleteSpot.isPending}
       onChangeSpot={(one, change, done) =>
