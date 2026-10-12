@@ -70,7 +70,8 @@ export default function UserMenu({ name, email, check }: UserMenuProps) {
                     // product's pages take one: the visitor goes back to the landing page.
                     onSuccess: () => {
                       queryClient.clear();
-                      void navigate({ to: "/" });
+                      // Whatever was unsaved was asked about before the session ended.
+                      void navigate({ to: "/", ignoreBlocker: true });
                     },
                   },
                 }),

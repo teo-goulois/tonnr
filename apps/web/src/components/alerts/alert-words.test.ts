@@ -394,19 +394,32 @@ describe("what an editor holds of an alert between two saves", () => {
 
 describe("what was changed, once a neighbour is gone", () => {
   const isKnown = (spotId: string) => spotId !== "gone";
+  const written: AlertDraft = {
+    name: "The bay",
+    criteria: { swellHeightMeters: { min: 1 } },
+    enabled: true,
+    shortestMinutes: 120,
+    spotIds: ["north", "south"],
+  };
 
   it("no longer asks for a spot that is no longer the user's", () => {
-    expect(withoutGone({ name: "Dawn", spotIds: ["north", "gone"] }, isKnown)).toEqual({
+    expect(withoutGone({ name: "Dawn", spotIds: ["north", "gone"] }, written, isKnown)).toEqual({
       name: "Dawn",
       spotIds: ["north"],
     });
   });
 
-  it("is the same when none is gone, and when the spots were not changed", () => {
+  it("takes it out of an alert whose spots were not changed, as a copy's before it is touched", () => {
+    expect(withoutGone({}, { ...written, spotIds: ["north", "gone"] }, isKnown)).toEqual({
+      spotIds: ["north"],
+    });
+  });
+
+  it("is the same when none is gone", () => {
     const changed = { spotIds: ["north", "south"] };
-    expect(withoutGone(changed, isKnown)).toBe(changed);
+    expect(withoutGone(changed, written, isKnown)).toBe(changed);
     const other = { shortestMinutes: 60 };
-    expect(withoutGone(other, isKnown)).toBe(other);
+    expect(withoutGone(other, written, isKnown)).toBe(other);
   });
 });
 

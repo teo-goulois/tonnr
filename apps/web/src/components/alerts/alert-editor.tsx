@@ -204,17 +204,20 @@ export function AlertEditor({
     setDrafting((current) => setPart(current, saved, key, value));
   // The alert was read again: a part that now says what it says follows it again.
   useEffect(() => setDrafting((current) => afterRead(current, saved)), [saved]);
-  // A neighbour that was deleted meanwhile is no longer asked for.
+  // A neighbour that was deleted meanwhile is no longer asked for. A list that does not hold
+  // the panel's own spot is not read yet, and says nothing of what is gone.
   useEffect(() => {
     const known = new Set(spots.map((one) => one.id));
+    if (!known.has(spot.id)) return;
     setDrafting((current) => {
       const kept = withoutGone(
         current.changed,
+        saved,
         (spotId) => spotId === spot.id || known.has(spotId),
       );
       return kept === current.changed ? current : { ...current, changed: kept };
     });
-  }, [spots, spot.id]);
+  }, [spots, spot.id, saved]);
   const [isConfirming, setIsConfirming] = useState(false);
   // The advanced part is open on an alert that asks something of the swell apart, and stays as
   // its reader left it.

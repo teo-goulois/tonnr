@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useBlocker } from "@tanstack/react-router";
+import { useBlocker, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -165,17 +165,32 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
   // panel it is written in waits for an answer. The panel closed, another selection, a link and
   // the browser's own way back are all one thing to the router. `lib/unsaved` holds the
   // question, and answers it "stay" when it no longer stands.
+  const router = useRouter();
   useBlocker({
-    shouldBlockFn: ({ current, next }) => {
+    shouldBlockFn: ({ current, next, action }) => {
       if (!hasUnsaved()) return false;
       if (current.pathname === next.pathname && editorAt(current.search) === editorAt(next.search))
         return false;
-      return new Promise<boolean>((resolve) => {
-        leaveWith(
-          () => resolve(false),
-          () => resolve(true),
-        );
+      if (action === "PUSH" || action === "REPLACE") {
+        // Nothing has moved yet: the navigation waits for the answer.
+        return new Promise<boolean>((resolve) => {
+          leaveWith(
+            () => resolve(false),
+            () => resolve(true),
+          );
+        });
+      }
+      // The browser's own way back or forward has moved already. It is brought back at once,
+      // and done again when the answer is to leave: a traversal that waited for an answer
+      // would be undone from wherever a second one had taken the browser meanwhile.
+      const address = window.location.href;
+      leaveWith(() => {
+        if (action === "BACK") router.history.back({ ignoreBlocker: true });
+        else if (action === "FORWARD") router.history.forward({ ignoreBlocker: true });
+        // Several steps at once: their address is gone to, as a link to it would.
+        else router.history.push(address, undefined, { ignoreBlocker: true });
       });
+      return true;
     },
     enableBeforeUnload: hasUnsaved,
   });

@@ -43,14 +43,15 @@ export function leaveWith(leave: () => void, stay: () => void = () => {}) {
 }
 
 /**
- * Answers the question that is asked, if one is. To leave gives up what was written: nothing
- * asks again on the way out.
+ * Answers the question that is asked, if one is. What is held stays held until whoever holds it
+ * says otherwise: a leaving that fails, or that does not happen after all, leaves what was
+ * written as guarded as it was. What leaves in several steps takes the later ones past whoever
+ * would ask again, as a sign-out does with the page it goes to.
  */
 export function answerLeaving(answer: "leave" | "stay") {
   const asked = question;
   if (!asked) return;
   question = null;
-  if (answer === "leave") held = false;
   tell();
   asked[answer]();
 }

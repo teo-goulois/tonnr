@@ -30,19 +30,30 @@ describe("what is written and not saved", () => {
     expect([leave.mock.calls.length, stay.mock.calls.length]).toEqual([1, 1]);
   });
 
-  it("gives up what was written once the answer is to leave: nothing asks again on the way out", () => {
+  it("keeps what is held when the answer is to leave: a leaving that fails leaves it guarded", () => {
     holdUnsaved(true);
-    const signOut = vi.fn();
-    const navigate = vi.fn();
-    // Signing out leaves, and then goes to another page, which leaves too.
-    leaveWith(() => {
-      signOut();
-      leaveWith(navigate);
-    });
+    // A sign-out that the API refuses: the editor is still there, with what was written.
+    leaveWith(() => {});
     answerLeaving("leave");
+    expect(hasUnsaved()).toBe(true);
 
-    expect([signOut.mock.calls.length, navigate.mock.calls.length]).toEqual([1, 1]);
-    expect(hasUnsaved()).toBe(false);
+    const close = vi.fn();
+    leaveWith(close);
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("keeps what is held when what leaves throws", () => {
+    holdUnsaved(true);
+    leaveWith(() => {
+      throw new Error("no way out");
+    });
+    expect(() => answerLeaving("leave")).toThrow("no way out");
+    expect(hasUnsaved()).toBe(true);
+    // And no question is left asked.
+    const stay = vi.fn();
+    leaveWith(() => {}, stay);
+    holdUnsaved(false);
+    expect(stay).toHaveBeenCalledOnce();
   });
 
   it("asks one question at a time: a new one answers the one before it to stay", () => {
