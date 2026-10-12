@@ -86,6 +86,8 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_suspended()];
     case "account.resume":
       return [m.action_account_resumed()];
+    case "account.username_remove":
+      return [m.action_username_removed()];
     case "visitors.close":
       return [m.action_visitors_closed()];
     case "visitors.open":

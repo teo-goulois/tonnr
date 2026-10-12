@@ -40,6 +40,16 @@ export const accountSuspension = pgTable("account_suspension", {
 });
 
 /**
+ * A username an operator took away from an account. Nobody takes it again, the account it was
+ * taken from no more than another. The row names no account. Decision 041 gives the rules.
+ */
+export const removedUsername = pgTable("removed_username", {
+  // In small letters, as a username is kept.
+  username: text("username").primaryKey(),
+  at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * The instance closed to the visitors of its web app, who have no account: while the row is
  * there, the API answers none of them and the web app asks for an account. An operator writes
  * it and deletes it, and `operator_action` says who. An instance answers its visitors until
@@ -199,6 +209,7 @@ export const OPERATOR_ACTIONS = [
   "account.sign_out",
   "account.suspend",
   "account.resume",
+  "account.username_remove",
   "spot.publish",
   "spot.refuse",
   "visitors.close",

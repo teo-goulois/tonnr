@@ -1,6 +1,6 @@
 # 041. Guides that accounts write, and a rank for writing them
 
-Status: decided by Téo on 2026-10-12. Nothing of it is built. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
+Status: decided by Téo on 2026-10-12, who then asked that all of it be built, and left what was not chosen to whoever builds it. The username is built. He wants a surfer who arrives somewhere new to find "every spot with how it works", and said that he cannot write it alone: "it takes people everywhere who want to share." He asked that every contribution be kept from the start, for a score that is "social proof, and a flex for those who take part a lot", and added: "a sponsorship that succeeds brings points too."
 
 ## Context
 
@@ -37,8 +37,11 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 ### The username
 
 - An account has a username: unique, public, and held to rules of length and of characters. Some are reserved. Sign-up asks for it where it asked for a name.
-- A name given before is never shown as a username: it was not given to be public. Such an account chooses its username at its first contribution.
-- An operator takes a username away in the admin app.
+- It is three to twenty letters without accents, digits and underscores, and is kept in small letters whatever was typed: two usernames never differ by a capital.
+- The sign-in library keeps it, with its own plugin, and asks every account for a name: a new account gives its username there. No account signs in by its username: that route of the library is closed.
+- A name given before is never shown as a username: it was not given to be public. Such an account chooses its username at its first contribution, or in its account's panel.
+- An account changes its username when it likes, for another: it does not go back to none, since what it wrote would then name nobody at its own word. The one it had is free again, and what it wrote reads under the new one.
+- An operator takes a username away in the admin app. Nobody takes that one again, the account it was taken from no more than another: `removed_username` keeps it, and names no account. The record of the operator's action does not hold it.
 
 ### Friends and sponsors
 
@@ -66,6 +69,7 @@ Later, in no order:
 - **A list of friends with a search and requests.** A link shown on a car park makes a friend in one step, and is the sponsorship too.
 - **A sponsorship counted at sign-up.** It would pay for accounts that do nothing, and for false ones.
 - **Stars on a contribution.** Whether it is right is what a reader can say.
+- **A username kept as it was typed, beside the one in small letters.** The library offers that second form and checks nothing of it: an account could write another's username there, and be read under it.
 
 ## Consequences
 

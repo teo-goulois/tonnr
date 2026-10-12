@@ -36,7 +36,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  */
 export function AccountPage({ account, isOwn, now, onSignedOut, children }: AccountPageProps) {
   const queryClient = useQueryClient();
-  const [dialog, setDialog] = useState<"sign-out" | "suspend" | null>(null);
+  const [dialog, setDialog] = useState<"sign-out" | "suspend" | "username" | null>(null);
   // A confirmation that ends closes itself, and not one that was opened since.
   const closing = (mine: typeof dialog) => (open: boolean) => {
     if (!open) setDialog((current) => (current === mine ? null : current));
@@ -58,8 +58,17 @@ export function AccountPage({ account, isOwn, now, onSignedOut, children }: Acco
     onError: (error) => toast.error(error.message),
   });
 
+  const removeUsername = useMutation({
+    mutationFn: () => client.v1.accounts.removeUsername({ id: account.id }),
+    onSuccess: async () => {
+      toast.success(m.account_username_removed());
+      await refreshLists(queryClient);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   // One thing at a time is done to an account.
-  const isBusy = signOut.isPending || suspend.isPending;
+  const isBusy = signOut.isPending || suspend.isPending || removeUsername.isPending;
 
   return (
     <>
@@ -93,6 +102,24 @@ export function AccountPage({ account, isOwn, now, onSignedOut, children }: Acco
       </div>
 
       <dl className="grid gap-x-l gap-y-m sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+        {/* What others read of the account: an operator takes away one that should not be read. */}
+        <Fact label={m.account_username()}>
+          {account.username ? (
+            <span className="grid justify-items-start gap-xs">
+              {`@${account.username}`}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isBusy}
+                onClick={() => setDialog("username")}
+              >
+                {m.account_username_remove()}
+              </Button>
+            </span>
+          ) : (
+            m.account_username_none()
+          )}
+        </Fact>
         <Fact label={m.auth_email()}>{account.email}</Fact>
         <Fact label={m.account_address_checked()}>{account.emailVerified ? m.yes() : m.no()}</Fact>
         <Fact label={m.account_created()}>{formatDate(account.createdAt)}</Fact>
@@ -135,6 +162,14 @@ export function AccountPage({ account, isOwn, now, onSignedOut, children }: Acco
         body={m.account_suspend_body()}
         confirmLabel={m.account_suspend()}
         onConfirm={() => suspend.mutateAsync(true)}
+      />
+      <ConfirmDialog
+        open={dialog === "username"}
+        onOpenChange={closing("username")}
+        title={m.account_username_remove_title({ username: account.username ?? "" })}
+        body={m.account_username_remove_body()}
+        confirmLabel={m.account_username_remove()}
+        onConfirm={() => removeUsername.mutateAsync()}
       />
     </>
   );

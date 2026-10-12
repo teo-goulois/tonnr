@@ -321,6 +321,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       expect(await call(v1Router.account.get, undefined, bySession("owner"))).toEqual({
         id: "owner",
         name: "owner",
+        username: null,
         email: "owner@example.org",
         isOperator: true,
         emailVerified: false,
@@ -377,6 +378,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.accounts.get",
         "v1.accounts.signOut",
         "v1.accounts.update",
+        "v1.accounts.removeUsername",
         "v1.actions.list",
         "v1.developers.list",
         "v1.developers.create",

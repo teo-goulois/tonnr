@@ -205,9 +205,12 @@ type ViewerProps = {
   onAlertsTabChange: (tab: AlertsTab) => void;
   // Who is signed in, for the account's panel. No user for a visitor.
   account: {
-    user: { name: string; email: string } | undefined;
+    // `username` is null for an account that has chosen none, and undefined while the API has
+    // not said.
+    user: { name: string; email: string; username?: string | null } | undefined;
     // Given when the account's address is not checked yet, on an instance that checks addresses.
     check?: { isSending: boolean; onSend: () => void };
+    onUsernameSave: (username: string) => Promise<string | undefined>;
     onSignOut: () => void;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
@@ -1435,6 +1438,7 @@ export function Viewer({
           <AccountPanel
             account={account.user}
             check={account.check}
+            onUsernameSave={account.onUsernameSave}
             {...accountPrompt}
             onSignOut={account.onSignOut}
             onOpenAlertSettings={() => onSettingsPartChange("alerts")}

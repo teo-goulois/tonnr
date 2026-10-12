@@ -927,6 +927,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       expect(accounts[0]).toEqual({
         id: "late",
         name: "Late",
+        username: null,
         email: "LATE@Example.org",
         emailVerified: false,
         createdAt: new Date("2126-01-01T00:00:00Z"),
@@ -1027,6 +1028,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       expect(found).toEqual({
         id: "visitor",
         name: "Visitor",
+        username: null,
         email: "visitor@example.org",
         emailVerified: false,
         createdAt: expect.any(Date),

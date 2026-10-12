@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
-import { accountSuspension, operator } from "@repo/db/schema/access";
+import { accountSuspension, operator, removedUsername } from "@repo/db/schema/access";
 import { session, user } from "@repo/db/schema/auth";
 import { and, count, desc, eq, gt, ilike, isNotNull, max, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -20,6 +20,9 @@ function literal(text: string) {
 const accountSchema = z.object({
   id: z.string(),
   name: z.string(),
+  // What others read of the account. Null for one that has chosen none, or whose username an
+  // operator took away. Decision 041.
+  username: z.string().nullable(),
   email: z.string(),
   // Whether the account's address was checked.
   emailVerified: z.boolean(),
@@ -49,6 +52,7 @@ async function readAccount(db: Reader, id: string) {
     .select({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
@@ -108,14 +112,14 @@ export const accountsRouter = {
       path: "/accounts",
       summary: "The accounts that signed up, the newest first",
       description:
-        `${ADMIN_ONLY} It gives each account's name and address, and nothing else of it: an ` +
+        `${ADMIN_ONLY} It gives each account's name, username and address, and nothing else of it: an ` +
         "operator reads who signed up, not what they keep. Pages follow one another through " +
         "`after`.",
       tags: ["Accounts"],
     })
     .input(
       z.object({
-        // Part of the name or of the address, in any case.
+        // Part of the name, of the username or of the address, in any case.
         q: z.string().trim().min(1).max(80).optional(),
         // The `next` of the page before.
         after: z.string().min(1).max(200).optional(),
@@ -128,6 +132,8 @@ export const accountsRouter = {
           z.object({
             id: z.string(),
             name: z.string(),
+            // What others read of the account. Null for one that has none.
+            username: z.string().nullable(),
             email: z.string(),
             // Whether the account's address was checked.
             emailVerified: z.boolean(),
@@ -146,7 +152,7 @@ export const accountsRouter = {
     .handler(async ({ input, context }) => {
       const pattern = input.q ? `%${literal(input.q)}%` : undefined;
       const matches = pattern
-        ? or(ilike(user.name, pattern), ilike(user.email, pattern))
+        ? or(ilike(user.name, pattern), ilike(user.username, pattern), ilike(user.email, pattern))
         : undefined;
       // The database compares the two moments itself: read here, the one of the page before
       // would lose what it holds under the millisecond.
@@ -161,6 +167,7 @@ export const accountsRouter = {
         .select({
           id: user.id,
           name: user.name,
+          username: user.username,
           email: user.email,
           emailVerified: user.emailVerified,
           createdAt: user.createdAt,
@@ -294,6 +301,47 @@ export const accountsRouter = {
               account,
             });
           }
+        }
+        return readAccount(tx, input.id);
+      });
+      if (!found) throw noAccount();
+      return found;
+    }),
+
+  removeUsername: adminProcedure
+    .route({
+      method: "DELETE",
+      path: "/accounts/{id}/username",
+      summary: "Take an account's username away",
+      description:
+        `${ADMIN_ONLY} What the account wrote in a guide stays, and names nobody until the ` +
+        "account chooses another username, which it must before it contributes again. Its " +
+        "friends read no name of it meanwhile. Nobody takes that username again, this account " +
+        "no more than another. The record of the action does not hold the username. " +
+        "Decision 041.",
+      tags: ["Accounts"],
+    })
+    .input(accountId)
+    .output(accountSchema)
+    .handler(async ({ input, context }) => {
+      const operatorId = context.session.user.id;
+      const found = await context.db.transaction(async (tx) => {
+        if (!(await holdAccount(tx, input.id))) return null;
+        const [had] = await tx
+          .select({ username: user.username })
+          .from(user)
+          .where(eq(user.id, input.id));
+        // Taking away what is not there changes nothing, and records nothing.
+        if (had?.username) {
+          await tx.update(user).set({ username: null }).where(eq(user.id, input.id));
+          // A username that was taken away is not one to choose again.
+          await tx.insert(removedUsername).values({ username: had.username }).onConflictDoNothing();
+          await recordAction(tx, {
+            operatorId,
+            action: "account.username_remove",
+            developer: null,
+            account: { id: input.id },
+          });
         }
         return readAccount(tx, input.id);
       });

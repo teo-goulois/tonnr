@@ -68,7 +68,8 @@ export default function Header({ className }: { className?: string }) {
           <Skeleton className="size-10 rounded-full" />
         ) : session ? (
           <UserMenu
-            name={session.user.name}
+            // An account is called by its username once it has one.
+            name={session.user.username ? `@${session.user.username}` : session.user.name}
             email={session.user.email}
             check={
               needsCheck

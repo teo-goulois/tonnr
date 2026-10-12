@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { useUsername } from "@/components/account/username";
 import { useOwnAccount } from "@/components/auth/use-own-account";
 import { useSendVerification } from "@/components/auth/use-send-verification";
 import { useSignOut } from "@/components/auth/use-sign-out";
@@ -328,6 +329,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   const own = useOwnAccount();
   const verification = useSendVerification();
   const signOut = useSignOut();
+  const saveUsername = useUsername();
   const needsCheck = own.account?.checksAddresses === true && !own.account.emailVerified;
 
   // An address from before how to be told was a part of the account's panel is taken there.
@@ -1147,10 +1149,14 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         user: session.data?.user && {
           name: session.data.user.name,
           email: session.data.user.email,
+          // What the API says of the account, once it has: the session's copy is as old as
+          // the session.
+          username: own.account ? own.account.username : undefined,
         },
         check: needsCheck
           ? { isSending: verification.isSending, onSend: verification.send }
           : undefined,
+        onUsernameSave: saveUsername,
         onSignOut: signOut,
       }}
       settingsPart={search.settings}

@@ -66,6 +66,7 @@ export function AccountsPage({
           <TableHeader>
             <TableRow>
               <TableHead>{m.account_name()}</TableHead>
+              <TableHead>{m.account_username()}</TableHead>
               <TableHead>{m.auth_email()}</TableHead>
               <TableHead>{m.account_created()}</TableHead>
               <TableHead>
@@ -86,6 +87,9 @@ export function AccountsPage({
                         {account.name}
                       </Link>
                     </TableCell>
+                    <TableCell className="max-w-48 truncate text-neutral-7">
+                      {account.username && `@${account.username}`}
+                    </TableCell>
                     <TableCell className="max-w-72 truncate text-neutral-7">
                       {account.email}
                     </TableCell>
@@ -104,7 +108,7 @@ export function AccountsPage({
                 ))
               : [0, 1, 2].map((row) => (
                   <TableRow key={row}>
-                    <TableCell colSpan={4}>
+                    <TableCell colSpan={5}>
                       <Skeleton className="h-5 w-full" />
                     </TableCell>
                   </TableRow>

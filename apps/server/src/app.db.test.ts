@@ -16,6 +16,7 @@ import {
   apiUsage,
   developer,
   operator,
+  removedUsername,
   visitorClosure,
 } from "@repo/db/schema/access";
 import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
@@ -115,6 +116,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     await database.db.delete(apiUsage);
     await database.db.delete(developer);
     await database.db.delete(user);
+    await database.db.delete(removedUsername);
     // An instance answers the visitors of its web app until an operator closes it to them.
     await database.db.delete(visitorClosure);
   });
@@ -364,6 +366,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/accounts/{id}", "get"],
       ["/accounts/{id}", "patch"],
       ["/accounts/{id}/sessions", "delete"],
+      ["/accounts/{id}/username", "delete"],
       ["/actions", "get"],
       ["/instance", "get"],
       ["/lists", "get"],
@@ -1576,6 +1579,156 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
           expect(inQuery, `${method} ${path}`).toEqual([]);
         }
       }
+    });
+  });
+
+  // What others read of an account: decision 041.
+  describe("an account's username", () => {
+    const password = "made-up-for-these-tests";
+    const signUpAs = (username: string, email = `${username.toLowerCase()}@example.org`) =>
+      send("POST", "/api/auth/sign-up/email", {
+        origin: APP,
+        body: { name: username, username, email, password },
+      });
+    const cookieOf = (response: Response) =>
+      response.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+    const accountOf = async (cookie: string) =>
+      bodyOf<{ id: string; username: string | null }>(await send("GET", "/v1/account", { cookie }));
+    const choose = (cookie: string, username: string) =>
+      send("POST", "/api/auth/update-user", { cookie, origin: APP, body: { username } });
+
+    it("is taken at sign-up, kept in small letters, and answered with the account", async () => {
+      const made = await signUpAs("Ana_29");
+      expect(made.status).toBe(200);
+
+      expect((await accountOf(cookieOf(made))).username).toBe("ana_29");
+      const [kept] = await database.db.select().from(user);
+      expect(kept?.username).toBe("ana_29");
+    });
+
+    it("is one account's alone, whatever its capitals", async () => {
+      expect((await signUpAs("Ana")).status).toBe(200);
+      const second = await signUpAs("ANA", "other@example.org");
+
+      expect(second.status).toBe(400);
+      expect(await database.db.select().from(user)).toHaveLength(1);
+    });
+
+    it("is refused too short, too long, in other characters, or as a name nobody takes", async () => {
+      for (const username of ["ab", "a".repeat(21), "ana maria", "océane", "Admin", "tonnr"]) {
+        expect((await signUpAs(username, "someone@example.org")).status, username).toBe(400);
+      }
+      expect(await database.db.select().from(user)).toEqual([]);
+    });
+
+    it("opens no session: an account signs in by its address", async () => {
+      await signUpAs("Ana");
+      const attempt = await send("POST", "/api/auth/sign-in/username", {
+        origin: APP,
+        body: { username: "Ana", password },
+      });
+
+      expect(attempt.status).toBe(404);
+      expect(await database.db.select().from(session)).toHaveLength(1);
+    });
+
+    it("is chosen later by an account that has none, and says whether it is free", async () => {
+      const ben = await signUp("ben");
+      expect((await accountOf(ben)).username).toBeNull();
+
+      const free = (username: string) =>
+        send("POST", "/api/auth/is-username-available", { origin: APP, body: { username } });
+      expect(await bodyOf(await free("Ben_K"))).toEqual({ available: true });
+      expect((await choose(ben, "Ben_K")).status).toBe(200);
+      expect((await accountOf(ben)).username).toBe("ben_k");
+      expect(await bodyOf(await free("ben_k"))).toEqual({ available: false });
+
+      // Another account does not take it, and its own stays what it was.
+      const cleo = await signUp("cleo");
+      expect((await choose(cleo, "BEN_K")).status).toBe(400);
+      expect((await accountOf(cleo)).username).toBeNull();
+      // Its owner takes another, and the first is free again.
+      expect((await choose(ben, "ben_the_second")).status).toBe(200);
+      expect(await bodyOf(await free("Ben_K"))).toEqual({ available: true });
+    });
+
+    it("takes no second form beside it, in which an account would write another's", async () => {
+      const ana = cookieOf(await signUpAs("Ana"));
+      const written = await send("POST", "/api/auth/update-user", {
+        cookie: ana,
+        origin: APP,
+        body: { displayUsername: "ben" },
+      });
+
+      // The library ignores a field it does not know, or refuses it: either way nothing is kept.
+      expect([200, 400]).toContain(written.status);
+      expect((await accountOf(ana)).username).toBe("ana");
+      const [kept] = await database.db.select().from(user);
+      expect(Object.keys(kept ?? {})).not.toContain("displayUsername");
+    });
+
+    it("is taken away by an operator, in a record that does not hold it", async () => {
+      const operatorCookie = await signUpOperator();
+      const from = { cookie: operatorCookie, origin: ADMIN };
+      const ana = cookieOf(await signUpAs("Ana"));
+      const { id } = await accountOf(ana);
+
+      // The web app's pages do not run the instance, an operator's session or not.
+      const fromApp = await send("DELETE", `/v1/accounts/${id}/username`, {
+        cookie: operatorCookie,
+        origin: APP,
+      });
+      expect(fromApp.status).toBe(403);
+      expect((await send("DELETE", `/v1/accounts/${id}/username`, { cookie: ana })).status).toBe(
+        403,
+      );
+
+      const taken = await send("DELETE", `/v1/accounts/${id}/username`, from);
+      expect([taken.status, (await bodyOf<{ username: unknown }>(taken)).username]).toEqual([
+        200,
+        null,
+      ]);
+      expect((await accountOf(ana)).username).toBeNull();
+      // Taking away what is not there records nothing more.
+      expect((await send("DELETE", `/v1/accounts/${id}/username`, from)).status).toBe(200);
+
+      const { actions } = await bodyOf<{ actions: { action: string; accountId: string }[] }>(
+        await send("GET", "/v1/actions", from),
+      );
+      const recorded = actions.filter((one) => one.action === "account.username_remove");
+      expect(recorded).toMatchObject([{ accountId: id }]);
+      // The account's name is what it signed up with: the record holds neither.
+      expect(JSON.stringify(recorded.map((one) => ({ ...one, accountName: null })))).not.toContain(
+        "Ana",
+      );
+      // Nobody takes that username again: not the account, and no other.
+      expect((await choose(ana, "Ana")).status).toBe(400);
+      expect((await signUpAs("ana", "second@example.org")).status).toBe(400);
+      expect((await choose(ana, "Ana_M")).status).toBe(200);
+    });
+
+    it("is changed for another, and not taken off by its account", async () => {
+      const ana = cookieOf(await signUpAs("Ana"));
+      for (const username of [null, 12, ""]) {
+        const cleared = await send("POST", "/api/auth/update-user", {
+          cookie: ana,
+          origin: APP,
+          body: { username },
+        });
+        expect(cleared.status, String(username)).toBe(400);
+      }
+      expect((await accountOf(ana)).username).toBe("ana");
+      // What else an account says of itself is taken as before.
+      const renamed = await send("POST", "/api/auth/update-user", {
+        cookie: ana,
+        origin: APP,
+        body: { name: "Ana Maria" },
+      });
+      expect(renamed.status).toBe(200);
+      expect((await accountOf(ana)).username).toBe("ana");
     });
   });
 

@@ -2,7 +2,8 @@ import { Button } from "@repo/ui/components/ui/button";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
 import { ChevronRightIcon, LogOutIcon } from "@repo/ui/icon";
 import { useTheme } from "next-themes";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { toast } from "sonner";
 
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { UnitsSettings } from "@/components/shared/units-settings";
@@ -10,10 +11,16 @@ import { AccountPrompt } from "@/components/viewer/saved-panel";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 
+import { UsernameForm } from "./username-form";
+
 type AccountPanelProps = {
   // The account that is signed in. Undefined for a visitor, who still has settings: the units,
   // the theme and the language are kept by the browser.
-  account: { name: string; email: string } | undefined;
+  // `username` is what others read of it: null for an account that has chosen none yet, and
+  // undefined while the API has not said.
+  account: { name: string; email: string; username?: string | null } | undefined;
+  // Gives the account a username, and answers why it was refused or nothing once it is kept.
+  onUsernameSave: (username: string) => Promise<string | undefined>;
   // Given when the account's address is not checked yet, on an instance that checks addresses.
   check?: { isSending: boolean; onSend: () => void };
   onSignIn: () => void;
@@ -53,19 +60,45 @@ function Line({ label, children }: { label: string; children: ReactNode }) {
 export function AccountPanel({
   account,
   check,
+  onUsernameSave,
   onSignIn,
   onCreateAccount,
   onSignOut,
   onOpenAlertSettings,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
+  const [isNaming, setNaming] = useState(false);
 
   return (
     <div className="grid gap-l">
       {account ? (
         <div className="grid justify-items-start gap-xxs">
-          <p className="max-w-full truncate font-medium">{account.name}</p>
+          {/* An account is called by its username once it has one. */}
+          <p className="max-w-full truncate font-medium">
+            {account.username ? `@${account.username}` : account.name}
+          </p>
           <p className="max-w-full truncate text-s text-neutral-7">{account.email}</p>
+          {account.username !== undefined &&
+            (isNaming ? (
+              <div className="mt-xs w-full">
+                <UsernameForm
+                  current={account.username}
+                  onSave={onUsernameSave}
+                  onSaved={(username) => {
+                    setNaming(false);
+                    toast.success(m.username_saved({ username }));
+                  }}
+                  onCancel={() => setNaming(false)}
+                />
+              </div>
+            ) : (
+              <div className="mt-xs grid justify-items-start gap-xs">
+                {account.username === null && <p className="text-s">{m.username_none()}</p>}
+                <Button variant="secondary" size="sm" onClick={() => setNaming(true)}>
+                  {account.username === null ? m.username_choose() : m.username_change()}
+                </Button>
+              </div>
+            ))}
           {check && (
             <div className="mt-xs grid justify-items-start gap-xs">
               <p className="text-s">{m.verify_not_checked()}</p>

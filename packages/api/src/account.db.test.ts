@@ -73,6 +73,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account and its address", () => {
     expect(await call(v1Router.account.get, undefined, by("ana", mailing))).toEqual({
       id: "ana",
       name: "ana",
+      username: null,
       email: "ana@example.org",
       isOperator: false,
       emailVerified: false,

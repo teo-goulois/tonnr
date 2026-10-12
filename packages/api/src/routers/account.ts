@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { operator } from "@repo/db/schema/access";
+import { user } from "@repo/db/schema/auth";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -20,6 +21,9 @@ export const accountRouter = {
       z.object({
         id: z.string(),
         name: z.string(),
+        // What others read of the account, on a line of a guide it wrote and among its
+        // friends, in small letters. Null until it chooses one: decision 041.
+        username: z.string().nullable(),
         email: z.string(),
         // An operator makes the API keys and reads what the instance keeps for its operator.
         isOperator: z.boolean(),
@@ -31,15 +35,18 @@ export const accountRouter = {
     )
     .handler(async ({ context }) => {
       const { id, name, email, emailVerified } = context.session.user;
+      // The username is read where it is kept: the session's copy is as old as the session.
       const [found] = await context.db
-        .select({ userId: operator.userId })
-        .from(operator)
-        .where(eq(operator.userId, id));
+        .select({ username: user.username, operatorId: operator.userId })
+        .from(user)
+        .leftJoin(operator, eq(operator.userId, user.id))
+        .where(eq(user.id, id));
       return {
         id,
         name,
+        username: found?.username ?? null,
         email,
-        isOperator: found !== undefined,
+        isOperator: found?.operatorId != null,
         emailVerified,
         checksAddresses: context.verification.isOn,
       };

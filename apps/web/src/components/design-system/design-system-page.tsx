@@ -319,6 +319,9 @@ const LOADING = { data: undefined, isPending: true, isError: false };
 // What a panel is given of the forecast and the tide when none is asked for.
 const NOTHING = { data: undefined, isPending: false, isError: false };
 
+// A username that the page never keeps: it shows how the form says that one is taken.
+const refuseTaken = async () => "This username is taken.";
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     // Named after its title, so that an address opens the page at it: `#wind-station-panel`.
@@ -820,8 +823,20 @@ export function DesignSystemPage() {
         <div className="grid gap-m lg:grid-cols-2">
           <div className="edge rounded-(--radius-xs) p-m">
             <AccountPanel
-              account={{ name: "Maëlle Le Goff", email: "maelle@example.org" }}
+              account={{ name: "maelle_lg", email: "maelle@example.org", username: "maelle_lg" }}
               check={{ isSending: false, onSend: () => {} }}
+              onUsernameSave={refuseTaken}
+              onSignIn={() => {}}
+              onCreateAccount={() => {}}
+              onSignOut={() => {}}
+              onOpenAlertSettings={() => {}}
+            />
+          </div>
+          {/* An account made before usernames: it is asked to choose one. */}
+          <div className="edge rounded-(--radius-xs) p-m">
+            <AccountPanel
+              account={{ name: "Maëlle Le Goff", email: "maelle@example.org", username: null }}
+              onUsernameSave={refuseTaken}
               onSignIn={() => {}}
               onCreateAccount={() => {}}
               onSignOut={() => {}}
@@ -832,6 +847,7 @@ export function DesignSystemPage() {
           <div className="edge rounded-(--radius-xs) p-m">
             <AccountPanel
               account={undefined}
+              onUsernameSave={refuseTaken}
               onSignIn={() => {}}
               onCreateAccount={() => {}}
               onSignOut={() => {}}

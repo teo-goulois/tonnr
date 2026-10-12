@@ -5,6 +5,7 @@ import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
 import { suspensionHooks } from "./suspension";
+import { keepsUsername, usernames } from "./username";
 import { type Verification, VERIFICATION_SECONDS } from "./verification";
 
 export type AuthConfig = {
@@ -48,7 +49,9 @@ export function createAuth(
     // The library's own route sends that mail to an address given without a session: anyone
     // could have it mail the addresses that are not checked yet. The API has its own, for the
     // account that asks.
-    disabledPaths: ["/send-verification-email"],
+    // The library also signs an account in by its username. Here an account signs in by its
+    // address alone: a username is what others read, and names no door.
+    disabledPaths: ["/send-verification-email", "/sign-in/username"],
     // A suspended account opens no session: decision 025.
     databaseHooks: { session: { create: suspensionHooks(database) } },
     secret: env.BETTER_AUTH_SECRET,
@@ -60,7 +63,9 @@ export function createAuth(
         httpOnly: true,
       },
     },
-    plugins: [],
+    // What others read of an account, and what keeps it there: decision 041.
+    hooks: { before: keepsUsername },
+    plugins: [usernames(database)],
   });
 }
 
