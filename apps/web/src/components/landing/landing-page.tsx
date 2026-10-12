@@ -64,6 +64,9 @@ export function LandingPage({ apiDocsUrl }: { apiDocsUrl: string }) {
           {APP_NAME}. {m.landing_footer_license()}
         </p>
         <nav className="flex gap-m">
+          <Link to="/terms" className="focus-ring rounded-xs hover:text-neutral-10">
+            {m.terms_title()}
+          </Link>
           <a href={apiDocsUrl} className="focus-ring rounded-xs hover:text-neutral-10">
             {m.landing_nav_api()}
           </a>

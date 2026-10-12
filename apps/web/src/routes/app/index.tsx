@@ -698,6 +698,40 @@ function ViewerRoute() {
       onError: (error) => toast.error(error.message),
     }),
   );
+  // Renaming a spot, moving it, and what is asked about making it public all answer with the
+  // spot as it is then: it takes its place wherever the spot is kept.
+  const keepSpot = (updated: Spot) => {
+    queryClient.setQueryData(orpc.v1.spots.get.queryKey({ input: { id: updated.id } }), updated);
+    void setSpots((all) => all.map((one) => (one.id === updated.id ? updated : one)));
+  };
+  const changeSpot = useMutation(
+    orpc.v1.spots.update.mutationOptions({
+      onSuccess: (updated) => {
+        keepSpot(updated);
+        toast.success(m.spot_changed({ name: updated.name }));
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const askPublication = useMutation(
+    orpc.v1.spots.requestPublication.mutationOptions({
+      onSuccess: (updated) => {
+        keepSpot(updated);
+        toast.success(m.spot_publish_sent());
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const cancelPublication = useMutation(
+    orpc.v1.spots.cancelPublication.mutationOptions({
+      onSuccess: (updated) => {
+        keepSpot(updated);
+        toast.success(m.spot_publish_cancelled());
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+
   function saveSpot() {
     const name = draft.name.trim();
     if (!draft.point || !name || createSpot.isPending) return;
@@ -848,6 +882,15 @@ function ViewerRoute() {
       onSelectSpot={(id) => void navigate({ search: { spot: id } })}
       onDeleteSpot={removeSpot}
       isDeletingSpot={deleteSpot.isPending}
+      onChangeSpot={(one, change, done) =>
+        changeSpot.mutate({ id: one.id, ...change }, { onSuccess: done })
+      }
+      isChangingSpot={changeSpot.isPending}
+      onPublishSpot={(one, note, done) =>
+        askPublication.mutate({ id: one.id, ...(note ? { note } : {}) }, { onSuccess: done })
+      }
+      onCancelPublication={(one) => cancelPublication.mutate({ id: one.id })}
+      isAskingPublication={askPublication.isPending || cancelPublication.isPending}
       newSpotId={madeId}
       onSpotOfferSeen={() => setMadeId(undefined)}
       onDescribeSpot={(one, said, done) =>

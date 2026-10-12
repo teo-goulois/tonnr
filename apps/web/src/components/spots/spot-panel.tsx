@@ -1,5 +1,4 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { TrashIcon } from "@repo/ui/icon";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -204,52 +203,5 @@ export function SpotPanel({
         footer={footer}
       />
     </div>
-  );
-}
-
-/** What the owner of a spot does with it from its panel: delete it, in two presses. */
-export function SpotActions({
-  name,
-  isDeleting,
-  onDelete,
-}: {
-  name: string;
-  // True while the API is asked to delete it: it is not asked twice.
-  isDeleting: boolean;
-  onDelete: () => void;
-}) {
-  const [isConfirming, setIsConfirming] = useState(false);
-
-  if (!isConfirming) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={m.spot_delete({ name })}
-        isPending={isDeleting}
-        disabled={isDeleting}
-        onClick={() => setIsConfirming(true)}
-      >
-        <TrashIcon data-slot="icon" aria-hidden />
-      </Button>
-    );
-  }
-  return (
-    <>
-      <Button variant="ghost" size="sm" onClick={() => setIsConfirming(false)}>
-        {m.action_cancel()}
-      </Button>
-      <Button
-        variant="destructive"
-        size="sm"
-        aria-label={m.spot_delete({ name })}
-        onClick={() => {
-          setIsConfirming(false);
-          onDelete();
-        }}
-      >
-        {m.action_delete()}
-      </Button>
-    </>
   );
 }

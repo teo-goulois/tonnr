@@ -23,7 +23,9 @@ import {
 } from "@/components/spots/new-spot-panel";
 import type { Alerting } from "@/components/alerts/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
-import { SpotActions, SpotPanel } from "@/components/spots/spot-panel";
+import { type SpotEdit, SpotEditor } from "@/components/spots/spot-editor";
+import { SpotActions } from "@/components/spots/spot-menu";
+import { SpotPanel } from "@/components/spots/spot-panel";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
@@ -178,6 +180,17 @@ type ViewerProps = {
   onSelectSpot: (spotId: string) => void;
   onDeleteSpot: (spot: Spot) => void;
   isDeletingSpot: boolean;
+  // The owner renames a spot or moves it. `done` is called once it is saved.
+  onChangeSpot: (
+    spot: Spot,
+    change: { name: string; latitude: number; longitude: number },
+    done: () => void,
+  ) => void;
+  isChangingSpot: boolean;
+  // The owner asks that a spot be made public, or takes the request back.
+  onPublishSpot: (spot: Spot, note: string, done: () => void) => void;
+  onCancelPublication: (spot: Spot) => void;
+  isAskingPublication: boolean;
   // The spot that was just added, whose owner is offered to describe it, until they answer.
   newSpotId: string | undefined;
   onSpotOfferSeen: () => void;
@@ -342,6 +355,11 @@ export function Viewer({
   onSelectSpot,
   onDeleteSpot,
   isDeletingSpot,
+  onChangeSpot,
+  isChangingSpot,
+  onPublishSpot,
+  onCancelPublication,
+  isAskingPublication,
   newSpotId,
   onSpotOfferSeen,
   onDescribeSpot,
@@ -440,6 +458,10 @@ export function Viewer({
   // while the spot is being saved.
   const isPlacing = isAdding && signedIn;
   const canPlace = isPlacing && !adding.isSaving;
+  // The spot being renamed or moved, in its own panel. It is left when another thing is opened.
+  const [edit, setEdit] = useState<SpotEdit | null>(null);
+  const editing = edit && edit.id === selectedSpotId && !isAdding ? edit : null;
+  if (edit && !editing) setEdit(null);
   // How much of a phone's screen the sheet beside the map takes. It opens partly raised.
   const [sheetShare, setSheetShare] = useState(SHEET_SNAP_POINTS[0]!);
   if (selection === undefined && !isAdding && sheetShare !== SHEET_SNAP_POINTS[0]) {
@@ -456,7 +478,11 @@ export function Viewer({
     return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
   }, [breaks, selectedBreakId, loadedBreak]);
   // The spots as the map draws them, and the selected one, which it draws as it does a break.
-  const mapSpots = useMemo(() => spots.data ?? [], [spots.data]);
+  // A spot that is being moved is drawn by its marker alone.
+  const mapSpots = useMemo(
+    () => (spots.data ?? []).filter((one) => one.id !== editing?.id),
+    [spots.data, editing?.id],
+  );
   const loadedSpot = selected.spot.data;
   const selectedSpot = loadedSpot?.id === selectedSpotId ? loadedSpot : undefined;
 
@@ -694,7 +720,7 @@ export function Viewer({
         breaks={layers.breaks ? breaks : []}
         spots={mapSpots}
         selectedId={selection}
-        selectedBreak={selectedSpot ?? selectedBreak}
+        selectedBreak={editing ? undefined : (selectedSpot ?? selectedBreak)}
         selectedIsSpot={selectedSpot !== undefined}
         layers={layers}
         seaLayer={sea}
@@ -707,10 +733,16 @@ export function Viewer({
         onSelectBreak={onSelectBreak}
         onSelectSpot={onSelectSpot}
         onBoundsChange={onBoundsChange}
-        draft={isPlacing ? adding.draft.point : null}
-        draftLabel={m.spot_marker_label()}
-        placing={isPlacing}
-        onPlace={canPlace ? adding.onPlace : undefined}
+        draft={isPlacing ? adding.draft.point : (editing?.point ?? null)}
+        draftLabel={editing ? m.spot_marker_label_move() : m.spot_marker_label()}
+        placing={isPlacing || editing !== null}
+        onPlace={
+          canPlace
+            ? adding.onPlace
+            : editing && !isChangingSpot
+              ? (point) => setEdit({ ...editing, point })
+              : undefined
+        }
       />
 
       {(waveStations.isPending || waveStations.isError) && (
@@ -826,11 +858,20 @@ export function Viewer({
           shown.spotId ? (
             shown.spot.data ? (
               shown.spot.data.isOwner ? (
-                // A spot is its owner's alone until it is asked to be shared.
-                <span className="inline-flex items-center gap-xxs">
-                  <LockIcon aria-hidden className="size-3.5" />
-                  {m.spot_own()}
-                </span>
+                // A spot is its owner's alone, and says what became of a request to make it
+                // public: decision 034.
+                shown.spot.data.publication?.status === "pending" ? (
+                  m.spot_pending()
+                ) : shown.spot.data.publication?.status === "accepted" ? (
+                  m.spot_accepted()
+                ) : (
+                  <span className="inline-flex items-start gap-xxs">
+                    <LockIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                    {shown.spot.data.publication?.status === "refused"
+                      ? m.spot_refused({ reason: shown.spot.data.publication.reason ?? "" })
+                      : m.spot_own()}
+                  </span>
+                )
               ) : (
                 m.spot_public()
               )
@@ -868,28 +909,55 @@ export function Viewer({
           )
         }
         actions={
-          <>
-            {shownItem && (
-              <StationActions
-                item={shownItem}
-                lists={signedIn ? (lists.data ?? []) : undefined}
-                onToggleFavorite={toggleFavorite}
-                onToggleList={(list, add) => onSave(list.id, shownItem, add)}
-                onManageLists={() => onPanelChange("saved")}
-              />
-            )}
-            {ownSpot && (
-              <SpotActions
-                key={ownSpot.id}
-                name={ownSpot.name}
-                isDeleting={isDeletingSpot}
-                onDelete={() => onDeleteSpot(ownSpot)}
-              />
-            )}
-          </>
+          // A spot that is being renamed or moved has its two buttons in its panel.
+          !editing && (
+            <>
+              {shownItem && (
+                <StationActions
+                  item={shownItem}
+                  lists={signedIn ? (lists.data ?? []) : undefined}
+                  onToggleFavorite={toggleFavorite}
+                  onToggleList={(list, add) => onSave(list.id, shownItem, add)}
+                  onManageLists={() => onPanelChange("saved")}
+                />
+              )}
+              {ownSpot && (
+                <SpotActions
+                  key={ownSpot.id}
+                  spot={ownSpot}
+                  onEdit={() =>
+                    setEdit({
+                      id: ownSpot.id,
+                      name: ownSpot.name,
+                      point: { latitude: ownSpot.latitude, longitude: ownSpot.longitude },
+                    })
+                  }
+                  onPublish={(note, done) => onPublishSpot(ownSpot, note, done)}
+                  onCancelPublication={() => onCancelPublication(ownSpot)}
+                  isAsking={isAskingPublication}
+                  isDeleting={isDeletingSpot}
+                  onDelete={() => onDeleteSpot(ownSpot)}
+                />
+              )}
+            </>
+          )
         }
       >
-        <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>
+        {editing && ownSpot ? (
+          <SpotEditor
+            edit={editing}
+            onNameChange={(name) => setEdit({ ...editing, name })}
+            isSaving={isChangingSpot}
+            onSave={() =>
+              onChangeSpot(ownSpot, { name: editing.name.trim(), ...editing.point }, () =>
+                setEdit(null),
+              )
+            }
+            onCancel={() => setEdit(null)}
+          />
+        ) : (
+          <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>
+        )}
       </ViewerDrawer>
 
       <ViewerDrawer
