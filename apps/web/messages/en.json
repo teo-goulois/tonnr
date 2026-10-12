@@ -630,5 +630,6 @@
   "create_alert": "An alert",
   "create_alert_spot": "Which spot is it for?",
   "create_alert_no_spot": "An alert is set on a spot of your own. Add one first.",
-  "auth_reason_add_alert": "Sign in to set an alert."
+  "auth_reason_add_alert": "Sign in to set an alert.",
+  "lists_showing": "Lists: {name} is shown alone"
 }

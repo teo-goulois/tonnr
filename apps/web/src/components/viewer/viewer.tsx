@@ -18,6 +18,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -462,6 +463,9 @@ export function Viewer({
   const [seaSteps, setSeaSteps] = useState(0);
   // Unfolded on a wide screen, folded on a phone, until the visitor chooses.
   const [legendChoice, setLegendChoice] = useState<boolean | null>(null);
+  // The account's lists on the map are folded behind their button until they are asked for.
+  const [listsOpen, setListsOpen] = useState(false);
+  const listsId = useId();
   const units = useUnits();
 
   // The charts of a station's panel load apart from the map. Asking for them now means they are
@@ -860,23 +864,58 @@ export function Viewer({
   // under what else floats there.
   const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : "self-center";
 
-  // The account's lists, one press away on the map itself: a chip shows a list alone there, and
+  // The account's lists on the map itself: a button under the one that finds the reader unfolds
+  // the row of chips beside it, and folds it again. A chip shows a list alone on the map, and
   // the first one shows everything again. Not while a spot is being added: the map then takes
   // a marker, and shows everything.
-  const listChips = onShowList && !isAdding && (
-    <ListChips
-      onMap
-      className={
-        wide
-          ? "absolute top-s left-s max-w-[calc(50%-8rem)]"
-          : // To the edges of the screen, so that a chip cut by one says that more follow.
-            "-mx-s max-w-[calc(100%+var(--spacing-s)*2)] px-s"
-      }
-      lists={lists.data ?? []}
-      joined={joined}
-      current={listView?.id}
-      onPick={onShowList}
-    />
+  const listCount = (lists.data?.length ?? 0) + joined.length;
+  const listsButton = onShowList && !isAdding && listCount > 0 && (
+    <div className="relative">
+      <Button
+        variant="outline"
+        size="icon"
+        className={cn(
+          floating,
+          // Filled while the map shows one list alone, as the chip of that list is.
+          listView &&
+            "bg-neutral-10 text-neutral-1 [--edge-color:transparent] hover:bg-neutral-10 aria-expanded:bg-neutral-10",
+        )}
+        aria-label={listView ? m.lists_showing({ name: listName(listView) }) : m.lists_filter()}
+        aria-expanded={listsOpen}
+        aria-controls={listsId}
+        onClick={() => {
+          setListsOpen(!listsOpen);
+          // A phone has room for one of the two: the lists unfold where the legend opens.
+          if (!listsOpen && !wide) setLegendChoice(false);
+        }}
+      >
+        <ListsIcon data-slot="icon" aria-hidden />
+      </Button>
+      <div
+        id={listsId}
+        // Folded, the row is out of sight and out of reach.
+        inert={!listsOpen}
+        className={cn(
+          // Beside the button, as wide as the map leaves it: a row that is longer scrolls.
+          "absolute top-1/2 right-full mr-xs w-max -translate-y-1/2",
+          "max-w-[calc(100vw-var(--spacing-s)*2-2.5rem-var(--spacing-xs))] lg:max-w-md",
+          // It unfolds from the button. The room around it is for the focus ring of a chip.
+          "transition-[clip-path,opacity] duration-(--motion-large-duration) ease-theme-large motion-reduce:transition-none",
+          listsOpen
+            ? "opacity-100 [clip-path:inset(-0.5rem)]"
+            : "opacity-0 [clip-path:inset(-0.5rem_-0.5rem_-0.5rem_100%)]",
+        )}
+      >
+        <ListChips
+          onMap
+          className="max-w-full"
+          lists={lists.data ?? []}
+          joined={joined}
+          current={listView?.id}
+          onPick={onShowList}
+        />
+      </div>
+    </div>
   );
   // Whoever reads a list by its link has no other: the map names it, and a press opens it.
   const listButton = listView && !onShowList && opened !== "saved" && (
@@ -890,18 +929,21 @@ export function Viewer({
       <span className="truncate">{listName(listView)}</span>
     </Button>
   );
-  const status = (waveStations.isPending || waveStations.isError) && !listView && (
-    <p
-      role="status"
-      className={cn(
-        "edge flex items-center gap-xs rounded-full bg-neutral-1 px-s py-xxs text-s whitespace-nowrap [--edge-color:var(--neutral-10-transparent)]",
-        said,
-      )}
-    >
-      {waveStations.isPending && <Spinner className="size-3.5" />}
-      {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
-    </p>
-  );
+  // On a phone it stands where the lists unfold, and leaves them the room.
+  const status = (waveStations.isPending || waveStations.isError) &&
+    !listView &&
+    (wide || !listsOpen) && (
+      <p
+        role="status"
+        className={cn(
+          "edge flex items-center gap-xs rounded-full bg-neutral-1 px-s py-xxs text-s whitespace-nowrap [--edge-color:var(--neutral-10-transparent)]",
+          said,
+        )}
+      >
+        {waveStations.isPending && <Spinner className="size-3.5" />}
+        {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
+      </p>
+    );
   const legend = (
     <MapLegend
       // At the top on a phone: the bottom is where the sheets rise and where the credits are.
@@ -910,7 +952,10 @@ export function Viewer({
       layers={layers}
       onLayersChange={onLayersChange}
       expanded={legendChoice ?? wide}
-      onExpandedChange={setLegendChoice}
+      onExpandedChange={(expanded) => {
+        setLegendChoice(expanded);
+        if (expanded && !wide) setListsOpen(false);
+      }}
       windTruncated={windTruncated}
       breaksTruncated={breaksTruncated}
     />
@@ -965,19 +1010,16 @@ export function Viewer({
 
         {wide ? (
           <>
-            {listChips}
             {listButton}
             {status}
             {legend}
           </>
         ) : (
           // On a phone they stand one under the other at the top of the map: the bottom is
-          // where the sheets rise. The legend comes first, where the map's skeleton draws it,
-          // so that the lists come under it without moving it. The map is moved through the
-          // room they leave.
+          // where the sheets rise. The legend comes first, where the map's skeleton draws it.
+          // The map is moved through the room they leave.
           <div className="pointer-events-none absolute inset-x-s top-s flex flex-col items-start gap-xs *:pointer-events-auto">
             {legend}
-            {listChips}
             {listButton}
             {status}
           </div>
@@ -1032,6 +1074,8 @@ export function Viewer({
               <MinusIcon data-slot="icon" aria-hidden />
             </Button>
           </div>
+          {/* Last, so that no button moves when the account's lists are known. */}
+          {listsButton}
         </div>
 
         {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,

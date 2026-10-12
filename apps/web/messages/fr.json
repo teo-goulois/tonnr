@@ -630,5 +630,6 @@
   "create_alert": "Une alerte",
   "create_alert_spot": "Sur quel spot ?",
   "create_alert_no_spot": "Une alerte se pose sur un de tes spots. Ajoutes-en un d'abord.",
-  "auth_reason_add_alert": "Connecte-toi pour poser une alerte."
+  "auth_reason_add_alert": "Connecte-toi pour poser une alerte.",
+  "lists_showing": "Listes : {name} est affichée seule"
 }
