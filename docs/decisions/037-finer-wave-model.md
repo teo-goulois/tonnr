@@ -1,6 +1,6 @@
 # 037. A finer wave model where one has its sea
 
-Status: accepted by Téo on 2026-10-12, who was shown what a finer model gained against the buoys and said to add it. It builds what decision 036 left unbuilt, and amends decisions 005 and 023: a forecast's waves may come from a second provider, read as a grid, and a forecast's cell is finer where that provider has its sea. Not built: Météo-France's coastal model, whose runs are being kept for a month to judge it.
+Status: accepted by Téo on 2026-10-12, who was shown what a finer model gained against the buoys and said to add it. It builds what decision 036 left unbuilt, and amends decisions 005 and 023: a forecast's waves may come from a second provider, read as a grid, and a forecast's cell is finer where that provider has its sea. Not built: Météo-France's coastal model, which did no better on the two weeks it could be compared, and whose runs are being kept for a month to judge it.
 
 ## Context
 
@@ -39,7 +39,7 @@ Decision 005 took a provider that answers point by point because "decoding their
 
 - **A Zarr library.** `zarrita` read the store in a second, with the packer it brings as WebAssembly: six packages for one format the store writes one way. If Copernicus changes its packing, the forecast falls back on the other models and this choice is to make again.
 - **The models of 3 km and 4 km.** They did no better than ECMWF's near the shore, and the first read the heights about 6 % low.
-- **Météo-France's coastal WaveWatch III**, on a mesh of 110 m to 700 m along the French coasts. It is the finest, and the only one found that gives a peak period for each swell. A run is one file of 200 MB, three days ahead, and only the latest runs are published, so it could not be compared with the buoys. Its runs are kept at the moorings' places for a month from 2026-10-12, outside this repository, to compare it then.
+- **Météo-France's coastal WaveWatch III**, on a mesh of 110 m to 700 m along the French coasts. It is the finest, and the only one found that gives a peak period for each swell. A run is one file of 200 MB, three days ahead, and a run is published fourteen days. On those fourteen days, at 62 moorings from Biscay to the southern North Sea, its height was right 79 times in 100, against 82 for ECMWF at 9 km and 87 for the 1.5 km model on the same hours. Within 2 km of the shore, at 16 moorings, it was 65 against 66 and 85. Two weeks are too few to close it: its runs are kept at the moorings' places until 2026-11-12, outside this repository, to compare a month.
 - **Reading the fine model at the centre of a 0.05° cell.** The centre is up to 3.5 km from the spot, on the other side of a headland as easily as not.
 - **A cell named after the fine model's own.** It would tie what a forecast is kept by to one provider's grid.
 - **Blending the two models around the hour one takes over.** It would show a sea neither model computed.
