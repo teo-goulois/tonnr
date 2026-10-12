@@ -3,6 +3,8 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { m } from "@/paraglide/messages.js";
 
+import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
+
 // What floats on the map, as the viewer draws it: the theme's surface, with its edge.
 const floating = "edge bg-neutral-1 [--edge-color:var(--neutral-10-transparent)]";
 // A bar that stands for a line of text or a control, still for a reader who asked for no motion.
@@ -73,20 +75,22 @@ export function ViewerSkeleton({ className }: { className?: string }) {
       </div>
 
       {/* The sea's timeline: across a phone, beside the legend on a wide screen. */}
-      <div
-        aria-hidden
-        className={cn(
-          floating,
-          "absolute inset-x-s bottom-s flex items-end gap-xs rounded-(--radius-xs) p-xs",
-          "lg:right-[calc(var(--spacing-s)+2.5rem)] lg:bottom-s lg:left-[calc(var(--spacing-s)*2+16rem)] lg:max-w-160",
-        )}
-      >
-        <Skeleton className={cn(bar, "h-7 w-12 rounded-full")} />
-        <div className="min-w-0 flex-1">
-          <Skeleton className={cn(bar, "h-(--line-s) w-2/3")} />
-          <Skeleton className={cn(bar, "mt-xxs h-4 w-full lg:h-6")} />
+      {SEA_TIMELINE_SHOWN && (
+        <div
+          aria-hidden
+          className={cn(
+            floating,
+            "absolute inset-x-s bottom-s flex items-end gap-xs rounded-(--radius-xs) p-xs",
+            "lg:right-[calc(var(--spacing-s)+2.5rem)] lg:bottom-s lg:left-[calc(var(--spacing-s)*2+16rem)] lg:max-w-160",
+          )}
+        >
+          <Skeleton className={cn(bar, "h-7 w-12 rounded-full")} />
+          <div className="min-w-0 flex-1">
+            <Skeleton className={cn(bar, "h-(--line-s) w-2/3")} />
+            <Skeleton className={cn(bar, "mt-xxs h-4 w-full lg:h-6")} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -58,6 +58,7 @@ import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
 import { AccountPrompt, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
+import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
 import { ReadingAge, StationActions, holds, listName } from "./station-actions";
 import {
   type Bounds,
@@ -1081,7 +1082,7 @@ export function Viewer({
         {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
           across a phone. A drawer opens over it, and it does not move. On a wide screen it leaves
           the corner to the button of the map's credits. */}
-        {layers.sea && seaTime && seaTimes && (
+        {SEA_TIMELINE_SHOWN && layers.sea && seaTime && seaTimes && (
           <SeaTimeline
             ref={timelineRef}
             className={cn(
