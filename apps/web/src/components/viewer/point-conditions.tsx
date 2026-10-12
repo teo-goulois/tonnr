@@ -76,7 +76,7 @@ function waveModelLines({ waveModels, swellModels, hours }: Forecast) {
           : m.source_wave_model_mean(said(model)),
     ),
     // The swell apart, which is less sure than the whole sea, with the models it comes from.
-    ...swellModels.map((model, index) =>
+    ...(swellModels ?? []).map((model, index) =>
       index > 0 ? then(model) : m.source_swell_model(said(model)),
     ),
   ];

@@ -525,7 +525,7 @@ export function AlertEditor({
           {m.alert_advanced_about()}
           {current &&
             current.swellHeightMeters !== null &&
-            current.primarySwellHeightMeters !== null && (
+            current.primarySwellHeightMeters != null && (
               <>
                 {" "}
                 {m.alert_advanced_now({
@@ -621,7 +621,7 @@ export function AlertEditor({
                             first.swellPeriodSeconds !== null &&
                               formatSeconds(first.swellPeriodSeconds),
                             asksSwell &&
-                              first.primarySwellHeightMeters !== null &&
+                              first.primarySwellHeightMeters != null &&
                               m.alert_preview_swell({
                                 height: formatHeight(first.primarySwellHeightMeters),
                               }),
