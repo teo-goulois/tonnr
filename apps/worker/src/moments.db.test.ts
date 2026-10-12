@@ -57,7 +57,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the moments between two looks", () => {
     await database.db
       .insert(alertSpot)
       .values({ spotId, alertId: "bay", position: 0, lookedAt: at(lookedAt) })
-      .onConflictDoUpdate({ target: alertSpot.spotId, set: { lookedAt: at(lookedAt) } });
+      .onConflictDoUpdate({
+        target: [alertSpot.spotId, alertSpot.alertId],
+        set: { lookedAt: at(lookedAt) },
+      });
     await database.db.insert(alertWindow).values({
       alertId: "bay",
       spotId,

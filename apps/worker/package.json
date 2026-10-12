@@ -17,6 +17,7 @@
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/mail": "workspace:*",
+    "@repo/push": "workspace:*",
     "@repo/upstream": "workspace:*",
     "cron-parser": "^5.10.1",
     "drizzle-orm": "catalog:",

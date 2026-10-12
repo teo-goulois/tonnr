@@ -104,12 +104,15 @@ export const alert = pgTable(
   (table) => [index("alert_userId_idx").on(table.userId)],
 );
 
-/** A spot an alert is set on. A spot is in one alert at most: it is the key. */
+/**
+ * A spot an alert is set on. A spot may be in several alerts, each with its own conditions: the
+ * spot and the alert are the key, and whatever reads or writes a row names both.
+ */
 export const alertSpot = pgTable(
   "alert_spot",
   {
     spotId: text("spot_id")
-      .primaryKey()
+      .notNull()
       .references(() => spot.id, { onDelete: "cascade" }),
     alertId: text("alert_id")
       .notNull()
@@ -134,11 +137,17 @@ export const alertSpot = pgTable(
     mailed: jsonb("mailed").$type<ToldStretch[]>().default([]).notNull(),
     // The open hours that a mail said to begin, and are not over.
     mailBegun: jsonb("mail_begun").$type<Stretch[]>().default([]).notNull(),
+    // The same two for push: each way out keeps what it told, since each leaves at its own time.
+    pushed: jsonb("pushed").$type<ToldStretch[]>().default([]).notNull(),
+    pushBegun: jsonb("push_begun").$type<Stretch[]>().default([]).notNull(),
     // When the forecast that the last look read at the spot was fetched.
     forecastFetchedAt: timestamp("forecast_fetched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("alert_spot_alertId_idx").on(table.alertId)],
+  (table) => [
+    primaryKey({ columns: [table.spotId, table.alertId] }),
+    index("alert_spot_alertId_idx").on(table.alertId),
+  ],
 );
 
 /**
@@ -219,7 +228,7 @@ export const alertWindow = pgTable(
     hours: jsonb("hours").$type<SeaHour[]>().default([]).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.spotId, table.seaStart] }),
+    primaryKey({ columns: [table.spotId, table.alertId, table.seaStart] }),
     index("alert_window_alertId_idx").on(table.alertId),
   ],
 );
@@ -305,4 +314,32 @@ export const notificationDelivery = pgTable(
     primaryKey({ columns: [table.notificationId, table.channel] }),
     index("alert_delivery_state_dueAt_idx").on(table.state, table.dueAt),
   ],
+);
+
+/**
+ * A browser that asked to be sent an account's alerts: what its push service gave it. The
+ * address is a capability, since whoever holds it can send to that browser: it is never logged,
+ * and the API never gives it back. An account that has one is told by push.
+ */
+export const pushSubscription = pgTable(
+  "push_subscription",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Where the browser's push service takes a message for it. A browser has one, and it goes
+    // with whoever is signed in there: an account that subscribes takes it from the one before.
+    endpoint: text("endpoint").notNull().unique(),
+    // The browser's public key and its secret, in base64url: what a message is encrypted with.
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    // What the browser calls itself, for the account to tell its devices apart. Null when it
+    // did not say.
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // When the browser last said that it still holds this subscription.
+    seenAt: timestamp("seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("push_subscription_userId_idx").on(table.userId)],
 );
