@@ -759,7 +759,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the console of a developer account", () => 
       ]);
 
       expect(told).not.toContain("older");
-      expect(told).not.toContain("9000");
+      // The whole figure: an id is drawn at random, and may hold four of its digits in a row.
+      expect(told).not.toContain("9000000");
     });
 
     it("are not counted themselves under an account: a member's reading is a session's", async () => {
