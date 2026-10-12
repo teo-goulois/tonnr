@@ -493,7 +493,7 @@
   "alert_advanced": "Avancé : la houle seule",
   "alert_advanced_about": "Les vagues, c'est toute la mer : la houle venue du large, et le clapot que le vent lève sur place. Ici tu peux demander quelque chose de la houle seule. Elle vient d'un modèle moins sûr que les vagues, et certains endroits n'en ont pas : une alerte qui la demande y attend.",
   "alert_advanced_now": "Ici en ce moment : vagues {waves}, dont houle {swell}.",
-  "alert_says_swell": "et que, dans ces vagues, la houle seule",
+  "alert_says_swell": "Dans ces vagues, la houle seule",
   "alert_swell_height_of": "fait {range}",
   "alert_any_swell_height": "est de n'importe quelle taille",
   "alert_preview_swell": "houle {height}",

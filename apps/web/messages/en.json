@@ -493,7 +493,7 @@
   "alert_advanced": "Advanced: the swell alone",
   "alert_advanced_about": "The waves are the whole sea: the swell that comes from far away, and the chop the wind raises on the spot. Here you can ask something of the swell alone. It comes from a model that is less sure than the waves, and some places have none: an alert that asks for it waits there.",
   "alert_advanced_now": "Here now: waves {waves}, of which swell {swell}.",
-  "alert_says_swell": "and in those waves, the swell alone",
+  "alert_says_swell": "In those waves, the swell alone",
   "alert_swell_height_of": "is {range}",
   "alert_any_swell_height": "is of any size",
   "alert_preview_swell": "swell {height}",
