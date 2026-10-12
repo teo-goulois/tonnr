@@ -1,6 +1,6 @@
 # 022. The state of an instance
 
-Status: asked for by Téo on 2026-10-09. Not built: the history of a job's runs, the revision of the code that runs, and an alert when something stops.
+Status: asked for by Téo on 2026-10-09. Amended on 2026-10-12, when he asked for a way to know from outside that a deployment took: see "What anyone is told" below. Not built: the history of a job's runs, the revision of the code that runs, and an alert when something stops.
 
 ## Context
 
@@ -43,6 +43,16 @@ The API has the same blind spot. Nothing says when it started or which settings 
   - the size of the database.
 - A job's state is `late` when no attempt started for the time its schedule leaves between two runs, and a tenth of it more, ten minutes at least. Otherwise it is the state of its last attempt: `running`, `succeeded`, `degraded`, `failed` or `expired`. A job that never ran is `waiting` until it is late.
 - The API reads the worker's tables and writes neither.
+
+### What anyone is told
+
+Asked by Téo on 2026-10-12, after a deployment whose worker nobody but an operator could see start: "add a way to know that it is deployed".
+
+- `GET /v1/health` answers anyone, on `publicProcedure`, and is not counted. It says when the API process that answers started, and of the worker process that started last: when it started, when it was ready, when it was last seen, and whether that was in the last two minutes. Nothing else of the state leaves the admin.
+- A deployment took once a start is later than the moment it was asked for. `pnpm run deploy:api` and `pnpm run deploy:worker` read the health before they ask Easypanel, then wait ten minutes at most for a later start: the API's, or a worker's that is ready and runs. A wait that ends without one fails the command, since a build that fails leaves the container before answering. `pnpm run deploy:status` reads the health and asks nothing.
+- The commands read the health at the address `DEPLOYED_API_URL` names in the root `.env`. Without it they ask and do not wait, as they did.
+- An answer is kept five seconds for each process, so that a route that asks no one who they are does not query the database at every call.
+- A start says that a new container runs, not which code it runs. The revision is still not built: the images are built without the repository's history. Easypanel builds what `main` holds when it is asked.
 
 ### The admin
 

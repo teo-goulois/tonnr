@@ -13,7 +13,9 @@ import {
 import { asc, count, desc, gt, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { adminProcedure } from "../index";
+import type { Database } from "@repo/db";
+
+import { adminProcedure, publicProcedure } from "../index";
 
 const ADMIN_ONLY =
   "Takes the signed-in session of an operator of the instance, in a request that names the " +
@@ -99,7 +101,88 @@ export function describeJob(row: JobRow, now: Date) {
   };
 }
 
+// What anyone is told of the instance, kept a few seconds for each database: a route that asks
+// no one who they are does not query at every call.
+const HEALTH_KEPT_MS = 5 * 1000;
+type Health = {
+  at: Date;
+  worker: { startedAt: Date; readyAt: Date | null; seenAt: Date; running: boolean } | null;
+};
+const healthKept = new WeakMap<Database, { until: number; health: Promise<Health> }>();
+
+async function readHealth(db: Database): Promise<Health> {
+  // The database's clock, which is the one the worker writes its moments with.
+  const clock = await db.execute<{ at: string }>(
+    sql`select (extract(epoch from now()) * 1000)::bigint as at`,
+  );
+  const at = new Date(Number(clock.rows[0]?.at));
+  // The worker that started last: after a deployment, the one that the deployment started.
+  const [latest] = await db
+    .select({
+      startedAt: workerProcess.startedAt,
+      readyAt: workerProcess.readyAt,
+      seenAt: workerProcess.seenAt,
+    })
+    .from(workerProcess)
+    .orderBy(desc(workerProcess.startedAt), desc(workerProcess.id))
+    .limit(1);
+  return {
+    at,
+    worker: latest
+      ? { ...latest, running: at.getTime() - latest.seenAt.getTime() < SEEN_WITHIN_S * 1000 }
+      : null,
+  };
+}
+
+function healthOf(db: Database) {
+  const kept = healthKept.get(db);
+  if (kept && kept.until > Date.now()) return kept.health;
+  const health = readHealth(db);
+  healthKept.set(db, { until: Date.now() + HEALTH_KEPT_MS, health });
+  // An answer that could not be had is asked for again by the next call.
+  health.catch(() => healthKept.delete(db));
+  return health;
+}
+
 export const instanceRouter = {
+  health: publicProcedure
+    .route({
+      method: "GET",
+      path: "/health",
+      summary: "Whether the API and the worker run, and since when",
+      description:
+        "Answers anyone, and is not counted. It says when this API process started, and of " +
+        "the worker process that started last: when it started, when it had scheduled its " +
+        "queues, when it was last seen, and whether that was in the last two minutes. A " +
+        "deployment took once a start is later than the moment it was asked for: " +
+        "`pnpm run deploy:api` and `pnpm run deploy:worker` wait for that. The answer is up " +
+        "to five seconds old. Decision 022.",
+      tags: ["Instance"],
+      // The reference says that this route asks for neither a key nor a session.
+      spec: (operation) => ({ ...operation, security: [] }),
+    })
+    .output(
+      z.object({
+        // The database's clock when the answer was made.
+        at: z.date(),
+        api: z.object({ startedAt: z.date() }),
+        // Null on an instance where no worker ever started.
+        worker: z
+          .object({
+            startedAt: z.date(),
+            // Null while it has not scheduled its queues.
+            readyAt: z.date().nullable(),
+            seenAt: z.date(),
+            running: z.boolean(),
+          })
+          .nullable(),
+      }),
+    )
+    .handler(async ({ context }) => {
+      const health = await healthOf(context.db);
+      return { ...health, api: { startedAt: context.server.startedAt } };
+    }),
+
   state: adminProcedure
     .route({
       method: "GET",

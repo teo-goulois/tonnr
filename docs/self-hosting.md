@@ -40,6 +40,8 @@ The services may start in any order, and together.
 
 On Easypanel, each service has a deploy address under "Deployments". Put it in the root `.env`, as `.env.example` shows, and `pnpm run deploy:api` or `pnpm run deploy:worker` deploys the service from your machine. Keep the address secret: whoever knows it can deploy.
 
+Easypanel swaps a container with no outage, and a build that fails leaves the one before answering, so the API's address alone does not say whether a deployment took. Name your API's address in `DEPLOYED_API_URL`, in the same file: the two commands then wait until the new API, or a new worker, has started, and fail when none did in ten minutes. `pnpm run deploy:status` says since when both run. They read `GET /v1/health`, which answers anyone: when the API started, and when the worker that started last did. Any monitor can read it too.
+
 ## The web app, on Cloudflare
 
 This is optional: an instance serves its API without it. Decision 021 gives the reasons behind what follows.

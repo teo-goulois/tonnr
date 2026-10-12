@@ -5,10 +5,11 @@ import { testForecasts } from "@repo/conditions/forecasts/testing";
 import { testPlaces, testVerification } from "./testing";
 import { apiKey, developer, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
+import { workerProcess } from "@repo/db/schema/instance";
 import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "./context";
 import { publicProcedure } from "./index";
@@ -42,11 +43,12 @@ const everyName = everyProcedure.map(([name]) => name);
 
 // The procedures a key may call: the data everyone shares. Each is named, so that a new
 // procedure answers a key only once someone adds it here on purpose.
-// The procedures that answer anyone: the health check, what the link of an alert mail does,
-// which carries a key of its own (decision 031), and what opens the link of a shared list,
-// which is its own key too (decision 035).
+// The procedures that answer anyone: the two health checks, what the link of an alert mail
+// does, which carries a key of its own (decision 031), and what opens the link of a shared
+// list, which is its own key too (decision 035).
 const ANSWERS_ANYONE = [
   "healthCheck",
+  "v1.instance.health",
   "v1.alerts.mailOff",
   "v1.alerts.mailOffPage",
   "v1.shared.open",
@@ -210,6 +212,39 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
   describe("without a caller", () => {
     it("answers the health check", async () => {
       expect(await call(appRouter.healthCheck, undefined, anonymous())).toBe("OK");
+    });
+
+    it("says since when the API and the worker run, and nothing else of the instance", async () => {
+      const { db } = database;
+      await db.delete(workerProcess);
+      expect(await call(v1Router.instance.health, undefined, anonymous())).toEqual({
+        at: expect.any(Date),
+        api: { startedAt: new Date("2026-10-09T08:00:00Z") },
+        worker: null,
+      });
+
+      // The worker that started last is the one a deployment started. An answer is kept a few
+      // seconds: the next call is made as if they had passed.
+      await db.insert(workerProcess).values([
+        {
+          id: "before",
+          startedAt: sql`now() - interval '2 hours'`,
+          readyAt: sql`now() - interval '2 hours'`,
+          seenAt: sql`now() - interval '1 hour'`,
+        },
+        {
+          id: "after",
+          startedAt: sql`now() - interval '5 minutes'`,
+          readyAt: null,
+          seenAt: sql`now() - interval '10 seconds'`,
+        },
+      ]);
+      const later = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_000);
+      const { worker } = await call(v1Router.instance.health, undefined, anonymous());
+      later.mockRestore();
+      expect(worker).toMatchObject({ readyAt: null, running: true });
+      expect(Date.now() - worker!.startedAt.getTime()).toBeLessThan(10 * 60 * 1000);
+      await db.delete(workerProcess);
     });
 
     it.each(everyProcedure.filter(([name]) => !ANSWERS_ANYONE.includes(name)))(
