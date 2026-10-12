@@ -9,6 +9,10 @@ import { createPlaces } from "./places";
 // For the tests of the API and of a program that serves it: forecasts and places with a function
 // in place of the provider, and mail kept in memory. No test asks a provider anything.
 export { testForecasts } from "@repo/conditions/forecasts/testing";
+// For push: a pair of keys as an instance holds one, and the two keys a browser gives when it
+// subscribes. No test asks a push service.
+export { makeVapidKeys } from "@repo/push";
+export { testReceiver } from "@repo/push/testing";
 
 const SETTINGS = {
   BETTER_AUTH_URL: "http://localhost:3000",

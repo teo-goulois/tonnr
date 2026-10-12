@@ -9,7 +9,7 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-import { user } from "./auth";
+import { session, user } from "./auth";
 import { type SpotCriteria, spot } from "./spots";
 
 // Decision 031: an alert is an object of its own, set on one spot or on neighbours.
@@ -348,6 +348,13 @@ export const pushSubscription = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     // When the browser last said that it still holds this subscription.
     seenAt: timestamp("seen_at", { withTimezone: true }).defaultNow().notNull(),
+    // The session of the browser, as it was when it subscribed or last said so again. A device
+    // goes with it: when its account signs out there, or when the session is closed for it.
+    // Signing out is then all it takes to forget a browser, whatever the browser itself does.
+    sessionId: text("session_id").references(() => session.id, { onDelete: "cascade" }),
   },
-  (table) => [index("push_subscription_userId_idx").on(table.userId)],
+  (table) => [
+    index("push_subscription_userId_idx").on(table.userId),
+    index("push_subscription_sessionId_idx").on(table.sessionId),
+  ],
 );

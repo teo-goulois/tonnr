@@ -677,7 +677,6 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       quietTo: 7 * 60,
       byMail: null,
       namesInSubject: true,
-      byPush: false,
       // The instance of these tests sends no mail.
       mail: "off",
     };

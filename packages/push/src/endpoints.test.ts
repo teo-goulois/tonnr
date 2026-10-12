@@ -24,6 +24,8 @@ describe("isPushEndpoint", () => {
     ["another port", "https://fcm.googleapis.com:8443/fcm/send/invented"],
     ["a name and a password", "https://someone:secret@fcm.googleapis.com/fcm/send/invented"],
     ["a host with a dot after it", "https://fcm.googleapis.com./fcm/send/invented"],
+    ["a fragment, which no service is sent", "https://fcm.googleapis.com/fcm/send/invented#two"],
+    ["an empty fragment", "https://fcm.googleapis.com/fcm/send/invented#"],
     ["no address at all", "not an address"],
     ["nothing", ""],
   ])("refuses %s", (_what, address) => {

@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { pushKeyOf } from "@repo/api/push";
 
 import { createApp } from "./app";
 import { ENV } from "./env.server";
@@ -8,6 +9,8 @@ import { auth, db, forecasts, places, usage, verification } from "./services";
 // The moment the process started, which the migrations may have followed by minutes: the state
 // of the instance shows it, to tell whether a deployment took.
 const startedAt = new Date(Date.now() - process.uptime() * 1000);
+// A push key that no browser could subscribe with stops the program here, and names itself.
+const pushKey = await pushKeyOf(ENV);
 const app = createApp({
   env: ENV,
   db,
@@ -16,6 +19,7 @@ const app = createApp({
   forecasts,
   places,
   verification,
+  pushKey,
   startedAt,
   revision: readRevision(),
 });

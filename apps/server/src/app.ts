@@ -26,6 +26,9 @@ type Services = {
   places: Context["places"];
   // What sends an account the mail that checks its address.
   verification: Context["verification"];
+  // The public key of the pair the instance sends push with, as `pushKeyOf` checked it. Without
+  // it the instance sends none, and takes no subscription.
+  pushKey?: string | undefined;
   // When the process started. Without it, when this app was made.
   startedAt?: Date;
   // The commit the program was built from, when it knows.
@@ -40,6 +43,11 @@ const HOUR_SECONDS = 60 * 60;
 // The reference's page runs this script at the API's own address, where a signed-in session
 // reaches. The version is named, so that the CDN serves what was read and not whatever is newest.
 const REFERENCE_SCRIPT = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.73.1";
+
+// What follows `/push/devices/` in a request's line and is neither the id of a device nor a
+// word of the API's own.
+const NO_DEVICE_ID =
+  /(\/push\/devices\/)(?!(?:forget|renew|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\s|$))\S+/i;
 
 // A procedure that refuses a request has answered it: the request's line in the log says so with
 // its status. The refusal itself is not printed: it holds what the caller sent.
@@ -57,6 +65,7 @@ export function createApp({
   forecasts,
   places,
   verification,
+  pushKey,
   startedAt = new Date(),
   revision = null,
 }: Services) {
@@ -75,8 +84,14 @@ export function createApp({
   // the admin app, and the API's own reference.
   const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites])];
 
-  // What follows `?` is left out of the log: it holds what a caller searched for.
-  app.use(logger((line, ...rest) => console.log(line.replace(/\?\S*/, ""), ...rest)));
+  // What follows `?` is left out of the log: it holds what a caller searched for. So is what a
+  // caller writes where the id of a push device goes, when it is no id: it may be the address
+  // of a browser, which is never logged (decision 031).
+  app.use(
+    logger((line, ...rest) =>
+      console.log(line.replace(/\?\S*/, "").replace(NO_DEVICE_ID, "$1…"), ...rest),
+    ),
+  );
   app.use(
     "/*",
     cors({
@@ -168,7 +183,7 @@ export function createApp({
       places,
       verification,
       reply: {} as Context["reply"],
-      server: { startedAt, webOrigin, revision },
+      server: { startedAt, webOrigin, revision, pushKey },
     };
 
     const answered =

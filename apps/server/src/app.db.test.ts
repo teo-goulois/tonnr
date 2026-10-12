@@ -1,4 +1,10 @@
-import { testForecasts, testPlaces, testVerification } from "@repo/api/testing";
+import {
+  makeVapidKeys,
+  testForecasts,
+  testPlaces,
+  testReceiver,
+  testVerification,
+} from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { suspensionHooks } from "@repo/auth/suspension";
@@ -12,7 +18,7 @@ import {
   operator,
   visitorClosure,
 } from "@repo/db/schema/access";
-import { alertSettings } from "@repo/db/schema/alerts";
+import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
 import { stationList } from "@repo/db/schema/lists";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -71,6 +77,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     mailing: Mailing = { on: false },
     // The search of places asks no service: a test gives the one whose answers it sets.
     places = testPlaces().places,
+    // The public key of an instance that sends push.
+    pushKey?: string,
   ) {
     const { db } = database;
     const mail = testVerification(db, { ...mailing, settings });
@@ -83,6 +91,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       forecasts,
       places,
       verification: mail.verification,
+      pushKey,
     });
     return { app: made, ...mail };
   }
@@ -1402,6 +1411,171 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       );
       expect(opened.headers.get("Location")).toContain(key);
       expect(await byMail()).toBe(true);
+    });
+  });
+
+  describe("a browser's push subscription", () => {
+    // A pair's public key and a browser's subscription, made for these tests.
+    const INSTANCE_KEY = makeVapidKeys().publicKey;
+    const ADDRESS = "https://fcm.googleapis.com/fcm/send/kept-out";
+    const browser = (endpoint = ADDRESS) => ({
+      endpoint,
+      keys: testReceiver().keys,
+      label: "Chrome · macOS",
+    });
+    let pushing: ReturnType<typeof createApp>;
+    beforeAll(() => {
+      pushing = make(env, { on: false }, testPlaces().places, INSTANCE_KEY).app;
+    });
+    const subscriptions = () => database.db.select().from(pushSubscription);
+
+    it("gives the web app the key of an instance that sends push, and none of one that does not", async () => {
+      const cookie = await signUp("reader");
+
+      const overRest = await send("GET", "/v1/push/key", { cookie }, pushing);
+      expect([overRest.status, await bodyOf(overRest)]).toEqual([200, { publicKey: INSTANCE_KEY }]);
+      const overRpc = await send(
+        "POST",
+        "/rpc/v1/push/key",
+        { cookie, origin: APP, body: {} },
+        pushing,
+      );
+      expect(await bodyOf(overRpc)).toEqual({ json: { publicKey: INSTANCE_KEY } });
+
+      expect(await bodyOf(await send("GET", "/v1/push/key", { cookie }))).toEqual({
+        publicKey: null,
+      });
+      expect((await send("GET", "/v1/push/key", {}, pushing)).status).toBe(401);
+    });
+
+    it("takes an address in a request's body, and gives it back in no answer and no log", async () => {
+      const cookie = await signUp("reader");
+      const from = { cookie, origin: APP };
+      logged.mockClear();
+      const faults = vi.mocked(console.error);
+      faults.mockClear();
+      const answers: string[] = [];
+      const ask = async (method: string, path: string, body?: unknown) => {
+        const response = await send(method, path, { ...from, body }, pushing);
+        const text = await response.text();
+        answers.push(text);
+        return { status: response.status, body: JSON.parse(text) as Record<string, unknown> };
+      };
+
+      const made = await ask("POST", "/v1/push/devices", browser());
+      expect(made.status).toBe(201);
+      expect(Object.keys(made.body).sort()).toEqual(["createdAt", "id", "label", "seenAt"]);
+      const id = String(made.body.id);
+      expect((await ask("POST", "/v1/push/devices/renew", { id, ...browser() })).status).toBe(200);
+      expect((await ask("POST", "/v1/push/devices/renew", browser())).status).toBe(200);
+      expect((await ask("POST", "/rpc/v1/push/renew", { json: { id, ...browser() } })).status).toBe(
+        200,
+      );
+      expect((await ask("GET", "/v1/push/devices")).body).toMatchObject({ devices: [{ id }] });
+      // An address that is no push service's, and one the caller has no device for.
+      const refused = browser("https://push.example.org/kept-out");
+      expect((await ask("POST", "/v1/push/devices", refused)).status).toBe(400);
+      expect((await ask("POST", "/rpc/v1/push/subscribe", { json: refused })).status).toBe(400);
+      // A device the caller has not: an address nothing kept, with an id and without one.
+      const unkept = browser("https://fcm.googleapis.com/fcm/send/kept-out-too");
+      for (const named of [{ id: crypto.randomUUID(), ...unkept }, unkept]) {
+        expect((await ask("POST", "/v1/push/devices/renew", named)).status).toBe(404);
+      }
+      // An id that is an address is refused as it comes, in a body or in a URL.
+      expect(
+        (await ask("POST", "/v1/push/devices/renew", { ...browser(), id: ADDRESS })).status,
+      ).toBe(400);
+      expect((await ask("DELETE", `/v1/push/devices/${encodeURIComponent(ADDRESS)}`)).status).toBe(
+        400,
+      );
+      expect(await subscriptions()).toMatchObject([{ id, endpoint: ADDRESS }]);
+      expect((await ask("POST", "/v1/push/devices/forget", { endpoint: ADDRESS })).body).toEqual({
+        forgotten: true,
+      });
+      expect(await subscriptions()).toEqual([]);
+
+      const lines = logged.mock.calls.map((line: unknown[]) => String(line[0])).join("\n");
+      expect(lines).toContain("/v1/push/devices");
+      expect(`${answers.join("\n")}\n${lines}`).not.toContain("kept-out");
+      expect(faults).not.toHaveBeenCalled();
+    });
+
+    it("forgets a browser when its account signs out there, and no other of its browsers", async () => {
+      const here = await signUp("reader");
+      // The same account, signed in in another browser.
+      const signedIn = await send("POST", "/api/auth/sign-in/email", {
+        origin: APP,
+        body: { email: "reader@example.org", password: "made-up-for-these-tests" },
+      });
+      const elsewhere = signedIn.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+      const made = async (cookie: string, endpoint: string) => {
+        const answer = await send(
+          "POST",
+          "/v1/push/devices",
+          { cookie, origin: APP, body: browser(endpoint) },
+          pushing,
+        );
+        expect(answer.status).toBe(201);
+      };
+      await made(here, "https://fcm.googleapis.com/fcm/send/this-browser");
+      await made(elsewhere, "https://fcm.googleapis.com/fcm/send/another-browser");
+
+      const out = await send("POST", "/api/auth/sign-out", { cookie: here, origin: APP, body: {} });
+      expect(out.status).toBe(200);
+
+      // The session is gone, and the device that was made in it with it.
+      expect((await subscriptions()).map((row) => row.endpoint)).toEqual([
+        "https://fcm.googleapis.com/fcm/send/another-browser",
+      ]);
+      expect((await send("GET", "/v1/push/devices", { cookie: here }, pushing)).status).toBe(401);
+    });
+
+    it("takes no address in a URL, on either transport", async () => {
+      const cookie = await signUp("reader");
+      const subscription = browser();
+      const data = encodeURIComponent(JSON.stringify({ json: subscription }));
+      const query = new URLSearchParams({
+        endpoint: subscription.endpoint,
+        "keys[p256dh]": subscription.keys.p256dh,
+        "keys[auth]": subscription.keys.auth,
+      });
+
+      logged.mockClear();
+      for (const path of [
+        `/rpc/v1/push/subscribe?data=${data}`,
+        `/rpc/v1/push/forget?data=${data}`,
+        `/v1/push/devices?${query}`,
+        `/v1/push/devices/forget?${query}`,
+      ]) {
+        await send("GET", path, { cookie, origin: APP }, pushing);
+      }
+      expect(await subscriptions()).toEqual([]);
+      // A caller that puts one there all the same leaves nothing of it in the log.
+      const lines = logged.mock.calls.map((line: unknown[]) => String(line[0])).join("\n");
+      expect(lines).toContain("/v1/push/devices");
+      expect(lines).not.toContain("kept-out");
+
+      // The reference shows no route of push that reads its address from the query.
+      const spec = await bodyOf<{
+        paths: Record<string, Record<string, { parameters?: { in: string }[] }>>;
+      }>(await send("GET", "/v1/openapi.json"));
+      const routes = Object.entries(spec.paths).filter(([path]) => path.startsWith("/push"));
+      expect(routes.map(([path]) => path).sort()).toEqual([
+        "/push/devices",
+        "/push/devices/forget",
+        "/push/devices/renew",
+        "/push/devices/{id}",
+        "/push/key",
+      ]);
+      for (const [path, operations] of routes) {
+        for (const [method, operation] of Object.entries(operations)) {
+          const inQuery = (operation.parameters ?? []).filter((one) => one.in === "query");
+          expect(inQuery, `${method} ${path}`).toEqual([]);
+        }
+      }
     });
   });
 

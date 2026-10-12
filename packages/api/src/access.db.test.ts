@@ -122,6 +122,13 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.notifications.list",
   "v1.notifications.markRead",
   "v1.places.search",
+  // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
+  "v1.push.devices",
+  "v1.push.forget",
+  "v1.push.key",
+  "v1.push.remove",
+  "v1.push.renew",
+  "v1.push.subscribe",
   // Keeping the list a link opens takes an account: decision 035.
   "v1.shared.join",
   // A spot is its owner's alone, and so is what they ask of it: decision 034.

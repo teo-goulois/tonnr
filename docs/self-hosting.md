@@ -219,8 +219,9 @@ Set the two values in `apps/server/.env`, then run `docker compose up --detach` 
 | `CORS_ORIGIN`       | The worker          | The web app's address: it names your instance to a push service, and a push opens there. |
 
 - With Docker Compose the worker reads `apps/server/.env` as the API does, so there is nothing more to set. On another platform, give the API the public key, and the worker both.
-- Set both, or neither. An instance without them sends no push.
-- The public key is a point of the curve P-256 as its 65 bytes, and the private key 32 bytes, each in base64url with no padding: 87 and 43 characters. A value of another shape stops the container at its start, which names the variable.
+- Set both, or neither. The API needs the public key, and the worker the pair: an API without the public key takes no subscription.
+- The API keeps the address a browser's push service gave it, and takes no other: Google's, Mozilla's, Apple's and Microsoft's services, over `https`. The address lets whoever holds it send to that browser: the API answers it to no one and logs none. An account keeps ten devices at most.
+- The public key is a point of the curve P-256 as its 65 bytes, and the private key 32 bytes, each in base64url with no padding: 87 and 43 characters. A value of another shape stops the container at its start, which names the variable, and so does an API whose public key is no point of the curve.
 - Keep the pair. A browser subscribes to one public key: with another pair, every subscription made before stops working. A push service then refuses each push, and does not say that the subscription is gone: the worker keeps it and logs `push: not taken (status 403)`, until the browser subscribes again.
 - A worker whose public key is not its private key's does not start, and says which variable is wrong. A worker without a pair, or without `CORS_ORIGIN`, sends no push and says nothing of it: what waits for a browser is given up when its hours are over.
 - A push goes to the push service of the browser that subscribed, and to no other address: Google's for Chrome and the browsers built on it, Mozilla's, Apple's, Microsoft's. The worker needs the way out to them, over `https` on port 443, and follows no redirection.

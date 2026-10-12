@@ -18,6 +18,7 @@ import { notificationsRouter } from "./notifications";
 import { placesRouter } from "./places";
 import { preferencesRouter } from "./preferences";
 import { publicationsRouter } from "./publications";
+import { pushRouter } from "./push";
 import { sharedRouter } from "./shared";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
@@ -45,6 +46,7 @@ export const v1Router = {
   notifications: notificationsRouter,
   places: placesRouter,
   publications: publicationsRouter,
+  push: pushRouter,
   shared: sharedRouter,
   spots: spotsRouter,
   stations: stationsRouter,

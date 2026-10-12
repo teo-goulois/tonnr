@@ -266,7 +266,6 @@ const settingsSchema = z.object({
   // Whether alerts are mailed. Null until the account has said.
   byMail: z.boolean().nullable(),
   namesInSubject: z.boolean(),
-  byPush: z.boolean(),
   // Whether a mail can reach the account, which is no setting of its own: "ready" on an instance
   // that sends mail, to an address that was checked, "unchecked" while the address was not, and
   // "off" on an instance that sends no mail.
@@ -682,7 +681,6 @@ export const alertsRouter = {
           quietTo: minutesOfDay.nullable(),
           byMail: z.boolean(),
           namesInSubject: z.boolean(),
-          byPush: z.boolean(),
         })
         .partial()
         .extend(deviceFields)

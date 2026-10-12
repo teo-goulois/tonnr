@@ -12,10 +12,11 @@ const PUSH_HOSTS = [
 
 /**
  * Whether an address is one a push service of the browsers gives: `https`, at one of their
- * hosts, on the port `https` has, and with no name or password in it.
+ * hosts, on the port `https` has, with no name or password in it, and with no fragment. A
+ * fragment is never sent to the service: two addresses that differ by theirs are one browser.
  */
 export function isPushEndpoint(address: string): boolean {
-  if (!URL.canParse(address)) return false;
+  if (!URL.canParse(address) || address.includes("#")) return false;
   const url = new URL(address);
   if (url.protocol !== "https:" || url.port !== "" || url.username !== "" || url.password !== "") {
     return false;

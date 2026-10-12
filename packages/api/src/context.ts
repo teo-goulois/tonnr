@@ -34,6 +34,13 @@ export type Context = {
   // The process that answers, as the state of the instance shows it: when it started, and the
   // web app's address as it holds it. Both are the server's to say.
   // `revision` is the commit the program was built from, null or left out where it does not
-  // know: a program that runs from its sources.
-  server: { startedAt: Date; webOrigin: string; revision?: string | null };
+  // know: a program that runs from its sources. `pushKey` is the public key of the pair the
+  // instance sends push with, which a browser subscribes with: an instance without one sends
+  // no push. Decision 031.
+  server: {
+    startedAt: Date;
+    webOrigin: string;
+    revision?: string | null;
+    pushKey?: string | undefined;
+  };
 };
