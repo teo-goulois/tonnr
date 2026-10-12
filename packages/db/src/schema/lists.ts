@@ -11,11 +11,11 @@ import {
 
 import { user } from "./auth";
 import { station } from "./buoys";
-import { surfBreak } from "./spots";
+import { spot, surfBreak } from "./spots";
 
 /**
- * A user's list of stations and of surf breaks. Each user has one default list, their favorites.
- * The table is named for what a list held first.
+ * A user's list of stations, of surf breaks and of their own spots. Each user has one default
+ * list, their favorites. The table is named for what a list held first.
  */
 export const stationList = pgTable(
   "station_list",
@@ -77,5 +77,25 @@ export const stationListBreak = pgTable(
   (table) => [
     primaryKey({ columns: [table.listId, table.breakId] }),
     index("station_list_break_breakId_idx").on(table.breakId),
+  ],
+);
+
+/** A spot of the list's owner in a list, beside its stations and its breaks. */
+export const stationListSpot = pgTable(
+  "station_list_spot",
+  {
+    listId: text("list_id")
+      .notNull()
+      .references(() => stationList.id, { onDelete: "cascade" }),
+    // A spot that is deleted leaves the lists it was in.
+    spotId: text("spot_id")
+      .notNull()
+      .references(() => spot.id, { onDelete: "cascade" }),
+    // A list shows its spots in the order they were added.
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.listId, table.spotId] }),
+    index("station_list_spot_spotId_idx").on(table.spotId),
   ],
 );
