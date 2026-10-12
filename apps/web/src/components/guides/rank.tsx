@@ -6,9 +6,14 @@ import { m } from "@/paraglide/messages.js";
 import type { Rank } from "../viewer/types";
 import { RANKS } from "./guide-words";
 
-/** A wave of an emblem: a line that rises and falls three times, from the left. */
-const wave = (y: number, from: number, step: number, rise: number) =>
-  `M${from} ${y}q${step / 2} ${-rise} ${step} 0t${step} 0t${step} 0`;
+/**
+ * A wave of an emblem: a line whose troughs are round and whose crests are points, as the water
+ * of the app's wave icon is drawn. It starts and ends at the bottom of a trough, with a whole
+ * trough between the two: `width` is that trough's, and `depth` how far under its crests it goes.
+ */
+const wave = (y: number, from: number, width: number, depth: number) =>
+  `M${from} ${y}q${width / 4} 0 ${width / 2} ${-depth}` +
+  `q${width / 2} ${2 * depth} ${width} 0q${width / 4} ${depth} ${width / 2} ${depth}`;
 
 // The emblem of each rank, drawn in a square of 24: a pin with a rim, a field and its waves, one
 // more at each rank. The outline changes with the rank as well, so that none is told by its
@@ -25,7 +30,7 @@ const EMBLEMS: Record<
     top: "#3bd2c2",
     bottom: "#0a8fa3",
     ink: "#ffffff",
-    waves: [wave(12.2, 6.75, 3.5, 2.8)],
+    waves: [wave(13.2, 6.2, 5.8, 1.9)],
   },
   cs: {
     outline: "M12 1.6 20.4 4.3v7.5c0 5.3-3.6 8.7-8.4 10.6C7.2 20.5 3.6 17.1 3.6 11.8V4.3Z",
@@ -33,7 +38,7 @@ const EMBLEMS: Record<
     top: "#9a8cff",
     bottom: "#5638e0",
     ink: "#ffffff",
-    waves: [wave(10.2, 6.75, 3.5, 2.6), wave(14.4, 6.75, 3.5, 2.6)],
+    waves: [wave(11.1, 6.4, 5.6, 1.7), wave(14.9, 6.4, 5.6, 1.7)],
   },
   ct: {
     outline:
@@ -42,7 +47,7 @@ const EMBLEMS: Record<
     top: "#ffe072",
     bottom: "#f3a012",
     ink: "#4a2c00",
-    waves: [wave(9.6, 7.2, 3.2, 2.3), wave(13, 7.2, 3.2, 2.3), wave(16.4, 7.2, 3.2, 2.3)],
+    waves: [wave(9.9, 6.9, 5.1, 1.5), wave(13.2, 6.9, 5.1, 1.5), wave(16.5, 6.9, 5.1, 1.5)],
   },
 };
 
@@ -128,8 +133,9 @@ export function RankBadge({
           fill="none"
           stroke={locked ? "var(--neutral-5)" : emblem.ink}
           // The smaller the emblem, the bolder its waves: they must still be read.
-          strokeWidth={(rank === "ct" ? 1.7 : 1.9) + (isFine ? 0 : 0.2)}
+          strokeWidth={(rank === "ct" ? 1.6 : 1.8) + (isFine ? 0 : 0.2)}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
       ))}
     </svg>
