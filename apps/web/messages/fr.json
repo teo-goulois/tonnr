@@ -158,7 +158,7 @@
   "tide_unavailable": "La marée n’a pas pu être chargée. Réessaie dans un instant.",
   "tide_today": "Aujourd’hui",
   "source_measurements": "Mesures : {attribution}. Licence :",
-  "source_forecast": "Prévision : {attribution}.",
+  "source_forecast": "Prévision : {attribution}",
   "source_wave_model": "Vagues : modèle {model}, maille de {kilometers} km.",
   "source_wave_model_mean": "Vagues : modèle {model}, maille de {kilometers} km. Sa période est une moyenne, pas celle du pic.",
   "source_tide": "Marée : calculée, hauteurs au-dessus de {datum}. Source : {source}.",
