@@ -50,6 +50,7 @@ import { SpotPanel } from "@/components/spots/spot-panel";
 import { closeCreateMenu, openCreateMenu, useCreateMenu } from "@/lib/create-menu";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import { isTabPanel } from "@/lib/phone-nav";
+import type { Recent } from "@/lib/recents";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
@@ -206,6 +207,10 @@ type ViewerProps = {
   // The stations and the surf breaks the lists name, by id.
   savedStations: Map<string, Station>;
   savedBreaks: Map<string, SavedBreak>;
+  // What the reader looked at last: the saved panel lists it, and the map makes more of its
+  // breaks.
+  recents: Recent[];
+  onClearRecents: () => void;
   notifications: Loadable<AlertNotification[]>;
   // The alerts of the account, its settings, and what the screens do with them.
   alerting: Alerting;
@@ -446,6 +451,8 @@ export function Viewer({
   lists,
   savedStations,
   savedBreaks,
+  recents,
+  onClearRecents,
   notifications,
   alerting,
   guiding,
@@ -607,6 +614,24 @@ export function Viewer({
     if (inView) return inView;
     return loadedBreak?.id === selectedBreakId ? loadedBreak : undefined;
   }, [breaks, selectedBreakId, loadedBreak]);
+  // The breaks as the map draws them: those looked at last stand out, and are drawn whether
+  // they are among those in view or not, since from afar the map is given some of them only. A
+  // list shown alone is drawn as it is.
+  const mapBreaks = useMemo<MapBreak[]>(() => {
+    const looked = recents.filter((recent) => recent.kind === "break");
+    if (listView || looked.length === 0) return breaks;
+    const ids = new Set(looked.map((recent) => recent.id));
+    return [
+      ...breaks.filter((found) => !ids.has(found.id)),
+      ...looked.map(({ id, name, latitude, longitude }) => ({
+        id,
+        name,
+        latitude,
+        longitude,
+        recent: true,
+      })),
+    ];
+  }, [breaks, recents, listView]);
   // The spots as the map draws them, and the selected one, which it draws as it does a break.
   // A spot that is being moved is drawn by its marker alone. A list shown alone has its own
   // spots, which may be someone else's.
@@ -1033,7 +1058,7 @@ export function Viewer({
           ref={map}
           stations={mapStations}
           windStations={mapWindStations}
-          breaks={layers.breaks ? breaks : []}
+          breaks={layers.breaks ? mapBreaks : []}
           spots={mapSpots}
           selectedId={selection}
           selectedBreak={editing ? undefined : (selectedSpot ?? selectedBreak)}
@@ -1398,6 +1423,8 @@ export function Viewer({
             onViewList={onViewList}
             onShareList={(list) => setSharingId(list.id)}
             joined={joined}
+            recents={recents}
+            onClearRecents={onClearRecents}
           />
         )}
       </ViewerTab>

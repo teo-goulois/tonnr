@@ -190,6 +190,8 @@
   "saved_add_to_list": "Ajouter à une liste",
   "saved_manage_lists": "Gérer les listes",
   "saved_sign_in_prompt": "Connecte-toi pour enregistrer des bouées, des spots de surf et tes propres spots, et les ranger dans des listes.",
+  "recents_title": "Vus récemment",
+  "recents_clear": "Effacer",
   "saved_empty": "Rien dans une liste pour l'instant. Ouvre une bouée, un spot de surf ou un de tes spots et appuie sur son étoile.",
   "saved_list_empty": "Cette liste est vide.",
   "saved_load_failed": "Tes listes n'ont pas pu être chargées.",

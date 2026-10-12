@@ -1,13 +1,20 @@
+import { ORPCError } from "@orpc/server";
+import type { Database } from "@repo/db";
+import { station } from "@repo/db/schema/buoys";
 import {
   DISTANCE_UNITS,
   HEIGHT_UNITS,
   PRECIPITATION_UNITS,
+  RECENT_KINDS,
+  type RecentKind,
   TEMPERATURE_UNITS,
   WIND_SPEED_UNITS,
+  recentView,
   savedShortcuts,
   unitPreferences,
 } from "@repo/db/schema/preferences";
-import { eq } from "drizzle-orm";
+import { spot, surfBreak } from "@repo/db/schema/spots";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -43,6 +50,69 @@ const unitColumns = {
   distance: unitPreferences.distance,
   precipitation: unitPreferences.precipitation,
 };
+
+// What the caller looked at last: a station, a surf break or a spot of its own, with what a list
+// writes of it and where the map finds it. Decision 042.
+const recentSchema = z.object({
+  kind: z.enum(RECENT_KINDS),
+  id: z.string(),
+  name: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  viewedAt: z.date(),
+});
+// How many an account keeps: the oldest leaves when another comes.
+const RECENTS_MOST = 5;
+
+// What a row names, by its kind. A spot is one of the account's own: a row never answers
+// another's.
+const viewedStation = and(eq(recentView.kind, "station"), eq(station.id, recentView.targetId));
+const viewedBreak = and(eq(recentView.kind, "break"), eq(surfBreak.id, recentView.targetId));
+const viewedSpot = and(
+  eq(recentView.kind, "spot"),
+  eq(spot.id, recentView.targetId),
+  eq(spot.userId, recentView.userId),
+);
+
+// The account's recent views, the last first. One whose station, break or spot is gone is left
+// out.
+function recentsOf(db: Database, userId: string) {
+  return db
+    .select({
+      kind: recentView.kind,
+      id: recentView.targetId,
+      name: sql<string>`coalesce(${station.name}, ${surfBreak.name}, ${spot.name})`,
+      latitude: sql<number>`coalesce(${station.latitude}, ${surfBreak.latitude}, ${spot.latitude})`,
+      longitude: sql<number>`coalesce(${station.longitude}, ${surfBreak.longitude}, ${spot.longitude})`,
+      viewedAt: recentView.viewedAt,
+    })
+    .from(recentView)
+    .leftJoin(station, viewedStation)
+    .leftJoin(surfBreak, viewedBreak)
+    .leftJoin(spot, viewedSpot)
+    .where(
+      and(
+        eq(recentView.userId, userId),
+        sql`coalesce(${station.id}, ${surfBreak.id}, ${spot.id}) is not null`,
+      ),
+    )
+    .orderBy(desc(recentView.viewedAt))
+    .limit(RECENTS_MOST);
+}
+
+// Whether there is such a thing for the account to have looked at.
+async function isThere(db: Database, userId: string, kind: RecentKind, id: string) {
+  const [found] =
+    kind === "station"
+      ? await db.select({ id: station.id }).from(station).where(eq(station.id, id))
+      : kind === "break"
+        ? await db.select({ id: surfBreak.id }).from(surfBreak).where(eq(surfBreak.id, id))
+        : await db
+            .select({ id: spot.id })
+            .from(spot)
+            .where(and(eq(spot.id, id), eq(spot.userId, userId)));
+  return found !== undefined;
+}
 
 // What the web app keeps in the caller's account. It is not part of the public API.
 export const preferencesRouter = {
@@ -98,4 +168,48 @@ export const preferencesRouter = {
         .returning(unitColumns);
       return saved!;
     }),
+
+  getRecents: protectedProcedure
+    .output(z.array(recentSchema))
+    .handler(({ context }) => recentsOf(context.db, context.session.user.id)),
+
+  saveRecent: protectedProcedure
+    // The caller opened this. It comes first, and what was looked at before it follows.
+    .input(z.object({ kind: z.enum(RECENT_KINDS), id: z.string().min(1).max(200) }))
+    .output(z.array(recentSchema))
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      if (!(await isThere(context.db, userId, input.kind, input.id))) {
+        throw new ORPCError("NOT_FOUND", { message: `No ${input.kind} "${input.id}".` });
+      }
+      const viewedAt = new Date();
+      await context.db.transaction(async (tx) => {
+        await tx
+          .insert(recentView)
+          .values({ userId, kind: input.kind, targetId: input.id, viewedAt })
+          .onConflictDoUpdate({
+            target: [recentView.userId, recentView.kind, recentView.targetId],
+            set: { viewedAt },
+          });
+        // Only the last ones stay. Two views at once may leave one too many, which the next
+        // takes away, and an answer never holds more.
+        await tx.delete(recentView).where(
+          and(
+            eq(recentView.userId, userId),
+            sql`(${recentView.kind}, ${recentView.targetId}) not in (
+              select kept.kind, kept.target_id from ${recentView} as kept
+              where kept.user_id = ${userId}
+              order by kept.viewed_at desc
+              limit ${RECENTS_MOST}
+            )`,
+          ),
+        );
+      });
+      return recentsOf(context.db, userId);
+    }),
+
+  clearRecents: protectedProcedure.output(z.array(recentSchema)).handler(async ({ context }) => {
+    await context.db.delete(recentView).where(eq(recentView.userId, context.session.user.id));
+    return [];
+  }),
 };

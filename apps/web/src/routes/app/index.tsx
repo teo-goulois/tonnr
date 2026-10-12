@@ -47,6 +47,7 @@ import { useAlerting } from "./-alerting";
 import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
+import { useRecentViews } from "./-recents";
 import { useSharedList } from "./-shared";
 
 export const Route = createFileRoute("/app/")({
@@ -512,6 +513,29 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     history.data?.station ??
     (selectedBreakId ? (breaks.data?.breaks.find(isSelected) ?? found.data) : spot);
   const point = placed && { latitude: placed.latitude, longitude: placed.longitude };
+  // What is open is what was looked at last. A spot counts when it is the account's own: one
+  // read in a list someone shared is not the reader's to find again.
+  const viewedKind = selectedId
+    ? ("station" as const)
+    : selectedBreakId
+      ? ("break" as const)
+      : ownSpot
+        ? ("spot" as const)
+        : undefined;
+  const recent = useRecentViews({
+    account: session.data?.user.id,
+    isReady: !session.isPending,
+    viewed:
+      viewedKind && placed
+        ? {
+            kind: viewedKind,
+            id: placed.id,
+            name: placed.name,
+            latitude: placed.latitude,
+            longitude: placed.longitude,
+          }
+        : undefined,
+  });
   const atPoint = { latitude: point?.latitude ?? 0, longitude: point?.longitude ?? 0 };
   // A point far from any tide station, or inland, has no tide or forecast: the panel says so.
   const expected = { enabled: point !== undefined, retry: false, meta: { quiet: true } };
@@ -1165,6 +1189,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       lists={loadable(lists)}
       savedStations={savedStations}
       savedBreaks={savedBreaks}
+      recents={recent.recents}
+      onClearRecents={recent.onClear}
       notifications={loadable(notifications)}
       alerting={alerting}
       guiding={guided.guiding}

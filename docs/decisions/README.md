@@ -45,3 +45,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [039. An app open to visitors, closed to them while demand is strong](039-visitors.md)
 - [040. A phone goes from one screen to another by a bar of tabs](040-phone-navigation.md)
 - [041. Guides that accounts write, and a rank for writing them](041-community-guides.md)
+- [042. What was looked at last, found again](042-recent-views.md)

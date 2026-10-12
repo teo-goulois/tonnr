@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
 import { leftPushHere } from "@/lib/push-here";
+import { clearRecents } from "@/lib/recents";
 import { leaveWith } from "@/lib/unsaved";
 
 /**
@@ -23,6 +24,8 @@ export function useSignOut() {
     // What was loaded for the account must not outlive the session: whoever signs out goes
     // back to the landing page. Whatever was unsaved was asked about before the session ended.
     queryClient.clear();
+    // Nor what the account looked at last, which this browser kept a copy of.
+    clearRecents();
     void navigate({ to: "/", ignoreBlocker: true });
   };
 

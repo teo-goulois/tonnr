@@ -1,4 +1,4 @@
-import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
 
@@ -47,3 +47,31 @@ export const unitPreferences = pgTable("unit_preferences", {
   precipitation: text("precipitation").$type<PrecipitationUnit>().notNull().default("mm"),
   savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
 });
+
+// What an account can have looked at: a station, a surf break of the catalogue, or a spot of
+// its own.
+export const RECENT_KINDS = ["station", "break", "spot"] as const;
+export type RecentKind = (typeof RECENT_KINDS)[number];
+
+/**
+ * What an account looked at last, so that it finds it again on every device: a few rows, the
+ * oldest of which leaves when another comes. The account alone reads them, and it can clear
+ * them. A row names what was looked at and keeps nothing of it: one whose station, break or spot
+ * is gone is answered to nobody, and leaves in its turn. Decision 042.
+ */
+export const recentView = pgTable(
+  "recent_view",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<RecentKind>().notNull(),
+    // The id of the station, of the break or of the spot.
+    targetId: text("target_id").notNull(),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind, table.targetId] }),
+    index("recent_view_userId_viewedAt_idx").on(table.userId, table.viewedAt),
+  ],
+);

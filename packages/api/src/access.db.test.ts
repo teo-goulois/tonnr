@@ -87,9 +87,13 @@ const takesASession = everyProcedure.filter(
 
 // The procedures any account may call with its session: what the account owns.
 const ANSWERS_AN_ACCOUNT = [
+  // What an account looked at last is its own to read and to clear: decision 042.
+  "preferences.clearRecents",
+  "preferences.getRecents",
   "preferences.getShortcuts",
-  "preferences.saveShortcuts",
   "preferences.getUnits",
+  "preferences.saveRecent",
+  "preferences.saveShortcuts",
   "preferences.saveUnits",
   "privateData",
   "v1.account.get",

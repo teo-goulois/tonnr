@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 
 import { formatSeconds, freshnessOf } from "@/lib/format";
+import type { Recent } from "@/lib/recents";
 import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
@@ -203,6 +204,64 @@ export function SpotRow({
   );
 }
 
+/**
+ * What the reader looked at last, the last first: a press opens it again. Nothing is drawn when
+ * nothing was looked at.
+ */
+export function RecentPlaces({
+  recents,
+  onSelect,
+  onSelectBreak,
+  onSelectSpot,
+  onClear,
+}: {
+  recents: Recent[];
+  onSelect: (stationId: string) => void;
+  onSelectBreak: (breakId: string) => void;
+  onSelectSpot: (spotId: string) => void;
+  onClear: () => void;
+}) {
+  if (recents.length === 0) return null;
+  return (
+    <section className="grid gap-xs">
+      <div className="flex items-center justify-between gap-s">
+        <h3 className="min-w-0 truncate font-medium">{m.recents_title()}</h3>
+        <Button variant="ghost" size="sm" onClick={onClear}>
+          {m.recents_clear()}
+        </Button>
+      </div>
+      <ul className="-mx-xs grid gap-xxs">
+        {recents.map((recent) =>
+          recent.kind === "break" ? (
+            <BreakRow
+              key={`break ${recent.id}`}
+              found={recent}
+              onSelect={() => onSelectBreak(recent.id)}
+            />
+          ) : recent.kind === "spot" ? (
+            <SpotRow
+              key={`spot ${recent.id}`}
+              spot={recent}
+              onSelect={() => onSelectSpot(recent.id)}
+            />
+          ) : (
+            <li key={`station ${recent.id}`} className="flex items-center gap-xxs">
+              <button
+                type="button"
+                className={`${rowLayout} focus-ring cursor-pointer text-left outline-none hover:bg-neutral-3-transparent`}
+                onClick={() => onSelect(recent.id)}
+              >
+                <span aria-hidden className="size-6 shrink-0 rounded-full bg-neutral-3" />
+                <span className="min-w-0 flex-1 truncate">{recent.name}</span>
+              </button>
+            </li>
+          ),
+        )}
+      </ul>
+    </section>
+  );
+}
+
 type SavedPanelProps = {
   now: number;
   signedIn: boolean;
@@ -226,6 +285,9 @@ type SavedPanelProps = {
   onShareList: (list: SavedList) => void;
   // The lists of others that the account opened by their link and kept.
   joined: JoinedList[];
+  // What the reader looked at last, which a visitor has too.
+  recents: Recent[];
+  onClearRecents: () => void;
 };
 
 /** The visitor's spots, then their lists of stations, surf breaks and spots, the favorites first. */
@@ -248,18 +310,33 @@ export function SavedPanel({
   onViewList,
   onShareList,
   joined,
+  recents,
+  onClearRecents,
 }: SavedPanelProps) {
   const [newName, setNewName] = useState("");
   // Deleting a list takes two presses: the trash, then the button that takes its place.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
+  const recentPlaces = (
+    <RecentPlaces
+      recents={recents}
+      onSelect={onSelect}
+      onSelectBreak={onSelectBreak}
+      onSelectSpot={onSelectSpot}
+      onClear={onClearRecents}
+    />
+  );
+
   if (!signedIn) {
     return (
-      <AccountPrompt
-        text={m.saved_sign_in_prompt()}
-        onSignIn={onSignIn}
-        onCreateAccount={onCreateAccount}
-      />
+      <div className="grid gap-l">
+        <AccountPrompt
+          text={m.saved_sign_in_prompt()}
+          onSignIn={onSignIn}
+          onCreateAccount={onCreateAccount}
+        />
+        {recentPlaces}
+      </div>
     );
   }
 
@@ -286,6 +363,7 @@ export function SavedPanel({
   return (
     <div className="grid gap-l">
       <ListChips lists={all} joined={joined} current={undefined} onPick={pick} />
+      {recentPlaces}
       <section className="grid gap-xs">
         <div className="flex items-center justify-between gap-s">
           <h3 className="min-w-0 truncate font-medium">

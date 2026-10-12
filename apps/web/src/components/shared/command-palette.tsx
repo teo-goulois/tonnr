@@ -18,6 +18,7 @@ import { useTheme } from "next-themes";
 import { useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { useRecents } from "@/lib/recents";
 import { useShortcut, useShortcuts } from "@/lib/shortcuts";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, setLocale } from "@/paraglide/runtime.js";
@@ -61,8 +62,33 @@ export function CommandPalette() {
   );
   const lists = [...(saved.data?.lists ?? []), ...(saved.data?.joined ?? [])];
 
+  const recents = useRecents();
+
   const isDark = resolvedTheme === "dark";
   const groups: PaletteGroup[] = [
+    // What the reader looked at last comes first: it is what an open palette shows before a key.
+    ...(recents.length > 0
+      ? [
+          {
+            value: "recents",
+            label: m.recents_title(),
+            items: recents.map((recent) => ({
+              value: `${recent.name} recent récent ${recent.kind} ${recent.id}`,
+              label: recent.name,
+              run: () =>
+                void navigate({
+                  to: "/app",
+                  search:
+                    recent.kind === "station"
+                      ? { station: recent.id }
+                      : recent.kind === "break"
+                        ? { break: recent.id }
+                        : { spot: recent.id },
+                }),
+            })),
+          },
+        ]
+      : []),
     {
       value: "navigation",
       label: m.command_group_navigation(),

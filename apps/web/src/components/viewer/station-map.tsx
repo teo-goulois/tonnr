@@ -92,6 +92,8 @@ export type MapBreak = {
   name: string;
   latitude: number;
   longitude: number;
+  // True for a break the reader looked at lately: it stands out, and is named from afar.
+  recent?: boolean;
 };
 
 /** A spot of the user's own: a place they named. */
@@ -184,7 +186,10 @@ const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 const FINGER_REACH = 12;
 const MOUSE_REACH = 6;
 // The layers of the surf breaks, which their switch shows and hides together.
-const BREAK_LAYERS = ["break-dots", "break-waves", "break-names"];
+const BREAK_LAYERS = ["break-dots", "break-waves", "break-names", "break-recent-names"];
+// A break the reader looked at lately is no smaller than this from afar, and has its name there:
+// they are a few, each somewhere to go back to.
+const RECENT_RADIUS = 4;
 // The layers of the user's own spots.
 const SPOT_LAYERS = ["spot-dots", "spot-pins", "spot-names"];
 // A spot's disc is as wide from afar as from near, and wide enough for the pin drawn in it:
@@ -339,7 +344,7 @@ function breakFeatures(breaks: MapBreak[]) {
     features: breaks.map((found) => ({
       type: "Feature" as const,
       geometry: { type: "Point" as const, coordinates: [found.longitude, found.latitude] },
-      properties: { id: found.id, name: found.name },
+      properties: { id: found.id, name: found.name, recent: found.recent === true },
     })),
   };
 }
@@ -856,13 +861,21 @@ export function StationMap({
     // dot, small enough for a coast full of them to stay a coast. Closer, the dot grows into a
     // disc, with a wave in it and the break's name beside it.
     const isHovered: ExpressionSpecification = ["boolean", ["feature-state", "hover"], false];
+    const isRecent: ExpressionSpecification = ["boolean", ["get", "recent"], false];
     instance.addLayer({
       id: "break-dots",
       type: "circle",
       source: "breaks",
+      // A break looked at lately is drawn over its neighbours.
+      layout: { "circle-sort-key": ["case", isRecent, 1, 0] },
       paint: {
-        // The break the pointer is on stands out from its neighbours.
-        "circle-radius": byBreakDisc((disc) => ["case", isHovered, disc.radius + 2, disc.radius]),
+        // The break the pointer is on stands out from its neighbours, and so does one looked at
+        // lately, from afar.
+        "circle-radius": byBreakDisc((disc) => [
+          "+",
+          ["case", isRecent, Math.max(RECENT_RADIUS, disc.radius), disc.radius],
+          ["case", isHovered, 2, 0],
+        ]),
         "circle-color": ink,
         "circle-stroke-width": byBreakDisc((disc) => disc.edge),
         "circle-stroke-color": surface,
@@ -883,6 +896,32 @@ export function StationMap({
         "text-variable-anchor": ["top", "bottom", "left", "right"],
         // Clear of the disc, in letters' heights.
         "text-radial-offset": byBreakDisc((disc) => (disc.radius + 5) / 11),
+        "text-justify": "auto",
+        "text-max-width": 8,
+        // Where two names would meet, the one of a break looked at lately is kept.
+        "symbol-sort-key": ["case", isRecent, 0, 1],
+      },
+      paint: {
+        "text-color": ink,
+        "text-halo-color": surface,
+        "text-halo-width": 1.5,
+      },
+    });
+    // The breaks looked at lately are named from afar too, before the others' names come in.
+    instance.addLayer({
+      id: "break-recent-names",
+      type: "symbol",
+      source: "breaks",
+      maxzoom: BREAK_NAME_ZOOM,
+      filter: isRecent,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 11,
+        "text-variable-anchor": ["top", "bottom", "left", "right"],
+        "text-radial-offset": byBreakDisc(
+          (disc) => (Math.max(RECENT_RADIUS, disc.radius) + 5) / 11,
+        ),
         "text-justify": "auto",
         "text-max-width": 8,
       },
@@ -1019,8 +1058,15 @@ export function StationMap({
     instance.setFilter("station-selected", ["==", ["get", "id"], selectedId ?? ""]);
     // The selected break or spot is drawn by its pill, which stands where its disc and its name
     // were.
+    const isShown: ExpressionSpecification = ["!=", ["get", "id"], selectedBreak?.id ?? ""];
     for (const layer of [...BREAK_LAYERS, ...SPOT_LAYERS]) {
-      instance.setFilter(layer, ["!=", ["get", "id"], selectedBreak?.id ?? ""]);
+      instance.setFilter(
+        layer,
+        // The names from afar are those of the breaks looked at lately, and of no other.
+        layer === "break-recent-names"
+          ? ["all", ["boolean", ["get", "recent"], false], isShown]
+          : isShown,
+      );
     }
     layout();
   }, [selectedId, selectedBreak?.id, styleVersion, layout]);
