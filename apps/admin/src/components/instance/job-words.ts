@@ -39,6 +39,10 @@ const COUNT_LABELS: Record<string, (count: { count: string }) => string> = {
   callCounts: m.count_call_counts,
   spots: m.count_spots,
   created: m.count_created,
+  begins: m.count_begins,
+  evenings: m.count_evenings,
+  mails: m.count_mails,
+  pushes: m.count_pushes,
   failed: m.count_failed,
   stale: m.count_stale,
 };
