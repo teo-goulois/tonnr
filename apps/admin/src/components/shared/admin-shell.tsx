@@ -1,3 +1,4 @@
+import { Badge } from "@repo/ui/components/ui/badge";
 import { APP_NAME } from "@repo/config/app";
 import { Button } from "@repo/ui/components/ui/button";
 import { SearchIcon } from "@repo/ui/icon";
@@ -108,10 +109,13 @@ export function Shell({ account, home, nav, commands, children }: ShellProps) {
   );
 }
 
-type AdminShellProps = Pick<ShellProps, "account" | "children">;
+type AdminShellProps = Pick<ShellProps, "account" | "children"> & {
+  // How many spots wait for an answer in the moderation. Shown beside its page once known.
+  waiting?: number;
+};
 
 /** The admin of an operator: every page that runs the instance, and its commands. */
-export function AdminShell({ account, children }: AdminShellProps) {
+export function AdminShell({ account, waiting = 0, children }: AdminShellProps) {
   return (
     <Shell
       account={account}
@@ -124,6 +128,15 @@ export function AdminShell({ account, children }: AdminShellProps) {
           <NavLink to="/developers">{m.nav_developers()}</NavLink>
           <NavLink to="/activity">{m.nav_activity()}</NavLink>
           <NavLink to="/accounts">{m.nav_accounts()}</NavLink>
+          <NavLink to="/moderation">
+            {m.nav_moderation()}
+            {waiting > 0 && (
+              <Badge variant="warning" className="ml-xs tabular-nums">
+                <span className="sr-only">{m.moderation_waiting()}</span>
+                {waiting}
+              </Badge>
+            )}
+          </NavLink>
           <NavLink to="/instance">{m.nav_instance()}</NavLink>
         </>
       }

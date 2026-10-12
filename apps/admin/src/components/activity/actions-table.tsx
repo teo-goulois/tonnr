@@ -76,6 +76,10 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_key_made(key)];
     case "key.revoke":
       return [m.action_key_revoked(key)];
+    case "spot.publish":
+      return [m.action_spot_published()];
+    case "spot.refuse":
+      return [m.action_spot_refused()];
     case "account.sign_out":
       return [m.action_signed_out({ count: formatCount(action.changes?.sessions ?? 0) })];
     case "account.suspend":

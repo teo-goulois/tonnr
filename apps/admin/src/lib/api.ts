@@ -13,6 +13,7 @@ export type ConsoleDeveloper = Answer<V1["console"]["get"]>["developers"][number
 export type Account = Answer<V1["accounts"]["list"]>["accounts"][number];
 export type AccountDetail = Answer<V1["accounts"]["get"]>;
 export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];
+export type Publication = Answer<V1["publications"]["list"]>["publications"][number];
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;
 export type Job = InstanceState["jobs"][number];

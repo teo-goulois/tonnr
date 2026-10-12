@@ -292,6 +292,7 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 - Its address and the API's must belong to one site, such as `admin.example.org` and `api.example.org`. The session cookie is the API's, and a browser does not send it from a page of another site. An admin on your machine therefore runs an API on your machine. Do not name an address of your machine in the `ADMIN_ORIGIN` of an instance online: whatever runs there would run the instance.
 - Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
 - Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
+- Its page "Moderation" lists the spots that accounts ask to make public (decision 034). Nobody answers them without an operator: on an instance that has none, a request waits. Accepting publishes a spot's name, its point and what its owner says of it in your catalogue, under the ODbL. The terms of use that accounts agree to are the web app's page `/terms`: it is a first text, and what your instance promises is yours to write there.
 
 ## Checking addresses by mail
 
