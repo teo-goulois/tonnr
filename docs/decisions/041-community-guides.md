@@ -28,18 +28,20 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 - An operator reads a contribution before it shows, in the admin's moderation, beside the requests of decision 034. That is the first step and it does not last: one operator cannot judge a car park on another coast.
 - An account that had three contributions confirmed sees its lists of words shown at once, marked as waiting to be confirmed. Such a list is not what the guide says yet: it stands beside the line, and `GET /v1/breaks` does not answer it. A text always waits for the operator.
 - The accounts that keep the break say whether a list that shows is right: they hold the break in a list of their own, or have a spot of their own on it. Two of them confirm it, and it is then what the line says. An account confirms once it had a contribution of its own confirmed, and with a checked address where the instance checks addresses: keeping a break is one press, and would let an account made for it confirm whatever its maker wrote.
-- An account that keeps the break contests what shows, confirmed or not, with a reason. A contest changes nothing by itself, so that contesting hides nothing: it comes to the operator, who refuses the contribution or keeps it. An account contests a contribution once.
+- An account that keeps the break contests what shows, confirmed or not, with a reason. A contest changes nothing by itself, so that contesting hides nothing: it comes to the operator, who refuses the contribution or keeps it. An account contests a contribution once. One that said a contribution is right may still contest it, once it knows better. One that contested it does not confirm it afterwards: a contest stays one, with its reason and its day.
 - A list that was confirmed closes the others that showed on its line: they were written of what the line said before.
 - Who confirmed and who contested is answered to no other account, and counted where it is said at all: a name would tell which breaks an account keeps. The operator reads who contested, as they read who asks to publish a spot.
 - An operator refuses a contribution at any time, one that was confirmed too. The line then says what it said before.
 - An account has thirty contributions waiting at most, writes sixty in a day and contests twenty.
+- Two things done to a guide at the same moment each get an answer of the API, and neither a fault of the database. Whatever changes a contribution holds, in this order and no other, the rows of the accounts whose score or whose count it touches, then the line of the guide, then the contribution. A rank that two confirmations reach together is written by the second.
 
 ### The score and the rank
 
 - The score is computed from the rows and kept nowhere. The scale may change, and then applies to everything already written.
 - Only what was confirmed counts: 5 points for a list of words, 10 for a text. A line of a break counts once for an account, however often it wrote it.
 - A request of decision 034 that was accepted counts 20. Accepting writes a row for it, on a line of its own, so that it still counts once its owner deletes the spot, and a migration wrote one for each request accepted before. That row is answered to its owner alone: a break still names no account.
-- A contribution to a break that later leaves the catalogue still counts.
+- A contribution to a break that later leaves the catalogue still counts. A row keeps the id of the break it was written of, so that a line still counts once then, however often its author wrote it.
+- The version before this one accepts a spot without writing its row. The API writes the rows that are missing each time it starts, so that a spot accepted while a version is being deployed is counted.
 - A rank is a threshold of the score, and is kept for life: the QS from 20 points, the CS from 150, the CT from 600. A break described whole is 80 points. A rank is written the day it is reached, in `rank_award`, and stays when a contribution is refused afterwards and the score goes down.
 - A rank shows beside the username on what the account wrote in a guide, in its own account panel, and to its friends.
 
@@ -50,7 +52,7 @@ Téo first thought of points that buy a gift at a threshold: wax, a leash, a pad
 - The sign-in library keeps it, with its own plugin, and asks every account for a name: a new account gives its username there. No account signs in by its username: that route of the library is closed.
 - A name given before is never shown as a username: it was not given to be public. Such an account chooses its username at its first contribution, or in its account's panel.
 - An account changes its username when it likes, for another: it does not go back to none, since what it wrote would then name nobody at its own word. The one it had is free again, and what it wrote reads under the new one.
-- An operator takes a username away in the admin app. Nobody takes that one again, the account it was taken from no more than another: `removed_username` keeps it, and names no account. The record of the operator's action does not hold it.
+- An operator takes a username away in the admin app. Nobody takes that one again, the account it was taken from no more than another: `removed_username` keeps it, and names no account. The record of the operator's action does not hold it. The sign-in library checks a username, then writes it: a username is read again once it is written, and taken off when it was removed in between.
 
 ### Friends and sponsors
 

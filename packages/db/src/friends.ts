@@ -1,5 +1,6 @@
 import { and, count, eq, isNull, or } from "drizzle-orm";
 
+import { holdAccounts } from "./accounts";
 import type { Database } from "./index";
 import { accountLink, friendship, sponsorship } from "./schema/community";
 
@@ -54,6 +55,9 @@ export async function friendsOf(db: Reader, userId: string) {
  * account may have. Whoever ended a friendship makes it again by opening the other's link.
  */
 export async function befriend(tx: Transaction, by: string, owner: string) {
+  // Both accounts are held first: of two friendships made at once, the second counts the first,
+  // and one that is being ended is ended before this reads it.
+  await holdAccounts(tx, [by, owner]);
   const pair = pairOf(by, owner);
   const [found] = await tx
     .select()

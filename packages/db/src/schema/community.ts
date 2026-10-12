@@ -75,6 +75,10 @@ export const breakContribution = pgTable(
     // Null once the break has left the catalogue: the row stays, and still counts for whoever
     // wrote it.
     breakId: text("break_id").references(() => surfBreak.id, { onDelete: "set null" }),
+    // The break it was written of, by the id it had: kept once the break has left the
+    // catalogue, so that a line of a break still counts once for whoever wrote it several times.
+    // For `place`, the break that the spot became.
+    breakRef: text("break_ref").notNull(),
     // Null once the account is deleted: what it wrote stays, and names nobody.
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     line: text("line", { enum: CONTRIBUTION_LINES }).notNull(),

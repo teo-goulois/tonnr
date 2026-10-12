@@ -33,6 +33,9 @@ describe("a contribution's value", () => {
   it("tells two values that say the same, whichever kind they are", () => {
     expect(sameValue(["sand"], ["sand"])).toBe(true);
     expect(sameValue(["sand"], ["sand", "rock"])).toBe(false);
+    // The catalogue keeps its lists in the order they came in.
+    expect(sameValue(["rock", "sand"], ["sand", "rock"])).toBe(true);
+    expect(sameValue(["rock", "rock"], ["rock", "sand"])).toBe(false);
     expect(sameValue("By the pier.", "By the pier.")).toBe(true);
     expect(sameValue("By the pier.", "By the pier")).toBe(false);
     expect(sameValue(null, null)).toBe(true);

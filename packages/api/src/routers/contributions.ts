@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { holdAccounts } from "@repo/db/accounts";
 import { user } from "@repo/db/schema/auth";
 import {
   breakContribution,
@@ -34,12 +35,13 @@ import {
   confirmHeld,
   type Contribution,
   currentOf,
+  holdLine,
   keepsBreak,
   type Language,
   valueSchema,
 } from "../guides";
 import { protectedProcedure } from "../index";
-import { standingOf } from "../standings";
+import { sponsorOf, standingOf } from "../standings";
 import { hasControlCharacter } from "../text";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -84,16 +86,26 @@ const noContribution = (id: string) =>
 /**
  * Holds a contribution of another account until the transaction ends, so that what is said of
  * it is said of what it is: an operator who refuses it at the same moment waits, or is waited
- * for.
+ * for. What it holds, it holds in the one order every change of a guide follows: the accounts'
+ * rows, the caller's and, where a confirmation may raise a score, the author's and its
+ * sponsor's, then the line, then the contribution.
  */
-async function holdOthers(tx: Transaction, id: string, userId: string) {
+async function holdOthers(tx: Transaction, id: string, userId: string, raises: boolean) {
+  // Read first without a hold, to know which accounts and which line to hold before it.
+  const [seen] = await tx.select().from(breakContribution).where(eq(breakContribution.id, id));
+  // A break that left the catalogue has no guide to say anything of.
+  if (!seen || seen.breakId === null || seen.line === "place") throw noContribution(id);
+  await holdAccounts(
+    tx,
+    raises ? [userId, seen.userId, await sponsorOf(tx, seen.userId)] : [userId],
+  );
+  await holdLine(tx, seen.breakRef, seen.line);
   const [held] = await tx
     .select()
     .from(breakContribution)
     .where(eq(breakContribution.id, id))
     .for("update");
-  // A break that left the catalogue has no guide to say anything of.
-  if (!held || held.breakId === null || held.line === "place") throw noContribution(id);
+  if (!held || held.breakId === null) throw noContribution(id);
   if (held.userId === userId) {
     throw new ORPCError("FORBIDDEN", {
       message: "An account says nothing of its own contribution. Others do.",
@@ -172,14 +184,12 @@ export const contributionsRouter = {
 
       return context.db.transaction(async (tx) => {
         // Holding the account's row makes its contributions run one after the other, so two
-        // at once cannot both pass a limit. The hold leaves the row free to be pointed at: an
-        // operator who confirms another contribution of the account at the same moment writes
-        // a rank that points to it, and neither waits for the other.
+        // at once cannot both pass a limit.
+        await holdAccounts(tx, [userId]);
         const [account] = await tx
           .select({ username: user.username })
           .from(user)
-          .where(eq(user.id, userId))
-          .for("no key update");
+          .where(eq(user.id, userId));
         if (!account?.username) {
           throw new ORPCError("FORBIDDEN", {
             message: "Choose a username first: a contribution is read under it.",
@@ -187,6 +197,8 @@ export const contributionsRouter = {
         }
         const [found] = await tx.select().from(surfBreak).where(eq(surfBreak.id, input.breakId));
         if (!found) throw new ORPCError("NOT_FOUND", { message: `No break "${input.breakId}".` });
+        // What the line says is read, and what waited of it is closed, with the line held.
+        await holdLine(tx, found.id, line);
         if (sameValue(await currentOf(tx, found, line, language), value)) {
           throw new ORPCError("CONFLICT", { message: "The guide already says so." });
         }
@@ -239,6 +251,7 @@ export const contributionsRouter = {
           .values({
             id: crypto.randomUUID(),
             breakId: found.id,
+            breakRef: found.id,
             userId,
             line,
             value,
@@ -358,7 +371,8 @@ export const contributionsRouter = {
         "instance checks addresses, and one of its own contributions was confirmed. It is " +
         "said of a contribution that shows as waiting to be confirmed, once, by an account " +
         `that did not write it. ${CONFIRMATIONS_NEEDED} accounts make it confirmed: it is ` +
-        "then what its line says. Who said so is answered to nobody. Decision 041.",
+        "then what its line says. An account that contested it does not confirm it: the " +
+        "answer is 409. Who said so is answered to nobody. Decision 041.",
       tags: ["Contributions"],
     })
     .input(z.object({ id: z.string().min(1).max(200) }))
@@ -366,7 +380,7 @@ export const contributionsRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       return context.db.transaction(async (tx) => {
-        const held = await holdOthers(tx, input.id, userId);
+        const held = await holdOthers(tx, input.id, userId, true);
         if (held.status !== "shown") {
           throw new ORPCError("CONFLICT", {
             message: "This contribution no longer waits to be confirmed.",
@@ -389,14 +403,27 @@ export const contributionsRouter = {
           });
         }
 
-        // An account says one thing of a contribution: one that contested it changes its mind.
+        // An account says one thing of a contribution. One that contested it gave its reason
+        // to the operator, and does not take it back by confirming: a contest stays one, with
+        // its reason and its day.
+        const [before] = await tx
+          .select({ verdict: contributionVerdict.verdict })
+          .from(contributionVerdict)
+          .where(
+            and(
+              eq(contributionVerdict.contributionId, held.id),
+              eq(contributionVerdict.userId, userId),
+            ),
+          );
+        if (before?.verdict === "contest") {
+          throw new ORPCError("CONFLICT", {
+            message: "You contested this contribution. An operator reads your reason.",
+          });
+        }
         await tx
           .insert(contributionVerdict)
           .values({ contributionId: held.id, userId, verdict: "confirm" })
-          .onConflictDoUpdate({
-            target: [contributionVerdict.contributionId, contributionVerdict.userId],
-            set: { verdict: "confirm", reason: null, dismissedAt: null, createdAt: sql`now()` },
-          });
+          .onConflictDoNothing();
         const [said] = await tx
           .select({ total: count() })
           .from(contributionVerdict)
@@ -442,10 +469,7 @@ export const contributionsRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       return context.db.transaction(async (tx) => {
-        // The account's row first, as writing a contribution holds it: its contests run one
-        // after the other.
-        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("no key update");
-        const held = await holdOthers(tx, input.id, userId);
+        const held = await holdOthers(tx, input.id, userId, false);
         if (held.status !== "shown" && held.status !== "confirmed") {
           throw new ORPCError("CONFLICT", { message: "This contribution no longer shows." });
         }

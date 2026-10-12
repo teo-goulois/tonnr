@@ -115,6 +115,16 @@ export async function keepsBreak(db: Reader, userId: string, breakId: string) {
   return standing !== undefined;
 }
 
+/**
+ * Holds a line of a break's guide until the transaction ends: what changes the contributions of
+ * one line runs one at a time. It is taken after the accounts' rows and before any
+ * contribution's, always in that order, so that confirming one contribution and closing the
+ * others of its line never wait on each other.
+ */
+export async function holdLine(tx: Transaction, breakId: string, line: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${breakId}:${line}`}, 0))`);
+}
+
 /** The username and the rank of each of some accounts that have a username. */
 export async function authorsOf(db: Reader, userIds: (string | null)[]) {
   const ids = [...new Set(userIds.filter((id) => id !== null))];
@@ -137,9 +147,10 @@ export async function authorsOf(db: Reader, userIds: (string | null)[]) {
 }
 
 /**
- * Confirms a contribution that the transaction holds: it becomes what its line says. Another
- * that showed on the same line as waiting to be confirmed is closed, since it was written of
- * what the line said before. The ranks its author reaches by it are written with it.
+ * Confirms a contribution that the transaction holds, with its line and the rows of its author
+ * and of its author's sponsor: it becomes what its line says. Another that showed on the same
+ * line as waiting to be confirmed is closed, since it was written of what the line said before.
+ * The ranks its author reaches by it are written with it.
  */
 export async function confirmHeld(tx: Transaction, held: Contribution, operatorId: string | null) {
   const now = new Date();

@@ -1,6 +1,6 @@
 import type { Database } from "@repo/db";
 import { breakContribution, rankAward, sponsorship } from "@repo/db/schema/community";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { higherRank, POINTS, pointsOf, type Rank, ranksAt, TRUSTED_FROM } from "./community";
 
@@ -23,21 +23,20 @@ const NONE: Standing = { score: 0, confirmed: 0, sponsorships: 0, rank: null, tr
 
 /**
  * The score of each account, from its confirmed contributions: nothing keeps it. A line of a
- * break counts once for an account, however often it wrote it. A break that left the catalogue
- * still counts, each of its rows as a line of its own. An account that another was made
- * through counts for that other once it has a contribution confirmed.
+ * break counts once for an account, however often it wrote it, and still does once the break
+ * has left the catalogue. An account that another was made through counts for that other once
+ * it has a contribution confirmed.
  */
 async function scoresOf(db: Reader, userIds: string[]) {
   const scores = new Map<string, { score: number; confirmed: number; sponsorships: number }>();
   if (userIds.length === 0) return scores;
-  const place = sql`coalesce(${breakContribution.breakId}, ${breakContribution.id})`;
   const credited = await db
     .select({ userId: breakContribution.userId, line: breakContribution.line })
     .from(breakContribution)
     .where(
       and(inArray(breakContribution.userId, userIds), eq(breakContribution.status, "confirmed")),
     )
-    .groupBy(breakContribution.userId, place, breakContribution.line);
+    .groupBy(breakContribution.userId, breakContribution.breakRef, breakContribution.line);
   for (const row of credited) {
     if (row.userId === null) continue;
     const so = scores.get(row.userId) ?? { score: 0, confirmed: 0, sponsorships: 0 };
@@ -113,10 +112,23 @@ export async function standingOf(db: Reader, userId: string) {
   return (await standingsOf(db, [userId])).get(userId) ?? NONE;
 }
 
+/** The account another was made through. Null for an account that has no sponsor. */
+export async function sponsorOf(db: Reader, userId: string | null) {
+  if (userId === null) return null;
+  const [found] = await db
+    .select({ sponsorId: sponsorship.sponsorId })
+    .from(sponsorship)
+    .where(eq(sponsorship.sponsoredId, userId));
+  return found?.sponsorId ?? null;
+}
+
 /**
  * Writes the ranks some accounts have just reached, in the transaction that raised their score:
  * a rank is kept from the day it is reached, whatever becomes of the score later. The account
- * each of them was made through is settled with it: its score may have gone up too.
+ * each of them was made through is settled with it: its score may have gone up too. Whatever
+ * calls this holds those accounts' rows since its first step, with `holdAccounts`: of two
+ * transactions that raise one score at once, the second then counts what the first wrote, and
+ * neither misses a rank that the two reach together.
  */
 export async function settleRanks(tx: Transaction, userIds: (string | null)[]) {
   const raised = [...new Set(userIds.filter((id) => id !== null))];

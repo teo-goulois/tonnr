@@ -20,16 +20,18 @@ function loadable<Data>(query: { data: Data | undefined; isLoading: boolean; isE
 /**
  * The link of the signed-in account and the friends it made, and the link the address names,
  * if it names one: decision 041. The account's link and its friends are asked for where they
- * show, in the account's panel. `username` is the account's, once the API has said.
+ * show, in the account's panel. `account` is the id of the account that is signed in: its link
+ * and its friends are kept under it, and are no other account's. `username` is the account's,
+ * once the API has said.
  */
 export function useFriends({
-  signedIn,
+  account,
   username,
   isShown,
   invite,
   onInviteDone,
 }: {
-  signedIn: boolean;
+  account: string | undefined;
   username: string | null | undefined;
   isShown: boolean;
   // What the link the address names ends with.
@@ -39,26 +41,35 @@ export function useFriends({
 }) {
   const queryClient = useQueryClient();
   const promptAuth = useAuthPrompt();
+  const signedIn = account !== undefined;
 
   // An account with no username has no link to give: it is not asked for.
   const link = useQuery(
     orpc.v1.friends.link.queryOptions({
+      queryKey: [...orpc.v1.friends.link.queryKey(), account],
       enabled: signedIn && isShown && typeof username === "string",
       meta: { quiet: true },
     }),
   );
   const friends = useQuery(
     orpc.v1.friends.list.queryOptions({
+      queryKey: [...orpc.v1.friends.list.queryKey(), account],
       // Whoever opens a link is told at once when its owner is a friend already.
       enabled: signedIn && (isShown || invite !== undefined),
       select: (answer) => answer.friends,
       meta: { quiet: true },
     }),
   );
-  const [openedId, setOpenedId] = useState<string>();
+  // The friend whose contributions are open, for the account that opened them.
+  const [opened, setOpened] = useState<{ account: string | undefined; id: string }>();
+  const openedId = opened !== undefined && opened.account === account ? opened.id : undefined;
+  const setOpenedId = (id: string | undefined) =>
+    setOpened(id === undefined ? undefined : { account, id });
+  const detailInput = { id: openedId ?? "" };
   const detail = useQuery(
     orpc.v1.friends.get.queryOptions({
-      input: { id: openedId ?? "" },
+      input: detailInput,
+      queryKey: [...orpc.v1.friends.get.queryKey({ input: detailInput }), account],
       enabled: signedIn && isShown && openedId !== undefined,
       meta: { quiet: true },
     }),

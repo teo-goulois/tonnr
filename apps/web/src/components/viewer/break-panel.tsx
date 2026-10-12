@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { m } from "@/paraglide/messages.js";
 
 import { BreakGuide } from "../guides/break-guide";
@@ -16,8 +14,9 @@ type BreakPanelProps = PointConditionsProps & {
   guide: Loadable<Guide>;
   own: GuideOwn | undefined;
   guiding: Guiding;
-  // True when the panel opens on the guide, as it does from a contribution to it.
-  opensOnGuide?: boolean;
+  // Whether the guide is the tab in view, which the address says, and what changes it.
+  guideAsked: boolean;
+  onGuideAsked: (asked: boolean) => void;
   // The buoy the sea is read on at this break, and how to open its panel over this one.
   nearby?: Nearby;
   nearbyWind?: NearbyWind;
@@ -31,7 +30,8 @@ export function BreakPanel({
   guide,
   own,
   guiding,
-  opensOnGuide = false,
+  guideAsked,
+  onGuideAsked,
   forecast,
   tides,
   extremes,
@@ -40,7 +40,6 @@ export function BreakPanel({
   nearbyWind,
   onOpenBuoy,
 }: BreakPanelProps) {
-  const [tab, setTab] = useState<DetailsTab>(opensOnGuide ? "guide" : "forecast");
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
@@ -57,8 +56,8 @@ export function BreakPanel({
   return (
     <Details
       spot={found.data}
-      tab={tab}
-      onTabChange={setTab}
+      tab={guideAsked ? "guide" : "forecast"}
+      onTabChange={(next: DetailsTab) => onGuideAsked(next === "guide")}
       now={now}
       forecast={forecast}
       tides={tides}

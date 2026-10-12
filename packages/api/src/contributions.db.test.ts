@@ -4,6 +4,7 @@ import { operator, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { breakContribution, rankAward } from "@repo/db/schema/community";
 import { surfBreak } from "@repo/db/schema/spots";
+import { creditPublications } from "@repo/db/credits";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -187,6 +188,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
       expect(await code(propose("ben", "bottomTypes", ["sand"]))).toBe("answered");
     });
 
+    it("is refused when it says what the list says in another order", async () => {
+      // The catalogue keeps a list as the list it came from gave it.
+      await database.db
+        .update(surfBreak)
+        .set({ bottomTypes: ["rock", "sand"] })
+        .where(eq(surfBreak.id, BAY));
+
+      expect(await code(propose("ana", "bottomTypes", ["sand", "rock"], { breakId: BAY }))).toBe(
+        "CONFLICT",
+      );
+      expect(await code(propose("ana", "bottomTypes", ["sand"], { breakId: BAY }))).toBe(
+        "answered",
+      );
+    });
+
     it("gives way to the next one its author writes of the same line: the row stays", async () => {
       const first = await propose("ana", "bestTides", ["high"]);
       const second = await propose("ana", "bestTides", ["low"]);
@@ -224,6 +240,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
       const row = (index: number, status: "pending" | "withdrawn") => ({
         id: `made-${status}-${index}`,
         breakId: index % 2 ? REEF : BAY,
+        breakRef: index % 2 ? REEF : BAY,
         userId: "ana",
         line: "access" as const,
         value: `Invented, number ${index}.`,
@@ -496,6 +513,40 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
       ]);
     });
 
+    it("does not take its reason back by confirming: a contest stays one", async () => {
+      await trust("ana");
+      await trust("ben");
+      await keep("ben");
+      const words = await propose("ana", "bottomTypes", ["rock"]);
+      const said = { id: words.id, reason: "It is sand." };
+      await call(v1Router.contributions.contest, said, by("ben"));
+
+      expect(await code(call(v1Router.contributions.confirm, { id: words.id }, by("ben")))).toBe(
+        "CONFLICT",
+      );
+      expect(await code(call(v1Router.contributions.contest, said, by("ben")))).toBe("CONFLICT");
+      expect(await queue("contested")).toMatchObject([
+        { id: words.id, confirmations: 0, contests: [{ accountId: "ben", reason: "It is sand." }] },
+      ]);
+    });
+
+    it("may contest what it confirmed, once it knows better", async () => {
+      await trust("ana");
+      await trust("ben");
+      await keep("ben");
+      const words = await propose("ana", "bottomTypes", ["rock"]);
+      await call(v1Router.contributions.confirm, { id: words.id }, by("ben"));
+
+      expect(
+        await call(
+          v1Router.contributions.contest,
+          { id: words.id, reason: "I looked again: it is sand." },
+          by("ben"),
+        ),
+      ).toEqual({ contested: true });
+      expect(await queue("contested")).toMatchObject([{ id: words.id, confirmations: 0 }]);
+    });
+
     it("is read by the operator, who keeps the contribution: a contest that came since still waits", async () => {
       const written = await propose("ana", "bottomTypes", ["rock"]);
       await accept(written.id);
@@ -648,6 +699,61 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
       await accept((await propose("ana", "bottomTypes", ["sand"], { breakId: BAY })).id);
 
       expect(await mine("ana")).toMatchObject({ score: 10, confirmed: 2 });
+      // And still once, when the break it was written of has left the catalogue.
+      await database.db.delete(surfBreak).where(eq(surfBreak.id, REEF));
+      expect(await mine("ana")).toMatchObject({ score: 10, confirmed: 2 });
+    });
+  });
+
+  describe("two things done at the same moment", () => {
+    // What two requests do at once must come to an answer of the API for each, never to a
+    // fault of the database: one waits for the other.
+    const outcome = async (attempt: Promise<unknown>) => code(attempt);
+
+    it("write the rank that two confirmations reach together", async () => {
+      const access = await propose("ana", "access", "Park by the church.", { language: "en" });
+      const hazards = await propose("ana", "hazards", "Rocks at low tide.", { language: "en" });
+
+      expect(await Promise.all([outcome(accept(access.id)), outcome(accept(hazards.id))])).toEqual([
+        "answered",
+        "answered",
+      ]);
+
+      // Ten points each: neither reaches the first rank alone.
+      expect(await database.db.select().from(rankAward)).toMatchObject([
+        { userId: "ana", rank: "qs" },
+      ]);
+    });
+
+    it("confirm one of two that showed on a line, and close the other", async () => {
+      await trust("ana");
+      await trust("ben");
+      const one = await propose("ana", "bottomTypes", ["rock"]);
+      const other = await propose("ben", "bottomTypes", ["coral"]);
+
+      const answers = await Promise.all([outcome(accept(one.id)), outcome(accept(other.id))]);
+
+      expect(answers.toSorted()).toEqual(["CONFLICT", "answered"]);
+      const rows = await database.db.select().from(breakContribution);
+      const became = rows
+        .filter((row) => row.id === one.id || row.id === other.id)
+        .map((row) => row.status);
+      expect(became.toSorted()).toEqual(["confirmed", "superseded"]);
+    });
+
+    it("answer both an operator and the author who writes the line again", async () => {
+      for (let round = 0; round < 5; round += 1) {
+        const waiting = await propose("ana", "bestTides", round % 2 ? ["low"] : ["high"]);
+        const answers = await Promise.all([
+          outcome(accept(waiting.id)),
+          outcome(propose("ana", "bestTides", ["mid"])),
+        ]);
+        // The operator confirms it, or finds that its author took it back. The author's new
+        // line is taken, or says what the guide has just come to say.
+        expect(["answered", "CONFLICT"]).toContain(answers[0]);
+        expect(["answered", "CONFLICT"]).toContain(answers[1]);
+        await database.db.delete(breakContribution);
+      }
     });
   });
 
@@ -679,6 +785,41 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
 
       await call(v1Router.spots.delete, { id: spot.id }, by("ana"));
       expect(await mine("ana")).toMatchObject({ score: 20, rank: "qs" });
+    });
+
+    it("is counted when the API starts, for one that the version before accepted", async () => {
+      const spot = await call(
+        v1Router.spots.create,
+        { name: "The point", latitude: 47.9, longitude: -4.4 },
+        by("ana"),
+      );
+      await call(v1Router.spots.requestPublication, { id: spot.id }, by("ana"));
+      const [request] = (await call(v1Router.publications.list, {}, asOperator())).publications;
+      const published = await call(
+        v1Router.publications.accept,
+        { id: request?.id ?? "", spotUpdatedAt: request?.spot.updatedAt ?? new Date() },
+        asOperator(),
+      );
+      // The version before this one accepted a spot, and wrote nothing for it.
+      await database.db.delete(breakContribution);
+      await database.db.delete(rankAward);
+      expect((await mine("ana")).score).toBe(0);
+
+      await creditPublications(database.db);
+      await creditPublications(database.db);
+
+      expect(await database.db.select().from(breakContribution)).toMatchObject([
+        { line: "place", value: "The point", breakId: published.breakId, userId: "ana" },
+      ]);
+      expect(await mine("ana")).toMatchObject({ score: 20, rank: "qs" });
+      // A break that left the catalogue since is counted too, under the spot's name.
+      await database.db.delete(breakContribution);
+      await database.db.delete(surfBreak).where(eq(surfBreak.id, published.breakId ?? ""));
+      await creditPublications(database.db);
+      expect(await mine("ana")).toMatchObject({
+        score: 20,
+        contributions: [{ line: "place", value: "The point", break: null }],
+      });
     });
   });
 });

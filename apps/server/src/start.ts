@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { creditPublications } from "@repo/db/credits";
 import { migrateDatabase } from "@repo/db/migrate";
 
 import { ENV } from "./env.server";
@@ -24,3 +25,13 @@ console.log("Migrations applied");
 await import("./index");
 process.off("SIGTERM", stop);
 process.off("SIGINT", stop);
+
+// A spot that the version before this one accepted into the catalogue while this one was being
+// deployed is counted for its owner: decision 041. The API answers meanwhile, and does whether
+// or not this succeeds.
+try {
+  const { db } = await import("./services");
+  await creditPublications(db);
+} catch (error) {
+  console.error("The accepted spots were not counted", error);
+}

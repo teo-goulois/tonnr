@@ -117,8 +117,10 @@ function Waiting({ line, own, guiding, contesting, onContest }: LineProps) {
   const verdictOf = (id: string) => own?.verdicts.find((one) => one.contributionId === id)?.verdict;
   // What the guide says may be contested too, by whoever keeps the break and did not write it.
   const said = line.contributionId;
+  // An account contests a contribution once: one that said it is right may still say that it
+  // is not, once it knows better.
   const mayContestSaid =
-    said !== null && own?.keeps === true && verdictOf(said) === undefined && own.username !== null
+    said !== null && own?.keeps === true && verdictOf(said) !== "contest" && own.username !== null
       ? line.by?.username !== own.username
       : false;
 
@@ -136,10 +138,18 @@ function Waiting({ line, own, guiding, contesting, onContest }: LineProps) {
       );
     }
     const verdict = verdictOf(one.id);
-    if (verdict) {
+    if (verdict === "contest") {
+      return <span className="text-neutral-7">{m.guide_you_contested()}</span>;
+    }
+    if (verdict === "confirm") {
       return (
-        <span className="text-neutral-7">
-          {verdict === "confirm" ? m.guide_you_confirmed() : m.guide_you_contested()}
+        <span className="flex flex-wrap items-center gap-x-s gap-y-xxs">
+          <span className="text-neutral-7">{m.guide_you_confirmed()}</span>
+          {own?.keeps && (
+            <button type="button" className={quiet} onClick={() => onContest(one.id)}>
+              {m.guide_contest()}
+            </button>
+          )}
         </span>
       );
     }
@@ -513,7 +523,14 @@ function TextLine(props: LineProps & { name: TextLineName }) {
       <Waiting {...props} />
       {isOpen && (
         <Writer own={own} guiding={guiding}>
-          <TextEditor line={name} saved={value ?? ""} guiding={guiding} onDone={onClose} />
+          <TextEditor
+            line={name}
+            // A text that is shown from another language is not the one being written: the
+            // reader writes the line in their own, from nothing.
+            saved={value !== null && line.language === getLocale() ? value : ""}
+            guiding={guiding}
+            onDone={onClose}
+          />
         </Writer>
       )}
     </li>
@@ -625,7 +642,7 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
         return;
       }
       asked.current = line.line;
-      guiding.onSignIn(m.guide_sign_in({ name: found.name }));
+      guiding.onSignIn(m.guide_sign_in());
     },
     onClose: () => setOpen(null),
     onContest: (contest) => setOpen(contest ? { line: line.line, contest } : null),

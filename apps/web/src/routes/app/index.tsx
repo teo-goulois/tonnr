@@ -330,9 +330,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     isShown: isSettingAlerts || selectedSpotId !== undefined,
   });
   // What is written of the break in view, and what its reader does there.
-  const guided = useGuiding({ breakId: selectedBreakId, signedIn });
+  const guided = useGuiding({ breakId: selectedBreakId, account: session.data?.user.id });
   // Where the account stands in the guides, read where it shows: in the account's panel.
-  const standing = useStanding({ signedIn, isShown: panel === "account" });
+  const standing = useStanding({
+    account: session.data?.user.id,
+    isShown: panel === "account",
+  });
   // A browser that has push on says so again when the app loads. The devices are read where they
   // show: with the settings of the alerts.
   const push = usePush({ account: session.data?.user.id, isShown: isSettingAlerts });
@@ -350,7 +353,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     [navigate],
   );
   const friended = useFriends({
-    signedIn,
+    account: session.data?.user.id,
     username: own.account ? own.account.username : undefined,
     isShown: panel === "account",
     invite: search.invite,
@@ -1166,6 +1169,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       alerting={alerting}
       guiding={guided.guiding}
       guideAsked={search.tab === "guide"}
+      onGuideAsked={(asked) =>
+        void navigate({
+          search: (previous) => ({ ...previous, tab: asked ? "guide" : undefined }),
+          replace: true,
+        })
+      }
       onOpenGuide={(id) => void navigate({ search: { ...mode, break: id, tab: "guide" } })}
       push={push}
       alertsTab={search.alerts === "mine" ? "mine" : "news"}

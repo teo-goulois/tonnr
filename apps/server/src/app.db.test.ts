@@ -1711,6 +1711,23 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect((await choose(ana, "Ana_M")).status).toBe(200);
     });
 
+    it("stays away once an operator took it, when a write that was under way puts it back", async () => {
+      const ana = cookieOf(await signUpAs("Ana"));
+      // An operator took the username away at the moment the account sent it again: the
+      // library had checked it before, and wrote it after. The table says it was removed.
+      await database.db.insert(removedUsername).values({ username: "ana" });
+
+      // The next thing the library writes of the account takes it off.
+      const written = await send("POST", "/api/auth/update-user", {
+        cookie: ana,
+        origin: APP,
+        body: { name: "Ana Maria" },
+      });
+
+      expect(written.status).toBe(200);
+      expect((await accountOf(ana)).username).toBeNull();
+    });
+
     it("is changed for another, and not taken off by its account", async () => {
       const ana = cookieOf(await signUpAs("Ana"));
       for (const username of [null, 12, ""]) {

@@ -191,6 +191,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's link", () => {
     await database.db.insert(breakContribution).values({
       id: "a-place",
       breakId: REEF,
+      breakRef: REEF,
       userId: "ana",
       line: "place",
       value: "The reef",
@@ -269,6 +270,20 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's link", () => {
     );
     // Ben reads Ana as a friend, and not that he counts for her.
     expect(await friendsOf("ben")).toMatchObject([{ id: "ana", sponsored: null }]);
+  });
+
+  it("counts the friends two accounts make at the same moment: the last place goes to one", async () => {
+    const many = Array.from({ length: FRIENDS_MOST - 1 }, (_, index) => `friend-${index}`);
+    await database.db
+      .insert(user)
+      .values(many.map((id) => ({ id, name: id, username: id, email: `${id}@example.org` })));
+    await database.db.insert(friendship).values(many.map((id) => pairOf("ana", id)));
+    const token = await linkOf("ana");
+
+    const answers = await Promise.all([code(accept("ben", token)), code(accept("cleo", token))]);
+
+    expect(answers.toSorted()).toEqual(["FORBIDDEN", "answered"]);
+    expect(await friendsOf("ana")).toHaveLength(FRIENDS_MOST);
   });
 
   it("makes no more friends for an account that has all it may have", async () => {

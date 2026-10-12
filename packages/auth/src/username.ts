@@ -1,9 +1,10 @@
 import { USERNAME_MAX, USERNAME_MIN, usernameProblem } from "@repo/config/username";
 import type { Database } from "@repo/db";
 import { removedUsername } from "@repo/db/schema/access";
+import { user } from "@repo/db/schema/auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { username } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 /**
  * What others read of an account: decision 041. The sign-in library keeps it, with its own
@@ -28,6 +29,28 @@ export function usernames(database: Database) {
       return removed === undefined;
     },
   });
+}
+
+/**
+ * What keeps a username that an operator took away from coming back. The library checks a
+ * username, then writes it, in two steps: an account that sends its own again at the moment an
+ * operator takes it away is checked before the removal and written after it. So the username is
+ * read again once it is written, and taken off when it is one that was removed.
+ */
+export function usernameHooks(database: Database) {
+  const settle = async (written: { id: string; username?: unknown }) => {
+    if (typeof written.username !== "string") return;
+    const [removed] = await database
+      .select({ username: removedUsername.username })
+      .from(removedUsername)
+      .where(eq(removedUsername.username, written.username));
+    if (!removed) return;
+    await database
+      .update(user)
+      .set({ username: null })
+      .where(and(eq(user.id, written.id), eq(user.username, written.username)));
+  };
+  return { create: { after: settle }, update: { after: settle } };
 }
 
 /**

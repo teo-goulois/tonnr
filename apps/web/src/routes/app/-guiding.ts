@@ -11,6 +11,9 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
+// How often a guide is read again while its reader has something waiting on it.
+const WAITING_MS = 30 * 1000;
+
 // What a refusal of the API says to whoever wrote, in their language. The API's own words are
 // English.
 function refusalOf(error: unknown) {
@@ -23,17 +26,26 @@ function refusalOf(error: unknown) {
 
 /**
  * What the signed-in account wrote in the guides, and where it stands: its score and its rank.
- * It is asked for where it shows, in the account's panel.
+ * It is asked for where it shows, in the account's panel. `account` is the id of the account
+ * that is signed in: an answer is kept under it, since a session can become another account's
+ * in another tab, and what was kept for the first is not the second's.
  */
-export function useStanding({ signedIn, isShown }: { signedIn: boolean; isShown: boolean }) {
+export function useStanding({
+  account,
+  isShown,
+}: {
+  account: string | undefined;
+  isShown: boolean;
+}) {
   const asked = useQuery(
     orpc.v1.contributions.mine.queryOptions({
-      enabled: signedIn && isShown,
+      queryKey: [...orpc.v1.contributions.mine.queryKey(), account],
+      enabled: account !== undefined && isShown,
       meta: { quiet: true },
     }),
   );
   const standing: Loadable<Standing> = {
-    data: signedIn ? asked.data : undefined,
+    data: account === undefined ? undefined : asked.data,
     isPending: asked.isLoading,
     isError: asked.isError,
   };
@@ -43,31 +55,43 @@ export function useStanding({ signedIn, isShown }: { signedIn: boolean; isShown:
 /**
  * The guide of the break in view, what the signed-in account wrote of it, and what the screen
  * does with both: decision 041. The guide is asked for when a break is selected, in the
- * language the page is read in.
+ * language the page is read in. `account` is the id of the account that is signed in: what it
+ * wrote, and what it typed and did not send, are kept under it and are no other account's.
  */
 export function useGuiding({
   breakId,
-  signedIn,
+  account,
 }: {
   breakId: string | undefined;
-  signedIn: boolean;
+  account: string | undefined;
 }) {
+  const signedIn = account !== undefined;
   const queryClient = useQueryClient();
   const promptAuth = useAuthPrompt();
   const saveUsername = useUsername();
 
+  const ownInput = { breakId: breakId ?? "" };
+  const ownOptions = orpc.v1.guides.mine.queryOptions({
+    input: ownInput,
+    queryKey: [...orpc.v1.guides.mine.queryKey({ input: ownInput }), account],
+    meta: { quiet: true },
+  });
+  const own = useQuery({
+    ...ownOptions,
+    enabled: signedIn && breakId !== undefined,
+    // While the reader has something waiting here and the panel is open, what became of it is
+    // asked about again now and then: they see it confirmed without leaving.
+    refetchInterval: (query) => ((query.state.data?.waiting.length ?? 0) > 0 ? WAITING_MS : false),
+  });
+  const isWaiting = signedIn && (own.data?.waiting.length ?? 0) > 0;
   const guide = useQuery(
     orpc.v1.guides.get.queryOptions({
       input: { breakId: breakId ?? "", language: getLocale() },
       enabled: breakId !== undefined,
+      refetchInterval: isWaiting ? WAITING_MS : false,
       meta: { quiet: true },
     }),
   );
-  const ownOptions = orpc.v1.guides.mine.queryOptions({
-    input: { breakId: breakId ?? "" },
-    meta: { quiet: true },
-  });
-  const own = useQuery({ ...ownOptions, enabled: signedIn && breakId !== undefined });
 
   // What changed in a guide changes what is read of it, and where its author stands.
   const changed = useCallback(
@@ -99,20 +123,32 @@ export function useGuiding({
       onError: failed,
     }),
   );
+  // What is said of a contribution is refused for other reasons than a line is: the guide the
+  // page held was older than the API's, and is read again.
+  const stale = useCallback(() => {
+    toast.error(m.guide_failed());
+    void changed();
+  }, [changed]);
   const confirm = useMutation(
     orpc.v1.contributions.confirm.mutationOptions({
       onSuccess: () => {
         toast.success(m.guide_confirm_done());
         return changed();
       },
-      onError: failed,
+      onError: stale,
     }),
   );
   const contest = useMutation(
     orpc.v1.contributions.contest.mutationOptions({
       onError: (error) => {
         const code = (error as { code?: unknown }).code;
-        toast.error(code === "CONFLICT" ? m.guide_contest_refused() : refusalOf(error));
+        toast.error(
+          code === "CONFLICT"
+            ? m.guide_contest_refused()
+            : code === "TOO_MANY_REQUESTS"
+              ? m.guide_too_many()
+              : m.guide_failed(),
+        );
         void changed();
       },
     }),
@@ -136,7 +172,10 @@ export function useGuiding({
 
   // What was typed for a line and not sent, by break and line: kept while the app is open.
   const drafts = useRef(new Map<string, string>());
-  const draftKey = useCallback((line: GuideLineName) => `${breakId}:${line}`, [breakId]);
+  const draftKey = useCallback(
+    (line: GuideLineName) => `${account}:${breakId}:${line}`,
+    [account, breakId],
+  );
 
   const isSending =
     propose.isPending || withdraw.isPending || confirm.isPending || contest.isPending;

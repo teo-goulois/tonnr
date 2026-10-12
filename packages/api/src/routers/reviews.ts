@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { holdAccounts } from "@repo/db/accounts";
 import { user } from "@repo/db/schema/auth";
 import {
   breakContribution,
@@ -16,9 +17,9 @@ import { z } from "zod";
 
 import { recordAction } from "../actions";
 import { isTextLine, isWordLine } from "../community";
-import { confirmHeld, type Contribution, currentOf, valueSchema } from "../guides";
+import { confirmHeld, type Contribution, currentOf, holdLine, valueSchema } from "../guides";
 import { adminProcedure } from "../index";
-import { standingsOf } from "../standings";
+import { sponsorOf, standingsOf } from "../standings";
 import { hasControlCharacter } from "../text";
 
 const ADMIN_ONLY =
@@ -163,8 +164,18 @@ async function describe(db: Reader, rows: Found[]) {
   return reviews;
 }
 
-/** Holds a contribution until the transaction ends, with the break it was written of. */
+/**
+ * Holds a contribution until the transaction ends, with the break it was written of. What it
+ * holds, it holds in the one order every change of a guide follows: the rows of its author and
+ * of its author's sponsor, whose scores an answer may raise, then its line, then the
+ * contribution.
+ */
 async function hold(tx: Transaction, id: string) {
+  // Read first without a hold, to know which accounts and which line to hold before it.
+  const [seen] = await tx.select().from(breakContribution).where(eq(breakContribution.id, id));
+  if (!seen || seen.line === "place") throw noContribution(id);
+  await holdAccounts(tx, [seen.userId, await sponsorOf(tx, seen.userId)]);
+  await holdLine(tx, seen.breakRef, seen.line);
   const [held] = await tx
     .select()
     .from(breakContribution)

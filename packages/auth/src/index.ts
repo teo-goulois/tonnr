@@ -6,7 +6,7 @@ import { betterAuth } from "better-auth";
 
 import { invitations } from "./invitation";
 import { suspensionHooks } from "./suspension";
-import { keepsUsername, usernames } from "./username";
+import { keepsUsername, usernameHooks, usernames } from "./username";
 import { type Verification, VERIFICATION_SECONDS } from "./verification";
 
 export type AuthConfig = {
@@ -54,7 +54,11 @@ export function createAuth(
     // address alone: a username is what others read, and names no door.
     disabledPaths: ["/send-verification-email", "/sign-in/username"],
     // A suspended account opens no session: decision 025.
-    databaseHooks: { session: { create: suspensionHooks(database) } },
+    databaseHooks: {
+      session: { create: suspensionHooks(database) },
+      // A username that an operator took away stays away: decision 041.
+      user: usernameHooks(database),
+    },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     advanced: {

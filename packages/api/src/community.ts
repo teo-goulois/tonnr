@@ -60,11 +60,16 @@ export function keptText(given: string) {
   return given.replace(/\s+/g, " ").trim();
 }
 
-/** Whether two values of a line say the same. A line that says nothing is null. */
+/**
+ * Whether two values of a line say the same. A line that says nothing is null. Two lists say
+ * the same when they hold the same words, in whatever order: the catalogue keeps a list as the
+ * list it came from gave it.
+ */
 export function sameValue(one: string[] | string | null, other: string[] | string | null) {
   if (one === null || other === null) return one === other;
   if (typeof one === "string" || typeof other === "string") return one === other;
-  return one.length === other.length && one.every((word, index) => word === other[index]);
+  const words = new Set(one);
+  return words.size === new Set(other).size && other.every((word) => words.has(word));
 }
 
 // What a confirmed contribution counts for. A text takes more to write than a list of words,

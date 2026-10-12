@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { holdAccounts } from "@repo/db/accounts";
 import { befriend, FRIENDS_MOST, ownerOfLink, pairOf } from "@repo/db/friends";
 import { user } from "@repo/db/schema/auth";
 import {
@@ -316,17 +317,23 @@ export const friendsRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const pair = pairOf(userId, input.id);
-      const [ended] = await context.db
-        .update(friendship)
-        .set({ endedBy: userId, endedAt: new Date() })
-        .where(
-          and(
-            eq(friendship.userId, pair.userId),
-            eq(friendship.friendId, pair.friendId),
-            isNull(friendship.endedAt),
-          ),
-        )
-        .returning({ userId: friendship.userId });
+      const ended = await context.db.transaction(async (tx) => {
+        // Both accounts are held, as they are when a friendship is made: one that is being
+        // made by the other's link at the same moment is made first, then ended.
+        await holdAccounts(tx, [userId, input.id]);
+        const [row] = await tx
+          .update(friendship)
+          .set({ endedBy: userId, endedAt: new Date() })
+          .where(
+            and(
+              eq(friendship.userId, pair.userId),
+              eq(friendship.friendId, pair.friendId),
+              isNull(friendship.endedAt),
+            ),
+          )
+          .returning({ userId: friendship.userId });
+        return row;
+      });
       if (!ended) throw noFriend();
       return { ended: true as const };
     }),

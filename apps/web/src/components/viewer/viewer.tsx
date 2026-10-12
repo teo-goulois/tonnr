@@ -211,8 +211,10 @@ type ViewerProps = {
   alerting: Alerting;
   // What the guide of a break does for its reader: decision 041.
   guiding: Guiding;
-  // Whether the address asks for the guide of the break it selects, and what opens one.
+  // Whether the address asks for the guide of the break it selects, what says so, and what
+  // opens the guide of another break.
   guideAsked: boolean;
+  onGuideAsked: (asked: boolean) => void;
   onOpenGuide: (breakId: string) => void;
   // The account's link and its friends, and the link the address names, if it names one.
   friending: Friending;
@@ -448,6 +450,7 @@ export function Viewer({
   alerting,
   guiding,
   guideAsked,
+  onGuideAsked,
   onOpenGuide,
   friending,
   invitation,
@@ -680,6 +683,9 @@ export function Viewer({
   const buoyOpener = useRef(onOpenBuoy);
   buoyOpener.current = onOpenBuoy;
   const openBuoy = useCallback((stationId: string) => buoyOpener.current(stationId), []);
+  const guideAsker = useRef(onGuideAsked);
+  guideAsker.current = onGuideAsked;
+  const askGuide = useCallback((asked: boolean) => guideAsker.current(asked), []);
   const spotOffer = useRef(onSpotOfferSeen);
   spotOffer.current = onSpotOfferSeen;
   const seeSpotOffer = useCallback(() => spotOffer.current(), []);
@@ -742,7 +748,8 @@ export function Viewer({
         guide={drawn.guide}
         own={drawn.own}
         guiding={guiding}
-        opensOnGuide={guideAsked}
+        guideAsked={guideAsked}
+        onGuideAsked={askGuide}
         forecast={drawn.forecast}
         tides={drawn.tides}
         extremes={drawn.extremes}
@@ -782,6 +789,7 @@ export function Viewer({
     beginAlert,
     guiding,
     guideAsked,
+    askGuide,
   ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(

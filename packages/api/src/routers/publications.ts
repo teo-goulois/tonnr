@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { holdAccounts } from "@repo/db/accounts";
 import { breakContribution } from "@repo/db/schema/community";
 import { PUBLICATION_STATES, spot, spotPublication, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
@@ -9,7 +10,7 @@ import { recordAction } from "../actions";
 import { inBbox } from "../bbox";
 import { characteristicsSchema, describeCharacteristics } from "../characteristics";
 import { adminProcedure } from "../index";
-import { settleRanks } from "../standings";
+import { settleRanks, sponsorOf } from "../standings";
 import { hasControlCharacter } from "../text";
 
 const ADMIN_ONLY =
@@ -225,6 +226,14 @@ export const publicationsRouter = {
     .handler(async ({ input, context }) => {
       const operatorId = context.session.user.id;
       return context.db.transaction(async (tx) => {
+        // The owner's row, and its sponsor's, before anything else: accepting raises their
+        // scores, and what raises a score holds its account first.
+        const [asked] = await tx
+          .select({ userId: spotPublication.userId })
+          .from(spotPublication)
+          .where(eq(spotPublication.id, input.id));
+        if (!asked) throw noRequest(input.id);
+        await holdAccounts(tx, [asked.userId, await sponsorOf(tx, asked.userId)]);
         const held = await holdPending(tx, input.id);
         if (held.spot.updatedAt.getTime() !== input.spotUpdatedAt.getTime()) {
           throw new ORPCError("CONFLICT", {
@@ -274,6 +283,7 @@ export const publicationsRouter = {
         await tx.insert(breakContribution).values({
           id: crypto.randomUUID(),
           breakId,
+          breakRef: breakId,
           userId: request.userId,
           line: "place",
           value: held.spot.name,
