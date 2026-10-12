@@ -136,7 +136,9 @@ function Contribution({ review, now, isBusy, onAccept, onKeep, onRefuse }: Contr
                 {review.author.username ? `@${review.author.username}` : m.reviews_no_username()}
               </Link>
               <span className="text-s text-neutral-7">
-                {m.reviews_author_confirmed({ count: formatCount(review.author.confirmed) })}
+                {review.author.confirmed === 1
+                  ? m.reviews_author_confirmed_one()
+                  : m.reviews_author_confirmed({ count: formatCount(review.author.confirmed) })}
               </span>
             </span>
           ) : (

@@ -389,6 +389,7 @@
   "reviews_author": "By",
   "reviews_author_gone": "An account that was deleted",
   "reviews_author_confirmed": "{count} confirmed",
+  "reviews_author_confirmed_one": "1 confirmed",
   "reviews_no_username": "No username",
   "reviews_confirmations": "Said right by",
   "reviews_confirmations_count": "{count} accounts that keep the break",

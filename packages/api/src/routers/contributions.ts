@@ -171,13 +171,15 @@ export const contributionsRouter = {
       }
 
       return context.db.transaction(async (tx) => {
-        // Locking the account's row makes its contributions run one after the other, so two
-        // at once cannot both pass a limit.
+        // Holding the account's row makes its contributions run one after the other, so two
+        // at once cannot both pass a limit. The hold leaves the row free to be pointed at: an
+        // operator who confirms another contribution of the account at the same moment writes
+        // a rank that points to it, and neither waits for the other.
         const [account] = await tx
           .select({ username: user.username })
           .from(user)
           .where(eq(user.id, userId))
-          .for("update");
+          .for("no key update");
         if (!account?.username) {
           throw new ORPCError("FORBIDDEN", {
             message: "Choose a username first: a contribution is read under it.",
@@ -442,7 +444,7 @@ export const contributionsRouter = {
       return context.db.transaction(async (tx) => {
         // The account's row first, as writing a contribution holds it: its contests run one
         // after the other.
-        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
+        await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("no key update");
         const held = await holdOthers(tx, input.id, userId);
         if (held.status !== "shown" && held.status !== "confirmed") {
           throw new ORPCError("CONFLICT", { message: "This contribution no longer shows." });

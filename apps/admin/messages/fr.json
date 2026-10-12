@@ -389,6 +389,7 @@
   "reviews_author": "Par",
   "reviews_author_gone": "Un compte supprimé",
   "reviews_author_confirmed": "{count} confirmées",
+  "reviews_author_confirmed_one": "1 confirmée",
   "reviews_no_username": "Sans pseudo",
   "reviews_confirmations": "Jugée juste par",
   "reviews_confirmations_count": "{count} comptes qui gardent le spot",
