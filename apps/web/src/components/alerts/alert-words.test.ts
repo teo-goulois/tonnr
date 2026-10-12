@@ -405,23 +405,33 @@ describe("what was changed, once a neighbour is gone", () => {
   };
 
   it("no longer asks for a spot that is no longer the user's", () => {
-    expect(withoutGone({ name: "Dawn", spotIds: ["north", "gone"] }, written, isKnown)).toEqual({
-      name: "Dawn",
+    for (const isSaved of [true, false]) {
+      expect(
+        withoutGone({ name: "Dawn", spotIds: ["north", "gone"] }, written, isKnown, isSaved),
+      ).toEqual({ name: "Dawn", spotIds: ["north"] });
+    }
+  });
+
+  it("takes it out of the spots a new alert starts with, as a copy's before it is touched", () => {
+    expect(withoutGone({}, { ...written, spotIds: ["north", "gone"] }, isKnown, false)).toEqual({
       spotIds: ["north"],
     });
   });
 
-  it("takes it out of an alert whose spots were not changed, as a copy's before it is touched", () => {
-    expect(withoutGone({}, { ...written, spotIds: ["north", "gone"] }, isKnown)).toEqual({
-      spotIds: ["north"],
-    });
+  it("makes no change of the spots of a saved alert that were not changed here", () => {
+    // The alert says itself what its spots are once it is read again: with a spot added on
+    // another device meanwhile, a change made here for it would take that spot out again.
+    const changed = { name: "Dawn" };
+    expect(withoutGone(changed, { ...written, spotIds: ["north", "gone"] }, isKnown, true)).toBe(
+      changed,
+    );
   });
 
   it("is the same when none is gone", () => {
     const changed = { spotIds: ["north", "south"] };
-    expect(withoutGone(changed, written, isKnown)).toBe(changed);
+    expect(withoutGone(changed, written, isKnown, false)).toBe(changed);
     const other = { shortestMinutes: 60 };
-    expect(withoutGone(other, written, isKnown)).toBe(other);
+    expect(withoutGone(other, written, isKnown, false)).toBe(other);
   });
 });
 

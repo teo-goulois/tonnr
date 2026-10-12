@@ -182,12 +182,22 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
       }
       // The browser's own way back or forward has moved already. It is brought back at once,
       // and done again when the answer is to leave: a traversal that waited for an answer
-      // would be undone from wherever a second one had taken the browser meanwhile.
+      // would be undone from wherever a second one had taken the browser meanwhile. It is done
+      // again by as many entries as it went, so that the history is what it would have been.
+      const from = router.history.location.state.__TSR_index;
+      const to = (window.history.state as { __TSR_index?: number } | null)?.__TSR_index;
+      const steps =
+        typeof to === "number" && to !== from
+          ? to - from
+          : action === "BACK"
+            ? -1
+            : action === "FORWARD"
+              ? 1
+              : 0;
       const address = window.location.href;
       leaveWith(() => {
-        if (action === "BACK") router.history.back({ ignoreBlocker: true });
-        else if (action === "FORWARD") router.history.forward({ ignoreBlocker: true });
-        // Several steps at once: their address is gone to, as a link to it would.
+        if (steps !== 0) router.history.go(steps, { ignoreBlocker: true });
+        // How far it went is not known: its address is gone to, as a link to it would.
         else router.history.push(address, undefined, { ignoreBlocker: true });
       });
       return true;

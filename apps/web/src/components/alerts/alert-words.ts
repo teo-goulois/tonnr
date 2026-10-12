@@ -429,15 +429,20 @@ export function afterRead(drafting: Drafting, saved: AlertDraft): Drafting {
 
 /**
  * What was changed, without the spots that are no longer the user's: a neighbour that was
- * deleted meanwhile is no longer asked for. The spots are those the alert is written with,
- * changed here or not: a copy starts with those of the alert it was made from, and one of them
- * may be gone before the copy is touched. The same object when none is gone.
+ * deleted meanwhile is no longer asked for. The spots are those that were written here: those
+ * that were changed, and those a new alert starts with, as a copy's, one of which may be gone
+ * before the copy is touched. The spots of an alert that is saved, when they were not changed
+ * here, are not made a change of: the alert will say what they are when it is read again, and
+ * a change made here for it would hide whatever else it then says. The same object when
+ * nothing is taken out.
  */
 export function withoutGone(
   changed: Partial<AlertDraft>,
   saved: AlertDraft,
   isKnown: (spotId: string) => boolean,
+  isSaved: boolean,
 ) {
+  if (changed.spotIds === undefined && isSaved) return changed;
   const spotIds = changed.spotIds ?? saved.spotIds;
   return spotIds.every(isKnown) ? changed : { ...changed, spotIds: spotIds.filter(isKnown) };
 }

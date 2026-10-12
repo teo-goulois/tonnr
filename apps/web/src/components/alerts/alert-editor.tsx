@@ -199,25 +199,34 @@ export function AlertEditor({
   // tests: what is written while a save is on its way is still here when the answer comes.
   const [drafting, setDrafting] = useState(NOTHING_DRAFTED);
   const { changed } = drafting;
-  const draft = useMemo(() => ({ ...saved, ...changed }), [saved, changed]);
+  // Whether a spot is still the user's. A list that does not hold the panel's own spot is not
+  // read yet, and says nothing of what is gone.
+  const isKnown = useMemo(() => {
+    const known = new Set(spots.map((one) => one.id));
+    return known.has(spot.id) ? (spotId: string) => known.has(spotId) : () => true;
+  }, [spots, spot.id]);
+  // The alert as it is written. A neighbour that was deleted meanwhile is not shown, tried or
+  // sent, whether the alert's spots were changed here or not.
+  const draft = useMemo(() => {
+    const written = { ...saved, ...changed };
+    return written.spotIds.every(isKnown)
+      ? written
+      : { ...written, spotIds: written.spotIds.filter(isKnown) };
+  }, [saved, changed, isKnown]);
   const set = <Key extends keyof AlertDraft>(key: Key, value: AlertDraft[Key]) =>
     setDrafting((current) => setPart(current, saved, key, value));
   // The alert was read again: a part that now says what it says follows it again.
   useEffect(() => setDrafting((current) => afterRead(current, saved)), [saved]);
-  // A neighbour that was deleted meanwhile is no longer asked for. A list that does not hold
-  // the panel's own spot is not read yet, and says nothing of what is gone.
+  // What was written of the alert's spots no longer asks for one that is gone. The spots of an
+  // alert that is saved, when they were not changed here, are left to the alert: it says
+  // itself what they are once it is read again, and may say more than that one is gone.
+  const isSaved = alert !== undefined;
   useEffect(() => {
-    const known = new Set(spots.map((one) => one.id));
-    if (!known.has(spot.id)) return;
     setDrafting((current) => {
-      const kept = withoutGone(
-        current.changed,
-        saved,
-        (spotId) => spotId === spot.id || known.has(spotId),
-      );
+      const kept = withoutGone(current.changed, saved, isKnown, isSaved);
       return kept === current.changed ? current : { ...current, changed: kept };
     });
-  }, [spots, spot.id, saved]);
+  }, [isKnown, saved, isSaved]);
   const [isConfirming, setIsConfirming] = useState(false);
   // The advanced part is open on an alert that asks something of the swell apart, and stays as
   // its reader left it.
