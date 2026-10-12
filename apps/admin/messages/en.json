@@ -94,6 +94,7 @@
   "usage_no_developer": "Keys without a developer account",
   "via_key": "Programs, with a key",
   "via_session": "Accounts, signed in",
+  "via_link": "Readers of a shared list, by its link",
   "via_none": "No one the instance knows",
   "outcome_answered": "Answered",
   "outcome_invalid": "Invalid",

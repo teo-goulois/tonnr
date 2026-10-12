@@ -42,9 +42,15 @@ const everyName = everyProcedure.map(([name]) => name);
 
 // The procedures a key may call: the data everyone shares. Each is named, so that a new
 // procedure answers a key only once someone adds it here on purpose.
-// The procedures that answer anyone: the health check, and what the link of an alert mail does,
-// which carries a key of its own (decision 031).
-const ANSWERS_ANYONE = ["healthCheck", "v1.alerts.mailOff", "v1.alerts.mailOffPage"];
+// The procedures that answer anyone: the health check, what the link of an alert mail does,
+// which carries a key of its own (decision 031), and what opens the link of a shared list,
+// which is its own key too (decision 035).
+const ANSWERS_ANYONE = [
+  "healthCheck",
+  "v1.alerts.mailOff",
+  "v1.alerts.mailOffPage",
+  "v1.shared.open",
+];
 const ANSWERS_A_KEY = [
   "v1.breaks.get",
   "v1.breaks.list",
@@ -88,14 +94,21 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.lists.addStation",
   "v1.lists.create",
   "v1.lists.delete",
+  "v1.lists.leave",
   "v1.lists.list",
   "v1.lists.removeBreak",
   "v1.lists.removeSpot",
   "v1.lists.removeStation",
+  "v1.lists.renewShare",
+  "v1.lists.share",
+  "v1.lists.unshare",
   "v1.lists.update",
+  "v1.lists.view",
   "v1.notifications.list",
   "v1.notifications.markRead",
   "v1.places.search",
+  // Keeping the list a link opens takes an account: decision 035.
+  "v1.shared.join",
   // A spot is its owner's alone, and so is what they ask of it: decision 034.
   "v1.spots.cancelPublication",
   "v1.spots.create",

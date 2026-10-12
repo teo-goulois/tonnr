@@ -6,6 +6,7 @@ import type { Context } from "./context";
 import { isFromAdminSite } from "./cross-site";
 import { admitKey, type KeyState, readAuthorization } from "./keys";
 import { procedureName } from "./procedures";
+import { admitLink } from "./shares";
 import { outcomeOf } from "./usage";
 
 export const o = os.$context<Context>();
@@ -15,18 +16,23 @@ export const publicProcedure = o;
 
 /**
  * Who a request names, before anything is asked of it: a key the instance knows, an account by
- * its session, or no one. `key` then says whether it named a key all the same: such a request
- * is refused, and never passed over to look for a session.
+ * its session, the link of a shared list, or no one. `key` then says whether it named a key or
+ * a link all the same: such a request is refused, and never passed over to look for a session.
  */
 type Named =
   | { via: "key"; keyId: string; state: KeyState }
   | { via: "session"; userId: string }
+  | { via: "link"; listId: string }
   | { via: "none"; key: boolean };
 
 async function nameOf(context: Context): Promise<Named> {
   const header = readAuthorization(context.authorization);
   // A request that carries an Authorization header is judged on it alone.
   if (header !== null) {
+    if (header !== "refused" && header.via === "link") {
+      const list = await admitLink(context.db, header.link);
+      return list ? { via: "link", listId: list.listId } : { via: "none", key: true };
+    }
     const key = header === "refused" ? null : await admitKey(context.db, header.key);
     return key ? { via: "key", keyId: key.id, state: key.state } : { via: "none", key: true };
   }
@@ -35,8 +41,14 @@ async function nameOf(context: Context): Promise<Named> {
   return userId ? { via: "session", userId } : { via: "none", key: false };
 }
 
-/** Who calls: an account, known by its session, or a program, known by its key. */
-export type Caller = { via: "session"; userId: string } | { via: "key"; keyId: string };
+/**
+ * Who calls: an account, known by its session, a program, known by its key, or whoever was
+ * given the link of a shared list.
+ */
+export type Caller =
+  | { via: "session"; userId: string }
+  | { via: "key"; keyId: string }
+  | { via: "link"; listId: string };
 
 /**
  * Finds out who a request names, refuses a key that does not work or has used its hour's limit,
@@ -94,8 +106,9 @@ export const linkProcedure = knownProcedure.route({
 });
 
 /**
- * Answers a caller the instance knows: an account by its session, or a program by an API key.
- * For the data everyone shares. `context.caller` says which of the two is calling.
+ * Answers a caller the instance knows: an account by its session, a program by an API key, or
+ * whoever was given the link of a shared list. For the data everyone shares. `context.caller`
+ * says which of them is calling.
  */
 export const callerProcedure = knownProcedure.use(({ context, next }) => {
   const { named } = context;
@@ -104,7 +117,9 @@ export const callerProcedure = knownProcedure.use(({ context, next }) => {
   const caller: Caller =
     named.via === "key"
       ? { via: "key", keyId: named.keyId }
-      : { via: "session", userId: named.userId };
+      : named.via === "link"
+        ? { via: "link", listId: named.listId }
+        : { via: "session", userId: named.userId };
   return next({ context: { caller } });
 });
 
@@ -115,6 +130,11 @@ export const protectedProcedure = knownProcedure
     if (context.named.via === "key") {
       throw new ORPCError("FORBIDDEN", {
         message: "An API key reads shared data only. This takes a signed-in session.",
+      });
+    }
+    if (context.named.via === "link") {
+      throw new ORPCError("FORBIDDEN", {
+        message: "A list's link reads its list and shared data. This takes a signed-in session.",
       });
     }
     if (context.named.via === "none" || !context.session?.user) {

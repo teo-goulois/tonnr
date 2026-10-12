@@ -45,7 +45,7 @@ const publicationSchema = z.object({
   decidedAt: z.date().nullable(),
 });
 
-const spotSchema = z.object({
+export const spotSchema = z.object({
   id: z.string(),
   // The catalogue break the spot was created from. Null for a point the user placed, and once
   // the break has left the catalogue.
@@ -116,7 +116,7 @@ async function publicationsOf(db: Database | Transaction, spotIds: string[]) {
   return latest;
 }
 
-function describeSpot(
+export function describeSpot(
   row: typeof spot.$inferSelect,
   userId: string | undefined,
   alertIds: string[],

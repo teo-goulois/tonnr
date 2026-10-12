@@ -15,13 +15,13 @@ An account kept spots and nothing about stations. A surfer who reads the same fe
 - Adding a station, a break or a spot twice, or removing one that is not in the list, changes nothing and is not an error.
 - A list comes with the ids of its stations in `stationIds`, of its breaks in `breakIds` and of its spots in `spotIds`, each in the order they were added. The stations themselves are read from `/v1/stations`, the breaks from `/v1/breaks`, and the spots from `/v1/spots`.
 - An account holds at most 50 lists besides its favorites, and a list at most 200 stations, 200 breaks and 100 spots, which is all the spots an account holds.
-- The API gives a caller their own lists and no one else's. A list that is not theirs is reported as missing, as a private spot is.
+- The API gives a caller their own lists and no one else's. A list that is not theirs is reported as missing, as a spot is. Decision 035 adds the lists a caller kept from a link, which they read and do not change.
 - A list holds spots of its owner's alone. A spot that is someone else's is reported as missing when it is added, as it is everywhere (decision 006). A spot that is deleted leaves the lists it was in, and taking it out of a list leaves the spot.
 - All of an account's spots are still listed apart, under "My spots": a spot is its owner's whether or not a list holds it. A break in a list is a place kept at hand, and making a spot of it is another act.
 
 ## Consequences
 
-- Sharing a list is not built.
+- A list is shared by a link since [decision 035](035-shared-lists.md): whoever has it reads the list, and an account may keep it.
 - `stationIds` names the stations a list holds. Once `v1` is released the field cannot change (decision 003), so the breaks came in a second field next to it, and the spots in a third.
 - A list keeps the order in which its stations were added, its breaks after them in theirs, and its spots last. Letting the user reorder them, or mix the kinds, needs a position column.
 - No route returns several stations or several breaks by their ids. A client that shows a list asks for each one, or finds them among those it has already loaded.

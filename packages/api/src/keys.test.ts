@@ -11,13 +11,13 @@ describe("readAuthorization", () => {
   });
 
   it.each([`Bearer ${key}`, `bearer ${key}`, `BEARER ${key}`])("reads the key of %s", (header) => {
-    expect(readAuthorization(header)).toEqual({ key });
+    expect(readAuthorization(header)).toEqual({ via: "key", key });
   });
 
   it("reads the key it makes", () => {
     const made = newKey();
 
-    expect(readAuthorization(`Bearer ${made.key}`)).toEqual({ key: made.key });
+    expect(readAuthorization(`Bearer ${made.key}`)).toEqual({ via: "key", key: made.key });
     expect(made.key.startsWith(made.prefix)).toBe(true);
     expect(made.prefix).toHaveLength(8);
     expect(made.keyHash).toMatch(/^[0-9a-f]{64}$/);

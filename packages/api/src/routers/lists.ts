@@ -6,14 +6,18 @@ import {
   stationList,
   stationListBreak,
   stationListItem,
+  stationListMember,
+  stationListShare,
   stationListSpot,
 } from "@repo/db/schema/lists";
 import { spot, surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
+import { hashPassword, newToken } from "../shares";
 import { hasControlCharacter } from "../text";
+import { describeSpot, spotSchema } from "./spots";
 
 // The favorites are not counted: they are created on their own, the first time they are used.
 const MAX_LISTS_PER_USER = 50;
@@ -26,6 +30,9 @@ const MAX_SPOTS_PER_LIST = 100;
 const FAVORITES = "favorites";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+// The password a link may ask for. It is the owner's to choose: a word friends are told.
+const passwordSchema = z.string().min(4).max(72);
 
 const nameSchema = z
   .string()
@@ -49,12 +56,49 @@ const listSchema = z.object({
   breakIds: z.array(z.string()),
   // The caller's own spots the list holds, in the order they were added.
   spotIds: z.array(z.string()),
+  // The link the list is shared by, which whoever has it reads the list with. Null for a list
+  // that is its owner's alone. Decision 035.
+  share: z
+    .object({
+      // What the link ends with: the web app's address for it is `/app?shared=<token>`.
+      token: z.string(),
+      hasPassword: z.boolean(),
+      // How many accounts opened the link and kept the list.
+      members: z.number(),
+    })
+    .nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-/** What a list holds, each kind by its ids in the order they were added. */
-type Held = { stationIds: string[]; breakIds: string[]; spotIds: string[] };
+type ShareInfo = { token: string; hasPassword: boolean; members: number };
+
+/** What a list holds, each kind by its ids in the order they were added, and how it is shared. */
+type Held = {
+  stationIds: string[];
+  breakIds: string[];
+  spotIds: string[];
+  share: ShareInfo | null;
+};
+
+const NOTHING: Held = { stationIds: [], breakIds: [], spotIds: [], share: null };
+
+/**
+ * A list as whoever may read it does: its owner, an account that kept it, or whoever has its
+ * link. Its stations and its breaks come by their ids, as in a list of one's own. Its spots
+ * come whole: they are their owner's, and no other route answers them.
+ */
+export const listViewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  // True for its owner's favorites. A client shows them under a label of its own.
+  isDefault: z.boolean(),
+  // How the caller reads it.
+  access: z.enum(["owner", "member", "link"]),
+  stationIds: z.array(z.string()),
+  breakIds: z.array(z.string()),
+  spots: z.array(spotSchema),
+});
 
 function describeList(row: typeof stationList.$inferSelect, held: Held) {
   return {
@@ -64,6 +108,7 @@ function describeList(row: typeof stationList.$inferSelect, held: Held) {
     stationIds: held.stationIds,
     breakIds: held.breakIds,
     spotIds: held.spotIds,
+    share: held.share,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -115,11 +160,58 @@ async function spotIdsOf(db: Database | Transaction, listId: string) {
   return items.map((item) => item.spotId);
 }
 
+async function shareInfoOf(db: Database | Transaction, listId: string): Promise<ShareInfo | null> {
+  const [share] = await db
+    .select()
+    .from(stationListShare)
+    .where(eq(stationListShare.listId, listId));
+  if (!share) return null;
+  const [kept] = await db
+    .select({ total: count() })
+    .from(stationListMember)
+    .where(eq(stationListMember.listId, listId));
+  return {
+    token: share.token,
+    hasPassword: share.passwordHash !== null,
+    members: kept?.total ?? 0,
+  };
+}
+
 async function heldBy(db: Database | Transaction, listId: string): Promise<Held> {
   return {
     stationIds: await stationIdsOf(db, listId),
     breakIds: await breakIdsOf(db, listId),
     spotIds: await spotIdsOf(db, listId),
+    share: await shareInfoOf(db, listId),
+  };
+}
+
+/** A list as one who may read it does. `userId` is the reader's account, when they have one. */
+export async function viewOf(
+  db: Database | Transaction,
+  list: typeof stationList.$inferSelect,
+  access: "owner" | "member" | "link",
+  userId: string | undefined,
+) {
+  const held = await heldBy(db, list.id);
+  const rows =
+    held.spotIds.length > 0
+      ? await db.select().from(spot).where(inArray(spot.id, held.spotIds))
+      : [];
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return {
+    id: list.id,
+    name: list.name,
+    isDefault: list.isDefault,
+    access,
+    stationIds: held.stationIds,
+    breakIds: held.breakIds,
+    // Nothing of an alert or of a request to publish goes with a spot here: they are read on
+    // the spot itself, by its owner.
+    spots: held.spotIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [describeSpot(row, userId, [], undefined)] : [];
+    }),
   };
 }
 
@@ -153,7 +245,22 @@ export const listsRouter = {
       summary: "The caller's lists of stations, surf breaks and spots, the favorites first",
       tags: ["Lists"],
     })
-    .output(z.object({ lists: z.array(listSchema) }))
+    .output(
+      z.object({
+        lists: z.array(listSchema),
+        // The lists of other accounts that the caller opened by their link and kept, in the
+        // order they were kept. Each is read at `GET /lists/{id}/view`.
+        joined: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            isDefault: z.boolean(),
+            // How many things it holds, of every kind.
+            size: z.number(),
+          }),
+        ),
+      }),
+    )
     .handler(async ({ context }) => {
       const userId = context.session.user.id;
       const rows = await context.db
@@ -185,15 +292,36 @@ export const listsRouter = {
       const itemsByList = Map.groupBy(items, (item) => item.listId);
       const breaksByList = Map.groupBy(breaks, (item) => item.listId);
       const spotsByList = Map.groupBy(spots, (item) => item.listId);
-      return {
-        lists: rows.map((row) =>
+
+      const lists = [];
+      for (const row of rows) {
+        lists.push(
           describeList(row, {
             stationIds: (itemsByList.get(row.id) ?? []).map((item) => item.stationId),
             breakIds: (breaksByList.get(row.id) ?? []).map((item) => item.breakId),
             spotIds: (spotsByList.get(row.id) ?? []).map((item) => item.spotId),
+            share: await shareInfoOf(context.db, row.id),
           }),
-        ),
-      };
+        );
+      }
+
+      const kept = await context.db
+        .select({ list: stationList })
+        .from(stationListMember)
+        .innerJoin(stationList, eq(stationList.id, stationListMember.listId))
+        .where(eq(stationListMember.userId, userId))
+        .orderBy(asc(stationListMember.createdAt), asc(stationList.id));
+      const joined = [];
+      for (const { list } of kept) {
+        const held = await heldBy(context.db, list.id);
+        joined.push({
+          id: list.id,
+          name: list.name,
+          isDefault: list.isDefault,
+          size: held.stationIds.length + held.breakIds.length + held.spotIds.length,
+        });
+      }
+      return { lists, joined };
     }),
 
   create: protectedProcedure
@@ -232,7 +360,7 @@ export const listsRouter = {
         });
       }
       if (!created) throw new ORPCError("INTERNAL_SERVER_ERROR");
-      return describeList(created, { stationIds: [], breakIds: [], spotIds: [] });
+      return describeList(created, NOTHING);
     }),
 
   update: protectedProcedure
@@ -511,5 +639,151 @@ export const listsRouter = {
           .returning({ spotId: stationListSpot.spotId });
         return describeList(removed ? await touch(tx, list) : list, await heldBy(tx, list.id));
       });
+    }),
+
+  share: protectedProcedure
+    .route({
+      method: "PUT",
+      path: "/lists/{id}/share",
+      summary: "Share one of the caller's lists by a link, or change its password",
+      description:
+        "Whoever has the link reads the list: its stations, its breaks, and the owner's spots " +
+        "in it, which no one else reads otherwise. They need no account. The first call makes " +
+        "the link, and a later one keeps it. `password`, when given, is asked of whoever " +
+        "opens the link from then on, and null asks none. Left out, it stays as it is. " +
+        "Decision 035.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema, password: passwordSchema.nullable().optional() }))
+    .output(listSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        const list = await lockList(tx, userId, input.id);
+        if (!list) throw notFound(input.id);
+
+        const passwordHash =
+          input.password === undefined
+            ? undefined
+            : input.password === null
+              ? null
+              : hashPassword(input.password);
+        await tx
+          .insert(stationListShare)
+          .values({ listId: list.id, token: newToken(), passwordHash: passwordHash ?? null })
+          .onConflictDoUpdate({
+            target: stationListShare.listId,
+            // A password that changes starts the count of wrong ones again.
+            set:
+              passwordHash === undefined
+                ? { listId: list.id }
+                : { passwordHash, wrongPasswords: 0, wrongSince: null },
+          });
+        return describeList(list, await heldBy(tx, list.id));
+      });
+    }),
+
+  renewShare: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/lists/{id}/share/renew",
+      summary: "Give a shared list a new link, which ends the one before",
+      description:
+        "The link before opens nothing from then on. The password stays, and so do the " +
+        "accounts that kept the list: `DELETE /lists/{id}/share` is what ends it for all.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema }))
+    .output(listSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        const list = await lockList(tx, userId, input.id);
+        if (!list) throw notFound(input.id);
+        const [renewed] = await tx
+          .update(stationListShare)
+          .set({ token: newToken(), wrongPasswords: 0, wrongSince: null })
+          .where(eq(stationListShare.listId, list.id))
+          .returning({ listId: stationListShare.listId });
+        if (!renewed) {
+          throw new ORPCError("CONFLICT", { message: "This list is not shared." });
+        }
+        return describeList(list, await heldBy(tx, list.id));
+      });
+    }),
+
+  unshare: protectedProcedure
+    .route({
+      method: "DELETE",
+      path: "/lists/{id}/share",
+      summary: "Stop sharing a list",
+      description:
+        "Its link opens nothing from then on, and the accounts that kept the list no longer " +
+        "read it. Stopping what is not shared changes nothing.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema }))
+    .output(listSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        const list = await lockList(tx, userId, input.id);
+        if (!list) throw notFound(input.id);
+        await tx.delete(stationListShare).where(eq(stationListShare.listId, list.id));
+        await tx.delete(stationListMember).where(eq(stationListMember.listId, list.id));
+        return describeList(list, await heldBy(tx, list.id));
+      });
+    }),
+
+  view: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/lists/{id}/view",
+      summary: "A list with its spots, for its owner or an account that kept it",
+      description:
+        "What `POST /shared/open` answers to whoever has the list's link, for an account that " +
+        "needs the link no more: the list's owner, and an account that kept it. A list that " +
+        "is neither's is reported as missing.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(listViewSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      const [list] = await context.db
+        .select()
+        .from(stationList)
+        .where(eq(stationList.id, input.id));
+      if (!list) throw notFound(input.id);
+      if (list.userId === userId) return viewOf(context.db, list, "owner", userId);
+
+      const [kept] = await context.db
+        .select({ listId: stationListMember.listId })
+        .from(stationListMember)
+        .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)));
+      if (!kept) throw notFound(input.id);
+      return viewOf(context.db, list, "member", userId);
+    }),
+
+  leave: protectedProcedure
+    .route({
+      method: "DELETE",
+      path: "/lists/{id}/membership",
+      summary: "Let go of a list of someone else's that the caller kept",
+      description: "Letting go of a list that was not kept changes nothing.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ id: z.string() }))
+    .handler(async ({ input, context }) => {
+      await context.db
+        .delete(stationListMember)
+        .where(
+          and(
+            eq(stationListMember.listId, input.id),
+            eq(stationListMember.userId, context.session.user.id),
+          ),
+        );
+      return { id: input.id };
     }),
 };

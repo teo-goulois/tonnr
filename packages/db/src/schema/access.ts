@@ -134,9 +134,9 @@ export const developerCalls = pgTable(
   (table) => [primaryKey({ columns: [table.hour, table.developerId] })],
 );
 
-// Who a count belongs to: a key, the accounts that called with a session, all together, or no one
-// the instance knows.
-export const USAGE_VIA = ["key", "session", "none"] as const;
+// Who a count belongs to: a key, the accounts that called with a session, all together, the
+// readers of the lists shared by a link, all together too, or no one the instance knows.
+export const USAGE_VIA = ["key", "session", "link", "none"] as const;
 // What came of a call. Decision 020 says which answer gets which word.
 export const USAGE_OUTCOMES = ["answered", "invalid", "refused", "limited", "failed"] as const;
 

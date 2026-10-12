@@ -17,7 +17,7 @@ A spot is what the product is built around: a point, a name, and the conditions 
 
 ## Consequences
 
-- Sharing a spot with chosen people is not built. It needs invitations and a third visibility.
+- A spot is shared with chosen people through a list that holds it, by the list's link: [decision 035](035-shared-lists.md).
 - Conditions come from the forecast only. A buoy measurement does not yet confirm that a spot works now.
 - Tide heights are measured from the datum the tide source uses (decision 002), so a tide criterion means that datum.
 - Changing the shape of the criteria means migrating the stored JSON.

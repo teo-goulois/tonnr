@@ -18,6 +18,7 @@ import { notificationsRouter } from "./notifications";
 import { placesRouter } from "./places";
 import { preferencesRouter } from "./preferences";
 import { publicationsRouter } from "./publications";
+import { sharedRouter } from "./shared";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
 import { tidesRouter } from "./tides";
@@ -43,6 +44,7 @@ export const v1Router = {
   notifications: notificationsRouter,
   places: placesRouter,
   publications: publicationsRouter,
+  shared: sharedRouter,
   spots: spotsRouter,
   stations: stationsRouter,
   tides: tidesRouter,

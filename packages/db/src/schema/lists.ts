@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -97,5 +98,44 @@ export const stationListSpot = pgTable(
   (table) => [
     primaryKey({ columns: [table.listId, table.spotId] }),
     index("station_list_spot_spotId_idx").on(table.spotId),
+  ],
+);
+
+/**
+ * The link a list is shared by: whoever has it reads the list, its owner's spots in it too. A
+ * list has one link at a time, and none until its owner shares it. Decision 035 gives the rules.
+ */
+export const stationListShare = pgTable("station_list_share", {
+  listId: text("list_id")
+    .primaryKey()
+    .references(() => stationList.id, { onDelete: "cascade" }),
+  // What the link ends with. It is kept as it is, so that the owner can copy the link again:
+  // the database already holds the list it opens.
+  token: text("token").notNull().unique(),
+  // The password the owner asks of whoever opens the link, as its salt and its scrypt. Null
+  // for a link that asks none.
+  passwordHash: text("password_hash"),
+  // The wrong passwords the link was given since `wrongSince`: it takes ten in a quarter of an
+  // hour.
+  wrongPasswords: integer("wrong_passwords").default(0).notNull(),
+  wrongSince: timestamp("wrong_since", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** An account that opened a list's link and kept the list: it reads it without the link. */
+export const stationListMember = pgTable(
+  "station_list_member",
+  {
+    listId: text("list_id")
+      .notNull()
+      .references(() => stationList.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.listId, table.userId] }),
+    index("station_list_member_userId_idx").on(table.userId),
   ],
 );

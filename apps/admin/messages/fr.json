@@ -93,6 +93,7 @@
   "usage_empty_keys": "Aucun appel avec une clé sur cette période.",
   "usage_no_developer": "Clés sans compte développeur",
   "via_key": "Programmes, avec une clé",
+  "via_link": "Lecteurs d’une liste partagée, par son lien",
   "via_session": "Comptes connectés",
   "via_none": "Personne que l’instance connaît",
   "outcome_answered": "Répondus",

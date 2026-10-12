@@ -22,6 +22,7 @@ type OverviewPageProps = {
 const VIA: Record<string, () => string> = {
   key: m.via_key,
   session: m.via_session,
+  link: m.via_link,
   none: m.via_none,
 };
 

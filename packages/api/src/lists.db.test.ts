@@ -93,7 +93,10 @@ describe.skipIf(!TEST_DATABASE_URL)("a spot in a list", () => {
     expect(
       await code(call(v1Router.lists.addSpot, { id: "favorites", spotId: bens.id }, by("ana"))),
     ).toBe("NOT_FOUND");
-    expect(await call(v1Router.lists.list, undefined, by("ana"))).toEqual({ lists: [] });
+    expect(await call(v1Router.lists.list, undefined, by("ana"))).toEqual({
+      lists: [],
+      joined: [],
+    });
   });
 
   it("answers nothing of a list that is someone else's", async () => {

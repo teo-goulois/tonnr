@@ -451,7 +451,10 @@ function ViewerRoute() {
 
   const listsKey = orpc.v1.lists.list.queryKey();
   const setLists = (update: (lists: SavedList[]) => SavedList[]) =>
-    queryClient.setQueryData(listsKey, (answer) => ({ lists: update(answer?.lists ?? []) }));
+    queryClient.setQueryData(listsKey, (answer) => ({
+      lists: update(answer?.lists ?? []),
+      joined: answer?.joined ?? [],
+    }));
   const refreshLists = () => queryClient.invalidateQueries({ queryKey: listsKey });
   const replaceList = (list: SavedList) =>
     setLists((all) =>
@@ -771,6 +774,7 @@ function ViewerRoute() {
             stationIds: [],
             breakIds: [],
             spotIds: [],
+            share: null,
             ...withItem({ stationIds: [], breakIds: [], spotIds: [] }),
             createdAt: today,
             updatedAt: today,

@@ -38,3 +38,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [032. Météo-France's wind stations, and a provider that asks for a key](032-meteo-france-wind.md)
 - [033. The units a reader chooses](033-units.md)
 - [034. A spot made public by a request](034-public-spots.md)
+- [035. A list shared by a link](035-shared-lists.md)

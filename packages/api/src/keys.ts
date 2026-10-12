@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { Database } from "@repo/db";
 import { apiKey, developer, developerCalls, operator } from "@repo/db/schema/access";
 import { sql } from "drizzle-orm";
+import { readLink } from "./shares";
 
 // How every key starts, so that a key is told from another secret at a glance. 32 random bytes
 // follow, written in base64url.
@@ -23,15 +24,17 @@ function hashKey(key: string) {
 }
 
 /**
- * What an Authorization header gives: nothing when there is none, a key, or "refused" when it
- * holds anything that is not `Bearer` and one key. A refused header is never passed over to
- * look for a session: a request that names a key is judged on that key.
+ * What an Authorization header gives: nothing when there is none, a key, the link of a shared
+ * list (decision 035), or "refused" when it holds anything else. A refused header is never
+ * passed over to look for a session: a request that names a key or a link is judged on it.
  */
 export function readAuthorization(header: string | null) {
   if (header === null) return null;
 
+  const link = readLink(header);
+  if (link) return { via: "link" as const, link };
   const key = /^bearer ([^ ]+)$/i.exec(header)?.[1];
-  return key !== undefined && KEY.test(key) ? { key } : "refused";
+  return key !== undefined && KEY.test(key) ? { via: "key" as const, key } : "refused";
 }
 
 /**

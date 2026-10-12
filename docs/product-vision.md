@@ -12,6 +12,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - The user may describe their spot as a surf guide would: its type, its bottom, the tides and the directions it likes.
 - The user sets an alert on a spot, with the conditions that make it work: swell height, period and direction, wind, and tide. Tonnr tells them when measurements or forecasts match. Téo said on 2026-10-11 what an alert is and when it speaks: decision 031 holds it.
 - A user keeps buoys, wind stations, surf breaks and their own spots as favorites and sorts them into lists. Decision 017 gives the model.
+- A user shares a list by a link, with a password if they wish. Whoever has the link sees the map with that list alone, their private spots in it too, and needs no account. Decision 035 gives the rules.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
 - An API serves the data underneath: buoy measurements, forecasts, tides, and history. It asks who calls: an account, or a program with a key that the operator gave it.
 - Whoever runs an instance does it from an admin app: the developer accounts that hold the keys, how much each one calls, and the accounts that signed up. Decision 020 covers it.
@@ -50,7 +51,7 @@ Checked on 2026-10-08. Provider details are in `docs/data-sources.md`.
 
 ## Assumptions
 
-- Sharing works by invitation on each spot. There is no friends list yet.
+- Sharing works by the link of a list. There is no friends list yet.
 - Support is by email, and Téo answers it.
 - Wind forecasts come from the same provider as wave forecasts.
 
