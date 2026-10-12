@@ -33,7 +33,7 @@ describe("the push of an alert", () => {
     expect(alertPush(content())).toEqual({
       title: "La baie : un créneau se dessine",
       // 06:00 UTC is 08:00 in Paris. A direction is a point of the compass with its figure.
-      body: "Le banc : lun. 12 oct., 08:00 à 12:00\nPrévu pour lun. 12 oct., 08:00 : houle 1,8 m, 11 s, O 270° ; vent 10 nd, E 90°",
+      body: "Le banc : lun. 12 oct., 08:00 à 12:00\nPrévu pour lun. 12 oct., 08:00 : vagues 1,8 m, 11 s, O 270° ; vent 10 nd, E 90°",
       url: "https://app.example.org/fr/app?spot=s1",
       tag: expect.stringMatching(/^[\w-]{22}$/),
     });
@@ -52,7 +52,7 @@ describe("the push of an alert", () => {
     expect(push.title).toBe("La baie: a window is taking shape");
     // 1.8 m is 5.9 ft, and 5 m/s is 18 km/h.
     expect(push.body).toBe(
-      "Le banc: Mon 12 Oct, 06:00 to 10:00\nForecast for Mon 12 Oct, 06:00: swell 5.9 ft, 11 s, W 270° ; wind 18 km/h, E 90°",
+      "Le banc: Mon 12 Oct, 06:00 to 10:00\nForecast for Mon 12 Oct, 06:00: waves 5.9 ft, 11 s, W 270° ; wind 18 km/h, E 90°",
     );
     expect(push.url).toBe("https://app.example.org/app?spot=s1");
   });
@@ -104,7 +104,7 @@ describe("the push of an alert", () => {
       expect(
         alertPush({ ...begins, lines: [{ ...spot, open: morning, sea, station: without }] }).body,
       ).toBe(
-        "Le banc: Mon 12 Oct, 08:00 to 12:00\nForecast for Mon 12 Oct, 08:00: swell 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
+        "Le banc: Mon 12 Oct, 08:00 to 12:00\nForecast for Mon 12 Oct, 08:00: waves 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
       );
     }
     // And the hours alone when the last look kept nothing of the sea.

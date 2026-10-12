@@ -42,7 +42,7 @@ describe("the mail of an alert", () => {
     expect(mail.text).toContain("Le banc\n  lun. 12 oct., 08:00 à 12:00\n");
     // The forecast of one hour, which it names, and when it was fetched.
     expect(mail.text).toContain(
-      "Prévu pour lun. 12 oct., 08:00 : houle 1,8 m, 11 s ; vent 10 nd (prévision lue dim. 11 oct., 20:20)",
+      "Prévu pour lun. 12 oct., 08:00 : vagues 1,8 m, 11 s ; vent 10 nd (prévision lue dim. 11 oct., 20:20)",
     );
     expect(mail.text).toContain("Ouvrir le spot : https://app.example.org/fr/app?spot=s1");
     // The credit, and what its licence asks to be said of values that were changed.
@@ -118,7 +118,7 @@ describe("the mail of an alert", () => {
     expect(gone.text).toContain(
       "Le banc\n  No longer forecast: Mon 12 Oct, 08:00 to 12:00\n  Forecast fetched Sun 11 Oct, 20:20\n",
     );
-    expect(gone.text).not.toContain("swell");
+    expect(gone.text).not.toContain("waves");
   });
 
   it("says in one mail what is new, what moved and what is gone at a spot", () => {
@@ -157,7 +157,7 @@ describe("the mail of an alert", () => {
         "  Moved: Mon 12 Oct, 11:00 to 15:00 (it was Mon 12 Oct, 08:00 to 12:00)",
         "  No longer forecast: Tue 13 Oct, 08:00 to 12:00",
         // Where the swell and the wind come from, each with its figure.
-        "  Forecast for Mon 12 Oct, 11:00: swell 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
+        "  Forecast for Mon 12 Oct, 11:00: waves 1.8 m, 11 s, W 270° ; wind 10 kn, E 90°",
       ].join("\n"),
     );
   });
@@ -274,7 +274,7 @@ describe("the mail of an alert", () => {
 
     // 1.8 m is 5.9 ft, 5 m/s is 18 km/h, 2.1 m is 6.9 ft and 18.4 km is 11 mi.
     expect(mail.text).toContain(
-      "Forecast for Mon 12 Oct, 08:00: swell 5.9 ft, 11 s ; wind 18 km/h",
+      "Forecast for Mon 12 Oct, 08:00: waves 5.9 ft, 11 s ; wind 18 km/h",
     );
     expect(mail.text).toContain("Waves at Buoy 62001, 11 mi away: 6.9 ft, Mon 12 Oct, 07:30");
     expect(alertMail(content({ units: { ...STARTING_UNITS, windSpeed: "ms" } })).text).toContain(

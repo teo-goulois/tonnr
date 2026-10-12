@@ -438,7 +438,7 @@ export function AlertEditor({
 
       {/* The alert, said. Every underlined part opens what changes it. */}
       <p className="text-l text-pretty">
-        {m.alert_says_swell()}{" "}
+        {m.alert_says_waves()}{" "}
         {range("swellHeightMeters", m.alert_any_height(), (said) =>
           m.alert_height_of({ range: said }),
         )}

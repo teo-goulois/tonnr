@@ -170,7 +170,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     await pass();
 
     // 1.2 m of swell is 3.9 ft.
-    expect(post.sent()[0]?.text).toContain("swell 3.9 ft");
+    expect(post.sent()[0]?.text).toContain("waves 3.9 ft");
     expect(post.sent()[0]?.text).not.toMatch(/\d kn\b/);
   });
 
@@ -396,7 +396,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     const [mail] = post.sent();
     expect(mail?.subject).toBe("The bay: it is on");
     expect(mail?.text).toContain(
-      "Home\n  Sat 10 Oct, 08:00 to 12:00\n  Forecast for Sat 10 Oct, 08:00: swell 1.2 m",
+      "Home\n  Sat 10 Oct, 08:00 to 12:00\n  Forecast for Sat 10 Oct, 08:00: waves 1.2 m",
     );
     expect(mail?.text).toMatch(/\(forecast fetched Sat 10 Oct, 05:20\)/);
   });
@@ -495,7 +495,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
       expect(await pass()).toMatchObject({ mails: 1 });
       expect(post.sent()[0]?.subject).toBe("The bay: it is on");
       // The sea of the hour it leaves in, which the mail names.
-      expect(post.sent()[0]?.text).toContain("Forecast for Sat 10 Oct, 09:00: swell 1.2 m");
+      expect(post.sent()[0]?.text).toContain("Forecast for Sat 10 Oct, 09:00: waves 1.2 m");
     });
 
     it("is not sent by an account that switched it off meanwhile", async () => {

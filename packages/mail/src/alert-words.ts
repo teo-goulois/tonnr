@@ -94,7 +94,8 @@ const WORDS = {
     movedRow: (now: string, before: string) => `Moved: ${now} (it was ${before})`,
     goneRow: (hours: string) => `No longer forecast: ${hours}`,
     forecastFor: (hour: string) => `Forecast for ${hour}`,
-    swell: "swell",
+    // The whole sea, as a panel shows it: decision 036.
+    waves: "waves",
     wind: "wind",
     knots: "kn",
     points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSW,SW,WSW,W,WNW,NW,NNW",
@@ -122,7 +123,7 @@ const WORDS = {
     movedRow: (now: string, before: string) => `A bougé : ${now} (c’était ${before})`,
     goneRow: (hours: string) => `Plus prévu : ${hours}`,
     forecastFor: (hour: string) => `Prévu pour ${hour}`,
-    swell: "houle",
+    waves: "vagues",
     wind: "vent",
     knots: "nd",
     points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
@@ -225,7 +226,7 @@ export function alertWords(said: AlertSaid) {
         ? [
             sea.swellHeightMeters !== null &&
               [
-                `${words.swell} ${height(sea.swellHeightMeters)}`,
+                `${words.waves} ${height(sea.swellHeightMeters)}`,
                 sea.swellPeriodSeconds !== null && `${number(sea.swellPeriodSeconds, 0)} s`,
                 typeof sea.swellDirectionDegrees === "number" && from(sea.swellDirectionDegrees),
               ]

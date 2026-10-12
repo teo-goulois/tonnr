@@ -30,7 +30,7 @@ export function AlertSummary({ alert }: { alert: Pick<Alert, "criteria" | "short
       : [];
   const groups: [string, ReactNode[]][] = [
     [
-      m.alert_summary_swell(),
+      m.alert_summary_waves(),
       [
         ...range("swellHeightMeters"),
         ...range("swellPeriodSeconds"),

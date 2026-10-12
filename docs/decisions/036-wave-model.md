@@ -67,7 +67,7 @@ A forecast issued five days earlier keeps the order: 79 / 77 / 53 % for ECMWF, 8
 - A forecast kept in the shape before names no model and is refused: each cell is fetched again the first time it is asked for after the deployment.
 - A point with no sea costs four requests where it cost two, since every model is asked. A point with a sea costs two, as before, at nearly every surf break: of 640, ECMWF at 9 km had a sea at 637.
 - An alert set on a period of ten seconds or more now meets the period a surfer reads. It was checked against a mean period, about three seconds lower. An alert saved before the change keeps its numbers and may tell more often.
-- The sentence of an alert and its mails still say "swell". The values are the whole sea.
+- The sentence of an alert, its mails and its pushes say "waves" since 2026-10-12, as the panel does: they said "swell" for the whole sea. The conditions keep their saved names.
 - The API no longer gives a swell or a wind sea. It may change freely until its first public release: decision 003.
 - Near the coast every model is weaker. Within 2 km of the shore ECMWF's height was right 77 times in 100, against 93 beyond 10 km. A model with a grid of 3 or 4 km did no better there. One of 1.5 km did, by ten points, where it exists: `docs/data-sources.md` lists them, and decision 037 reads that one.
 - DWD is credited though no value shown is DWD's: the provider's marine page asks it of every user. The credit says who asks, so that it claims nothing of the waves. The first version of this decision left DWD out, and Téo asked the same day that the credit follow what is asked.

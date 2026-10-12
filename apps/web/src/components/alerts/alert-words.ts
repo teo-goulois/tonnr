@@ -45,7 +45,7 @@ export const RANGES: Record<
   }
 > = {
   swellHeightMeters: {
-    label: m.alert_label_swell_height,
+    label: m.alert_label_wave_height,
     // Written and set in the reader's unit, and kept in metres. In feet a step is half a foot.
     unit: (value) => `${value} ${heightUnit()}`,
     least: 0,
@@ -64,7 +64,7 @@ export const RANGES: Record<
     ceiling: 30,
   },
   swellPeriodSeconds: {
-    label: m.alert_label_swell_period,
+    label: m.alert_label_wave_period,
     unit: (value) => m.unit_seconds({ value }),
     least: 4,
     most: 22,
@@ -114,9 +114,9 @@ export const RANGES: Record<
 };
 
 export const CRITERION_LABELS: Record<CriterionKey, () => string> = {
-  swellHeightMeters: m.alert_label_swell_height,
-  swellPeriodSeconds: m.alert_label_swell_period,
-  swellDirectionDegrees: m.alert_label_swell_from,
+  swellHeightMeters: m.alert_label_wave_height,
+  swellPeriodSeconds: m.alert_label_wave_period,
+  swellDirectionDegrees: m.alert_label_wave_from,
   windSpeedMetersPerSecond: m.alert_label_wind_speed,
   windDirectionDegrees: m.alert_label_wind_from,
   tideHeightMeters: m.alert_label_tide_height,
