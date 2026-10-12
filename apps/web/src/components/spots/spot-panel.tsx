@@ -1,4 +1,5 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -69,11 +70,17 @@ export function SpotPanel({
   // panel was asked to go while it does.
   const unsaved = useRef(false);
   const [leavingFor, setLeavingFor] = useState<{ to: Written | null } | null>(null);
-  const onUnsaved = useCallback((hasUnsaved: boolean) => {
-    unsaved.current = hasUnsaved;
-    // Once what was written is saved, there is nothing left to ask about.
-    if (!hasUnsaved) setLeavingFor(null);
-  }, []);
+  const tellUnsaved = alerting.onUnsaved;
+  const onUnsaved = useCallback(
+    (hasUnsaved: boolean) => {
+      unsaved.current = hasUnsaved;
+      // The route is told too: it is what is asked to leave the spot.
+      tellUnsaved(hasUnsaved);
+      // Once what was written is saved, there is nothing left to ask about.
+      if (!hasUnsaved) setLeavingFor(null);
+    },
+    [tellUnsaved],
+  );
   const go = (to: Written | null) => {
     setLeavingFor(null);
     if (to) {
@@ -89,10 +96,18 @@ export function SpotPanel({
     setTab("alert");
     const what = leaveFor(writing, to, unsaved.current);
     if (what === "go") go(to);
-    if (what === "ask") setLeavingFor({ to });
+    // The alert that is open was asked for again: an older question no longer stands.
+    setLeavingFor(what === "ask" ? { to } : null);
   };
   const leaver = useRef(leave);
   leaver.current = leave;
+  // What asks to leave the spot itself waits for the same answer.
+  const routeLeaving = alerting.leaving;
+  const stay = (open: boolean) => {
+    if (open) return;
+    setLeavingFor(null);
+    routeLeaving?.onStay();
+  };
   const asked = useRef(alertAsked.count);
   useEffect(() => {
     // Asked again since the panel opened: what it opened on is already there.
@@ -215,20 +230,27 @@ export function SpotPanel({
           // before its settings are: they say whether it is asked about mail, with that alert.
           (alerting.alerts.data && (own.length > 0 || alerting.settings.data) ? (
             shown ? (
-              <div className="grid gap-m">
-                {leavingFor && (
-                  <div className="edge grid justify-items-start gap-xs rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]">
-                    <p className="text-s">{m.alert_leave_unsaved()}</p>
-                    <div className="flex flex-wrap gap-xs">
-                      <Button size="sm" variant="secondary" onClick={() => go(leavingFor.to)}>
-                        {m.alert_leave()}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setLeavingFor(null)}>
+              <>
+                {/* Asked over whatever is open: what asks to leave may be another panel. */}
+                <Dialog open={leavingFor !== null || routeLeaving !== null} onOpenChange={stay}>
+                  <DialogPopup className="w-full max-w-sm gap-l p-l">
+                    <div className="grid gap-xs">
+                      <DialogTitle>{m.alert_leave_title()}</DialogTitle>
+                      <DialogDescription>{m.alert_leave_unsaved()}</DialogDescription>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-xs">
+                      <Button variant="ghost" onClick={() => stay(false)}>
                         {m.alert_stay()}
                       </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => (leavingFor ? go(leavingFor.to) : routeLeaving?.onLeave())}
+                      >
+                        {m.alert_leave()}
+                      </Button>
                     </div>
-                  </div>
-                )}
+                  </DialogPopup>
+                </Dialog>
                 <AlertEditor
                   key={shown.key}
                   now={now}
@@ -270,7 +292,7 @@ export function SpotPanel({
                   onClose={() => leave(null)}
                   onUnsaved={onUnsaved}
                 />
-              </div>
+              </>
             ) : (
               <SpotAlerts
                 spot={found}

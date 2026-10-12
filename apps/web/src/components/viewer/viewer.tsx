@@ -608,6 +608,8 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
+  const hasUnsavedAlert = alerting.hasUnsaved;
+  const mayLeaveAlert = useCallback(() => !hasUnsavedAlert(), [hasUnsavedAlert]);
   // The alert that was last asked for from the list of alerts, the spot it is opened at, and
   // how many times one was.
   const [alertAsked, setAlertAsked] = useState<{
@@ -972,6 +974,8 @@ export function Viewer({
         alongside
         onSnapChange={setSheetShare}
         onRest={rest.onRest}
+        // An alert that is written and not saved keeps its panel open until it is answered for.
+        mayDismiss={mayLeaveAlert}
         title={shownTitle ?? <Skeleton className="h-(--line-l) w-48 rounded-(--radius-xs)" />}
         description={
           shown.spotId ? (
@@ -1074,7 +1078,7 @@ export function Viewer({
           )
         }
       >
-        {editing && ownSpot ? (
+        {editing && ownSpot && (
           <SpotEditor
             edit={editing}
             onNameChange={(name) => setEdit({ ...editing, name })}
@@ -1086,9 +1090,12 @@ export function Viewer({
             }
             onCancel={() => setEdit(null)}
           />
-        ) : (
-          <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>
         )}
+        {/* The panel stays under what renames or moves its spot, out of sight: what is being
+            written in it, of an alert or of the spot, is still there afterwards. */}
+        <div className={editing && ownSpot ? "hidden" : "contents"}>
+          <ChartsAtRest value={rest.atRest}>{selectionPanel}</ChartsAtRest>
+        </div>
       </ViewerDrawer>
 
       <ViewerDrawer

@@ -479,6 +479,7 @@
   "alert_copy_name": "{name} (copy)",
   "alert_name_another": "{spot} {count}",
   "alert_leave_unsaved": "What you wrote is not saved.",
+  "alert_leave_title": "Leave this alert?",
   "alert_leave": "Leave without saving",
   "alert_stay": "Keep writing",
   "alert_tide_chart": "The tide at {spot} over the next two days",

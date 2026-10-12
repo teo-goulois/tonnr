@@ -843,7 +843,11 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         // What was kept of the spot alone goes too: its address would show it again.
         queryClient.removeQueries({ queryKey: orpc.v1.spots.get.queryKey({ input: { id } }) });
         // Its panel closes, unless another was opened meanwhile.
-        if (onScreen.current.selectedSpotId === id) void navigate({ search: mode });
+        // The spot is gone, and with it whatever was being written of its alerts: no one is
+        // asked whether to leave it.
+        if (onScreen.current.selectedSpotId === id) {
+          void navigate({ search: mode, ignoreBlocker: true });
+        }
       },
       onError: (error) => toast.error(error.message),
     }),

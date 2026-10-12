@@ -479,6 +479,7 @@
   "alert_copy_name": "{name} (copie)",
   "alert_name_another": "{spot} {count}",
   "alert_leave_unsaved": "Ce que tu as écrit n'est pas enregistré.",
+  "alert_leave_title": "Quitter cette alerte ?",
   "alert_leave": "Quitter sans enregistrer",
   "alert_stay": "Continuer",
   "alert_tide_chart": "La marée à {spot} sur les deux jours qui viennent",

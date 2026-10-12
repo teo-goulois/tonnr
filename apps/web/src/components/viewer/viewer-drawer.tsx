@@ -36,6 +36,9 @@ type ViewerDrawerProps = {
   actions?: ReactNode;
   // Told once the drawer has come to rest, open or closed.
   onRest?: (open: boolean) => void;
+  // False while closing the drawer would lose something that must be asked about first: it
+  // then stays open until the route has changed.
+  mayDismiss?: () => boolean;
   // Told how much of a phone's screen a sheet beside the map takes, when it is raised or lowered.
   onSnapChange?: (share: number) => void;
   children: ReactNode;
@@ -52,11 +55,12 @@ export function ViewerDrawer({
   description,
   actions,
   onRest,
+  mayDismiss,
   onSnapChange,
   children,
 }: ViewerDrawerProps) {
   const isSheet = !wide;
-  const dismissal = useDrawerDismissal(open, identity, onOpenChange, onRest);
+  const dismissal = useDrawerDismissal(open, identity, onOpenChange, onRest, mayDismiss);
 
   return (
     <Drawer

@@ -30,20 +30,32 @@ import {
   type RangeKey,
   arcWords,
   asked,
-  changedParts,
+  NOTHING_DRAFTED,
+  afterAnswer,
+  afterRead,
   isSetRange,
-  leftAfterSave,
   loosened,
   rangeAfter,
   rangeWords,
+  setPart,
   sliderEnds,
   thumbsOf,
+  unsavedParts,
   withoutGone,
 } from "./alert-words";
 import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
 import { HourStrip } from "./hour-strip";
 import type { TidePoint } from "./tide-band";
+
+// An alert as an editor holds it: the parts that can be changed.
+const draftOf = (alert: Alert): AlertDraft => ({
+  name: alert.name,
+  criteria: alert.criteria,
+  enabled: alert.enabled,
+  shortestMinutes: alert.shortestMinutes,
+  spotIds: alert.spotIds,
+});
 
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.
@@ -172,13 +184,7 @@ export function AlertEditor({
   const saved = useMemo<AlertDraft>(
     () =>
       alert
-        ? {
-            name: alert.name,
-            criteria: alert.criteria,
-            enabled: alert.enabled,
-            shortestMinutes: alert.shortestMinutes,
-            spotIds: alert.spotIds,
-          }
+        ? draftOf(alert)
         : (initial ?? {
             name: spot.name,
             criteria: {},
@@ -188,20 +194,27 @@ export function AlertEditor({
           }),
     [alert, initial, spot.id, spot.name],
   );
-  // What was changed here, part by part. The rest is the alert as it is saved, now: a part left
-  // alone follows the alert if it changes elsewhere meanwhile, as its switch does in the list.
-  // A part that is changed stays so until its own save has answered: what was written while a
-  // save was on its way is still here when the answer comes, whatever was read meanwhile.
-  const [changed, setChanged] = useState<Partial<AlertDraft>>({});
+  // What was changed here, part by part, and what the save that is on its way sent. The rest is
+  // the alert as it is saved, now: a part left alone follows the alert if it changes elsewhere
+  // meanwhile, as its switch does in the list. `alert-words.ts` holds the rules, and their
+  // tests: what is written while a save is on its way is still here when the answer comes.
+  const [drafting, setDrafting] = useState(NOTHING_DRAFTED);
+  const { changed } = drafting;
   const draft = useMemo(() => ({ ...saved, ...changed }), [saved, changed]);
   const set = <Key extends keyof AlertDraft>(key: Key, value: AlertDraft[Key]) =>
-    setChanged((current) => ({ ...current, [key]: value }));
+    setDrafting((current) => setPart(current, saved, key, value));
+  // The alert was read again: a part that now says what it says follows it again.
+  useEffect(() => setDrafting((current) => afterRead(current, saved)), [saved]);
   // A neighbour that was deleted meanwhile is no longer asked for.
   useEffect(() => {
     const known = new Set(spots.map((one) => one.id));
-    setChanged((current) =>
-      withoutGone(current, (spotId) => spotId === spot.id || known.has(spotId)),
-    );
+    setDrafting((current) => {
+      const kept = withoutGone(
+        current.changed,
+        (spotId) => spotId === spot.id || known.has(spotId),
+      );
+      return kept === current.changed ? current : { ...current, changed: kept };
+    });
   }, [spots, spot.id]);
   const [isConfirming, setIsConfirming] = useState(false);
   // Mail is offered, and taken unless the account says no.
@@ -366,14 +379,14 @@ export function AlertEditor({
   // The spots that may share the alert: the user's others, whatever alerts they are in.
   const neighbours = spots.filter((one) => one.id !== spot.id);
   const isFull = draft.spotIds.length >= SPOTS_MOST;
-  const parts = changedParts(changed, saved);
+  const parts = unsavedParts(drafting, saved);
   const isDirty = !alert || Object.keys(parts).length > 0;
   // Saving and deleting take turns: neither is asked while the other is on its way.
   const isBusy = isSaving || isDeleting;
   const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isBusy;
-  // Something was written here that leaving would lose: a change, or a new alert that asks
-  // something already. The panel is told, since it is the panel that leaves.
-  const hasUnsaved = alert ? Object.keys(parts).length > 0 : asksSomething;
+  // Something was written here that leaving would lose, whether or not it can be saved yet.
+  // The panel is told, since it is the panel that leaves.
+  const hasUnsaved = Object.keys(parts).length > 0;
   useEffect(() => onUnsaved(hasUnsaved), [hasUnsaved, onUnsaved]);
   useEffect(() => () => onUnsaved(false), [onUnsaved]);
 
@@ -384,19 +397,18 @@ export function AlertEditor({
         event.preventDefault();
         if (!canSave) return;
         const name = draft.name.trim();
-        const sending = { ...draft, name, criteria: sent };
-        void onSave(
-          sending,
-          {
-            ...parts,
-            ...(parts.name === undefined ? {} : { name }),
-            ...(parts.criteria === undefined ? {} : { criteria: sent }),
-          },
-          asksMail ? wantsMail : undefined,
-        ).then((answer) => {
-          // What was sent is saved: a part that was not changed again since follows the alert.
-          if (answer) setChanged((current) => leftAfterSave(current, sending));
-        });
+        const whole = { ...draft, name, criteria: sent };
+        const patch = {
+          ...parts,
+          ...(parts.name === undefined ? {} : { name }),
+          ...(parts.criteria === undefined ? {} : { criteria: sent }),
+        };
+        // A new alert is sent whole, and one that is saved by the parts that were changed.
+        const sending = alert ? patch : whole;
+        setDrafting((current) => ({ ...current, sending }));
+        void onSave(whole, patch, asksMail ? wantsMail : undefined).then((answer) =>
+          setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer))),
+        );
       }}
     >
       <div className="flex items-center gap-s">

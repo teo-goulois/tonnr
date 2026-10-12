@@ -303,17 +303,86 @@ export function changedParts(changed: Partial<AlertDraft>, saved: AlertDraft) {
 }
 
 /**
- * What is left of what was changed in an editor once a save has answered: the parts that were
- * changed again since they were sent. The others are saved, and follow the alert from then on.
- * It is asked of the save itself, and not of whatever the alert is seen to be meanwhile: a part
- * put back to what it was while its save was on its way is a change, and is kept.
+ * What is left of what was changed in an editor once a save has answered: the parts that the
+ * save did not send, and those that were changed again since it sent them. The others are
+ * saved, and follow the alert from then on.
  */
-export function leftAfterSave(changed: Partial<AlertDraft>, sent: AlertDraft) {
+export function leftAfterSave(changed: Partial<AlertDraft>, sent: Partial<AlertDraft>) {
   return Object.fromEntries(
     (Object.keys(changed) as (keyof AlertDraft)[])
-      .filter((key) => changed[key] !== undefined && !samePart(key, changed[key]!, sent[key]))
+      .filter(
+        (key) =>
+          changed[key] !== undefined &&
+          (sent[key] === undefined || !samePart(key, changed[key]!, sent[key]!)),
+      )
       .map((key) => [key, changed[key]]),
   ) as Partial<AlertDraft>;
+}
+
+/**
+ * What an editor holds of an alert between two saves: the parts that were changed here, and
+ * what the save that is on its way sent, the whole of a new alert or the changed parts of one
+ * that is saved. Null while no save is on its way.
+ */
+export type Drafting = { changed: Partial<AlertDraft>; sending: Partial<AlertDraft> | null };
+export const NOTHING_DRAFTED: Drafting = { changed: {}, sending: null };
+
+// What was changed without the parts that say what the alert says. The same object when every
+// part still differs.
+function differing(changed: Partial<AlertDraft>, saved: AlertDraft) {
+  const still = changedParts(changed, saved);
+  return Object.keys(still).length === Object.keys(changed).length ? changed : still;
+}
+
+/**
+ * A part is set. Put back to what the alert says, it is no longer a change: left there, it
+ * would hide what the alert becomes elsewhere, and be sent with the next save. Unless a save is
+ * on its way: what that save sent may be something else, and what is set now is kept to be
+ * held against its answer.
+ */
+export function setPart<Key extends keyof AlertDraft>(
+  drafting: Drafting,
+  saved: AlertDraft,
+  key: Key,
+  value: AlertDraft[Key],
+): Drafting {
+  const changed = { ...drafting.changed, [key]: value };
+  return { ...drafting, changed: drafting.sending ? changed : differing(changed, saved) };
+}
+
+/**
+ * The parts that would be lost were the editor left now: those that differ from the alert as
+ * it is saved, or as it will be once the save that is on its way has answered.
+ */
+export function unsavedParts(drafting: Drafting, saved: AlertDraft) {
+  return changedParts(
+    drafting.changed,
+    drafting.sending ? { ...saved, ...drafting.sending } : saved,
+  );
+}
+
+/**
+ * The save that was on its way has answered, with the alert as it is saved, or with nothing
+ * when it failed. What it sent and was not changed since is saved. What it did not send, and
+ * what was changed again meanwhile, is held against the alert as it answered.
+ */
+export function afterAnswer(
+  drafting: Drafting,
+  sent: Partial<AlertDraft>,
+  answer: AlertDraft | undefined,
+): Drafting {
+  if (!answer) return { ...drafting, sending: null };
+  return { changed: changedParts(leftAfterSave(drafting.changed, sent), answer), sending: null };
+}
+
+/**
+ * The alert was read again. A part that says what the alert now says is no longer a change,
+ * unless a save is on its way: until it answers, nothing that was written is let go of.
+ */
+export function afterRead(drafting: Drafting, saved: AlertDraft): Drafting {
+  if (drafting.sending) return drafting;
+  const changed = differing(drafting.changed, saved);
+  return changed === drafting.changed ? drafting : { ...drafting, changed };
 }
 
 /**
@@ -335,6 +404,7 @@ export type Written = { alertId?: string; initial?: AlertDraft };
  * something was written that would be lost, and otherwise the way there.
  */
 export function leaveFor(open: Written | null, asked: Written | null, hasUnsaved: boolean) {
+  // No editor is open: there is nothing to leave.
   if (open && asked?.alertId !== undefined && asked.alertId === open.alertId) return "stay";
   return open && hasUnsaved ? "ask" : "go";
 }

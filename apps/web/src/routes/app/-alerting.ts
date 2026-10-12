@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -151,6 +152,23 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
     return read.data ? { ...read, data: { ...read.data, ...pending } } : read;
   }, [settings, pending]);
 
+  // What is written of an alert and not saved is not lost without a word: whatever leaves the
+  // spot it is written at waits for an answer. The panel closed, another selection, a link and
+  // the browser's own way back are all one thing to the router.
+  const unsaved = useRef(false);
+  const onUnsaved = useCallback((hasUnsaved: boolean) => {
+    unsaved.current = hasUnsaved;
+  }, []);
+  const hasUnsaved = useCallback(() => unsaved.current, []);
+  const spotOf = (search: unknown) => (search as { spot?: string } | undefined)?.spot;
+  const blocker = useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      unsaved.current &&
+      (current.pathname !== next.pathname || spotOf(current.search) !== spotOf(next.search)),
+    enableBeforeUnload: () => unsaved.current,
+    withResolver: true,
+  });
+
   const create = useMutation(orpc.v1.alerts.create.mutationOptions());
   const update = useMutation(orpc.v1.alerts.update.mutationOptions());
   const remove = useMutation(orpc.v1.alerts.delete.mutationOptions());
@@ -244,6 +262,10 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
         })
         .catch((error: unknown) => void toast.error(refusalOf(error, m.alert_delete_failed())))
         .finally(refresh),
+    onUnsaved,
+    hasUnsaved,
+    leaving:
+      blocker.status === "blocked" ? { onLeave: blocker.proceed, onStay: blocker.reset } : null,
     switching,
     onSwitch: flip,
     onSettingsChange: changeSettings,
