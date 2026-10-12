@@ -18,7 +18,7 @@ The API answers in SI units, and its answers are the same for every caller: a ke
 - The web app keeps the choice in the browser too, so that a page opens in it before the account has answered. The account's answer wins.
 - The web app goes on computing in knots and in the metric units: the colors, the thresholds and the curves. A value is turned into the reader's unit where it is written, through `apps/web/src/lib/units.ts`. An axis takes round figures in the reader's unit, set where they stand among the values.
 - A change is seen at once on every screen, and is saved after. When the account does not take it, the screens go back to what the account holds, and say so.
-- The choices are in one dialog, a line for each measurement, opened from the account's menu and from the command palette. The menu says the units in force beside its entry.
+- The choices are a line for each measurement in the account's panel, with its other settings: [decision 040](040-phone-navigation.md). They were first a dialog, opened from the account's menu.
 
 ## Rejected
 

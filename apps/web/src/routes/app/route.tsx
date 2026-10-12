@@ -52,7 +52,8 @@ function AppLayout() {
   const router = useRouter();
 
   return (
-    <AppShell>
+    // The wall leads nowhere but in: it has no bar of tabs.
+    <AppShell nav={!walled}>
       {walled ? <LoginWall onSignedIn={() => void router.invalidate()} /> : <Outlet />}
     </AppShell>
   );

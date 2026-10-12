@@ -33,8 +33,9 @@ type SpotPanelProps = PointConditionsProps & {
   alerting: Alerting;
   // Counts the times an alert of the spot was asked for from elsewhere, and which: the tab of
   // the alerts then comes in view with that one open, on a panel that is already open as on
-  // one that opens.
-  alertAsked: { count: number; alertId?: string };
+  // one that opens. `isNew` asks for a new one, which is begun once: `onAlertBegun` says so.
+  alertAsked: { count: number; alertId?: string; isNew?: boolean };
+  onAlertBegun?: () => void;
 };
 
 // The alert that is being written in the panel. `key` stays the same from a new alert to the
@@ -59,6 +60,7 @@ export function SpotPanel({
   spots,
   alerting,
   alertAsked,
+  onAlertBegun,
 }: SpotPanelProps) {
   const [tab, setTab] = useState<DetailsTab>(alertAsked.count > 0 ? "alert" : "forecast");
   // The tab of the alerts lists the spot's alerts, until one is opened or begun.
@@ -92,6 +94,36 @@ export function SpotPanel({
     setTab("alert");
     if (alertAsked.alertId) leaver.current({ alertId: alertAsked.alertId });
   }, [alertAsked.count, alertAsked.alertId]);
+  // The spot and the alerts it is in, the oldest first, as the list gives them.
+  const found = spot.data;
+  const own = alerting.alerts.data?.filter((one) => found && one.spotIds.includes(found.id)) ?? [];
+  // A new alert of the spot: the first is named after it by its editor, and another after the
+  // spot and its rank among the spot's alerts.
+  const another = (): Written =>
+    !found || own.length === 0
+      ? {}
+      : {
+          initial: {
+            name: m.alert_name_another({ spot: found.name, count: own.length + 1 }),
+            criteria: {},
+            enabled: true,
+            shortestMinutes: 120,
+            spotIds: [found.id],
+          },
+        };
+  const next = useRef(another);
+  next.current = another;
+  // A new alert that was asked for from elsewhere is begun once the spot and its alerts are
+  // known, since its name follows how many the spot has, and whoever asked is told that it is.
+  const begins =
+    alertAsked.isNew === true && found?.isOwner === true && alerting.alerts.data !== undefined;
+  const begun = useRef(onAlertBegun);
+  begun.current = onAlertBegun;
+  useEffect(() => {
+    if (!begins) return;
+    begun.current?.();
+    leaver.current(next.current());
+  }, [begins, alertAsked.count]);
   const [isEditing, setIsEditing] = useState(false);
   // A spot that was just added is offered an alert once the offer to describe it is answered.
   const [offersAlert, setOffersAlert] = useState(false);
@@ -125,9 +157,6 @@ export function SpotPanel({
   // A spot that was deleted, or that is someone else's and private.
   if (spot.isError) return <p className="text-s text-neutral-7">{m.spot_not_found()}</p>;
 
-  const found = spot.data;
-  // The alerts the spot is in, the oldest first, as the list gives them.
-  const own = alerting.alerts.data?.filter((one) => found && one.spotIds.includes(found.id)) ?? [];
   const alert = writing?.alertId ? own.find((one) => one.id === writing.alertId) : undefined;
   // An alert that was deleted, here or elsewhere, or that left the spot, is no longer written.
   const isGone = writing?.alertId !== undefined && alerting.alerts.data !== undefined && !alert;
@@ -252,26 +281,7 @@ export function SpotPanel({
                 spots={spots}
                 alerts={own}
                 onOpen={(one) => leave({ alertId: one.id })}
-                // A second alert on a spot is not named as the first: the spot's name, and its
-                // rank among the spot's alerts.
-                onNew={() =>
-                  leave(
-                    own.length === 0
-                      ? {}
-                      : {
-                          initial: {
-                            name: m.alert_name_another({
-                              spot: found.name,
-                              count: own.length + 1,
-                            }),
-                            criteria: {},
-                            enabled: true,
-                            shortestMinutes: 120,
-                            spotIds: [found.id],
-                          },
-                        },
-                  )
-                }
+                onNew={() => leave(another())}
                 switching={alerting.switching}
                 onSwitch={alerting.onSwitch}
               />

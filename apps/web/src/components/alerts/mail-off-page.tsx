@@ -44,7 +44,7 @@ export function MailOffPage({ state, isStopping, onStop }: MailOffPageProps) {
         ) : (
           <Link
             to="/app"
-            search={{ panel: "alerts", alerts: "settings" }}
+            search={{ panel: "account", settings: "alerts" }}
             className={buttonVariants({ variant: "secondary" })}
           >
             {m.mail_off_settings()}

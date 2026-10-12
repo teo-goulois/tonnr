@@ -57,7 +57,10 @@ import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
+import { AccountPanel } from "@/components/account/account-panel";
 import { PushSetting } from "@/components/alerts/push-setting";
+import { ListChips } from "@/components/lists/list-chips";
+import { BottomNav } from "@/components/shared/bottom-nav";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -304,6 +307,13 @@ const SAMPLE_EXTREMES: TideExtremes = {
     heightMeters: index % 2 === 0 ? 6.4 : 0.8,
   })),
 };
+// The lists of an invented account, and one of someone else's that it kept.
+const SAMPLE_CHIPS = [
+  { id: "favorites", name: "", isDefault: true },
+  { id: "finistere", name: "Finistère", isDefault: false },
+  { id: "landes", name: "Landes", isDefault: false },
+];
+const SAMPLE_JOINED_CHIPS = [{ id: "trip", name: "Trip to Galicia", isDefault: false }];
 const LOADED = { isPending: false, isError: false };
 const LOADING = { data: undefined, isPending: true, isError: false };
 // What a panel is given of the forecast and the tide when none is asked for.
@@ -375,6 +385,7 @@ export function DesignSystemPage() {
     breaks: true,
   });
   const [legendExpanded, setLegendExpanded] = useState(true);
+  const [chip, setChip] = useState<string>();
   const [seaTime, setSeaTime] = useState(SAMPLE_NOW);
 
   return (
@@ -776,6 +787,58 @@ export function DesignSystemPage() {
           times={SAMPLE_SEA_TIMES}
           onTimeChange={setSeaTime}
         />
+      </Section>
+
+      <Section title="Bottom navigation">
+        {/* The bar a phone goes from one screen to another by, at a phone's width. */}
+        <BottomNav className="edge max-w-sm rounded-(--radius-xs)" />
+      </Section>
+
+      <Section title="List chips">
+        <div className="grid max-w-sm gap-m">
+          {/* In a panel, then as they float on the map. */}
+          <ListChips
+            className="mx-0 px-0"
+            lists={SAMPLE_CHIPS}
+            joined={SAMPLE_JOINED_CHIPS}
+            current={chip}
+            onPick={setChip}
+          />
+          <div className="rounded-(--radius-xs) bg-neutral-3 p-s">
+            <ListChips
+              onMap
+              lists={SAMPLE_CHIPS}
+              joined={SAMPLE_JOINED_CHIPS}
+              current={chip}
+              onPick={setChip}
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Account panel">
+        <div className="grid gap-m lg:grid-cols-2">
+          <div className="edge rounded-(--radius-xs) p-m">
+            <AccountPanel
+              account={{ name: "Maëlle Le Goff", email: "maelle@example.org" }}
+              check={{ isSending: false, onSend: () => {} }}
+              onSignIn={() => {}}
+              onCreateAccount={() => {}}
+              onSignOut={() => {}}
+              onOpenAlertSettings={() => {}}
+            />
+          </div>
+          {/* A visitor: the browser keeps the units, the theme and the language. */}
+          <div className="edge rounded-(--radius-xs) p-m">
+            <AccountPanel
+              account={undefined}
+              onSignIn={() => {}}
+              onCreateAccount={() => {}}
+              onSignOut={() => {}}
+              onOpenAlertSettings={() => {}}
+            />
+          </div>
+        </div>
       </Section>
 
       <Section title="Viewer skeleton">

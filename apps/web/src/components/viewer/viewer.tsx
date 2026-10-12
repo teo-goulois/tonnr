@@ -10,7 +10,7 @@ import {
   MinusIcon,
   PinPlusIcon,
   PlusIcon,
-  XIcon,
+  SettingsIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
@@ -24,6 +24,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { AccountPanel } from "@/components/account/account-panel";
+import { AlertSettingsForm } from "@/components/alerts/alert-settings";
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
 import {
   type FoundPlace,
@@ -33,12 +35,15 @@ import {
 } from "@/components/spots/new-spot-panel";
 import type { Alerting } from "@/components/alerts/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
+import { ListChips } from "@/components/lists/list-chips";
 import { ListPanel } from "@/components/lists/list-panel";
 import { ShareListDialog } from "@/components/lists/share-dialog";
 import { type SpotEdit, SpotEditor } from "@/components/spots/spot-editor";
 import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
+import { closeCreateMenu, openCreateMenu, useCreateMenu } from "@/lib/create-menu";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
+import { isTabPanel } from "@/lib/phone-nav";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
@@ -46,6 +51,7 @@ import { m } from "@/paraglide/messages.js";
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
+import { CreateSheet } from "./create-sheet";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
@@ -82,6 +88,7 @@ import {
   periodOf,
 } from "./types";
 import { SHEET_SNAP_POINTS, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-drawer";
+import { ViewerTab } from "./viewer-screen";
 
 const HOUR_MS = 60 * 60 * 1000;
 // How far back the sea can be shown.
@@ -98,8 +105,11 @@ function endOfLastWholeDay(latest: number, stepMs: number) {
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
-// "add" is the panel that adds a spot. It stands beside the map, which takes the marker.
-export type ViewerPanel = "saved" | "alerts" | "add";
+// "add" is the panel that adds a spot. It stands beside the map, which takes the marker. The
+// others are the tabs of a phone's bar, and drawers over the map on a wide screen.
+export type ViewerPanel = "saved" | "alerts" | "account" | "add";
+/** The part of the account's panel that is one step into it: how to be told of the alerts. */
+export type SettingsPart = "alerts";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -191,6 +201,17 @@ type ViewerProps = {
   // The part of the alerts panel in view.
   alertsTab: AlertsTab;
   onAlertsTabChange: (tab: AlertsTab) => void;
+  // Who is signed in, for the account's panel. No user for a visitor.
+  account: {
+    user: { name: string; email: string } | undefined;
+    // Given when the account's address is not checked yet, on an instance that checks addresses.
+    check?: { isSending: boolean; onSend: () => void };
+    onSignOut: () => void;
+  };
+  // The part of the account's panel in view, when it is not its first screen. Asking for one
+  // opens the panel on it.
+  settingsPart: SettingsPart | undefined;
+  onSettingsPartChange: (part: SettingsPart | undefined) => void;
   onLayersChange: (layers: MapLayers) => void;
   onSelect: (stationId: string | undefined) => void;
   onSelectBreak: (breakId: string) => void;
@@ -229,6 +250,9 @@ type ViewerProps = {
   onViewList: (listId: string) => void;
   // Back to the whole map. Undefined for a visitor, who has the list alone.
   onExitList: (() => void) | undefined;
+  // Shows a list alone on the map, or everything again, from the map itself: the saved panel
+  // stays closed. Undefined for whoever reads a list by its link.
+  onShowList: ((listId: string | undefined) => void) | undefined;
   onKeepList: () => void;
   isKeepingList: boolean;
   onLeaveList: () => void;
@@ -394,6 +418,9 @@ export function Viewer({
   push,
   alertsTab,
   onAlertsTabChange,
+  account,
+  settingsPart,
+  onSettingsPartChange,
   onLayersChange,
   onSelect,
   onSelectBreak,
@@ -418,6 +445,7 @@ export function Viewer({
   joined,
   onViewList,
   onExitList,
+  onShowList,
   onKeepList,
   isKeepingList,
   onLeaveList,
@@ -509,6 +537,11 @@ export function Viewer({
   // The id of what is selected: a station, a break or a spot.
   const selection = selectedId ?? selectedBreakId ?? selectedSpotId;
   const isAdding = panel === "add";
+  // On a wide screen a panel opens over what is selected. A phone shows a tab's panel as the
+  // whole screen, in place of the map: decision 040. What is selected is read on the map, so
+  // an address that names both shows the selection there.
+  const opened = wide || selection === undefined ? panel : undefined;
+  const isScreen = !wide && isTabPanel(opened);
   // The marker is an account's to put: a visitor is asked for one first. It stays where it is
   // while the spot is being saved.
   const isPlacing = isAdding && signedIn;
@@ -616,13 +649,19 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
-  // The alert that was last asked for from the list of alerts, the spot it is opened at, and
-  // how many times one was.
+  // The alert that was last asked for from elsewhere, the spot it is opened at, and how many
+  // times one was: one of the list of alerts, or a new one, which the "+" of a phone's bar
+  // begins. A new one is begun once: its panel says when it has.
   const [alertAsked, setAlertAsked] = useState<{
     spotId?: string;
     alertId?: string;
+    isNew?: boolean;
     count: number;
   }>({ count: 0 });
+  const beginAlert = useCallback(
+    () => setAlertAsked((asked) => (asked.isNew ? { ...asked, isNew: false } : asked)),
+    [],
+  );
   const ownSpots = spots.data;
   const spotList = useMemo(() => ownSpots ?? [], [ownSpots]);
   // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
@@ -650,6 +689,7 @@ export function Viewer({
           spots={spotList}
           alerting={alerting}
           alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked : NO_ALERT_ASKED}
+          onAlertBegun={beginAlert}
         />
       );
     }
@@ -694,6 +734,7 @@ export function Viewer({
     spotList,
     alerting,
     alertAsked,
+    beginAlert,
   ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
@@ -750,6 +791,25 @@ export function Viewer({
     else requireAccount(m.auth_reason_add_spot(), () => onPanelChange("add"));
   }
 
+  // What the "+" of a phone's bar opens, and what it begins. The sheet closes first: what is
+  // begun takes its place.
+  const isCreating = useCreateMenu();
+  function createSpot() {
+    closeCreateMenu();
+    addSpot();
+  }
+  function createAlert(spotId?: string) {
+    closeCreateMenu();
+    // An alert is an account's: a visitor is asked for one, then for the spot it goes on.
+    if (!signedIn) {
+      requireAccount(m.auth_reason_add_alert(), openCreateMenu);
+      return;
+    }
+    if (!spotId) return;
+    setAlertAsked((asked) => ({ spotId, isNew: true, count: asked.count + 1 }));
+    onSelectSpot(spotId);
+  }
+
   function toggleFavorite() {
     if (!shownItem) return;
     const item = shownItem;
@@ -791,9 +851,70 @@ export function Viewer({
     onSignIn: () => promptAuth({ mode: "sign-in" }),
     onCreateAccount: () => promptAuth({ mode: "sign-up" }),
   };
+  // How to be told of the alerts is an account's: a visitor has the account's first screen.
+  const alertSettings = settingsPart === "alerts" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
+  // Where the map says something of itself: at the top and in the middle. On a phone it stands
+  // under what else floats there.
+  const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : "self-center";
+
+  // The account's lists, one press away on the map itself: a chip shows a list alone there, and
+  // the first one shows everything again. Not while a spot is being added: the map then takes
+  // a marker, and shows everything.
+  const listChips = onShowList && !isAdding && (
+    <ListChips
+      onMap
+      className={
+        wide
+          ? "absolute top-s left-s max-w-[calc(50%-8rem)]"
+          : // To the edges of the screen, so that a chip cut by one says that more follow.
+            "-mx-s max-w-[calc(100%+var(--spacing-s)*2)] px-s"
+      }
+      lists={lists.data ?? []}
+      joined={joined}
+      current={listView?.id}
+      onPick={onShowList}
+    />
+  );
+  // Whoever reads a list by its link has no other: the map names it, and a press opens it.
+  const listButton = listView && !onShowList && opened !== "saved" && (
+    <Button
+      variant="outline"
+      size="sm"
+      className={cn(floating, said, "max-w-[70vw] min-w-0")}
+      onClick={() => onPanelChange("saved")}
+    >
+      <ListsIcon data-slot="icon" aria-hidden />
+      <span className="truncate">{listName(listView)}</span>
+    </Button>
+  );
+  const status = (waveStations.isPending || waveStations.isError) && !listView && (
+    <p
+      role="status"
+      className={cn(
+        "edge flex items-center gap-xs rounded-full bg-neutral-1 px-s py-xxs text-s whitespace-nowrap [--edge-color:var(--neutral-10-transparent)]",
+        said,
+      )}
+    >
+      {waveStations.isPending && <Spinner className="size-3.5" />}
+      {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
+    </p>
+  );
+  const legend = (
+    <MapLegend
+      // At the top on a phone: the bottom is where the sheets rise and where the credits are.
+      className={wide ? "absolute bottom-s left-s" : undefined}
+      opens={wide ? "up" : "down"}
+      layers={layers}
+      onLayersChange={onLayersChange}
+      expanded={legendChoice ?? wide}
+      onExpandedChange={setLegendChoice}
+      windTruncated={windTruncated}
+      breaksTruncated={breaksTruncated}
+    />
+  );
 
   return (
     <div
@@ -802,167 +923,135 @@ export function Viewer({
       style={
         !wide && timelineHeight > 0
           ? ({
-              "--map-credits-lift": `calc(${timelineHeight}px + var(--spacing-s) + env(safe-area-inset-bottom))`,
+              "--map-credits-lift": `calc(${timelineHeight}px + var(--spacing-s))`,
             } as CSSProperties)
           : undefined
       }
     >
-      <StationMap
-        ref={map}
-        stations={mapStations}
-        windStations={mapWindStations}
-        breaks={layers.breaks ? breaks : []}
-        spots={mapSpots}
-        selectedId={selection}
-        selectedBreak={editing ? undefined : (selectedSpot ?? selectedBreak)}
-        selectedIsSpot={selectedSpot !== undefined}
-        layers={layers}
-        seaLayer={sea}
-        seaTime={seaTime}
-        theme={theme}
-        padding={padding}
-        userLocation={userLocation}
-        userLocationLabel={m.locate_you_are_here()}
-        onSelect={onSelect}
-        onSelectBreak={onSelectBreak}
-        onSelectSpot={onSelectSpot}
-        onBoundsChange={onBoundsChange}
-        draft={isPlacing ? adding.draft.point : (editing?.point ?? null)}
-        draftLabel={editing ? m.spot_marker_label_move() : m.spot_marker_label()}
-        placing={isPlacing || editing !== null}
-        onPlace={
-          canPlace
-            ? adding.onPlace
-            : editing && !isChangingSpot
-              ? (point) => setEdit({ ...editing, point })
-              : undefined
-        }
-      />
+      {/* The map and what floats on it. A tab's screen covers them on a phone: they are then
+          out of reach of the keyboard and of a screen reader too. */}
+      <div className="absolute inset-0" inert={isScreen}>
+        <StationMap
+          ref={map}
+          stations={mapStations}
+          windStations={mapWindStations}
+          breaks={layers.breaks ? breaks : []}
+          spots={mapSpots}
+          selectedId={selection}
+          selectedBreak={editing ? undefined : (selectedSpot ?? selectedBreak)}
+          selectedIsSpot={selectedSpot !== undefined}
+          layers={layers}
+          seaLayer={sea}
+          seaTime={seaTime}
+          theme={theme}
+          padding={padding}
+          userLocation={userLocation}
+          userLocationLabel={m.locate_you_are_here()}
+          onSelect={onSelect}
+          onSelectBreak={onSelectBreak}
+          onSelectSpot={onSelectSpot}
+          onBoundsChange={onBoundsChange}
+          draft={isPlacing ? adding.draft.point : (editing?.point ?? null)}
+          draftLabel={editing ? m.spot_marker_label_move() : m.spot_marker_label()}
+          placing={isPlacing || editing !== null}
+          onPlace={
+            canPlace
+              ? adding.onPlace
+              : editing && !isChangingSpot
+                ? (point) => setEdit({ ...editing, point })
+                : undefined
+          }
+        />
 
-      {/* The map says which list it shows alone. A press opens the list. */}
-      {listView && panel !== "saved" && (
+        {wide ? (
+          <>
+            {listChips}
+            {listButton}
+            {status}
+            {legend}
+          </>
+        ) : (
+          // On a phone they stand one under the other at the top of the map: the bottom is
+          // where the sheets rise. The legend comes first, where the map's skeleton draws it,
+          // so that the lists come under it without moving it. The map is moved through the
+          // room they leave.
+          <div className="pointer-events-none absolute inset-x-s top-s flex flex-col items-start gap-xs *:pointer-events-auto">
+            {legend}
+            {listChips}
+            {listButton}
+            {status}
+          </div>
+        )}
+
         <div
-          className={cn(
-            "absolute left-1/2 flex max-w-[70vw] -translate-x-1/2 items-center gap-xxs",
-            // Under the legend on a phone, where the legend is at the top.
-            wide ? "top-s" : "top-[4.75rem]",
-          )}
+          // Beside the station's panel when it is open, not under it.
+          className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
+          style={{ translate: `${-padding.right}px 0` }}
         >
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(floating, "min-w-0")}
-            onClick={() => onPanelChange("saved")}
-          >
-            <ListsIcon data-slot="icon" aria-hidden />
-            <span className="truncate">{listName(listView)}</span>
-          </Button>
-          {/* Back to the whole map, for an account: a visitor has the list alone. */}
-          {onExitList && (
+          {/* A phone adds a spot from the "+" of its bar, with whatever else is added. */}
+          {wide && (
             <Button
               variant="outline"
-              size="icon-sm"
+              size="icon"
               className={floating}
-              aria-label={m.list_exit()}
-              onClick={onExitList}
+              aria-label={m.spot_add()}
+              aria-pressed={isAdding}
+              onClick={addSpot}
             >
-              <XIcon data-slot="icon" aria-hidden />
+              <PinPlusIcon data-slot="icon" aria-hidden />
             </Button>
           )}
-        </div>
-      )}
-
-      {(waveStations.isPending || waveStations.isError) && !listView && (
-        <p
-          role="status"
-          className={cn(
-            "edge absolute left-1/2 flex -translate-x-1/2 items-center gap-xs rounded-full bg-neutral-1 px-s py-xxs text-s whitespace-nowrap [--edge-color:var(--neutral-10-transparent)]",
-            // Under the legend on a phone, where the legend is at the top.
-            wide ? "top-s" : "top-[4.75rem]",
-          )}
-        >
-          {waveStations.isPending && <Spinner className="size-3.5" />}
-          {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
-        </p>
-      )}
-
-      <div
-        // Beside the station's panel when it is open, not under it.
-        className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
-        style={{ translate: `${-padding.right}px 0` }}
-      >
-        <Button
-          variant="outline"
-          size="icon"
-          className={floating}
-          aria-label={m.spot_add()}
-          aria-pressed={isAdding}
-          onClick={addSpot}
-        >
-          <PinPlusIcon data-slot="icon" aria-hidden />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className={floating}
-          aria-label={m.locate_me()}
-          aria-pressed={userLocation !== null}
-          isPending={isLocating}
-          onClick={locate}
-        >
-          <LocateIcon data-slot="icon" aria-hidden />
-        </Button>
-        <div className="grid gap-xxs max-sm:hidden">
           <Button
             variant="outline"
             size="icon"
             className={floating}
-            aria-label={m.map_zoom_in()}
-            onClick={() => map.current?.zoomBy(1)}
+            aria-label={m.locate_me()}
+            aria-pressed={userLocation !== null}
+            isPending={isLocating}
+            onClick={locate}
           >
-            <PlusIcon data-slot="icon" aria-hidden />
+            <LocateIcon data-slot="icon" aria-hidden />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className={floating}
-            aria-label={m.map_zoom_out()}
-            onClick={() => map.current?.zoomBy(-1)}
-          >
-            <MinusIcon data-slot="icon" aria-hidden />
-          </Button>
+          <div className="grid gap-xxs max-sm:hidden">
+            <Button
+              variant="outline"
+              size="icon"
+              className={floating}
+              aria-label={m.map_zoom_in()}
+              onClick={() => map.current?.zoomBy(1)}
+            >
+              <PlusIcon data-slot="icon" aria-hidden />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className={floating}
+              aria-label={m.map_zoom_out()}
+              onClick={() => map.current?.zoomBy(-1)}
+            >
+              <MinusIcon data-slot="icon" aria-hidden />
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <MapLegend
-        // At the top on a phone: the bottom is where the sheets rise and where the credits are.
-        className={cn("absolute left-s", wide ? "bottom-s" : "top-s")}
-        opens={wide ? "up" : "down"}
-        layers={layers}
-        onLayersChange={onLayersChange}
-        expanded={legendChoice ?? wide}
-        onExpandedChange={setLegendChoice}
-        windTruncated={windTruncated}
-        breaksTruncated={breaksTruncated}
-      />
-
-      {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
+        {/* The sea's timeline runs along the bottom of the map: beside the legend on a wide screen,
           across a phone. A drawer opens over it, and it does not move. On a wide screen it leaves
           the corner to the button of the map's credits. */}
-      {layers.sea && seaTime && seaTimes && (
-        <SeaTimeline
-          ref={timelineRef}
-          className={cn(
-            "absolute",
-            wide
-              ? "right-[calc(var(--spacing-s)+2.5rem)] bottom-s left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
-              : "inset-x-s bottom-[calc(var(--spacing-s)+env(safe-area-inset-bottom))]",
-          )}
-          time={seaTime}
-          times={seaTimes}
-          onTimeChange={onSeaTimeChange}
-        />
-      )}
+        {layers.sea && seaTime && seaTimes && (
+          <SeaTimeline
+            ref={timelineRef}
+            className={cn(
+              "absolute",
+              wide
+                ? "right-[calc(var(--spacing-s)+2.5rem)] bottom-s left-[calc(var(--spacing-s)*2+16rem)] max-w-160"
+                : "inset-x-s bottom-s",
+            )}
+            time={seaTime}
+            times={seaTimes}
+            onTimeChange={onSeaTimeChange}
+          />
+        )}
+      </div>
 
       <ViewerDrawer
         open={selection !== undefined}
@@ -1161,8 +1250,8 @@ export function Viewer({
         )}
       </ViewerDrawer>
 
-      <ViewerDrawer
-        open={panel === "saved"}
+      <ViewerTab
+        open={opened === "saved"}
         onOpenChange={(open) => {
           if (!open) onPanelChange(undefined);
         }}
@@ -1214,7 +1303,7 @@ export function Viewer({
             joined={joined}
           />
         )}
-      </ViewerDrawer>
+      </ViewerTab>
 
       <ShareListDialog
         list={sharedList}
@@ -1229,13 +1318,26 @@ export function Viewer({
         }}
       />
 
-      <ViewerDrawer
-        open={panel === "alerts"}
+      <ViewerTab
+        open={opened === "alerts"}
         onOpenChange={(open) => {
           if (!open) onPanelChange(undefined);
         }}
         wide={wide}
         title={m.alerts_title()}
+        actions={
+          // How to be told is a setting of the account: its panel opens on it.
+          signedIn && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={m.command_alerts_settings()}
+              onClick={() => onSettingsPartChange("alerts")}
+            >
+              <SettingsIcon data-slot="icon" aria-hidden />
+            </Button>
+          )
+        }
       >
         <AlertsPanel
           now={now}
@@ -1245,8 +1347,6 @@ export function Viewer({
           notifications={notifications}
           alerts={alerting.alerts}
           spots={spotList}
-          settings={alerting.settings}
-          deviceZone={alerting.deviceZone}
           {...accountPrompt}
           onRead={onReadNotification}
           onOpenAlert={(alert) => {
@@ -1266,10 +1366,46 @@ export function Viewer({
           }}
           switching={alerting.switching}
           onSwitchAlert={alerting.onSwitch}
-          onSettingsChange={alerting.onSettingsChange}
-          push={push}
         />
-      </ViewerDrawer>
+      </ViewerTab>
+
+      <ViewerTab
+        open={opened === "account"}
+        onOpenChange={(open) => {
+          if (!open) onPanelChange(undefined);
+        }}
+        wide={wide}
+        title={alertSettings ? m.command_alerts_settings() : m.account_menu()}
+        onBack={alertSettings ? () => onSettingsPartChange(undefined) : undefined}
+      >
+        {alertSettings ? (
+          <AlertSettingsForm
+            settings={alerting.settings}
+            deviceZone={alerting.deviceZone}
+            onChange={alerting.onSettingsChange}
+            push={push}
+            now={now}
+          />
+        ) : (
+          <AccountPanel
+            account={account.user}
+            check={account.check}
+            {...accountPrompt}
+            onSignOut={account.onSignOut}
+            onOpenAlertSettings={() => onSettingsPartChange("alerts")}
+          />
+        )}
+      </ViewerTab>
+
+      <CreateSheet
+        open={isCreating}
+        onClose={closeCreateMenu}
+        wide={wide}
+        signedIn={signedIn}
+        spots={signedIn ? spots.data : []}
+        onAddSpot={createSpot}
+        onAddAlert={createAlert}
+      />
       <LeaveDialog />
     </div>
   );

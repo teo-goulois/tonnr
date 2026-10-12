@@ -5,9 +5,21 @@ import type { ReactNode } from "react";
 import { AuthPromptProvider } from "@/components/auth/auth-prompt";
 import Header from "@/components/header";
 
+import { BottomNav } from "./bottom-nav";
 import { UnitsFromAccount } from "./units-account";
 
-export function AppShell({ children }: { children: ReactNode }) {
+type AppShellProps = {
+  // False where there is nowhere to go: the wall of an instance that is closed to visitors.
+  nav?: boolean;
+  children: ReactNode;
+};
+
+/**
+ * What stands around every screen of the product: the header above it on a wide screen, and the
+ * bar of tabs under it on a phone. CSS tells the two apart, since the server draws this before
+ * it knows the screen. Wide is `lg`, as in the viewer. Decision 040.
+ */
+export function AppShell({ nav = true, children }: AppShellProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -21,9 +33,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       }}
     >
       <UnitsFromAccount />
-      <div className="grid h-svh grid-rows-[auto_1fr]">
-        <Header />
-        {children}
+      <div className="grid h-svh grid-rows-[auto_minmax(0,1fr)_auto]">
+        <Header className="row-start-1 max-lg:hidden" />
+        <div className="row-start-2 grid min-h-0 grid-rows-[minmax(0,1fr)]">{children}</div>
+        {nav && <BottomNav className="row-start-3 lg:hidden" />}
       </div>
     </AuthPromptProvider>
   );

@@ -43,3 +43,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [037. A finer wave model where one has its sea](037-finer-wave-model.md)
 - [038. The swell apart, in the week's table and in an alert's advanced part](038-swell-apart.md)
 - [039. An app open to visitors, closed to them while demand is strong](039-visitors.md)
+- [040. A phone goes from one screen to another by a bar of tabs](040-phone-navigation.md)

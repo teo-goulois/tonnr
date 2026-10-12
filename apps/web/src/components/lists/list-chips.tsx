@@ -16,9 +16,13 @@ type ListChipsProps = {
   current: string | undefined;
   // Shows a list alone, in the panel and on the map, or everything again.
   onPick: (listId: string | undefined) => void;
+  // The row floats on the map, where each chip has the theme's surface, in place of standing in
+  // a panel, whose edges it then reaches.
+  onMap?: boolean;
+  className?: string;
 };
 
-const chip = cn(
+const base = cn(
   // structure & layout
   "inline-flex h-8 shrink-0 items-center gap-xxs rounded-full px-s",
   // typography
@@ -32,20 +36,31 @@ const chip = cn(
   // state: hover and the one in view
   "hover:text-neutral-10 aria-pressed:bg-neutral-10 aria-pressed:text-neutral-1",
 );
+// A chip that floats on the map: the theme's surface with its edge, as the map's buttons have.
+const floating = cn(
+  "edge-inset h-9 bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
+  "aria-pressed:[--edge-color:transparent]",
+);
 
 /**
  * The lists of an account, one press away: a chip shows a list alone, in the panel and on the
- * map, and the first one shows everything again. A row that is longer than the panel scrolls.
+ * map, and the first one shows everything again. A row that is longer than its place scrolls.
+ * The saved panel has the row, and so has the map, where it floats: decision 040.
  */
-export function ListChips({ lists, joined, current, onPick }: ListChipsProps) {
+export function ListChips({ lists, joined, current, onPick, onMap, className }: ListChipsProps) {
   if (lists.length + joined.length === 0) return null;
+  const chip = cn(base, onMap && floating);
 
   return (
     <div
       role="group"
       aria-label={m.lists_filter()}
-      // The row goes to the panel's edges, so that a chip cut by one says that more follow.
-      className="-mx-m flex gap-xs overflow-x-auto px-m [scrollbar-width:none]"
+      className={cn(
+        "flex gap-xs overflow-x-auto [scrollbar-width:none]",
+        // The row goes to the panel's edges, so that a chip cut by one says that more follow.
+        !onMap && "-mx-m px-m",
+        className,
+      )}
     >
       <button
         type="button"

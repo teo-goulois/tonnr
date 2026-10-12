@@ -14,17 +14,18 @@ import type { ComponentType } from "react";
 
 import { formatAgo, formatClock, formatDay, formatDayAndClock, formatSeconds } from "@/lib/format";
 import { formatDistance, formatHeight, useUnits } from "@/lib/units";
-import type { Pushing } from "@/lib/use-push";
 import { m } from "@/paraglide/messages.js";
 
-import { type AlertSettingsChange, AlertSettingsForm } from "../alerts/alert-settings";
 import { MyAlerts } from "../alerts/my-alerts";
 import { Bearing } from "./bearing";
 import { AccountPrompt } from "./saved-panel";
-import type { Alert, AlertNotification, AlertSettings, Loadable, Spot } from "./types";
+import type { Alert, AlertNotification, Loadable, Spot } from "./types";
 
-/** The parts of the alerts panel: what was told, the alerts, and how to be told. */
-export type AlertsTab = "news" | "mine" | "settings";
+/**
+ * The parts of the alerts panel: what was told, and the alerts. How to be told is a setting of
+ * the account, in its own panel: decision 040.
+ */
+export type AlertsTab = "news" | "mine";
 
 type Moment = AlertNotification["moment"];
 type Line = AlertNotification["payload"]["lines"][number];
@@ -91,34 +92,26 @@ type AlertsPanelProps = {
   notifications: Loadable<AlertNotification[]>;
   alerts: Loadable<Alert[]>;
   spots: Spot[];
-  settings: Loadable<AlertSettings>;
-  deviceZone: string;
   onSignIn: () => void;
   onCreateAccount: () => void;
   onRead: (notification: AlertNotification) => void;
   onOpenAlert: (alert: Alert) => void;
   switching: string[];
   onSwitchAlert: (alert: Alert, enabled: boolean) => void;
-  onSettingsChange: (change: AlertSettingsChange) => void;
-  push: Pushing;
 };
 
-/** What the visitor's alerts told them, the alerts themselves, and how they want to be told. */
+/** What the visitor's alerts told them, and the alerts themselves. */
 export function AlertsPanel({
   signedIn,
   tab,
   onTabChange,
   alerts,
   spots,
-  settings,
-  deviceZone,
   onSignIn,
   onCreateAccount,
   onOpenAlert,
   switching,
   onSwitchAlert,
-  onSettingsChange,
-  push,
   ...news
 }: AlertsPanelProps) {
   if (!signedIn) {
@@ -136,7 +129,6 @@ export function AlertsPanel({
       <TabsList>
         <TabsTab value="news">{m.alerts_tab_news()}</TabsTab>
         <TabsTab value="mine">{m.alerts_tab_mine()}</TabsTab>
-        <TabsTab value="settings">{m.alerts_tab_settings()}</TabsTab>
       </TabsList>
       <TabsPanel value="news">
         <News {...news} />
@@ -148,15 +140,6 @@ export function AlertsPanel({
           onOpen={onOpenAlert}
           switching={switching}
           onSwitch={onSwitchAlert}
-        />
-      </TabsPanel>
-      <TabsPanel value="settings">
-        <AlertSettingsForm
-          settings={settings}
-          deviceZone={deviceZone}
-          onChange={onSettingsChange}
-          push={push}
-          now={news.now}
         />
       </TabsPanel>
     </Tabs>

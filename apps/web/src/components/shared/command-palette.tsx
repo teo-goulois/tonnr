@@ -25,7 +25,6 @@ import { orpc } from "@/utils/orpc";
 
 import { ShortcutKeys } from "./shortcut-keys";
 import { openShortcutSettings } from "./shortcut-settings";
-import { openUnitsSettings } from "./units-settings";
 
 type PaletteAction = {
   // What the search matches: the label and its keywords.
@@ -101,7 +100,13 @@ export function CommandPalette() {
         {
           value: `${m.command_alerts_settings()} alerts settings preferences hours`,
           label: m.command_alerts_settings(),
-          run: () => void navigate({ to: "/app", search: { panel: "alerts", alerts: "settings" } }),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "alerts" } }),
+        },
+        {
+          value: `${m.account_settings()} settings account preferences ${m.units_title()} units knots nœuds km/h feet pieds celsius fahrenheit`,
+          label: m.account_settings(),
+          run: () => void navigate({ to: "/app", search: { panel: "account" } }),
         },
         {
           value: `${m.command_sign_in()} login account`,
@@ -153,11 +158,6 @@ export function CommandPalette() {
           value: `${m.command_shortcuts()} keyboard hotkeys`,
           label: m.command_shortcuts(),
           run: openShortcutSettings,
-        },
-        {
-          value: `${m.units_title()} units unités knots nœuds km/h feet pieds celsius fahrenheit`,
-          label: m.units_title(),
-          run: openUnitsSettings,
         },
       ],
     },

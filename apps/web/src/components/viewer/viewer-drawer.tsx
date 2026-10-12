@@ -8,7 +8,7 @@ import {
   DrawerPanel,
   DrawerTitle,
 } from "@repo/ui/components/ui/drawer";
-import { XIcon } from "@repo/ui/icon";
+import { ChevronLeftIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
 
@@ -21,7 +21,7 @@ export const SHEET_SNAP_POINTS = [0.46, 0.94];
 /** The width of a panel on the side of a wide screen, with its margin, in pixels. */
 export const SIDE_PANEL_WIDTH = 448;
 
-type ViewerDrawerProps = {
+export type ViewerDrawerProps = {
   open: boolean;
   // Identifies the selected record, so a new one can interrupt a dismissal.
   identity?: string;
@@ -34,6 +34,8 @@ type ViewerDrawerProps = {
   description?: ReactNode;
   // Buttons shown before the one that closes the drawer.
   actions?: ReactNode;
+  // Given by a panel that is one step into another: a button before its title goes back.
+  onBack?: () => void;
   // Told once the drawer has come to rest, open or closed.
   onRest?: (open: boolean) => void;
   // False while closing the drawer would lose something that must be asked about first: it
@@ -54,6 +56,7 @@ export function ViewerDrawer({
   title,
   description,
   actions,
+  onBack,
   onRest,
   mayDismiss,
   onSnapChange,
@@ -94,15 +97,28 @@ export function ViewerDrawer({
           className="max-md:group-data-[swipe-axis=y]/drawer-popup:text-start"
         >
           <div className="flex items-start justify-between gap-xs">
-            <div className="grid min-w-0 gap-xxs">
-              <DrawerTitle className="truncate text-l">{title}</DrawerTitle>
-              {description && (
-                // In the theme's ink, as it has been drawn so far, and not in the grey the drawer
-                // gives a description.
-                <DrawerDescription className="text-s text-neutral-10">
-                  {description}
-                </DrawerDescription>
+            <div className="flex min-w-0 items-start gap-xxs">
+              {onBack && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="-mt-1.5 -ml-xs shrink-0"
+                  aria-label={m.action_back()}
+                  onClick={onBack}
+                >
+                  <ChevronLeftIcon data-slot="icon" aria-hidden />
+                </Button>
               )}
+              <div className="grid min-w-0 gap-xxs">
+                <DrawerTitle className="truncate text-l">{title}</DrawerTitle>
+                {description && (
+                  // In the theme's ink, as it has been drawn so far, and not in the grey the
+                  // drawer gives a description.
+                  <DrawerDescription className="text-s text-neutral-10">
+                    {description}
+                  </DrawerDescription>
+                )}
+              </div>
             </div>
             <div className="-mr-xs flex shrink-0 items-center gap-xxs">
               {actions}

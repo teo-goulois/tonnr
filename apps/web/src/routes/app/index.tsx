@@ -11,6 +11,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { useOwnAccount } from "@/components/auth/use-own-account";
+import { useSendVerification } from "@/components/auth/use-send-verification";
+import { useSignOut } from "@/components/auth/use-sign-out";
 import { SharedDoor } from "@/components/lists/shared-door";
 import { type FoundPlace, SEARCH_FROM, type SpotDraft } from "@/components/spots/new-spot-panel";
 import {
@@ -32,6 +35,7 @@ import type {
 import { Viewer, type ViewerPanel } from "@/components/viewer/viewer";
 import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import { authClient } from "@/lib/auth-client";
+import { isTabPanel } from "@/lib/phone-nav";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
@@ -48,10 +52,14 @@ export const Route = createFileRoute("/app/")({
     station: z.string().optional(),
     break: z.string().optional(),
     spot: z.string().optional(),
-    // "add" is the panel that adds a spot.
-    panel: z.enum(["saved", "alerts", "add"]).optional(),
-    // The part of the alerts panel in view: what was told when left out.
+    // "add" is the panel that adds a spot. The others are the tabs of a phone's bar.
+    panel: z.enum(["saved", "alerts", "account", "add"]).optional(),
+    // The part of the alerts panel in view: what was told when left out. "settings" is where
+    // how to be told was before it was a part of the account's panel: a mail that was sent
+    // then still leads there, and is taken to it.
     alerts: z.enum(["mine", "settings"]).optional(),
+    // The part of the account's panel in view: its first screen when left out.
+    settings: z.enum(["alerts"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
     // The list the map shows alone: one of the account's or one it kept, by its id, or one that
@@ -84,11 +92,14 @@ function AppRoute() {
 function SharedRoute({ token, signedIn }: { token: string; signedIn: boolean }) {
   const door = useSharedList(token, signedIn);
   const navigate = Route.useNavigate();
-  // An account that owns the list, or kept it, reads it as one of its own.
+  const wide = useMediaQuery(WIDE);
+  // An account that owns the list, or kept it, reads it as one of its own: beside the map on a
+  // wide screen, and on the map of a phone, whose saved panel would take the map's place.
   const own = door.list && door.list.access !== "link" ? door.list.id : undefined;
   useEffect(() => {
-    if (own) void navigate({ search: { list: own, panel: "saved" }, replace: true });
-  }, [own, navigate]);
+    if (!own) return;
+    void navigate({ search: wide ? { list: own, panel: "saved" } : { list: own }, replace: true });
+  }, [own, wide, navigate]);
 
   if (!door.list || own) {
     return (
@@ -106,6 +117,9 @@ function SharedRoute({ token, signedIn }: { token: string; signedIn: boolean }) 
   );
 }
 
+// A wide screen has room for a panel beside the map. It is `lg`, as where the product's shell
+// puts its header.
+const WIDE = "(min-width: 1024px)";
 // What a panel reads of the model: the week ahead, and the two days before now.
 const FORECAST_DAYS = { days: 7, pastDays: 2 };
 const MINUTE_MS = 60 * 1000;
@@ -197,7 +211,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
-  const wide = useMediaQuery("(min-width: 1024px)");
+  const wide = useMediaQuery(WIDE);
   const now = useNow();
   // Rounded to the hour so the query keys stay the same from one minute to the next.
   const hour = Math.floor(now / HOUR_MS) * HOUR_MS;
@@ -300,14 +314,48 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     }),
   );
 
-  // The settings are read where they show: in the alerts panel, and in the panel of a spot.
+  // How to be told of the alerts is a part of the account's panel.
+  const isSettingAlerts = panel === "account" && search.settings === "alerts";
+  // The settings are read where they show: there, and in the panel of a spot.
   const alerting = useAlerting({
     signedIn,
-    isShown: panel === "alerts" || selectedSpotId !== undefined,
+    isShown: isSettingAlerts || selectedSpotId !== undefined,
   });
   // A browser that has push on says so again when the app loads. The devices are read where they
-  // show: in the settings of the alerts panel.
-  const push = usePush({ account: session.data?.user.id, isShown: panel === "alerts" });
+  // show: with the settings of the alerts.
+  const push = usePush({ account: session.data?.user.id, isShown: isSettingAlerts });
+  // Who is signed in, for the account's panel.
+  const own = useOwnAccount();
+  const verification = useSendVerification();
+  const signOut = useSignOut();
+  const needsCheck = own.account?.checksAddresses === true && !own.account.emailVerified;
+
+  // An address from before how to be told was a part of the account's panel is taken there.
+  const isOldSettings = search.alerts === "settings";
+  useEffect(() => {
+    if (!isOldSettings) return;
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        panel: "account",
+        alerts: undefined,
+        settings: "alerts",
+      }),
+      replace: true,
+    });
+  }, [isOldSettings, navigate]);
+  // A phone shows one thing at a time: what is selected, on the map, or a tab's screen. An
+  // address that names both, as one made on a wide screen does, keeps what is selected: the
+  // panel it is read in may hold something written and not saved.
+  const isSelecting = Boolean(selectedId ?? selectedBreakId ?? selectedSpotId);
+  const hasBoth = !wide && isSelecting && isTabPanel(panel);
+  useEffect(() => {
+    if (!hasBoth || isOldSettings) return;
+    void navigate({
+      search: (previous) => ({ ...previous, panel: undefined, settings: undefined }),
+      replace: true,
+    });
+  }, [hasBoth, isOldSettings, navigate]);
 
   const loaded = useMemo(() => {
     const byId = new Map<string, Station>();
@@ -1004,6 +1052,9 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       joined={joined.data ?? []}
       onViewList={(id) => void navigate({ search: { list: id, panel: "saved" } })}
       onExitList={shared ? undefined : () => void navigate({ search: { panel: "saved" } })}
+      // From the map, a list is shown alone on the map: nothing else is opened, and what was
+      // selected, which the list may not hold, is left.
+      onShowList={shared ? undefined : (id) => void navigate({ search: id ? { list: id } : {} })}
       onKeepList={() =>
         shared &&
         keepList.mutate({
@@ -1085,11 +1136,27 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       notifications={loadable(notifications)}
       alerting={alerting}
       push={push}
-      alertsTab={search.alerts ?? "news"}
+      alertsTab={search.alerts === "mine" ? "mine" : "news"}
       onAlertsTabChange={(tab) =>
         void navigate({
           search: (previous) => ({ ...previous, alerts: tab === "news" ? undefined : tab }),
           replace: true,
+        })
+      }
+      account={{
+        user: session.data?.user && {
+          name: session.data.user.name,
+          email: session.data.user.email,
+        },
+        check: needsCheck
+          ? { isSending: verification.isSending, onSend: verification.send }
+          : undefined,
+        onSignOut: signOut,
+      }}
+      settingsPart={search.settings}
+      onSettingsPartChange={(part) =>
+        void navigate({
+          search: (previous) => ({ ...previous, panel: "account", settings: part }),
         })
       }
       onLayersChange={setLayers}
@@ -1127,10 +1194,16 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       isDescribingSpot={describeSpot.isPending}
       // A panel opens over the station's and gives it back when it closes. The one that adds a
-      // spot stands alone: the map beside it is for the marker.
+      // spot stands alone: the map beside it is for the marker. So does a tab's screen on a
+      // phone, which takes the map's place: what is selected is left as any other leaving is.
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({
-          search: (previous) => (next === "add" ? { panel: next } : { ...previous, panel: next }),
+          search: (previous) =>
+            next === "add"
+              ? { panel: next }
+              : !wide && isTabPanel(next)
+                ? { ...mode, panel: next }
+                : { ...previous, panel: next, settings: undefined },
         })
       }
       onBoundsChange={setBounds}

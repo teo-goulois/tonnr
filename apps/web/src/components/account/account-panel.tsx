@@ -1,0 +1,155 @@
+import { Button } from "@repo/ui/components/ui/button";
+import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
+import { ChevronRightIcon, LogOutIcon } from "@repo/ui/icon";
+import { useTheme } from "next-themes";
+import type { ReactNode } from "react";
+
+import { openShortcutSettings } from "@/components/shared/shortcut-settings";
+import { UnitsSettings } from "@/components/shared/units-settings";
+import { AccountPrompt } from "@/components/viewer/saved-panel";
+import { m } from "@/paraglide/messages.js";
+import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
+
+type AccountPanelProps = {
+  // The account that is signed in. Undefined for a visitor, who still has settings: the units,
+  // the theme and the language are kept by the browser.
+  account: { name: string; email: string } | undefined;
+  // Given when the account's address is not checked yet, on an instance that checks addresses.
+  check?: { isSending: boolean; onSend: () => void };
+  onSignIn: () => void;
+  onCreateAccount: () => void;
+  onSignOut: () => void;
+  // Opens how the account wants to be told of its alerts, one step into this panel.
+  onOpenAlertSettings: () => void;
+};
+
+// A language is named in itself, whatever language the screen is read in.
+const LANGUAGES: Record<(typeof locales)[number], string> = { en: "English", fr: "Français" };
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-s">
+      <h2 className="text-s font-medium text-neutral-7">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/** A setting on a line: its name, and what chooses it. Too narrow, the choice goes under. */
+function Line({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-s gap-y-xxs">
+      <span>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The account and its settings: who is signed in, the units, how to be told of the alerts, the
+ * theme and the language. A phone opens it from its bar of tabs and a wide screen from the
+ * account's menu. Decision 040.
+ */
+export function AccountPanel({
+  account,
+  check,
+  onSignIn,
+  onCreateAccount,
+  onSignOut,
+  onOpenAlertSettings,
+}: AccountPanelProps) {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className="grid gap-l">
+      {account ? (
+        <div className="grid justify-items-start gap-xxs">
+          <p className="max-w-full truncate font-medium">{account.name}</p>
+          <p className="max-w-full truncate text-s text-neutral-7">{account.email}</p>
+          {check && (
+            <div className="mt-xs grid justify-items-start gap-xs">
+              <p className="text-s">{m.verify_not_checked()}</p>
+              <Button
+                variant="secondary"
+                size="sm"
+                isPending={check.isSending}
+                onClick={check.onSend}
+              >
+                {m.verify_send_again()}
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <AccountPrompt
+          text={m.account_sign_in_prompt()}
+          onSignIn={onSignIn}
+          onCreateAccount={onCreateAccount}
+        />
+      )}
+
+      {/* The units every measurement is written in, on every screen. Decision 033. */}
+      <Section title={m.units_title()}>
+        <UnitsSettings />
+      </Section>
+
+      {account && (
+        <Section title={m.alerts_title()}>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenAlertSettings}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.command_alerts_settings()}</span>
+              <span className="text-s text-neutral-7">{m.account_alerts_hint()}</span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
+        </Section>
+      )}
+
+      <Section title={m.account_display()}>
+        <Line label={m.account_theme()}>
+          {/* The theme is the browser's to know: none is in view before it has said. */}
+          <Tabs value={theme ?? null} onValueChange={(next) => setTheme(String(next))}>
+            <TabsList variant="segment" aria-label={m.account_theme()}>
+              <TabsTab value="system">{m.account_theme_system()}</TabsTab>
+              <TabsTab value="light">{m.account_theme_light()}</TabsTab>
+              <TabsTab value="dark">{m.account_theme_dark()}</TabsTab>
+            </TabsList>
+          </Tabs>
+        </Line>
+        <Line label={m.account_language()}>
+          <Tabs
+            value={getLocale()}
+            onValueChange={(next) => void setLocale(next as (typeof locales)[number])}
+          >
+            <TabsList variant="segment" aria-label={m.account_language()}>
+              {locales.map((locale) => (
+                <TabsTab key={locale} value={locale}>
+                  {LANGUAGES[locale]}
+                </TabsTab>
+              ))}
+            </TabsList>
+          </Tabs>
+        </Line>
+        {/* Shortcuts are a keyboard's: a phone's bar of tabs does not lead to them. */}
+        <div className="max-lg:hidden">
+          <Button variant="secondary" size="sm" onClick={openShortcutSettings}>
+            {m.shortcuts_title()}
+          </Button>
+        </div>
+      </Section>
+
+      {account && (
+        <div>
+          <Button variant="outline" onClick={onSignOut}>
+            <LogOutIcon data-slot="icon" aria-hidden />
+            {m.auth_sign_out()}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
