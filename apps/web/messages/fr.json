@@ -162,6 +162,7 @@
   "source_forecast_changes": "Ces valeurs sont arrondies et écrites dans tes unités, et l'énergie en est calculée.",
   "source_wave_model": "Vagues : modèle {model}, maille de {kilometers} km.",
   "source_wave_model_mean": "Vagues : modèle {model}, maille de {kilometers} km. Sa période est une moyenne, pas celle du pic.",
+  "source_wave_model_from": "À partir de {date} : modèle {model}, maille de {kilometers} km.",
   "source_tide": "Marée : calculée, hauteurs au-dessus de {datum}. Source : {source}.",
   "chart_too_few_points": "Pas encore assez de mesures pour tracer une courbe.",
   "chart_label": "{label}, de {start} à {end}",

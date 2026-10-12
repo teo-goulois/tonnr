@@ -109,9 +109,11 @@ The waves come from the first of three models that has a sea at the point, each 
 
 The periods are not one statistic. `wave_period` is the energy period for ECMWF, Météo-France and DWD. `swell_wave_period` is a mean period.
 
+Inside the box of Copernicus Marine's model of the north-west shelf, the waves come from that model first, read from its store, and from the three above for the hours after its last: decision 037. The store is the `geoChunked` asset of the dataset `cmems_mod_nws_wav_anfc_1.5km_PT1H-i_…` of `NWSHELF_ANALYSISFORECAST_WAV_004_014`, found through `stac.marine.copernicus.eu/metadata` at each reading since the name carries a version, `_202511` on 2026-10-12. The dataset's record gives the first hour, the step and the number of hours, rows and columns, and how many of each a piece holds: 3,744 hours by 16 rows by 16 columns. The store's `.zmetadata`, 16 kB, gives each variable's scale and the value that stands for no sea, -32767. A piece is named `<variable>/<time>.<row>.<column>`, holds 16-bit numbers, and is packed with Blosc: LZ4, bytes shuffled, in blocks of 262,144 bytes cut in two parts, the last block in one. The product's record says it is updated daily at 12:00 UTC, and on 2026-10-12 its last hour was 2026-10-18 23:00 UTC. The credit is "Generated using E.U. Copernicus Marine Service Information" with the DOI `10.48670/moi-00055`, under the licence of the in-situ product above.
+
 ### Wave models the instance does not read
 
-Each was opened on 2026-10-12. None is read: decision 036 says what a finer model gained against the buoys.
+Each was opened on 2026-10-12. Decision 037 says what each gained against the buoys, and why the model of the north-west shelf is the only one read.
 
 - **Copernicus Marine** gives four wave models as Zarr stores, in the public bucket its catalogue at `stac.marine.copernicus.eu` names, with no account. All four give the height of the whole sea (`VHM0`), its peak period (`VTPK`), its direction, and a first swell, a second swell and the wind sea, each with a height, a mean period and a direction. The licence is the one of the in-situ product above: any purpose, with the credit and the product's DOI.
 

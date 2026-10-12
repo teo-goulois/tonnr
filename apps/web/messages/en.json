@@ -162,6 +162,7 @@
   "source_forecast_changes": "These values are rounded and written in your units, and the energy is computed from them.",
   "source_wave_model": "Waves: {model} model, {kilometers} km grid.",
   "source_wave_model_mean": "Waves: {model} model, {kilometers} km grid. Its period is a mean one, not the one of the peak.",
+  "source_wave_model_from": "From {date}: {model} model, {kilometers} km grid.",
   "source_tide": "Tide: computed, heights above {datum}. Source: {source}.",
   "chart_too_few_points": "Not enough measurements yet to draw a curve.",
   "chart_label": "{label}, from {start} to {end}",

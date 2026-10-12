@@ -24,7 +24,9 @@ export function answer(
   const waveHeightMeters = time.map(waves);
   return {
     point: { latitude: 43.625, longitude: -1.4583 },
-    model: waveHeightMeters.some((height) => height !== null) ? "ecmwf_wam" : null,
+    models: waveHeightMeters.some((height) => height !== null)
+      ? [{ id: "ecmwf_wam", from: time[0] ?? 0 }]
+      : [],
     hours: {
       time,
       waveHeightMeters,

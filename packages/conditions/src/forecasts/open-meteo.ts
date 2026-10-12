@@ -2,7 +2,12 @@ import { fetchJsonOnce, UpstreamError } from "@repo/upstream";
 import { Effect, Schedule, Schema } from "effect";
 import { z } from "zod";
 
-import { type WaveModelId, waveModelIds } from "./wave-models";
+import {
+  isInFineZone,
+  type OpenMeteoModelId,
+  openMeteoModelIds,
+  waveModelIds,
+} from "./wave-models";
 
 const MARINE_URL = "https://marine-api.open-meteo.com/v1/marine";
 const WEATHER_URL = "https://api.open-meteo.com/v1/forecast";
@@ -31,16 +36,27 @@ export function forecastBudget(share: ForecastShare) {
   ] as const;
 }
 
-// Wave models are about 5 km wide at best, so nearby points share a forecast.
-const GRID_STEPS_PER_DEGREE = 20;
+// Forecasts are kept by cell, so that nearby points share one. A cell is 0.05° wide, about the
+// grid of the models asked of Open-Meteo. Where the fine model has its sea a cell is 0.0125°
+// wide, no wider than that model's own: a spot is read where it stands. Both are counted in
+// steps of 0.0125°, so a cell of either width has one name.
+const STEPS_PER_DEGREE = 80;
+const WIDE_CELL_STEPS = 4;
 
-/** A cell of the grid that forecasts are kept by, in steps of 0.05°. */
+/** A cell of the grid that forecasts are kept by, in steps of 0.0125°. */
 export type Cell = { latStep: number; lonStep: number };
 
 export function cellOf(point: { latitude: number; longitude: number }): Cell {
+  const width = isInFineZone(point) ? 1 : WIDE_CELL_STEPS;
+  const steps = (degrees: number) => Math.round((degrees * STEPS_PER_DEGREE) / width) * width;
+  return { latStep: steps(point.latitude), lonStep: steps(point.longitude) };
+}
+
+/** The centre of a cell, which is the point its forecast is asked for. */
+export function pointOf(cell: Cell) {
   return {
-    latStep: Math.round(point.latitude * GRID_STEPS_PER_DEGREE),
-    lonStep: Math.round(point.longitude * GRID_STEPS_PER_DEGREE),
+    latitude: cell.latStep / STEPS_PER_DEGREE,
+    longitude: cell.lonStep / STEPS_PER_DEGREE,
   };
 }
 
@@ -127,13 +143,14 @@ const columns = z.object({
 });
 
 /**
- * A forecast as it is kept: the model's grid point, the wave model that answered, and one column
- * for each value, hour by hour. The model is null when none has a sea at the point. A row of the
+ * A forecast as it is kept: the model's grid point, the wave models that answered, and one
+ * column for each value, hour by hour. Each model answers from its `from`, in seconds since
+ * 1970, to the next one's, and the list is empty when none has a sea at the point. A row of the
  * database is read through this, so a row written by other code is refused instead of trusted.
  */
 export const forecastData = z.object({
   point: z.object({ latitude: z.number(), longitude: z.number() }),
-  model: z.enum(waveModelIds).nullable(),
+  models: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })),
   hours: columns.refine(hasOneValuePerHour),
 });
 
@@ -141,12 +158,13 @@ export type ForecastData = z.infer<typeof forecastData>;
 
 /**
  * Merges Open-Meteo's marine and weather answers into one forecast, hour by hour. The marine
- * answer is the one of `model`, which is kept with the forecast when it has a sea at the point.
+ * answer is the one of `model`, which is kept with the forecast when it has a sea at the point,
+ * as the one that answers from the first hour.
  * Returns an error when an answer has changed shape, and when the two do not cover the same
  * hours: each request starts at the provider's own midnight, and one sent before it with one
  * sent after would leave a day without wind.
  */
-export function buildForecast(model: WaveModelId, marineJson: unknown, weatherJson: unknown) {
+export function buildForecast(model: OpenMeteoModelId, marineJson: unknown, weatherJson: unknown) {
   const marine = marineSchema.safeParse(marineJson);
   const weather = weatherSchema.safeParse(weatherJson);
   if (!marine.success || !weather.success) {
@@ -165,7 +183,9 @@ export function buildForecast(model: WaveModelId, marineJson: unknown, weatherJs
 
   const data: ForecastData = {
     point: { latitude: marine.data.latitude, longitude: marine.data.longitude },
-    model: waves.wave_height.some((height) => height !== null) ? model : null,
+    models: waves.wave_height.some((height) => height !== null)
+      ? [{ id: model, from: waves.time[0] ?? 0 }]
+      : [],
     hours: {
       time: waves.time,
       waveHeightMeters: waves.wave_height,
@@ -185,8 +205,8 @@ export function buildForecast(model: WaveModelId, marineJson: unknown, weatherJs
 
 function url(base: string, cell: Cell, parameters: Record<string, string>) {
   const search = new URLSearchParams({
-    latitude: String(cell.latStep / GRID_STEPS_PER_DEGREE),
-    longitude: String(cell.lonStep / GRID_STEPS_PER_DEGREE),
+    latitude: String(pointOf(cell).latitude),
+    longitude: String(pointOf(cell).longitude),
     forecast_days: String(KEPT_DAYS),
     past_days: String(KEPT_PAST_DAYS),
     timeformat: "unixtime",
@@ -217,7 +237,7 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
       Effect.flatMap(() => fetchJsonOnce(address)),
       Effect.retry(oneMoreTry),
     );
-  const askWaves = (model: WaveModelId) =>
+  const askWaves = (model: OpenMeteoModelId) =>
     ask(
       url(MARINE_URL, cell, {
         hourly: Object.keys(marineHourly.shape)
@@ -230,7 +250,7 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
     );
 
   return Effect.gen(function* () {
-    const [first, ...others] = waveModelIds;
+    const [first, ...others] = openMeteoModelIds;
     const [firstJson, weatherJson] = yield* Effect.all(
       [
         askWaves(first),
@@ -249,7 +269,7 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
     let data = buildForecast(first, firstJson, weatherJson);
     for (const model of others) {
       if (data instanceof ForecastFormatError) return yield* data;
-      if (data.model !== null) return data;
+      if (data.models.length > 0) return data;
       data = buildForecast(model, yield* askWaves(model), weatherJson);
     }
     if (data instanceof ForecastFormatError) return yield* data;

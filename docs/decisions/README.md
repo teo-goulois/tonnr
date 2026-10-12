@@ -40,3 +40,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [034. A spot made public by a request](034-public-spots.md)
 - [035. A list shared by a link](035-shared-lists.md)
 - [036. One wave model, read the same way everywhere](036-wave-model.md)
+- [037. A finer wave model where one has its sea](037-finer-wave-model.md)

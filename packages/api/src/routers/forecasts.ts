@@ -65,13 +65,17 @@ export const forecastsRouter = {
         // The model grid point the forecast was computed for.
         point: z.object({ latitude: z.number(), longitude: z.number() }),
         source: forecastSourceSchema,
-        // The model the waves come from: the first of the instance's list that has a sea at
-        // the point.
-        waveModel: z.object({
-          name: z.string(),
-          producer: z.string(),
-          resolutionKilometers: z.number(),
-        }),
+        // The models the waves come from, in the order of the hours: each answers from its
+        // `from` to the next one's. A finer model has the first days where it has its sea, and
+        // another the days after its last hour.
+        waveModels: z.array(
+          z.object({
+            name: z.string(),
+            producer: z.string(),
+            resolutionKilometers: z.number(),
+            from: z.date(),
+          }),
+        ),
         // When the instance fetched this forecast. It is not when the model ran.
         fetchedAt: z.date(),
         // True when the provider could not be asked and this is an older forecast, up to a
@@ -103,17 +107,19 @@ export const forecastsRouter = {
     .handler(async ({ input, context }) => {
       const result = await Effect.runPromise(Effect.result(context.forecasts.get(input)));
       if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      const { hours, model, ...forecast } = result.success;
-      if (!hours || !model) {
+      const { hours, models, ...forecast } = result.success;
+      if (!hours || models.length === 0) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this point." });
       }
 
-      const { name, producer, resolutionKilometers } = waveModel(model);
       return {
         ...forecast,
         hours,
-        source: forecastSource([model]),
-        waveModel: { name, producer, resolutionKilometers },
+        source: forecastSource(models.map((model) => model.id)),
+        waveModels: models.map(({ id, from }) => {
+          const { name, producer, resolutionKilometers } = waveModel(id);
+          return { name, producer, resolutionKilometers, from };
+        }),
       };
     }),
 };

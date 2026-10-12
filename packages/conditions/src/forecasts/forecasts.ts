@@ -1,11 +1,12 @@
 import type { UpstreamError } from "@repo/upstream";
 import { Cache, Duration, Effect, Exit, Result, Schema } from "effect";
 
+import { makeCellForecast } from "./cell-forecast";
 import {
   BudgetSpent,
   type Cell,
   cellOf,
-  fetchForecast,
+  type fetchForecast,
   forecastData,
   type ForecastData,
   type ForecastFormatError,
@@ -126,6 +127,20 @@ export function hoursFor(data: ForecastData, asked: Asked, at: number) {
   return hasWaves ? hours : null;
 }
 
+/**
+ * The models that answer over a span of hours, each from its first hour in the span. A model
+ * answers from its `from` to the next one's.
+ */
+export function modelsOver(models: ForecastData["models"], from: Date, until: Date) {
+  const start = from.getTime() / 1000;
+  const end = until.getTime() / 1000;
+  return models.flatMap((model, index) => {
+    const next = models[index + 1]?.from ?? Infinity;
+    if (next <= start || model.from > end) return [];
+    return [{ id: model.id, from: new Date(Math.max(model.from, start) * 1000) }];
+  });
+}
+
 // Whether a kept forecast answers every question that may be asked on a day.
 function coversTheDay(data: ForecastData, at: number) {
   return hoursFor(data, { days: MAX_FORECAST_DAYS, pastDays: MAX_PAST_DAYS }, at) !== "short";
@@ -167,7 +182,7 @@ type Fetch = typeof fetchForecast;
  * The forecasts of a program: kept in its memory, then in the store that every program of the
  * instance shares, and asked of the provider when neither has a fresh one. Decision 023.
  */
-export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast) {
+export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForecast()) {
   // The provider failed to answer: nothing is asked of it before this moment, and then one
   // question at a time until one is answered. Null while it answers.
   let leftAloneUntil: number | null = null;
@@ -251,9 +266,10 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
 
   return {
     /**
-     * Hourly waves and wind at a point, with the wave model they come from. `hours` is null
-     * when the point has no sea nearby over the hours asked for. `stale` says that the provider
-     * could not be asked and that this is an older answer, with or without hours.
+     * Hourly waves and wind at a point, with the wave models they come from, each from its first
+     * hour. `hours` is null when the point has no sea nearby over the hours asked for. `stale`
+     * says that the provider could not be asked and that this is an older answer, with or
+     * without hours.
      */
     get: Effect.fn("getForecast")(function* (query: ForecastQuery) {
       const cell = cellOf(query);
@@ -278,7 +294,10 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = fetchForecast
       }
       return {
         point: found.data.point,
-        model: found.data.model,
+        models:
+          hours && hours[0] && hours.at(-1)
+            ? modelsOver(found.data.models, hours[0].time, hours.at(-1)!.time)
+            : [],
         hours,
         fetchedAt: found.fetchedAt,
         stale: found.stale,

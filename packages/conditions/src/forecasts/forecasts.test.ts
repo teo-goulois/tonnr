@@ -2,7 +2,7 @@ import { UpstreamError } from "@repo/upstream";
 import { Effect, Fiber, Result } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { hoursFor, makeForecasts, MAX_FORECAST_DAYS, MAX_PAST_DAYS } from "./forecasts";
+import { hoursFor, makeForecasts, MAX_FORECAST_DAYS, MAX_PAST_DAYS, modelsOver } from "./forecasts";
 import { BudgetSpent, type Cell, ForecastFormatError } from "./open-meteo";
 import { answer, memoryStore, provider } from "./testing";
 
@@ -103,7 +103,7 @@ describe("the forecasts of a program", () => {
     expect(second?.hours).toHaveLength(7 * 24);
     expect(state.asked).toBe(1);
     expect(seen).toEqual({ reads: 1, writes: 1, spent: 2 });
-    expect([...rows.keys()]).toEqual(["873,-29"]);
+    expect([...rows.keys()]).toEqual(["3492,-116"]);
   });
 
   it("share one fetch between the questions that arrive together", async () => {
@@ -277,7 +277,7 @@ describe("the forecasts of a program", () => {
   it("take a row that cannot be read for a missing one", async () => {
     const { store, rows } = memoryStore();
     const { fetch, state } = provider();
-    rows.set("873,-29", { fetchedAt: new Date(), data: { point: null, hours: [] } });
+    rows.set("3492,-116", { fetchedAt: new Date(), data: { point: null, hours: [] } });
 
     expect(await got(makeForecasts(store, fetch).get(here))).toMatchObject({ stale: false });
     expect(state.asked).toBe(1);
@@ -379,7 +379,7 @@ describe("the forecasts of a program", () => {
   it("say that an older forecast is one, when it shows no sea either", async () => {
     const { store, rows } = memoryStore();
     const { fetch, state } = provider();
-    rows.set("873,-29", {
+    rows.set("3492,-116", {
       fetchedAt: new Date(Date.now() - 3 * HOUR_MS),
       data: answer(Date.now(), () => null),
     });
@@ -454,7 +454,7 @@ describe("the forecasts of a program", () => {
   it("share the forecast that takes the place of one that came out too old", async () => {
     const { store, rows } = memoryStore();
     const { state } = provider();
-    rows.set("873,-29", {
+    rows.set("3492,-116", {
       fetchedAt: new Date(Date.now() - 3 * HOUR_MS),
       data: answer(Date.now()),
     });
@@ -479,7 +479,7 @@ describe("the forecasts of a program", () => {
   it("give no forecast whose day ended while the provider was being asked", async () => {
     const { store, rows } = memoryStore();
     const { state } = provider();
-    rows.set("873,-29", {
+    rows.set("3492,-116", {
       fetchedAt: new Date(Date.now() - 24 * HOUR_MS + 1000),
       data: answer(Date.now() - 24 * HOUR_MS),
     });
@@ -499,7 +499,7 @@ describe("the forecasts of a program", () => {
   it("say that a point has no sea over the hours asked for", async () => {
     const { store, rows } = memoryStore();
     const { fetch, state } = provider();
-    rows.set("873,-29", { fetchedAt: new Date(), data: answer(Date.now(), () => null) });
+    rows.set("3492,-116", { fetchedAt: new Date(), data: answer(Date.now(), () => null) });
 
     expect(await got(makeForecasts(store, fetch).get(here))).toMatchObject({
       hours: null,
@@ -514,7 +514,7 @@ describe("the forecasts of a program", () => {
     const forecasts = makeForecasts(store, fetch);
     // A row fetched a moment ago, whose hours start two days early: it lacks the last day.
     // One day early would still cover: the span that is kept has a day to spare.
-    rows.set("873,-29", {
+    rows.set("3492,-116", {
       fetchedAt: new Date(Date.now() - MINUTE_MS),
       data: answer(Date.now() - 48 * HOUR_MS),
     });
@@ -530,5 +530,27 @@ describe("the forecasts of a program", () => {
       _tag: "ForecastTooShort",
     });
     expect((await got(forecasts.get({ ...elsewhere, days: 3 })))?.hours).toHaveLength(3 * 24);
+  });
+});
+
+describe("the models over a span of hours", () => {
+  const at = (hour: number) => new Date(Date.UTC(2026, 9, 12, hour));
+  const seconds = (hour: number) => at(hour).getTime() / 1000;
+  const models = [
+    { id: "nws_ww3" as const, from: seconds(0) },
+    { id: "ecmwf_wam" as const, from: seconds(12) },
+  ];
+
+  it("are those that answer in it, each from its first hour there", () => {
+    expect(modelsOver(models, at(6), at(18))).toEqual([
+      { id: "nws_ww3", from: at(6) },
+      { id: "ecmwf_wam", from: at(12) },
+    ]);
+  });
+
+  it("leave out a model whose hours are all before or all after", () => {
+    expect(modelsOver(models, at(0), at(11))).toEqual([{ id: "nws_ww3", from: at(0) }]);
+    expect(modelsOver(models, at(12), at(23))).toEqual([{ id: "ecmwf_wam", from: at(12) }]);
+    expect(modelsOver([], at(0), at(23))).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@ import {
   forecastBudget,
   forecastData,
   ForecastFormatError,
+  pointOf,
 } from "./open-meteo";
 
 // 2026-10-08 00:00, 01:00 and 02:00 UTC.
@@ -49,7 +50,7 @@ describe("buildForecast", () => {
     if (forecast instanceof ForecastFormatError) throw forecast;
 
     expect(forecast.point).toEqual({ latitude: 43.625, longitude: -1.4583282 });
-    expect(forecast.model).toBe("ecmwf_wam");
+    expect(forecast.models).toEqual([{ id: "ecmwf_wam", from: times[0] }]);
     expect(forecast.hours).toEqual({
       time: times,
       waveHeightMeters: [2.34, 2.48, null],
@@ -72,7 +73,7 @@ describe("buildForecast", () => {
     if (forecast instanceof ForecastFormatError) throw forecast;
 
     expect(forecast.hours.waveHeightMeters).toEqual([null, null, null]);
-    expect(forecast.model).toBeNull();
+    expect(forecast.models).toEqual([]);
   });
 
   it("keeps the mean period alone of a model that gives no peak", () => {
@@ -81,15 +82,15 @@ describe("buildForecast", () => {
     const forecast = buildForecast("meteofrance_wave", answered, weather());
     if (forecast instanceof ForecastFormatError) throw forecast;
 
-    expect(forecast.model).toBe("meteofrance_wave");
+    expect(forecast.models.map((model) => model.id)).toEqual(["meteofrance_wave"]);
     expect(forecast.hours.wavePeakPeriodSeconds).toEqual([null, null, null]);
     expect(forecast.hours.wavePeriodSeconds).toEqual([7.25, 7.45, 7.5]);
   });
 
-  it("refuses a kept forecast of the shape before, which named no model", () => {
+  it("refuses a kept forecast of the shape before, which listed no models", () => {
     const forecast = buildForecast("ecmwf_wam", marine([2.34, 2.48, 2.5]), weather());
     if (forecast instanceof ForecastFormatError) throw forecast;
-    const { model: _, ...before } = forecast;
+    const { models: _, ...before } = forecast;
 
     expect(forecastData.safeParse(before).success).toBe(false);
   });
@@ -134,6 +135,33 @@ describe("buildForecast", () => {
     const changed = { latitude: 43.6, longitude: -1.4, hourly: { time: times } };
 
     expect(buildForecast("ecmwf_wam", changed, weather())).toBeInstanceOf(ForecastFormatError);
+  });
+});
+
+describe("the cell a forecast is kept by", () => {
+  it("is 0.05° wide where only the coarse models answer", () => {
+    const cell = cellOf({ latitude: 43.63, longitude: -1.46 });
+
+    expect(pointOf(cell)).toEqual({ latitude: 43.65, longitude: -1.45 });
+    expect(cellOf({ latitude: 43.66, longitude: -1.44 })).toEqual(cell);
+  });
+
+  it("is 0.0125° wide in the fine model's sea, so that a spot is read where it stands", () => {
+    // Le Petit Minou, in Brittany.
+    const cell = cellOf({ latitude: 48.3375, longitude: -4.616 });
+
+    expect(pointOf(cell)).toEqual({ latitude: 48.3375, longitude: -4.6125 });
+    // A point 1.4 km away is another cell there, and the same one further south.
+    expect(cellOf({ latitude: 48.35, longitude: -4.6 })).not.toEqual(cell);
+  });
+
+  it("gives a cell of either width one name", () => {
+    const fine = cellOf({ latitude: 46.0, longitude: -1.5 });
+    const wide = cellOf({ latitude: 45.99, longitude: -1.5 });
+
+    expect(pointOf(fine)).toEqual({ latitude: 46, longitude: -1.5 });
+    expect(pointOf(wide)).toEqual({ latitude: 46, longitude: -1.5 });
+    expect(fine).toEqual(wide);
   });
 });
 
@@ -224,7 +252,7 @@ describe("fetchForecast", () => {
 
     const result = await run(fetchForecast(cell, counted().spend));
 
-    expect(Result.isSuccess(result) && result.success.model).toBe("ecmwf_wam");
+    expect(Result.isSuccess(result) && result.success.models[0]?.id).toBe("ecmwf_wam");
     expect(models(asked)).toEqual(["ecmwf_wam"]);
     const waves = asked.find((url) => url.host.startsWith("marine"));
     expect(waves?.searchParams.get("hourly")).toBe(
@@ -239,7 +267,7 @@ describe("fetchForecast", () => {
 
     const result = await run(fetchForecast(cell, spend));
 
-    expect(Result.isSuccess(result) && result.success.model).toBe("meteofrance_wave");
+    expect(Result.isSuccess(result) && result.success.models[0]?.id).toBe("meteofrance_wave");
     expect(models(asked)).toEqual(["ecmwf_wam", "ecmwf_wam025", "meteofrance_wave"]);
     // The wind and the weather were asked once.
     expect([asked.length, seen.spent]).toEqual([4, 4]);
@@ -250,7 +278,7 @@ describe("fetchForecast", () => {
 
     const result = await run(fetchForecast(cell, counted().spend));
 
-    expect(Result.isSuccess(result) && result.success.model).toBeNull();
+    expect(Result.isSuccess(result) && result.success.models).toEqual([]);
     expect(Result.isSuccess(result) && result.success.hours.waveHeightMeters).toEqual([
       null,
       null,

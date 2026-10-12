@@ -218,8 +218,22 @@ const SAMPLE_WIND_STATION = {
 };
 const SAMPLE_FORECAST: Forecast = {
   point: { latitude: 48.3, longitude: -5 },
-  source: forecastSource(["ecmwf_wam"]),
-  waveModel: { name: "ECMWF WAM", producer: "ECMWF", resolutionKilometers: 9 },
+  source: forecastSource(["nws_ww3", "ecmwf_wam"]),
+  // The fine model for the first two days, and the other after its last hour.
+  waveModels: [
+    {
+      name: "WaveWatch III",
+      producer: "Met Office",
+      resolutionKilometers: 1.5,
+      from: new Date(SAMPLE_NOW - 6 * HOUR_MS),
+    },
+    {
+      name: "ECMWF WAM",
+      producer: "ECMWF",
+      resolutionKilometers: 9,
+      from: new Date(SAMPLE_NOW + 42 * HOUR_MS),
+    },
+  ],
   fetchedAt: new Date(SAMPLE_NOW),
   stale: false,
   hours: Array.from({ length: 96 }, (_, index) => {

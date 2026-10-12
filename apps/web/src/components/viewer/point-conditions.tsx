@@ -1,6 +1,7 @@
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { type ComponentProps, Fragment, type ReactNode, Suspense, lazy } from "react";
 
+import { formatDayAndClock, formatNumber } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import { useChartTurn } from "./chart-turns";
@@ -52,13 +53,21 @@ export type PointConditionsProps = {
   onTideExtend?: (direction: -1 | 1) => void;
 };
 
-// The model the waves come from, and whether its period is the mean one: a model without a peak
-// period leaves that column empty at every hour.
-function waveModelLine({ waveModel, hours }: Forecast) {
-  const said = { model: waveModel.name, kilometers: waveModel.resolutionKilometers };
-  return hours.some((hour) => hour.wavePeakPeriodSeconds !== null)
-    ? m.source_wave_model(said)
-    : m.source_wave_model_mean(said);
+// The models the waves come from, in the order of the hours: the first, then each one after it
+// with the moment it takes over. A model without a peak period leaves that column empty at every
+// hour, and the line of a forecast that has no other says that its period is the mean one.
+function waveModelLines({ waveModels, hours }: Forecast) {
+  const hasPeak = hours.some((hour) => hour.wavePeakPeriodSeconds !== null);
+  return waveModels.map((model, index) => {
+    const wide = model.resolutionKilometers;
+    const said = {
+      model: model.name,
+      kilometers: Number.isInteger(wide) ? String(wide) : formatNumber(wide, 1),
+    };
+    if (index > 0)
+      return m.source_wave_model_from({ ...said, date: formatDayAndClock(model.from) });
+    return hasPeak ? m.source_wave_model(said) : m.source_wave_model_mean(said);
+  });
 }
 
 /**
@@ -116,7 +125,7 @@ export function Sources({
           .{forecast.source.notice && ` ${forecast.source.notice}`} {m.source_forecast_changes()}
         </p>
       )}
-      {forecast && <p>{waveModelLine(forecast)}</p>}
+      {forecast && <p>{waveModelLines(forecast).join(" ")}</p>}
       {tides && <p>{m.source_tide({ datum: tides.datum, source: tides.station.source.name })}</p>}
     </footer>
   );

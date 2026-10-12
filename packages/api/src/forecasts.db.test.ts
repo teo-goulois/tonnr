@@ -89,11 +89,14 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     expect(found.source.attribution).toContain("Open-Meteo");
     // The producer of the model that answered, and the model itself.
     expect(found.source.attribution).toContain("ECMWF");
-    expect(found.waveModel).toEqual({
-      name: "ECMWF WAM",
-      producer: "ECMWF",
-      resolutionKilometers: 9,
-    });
+    expect(found.waveModels).toEqual([
+      {
+        name: "ECMWF WAM",
+        producer: "ECMWF",
+        resolutionKilometers: 9,
+        from: new Date("2026-10-08T00:00:00Z"),
+      },
+    ]);
     expect(found.hours[0]).toMatchObject({ wavePeriodSeconds: 8, wavePeakPeriodSeconds: 11 });
   });
 

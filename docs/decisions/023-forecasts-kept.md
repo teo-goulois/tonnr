@@ -1,6 +1,6 @@
 # 023. Forecasts kept in the database, and a budget of calls to their provider
 
-Status: asked for by Téo on 2026-10-09. Decision 036 changed the values asked for, from nine to four, and the credit, which now names who produced the model beside DWD. It amends decision 005, which kept a forecast in the API's memory for an hour, and decision 008, which planned the alerts on whatever forecast came. Not built: the forecast as it was issued, kept to compare it with what happened, and a limit on what one account asks.
+Status: asked for by Téo on 2026-10-09. Decision 036 changed the values asked for, from nine to four, and the credit, which now names who produced the model beside DWD. Decision 037 made a cell 0.0125° wide where a finer model has its sea, counted both widths in steps of 0.0125°, and added requests to another provider, which this budget does not count. It amends decision 005, which kept a forecast in the API's memory for an hour, and decision 008, which planned the alerts on whatever forecast came. Not built: the forecast as it was issued, kept to compare it with what happened, and a limit on what one account asks.
 
 ## Context
 
