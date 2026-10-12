@@ -202,6 +202,22 @@ An account that says yes is mailed what its alerts tell, at the address it signe
 - A mail program shows its own "unsubscribe" button only when the mail's DKIM signature covers the two headers that carry this address, `List-Unsubscribe` and `List-Unsubscribe-Post`: RFC 8058 asks for it. Send yourself an alert mail, open its source, and read the `h=` list of its `DKIM-Signature` header. When the two names are missing, ask your provider to sign them, or set the signed headers of your SMTP relay. The link at the foot of the mail works either way.
 - Your mail provider learns who has alerts, when, and the names of their alerts and spots, which a mail holds. An account can keep names out of the subject, not out of the mail.
 
+### Alerts by push
+
+Push is being built: this version reads the two keys below, and sends nothing yet. An instance will send push once it holds a pair of keys, which tells a browser's push service who sends. A command of the worker, `push-keys`, is being written to make the pair: `pnpm --filter worker run job push-keys` from a checkout, and "Running one job" above says how a job is run in the container.
+
+Set the two values in `apps/server/.env`, then run `docker compose up --detach` again: it makes the containers anew with what the file holds, which `docker compose restart` does not.
+
+| Variable            | Who will read it    | What it is for                                                                  |
+| ------------------- | ------------------- | ------------------------------------------------------------------------------- |
+| `VAPID_PUBLIC_KEY`  | The API, the worker | Given to the web app by the API, for a browser to subscribe with. It is public. |
+| `VAPID_PRIVATE_KEY` | The worker          | What the worker signs each push with. Keep it as you keep the API's secret.     |
+
+- With Docker Compose the worker reads `apps/server/.env` as the API does, so there is nothing more to set. On another platform, give the API the public key, and the worker both.
+- Set both, or neither. An instance without them sends no push.
+- The public key is a point of the curve P-256 as its 65 bytes, and the private key 32 bytes, each in base64url with no padding: 87 and 43 characters. A value of another shape stops the container at its start, which names the variable.
+- Keep the pair. A browser subscribes to one public key: with another pair, every subscription made before stops working.
+
 ### Coming from an earlier version
 
 The version before kept a spot's conditions on the spot. This one gives each such spot an alert when its migration runs. It leaves the spot's two columns and the first `notification` table where they are, for the version before to go on reading while this one starts, and the version after this one drops them.
