@@ -19,6 +19,13 @@ const OWN_MOST = 5;
 const PLACES_MOST = 4;
 const MINUTE_MS = 60 * 1000;
 
+// Whether what is typed goes on from what was asked before, or back to it: "cap" then "capb",
+// or the other way.
+function goesOn(before: string, after: string) {
+  const [one, other] = [fold(before), fold(after)];
+  return one.length >= SEARCH_FROM && (other.startsWith(one) || one.startsWith(other));
+}
+
 // The nearest places first, as an address is read.
 const whereOf = (location: string[] | null | undefined) =>
   [...(location ?? [])].reverse().slice(0, 3).join(", ") || undefined;
@@ -67,10 +74,19 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
     latitude: asked.near.latitude,
     longitude: asked.near.longitude,
   };
+  // What the search before found stays on the screen until the next answer comes, when what is
+  // typed goes on from it: the list does not empty and fill again at each key, and what holds
+  // it keeps its height. The search a query asked for is the input in its key.
+  const keeping = <Answer>(previous: Answer | undefined, before?: { queryKey: unknown }) => {
+    const key = before?.queryKey as [unknown, { input?: { q?: string } }] | undefined;
+    const was = key?.[1]?.input?.q ?? "";
+    return asked.q.length >= SEARCH_FROM && goesOn(was, asked.q) ? previous : undefined;
+  };
   const breaks = useQuery(
     orpc.v1.breaks.search.queryOptions({
       input: { q: asked.q, ...point, limit: BREAKS_MOST },
       enabled: isAsking,
+      placeholderData: keeping,
       staleTime: 10 * MINUTE_MS,
       meta: { quiet: true },
     }),
@@ -80,6 +96,7 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
     orpc.v1.places.search.queryOptions({
       input: { q: asked.q, ...asked.near, locale: getLocale(), limit: PLACES_MOST },
       enabled: asksPlaces,
+      placeholderData: keeping,
       // The API asks a service that is not the instance's: one request for a search, and no more.
       retry: false,
       staleTime: 10 * MINUTE_MS,
@@ -121,9 +138,10 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
         : [],
     [stations, read],
   );
+  // Shown while the keys have not stopped too: it is what the search before found.
   const foundBreaks = useMemo<Found[]>(
     () =>
-      isAsking
+      isSearchable
         ? (breaks.data?.breaks ?? []).map((one) => ({
             kind: "break",
             id: one.id,
@@ -133,11 +151,12 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
             longitude: one.longitude,
           }))
         : [],
-    [isAsking, breaks.data],
+    [isSearchable, breaks.data],
   );
+  const showsPlaces = isSearchable && withPlaces && typed.length >= PLACES_FROM;
   const foundPlaces = useMemo<Found[]>(
     () =>
-      asksPlaces
+      showsPlaces
         ? (places.data?.places ?? []).map((one) => ({
             kind: "place",
             name: one.name,
@@ -146,7 +165,7 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
             longitude: one.longitude,
           }))
         : [],
-    [asksPlaces, places.data],
+    [showsPlaces, places.data],
   );
 
   return {
@@ -157,10 +176,11 @@ export function usePlaceSearch({ isOn, near, spots, stations, withPlaces }: Aske
     breaks: foundBreaks,
     stations: buoys,
     places: foundPlaces,
-    isPending: isWaiting || (isAsking && breaks.isLoading) || (asksPlaces && places.isLoading),
+    // An answer that is kept from the search before is still one that is waited for.
+    isPending: isWaiting || (isAsking && breaks.isFetching) || (asksPlaces && places.isFetching),
     // The catalogue is the instance's own: when it does not answer, the search has failed. The
     // places are a service's, and what else was found still shows without them.
     isError: isAsking && breaks.isError,
-    credit: asksPlaces ? places.data?.source.attribution : undefined,
+    credit: showsPlaces ? places.data?.source.attribution : undefined,
   };
 }

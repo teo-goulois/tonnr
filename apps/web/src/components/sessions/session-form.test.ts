@@ -2,25 +2,42 @@ import { describe, expect, it } from "vitest";
 
 import { formatDuration } from "@/lib/format";
 
-import { fromLocalField, toLocalField, usualStart } from "./session-form";
+import { dayWords, fromFields, toClockField, toDayField, usualStart } from "./session-form";
 
-describe("the moment a session's field holds", () => {
-  it("is written in the hours of the device, and read back as the same moment", () => {
+describe("the moment a session's two fields hold", () => {
+  it("is written on the device's clock, and read back as the same moment", () => {
     const moment = new Date(2026, 9, 3, 7, 5);
-    expect(toLocalField(moment)).toBe("2026-10-03T07:05");
-    expect(fromLocalField("2026-10-03T07:05")?.getTime()).toBe(moment.getTime());
+    expect(toDayField(moment)).toBe("2026-10-03");
+    expect(toClockField(moment)).toBe("07:05");
+    expect(fromFields("2026-10-03", "07:05")?.getTime()).toBe(moment.getTime());
   });
 
-  it("is none while the field is empty or holds no moment", () => {
-    expect(fromLocalField("")).toBeNull();
-    expect(fromLocalField("not a day")).toBeNull();
+  it("is none while a field is empty or holds no moment", () => {
+    expect(fromFields("", "07:05")).toBeNull();
+    expect(fromFields("2026-10-03", "")).toBeNull();
+    expect(fromFields("not a day", "07:05")).toBeNull();
   });
 });
 
 describe("when a session that is written now is taken to have begun", () => {
   it("is an hour and a half before, on a round five minutes", () => {
     const now = new Date(2026, 9, 3, 11, 13, 40).getTime();
-    expect(toLocalField(usualStart(now))).toBe("2026-10-03T09:40");
+    const begun = usualStart(now);
+    expect(`${toDayField(begun)} ${toClockField(begun)}`).toBe("2026-10-03 09:40");
+  });
+});
+
+describe("the day of a session, beside its hour", () => {
+  const now = new Date(2026, 9, 3, 11, 0).getTime();
+
+  it("is today or yesterday by the calendar, whatever the hours", () => {
+    expect(dayWords(new Date(2026, 9, 3, 0, 5), now)).toBe("Today");
+    expect(dayWords(new Date(2026, 9, 2, 23, 55), now)).toBe("Yesterday");
+  });
+
+  it("is its date further back", () => {
+    expect(dayWords(new Date(2026, 9, 1, 8, 0), now)).toMatch(/1/);
+    expect(dayWords(new Date(2026, 9, 1, 8, 0), now)).not.toBe("Yesterday");
   });
 });
 

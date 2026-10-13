@@ -69,7 +69,13 @@ import { CreateSheet } from "./create-sheet";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
-import { type Found, type PlaceSearching, SearchScreen } from "./place-search";
+import {
+  type Found,
+  PlaceSearch,
+  type PlaceSearching,
+  SEARCH_BODY,
+  SEARCH_HEAD,
+} from "./place-search";
 import { AccountPrompt, RecentPlaces, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
@@ -436,6 +442,7 @@ function useShown(isOpen: boolean, current: Selection) {
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
 // No alert was asked for at the spot that is drawn: the same value at every render.
 const NO_ALERT_ASKED = { count: 0 };
+
 // A panel that holds something written and not saved stays open while that is asked about.
 const mayDismissSelection = () => !hasUnsaved();
 
@@ -974,8 +981,8 @@ export function Viewer({
     onSelectSpot(spotId);
   }
 
-  // A phone searches on a screen of its own, and a wide screen in the command palette, where a
-  // spot is found by its name too.
+  // A phone searches in a sheet, and a wide screen in the command palette, where a spot is
+  // found by its name too.
   const isSearching = search.isOpen && !wide;
   function openSearch() {
     if (wide) {
@@ -983,13 +990,9 @@ export function Viewer({
       return;
     }
     // A phone opens its keyboard for a field that takes the focus while the press is still
-    // being answered: the screen is drawn at once, and its field is focused in the same turn.
+    // being answered: the sheet is drawn at once, and its field is focused in the same turn.
     flushSync(() => search.onOpenChange(true));
     searchInput.current?.focus();
-  }
-  function closeSearch() {
-    search.onOpenChange(false);
-    searchButtonRef.current?.focus();
   }
   // What was found opens as a press on the map opens it. A place has no panel: the map goes there.
   function pickFound(found: Found) {
@@ -1248,7 +1251,7 @@ export function Viewer({
     >
       {/* The map and what floats on it. A tab's screen covers them on a phone: they are then
           out of reach of the keyboard and of a screen reader too. */}
-      <div className="absolute inset-0" inert={isScreen || isSearching}>
+      <div className="absolute inset-0" inert={isScreen}>
         <StationMap
           ref={map}
           stations={mapStations}
@@ -1746,32 +1749,47 @@ export function Viewer({
         )}
       </ViewerTab>
 
-      <SearchScreen
+      <ViewerDrawer
         open={isSearching}
-        onClose={closeSearch}
-        search={search}
-        onPick={pickFound}
-        inputRef={searchInput}
+        onOpenChange={(open) => {
+          if (!open) search.onOpenChange(false);
+        }}
+        wide={wide}
+        title={m.search_title()}
+        // As tall as a sheet goes whatever was found, with the field in place over what scrolls.
+        fill
+        initialFocus={searchInput}
+        finalFocus={searchButtonRef}
       >
-        {/* Before a key is pressed: what was looked at last, a press away. */}
-        <RecentPlaces
-          recents={recents}
-          onSelect={(id) => {
-            search.onOpenChange(false);
-            onSelect(id);
-          }}
-          onSelectBreak={(id) => {
-            search.onOpenChange(false);
-            onSelectBreak(id);
-          }}
-          onSelectSpot={(id) => {
-            search.onOpenChange(false);
-            onSelectSpot(id);
-          }}
-          onClear={onClearRecents}
-        />
-        {recents.length === 0 && <p className="text-s text-neutral-7">{m.search_hint()}</p>}
-      </SearchScreen>
+        <PlaceSearch
+          search={search}
+          onPick={pickFound}
+          label={m.search_title()}
+          placeholder={m.search_placeholder()}
+          inputRef={searchInput}
+          headClassName={SEARCH_HEAD}
+          bodyClassName={SEARCH_BODY}
+        >
+          {/* Before a key is pressed: what was looked at last, a press away. */}
+          <RecentPlaces
+            recents={recents}
+            onSelect={(id) => {
+              search.onOpenChange(false);
+              onSelect(id);
+            }}
+            onSelectBreak={(id) => {
+              search.onOpenChange(false);
+              onSelectBreak(id);
+            }}
+            onSelectSpot={(id) => {
+              search.onOpenChange(false);
+              onSelectSpot(id);
+            }}
+            onClear={onClearRecents}
+          />
+          {recents.length === 0 && <p className="text-s text-neutral-7">{m.search_hint()}</p>}
+        </PlaceSearch>
+      </ViewerDrawer>
 
       <CreateSheet
         open={isCreating}

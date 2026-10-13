@@ -10,7 +10,7 @@ import {
 } from "@repo/ui/components/ui/drawer";
 import { ChevronLeftIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -43,6 +43,13 @@ export type ViewerDrawerProps = {
   mayDismiss?: () => boolean;
   // Told how much of a phone's screen a sheet beside the map takes, when it is raised or lowered.
   onSnapChange?: (share: number) => void;
+  // A sheet that is as tall as a phone lets it be whatever it holds, and leaves what scrolls to
+  // its content: a search, whose field stays in place while what it found comes and goes.
+  fill?: boolean;
+  // What takes the focus when the drawer opens, in place of its first button, and what takes
+  // it back when the drawer closes, in place of what had it before.
+  initialFocus?: RefObject<HTMLElement | null>;
+  finalFocus?: RefObject<HTMLElement | null>;
   children: ReactNode;
 };
 
@@ -60,6 +67,9 @@ export function ViewerDrawer({
   onRest,
   mayDismiss,
   onSnapChange,
+  fill = false,
+  initialFocus,
+  finalFocus,
   children,
 }: ViewerDrawerProps) {
   const isSheet = !wide;
@@ -84,7 +94,11 @@ export function ViewerDrawer({
     >
       <DrawerContent
         variant={wide ? "inset" : "edge"}
+        {...(initialFocus && { initialFocus })}
+        {...(finalFocus && { finalFocus })}
         className={cn(
+          // A sheet that fills takes the most a phone gives a sheet, and keeps it.
+          fill && "data-[swipe-axis=y]:[--drawer-height:calc(100dvh-6rem)]",
           // The side panel starts under the app's header, and is a little wider than the registry's.
           "data-[swipe-axis=x]:top-14 data-[swipe-axis=x]:sm:[--drawer-content-width:27rem]",
           // How far a partly raised sheet is pushed down. The drawer's own variable does not reach
@@ -133,7 +147,13 @@ export function ViewerDrawer({
         </DrawerHeader>
         {/* A sheet that is only partly raised keeps its lower part off the screen. The margin takes
             that part away from the panel, so that all of its content can be scrolled into view. */}
-        <DrawerPanel className={isSheet && alongside ? "mb-(--sheet-offset)" : ""}>
+        <DrawerPanel
+          scrollable={!fill}
+          className={cn(
+            isSheet && alongside && "mb-(--sheet-offset)",
+            fill && "flex flex-col overflow-hidden",
+          )}
+        >
           {children}
         </DrawerPanel>
       </DrawerContent>

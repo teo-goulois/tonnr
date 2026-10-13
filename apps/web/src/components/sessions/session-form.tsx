@@ -1,21 +1,25 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
-import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
 import { Textarea } from "@repo/ui/components/ui/textarea";
-import { useId, useState } from "react";
+import { cn } from "@repo/ui/lib/utils";
+import { type ReactNode, useState } from "react";
 
-import { formatDuration } from "@/lib/format";
+import { formatClock, formatDate, formatDuration } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import type { Session } from "../viewer/types";
-import { RatingInput } from "./rating";
+import { RatingInput, ratingWord } from "./rating";
 import type { SessionDraft } from "./types";
 
 const MINUTE_MS = 60 * 1000;
-// How long a session is taken to last until its surfer says, and what they choose among.
+const DAY_MS = 24 * 60 * MINUTE_MS;
+// How long a session is taken to last until its surfer says.
 const USUAL_MINUTES = 90;
-const DURATIONS = [30, 60, 90, 120, 180];
+// What a session's length is chosen among: every quarter of an hour up to four hours, then every
+// half hour up to eight.
+const DURATIONS = [
+  ...Array.from({ length: 16 }, (_, index) => (index + 1) * 15),
+  ...Array.from({ length: 8 }, (_, index) => 270 + index * 30),
+];
 // A note as the API takes it.
 const NOTE_MOST = 2000;
 // A session is written once it has begun: a clock that runs a little ahead is forgiven.
@@ -23,15 +27,18 @@ const AHEAD_MS = 15 * MINUTE_MS;
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-/** A moment as a field of a date and an hour holds it, in the hours of the device. */
-export function toLocalField(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+/** A day as a field of a date holds it, and an hour as a field of a time does, on the device's clock. */
+export function toDayField(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+export function toClockField(date: Date) {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** The moment such a field holds. Null while it holds none. */
-export function fromLocalField(value: string) {
-  const date = new Date(value);
-  return value && !Number.isNaN(date.getTime()) ? date : null;
+/** The moment the two fields hold together. Null while one of them holds nothing. */
+export function fromFields(day: string, clock: string) {
+  const date = new Date(`${day}T${clock}`);
+  return day && clock && !Number.isNaN(date.getTime()) ? date : null;
 }
 
 /**
@@ -41,6 +48,60 @@ export function fromLocalField(value: string) {
 export function usualStart(now: number) {
   const step = 5 * MINUTE_MS;
   return new Date(Math.floor((now - USUAL_MINUTES * MINUTE_MS) / step) * step);
+}
+
+/** A day as it is said beside its hour: today, yesterday, or its date. */
+export function dayWords(day: Date, now: number) {
+  const midnight = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const daysAgo = Math.round(
+    (midnight(new Date(now)).getTime() - midnight(day).getTime()) / DAY_MS,
+  );
+  if (daysAgo === 0) return m.session_day_today();
+  if (daysAgo === 1) return m.session_day_yesterday();
+  return formatDate(day, now);
+}
+
+// What every native control of the form is: over the whole of its pill, and out of sight. A press
+// on the pill is a press on it, and the phone opens its own wheels or its own list.
+const NATIVE = "absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-default";
+
+// A browser on a wide screen opens a date's or an hour's picker from its small icon alone, which
+// is out of sight here: the press asks for it.
+function showPicker(input: HTMLInputElement) {
+  try {
+    input.showPicker();
+  } catch {
+    // A browser that has no such picker, or that refuses to open it now: the field still takes keys.
+  }
+}
+
+/** A value on a pill, which the native control over it changes. */
+function Pill({ shown, children }: { shown: string; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex min-w-0 items-center rounded-full bg-neutral-3 px-s py-xs lg:py-xxs",
+        "tabular-nums transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-4",
+        "has-focus-visible:[outline:var(--focus-ring-outline)] has-focus-visible:outline-offset-2",
+        "has-disabled:text-neutral-6",
+      )}
+    >
+      <span aria-hidden className="truncate">
+        {shown}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** A line of the form: what is asked on the left, and what answers it on the right. */
+function Row({ name, children }: { name: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex min-h-14 items-center justify-between gap-s px-s py-xs">
+      <span className="shrink-0">{name}</span>
+      <span className="flex min-w-0 items-center justify-end gap-xs">{children}</span>
+    </div>
+  );
 }
 
 type SessionFormProps = {
@@ -54,19 +115,21 @@ type SessionFormProps = {
 
 /**
  * A session as it is written: when it began, how long it lasted, how it was, and a few words.
- * Only when it began is asked for: the rest has a usual answer, or may wait.
+ * Each of the first three is a line with its answer on a pill, which opens what the device has
+ * for a day, an hour and a list. Only when it began is asked for: the rest has a usual answer, or
+ * may wait.
  */
 export function SessionForm({ session, now, isSaving, onSave }: SessionFormProps) {
-  const whenId = useId();
-  const noteId = useId();
-  const [when, setWhen] = useState(() => toLocalField(session?.startedAt ?? usualStart(now)));
+  const [begun] = useState(() => session?.startedAt ?? usualStart(now));
+  const [day, setDay] = useState(() => toDayField(begun));
+  const [clock, setClock] = useState(() => toClockField(begun));
   const [minutes, setMinutes] = useState(session?.durationMinutes ?? USUAL_MINUTES);
   const [rating, setRating] = useState(session?.rating ?? null);
   const [note, setNote] = useState(session?.note ?? "");
 
-  const startedAt = fromLocalField(when);
+  const startedAt = fromFields(day, clock);
   const isAhead = startedAt !== null && startedAt.getTime() > now + AHEAD_MS;
-  // A session whose length is none of the usual ones keeps it, among them.
+  // A session whose length is none of the list's keeps it, among them.
   const durations = DURATIONS.includes(minutes)
     ? DURATIONS
     : [...DURATIONS, minutes].sort((a, b) => a - b);
@@ -91,56 +154,85 @@ export function SessionForm({ session, now, isSaving, onSave }: SessionFormProps
       }}
     >
       <div className="grid gap-xs">
-        <Label htmlFor={whenId}>{m.session_when()}</Label>
-        <Input
-          id={whenId}
-          // A phone has its own wheels for a day and an hour.
-          type="datetime-local"
-          value={when}
-          max={toLocalField(new Date(now + AHEAD_MS))}
-          required
-          disabled={isSaving}
-          aria-invalid={isAhead || undefined}
-          onChange={(event) => setWhen(event.target.value)}
-        />
-        {isAhead && <p className="text-s text-neutral-7">{m.session_when_ahead()}</p>}
+        <div
+          className={cn(
+            "edge rounded-(--radius-xs) [--edge-color:var(--neutral-4)]",
+            // A hairline parts two lines.
+            "[&>*+*]:shadow-[inset_0_var(--border-s)_0_var(--neutral-4)]",
+          )}
+        >
+          <Row name={m.session_when()}>
+            <Pill shown={startedAt ? dayWords(startedAt, now) : m.session_day_none()}>
+              <input
+                type="date"
+                aria-label={m.session_day()}
+                className={NATIVE}
+                value={day}
+                max={toDayField(new Date(now))}
+                required
+                disabled={isSaving}
+                onChange={(event) => setDay(event.target.value)}
+                onClick={(event) => showPicker(event.currentTarget)}
+              />
+            </Pill>
+            <Pill shown={startedAt ? formatClock(startedAt) : "–"}>
+              <input
+                type="time"
+                aria-label={m.session_clock()}
+                className={NATIVE}
+                value={clock}
+                required
+                disabled={isSaving}
+                aria-invalid={isAhead || undefined}
+                onChange={(event) => setClock(event.target.value)}
+                onClick={(event) => showPicker(event.currentTarget)}
+              />
+            </Pill>
+          </Row>
+          <Row name={m.session_duration()}>
+            <Pill shown={formatDuration(minutes)}>
+              <select
+                aria-label={m.session_duration()}
+                className={NATIVE}
+                value={minutes}
+                disabled={isSaving}
+                onChange={(event) => setMinutes(Number(event.target.value))}
+              >
+                {durations.map((choice) => (
+                  <option key={choice} value={choice}>
+                    {formatDuration(choice)}
+                  </option>
+                ))}
+              </select>
+            </Pill>
+          </Row>
+          {/* The line says the rating in a word once it is given. */}
+          <Row
+            name={
+              rating === null ? m.session_rating() : <span aria-hidden>{ratingWord(rating)}</span>
+            }
+          >
+            <RatingInput
+              label={m.session_rating()}
+              value={rating}
+              onChange={setRating}
+              disabled={isSaving}
+              className="-mr-xs"
+            />
+          </Row>
+        </div>
+        {isAhead && <p className="px-s text-s text-neutral-7">{m.session_when_ahead()}</p>}
       </div>
 
-      <div className="grid gap-xs">
-        <span className="font-medium">{m.session_duration()}</span>
-        <Tabs value={String(minutes)} onValueChange={(next) => setMinutes(Number(next))}>
-          <TabsList variant="segment" aria-label={m.session_duration()} className="w-full">
-            {durations.map((choice) => (
-              <TabsTab key={choice} value={String(choice)} className="flex-1" disabled={isSaving}>
-                {formatDuration(choice)}
-              </TabsTab>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-
-      <div className="grid gap-xxs">
-        <span className="font-medium">{m.session_rating()}</span>
-        <RatingInput
-          label={m.session_rating()}
-          value={rating}
-          onChange={setRating}
-          disabled={isSaving}
-        />
-      </div>
-
-      <div className="grid gap-xs">
-        <Label htmlFor={noteId}>{m.session_note()}</Label>
-        <Textarea
-          id={noteId}
-          value={note}
-          rows={3}
-          maxLength={NOTE_MOST}
-          placeholder={m.session_note_placeholder()}
-          disabled={isSaving}
-          onChange={(event) => setNote(event.target.value)}
-        />
-      </div>
+      <Textarea
+        aria-label={m.session_note()}
+        value={note}
+        rows={2}
+        maxLength={NOTE_MOST}
+        placeholder={m.session_note_placeholder()}
+        disabled={isSaving}
+        onChange={(event) => setNote(event.target.value)}
+      />
 
       <Button type="submit" disabled={!startedAt || isAhead} isPending={isSaving}>
         {session ? m.session_save_changes() : m.session_save()}

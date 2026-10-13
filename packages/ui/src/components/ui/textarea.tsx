@@ -28,6 +28,8 @@ export function Textarea({
             "edge relative inline-flex w-full rounded-xs",
             // background & typography
             "bg-neutral-1 text-m text-neutral-10",
+            // Under `lg`, as a text field: an iPhone zooms on text smaller than 16 pixels.
+            "max-lg:text-[16px]",
             // edge
             "[--edge-color:var(--neutral-4)] hover:[--edge-color:var(--neutral-5)]",
             // transitions

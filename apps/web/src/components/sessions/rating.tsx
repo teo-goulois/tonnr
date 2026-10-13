@@ -39,54 +39,51 @@ export function RatingStars({ rating, className }: { rating: number | null; clas
 }
 
 /**
- * A rating as it is given: five stars, one press each, and the word of the one that is chosen.
- * A press on the rating that is given takes it away: a session may be left without one.
+ * A rating as it is given: five stars, one press each. A press on the rating that is given
+ * takes it away: a session may be left without one.
  */
 export function RatingInput({
   value,
   onChange,
   label,
   disabled = false,
+  className,
 }: {
   value: number | null;
   onChange: (rating: number | null) => void;
   label: string;
   disabled?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-s gap-y-xxs">
-      <div role="group" aria-label={label} className="-ml-1.5 flex">
-        {STARS.map((star) => {
-          const isGiven = value !== null && star <= value;
-          return (
-            <button
-              key={star}
-              type="button"
-              // Pressed is the rating that is given: the stars before it are drawn full with it.
-              aria-pressed={value === star}
-              aria-label={m.session_rating_of({ rating: star, word: ratingWord(star) })}
-              disabled={disabled}
-              className={cn(
-                // A star is as wide as a finger.
-                "focus-ring grid size-11 cursor-pointer place-items-center rounded-full outline-none",
-                "transition-transform duration-(--motion-duration) ease-theme motion-safe:active:scale-90",
-                "disabled:cursor-default disabled:opacity-60",
-                isGiven ? "text-neutral-10" : "text-neutral-5 hover:text-neutral-7",
-              )}
-              onClick={() => onChange(value === star ? null : star)}
-            >
-              {isGiven ? (
-                <RatingFillIcon aria-hidden className="size-7" />
-              ) : (
-                <RatingIcon aria-hidden className="size-7" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-      <span aria-hidden className="text-s text-neutral-7">
-        {value === null ? m.session_rating_none() : ratingWord(value)}
-      </span>
+    <div role="group" aria-label={label} className={cn("flex", className)}>
+      {STARS.map((star) => {
+        const isGiven = value !== null && star <= value;
+        return (
+          <button
+            key={star}
+            type="button"
+            // Pressed is the rating that is given: the stars before it are drawn full with it.
+            aria-pressed={value === star}
+            aria-label={m.session_rating_of({ rating: star, word: ratingWord(star) })}
+            disabled={disabled}
+            className={cn(
+              // A star is as wide as a finger.
+              "focus-ring grid size-10 cursor-pointer place-items-center rounded-full outline-none",
+              "transition-transform duration-(--motion-duration) ease-theme motion-safe:active:scale-90",
+              "disabled:cursor-default disabled:opacity-60",
+              isGiven ? "text-neutral-10" : "text-neutral-5 hover:text-neutral-7",
+            )}
+            onClick={() => onChange(value === star ? null : star)}
+          >
+            {isGiven ? (
+              <RatingFillIcon aria-hidden className="size-6" />
+            ) : (
+              <RatingIcon aria-hidden className="size-6" />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

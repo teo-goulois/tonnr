@@ -5,7 +5,13 @@ import { useState } from "react";
 import type { Recent } from "@/lib/recents";
 import { m } from "@/paraglide/messages.js";
 
-import { type Found, PlaceSearch, type PlaceSearching } from "../viewer/place-search";
+import {
+  type Found,
+  PlaceSearch,
+  type PlaceSearching,
+  SEARCH_BODY,
+  SEARCH_HEAD,
+} from "../viewer/place-search";
 import { AccountPrompt, BreakRow, SpotRow } from "../viewer/saved-panel";
 import type { Spot } from "../viewer/types";
 import { ViewerDrawer } from "../viewer/viewer-drawer";
@@ -86,6 +92,9 @@ export function SessionSheet({
       }
       // A place that was chosen in the sheet may be chosen again.
       onBack={isNew && picked && !open?.place ? () => setPicked(null) : undefined}
+      // While it asks where, the sheet is as tall as a sheet goes: what the search finds comes
+      // and goes without moving it.
+      fill={signedIn && isNew && !place}
     >
       {!signedIn ? (
         <AccountPrompt
@@ -99,7 +108,8 @@ export function SessionSheet({
           onPick={pick}
           label={m.session_where()}
           placeholder={m.session_where_placeholder()}
-          bodyClassName="grid gap-m pt-m"
+          headClassName={SEARCH_HEAD}
+          bodyClassName={SEARCH_BODY}
         >
           {(spots?.length ?? 0) > 0 && (
             <section className="grid gap-xs">

@@ -14,6 +14,9 @@ const inputControlVariants = cva("", {
         "edge relative inline-flex w-full rounded-(--radius-s)",
         // background & typography
         "bg-neutral-1 text-m text-neutral-10",
+        // Under `lg`, where a finger presses: an iPhone zooms the page on a field whose text is
+        // smaller than 16 pixels, and does not zoom back.
+        "max-lg:text-[16px]",
         // edge
         "[--edge-color:var(--neutral-4)] hover:[--edge-color:var(--neutral-5)]",
         // transitions

@@ -8,11 +8,10 @@ import {
   AutocompleteList,
   AutocompleteStatus,
 } from "@repo/ui/components/ui/autocomplete";
-import { Button } from "@repo/ui/components/ui/button";
 import { Spinner } from "@repo/ui/components/ui/spinner";
-import { ChevronLeftIcon, PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
+import { PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type CSSProperties, type ReactNode, type Ref, useEffect, useState } from "react";
+import type { ReactNode, Ref } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -45,6 +44,14 @@ export type PlaceSearching = {
   // Whose the places are, to say under them.
   credit: string | undefined;
 };
+
+/**
+ * How a search is laid out in a sheet that fills: its field stays in place, and what it found
+ * scrolls under it, down to a phone's keyboard and no further.
+ */
+export const SEARCH_HEAD = "shrink-0";
+export const SEARCH_BODY =
+  "grid min-h-0 flex-1 content-start gap-m overflow-y-auto overscroll-contain pt-m pb-[var(--drawer-keyboard-inset,0px)]";
 
 type Group = { value: Found["kind"]; label: string; items: Found[] };
 
@@ -82,8 +89,6 @@ type PlaceSearchProps = {
   label: string;
   placeholder: string;
   inputRef?: Ref<HTMLInputElement>;
-  // What stands before the field on its line: the button that leaves a screen.
-  before?: ReactNode;
   // What is shown under the field while nothing is searched.
   children?: ReactNode;
   // The classes of what holds the field, and of what holds the results under it.
@@ -101,7 +106,6 @@ export function PlaceSearch({
   label,
   placeholder,
   inputRef,
-  before,
   children,
   headClassName,
   bodyClassName,
@@ -143,8 +147,7 @@ export function PlaceSearch({
         if (details.reason !== "item-press") search.onQueryChange(value);
       }}
     >
-      <div className={cn("flex items-center gap-xxs", headClassName)}>
-        {before}
+      <div className={headClassName}>
         <AutocompleteInput
           ref={inputRef}
           aria-label={label}
@@ -200,88 +203,5 @@ export function PlaceSearch({
         )}
       </div>
     </Autocomplete>
-  );
-}
-
-// How much of the screen's bottom a phone's keyboard covers, in pixels. A phone lays its
-// keyboard over the page without telling it: what the page shows is read on the visual viewport.
-function useKeyboardCover(isOn: boolean) {
-  const [cover, setCover] = useState(0);
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!isOn || !viewport) return;
-    const measure = () =>
-      setCover(Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop)));
-    measure();
-    viewport.addEventListener("resize", measure);
-    viewport.addEventListener("scroll", measure);
-    return () => {
-      viewport.removeEventListener("resize", measure);
-      viewport.removeEventListener("scroll", measure);
-      setCover(0);
-    };
-  }, [isOn]);
-  return cover;
-}
-
-type SearchScreenProps = Pick<PlaceSearchProps, "search" | "onPick" | "inputRef" | "children"> & {
-  open: boolean;
-  onClose: () => void;
-};
-
-/**
- * The search of the map as a phone shows it: the whole screen, with the field at its top and
- * what it found under it, above the keyboard. Decision 040.
- */
-export function SearchScreen({
-  open,
-  onClose,
-  search,
-  onPick,
-  inputRef,
-  children,
-}: SearchScreenProps) {
-  const cover = useKeyboardCover(open);
-  if (!open) return null;
-
-  return (
-    <section
-      aria-label={m.search_title()}
-      className="absolute inset-0 z-20 flex flex-col bg-neutral-1"
-      // What is found ends above the keyboard, or above the bar of tabs when there is none.
-      style={
-        {
-          "--search-foot": `max(${cover}px, calc(var(--spacing-m) + var(--bottom-nav-lift, 0px)))`,
-        } as CSSProperties
-      }
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.stopPropagation();
-        onClose();
-      }}
-    >
-      <PlaceSearch
-        search={search}
-        onPick={onPick}
-        label={m.search_title()}
-        placeholder={m.search_placeholder()}
-        inputRef={inputRef}
-        before={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="-ml-xs shrink-0"
-            aria-label={m.action_back()}
-            onClick={onClose}
-          >
-            <ChevronLeftIcon data-slot="icon" aria-hidden />
-          </Button>
-        }
-        headClassName="px-m pt-m"
-        bodyClassName="min-h-0 flex-1 overflow-y-auto overscroll-contain px-m pt-s pb-(--search-foot)"
-      >
-        {children}
-      </PlaceSearch>
-    </section>
   );
 }
