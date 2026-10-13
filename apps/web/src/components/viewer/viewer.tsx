@@ -113,7 +113,7 @@ import {
   type TideTimeline,
   periodOf,
 } from "./types";
-import { SHEET_SNAP_POINTS, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-drawer";
+import { NO_SHEET, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-drawer";
 import { ViewerTab } from "./viewer-screen";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -625,10 +625,27 @@ export function Viewer({
   const [edit, setEdit] = useState<SpotEdit | null>(null);
   const editing = edit && edit.id === selectedSpotId && !isAdding ? edit : null;
   if (edit && !editing) setEdit(null);
-  // How much of a phone's screen the sheet beside the map takes. It opens partly raised.
-  const [sheetShare, setSheetShare] = useState(SHEET_SNAP_POINTS[0]!);
-  if (selection === undefined && !isAdding && sheetShare !== SHEET_SNAP_POINTS[0]) {
-    setSheetShare(SHEET_SNAP_POINTS[0]!);
+  // What is selected, as its drawer knows it.
+  const identity = selectedId
+    ? `station:${selectedId}`
+    : selectedBreakId
+      ? `break:${selectedBreakId}`
+      : selectedSpotId
+        ? `spot:${selectedSpotId}`
+        : undefined;
+  // What a phone's sheet beside the map takes of the screen: the one of what is selected, or the
+  // one that adds a spot. Each says so as it opens, is raised, and begins to leave.
+  const [selectionSheet, setSelectionSheet] = useState(NO_SHEET);
+  const [addingSheet, setAddingSheet] = useState(NO_SHEET);
+  const sheet = selectionSheet.height > 0 ? selectionSheet : addingSheet;
+  // What was pressed on the map opens a sheet that leaves the map in view, to press another.
+  // What was chosen anywhere else, in a list, a search or an address, is there to be read: its
+  // sheet opens raised. A press is forgotten once what it opened is left.
+  const [pressed, setPressed] = useState<string>();
+  const [seen, setSeen] = useState(identity);
+  if (seen !== identity) {
+    setSeen(identity);
+    if (seen === pressed) setPressed(undefined);
   }
 
   // The selected break as the map draws it. The breaks in view hold it, unless it was opened by
@@ -698,10 +715,8 @@ export function Viewer({
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
     if ((!selection && !isAdding) || typeof window === "undefined") return none;
-    return wide
-      ? { ...none, right: SIDE_PANEL_WIDTH }
-      : { ...none, bottom: Math.round(window.innerHeight * sheetShare) };
-  }, [selection, isAdding, wide, sheetShare]);
+    return wide ? { ...none, right: SIDE_PANEL_WIDTH } : { ...none, bottom: sheet.height };
+  }, [selection, isAdding, wide, sheet.height]);
 
   const { shown, drawn } = useShown(selection !== undefined, {
     id: selectedId,
@@ -1076,8 +1091,8 @@ export function Viewer({
   const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : undefined;
   // On a phone the map's buttons and its legend stand at the bottom of the map, under the thumb:
   // over the bar of tabs, and over a sheet that is open beside the map. A sheet that is raised
-  // leaves them no room, and covers them.
-  const isCovered = !wide && padding.bottom > 0 && sheetShare > SHEET_SNAP_POINTS[0]!;
+  // leaves them no room, and covers them where they stand: they go down with it when it leaves.
+  const isCovered = !wide && padding.bottom > 0 && sheet.raised;
   const foot = cn(
     "bottom-[calc(var(--map-floor)+var(--spacing-s))]",
     "transition-[bottom,opacity] duration-(--motion-large-duration) ease-theme-large motion-reduce:transition-none",
@@ -1268,9 +1283,18 @@ export function Viewer({
           padding={padding}
           userLocation={userLocation}
           userLocationLabel={m.locate_you_are_here()}
-          onSelect={onSelect}
-          onSelectBreak={onSelectBreak}
-          onSelectSpot={onSelectSpot}
+          onSelect={(id) => {
+            setPressed(id && `station:${id}`);
+            onSelect(id);
+          }}
+          onSelectBreak={(id) => {
+            setPressed(`break:${id}`);
+            onSelectBreak(id);
+          }}
+          onSelectSpot={(id) => {
+            setPressed(`spot:${id}`);
+            onSelectSpot(id);
+          }}
           onBoundsChange={onBoundsChange}
           draft={isPlacing ? adding.draft.point : (editing?.point ?? null)}
           draftLabel={editing ? m.spot_marker_label_move() : m.spot_marker_label()}
@@ -1367,19 +1391,14 @@ export function Viewer({
 
       <ViewerDrawer
         open={selection !== undefined}
-        identity={
-          selectedId
-            ? `station:${selectedId}`
-            : selectedBreakId
-              ? `break:${selectedBreakId}`
-              : `spot:${selectedSpotId}`
-        }
+        identity={identity}
         onOpenChange={(open) => {
           if (!open) onSelect(undefined);
         }}
         wide={wide}
         alongside
-        onSnapChange={setSheetShare}
+        opensRaised={identity !== pressed}
+        onSheetChange={setSelectionSheet}
         onRest={rest.onRest}
         // An alert that is written and not saved keeps its panel open until it is answered for.
         mayDismiss={mayDismissSelection}
@@ -1537,7 +1556,7 @@ export function Viewer({
         }}
         wide={wide}
         alongside
-        onSnapChange={setSheetShare}
+        onSheetChange={setAddingSheet}
         title={m.spot_new_title()}
       >
         {signedIn ? (

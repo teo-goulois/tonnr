@@ -9,6 +9,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
 import type { Forecast, Loadable, Reading, Station } from "../types";
+import { SHEET_FOLD } from "../viewer-drawer";
 import { HOUR_MS, measuredSamples, modelSamples, nightsBetween } from "./metrics";
 import { Block } from "./parts";
 import { WIND_RANGES, type WindRangeKey, aheadOf, windRows, windSummary, withModel } from "./wind";
@@ -139,7 +140,8 @@ export function WindDetails({
 
   return (
     <div className="grid gap-l">
-      <div className="grid grid-cols-3 gap-xs">
+      {/* What a phone's sheet shows before it is raised. */}
+      <div className="grid grid-cols-3 gap-xs" {...SHEET_FOLD}>
         <Tile
           label={m.details_wind()}
           figure={wind === null ? undefined : windFigure(wind)}

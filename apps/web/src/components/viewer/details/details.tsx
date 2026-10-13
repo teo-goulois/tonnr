@@ -15,6 +15,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { type PointConditionsProps, TideChart } from "../point-conditions";
 import type { Reading, Station } from "../types";
+import { SHEET_FOLD } from "../viewer-drawer";
 import { ForecastGrid } from "./forecast-grid";
 import {
   DAY_MS,
@@ -86,7 +87,8 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
 
   return (
     <div className="grid gap-l">
-      <div className="grid gap-xs">
+      {/* What a phone's sheet shows before it is raised. */}
+      <div className="grid gap-xs" {...SHEET_FOLD}>
         <NowTiles {...props} />
         <ReadingMore latest={props.latest} />
         {props.nearby && (
