@@ -6,7 +6,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 // "underline" follows the Tabs assignments of the Tonnr theme, in gui/themes/tonnr-components.md.
 // "segment" is not in the theme: the registry's default look, on the theme's neutrals, for a
-// choice between two or three views of the same thing.
+// choice between two or three views of the same thing. Under `lg` it is as tall as a button.
 export type TabsVariant = "underline" | "segment";
 
 export function Tabs({ className, ...props }: TabsPrimitive.Root.Props): React.ReactElement {
@@ -43,7 +43,7 @@ export function TabsList({
             ]
           : [
               // sizing & spacing
-              "w-fit gap-0.5 p-0.5",
+              "w-fit gap-0.5 p-0.5 max-lg:p-1",
               // border & background
               "rounded-full bg-neutral-3",
             ],
@@ -103,6 +103,8 @@ export function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props): React
         "group-data-[variant=segment]/tabs-list:h-6 group-data-[variant=segment]/tabs-list:rounded-full",
         "group-data-[variant=segment]/tabs-list:px-xs group-data-[variant=segment]/tabs-list:text-xs",
         "group-data-[variant=segment]/tabs-list:data-active:font-medium",
+        "max-lg:group-data-[variant=segment]/tabs-list:h-8 max-lg:group-data-[variant=segment]/tabs-list:px-s",
+        "max-lg:group-data-[variant=segment]/tabs-list:text-s",
         // nested icon svg
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,

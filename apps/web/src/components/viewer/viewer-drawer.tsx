@@ -102,7 +102,7 @@ export function ViewerDrawer({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="-mt-1.5 -ml-xs shrink-0"
+                  className="-mt-1.5 -ml-xs shrink-0 max-lg:-mt-2.5"
                   aria-label={m.action_back()}
                   onClick={onBack}
                 >
@@ -120,7 +120,7 @@ export function ViewerDrawer({
                 )}
               </div>
             </div>
-            <div className="-mr-xs flex shrink-0 items-center gap-xxs">
+            <div className="-mr-xs flex shrink-0 items-center gap-xxs max-lg:-mt-1">
               {actions}
               <DrawerClose
                 aria-label={m.action_close()}

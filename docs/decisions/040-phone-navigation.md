@@ -47,6 +47,7 @@ The product is one screen, the map, with panels. On a phone the saved places and
 - A fifth tab has no room: on a phone 320 pixels wide, four names and the "+" fill the width.
 - A new setting of an account is a line of `AccountPanel`, or one step into it when it is long.
 - The mobile app of decision 014 takes the same four tabs and the same "+".
+- Under `lg` a control is of one of two sizes beside the bar, which Téo asked for on 2026-10-13: he found some buttons "too small beside the bottom nav" and wanted them "more uniform". A round button is 48 pixels, and a button with a name, whatever its size on a wide screen, has the theme's one height, as a choice among segments has. The bar and its "+" keep their 60. Chosen here: the two sizes, that the `Button` and the `Tabs` of `packages/ui` take them by themselves, and that the column of the map's buttons stands in the middle of the "+". Seen in a desktop browser at a phone's width, on `/design-system` alone: not the map, a tab's screen or a spot's panel, and not on a phone.
 - On a phone the map no longer has a button that adds a spot, and the header's link to the landing page is gone.
 - A tablet held upright is under 1024 pixels wide, and has the phone's layout.
 - Decision 033's dialog and its line in the account's menu are replaced by the panel. Decision 031's settings are no longer under the bell.

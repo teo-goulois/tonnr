@@ -19,7 +19,9 @@ import {
 } from "react";
 
 // Colors, edges, radius and type follow the Button assignments of the Tonnr theme, in
-// gui/themes/tonnr-components.md. The theme has one size: the others keep the registry's heights.
+// gui/themes/tonnr-components.md. The theme has one size: the others keep the registry's heights
+// on a wide screen. Under `lg`, where a finger presses, the small ones take the theme's size and a
+// round one is a step larger, so that a phone's controls are of two heights beside its bar of tabs.
 const buttonVariants = cva(
   [
     // structure & layout
@@ -76,14 +78,26 @@ const buttonVariants = cva(
       },
       size: {
         default: "gap-xs px-m py-xs",
-        xs: ["h-7 gap-xxs px-xs text-s", "[&_svg:not([class*='size-'])]:size-3"],
-        sm: ["h-8 gap-xxs px-s text-s", "[&_svg:not([class*='size-'])]:size-3.5"],
+        xs: [
+          "h-7 gap-xxs px-xs text-s",
+          "[&_svg:not([class*='size-'])]:size-3",
+          "max-lg:h-9 max-lg:px-s max-lg:[&_svg:not([class*='size-'])]:size-3.5",
+        ],
+        sm: [
+          "h-8 gap-xxs px-s text-s",
+          "[&_svg:not([class*='size-'])]:size-3.5",
+          "max-lg:h-auto max-lg:gap-xs max-lg:px-m max-lg:py-xs max-lg:text-m",
+          "max-lg:[&_svg:not([class*='size-'])]:size-4",
+        ],
         lg: "h-10 gap-xs px-m",
         xl: ["h-11 gap-xs px-l", "[&_svg:not([class*='size-'])]:size-5"],
-        icon: "size-10 rounded-full",
-        "icon-xs": "size-7 rounded-full [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8 rounded-full",
-        "icon-lg": "size-11 rounded-full",
+        icon: "size-10 rounded-full max-lg:size-12 max-lg:[&_svg:not([class*='size-'])]:size-5",
+        "icon-xs": [
+          "size-7 rounded-full [&_svg:not([class*='size-'])]:size-3",
+          "max-lg:size-9 max-lg:[&_svg:not([class*='size-'])]:size-3.5",
+        ],
+        "icon-sm": "size-8 rounded-full max-lg:size-10",
+        "icon-lg": "size-11 rounded-full max-lg:size-12",
         "icon-xl": "size-12 rounded-full [&_svg:not([class*='size-'])]:size-5",
       },
     },

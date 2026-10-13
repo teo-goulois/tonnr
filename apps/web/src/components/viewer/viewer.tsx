@@ -1115,7 +1115,7 @@ export function Viewer({
         className={cn(
           // Beside the button, as wide as the map leaves it: a row that is longer scrolls.
           "absolute top-1/2 right-full mr-xs w-max -translate-y-1/2",
-          "max-w-[calc(100vw-var(--spacing-s)*2-2.5rem-var(--spacing-xs))] lg:max-w-md",
+          "max-w-[calc(100vw-var(--spacing-s)*2-3.375rem-var(--spacing-xs))] lg:max-w-md",
           // It unfolds from the button. The room around it is for the focus ring of a chip.
           "transition-[clip-path,opacity] duration-(--motion-large-duration) ease-theme-large motion-reduce:transition-none",
           listsOpen
@@ -1295,7 +1295,7 @@ export function Viewer({
             inert={isCovered}
             className={cn(
               "pointer-events-none absolute left-s flex flex-col items-start justify-end gap-xs *:pointer-events-auto",
-              "max-h-[calc(100%-var(--map-floor)-var(--spacing-s)*2)] max-w-[calc(100%-var(--spacing-s)*2-2.5rem-var(--spacing-xs))]",
+              "max-h-[calc(100%-var(--map-floor)-var(--spacing-s)*2)] max-w-[calc(100%-var(--spacing-s)*2-3.375rem-var(--spacing-xs))]",
               foot,
             )}
           >
@@ -1330,8 +1330,12 @@ export function Viewer({
           </div>
         ) : (
           // On a phone the column stands at the bottom of the map and grows up from the button
-          // that finds the reader: no button moves when the account's lists are known.
-          <div inert={isCovered} className={cn("absolute right-s grid gap-xs", foot)}>
+          // that finds the reader: no button moves when the account's lists are known. It stands
+          // over the "+" of the bar, which is wider than its buttons, and in the middle of it.
+          <div
+            inert={isCovered}
+            className={cn("absolute right-[calc(var(--spacing-s)+0.375rem)] grid gap-xs", foot)}
+          >
             {zoomButtons}
             {listsButton}
             {searchButton}

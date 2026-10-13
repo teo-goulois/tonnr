@@ -36,7 +36,7 @@ export function ViewerScreen({
             <Button
               variant="ghost"
               size="icon"
-              className="-mt-1.5 -ml-xs shrink-0"
+              className="-mt-1.5 -ml-xs shrink-0 max-lg:-mt-2.5"
               aria-label={m.action_back()}
               onClick={onBack}
             >
@@ -51,7 +51,9 @@ export function ViewerScreen({
           </div>
         </div>
         {actions && (
-          <div className="-mt-1.5 -mr-xs flex shrink-0 items-center gap-xxs">{actions}</div>
+          <div className="-mt-1.5 -mr-xs flex shrink-0 items-center gap-xxs max-lg:-mt-2.5">
+            {actions}
+          </div>
         )}
       </header>
       <div

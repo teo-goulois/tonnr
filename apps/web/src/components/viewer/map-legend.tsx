@@ -132,7 +132,7 @@ export function MapLegend({
       {/* The title is the button that opens and folds the legend. */}
       <button
         type="button"
-        className="focus-ring flex min-h-10 w-full shrink-0 cursor-pointer items-center gap-xs rounded-[inherit] px-s text-s font-medium"
+        className="focus-ring flex min-h-10 w-full shrink-0 max-lg:min-h-12 cursor-pointer items-center gap-xs rounded-[inherit] px-s text-s font-medium max-lg:px-m max-lg:text-m"
         aria-expanded={expanded}
         aria-controls={expanded ? bodyId : undefined}
         onClick={() => onExpandedChange(!expanded)}

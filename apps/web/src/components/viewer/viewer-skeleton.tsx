@@ -39,17 +39,23 @@ export function ViewerSkeleton({ className }: { className?: string }) {
     >
       <span className="sr-only">{m.app_loading()}</span>
 
-      <div aria-hidden className={cn("absolute right-s grid gap-xs lg:top-s", foot)}>
+      <div
+        aria-hidden
+        className={cn(
+          "absolute right-s grid gap-xs max-lg:right-[calc(var(--spacing-s)+0.375rem)] lg:top-s",
+          foot,
+        )}
+      >
         {/* The button that searches, which is first on a wide screen and over the one that finds
             the reader on a phone. */}
-        <div className={cn(floating, "size-10 rounded-full")} />
+        <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />
         {/* The button that adds a spot: a phone has it beside its bar of tabs. */}
         <div className={cn(floating, "size-10 rounded-full max-lg:hidden")} />
-        <div className={cn(floating, "size-10 rounded-full")} />
+        <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />
         {/* On a phone the column grows up from the button that finds the reader. */}
         <div className="grid gap-xxs max-lg:-order-1 max-sm:hidden">
-          <div className={cn(floating, "size-10 rounded-full")} />
-          <div className={cn(floating, "size-10 rounded-full")} />
+          <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />
+          <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />
         </div>
       </div>
 
@@ -58,7 +64,7 @@ export function ViewerSkeleton({ className }: { className?: string }) {
         aria-hidden
         className={cn(floating, "absolute left-s rounded-(--radius-xs) lg:bottom-s lg:w-64", foot)}
       >
-        <div className="flex min-h-10 items-center gap-xs px-s">
+        <div className="flex min-h-10 items-center gap-xs px-s max-lg:min-h-12 max-lg:px-m">
           <Skeleton className={cn(bar, "size-4")} />
           <Skeleton className={cn(bar, "h-(--line-s) w-12")} />
           <Skeleton className={cn(bar, "ml-auto size-4")} />
