@@ -30,7 +30,7 @@ export function tideOver(
   if (!timeline || !turns) return null;
 
   // The last turn before the session, those during it, and the first one after it.
-  const before = turns.extremes.findLast((turn) => turn.time <= from);
+  const before = turns.extremes.filter((turn) => turn.time <= from).at(-1);
   const after = turns.extremes.find((turn) => turn.time >= until);
   const kept = turns.extremes.filter(
     (turn) => turn === before || turn === after || (turn.time > from && turn.time < until),

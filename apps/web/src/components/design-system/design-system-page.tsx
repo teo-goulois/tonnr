@@ -60,6 +60,7 @@ import { toast } from "sonner";
 import { AccountPanel } from "@/components/account/account-panel";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
+import { SessionSamples } from "@/components/design-system/session-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
 import { BottomNav } from "@/components/shared/bottom-nav";
@@ -887,6 +888,7 @@ export function DesignSystemPage() {
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
+              onOpenSessions={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -900,6 +902,7 @@ export function DesignSystemPage() {
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
+              onOpenSessions={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -913,6 +916,7 @@ export function DesignSystemPage() {
               onOpenAlertSettings={() => {}}
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
+              onOpenSessions={() => {}}
             />
           </div>
         </div>
@@ -924,6 +928,10 @@ export function DesignSystemPage() {
 
       <Section title="Friends, and the link that makes them">
         <FriendSamples />
+      </Section>
+
+      <Section title="Sessions, and the log an account keeps of them">
+        <SessionSamples />
       </Section>
 
       <Section title="Viewer skeleton">

@@ -4,7 +4,7 @@ type: improved
 
 ## A phone's own navigation
 
-On a phone the header is gone. A bar that floats at the bottom leads to the map, your saved places, your alerts and your account, each a whole screen, and the map now takes the whole screen under it. The "+" beside the bar adds a spot or an alert: for an alert, say which spot it is for, and its panel opens on a new one.
+On a phone the header is gone. A bar that floats at the bottom leads to the map, your saved places, your alerts and your account, each a whole screen, and the map now takes the whole screen under it. The "+" beside the bar adds a session, a spot or an alert: for an alert, say which spot it is for, and its panel opens on a new one.
 
 The map's legend and its buttons stand at the bottom of the map, under your thumb, and over the panel of what you opened. The map's credits fold away once you move the map, and the legend opens them again.
 

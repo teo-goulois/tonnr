@@ -1,3 +1,5 @@
+import { type ReactNode, useState } from "react";
+
 import { m } from "@/paraglide/messages.js";
 
 import { BreakGuide } from "../guides/break-guide";
@@ -21,6 +23,8 @@ type BreakPanelProps = PointConditionsProps & {
   nearby?: Nearby;
   nearbyWind?: NearbyWind;
   onOpenBuoy?: (stationId: string) => void;
+  // The sessions the reader surfed there, for the tab beside the guide: decision 043.
+  sessions?: ReactNode;
 };
 
 /** The week and the tide at a surf break of the catalogue, and what is written of the break. */
@@ -39,7 +43,11 @@ export function BreakPanel({
   nearby,
   nearbyWind,
   onOpenBuoy,
+  sessions,
 }: BreakPanelProps) {
+  // The address says whether the guide is in view. The sessions are a tab the panel keeps to
+  // itself: nothing leads to it from elsewhere.
+  const [isLog, setIsLog] = useState(false);
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
@@ -56,8 +64,12 @@ export function BreakPanel({
   return (
     <Details
       spot={found.data}
-      tab={guideAsked ? "guide" : "forecast"}
-      onTabChange={(next: DetailsTab) => onGuideAsked(next === "guide")}
+      tab={isLog ? "sessions" : guideAsked ? "guide" : "forecast"}
+      onTabChange={(next: DetailsTab) => {
+        setIsLog(next === "sessions");
+        onGuideAsked(next === "guide");
+      }}
+      sessions={sessions}
       now={now}
       forecast={forecast}
       tides={tides}

@@ -49,6 +49,7 @@ import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useRecentViews } from "./-recents";
 import { usePlaceSearch } from "./-search";
+import { useSessions } from "./-sessions";
 import { useSharedList } from "./-shared";
 
 export const Route = createFileRoute("/app/")({
@@ -64,7 +65,7 @@ export const Route = createFileRoute("/app/")({
     // then still leads there, and is taken to it.
     alerts: z.enum(["mine", "settings"]).optional(),
     // The part of the account's panel in view: its first screen when left out.
-    settings: z.enum(["alerts", "contributions", "friends"]).optional(),
+    settings: z.enum(["alerts", "contributions", "friends", "sessions"]).optional(),
     // What the link someone gave the reader ends with: whose it is and what it makes are said
     // over the map. Decision 041.
     invite: z.string().max(64).optional(),
@@ -886,6 +887,30 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     stations: waves.data,
     withPlaces: signedIn,
   });
+  // The account's log of its sessions: read where it shows, with the sessions of the place that
+  // is open when it is one a session can be at, a break or a spot of the account's own.
+  const sessionPlace = useMemo(
+    () =>
+      selectedBreakId
+        ? { kind: "break" as const, id: selectedBreakId, name: "" }
+        : ownSpot
+          ? { kind: "spot" as const, id: ownSpot.id, name: ownSpot.name }
+          : undefined,
+    [selectedBreakId, ownSpot],
+  );
+  const sessioning = useSessions({
+    signedIn,
+    isLogShown: panel === "account" && search.settings === "sessions",
+    place: sessionPlace,
+    onSeeLog: () => void navigate({ search: { ...mode, panel: "account", settings: "sessions" } }),
+  });
+  // Where a new session was is searched among the account's spots and the breaks.
+  const sessionSearch = usePlaceSearch({
+    isOn: sessioning.open !== null && !sessioning.open.sessionId && !sessioning.open.place,
+    near: middle,
+    spots: spots.data,
+    withPlaces: false,
+  });
   // The name follows what the marker is put on, until the user writes one.
   const nameFor = (current: SpotDraft, name: string | undefined) =>
     name && (!current.name.trim() || current.name === suggested) ? name.slice(0, 80) : undefined;
@@ -1265,6 +1290,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         onSave: saveSpot,
       }}
       search={{ ...searching, isOpen: isSearchOpen, onOpenChange: setIsSearchOpen }}
+      sessioning={sessioning}
+      sessionSearch={sessionSearch}
       onSelect={(station) => void navigate({ search: { ...mode, station } })}
       onSelectBreak={(id) => void navigate({ search: { ...mode, break: id } })}
       onSelectSpot={(id) => void navigate({ search: { ...mode, spot: id } })}

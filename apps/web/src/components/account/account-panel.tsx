@@ -40,6 +40,8 @@ type AccountPanelProps = {
   friendCount?: number | undefined;
   // Opens the account's link and its friends, one step into this panel.
   onOpenFriends: () => void;
+  // Opens the account's log of its sessions, one step into this panel. Decision 043.
+  onOpenSessions: () => void;
 };
 
 // A language is named in itself, whatever language the screen is read in.
@@ -81,6 +83,7 @@ export function AccountPanel({
   onOpenContributions,
   friendCount,
   onOpenFriends,
+  onOpenSessions,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const [isNaming, setNaming] = useState(false);
@@ -138,6 +141,23 @@ export function AccountPanel({
           onSignIn={onSignIn}
           onCreateAccount={onCreateAccount}
         />
+      )}
+
+      {/* What the account surfed, and what the sea did then. */}
+      {account && (
+        <Section title={m.sessions_section()}>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenSessions}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.sessions_title()}</span>
+              <span className="text-s text-neutral-7">{m.sessions_hint()}</span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
+        </Section>
       )}
 
       {/* What the account wrote in the guides of the spots, and where it stands. */}

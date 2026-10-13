@@ -1,5 +1,11 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { BellIcon, ChevronRightIcon, type IconProps, PinPlusIcon } from "@repo/ui/icon";
+import {
+  BellIcon,
+  ChevronRightIcon,
+  type IconProps,
+  LogbookIcon,
+  PinPlusIcon,
+} from "@repo/ui/icon";
 import { type ComponentType, useState } from "react";
 
 import { m } from "@/paraglide/messages.js";
@@ -18,6 +24,8 @@ type CreateSheetProps = {
   onAddSpot: () => void;
   // Begins an alert at a spot. A visitor names none, and is asked for an account.
   onAddAlert: (spotId?: string) => void;
+  // Begins a session of the log, which then asks where it was.
+  onAddSession: () => void;
 };
 
 function Choice({
@@ -50,9 +58,9 @@ function Choice({
 }
 
 /**
- * What the "+" of a phone's bar opens: what an account adds, a spot or an alert. An alert is
- * set on a spot: an account that has several says which, and one that has none is led to add
- * one first. Decision 040.
+ * What the "+" of a phone's bar opens: what an account adds, a session, a spot or an alert. An
+ * alert is set on a spot: an account that has several says which, and one that has none is led
+ * to add one first. Decisions 040 and 043.
  */
 export function CreateSheet({
   open,
@@ -62,6 +70,7 @@ export function CreateSheet({
   spots,
   onAddSpot,
   onAddAlert,
+  onAddSession,
 }: CreateSheetProps) {
   // The second step, which asks where the alert goes. The sheet opens on its first step.
   const [isChoosingSpot, setIsChoosingSpot] = useState(false);
@@ -80,6 +89,8 @@ export function CreateSheet({
     >
       {!isChoosingSpot ? (
         <ul className="-mx-xs grid gap-xxs">
+          {/* What is added most often comes first: a session after each time in the water. */}
+          <Choice icon={LogbookIcon} label={m.create_session()} onClick={onAddSession} />
           <Choice icon={PinPlusIcon} label={m.create_spot()} onClick={onAddSpot} />
           <Choice
             icon={BellIcon}

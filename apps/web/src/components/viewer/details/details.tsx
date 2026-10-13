@@ -183,7 +183,7 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
   );
 });
 
-export type DetailsTab = "forecast" | "guide" | "alert";
+export type DetailsTab = "forecast" | "guide" | "alert" | "sessions";
 
 type DetailsOfProps = PointConditionsProps & {
   // The buoy the panel is of. Undefined at a surf break.
@@ -197,6 +197,8 @@ type DetailsOfProps = PointConditionsProps & {
   guide?: ReactNode;
   // The alert of a spot of the user's own, for a third tab. A break has none.
   alert?: ReactNode;
+  // The sessions the account surfed there, for the last tab: decision 043.
+  sessions?: ReactNode;
   // The tab in view, for a panel that opens one itself. Without it the panel opens on the
   // forecast and keeps its own count.
   tab?: DetailsTab;
@@ -221,6 +223,7 @@ export function Details({
   spot,
   guide,
   alert,
+  sessions,
   tab,
   onTabChange,
   ...conditions
@@ -261,6 +264,7 @@ export function Details({
         <TabsTab value="forecast">{m.details_forecast_tab()}</TabsTab>
         <TabsTab value="guide">{m.details_guide_tab()}</TabsTab>
         {alert && <TabsTab value="alert">{m.details_alert_tab()}</TabsTab>}
+        {sessions && <TabsTab value="sessions">{m.details_sessions_tab()}</TabsTab>}
       </TabsList>
       <TabsPanel value="forecast">
         <Conditions {...props} />
@@ -278,6 +282,7 @@ export function Details({
           {alert}
         </TabsPanel>
       )}
+      {sessions && <TabsPanel value="sessions">{sessions}</TabsPanel>}
     </Tabs>
   );
 }

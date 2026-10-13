@@ -69,6 +69,32 @@ export function formatDay(date: Date, zone?: string) {
   return dateFormat("day", { weekday: "short", day: "numeric" }, zone).format(date);
 }
 
+/** "Sat 10 Oct", and "Sat 10 Oct 2025" for a day of another year than this one. */
+export function formatDate(date: Date, now = Date.now()) {
+  const isThisYear = date.getFullYear() === new Date(now).getFullYear();
+  return dateFormat(isThisYear ? "date" : "dateAndYear", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(isThisYear ? {} : { year: "numeric" }),
+  }).format(date);
+}
+
+/** "October 2026" */
+export function formatMonth(date: Date) {
+  return dateFormat("month", { month: "long", year: "numeric" }).format(date);
+}
+
+/** How long something lasted, such as "45 min", "2 h" or "1 h 30". */
+export function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes - hours * 60);
+  if (hours === 0) return m.unit_minutes({ value: rest });
+  return rest === 0
+    ? m.unit_hours({ value: hours })
+    : m.unit_hours_minutes({ hours, minutes: String(rest).padStart(2, "0") });
+}
+
 /** How long ago a moment was, such as "16 min ago". */
 export function formatAgo(date: Date, now: number) {
   const format = new Intl.RelativeTimeFormat(getLocale(), { style: "short", numeric: "always" });

@@ -1,6 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { answerLeaving, leaveWith } from "@/lib/unsaved";
 import { m } from "@/paraglide/messages.js";
@@ -13,7 +13,7 @@ import type { Alerting } from "../alerts/types";
 import { Details, type DetailsTab } from "../viewer/details/details";
 import type { Nearby, NearbyWind } from "../viewer/details/parts";
 import { type PointConditionsProps, Sources } from "../viewer/point-conditions";
-import type { Loadable, Spot } from "../viewer/types";
+import type { AlertCriteria, Loadable, Spot } from "../viewer/types";
 import { type SpotDescription, SpotGuide } from "./spot-guide";
 
 type SpotPanelProps = PointConditionsProps & {
@@ -36,6 +36,9 @@ type SpotPanelProps = PointConditionsProps & {
   // one that opens. `isNew` asks for a new one, which is begun once: `onAlertBegun` says so.
   alertAsked: { count: number; alertId?: string; isNew?: boolean };
   onAlertBegun?: () => void;
+  // The sessions the owner surfed there, for the last tab. It is given what begins an alert
+  // with the conditions they liked: decision 043.
+  sessions?: (onAlert: (criteria: AlertCriteria) => void) => ReactNode;
 };
 
 // The alert that is being written in the panel. `key` stays the same from a new alert to the
@@ -61,6 +64,7 @@ export function SpotPanel({
   alerting,
   alertAsked,
   onAlertBegun,
+  sessions,
 }: SpotPanelProps) {
   const [tab, setTab] = useState<DetailsTab>(alertAsked.count > 0 ? "alert" : "forecast");
   // The tab of the alerts lists the spot's alerts, until one is opened or begun.
@@ -303,6 +307,22 @@ export function SpotPanel({
               <Skeleton className="h-(--line-m) w-4/5 rounded-(--radius-xs)" />
             </div>
           ))
+        }
+        sessions={
+          found?.isOwner &&
+          sessions?.((criteria) =>
+            // An alert of what was liked there, named after the spot, to be looked over before
+            // it is saved.
+            leave({
+              initial: {
+                name: m.sessions_liked_alert_name({ spot: found.name }),
+                criteria,
+                enabled: true,
+                shortestMinutes: 120,
+                spotIds: [found.id],
+              },
+            }),
+          )
         }
         // The spot is its owner's: only the forecast and the tide have a source to credit.
         footer={footer}

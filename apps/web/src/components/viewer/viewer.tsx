@@ -41,6 +41,10 @@ import { FriendsPanel } from "@/components/friends/friends-panel";
 import { InviteDialog } from "@/components/friends/invite-dialog";
 import type { Friending, Invitation } from "@/components/friends/types";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
+import { LogbookPanel } from "@/components/sessions/logbook-panel";
+import { PlaceSessions } from "@/components/sessions/place-sessions";
+import { SessionSheet } from "@/components/sessions/session-sheet";
+import type { SessionPlace, Sessioning } from "@/components/sessions/types";
 import { openCommandPalette } from "@/components/shared/command-palette";
 import type { Guiding } from "@/components/guides/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
@@ -93,6 +97,7 @@ import {
   type SavedBreak,
   type SavedItem,
   type SavedList,
+  type Session,
   type Spot,
   type Standing,
   type Station,
@@ -124,7 +129,7 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
 /** The part of the account's panel that is one step into it: how to be told of the alerts. */
-export type SettingsPart = "alerts" | "contributions" | "friends";
+export type SettingsPart = "alerts" | "contributions" | "friends" | "sessions";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -192,6 +197,9 @@ type ViewerProps = {
   adding: AddingSpot;
   // The search of the map by a name, which a phone shows as a screen of its own.
   search: PlaceSearching & { isOpen: boolean; onOpenChange: (open: boolean) => void };
+  // The account's log of its sessions, and the search that finds where one was: decision 043.
+  sessioning: Sessioning;
+  sessionSearch: PlaceSearching;
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
   // Asks for a week of the selected station's readings.
@@ -449,6 +457,8 @@ export function Viewer({
   selected,
   adding,
   search,
+  sessioning,
+  sessionSearch,
   onTideExtend,
   onHistoryExtend,
   buoy,
@@ -743,6 +753,28 @@ export function Viewer({
     () => setAlertAsked((asked) => (asked.isNew ? { ...asked, isNew: false } : asked)),
     [],
   );
+  // What the tab of the sessions asks for, the same from one render to the next: the panel that
+  // holds it is not drawn again each time the map moves.
+  const sessions = useRef(sessioning);
+  sessions.current = sessioning;
+  const prompt = useRef(promptAuth);
+  prompt.current = promptAuth;
+  const isSignedIn = useRef(signedIn);
+  isSignedIn.current = signedIn;
+  // A session is an account's: a visitor is asked for one, then goes on to it.
+  const beginSession = useCallback((place?: SessionPlace) => {
+    if (isSignedIn.current) sessions.current.onBegin(place);
+    else {
+      prompt.current({
+        reason: m.auth_reason_add_session(),
+        onSignedIn: () => sessions.current.onBegin(place),
+      });
+    }
+  }, []);
+  const openSession = useCallback((session: Session) => sessions.current.onOpen(session), []);
+  const signIn = useCallback(() => prompt.current({ mode: "sign-in" }), []);
+  const createAccount = useCallback(() => prompt.current({ mode: "sign-up" }), []);
+  const sessionsHere = sessioning.here;
   const ownSpots = spots.data;
   const spotList = useMemo(() => ownSpots ?? [], [ownSpots]);
   // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
@@ -771,6 +803,23 @@ export function Viewer({
           alerting={alerting}
           alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked : NO_ALERT_ASKED}
           onAlertBegun={beginAlert}
+          sessions={(onAlert) => {
+            const spot = drawn.spot.data;
+            return (
+              spot && (
+                <PlaceSessions
+                  now={now}
+                  signedIn={signedIn}
+                  sessions={sessionsHere}
+                  onAdd={() => beginSession({ kind: "spot", id: spot.id, name: spot.name })}
+                  onOpen={openSession}
+                  onSignIn={signIn}
+                  onCreateAccount={createAccount}
+                  onAlert={onAlert}
+                />
+              )
+            );
+          }}
         />
       );
     }
@@ -791,6 +840,26 @@ export function Viewer({
         nearby={drawn.nearby}
         nearbyWind={drawn.nearbyWind}
         onOpenBuoy={openBuoy}
+        sessions={
+          drawn.found.data && (
+            <PlaceSessions
+              now={now}
+              signedIn={signedIn}
+              sessions={sessionsHere}
+              onAdd={() =>
+                drawn.found.data &&
+                beginSession({
+                  kind: "break",
+                  id: drawn.found.data.id,
+                  name: drawn.found.data.name,
+                })
+              }
+              onOpen={openSession}
+              onSignIn={signIn}
+              onCreateAccount={createAccount}
+            />
+          )
+        }
       />
     ) : (
       <StationPanel
@@ -824,6 +893,12 @@ export function Viewer({
     guiding,
     guideAsked,
     askGuide,
+    signedIn,
+    sessionsHere,
+    beginSession,
+    openSession,
+    signIn,
+    createAccount,
   ]);
   const drawnBuoy = shownBuoy.drawn;
   const buoyPanel = useMemo(
@@ -925,6 +1000,25 @@ export function Viewer({
     else onSelect(found.id);
   }
 
+  // A session begun from the "+" is at the place in view when it is one a session can be at:
+  // a break, or a spot of the account's own. Otherwise its sheet asks where.
+  function createSession() {
+    closeCreateMenu();
+    const at = shown.breakId ? shown.found.data : undefined;
+    beginSession(
+      at
+        ? { kind: "break", id: at.id, name: at.name }
+        : ownSpot
+          ? { kind: "spot", id: ownSpot.id, name: ownSpot.name }
+          : undefined,
+    );
+  }
+  // A place of the log opens on the map, as a press on it does.
+  function openPlace(place: { breakId: string } | { spotId: string }) {
+    if ("spotId" in place) onSelectSpot(place.spotId);
+    else onSelectBreak(place.breakId);
+  }
+
   function toggleFavorite() {
     if (!shownItem) return;
     const item = shownItem;
@@ -970,6 +1064,7 @@ export function Viewer({
   const alertSettings = settingsPart === "alerts" && signedIn;
   const ownContributions = settingsPart === "contributions" && signedIn;
   const ownFriends = settingsPart === "friends" && signedIn;
+  const ownSessions = settingsPart === "sessions" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -1594,10 +1689,12 @@ export function Viewer({
               ? m.contributions_title()
               : ownFriends
                 ? m.friends_title()
-                : m.account_menu()
+                : ownSessions
+                  ? m.sessions_title()
+                  : m.account_menu()
         }
         onBack={
-          alertSettings || ownContributions || ownFriends
+          alertSettings || ownContributions || ownFriends || ownSessions
             ? () => onSettingsPartChange(undefined)
             : undefined
         }
@@ -1619,6 +1716,15 @@ export function Viewer({
             friending={friending}
             onOpenBreak={onOpenGuide}
           />
+        ) : ownSessions ? (
+          <LogbookPanel
+            now={now}
+            log={sessioning.log}
+            recap={sessioning.recap}
+            onAdd={() => beginSession()}
+            onOpen={openSession}
+            onOpenPlace={openPlace}
+          />
         ) : (
           <AccountPanel
             account={account.user}
@@ -1631,6 +1737,7 @@ export function Viewer({
             onOpenContributions={() => onSettingsPartChange("contributions")}
             friendCount={account.friendCount}
             onOpenFriends={() => onSettingsPartChange("friends")}
+            onOpenSessions={() => onSettingsPartChange("sessions")}
           />
         )}
       </ViewerTab>
@@ -1670,6 +1777,18 @@ export function Viewer({
         spots={signedIn ? spots.data : []}
         onAddSpot={createSpot}
         onAddAlert={createAlert}
+        onAddSession={createSession}
+      />
+      <SessionSheet
+        wide={wide}
+        now={now}
+        signedIn={signedIn}
+        sessioning={sessioning}
+        search={sessionSearch}
+        spots={signedIn ? spots.data : undefined}
+        recents={recents}
+        {...accountPrompt}
+        onOpenPlace={openPlace}
       />
       {/* Whose link the address names, and what it makes: over whatever the map shows. */}
       <InviteDialog

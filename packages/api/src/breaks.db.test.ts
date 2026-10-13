@@ -45,6 +45,21 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
       { id: "grande", name: "Grande Plage", latitude: 43.49, longitude: -1.56 },
       { id: "replage", name: "Surplage", latitude: 43.49, longitude: -1.55 },
       { id: "percent", name: "100% reef", latitude: -33.9, longitude: 151.3 },
+      {
+        id: "estagnots",
+        name: "Les Estagnots",
+        latitude: 43.68,
+        longitude: -1.44,
+        location: ["France", "Landes", "Soorts-Hossegor"],
+      },
+      {
+        id: "north",
+        name: "La Nord",
+        latitude: 43.67,
+        longitude: -1.44,
+        location: ["France", "Landes", "Soorts-Hossegor"],
+      },
+      { id: "town", name: "Hossegor pier", latitude: 43.66, longitude: -1.44 },
     ]);
   });
 
@@ -108,6 +123,13 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
     expect(await found({ q: "plage", latitude: 43.5, longitude: -1.5, limit: 1 })).toEqual([
       "plage-south",
     ]);
+  });
+
+  it("finds the breaks of a town by the town's name, after the breaks named so", async () => {
+    expect(await found({ q: "hossegor" })).toEqual(["town", "north", "estagnots"]);
+    // The catalogue read by name looks at names alone.
+    const listed = await call(v1Router.breaks.list, { q: "hossegor" }, by("ana"));
+    expect(listed.breaks.map((one) => one.id)).toEqual(["town"]);
   });
 
   it("reads the characters a pattern gives a meaning as they are typed", async () => {

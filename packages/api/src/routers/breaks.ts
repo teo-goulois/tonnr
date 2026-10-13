@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { FOLDING, fold } from "@repo/config/names";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
@@ -80,6 +80,8 @@ function literal(text: string) {
 const foldedName = sql`translate(lower(${surfBreak.name}), ${FOLDING.marked}, ${FOLDING.plain})`;
 /** The breaks whose name holds what is typed, whatever its case and its marks. */
 const named = (q: string) => sql`${foldedName} like ${`%${literal(fold(q))}%`}`;
+// The places a break lies in, read the same way: a break is also looked for by its town.
+const foldedPlaces = sql`translate(lower(array_to_string(${surfBreak.location}, ' ')), ${FOLDING.marked}, ${FOLDING.plain})`;
 
 // A number as a query string writes it. Nothing else is read as one.
 const coordinate = (least: number, most: number) =>
@@ -151,10 +153,12 @@ export const breaksRouter = {
     .route({
       method: "GET",
       path: "/breaks/search",
-      summary: "Surf breaks by their name, the likeliest first",
+      summary: "Surf breaks by their name or their town's, the likeliest first",
       description:
         'The breaks whose name holds `q`, whatever its case and its marks: "guethary" finds ' +
-        '"Guéthary". A name that begins with it comes first, then one in which a word does. ' +
+        '"Guéthary". A name that begins with it comes first, then one in which a word does, ' +
+        "then one that holds it, and last the breaks of a place whose name holds it: a town " +
+        "finds its breaks. " +
         "Given together, `latitude` and `longitude` bring forward the breaks nearest that " +
         "point among those, as the middle of a map does. No page follows: a search that " +
         "finds too many is typed further.",
@@ -177,10 +181,12 @@ export const breaksRouter = {
     .handler(async ({ input, context }) => {
       const typed = literal(fold(input.q));
       // Where the name holds what is typed: at its start, at the start of a word, or elsewhere.
+      // A break that only lies in a place of that name comes after those.
       const rank = sql`case
         when ${foldedName} like ${`${typed}%`} then 0
         when ${foldedName} like ${`% ${typed}%`} then 1
-        else 2
+        when ${foldedName} like ${`%${typed}%`} then 2
+        else 3
       end`;
       // How far a break is, near enough to order by: degrees on a flat earth, the short way
       // round the antimeridian.
@@ -196,7 +202,7 @@ export const breaksRouter = {
       const rows = await context.db
         .select()
         .from(surfBreak)
-        .where(named(input.q))
+        .where(or(named(input.q), sql`${foldedPlaces} like ${`%${typed}%`}`))
         .orderBy(rank, ...(away ? [away] : []), asc(surfBreak.name), asc(surfBreak.id))
         .limit(input.limit);
       const confirmed = await confirmedWordsOf(

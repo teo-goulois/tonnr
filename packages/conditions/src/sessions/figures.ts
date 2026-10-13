@@ -118,7 +118,7 @@ export function sessionFigures(
   // The tide runs from the last turn before the middle of the session to the next one.
   const turns = (tide?.extremes ?? []).map((turn) => ({ ...turn, at: Date.parse(turn.time) }));
   const next = turns.find((turn) => turn.at > middle);
-  const last = turns.findLast((turn) => turn.at <= middle);
+  const last = turns.filter((turn) => turn.at <= middle).at(-1);
   const low = last?.type === "low" ? last : next?.type === "low" ? next : undefined;
   const high = last?.type === "high" ? last : next?.type === "high" ? next : undefined;
   const range = low && high ? high.heightMeters - low.heightMeters : 0;

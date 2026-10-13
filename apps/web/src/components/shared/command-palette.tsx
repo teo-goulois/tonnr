@@ -212,6 +212,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "alerts" } }),
         },
         {
+          value: `${m.sessions_title()} sessions logbook log journal carnet recap`,
+          label: m.sessions_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "sessions" } }),
+        },
+        {
           value: `${m.contributions_title()} contributions guides community rank score points`,
           label: m.contributions_title(),
           run: () =>

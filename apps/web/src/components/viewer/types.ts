@@ -47,6 +47,13 @@ export type FriendDetail = Answer<V1["friends"]["get"]>;
 /** Whose link an invitation is. */
 export type Inviter = Answer<V1["friends"]["open"]>;
 
+/** A session of the account's log, as a list gives it: with its figures. Decision 043. */
+export type Session = Answer<V1["sessions"]["list"]>["sessions"][number];
+/** One session, with the conditions kept with it. */
+export type SessionDetail = Answer<V1["sessions"]["get"]>;
+/** What the account's log comes to. */
+export type SessionRecap = Answer<V1["sessions"]["recap"]>;
+
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {
   data: Data | undefined;
