@@ -47,3 +47,5 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [041. Guides that accounts write, and a rank for writing them](041-community-guides.md)
 - [042. What was looked at last, found again](042-recent-views.md)
 - [043. An account keeps a log of its sessions, with what the sea did](043-session-log.md)
+- [044. Product analytics](044-product-analytics.md)
+- [045. An MCP server, for an agent that reads the sea](045-mcp-server.md)
