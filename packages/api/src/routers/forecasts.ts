@@ -8,6 +8,20 @@ import { callerProcedure } from "../index";
 
 const measurement = z.number().nullable();
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The days to ask a forecast for so that it covers a period, counted from the start of a day
+ * as the forecasts count theirs: so many before it, and so many from it. Null when the period
+ * reaches outside what a forecast holds.
+ */
+export function daysOver(period: { start: Date; end: Date }, today: number) {
+  const first = Math.floor(period.start.getTime() / DAY_MS) * DAY_MS;
+  const pastDays = Math.max(0, (today - first) / DAY_MS);
+  const days = Math.max(1, Math.ceil((period.end.getTime() - today) / DAY_MS));
+  return pastDays > MAX_PAST_DAYS || days > MAX_FORECAST_DAYS ? null : { days, pastDays };
+}
+
 /**
  * Who a forecast is credited to. `credits` are to be shown as links beside the data, with
  * `notice` when there is one. `attribution` says the same as one text.
@@ -49,8 +63,10 @@ export const forecastsRouter = {
           "gives one (`primarySwell…`, less sure than the whole sea), the wind, its gusts " +
           "and its direction, the cloud cover, the precipitation of the hour before and the " +
           "air temperature. The hours start at 00:00 UTC of today, less `pastDays`, and run " +
-          "for `days` days: today and tomorrow unless `days` says another, 7 at most. Each " +
-          "day is 24 hours and about 10 kB, so ask for the days you need. " +
+          "for `days` days: today and tomorrow unless `days` says another, 7 at most. Or " +
+          "give a period of your own with `start` and `end`, such as tomorrow from 06:00 to " +
+          "20:00. A day of every hour is about 10 kB: ask for the period you need, and set " +
+          "`stepHours` to 3 or 6 to read a week at a glance. " +
           "`point` is the model's grid point the answer was computed for, which may lie " +
           "some kilometres from the one asked. `waveModels` names the models and their " +
           "resolution. A point with no sea nearby answers NOT_FOUND. `stale: true` marks " +
@@ -66,27 +82,63 @@ export const forecastsRouter = {
       tags: ["Forecasts"],
     })
     .input(
-      z.object({
-        latitude: z.coerce.number().min(-90).max(90).describe("Decimal degrees, north positive."),
-        longitude: z.coerce.number().min(-180).max(180).describe("Decimal degrees, east positive."),
-        days: z.coerce
-          .number()
-          .int()
-          .min(1)
-          .max(MAX_FORECAST_DAYS)
-          .default(3)
-          .describe("How many days of hours, from the start of today in UTC."),
-        pastDays: z.coerce
-          .number()
-          .int()
-          .min(0)
-          .max(MAX_PAST_DAYS)
-          .default(0)
-          .describe(
-            "Days before today to add at the start. Their hours are what the models last " +
-              "computed for them, not the forecast as it was first issued.",
-          ),
-      }),
+      z
+        .object({
+          latitude: z.coerce.number().min(-90).max(90).describe("Decimal degrees, north positive."),
+          longitude: z.coerce
+            .number()
+            .min(-180)
+            .max(180)
+            .describe("Decimal degrees, east positive."),
+          days: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_FORECAST_DAYS)
+            .default(3)
+            .describe("How many days of hours, from the start of today in UTC."),
+          pastDays: z.coerce
+            .number()
+            .int()
+            .min(0)
+            .max(MAX_PAST_DAYS)
+            .default(0)
+            .describe(
+              "Days before today to add at the start. Their hours are what the models last " +
+                "computed for them, not the forecast as it was first issued.",
+            ),
+          start: z.coerce
+            .date()
+            .optional()
+            .describe(
+              "The first hour to answer, ISO 8601 in UTC. Given with `end`, it takes the place " +
+                `of \`days\` and \`pastDays\`: a period of one's own, from ${MAX_PAST_DAYS} days ` +
+                `before today to ${MAX_FORECAST_DAYS} days from the start of today.`,
+            ),
+          end: z.coerce
+            .date()
+            .optional()
+            .describe("The hour to stop before, ISO 8601 in UTC: after `start`."),
+          stepHours: z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(12)
+            .default(1)
+            .describe(
+              "One hour in so many, counted from the first hour answered: 3 gives 00:00, 03:00 " +
+                "and 06:00 when the first is midnight. An hour that is kept is the models' value " +
+                "at that hour, not a mean of the hours left out.",
+            ),
+        })
+        .refine((input) => (input.start === undefined) === (input.end === undefined), {
+          path: ["end"],
+          message: "start and end go together",
+        })
+        .refine((input) => !input.start || !input.end || input.start < input.end, {
+          path: ["end"],
+          message: "end must be after start",
+        }),
     )
     .output(
       z.object({
@@ -147,12 +199,31 @@ export const forecastsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      const result = await Effect.runPromise(Effect.result(context.forecasts.get(input)));
+      const { latitude, longitude, start, end, stepHours } = input;
+      // A period of the caller's own is read from the days that cover it.
+      const period = start && end ? { start, end } : null;
+      const span = period
+        ? daysOver(period, Math.floor(Date.now() / DAY_MS) * DAY_MS)
+        : { days: input.days, pastDays: input.pastDays };
+      if (!span) {
+        throw new ORPCError("BAD_REQUEST", {
+          message:
+            `A forecast reaches from ${MAX_PAST_DAYS} days before today to ` +
+            `${MAX_FORECAST_DAYS} days from the start of today, in UTC.`,
+        });
+      }
+
+      const result = await Effect.runPromise(
+        Effect.result(context.forecasts.get({ latitude, longitude, ...span })),
+      );
       if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      const { hours, models, swellModels, ...forecast } = result.success;
-      if (!hours || models.length === 0) {
+      const { hours: every, models, swellModels, ...forecast } = result.success;
+      if (!every || models.length === 0) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this point." });
       }
+      const hours = (
+        period ? every.filter(({ time }) => time >= period.start && time < period.end) : every
+      ).filter((_, index) => index % stepHours === 0);
 
       const named = (list: typeof models) =>
         list.map(({ id, from }) => {

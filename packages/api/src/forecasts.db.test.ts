@@ -100,6 +100,62 @@ describe.skipIf(!TEST_DATABASE_URL)("a forecast, as the API gives it", () => {
     expect(found.hours[0]).toMatchObject({ wavePeriodSeconds: 8, wavePeakPeriodSeconds: 11 });
   });
 
+  describe("over a period and at a spacing of the caller's own", () => {
+    const asked = (input: Record<string, unknown>) =>
+      call(v1Router.forecasts.get, { ...here, ...input } as never, context());
+    const times = (found: { hours: { time: Date }[] }) =>
+      found.hours.map(({ time }) => time.toISOString().slice(8, 16));
+
+    it("answers the hours of the period alone, in place of whole days", async () => {
+      const found = await asked({ start: "2026-10-10T06:00:00Z", end: "2026-10-10T20:00:00Z" });
+      expect(found.hours).toHaveLength(14);
+      expect(times(found).at(0)).toBe("10T06:00");
+      expect(times(found).at(-1)).toBe("10T19:00");
+    });
+
+    it("answers one hour in so many, from the first one", async () => {
+      expect(times(await asked({ days: 1, stepHours: 6 }))).toEqual([
+        "09T00:00",
+        "09T06:00",
+        "09T12:00",
+        "09T18:00",
+      ]);
+      expect(
+        times(
+          await asked({
+            start: "2026-10-10T06:00:00Z",
+            end: "2026-10-10T20:00:00Z",
+            stepHours: 3,
+          }),
+        ),
+      ).toEqual(["10T06:00", "10T09:00", "10T12:00", "10T15:00", "10T18:00"]);
+    });
+
+    it("reaches as far back and as far ahead as a forecast does, and no further", async () => {
+      const whole = await asked({ start: "2026-10-07T00:00:00Z", end: "2026-10-16T00:00:00Z" });
+      expect(whole.hours).toHaveLength(9 * 24);
+
+      expect(
+        await refusal(asked({ start: "2026-10-06T23:00:00Z", end: "2026-10-09T00:00:00Z" })),
+      ).toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("2 days before") });
+      expect(
+        await refusal(asked({ start: "2026-10-09T00:00:00Z", end: "2026-10-16T01:00:00Z" })),
+      ).toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("takes a start with its end, and an end after its start", async () => {
+      expect(await refusal(asked({ start: "2026-10-10T06:00:00Z" }))).toMatchObject({
+        code: "BAD_REQUEST",
+      });
+      expect(
+        await refusal(asked({ start: "2026-10-10T06:00:00Z", end: "2026-10-10T06:00:00Z" })),
+      ).toMatchObject({ code: "BAD_REQUEST" });
+      expect(await refusal(asked({ days: 1, stepHours: 13 }))).toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+  });
+
   it("gives the swell apart beside the whole sea, with the model it comes from", async () => {
     const found = await forecast({ days: 1 });
 

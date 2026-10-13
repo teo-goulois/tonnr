@@ -85,10 +85,10 @@ Read on 2026-10-13, in the packages as they install:
 - The names and the places of the breaks come from whoever filled the catalogue, and the names of the stations from their networks. They are short, and they reach a model as they are. A guide's texts are longer, and anyone with an account writes one: an unconfirmed text reaches a model that asks for the guide, marked as such. A model may still follow what a text tells it. An operator who reads the contributions takes such a text out.
 - What a tool says of itself is in its router. A route that changes changes its tool in the same place, and `/llms.txt` beside it.
 - tsdown bundles the SDK into the API's image, as it does every dependency that `apps/server/package.json` does not list. It reads no file beside its module.
-- A day of forecast is about 10 kB, and a week about 65. The tool says so, and an agent asks for the days it needs.
+- A day of forecast is about 10 kB, and a week about 65 at every hour. An agent asks for a period and a spacing: a week every three hours is a third of that. The tool says so, and an agent asks for the days it needs.
 
 ## What may follow
 
 - **An agent that acts as an account.** Téo's handbook has an agent sign in as its user, through the sign-in library's MCP plugin, so that it never gets more than that user. It would give an agent a person's spots, alerts, lists and sessions, and let it write. It needs a screen where the account agrees, a choice of what an agent may do, and the tools of an account, each marked as writing or not. The key stays for a program with no person behind it.
 - **Which agent calls.** A client says its name when it connects: Claude Code, Cursor. Keeping it would say which agents people use, and would be the first thing the instance keeps of a caller beyond its key: decision 020 keeps none.
-- **What an agent may ask for at once.** A forecast every three hours, or a few fields, would be new optional inputs of the routes, for every caller.
+- **Fewer values in a forecast.** Since the same day, at Téo's word, a caller chooses the period of a forecast, with `start` and `end`, and its spacing, with `stepHours`: they are optional inputs of the route, for every caller, and the tool says them to an agent. Choosing which values come, the wind alone or the waves alone, would make every value of an hour optional in the answer, for the apps too. It is left for when an agent needs it.
