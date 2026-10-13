@@ -4,6 +4,7 @@ import type { Database } from "@repo/db";
 import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
+import { agentSignIn } from "./agents";
 import { invitations } from "./invitation";
 import { suspensionHooks } from "./suspension";
 import { keepsUsername, usernameHooks, usernames } from "./username";
@@ -71,7 +72,11 @@ export function createAuth(
     // What others read of an account, and what keeps it there, then what a link another gave
     // it makes of a new account: decision 041.
     hooks: { before: keepsUsername, after: invitations(database) },
-    plugins: [usernames(database)],
+    plugins: [
+      usernames(database),
+      // What signs an agent in as an account: decision 047.
+      ...agentSignIn(env, database),
+    ],
   });
 }
 

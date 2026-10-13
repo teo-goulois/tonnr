@@ -97,6 +97,7 @@ import {
   type Forecast,
   type Guide,
   type GuideOwn,
+  type ConnectedAgents,
   type JoinedList,
   type ListView,
   type Loadable,
@@ -261,6 +262,8 @@ type ViewerProps = {
     standing: Loadable<Standing>;
     // How many friends it has, once the API has said.
     friendCount: number | undefined;
+    // The assistants it signed in to read it, and what disconnects one. Decision 047.
+    agents: ConnectedAgents;
     onSignOut: () => void;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
@@ -1764,6 +1767,7 @@ export function Viewer({
             standing={account.standing.data}
             onOpenContributions={() => onSettingsPartChange("contributions")}
             friendCount={account.friendCount}
+            agents={account.agents}
             onOpenFriends={() => onSettingsPartChange("friends")}
             onOpenSessions={() => onSettingsPartChange("sessions")}
           />

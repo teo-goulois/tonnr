@@ -88,6 +88,22 @@ const selection = {
 
 export const notificationsRouter = {
   list: protectedProcedure
+    .meta({
+      mcp: {
+        name: "list_my_alert_notifications",
+        title: "What the account's alerts told",
+        account: true,
+        description:
+          "What the alerts of the account you act for told it, the newest first. `moment` " +
+          "says why: `found` when the forecast holds a window that the alert asks for, " +
+          "`moved` when a window that was told moved by more than two hours, `gone` when " +
+          "it left the forecast, `evening` for the windows of the next day, and `begins` " +
+          "when a window is on. `payload` holds the spots and their open hours, in UTC. " +
+          "`readAt` is null until the person read it. It answers 20 unless `limit` says " +
+          "another, 200 at most. Reading here marks nothing as read.",
+        defaults: { limit: 20 },
+      },
+    })
     .route({
       method: "GET",
       path: "/notifications",

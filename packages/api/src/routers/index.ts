@@ -6,6 +6,7 @@ import { accountRouter } from "./account";
 import { activityRouter } from "./activity";
 import { accountsRouter } from "./accounts";
 import { actionsRouter } from "./actions";
+import { agentsRouter } from "./agents";
 import { alertsRouter } from "./alerts";
 import { breaksRouter } from "./breaks";
 import { consoleRouter } from "./console";
@@ -35,12 +36,14 @@ import { visitorsRouter } from "./visitors";
 // The API, version 1. Once released it only grows: a breaking change goes in a new version.
 // Every procedure asks who calls: decision 019 says which take a key and which a session,
 // decision 020 which take the admin's site as well, decision 027 which take a member of a
-// developer account, and decision 039 which answer a visitor of the web app.
+// developer account, and decision 039 which answer a visitor of the web app. Decisions 045 and
+// 047 say which an agent calls as a tool of the MCP server.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
   accounts: accountsRouter,
   actions: actionsRouter,
+  agents: agentsRouter,
   alerts: alertsRouter,
   breaks: breaksRouter,
   console: consoleRouter,

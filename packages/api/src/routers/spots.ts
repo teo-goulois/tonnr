@@ -285,6 +285,22 @@ export const spotsRouter = {
     }),
 
   list: protectedProcedure
+    .meta({
+      mcp: {
+        name: "list_my_spots",
+        title: "The account's own spots",
+        account: true,
+        description:
+          "The spots of the account you act for: the places it surfs, each with its name, " +
+          "its `latitude` and `longitude`, what its owner says it is like (type of break, " +
+          "bottom, the tides, swell and wind directions it likes, as in the catalogue of " +
+          "breaks), the alerts it is in (`alertIds`) and whether its owner asked to make it " +
+          "public. A spot is private: its owner alone reads it, so do not repeat its name " +
+          "or its place to anyone else. Start here when the person asks about their spots: " +
+          "then get_forecast and get_tide_extremes at a spot's `latitude` and `longitude`, " +
+          "and list_my_alerts for the conditions they wait for there.",
+      },
+    })
     .route({ method: "GET", path: "/spots", summary: "The caller's spots", tags: ["Spots"] })
     .output(z.object({ spots: z.array(spotSchema) }))
     .handler(async ({ context }) => {

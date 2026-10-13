@@ -20,7 +20,7 @@ import {
   visitorClosure,
 } from "@repo/db/schema/access";
 import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
-import { session, user } from "@repo/db/schema/auth";
+import { oauthConsent, session, user } from "@repo/db/schema/auth";
 import { sponsorship } from "@repo/db/schema/community";
 import { stationList } from "@repo/db/schema/lists";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -1393,8 +1393,302 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       for (const headers of without) {
         const refused = await post({ method: "tools/list" }, headers);
         expect([refused.status, refused.headers.get("Cache-Control")]).toEqual([401, NOT_CACHED]);
-        expect(refused.headers.get("WWW-Authenticate")).toBe("Bearer");
+        // The cookie of a session is no sign-in here: the refusal says where an agent signs in.
+        expect(refused.headers.get("WWW-Authenticate")).toMatch(/^Bearer resource_metadata="/);
       }
+    });
+  });
+
+  describe("an agent that an account signs in", () => {
+    const RESOURCE = `${API}/mcp`;
+    const CALLBACK = "https://agent.example/callback";
+    const VERIFIER = "a-verifier-made-up-for-these-tests-and-long-enough";
+    const challengeOf = async (verifier: string) =>
+      Buffer.from(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
+      ).toString("base64url");
+    const form = (path: string, fields: Record<string, string>) =>
+      app.request(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(fields),
+      });
+    const rpc = (message: object, token: string) =>
+      app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...message }),
+      });
+    async function resultOf<Result>(response: Response) {
+      const text = await response.text();
+      const data = /^data: (.+)$/m.exec(text)?.[1] ?? text;
+      return (JSON.parse(data) as { result: Result }).result;
+    }
+
+    /** A client registers itself, as an assistant does when the server is added to it. */
+    async function register(addresses = [CALLBACK]) {
+      const made = await send("POST", "/api/auth/oauth2/register", {
+        body: {
+          client_name: "An assistant",
+          redirect_uris: addresses,
+          token_endpoint_auth_method: "none",
+          grant_types: ["authorization_code", "refresh_token"],
+        },
+      });
+      return { status: made.status, ...(await bodyOf<{ client_id?: string }>(made)) };
+    }
+
+    /** The client sends the account's browser to the API, which sends it on to the page. */
+    async function authorize(clientId: string, cookie?: string) {
+      const asked = new URLSearchParams({
+        response_type: "code",
+        client_id: clientId,
+        redirect_uri: CALLBACK,
+        state: "a-state",
+        code_challenge: await challengeOf(VERIFIER),
+        code_challenge_method: "S256",
+        resource: RESOURCE,
+        scope: "read offline_access",
+      });
+      const sent = await send("GET", `/api/auth/oauth2/authorize?${asked}`, { cookie });
+      const page = new URL(sent.headers.get("location") ?? "about:blank");
+      // What the API signed comes after `#`, where the web app's server does not read it.
+      return { address: `${page.origin}${page.pathname}`, query: page.hash.replace(/^#\?/, "") };
+    }
+
+    /** The account agrees on the page, and the client trades what it is given for a token. */
+    async function signIn(cookie: string, clientId: string) {
+      const page = await authorize(clientId, cookie);
+      const agreed = await send("POST", "/api/auth/oauth2/consent", {
+        cookie,
+        origin: APP,
+        body: { accept: true, oauth_query: page.query },
+      });
+      const back = new URL((await bodyOf<{ url: string }>(agreed)).url);
+      const traded = await form("/api/auth/oauth2/token", {
+        grant_type: "authorization_code",
+        code: back.searchParams.get("code") ?? "",
+        redirect_uri: CALLBACK,
+        client_id: clientId,
+        code_verifier: VERIFIER,
+        resource: RESOURCE,
+      });
+      return {
+        page,
+        back,
+        status: traded.status,
+        ...(await bodyOf<{ access_token: string; refresh_token?: string; scope?: string }>(traded)),
+      };
+    }
+
+    it("says where an account signs in, to a client that was refused", async () => {
+      const refused = await rpc({ method: "tools/list" }, "no-token-of-this-instance");
+      expect(refused.status).toBe(401);
+      const told = refused.headers.get("WWW-Authenticate") ?? "";
+      expect(told).toBe(
+        `Bearer resource_metadata="${API}/.well-known/oauth-protected-resource/mcp", ` +
+          'scope="read offline_access"',
+      );
+
+      for (const path of [
+        "/.well-known/oauth-protected-resource/mcp",
+        "/.well-known/oauth-protected-resource",
+      ]) {
+        const resource = await send("GET", path);
+        expect(await bodyOf(resource)).toMatchObject({
+          resource: RESOURCE,
+          authorization_servers: [`${API}/api/auth`],
+          scopes_supported: ["read", "offline_access"],
+        });
+      }
+      const server = await bodyOf<Record<string, unknown>>(
+        await send("GET", "/.well-known/oauth-authorization-server/api/auth"),
+      );
+      expect(server).toMatchObject({
+        issuer: `${API}/api/auth`,
+        authorization_endpoint: `${API}/api/auth/oauth2/authorize`,
+        token_endpoint: `${API}/api/auth/oauth2/token`,
+        registration_endpoint: `${API}/api/auth/oauth2/register`,
+        code_challenge_methods_supported: ["S256"],
+      });
+      // No scope says who the account is.
+      expect(server.scopes_supported).toEqual(["read", "offline_access"]);
+    });
+
+    it("sends whoever is not signed in to the web app's page, then asks the account", async () => {
+      const { client_id: clientId } = await register();
+      const stranger = await authorize(clientId ?? "");
+      expect(stranger.address).toBe(`${APP}/connect`);
+      expect(new URLSearchParams(stranger.query).get("client_id")).toBe(clientId);
+
+      const cookie = await signUp("ana");
+      const asked = await authorize(clientId ?? "", cookie);
+      expect(asked.address).toBe(`${APP}/connect`);
+      expect(new URLSearchParams(asked.query).get("scope")).toBe("read offline_access");
+      // What the page shows of the client: the name it gave itself.
+      const shown = await send("GET", `/api/auth/oauth2/public-client?client_id=${clientId}`, {
+        cookie,
+      });
+      expect(await bodyOf(shown)).toMatchObject({ client_name: "An assistant" });
+    });
+
+    it("gives the agent its account's tools, counted with the accounts as calls by MCP", async () => {
+      const cookie = await signUp("ana");
+      const { client_id: clientId } = await register();
+      const signed = await signIn(cookie, clientId ?? "");
+      expect(signed.back.origin + signed.back.pathname).toBe(CALLBACK);
+      expect([signed.status, signed.scope]).toEqual([200, "read offline_access"]);
+      expect(signed.refresh_token).toBeTruthy();
+
+      const listed = await rpc({ method: "tools/list" }, signed.access_token);
+      expect([listed.status, listed.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      const { tools } = await resultOf<{ tools: { name: string }[] }>(listed);
+      expect(tools.map((tool) => tool.name)).toEqual(
+        expect.arrayContaining(["list_my_spots", "list_my_alerts", "get_forecast"]),
+      );
+
+      await send("POST", "/v1/spots", {
+        cookie,
+        origin: APP,
+        body: { name: "Ana's reef", latitude: 43.6, longitude: -1.4 },
+      });
+      await usage.flush();
+      await database.db.delete(apiUsage);
+      const called = await rpc(
+        { method: "tools/call", params: { name: "list_my_spots", arguments: {} } },
+        signed.access_token,
+      );
+      const { content } = await resultOf<{ content: { text: string }[] }>(called);
+      const { spots } = JSON.parse(content[0]?.text ?? "") as { spots: { name: string }[] };
+      expect(spots.map((found) => found.name)).toEqual(["Ana's reef"]);
+
+      await usage.flush();
+      const counted = await database.db.select().from(apiUsage);
+      expect(
+        counted.map(({ via, way, keyId, procedure, calls }) => ({
+          via,
+          way,
+          keyId,
+          procedure,
+          calls,
+        })),
+      ).toEqual([
+        { via: "session", way: "mcp", keyId: null, procedure: "v1.spots.list", calls: 1 },
+      ]);
+
+      // The token opens the MCP server, and nothing else of the API.
+      expect((await send("GET", "/v1/spots", { key: signed.access_token })).status).toBe(401);
+    });
+
+    it("is out at once when the account is suspended, or takes its word back", async () => {
+      const operatorCookie = await signUpOperator();
+      const cookie = await signUp("ana");
+      const account = await bodyOf<{ id: string }>(await send("GET", "/v1/account", { cookie }));
+      const { client_id: clientId } = await register();
+      const { access_token: token } = await signIn(cookie, clientId ?? "");
+      expect((await rpc({ method: "tools/list" }, token)).status).toBe(200);
+
+      await send("PATCH", `/v1/accounts/${account.id}`, {
+        cookie: operatorCookie,
+        origin: ADMIN,
+        body: { suspended: true },
+      });
+      expect((await rpc({ method: "tools/list" }, token)).status).toBe(401);
+      await send("PATCH", `/v1/accounts/${account.id}`, {
+        cookie: operatorCookie,
+        origin: ADMIN,
+        body: { suspended: false },
+      });
+      expect((await rpc({ method: "tools/list" }, token)).status).toBe(200);
+
+      await database.db.delete(oauthConsent);
+      expect((await rpc({ method: "tools/list" }, token)).status).toBe(401);
+    });
+
+    it("lets the account see its assistants, and take its word back from one", async () => {
+      const cookie = await signUp("ana");
+      const other = await signUp("ben");
+      const { client_id: clientId } = await register();
+      const signed = await signIn(cookie, clientId ?? "");
+
+      const listed = await bodyOf<{ agents: { clientId: string; name: string | null }[] }>(
+        await send("GET", "/v1/agents", { cookie }),
+      );
+      expect(listed.agents).toMatchObject([{ clientId, name: "An assistant" }]);
+      // Another account has none, and takes nothing back from this one.
+      expect(await bodyOf(await send("GET", "/v1/agents", { cookie: other }))).toEqual({
+        agents: [],
+      });
+      const notMine = await send("DELETE", `/v1/agents/${clientId}`, {
+        cookie: other,
+        origin: APP,
+      });
+      expect(notMine.status).toBe(404);
+      expect((await rpc({ method: "tools/list" }, signed.access_token)).status).toBe(200);
+
+      const taken = await send("DELETE", `/v1/agents/${clientId}`, { cookie, origin: APP });
+      expect(taken.status).toBe(200);
+      // The token it holds opens nothing more, and what it kept gets it no new one.
+      expect((await rpc({ method: "tools/list" }, signed.access_token)).status).toBe(401);
+      const again = await form("/api/auth/oauth2/token", {
+        grant_type: "refresh_token",
+        refresh_token: signed.refresh_token ?? "",
+        client_id: clientId ?? "",
+        resource: RESOURCE,
+      });
+      expect(again.status).toBe(400);
+      expect(await bodyOf(await send("GET", "/v1/agents", { cookie }))).toEqual({ agents: [] });
+    });
+
+    it("trades what it kept for a new token, while the account agrees", async () => {
+      const cookie = await signUp("ana");
+      const { client_id: clientId } = await register();
+      const signed = await signIn(cookie, clientId ?? "");
+      const again = await form("/api/auth/oauth2/token", {
+        grant_type: "refresh_token",
+        refresh_token: signed.refresh_token ?? "",
+        client_id: clientId ?? "",
+        resource: RESOURCE,
+      });
+      expect(again.status).toBe(200);
+      const { access_token: token } = await bodyOf<{ access_token: string }>(again);
+      expect((await rpc({ method: "tools/list" }, token)).status).toBe(200);
+    });
+
+    it("gives no token to an account that says no", async () => {
+      const cookie = await signUp("ana");
+      const { client_id: clientId } = await register();
+      const page = await authorize(clientId ?? "", cookie);
+      const refused = await send("POST", "/api/auth/oauth2/consent", {
+        cookie,
+        origin: APP,
+        body: { accept: false, oauth_query: page.query },
+      });
+      const back = new URL((await bodyOf<{ url: string }>(refused)).url);
+      expect(back.searchParams.get("error")).toBe("access_denied");
+      expect(back.searchParams.get("code")).toBeNull();
+    });
+
+    it("takes a client of the account's own machine, and lets no account make a client", async () => {
+      // A terminal or a desktop app is sent back to the machine it runs on.
+      expect((await register(["http://localhost:53682/callback"])).status).toBe(201);
+      expect((await register(["com.example.agent:/callback"])).status).toBe(201);
+      // The library takes an app's own scheme only when it is named after a domain.
+      expect((await register(["agent://callback"])).status).toBe(400);
+      // An address of the web that is not kept from being read on the way is refused.
+      expect((await register(["http://agent.example/callback"])).status).toBe(400);
+
+      const cookie = await signUp("ana");
+      const made = await send("POST", "/api/auth/oauth2/create-client", {
+        cookie,
+        origin: APP,
+        body: { client_name: "Mine", redirect_uris: [CALLBACK] },
+      });
+      expect(made.status).toBeGreaterThanOrEqual(400);
     });
   });
 

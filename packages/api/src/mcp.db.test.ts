@@ -5,7 +5,7 @@ import { testForecasts } from "@repo/conditions/forecasts/testing";
 import { apiUsage, developer, developerCalls, operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { reading, station } from "@repo/db/schema/buoys";
-import { surfBreak } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,6 +37,19 @@ const TOOLS: Record<string, string> = {
   list_surf_breaks: "v1.breaks.list",
   search_surf_breaks: "v1.breaks.search",
 };
+
+// What an agent that an account signed in is given besides: what that account keeps, to read.
+// None of them writes, and none is listed to a key. Decision 047.
+const ACCOUNT_TOOLS: Record<string, string> = {
+  get_my_session: "v1.sessions.get",
+  get_my_sessions_recap: "v1.sessions.recap",
+  list_my_alert_notifications: "v1.notifications.list",
+  list_my_alerts: "v1.alerts.list",
+  list_my_sessions: "v1.sessions.list",
+  list_my_spots: "v1.spots.list",
+};
+const EVERY_TOOL = { ...TOOLS, ...ACCOUNT_TOOLS };
+const sorted = (names: string[]) => names.toSorted((a, b) => a.localeCompare(b));
 
 type Answer = Awaited<ReturnType<Client["callTool"]>>;
 
@@ -210,7 +223,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
       const listed = await listTools();
       expect(
         Object.fromEntries(listed.map((tool) => [tool.name, procedureName(tool.procedure)])),
-      ).toEqual(TOOLS);
+      ).toEqual(EVERY_TOOL);
+      // What an account keeps is marked as such, and nothing else is.
+      expect(sorted(listed.filter((tool) => tool.account).map((tool) => tool.name))).toEqual(
+        Object.keys(ACCOUNT_TOOLS),
+      );
     });
 
     it.each(["auto", "legacy"] as const)("are listed to an agent (%s)", async (mode) => {
@@ -517,6 +534,125 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
       expect(answer.isError).toBe(true);
       expect(textOf(answer)).toBe("The instance failed to answer. Try again later.");
       expect(faults).toHaveLength(1);
+    });
+  });
+
+  describe("an agent that an account signed in", () => {
+    // A token of the sign-in library stands for an account. Here a function says which: the
+    // library itself is tried where it is set up, in the API's own tests.
+    const TOKENS: Record<string, string> = { "token-of-ana": "ana", "token-of-ben": "ben" };
+    const challenge =
+      'Bearer resource_metadata="https://api.example.org/.well-known/oauth-protected-resource/mcp"';
+    let signing: ReturnType<typeof createMcp>;
+    const signedIn = (token: string) => {
+      const client = new Client({ name: "a test agent", version: "1.0.0" });
+      return client
+        .connect(
+          new StreamableHTTPClientTransport(new URL(ADDRESS), {
+            fetch: (input, init) => signing.fetch(new Request(input, init)),
+            requestInit: { headers: { Authorization: `Bearer ${token}` } },
+          }),
+        )
+        .then(() => client);
+    };
+
+    beforeEach(async () => {
+      signing = createMcp(services(), {
+        accounts: {
+          sessionOf: async (token) => (TOKENS[token] ? sessionOf(TOKENS[token]) : null),
+          challenge,
+        },
+      });
+      await database.db.insert(user).values([
+        { id: "ana", name: "Ana", email: "ana@example.org" },
+        { id: "ben", name: "Ben", email: "ben@example.org" },
+      ]);
+      await database.db.insert(spot).values([
+        {
+          id: "ana-home",
+          userId: "ana",
+          name: "Ana's reef",
+          latitude: 43.6,
+          longitude: -1.4,
+          visibility: "private",
+        },
+        {
+          id: "ben-home",
+          userId: "ben",
+          name: "Ben's bank",
+          latitude: 47.8,
+          longitude: -4.3,
+          visibility: "private",
+        },
+      ]);
+    });
+
+    it("is listed what its account keeps besides what a key reads, and a key is not", async () => {
+      const own = await signedIn("token-of-ana");
+      const { tools } = await own.listTools();
+      expect(tools.map((tool) => tool.name)).toEqual(sorted(Object.keys(EVERY_TOOL)));
+      // None of them writes.
+      for (const tool of tools) expect(tool.annotations).toMatchObject({ readOnlyHint: true });
+      expect(own.getInstructions()).toContain("account that signed you in");
+
+      const { key } = await makeKey();
+      for (const server of [mcp, signing]) {
+        const byKey = await (await agent(key, "auto", server)).listTools();
+        expect(byKey.tools.map((tool) => tool.name)).toEqual(Object.keys(TOOLS));
+      }
+    });
+
+    it("reads its own account, and nothing of another", async () => {
+      const own = await signedIn("token-of-ana");
+      const mine = read<{ spots: { id: string; name: string }[] }>(
+        await own.callTool({ name: "list_my_spots", arguments: {} }),
+      );
+      expect(mine.spots.map(({ id }) => id)).toEqual(["ana-home"]);
+
+      const alerts = await own.callTool({ name: "list_my_alerts", arguments: {} });
+      expect(read(alerts)).toEqual({ alerts: [] });
+      const log = await own.callTool({ name: "list_my_sessions", arguments: {} });
+      expect(read(log)).toEqual({ sessions: [], next: null });
+      // What everyone shares is read as before.
+      const shared = await own.callTool({ name: "get_station", arguments: { id: "buoy" } });
+      expect(read(shared)).toMatchObject({ id: "buoy" });
+    });
+
+    it("is counted with the accounts, as a call that came by MCP, and under no key", async () => {
+      const own = await signedIn("token-of-ana");
+      await own.callTool({ name: "list_my_spots", arguments: {} });
+      await own.callTool({ name: "list_stations", arguments: {} });
+
+      const none = { keyId: null, outcome: "answered", calls: 1 };
+      expect(await counted()).toEqual([
+        { via: "session", way: "mcp", procedure: "v1.spots.list", ...none },
+        { via: "session", way: "mcp", procedure: "v1.stations.list", ...none },
+      ]);
+      // An account has no limit: nothing was added to an hour.
+      expect(await database.db.select().from(developerCalls)).toEqual([]);
+    });
+
+    it("gives a key no tool of an account's", async () => {
+      const { key } = await makeKey();
+      const byKey = await agent(key, "auto", signing);
+      const asked = await byKey
+        .callTool({ name: "list_my_spots", arguments: {} })
+        .then((answer) => (answer.isError ? "refused" : "answered"))
+        .catch(() => "refused");
+      expect(asked).toBe("refused");
+      expect(await counted()).toEqual([]);
+    });
+
+    it("refuses a token that names no account, and says where an account signs in", async () => {
+      const unknown = await ask({ Authorization: "Bearer a-token-nobody-made" }, "POST", signing);
+      expect(unknown.status).toBe(401);
+      expect(unknown.headers.get("WWW-Authenticate")).toBe(challenge);
+      const none = await ask({}, "POST", signing);
+      expect([none.status, none.headers.get("WWW-Authenticate")]).toEqual([401, challenge]);
+
+      // A server that signs no agent in reads no token at all.
+      const closed = await ask({ Authorization: "Bearer token-of-ana" });
+      expect([closed.status, closed.headers.get("WWW-Authenticate")]).toEqual([401, "Bearer"]);
     });
   });
 

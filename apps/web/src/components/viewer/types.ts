@@ -37,6 +37,16 @@ export type GuideLine = Guide["lines"][number];
 export type GuideOwn = Answer<V1["guides"]["mine"]>;
 /** What the signed-in account wrote in the guides, and where it stands. */
 export type Standing = Answer<V1["contributions"]["mine"]>;
+/** An assistant an account signed in to read it through the MCP server. Decision 047. */
+export type ConnectedAgent = Answer<V1["agents"]["list"]>["agents"][number];
+/** The assistants of an account, and what takes back what it allowed one. */
+export type ConnectedAgents = {
+  // Undefined while the API has not said, and for a visitor.
+  list: ConnectedAgent[] | undefined;
+  // The assistant that is being disconnected, while it is.
+  disconnecting: string | undefined;
+  onDisconnect: (clientId: string) => void;
+};
 export type Contribution = Standing["contributions"][number];
 export type Rank = NonNullable<Standing["rank"]>;
 

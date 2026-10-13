@@ -43,6 +43,7 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
+import { useAgents } from "./-agents";
 import { useAlerting } from "./-alerting";
 import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
@@ -355,6 +356,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       void navigate({ search: (previous) => ({ ...previous, invite: undefined }), replace: true }),
     [navigate],
   );
+  const agents = useAgents(session.data?.user.id);
   const friended = useFriends({
     account: session.data?.user.id,
     username: own.account ? own.account.username : undefined,
@@ -1265,6 +1267,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         onUsernameSave: saveUsername,
         standing,
         friendCount: friended.friendCount,
+        agents,
         onSignOut: signOut,
       }}
       friending={friended.friending}

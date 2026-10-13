@@ -369,6 +369,23 @@ export const alertsRouter = {
     }),
 
   list: protectedProcedure
+    .meta({
+      mcp: {
+        name: "list_my_alerts",
+        title: "The account's alerts",
+        account: true,
+        description:
+          "The alerts of the account you act for. An alert names the conditions that make " +
+          "some of its spots work, in `criteria`: bounds on the wave height, its peak " +
+          "period and the direction it comes from, on the first swell, on the wind's speed " +
+          "and direction, on the tide's height, and whether the tide rises or falls. A " +
+          "condition left out asks nothing. It is set on the spots of `spotIds`, which list_my_spots " +
+          "names, and tells its owner when the forecast holds them for `shortestMinutes` at " +
+          "least. `enabled: false` is an alert that is paused. Use `criteria` to say " +
+          "whether a forecast you read is what the person waits for. This tool changes no " +
+          "alert. Next: list_my_alert_notifications for what the alerts told lately.",
+      },
+    })
     .route({ method: "GET", path: "/alerts", summary: "The caller's alerts", tags: ["Alerts"] })
     .output(z.object({ alerts: z.array(alertSchema) }))
     .handler(async ({ context }) => {

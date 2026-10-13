@@ -310,11 +310,13 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 
 The API is also an MCP server, at `/mcp`: an agent such as Claude Code or Cursor lists its tools and calls them in place of the routes of `/v1`. There is nothing to deploy and nothing to set: it comes with the API. Decision 045 gives the rules, and [`docs/mcp.md`](mcp.md) says how a client connects.
 
-- It takes one of the keys above, in `Authorization: Bearer`, and nothing else: no session, and no request without a key. Hand a key over as you would for a program.
+- It takes one of the keys above, in `Authorization: Bearer`: hand a key over as you would for a program. Or an account signs its assistant in, with nothing for you to do: the assistant registers itself, the account agrees on the web app's page `/connect`, and the assistant reads what that account keeps, and changes nothing. Decision 047 gives the rules. That takes a web app, at the address `CORS_ORIGIN` names, of a version that has the page.
+- Anyone registers an assistant's client, so the table `oauth_client` grows, and nothing clears it. Which assistants registered, and how many accounts allowed one, is in the database and on no screen. A suspended account's assistants read nothing while it is suspended.
 - A call to a tool is a call to its route. It is held to the developer account's limit and shows in its counts, under the route's name. The counts say which way a call came: the admin's overview shows how much comes by MCP and whose agents call, and `GET /v1/usage/breakdown` answers it with `by=way`, or with `way=mcp` beside `by=developer`. Listing the tools is not counted.
-- Its tools read the shared data and nothing of an account: the stations, the forecasts, the tides, the catalogue of breaks and their guides.
-- A proxy in front of the API lets `POST /mcp` through, and does not hold back an answer that comes as a stream. An agent's client is no browser, so the API's CORS does not concern it.
+- Its tools read the shared data: the stations, the forecasts, the tides, the catalogue of breaks and their guides. A key reads nothing of an account. An assistant that an account signed in also reads that account's spots, alerts and sessions.
+- A proxy in front of the API lets `POST /mcp` through, with `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server/api/auth`, where an assistant reads how an account signs in, and does not hold back an answer that comes as a stream. An agent's client is no browser, so the API's CORS does not concern it.
 - The server keeps nothing between two requests, so several API processes answer one agent in turn.
+- The key that signs an assistant's tokens is kept in the database, enciphered with `BETTER_AUTH_SECRET`. Changing that secret signs every assistant out.
 
 ### The admin app
 

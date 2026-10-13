@@ -1,6 +1,6 @@
 # Connecting an agent: the MCP server
 
-An instance of Tonnr is also an MCP server. An agent that speaks the Model Context Protocol, such as Claude Code or Cursor, lists its tools and calls them, with no HTTP call to write. [Decision 045](decisions/045-mcp-server.md) gives the rules.
+An instance of Tonnr is also an MCP server. An agent that speaks the Model Context Protocol, such as Claude, ChatGPT or Cursor, lists its tools and calls them, with no HTTP call to write. Decisions [045](decisions/045-mcp-server.md) and [047](decisions/047-agents-sign-in.md) give the rules.
 
 Below, `https://api.example.org` stands for the address of the instance's API.
 
@@ -8,13 +8,15 @@ Below, `https://api.example.org` stands for the address of the instance's API.
 
 - The address: `https://api.example.org/mcp`.
 - The transport: Streamable HTTP. Nothing is kept between two requests, and the older transport with two addresses, HTTP+SSE, is not served.
-- One header: `Authorization: Bearer <key>`, with an API key of the instance. Whoever runs the instance makes it, for a developer account: [self-hosting](self-hosting.md#accounts-the-operator-and-api-keys) says how.
+- Who calls, one of two:
+  - An account, which signs the agent in. Give the client the address and nothing else: it finds where to sign in, opens a page of the web app where the account agrees, and reads what that account keeps as well as what everyone shares. This is how a connector of Claude or of ChatGPT is added.
+  - A program, with one header: `Authorization: Bearer <key>`, with an API key of the instance. Whoever runs the instance makes it, for a developer account: [self-hosting](self-hosting.md#accounts-the-operator-and-api-keys) says how. A key reads what everyone shares, and nothing of an account.
 
-A request with no working key gets 401, the list of the tools too. A session's cookie is not read.
+A request with neither gets 401, the list of the tools too, and the refusal says where an account signs in. A session's cookie is not read.
 
 ## The tools
 
-Every tool reads, and none writes. An agent reads what a key reads at `/v1`: nothing of an account.
+Every tool reads, and none writes. With a key, an agent reads what a key reads at `/v1`: nothing of an account.
 
 | Tool                   | What it answers                                                             |
 | ---------------------- | --------------------------------------------------------------------------- |
@@ -28,6 +30,17 @@ Every tool reads, and none writes. An agent reads what a key reads at `/v1`: not
 | `search_surf_breaks`   | Surf breaks by their name or their town's, the likeliest first              |
 | `get_surf_break`       | One surf break of the catalogue                                             |
 | `get_surf_break_guide` | What the people who surf a break wrote of it: access, entry, hazards, rules |
+
+An agent that an account signed in is listed six more, which read what that account keeps:
+
+| Tool                          | What it answers                                           |
+| ----------------------------- | --------------------------------------------------------- |
+| `list_my_spots`               | The account's own spots, with what it says of them        |
+| `list_my_alerts`              | Its alerts, with the conditions each one waits for        |
+| `list_my_alert_notifications` | What its alerts told it, the newest first                 |
+| `list_my_sessions`            | Its log of surf sessions, the latest first                |
+| `get_my_session`              | One session, with the conditions kept with it             |
+| `get_my_sessions_recap`       | What the log comes to: totals, and the places surfed most |
 
 - A tool is a route of the API, and answers the same JSON: [the reference](https://api.example.org/v1/docs) says what each field is.
 - Heights are in metres, periods in seconds, speeds in metres per second, and directions in degrees clockwise from north that the sea or the wind comes from. Times are in UTC.
@@ -103,9 +116,15 @@ Such a client starts a program on the machine and talks to it. [`mcp-remote`](ht
 
 The header is written without a space after its colon, and its value comes from `env`: some clients cut an argument at a space. The key is then in that file, on that machine.
 
-## A client that takes no header
+## An assistant that signs in: Claude, ChatGPT, and other connectors
 
-A client that adds a remote server by its address alone, with a sign-in or with none, cannot send the key. Until agents sign in as an account, which decision 045 leaves for later, it reaches the server through a bridge as above, or not at all.
+Add a custom connector, or a remote MCP server, by its address alone: `https://api.example.org/mcp`. The assistant then opens the web app's page `/connect` in a browser. Sign in there, or create an account, read what the assistant will read, and allow it.
+
+- The assistant reads the account's spots, its alerts and what they told, and its log of sessions, besides what everyone reads. It changes nothing, and is not told the account's name or address.
+- The page names the assistant by the name it gave itself, and the host the answer goes to. Allow only what you just asked for.
+- The account takes it back in the web app, in its panel, under "Connected assistants". The assistant reads nothing more from the next request on.
+- Claude Code signs in the same way when the server is added with no header: `claude mcp add --transport http tonnr https://api.example.org/mcp`, then `/mcp` in a session.
+- A client whose app answers an address scheme of its own that is not named after a domain cannot register. It connects with a key, as above.
 
 ## By hand
 
@@ -126,5 +145,7 @@ On 2026-10-13, against an API started from its release build, with invented stat
 - The official SDK's client, `@modelcontextprotocol/client` 2.3.1, in the 2026-07-28 revision of the protocol and in the one before, 2025-11-25: it lists the tools, nine of them that day, and calls them, and is refused at connection without a working key.
 - The same client through `mcp-remote`, as the configuration for Claude Desktop above runs it.
 - The `curl` call above.
+- The sign-in of an account, in the API's tests: a client registers, an account agrees, the client trades what it is given for a token, lists the tools and reads the account's spots, and is refused once the account is suspended or takes its word back.
+- The page `/connect` in a browser, against the release build of the API and a web app on the same machine: an account was created on the page, allowed an invented assistant, and the assistant traded what the browser brought back for a token, listed sixteen tools and read the account's spots. Asked a second time, the API did not show the page again.
 
-Not tried: Claude Code, Cursor and Claude Desktop themselves. Claude Code's command is as its `claude mcp add --help` gives it. The files of Claude Code and of Cursor are written from what is known of their format.
+Not tried: Claude Code, Cursor, Claude Desktop and ChatGPT themselves, with a key or with a sign-in. Claude Code's command is as its `claude mcp add --help` gives it. The files of Claude Code and of Cursor are written from what is known of their format.

@@ -346,6 +346,24 @@ export const sessionsRouter = {
     }),
 
   list: protectedProcedure
+    .meta({
+      mcp: {
+        name: "list_my_sessions",
+        title: "The account's log of sessions",
+        account: true,
+        description:
+          "The surf sessions the account you act for wrote in its log, the latest first: " +
+          "where (`place`), when (`startedAt`, UTC), how long, a `rating` from 0.5 to 5 " +
+          "when the person rated it, their `note`, and `figures`, one figure for each " +
+          "thing the sea did at the middle of the session. `breakId` or `spotId` keeps " +
+          "the sessions at one place. It answers 20 unless `limit` says another, 200 at " +
+          "most: pass an answer's `next` as `before` for the sessions that follow. Use it " +
+          "to say what the person surfed, and which conditions they rated best. " +
+          "get_my_session gives the full conditions of one session, and " +
+          "get_my_sessions_recap the totals.",
+        defaults: { limit: 20 },
+      },
+    })
     .route({
       method: "GET",
       path: "/sessions",
@@ -395,7 +413,20 @@ export const sessionsRouter = {
     }),
 
   recap: protectedProcedure
-    .meta({ analytics: "logbook_recap_viewed" })
+    .meta({
+      analytics: "logbook_recap_viewed",
+      mcp: {
+        name: "get_my_sessions_recap",
+        title: "What the account's log comes to",
+        account: true,
+        description:
+          "What the log of the account you act for comes to: how many sessions and how " +
+          "long in the water, in all, this year and this month, and the places surfed " +
+          "most, each with how the person rated their sessions there. `zone` is the IANA " +
+          "time zone the year and the month are counted in, UTC when left out: give the " +
+          "person's own when you know it.",
+      },
+    })
     .route({
       method: "GET",
       path: "/sessions/recap",
@@ -497,6 +528,18 @@ export const sessionsRouter = {
     }),
 
   get: protectedProcedure
+    .meta({
+      mcp: {
+        name: "get_my_session",
+        title: "One session of the account's log",
+        account: true,
+        description:
+          "One session of the log of the account you act for, by its `id`, as " +
+          "list_my_sessions gives it, with the `conditions` kept with it: what the models " +
+          "and the nearest stations said of the waves, the swell, the wind and the tide " +
+          "while it lasted. `conditions` is null for a session that has none.",
+      },
+    })
     .route({
       method: "GET",
       path: "/sessions/{id}",

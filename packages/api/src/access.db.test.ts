@@ -100,6 +100,9 @@ const ANSWERS_AN_ACCOUNT = [
   "privateData",
   "v1.account.get",
   "v1.account.sendVerification",
+  // The assistants an account signed in, and its word taken back: decision 047.
+  "v1.agents.disconnect",
+  "v1.agents.list",
   // An alert and an account's settings are their owner's alone: decision 031.
   "v1.alerts.create",
   "v1.alerts.delete",

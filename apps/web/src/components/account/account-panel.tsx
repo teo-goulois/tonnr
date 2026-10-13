@@ -15,7 +15,7 @@ import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 import { points } from "../guides/contributions-panel";
 import { RANKS } from "../guides/guide-words";
 import { RankBadge } from "../guides/rank";
-import type { Standing } from "../viewer/types";
+import type { ConnectedAgents, Standing } from "../viewer/types";
 import { UsernameForm } from "./username-form";
 
 type AccountPanelProps = {
@@ -43,6 +43,9 @@ type AccountPanelProps = {
   onOpenFriends: () => void;
   // Opens the account's log of its sessions, one step into this panel. Decision 043.
   onOpenSessions: () => void;
+  // The assistants the account signed in to read it, and what disconnects one. Left out, or
+  // empty, the panel says nothing of them. Decision 047.
+  agents?: ConnectedAgents | undefined;
 };
 
 // A language is named in itself, whatever language the screen is read in.
@@ -85,6 +88,7 @@ export function AccountPanel({
   friendCount,
   onOpenFriends,
   onOpenSessions,
+  agents,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const [isNaming, setNaming] = useState(false);
@@ -254,6 +258,28 @@ export function AccountPanel({
           </Button>
         </div>
       </Section>
+
+      {/* What reads the account from outside the app: each one can be told to stop. */}
+      {account && agents?.list && agents.list.length > 0 && (
+        <Section title={m.account_agents_title()}>
+          <p className="text-s text-neutral-7">{m.account_agents_hint()}</p>
+          <ul className="grid gap-xs">
+            {agents.list.map((agent) => (
+              <li key={agent.clientId} className="flex items-center justify-between gap-s">
+                <span className="truncate">{agent.name ?? m.connect_client_unnamed()}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={agents.disconnecting === agent.clientId}
+                  onClick={() => agents.onDisconnect(agent.clientId)}
+                >
+                  {m.account_agent_disconnect()}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <AnalyticsSetting />
 

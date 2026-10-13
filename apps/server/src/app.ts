@@ -10,6 +10,12 @@ import { createMcp } from "@repo/api/mcp";
 import { appRouter, v1Router } from "@repo/api/routers/index";
 import type { Usage } from "@repo/api/usage";
 import type { createAuth } from "@repo/auth";
+import {
+  AGENT_RESOURCE_METADATA,
+  AGENT_RESOURCE_METADATA_ROOT,
+  AGENT_SERVER_METADATA,
+  agentAccounts,
+} from "@repo/auth/agents";
 import { APP_NAME } from "@repo/config/app";
 import type { Database } from "@repo/db";
 import { Hono } from "hono";
@@ -252,8 +258,17 @@ export function createApp({
     return c.newResponse(answered.body, answered);
   });
 
+  // What signs an agent in as an account: the sign-in library makes the tokens, and says so at
+  // the address a client looks for it. The MCP server says at another what it takes, and whom
+  // to ask for a token. Decision 047.
+  const agents = agentAccounts(env, db, auth);
+  app.on(["GET", "HEAD"], AGENT_SERVER_METADATA, (c) => auth.handler(c.req.raw));
+  app.get(AGENT_RESOURCE_METADATA, (c) => c.json(agents.resourceMetadata));
+  app.get(AGENT_RESOURCE_METADATA_ROOT, (c) => c.json(agents.resourceMetadata));
+
   // The MCP server: what an agent lists and calls in place of the routes of `/v1`. It takes an
-  // API key and reads no cookie, and each tool is a procedure of the router above: decision 045.
+  // API key, or an account that signed the agent in, and reads no cookie. Each tool is a
+  // procedure of the router above: decisions 045 and 047.
   const mcp = createMcp(
     {
       db,
@@ -264,7 +279,7 @@ export function createApp({
       adminSites,
       server: { startedAt, webOrigin, revision, pushKey },
     },
-    { onError: logFault },
+    { onError: logFault, accounts: agents },
   );
   app.all("/mcp", async (c) => {
     const answered = await mcp.fetch(c.req.raw);

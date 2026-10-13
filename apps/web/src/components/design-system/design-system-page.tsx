@@ -58,6 +58,7 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { ConnectPage } from "@/components/auth/connect-page";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
@@ -900,6 +901,43 @@ export function DesignSystemPage() {
         </div>
       </Section>
 
+      {/* Where an assistant sends an account that it wants to read: decision 047. */}
+      <Section title="Connect page">
+        <div className="grid gap-m lg:grid-cols-2">
+          <div className="edge rounded-(--radius-xs)">
+            <ConnectPage
+              state="asking"
+              client={{ name: "Claude", site: "https://claude.ai" }}
+              username="maelle_lg"
+              returnsTo="claude.ai"
+              isAnswering={false}
+              failed={false}
+              onAllow={() => {}}
+              onDeny={() => {}}
+            />
+          </div>
+          {/* An app of the account's own machine, which named itself nothing, and failed. */}
+          <div className="edge rounded-(--radius-xs)">
+            <ConnectPage
+              state="asking"
+              client={{ name: null, site: null }}
+              username={null}
+              returnsTo={null}
+              isAnswering={false}
+              failed
+              onAllow={() => {}}
+              onDeny={() => {}}
+            />
+          </div>
+          <div className="edge rounded-(--radius-xs)">
+            <ConnectPage state="waiting" />
+          </div>
+          <div className="edge rounded-(--radius-xs)">
+            <ConnectPage state="nothing" />
+          </div>
+        </div>
+      </Section>
+
       <Section title="Account panel">
         <div className="grid gap-m lg:grid-cols-2">
           <div className="edge rounded-(--radius-xs) p-m">
@@ -907,6 +945,14 @@ export function DesignSystemPage() {
               account={{ name: "maelle_lg", email: "maelle@example.org", username: "maelle_lg" }}
               standing={{ score: 180, rank: "cs" }}
               friendCount={3}
+              agents={{
+                list: [
+                  { clientId: "one", name: "Claude", site: "https://claude.ai", since: null },
+                  { clientId: "two", name: null, site: null, since: null },
+                ],
+                disconnecting: "two",
+                onDisconnect: () => {},
+              }}
               check={{ isSending: false, onSend: () => {} }}
               onUsernameSave={refuseTaken}
               onSignIn={() => {}}

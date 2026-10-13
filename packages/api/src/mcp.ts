@@ -9,6 +9,7 @@ import {
 } from "@modelcontextprotocol/server";
 import { call, isProcedure, ORPCError } from "@orpc/server";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import type { Session } from "@repo/auth";
 import { APP_NAME, APP_SLUG } from "@repo/config/app";
 
 import type { Context } from "./context";
@@ -29,6 +30,21 @@ export type Tool = {
   // What the tool asks for when an agent leaves it out, where the route's own default suits a
   // program and would fill a model's context.
   defaults?: Record<string, number>;
+  // A tool that reads what an account keeps. It is listed to an agent that an account signed
+  // in, and to no key: decision 047.
+  account?: true;
+};
+
+/**
+ * What signs an agent in as an account. The program that holds the sign-in library gives it:
+ * nothing here knows how a token is made or read.
+ */
+export type Accounts = {
+  // The account an access token stands for, as a session of it. Null when the token is none
+  // of the instance's, has ended, or names an account that may not sign in.
+  sessionOf: (token: string) => Promise<Session | null>;
+  // What a refusal says in `WWW-Authenticate`, so that a client finds where an account signs in.
+  challenge: string;
 };
 
 // What the server is given once, and every call reads: all of a procedure's context but what
@@ -42,6 +58,8 @@ type Options = {
   // What is told of a fault of the instance's. The agent is told nothing of it.
   onError?: (error: unknown) => void;
   now?: () => Date;
+  // Without it, the server takes a key and nothing else.
+  accounts?: Accounts;
 };
 
 type Listed = Tool & { procedure: never; inputSchema: JsonSchemaType };
@@ -62,6 +80,12 @@ const INSTRUCTIONS =
   "ask get_forecast and get_tide_extremes at its latitude and longitude, and list_stations " +
   "around it for what the sea does now. An answer names where its data comes from, in " +
   "`attribution`, `source` and `license`: say it when you give the data to someone.";
+// Said as well to an agent that an account signed in.
+const ACCOUNT_INSTRUCTIONS =
+  " You act for an account that signed you in: the tools whose name holds `my` read what that " +
+  "account keeps, its spots, its alerts, what they told and its log of sessions. They change " +
+  "nothing. A spot of the account's is private: do not give its name or its place to anyone " +
+  "but the person you act for.";
 
 // The procedure checks what an agent sends, as it does on the API's other transports, and
 // refuses in its own words. The tool's schema is what is said of the input, not a second judge.
@@ -98,7 +122,10 @@ export async function toolsOf(router: object): Promise<Listed[]> {
     const tool = (meta as { mcp?: Tool }).mcp;
     if (!tool) continue;
 
-    const [, converted] = await converter.convert(inputSchema, { strategy: "input" });
+    // A procedure that takes nothing is a tool that takes an empty object.
+    const converted = inputSchema
+      ? (await converter.convert(inputSchema, { strategy: "input" }))[1]
+      : { type: "object", properties: {} };
     const schema = plain(converted) as { properties?: Record<string, { default?: unknown }> };
     // The tool says the default it asks with, not the route's.
     for (const [name, value] of Object.entries(tool.defaults ?? {})) {
@@ -129,6 +156,7 @@ function refusalOf(error: unknown, reply: Context["reply"], now: Date) {
   if (!(error instanceof ORPCError)) return "The instance failed to answer. Try again later.";
 
   const said = error.message && error.message !== error.code ? ` ${error.message}` : "";
+  // Of a key alone: an account's sign-in is read at the door, and a procedure is given the account.
   if (error.code === "UNAUTHORIZED") {
     return "UNAUTHORIZED: this API key no longer works. An operator of the instance makes one.";
   }
@@ -152,14 +180,20 @@ function refusalOf(error: unknown, reply: Context["reply"], now: Date) {
   return error.status < 500 ? `${error.code}:${said}` : "The instance failed to answer.";
 }
 
-// A request that names no working key is told how one is given, and nothing else.
-function refused() {
-  const message =
-    "This server takes an API key of the instance, in Authorization: Bearer. An operator of " +
-    "the instance makes one.";
+// A request that names no working key and no account is told what the server takes, and where
+// an account signs in when the instance signs agents in.
+function refused(accounts: Accounts | undefined) {
+  const message = accounts
+    ? "This server takes the sign-in of an account, or an API key of the instance, in " +
+      "Authorization: Bearer."
+    : "This server takes an API key of the instance, in Authorization: Bearer. An operator of " +
+      "the instance makes one.";
   return new Response(JSON.stringify({ error: "invalid_token", error_description: message }), {
     status: 401,
-    headers: { "Content-Type": "application/json", "WWW-Authenticate": "Bearer" },
+    headers: {
+      "Content-Type": "application/json",
+      "WWW-Authenticate": accounts?.challenge ?? "Bearer",
+    },
   });
 }
 
@@ -167,23 +201,29 @@ function refused() {
  * The MCP server of an instance, as what answers one HTTP request: an agent lists the tools
  * and calls them over Streamable HTTP, and nothing is kept between two requests.
  *
- * It takes a request that names a working API key, and no other: no session, no visitor of the
- * web app, no link of a shared list. A tool is a procedure of the API, called as the key's
- * program would call it: the procedure asks who calls, holds the key to its developer
- * account's limit, counts the call under its own name, and checks the input. Nothing here
- * reads the database but the door. Decision 045.
+ * It takes a request that names a working API key, or an account that signed the agent in,
+ * and no other: no cookie, no visitor of the web app, no link of a shared list. A tool is a
+ * procedure of the API, called as the key's program or the account itself would call it: the
+ * procedure asks who calls, holds a key to its developer account's limit, counts the call
+ * under its own name, and checks the input. Nothing here reads the database but the door.
+ * Decisions 045 and 047.
  */
-export function createMcp(services: Services, { onError, now = () => new Date() }: Options = {}) {
+export function createMcp(
+  services: Services,
+  { onError, now = () => new Date(), accounts }: Options = {},
+) {
   // A request that the protocol refuses is answered and not logged: it holds what its caller
   // sent. Only a fault of a tool's is told, below.
-  const handler = createMcpHandler(async ({ requestInfo }) => {
-    // A procedure is given the key and nothing else that names a caller: a cookie that came
-    // with the request is not read, nor is the site it says it comes from.
+  const handler = createMcpHandler(async ({ requestInfo, authInfo }) => {
+    // The account that signed the agent in, as the door found it. Null for a key.
+    const session = (authInfo?.extra?.session as Session | undefined) ?? null;
+    // A procedure is given the key, or the account, and nothing else that names a caller: a
+    // cookie that came with the request is not read, nor is the site it says it comes from.
     const context = (): Context => ({
       ...services,
-      session: null,
+      session,
       site: null,
-      authorization: requestInfo?.headers.get("authorization") ?? null,
+      authorization: session ? null : (requestInfo?.headers.get("authorization") ?? null),
       // The call is counted as its procedure's, and as one that came this way.
       way: "mcp",
       reply: {},
@@ -191,9 +231,11 @@ export function createMcp(services: Services, { onError, now = () => new Date() 
 
     const server = new McpServer(
       { name: APP_SLUG, title: APP_NAME, version: "1.0.0" },
-      { instructions: INSTRUCTIONS },
+      { instructions: session ? INSTRUCTIONS + ACCOUNT_INSTRUCTIONS : INSTRUCTIONS },
     );
     for (const tool of await tools) {
+      // What an account keeps is listed to that account's agent, and to no key.
+      if (tool.account && !session) continue;
       server.registerTool(
         tool.name,
         {
@@ -222,12 +264,23 @@ export function createMcp(services: Services, { onError, now = () => new Date() 
   return {
     /** Answers one request to the server's address. */
     async fetch(request: Request) {
-      const named = readAuthorization(request.headers.get("authorization"));
-      const key = named !== null && named !== "refused" && named.via === "key" ? named.key : null;
+      const header = request.headers.get("authorization");
+      const named = readAuthorization(header);
       // Asked at every request, the ones that only list the tools too. It counts nothing: a
-      // call is counted, and held to its limit, by the procedure it runs.
-      if (key === null || !(await keyWorks(services.db, key))) return refused();
-      return handler.fetch(request);
+      // call is counted, and a key held to its limit, by the procedure it runs.
+      if (named !== null && named !== "refused" && named.via === "key") {
+        return (await keyWorks(services.db, named.key))
+          ? handler.fetch(request)
+          : refused(accounts);
+      }
+
+      // What is no key and no link of a list may be the token of an account's sign-in.
+      const token = named === "refused" ? /^bearer ([^ ]+)$/i.exec(header ?? "")?.[1] : undefined;
+      const session = token && accounts ? await accounts.sessionOf(token) : null;
+      if (!session) return refused(accounts);
+      // The token itself goes no further than the door: a tool is given the account.
+      const authInfo = { token: "", clientId: "", scopes: [], extra: { session } };
+      return handler.fetch(request, { authInfo });
     },
   };
 }
