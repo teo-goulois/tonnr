@@ -29,9 +29,11 @@ export async function proxyAnalytics(
       method: "POST",
       headers,
       body,
-      redirect: "error",
+      // Workers supports manual/follow only. Never follow an upstream redirect.
+      redirect: "manual",
       signal: AbortSignal.timeout(5000),
     });
+    if (response.status >= 300 && response.status < 400) return new Response(null, { status: 502 });
     return new Response(null, {
       status: response.status,
       headers: { "Cache-Control": "no-store" },

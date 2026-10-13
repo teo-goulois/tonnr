@@ -45,6 +45,7 @@ describe("browser analytics privacy", () => {
       read,
     );
     expect(response.status).toBe(200);
+    expect(read.mock.calls[0]![1]?.redirect).toBe("manual");
     expect(read.mock.calls[0]![0]).toBe("https://eu.i.posthog.com/i/v0/e/");
     expect([...new Headers(read.mock.calls[0]![1]?.headers).keys()]).toEqual(["content-type"]);
     expect(
@@ -67,4 +68,25 @@ describe("browser analytics privacy", () => {
     ).toBe(404);
     expect(read).toHaveBeenCalledTimes(1);
   });
+});
+
+// Cloudflare Workers rejects redirect:"error". Manual mode must still refuse a redirect
+// rather than send the event to whatever location an upstream response names.
+it("refuses an ingestion redirect without forwarding its location", async () => {
+  const read = vi.fn<typeof fetch>(
+    async () =>
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://elsewhere.example/private" },
+      }),
+  );
+  const response = await proxyAnalytics(
+    new Request("https://example.org/ingest/e/", { method: "POST", body: "{}" }),
+    "https://eu.i.posthog.com",
+    read,
+  );
+  expect(read.mock.calls[0]![1]?.redirect).toBe("manual");
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(response.status).toBe(502);
+  expect(response.headers.has("location")).toBe(false);
 });
