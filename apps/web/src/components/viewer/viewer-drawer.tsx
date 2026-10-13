@@ -278,9 +278,16 @@ export function ViewerDrawer({
         </DrawerHeader>
         {/* A sheet that is only partly raised keeps its lower part off the screen. The margin takes
             that part away from the panel, so that all of its content can be scrolled into view. */}
+        {/* The drawer finds what scrolls from the element a finger lands on, and finds nothing from
+            a part of a drawing: a finger that slides over a chart then moves the sheet, and closes
+            it. So under a finger a drawing takes nothing, and what holds it does. */}
         <DrawerPanel
           scrollable={!fill}
-          className={cn(snaps && "mb-(--sheet-offset)", fill && "flex flex-col overflow-hidden")}
+          className={cn(
+            snaps && "mb-(--sheet-offset)",
+            fill && "flex flex-col overflow-hidden",
+            isSheet && "pointer-coarse:[&_svg]:pointer-events-none",
+          )}
         >
           {children}
         </DrawerPanel>
