@@ -5,72 +5,92 @@ import { ArrowRightIcon } from "@repo/ui/icon";
 
 import { m } from "@/paraglide/messages.js";
 
+import { LandingAgents } from "./landing-agents";
+import { LandingAlert } from "./landing-alert";
+import { LandingFeatures } from "./landing-features";
 import { LandingHeader } from "./landing-header";
-import { PhoneFrame } from "./phone-frame";
-import { SpotPreview } from "./spot-preview";
+import { SECTIONS, SectionTitle, apart, column, ruled } from "./landing-parts";
+import { LandingShot } from "./landing-shot";
+import { LandingStory } from "./landing-story";
 
-function Feature({ title, body }: { title: string; body: string }) {
+function OpenTheMap() {
   return (
-    <li className="grid content-start gap-xs rounded-m bg-neutral-2 p-l">
-      <h3 className="text-l font-medium">{title}</h3>
-      <p className="text-neutral-7">{body}</p>
-    </li>
+    <Link to="/app" className={buttonVariants()}>
+      {m.landing_open_map()}
+      <ArrowRightIcon data-slot="icon" aria-hidden />
+    </Link>
   );
 }
 
-export function LandingPage({ apiDocsUrl }: { apiDocsUrl: string }) {
+/**
+ * The page a visitor lands on: what the product is, everything it does, how a program reads it,
+ * and who makes it. `api` and `site` are the two addresses its links and its examples name.
+ */
+export function LandingPage({ api, site }: { api: string; site: string }) {
+  const quiet = "focus-ring rounded-xs hover:text-neutral-10";
+
   return (
     <div className="flex min-h-svh flex-col">
-      <LandingHeader apiDocsUrl={apiDocsUrl} />
+      <LandingHeader />
 
-      <main className="mx-auto grid w-full max-w-6xl flex-1 gap-xxl px-m pb-xxl">
-        <section className="grid items-center gap-xl py-xl lg:grid-cols-[1fr_auto] lg:py-xxl">
-          <div className="grid max-w-(--container-xl) gap-l">
-            <h1 className="text-xl font-bold sm:text-xxl">{m.landing_hero_title()}</h1>
-            <p className="text-neutral-7 sm:text-l">{m.landing_hero_body()}</p>
-            <div className="flex flex-wrap gap-xs">
-              <Link to="/app" className={buttonVariants()}>
-                {m.landing_open_app()}
-                <ArrowRightIcon data-slot="icon" aria-hidden />
-              </Link>
-              <a href={apiDocsUrl} className={buttonVariants({ variant: "outline" })}>
-                {m.landing_read_api()}
-              </a>
+      <main className="flex-1">
+        <section className={`${column} grid gap-xl pt-xl lg:gap-xxl lg:pt-xxl`}>
+          <div className="grid max-w-2xl gap-l">
+            <div className="grid gap-m">
+              <h1 className="text-xl font-bold text-balance lg:text-xxl">
+                {m.landing_hero_title()}
+              </h1>
+              <p className="text-neutral-7 lg:text-l">{m.landing_hero_body()}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-m gap-y-s">
+              <div className="flex flex-wrap gap-xs">
+                <OpenTheMap />
+                <Link
+                  to="/"
+                  hash={SECTIONS.agents}
+                  className={buttonVariants({ variant: "outline" })}
+                >
+                  {m.landing_hero_agents()}
+                </Link>
+              </div>
+              <p className="text-s text-neutral-7">{m.landing_hero_note()}</p>
             </div>
           </div>
-          <figure className="grid justify-items-center gap-s">
-            <PhoneFrame>
-              <SpotPreview />
-            </PhoneFrame>
-            <figcaption className="text-s text-neutral-6">{m.landing_preview_caption()}</figcaption>
-          </figure>
+          <LandingShot />
         </section>
 
-        <section aria-labelledby="features" className="grid gap-l">
-          <h2 id="features" className="sr-only">
-            {m.landing_features_title()}
-          </h2>
-          <ul className="grid gap-m sm:grid-cols-2">
-            <Feature title={m.landing_spots_title()} body={m.landing_spots_body()} />
-            <Feature title={m.landing_alerts_title()} body={m.landing_alerts_body()} />
-            <Feature title={m.landing_data_title()} body={m.landing_data_body()} />
-            <Feature title={m.landing_open_title()} body={m.landing_open_body()} />
-          </ul>
+        <LandingAlert />
+        <LandingFeatures />
+        <LandingAgents api={api} site={site} />
+        <LandingStory />
+
+        <section className={`${column} ${apart}`}>
+          <div
+            className={`${ruled} flex flex-wrap items-end justify-between gap-l pt-[calc(var(--space-xxl)*1.5)]`}
+          >
+            <SectionTitle title={m.landing_closing_title()} more={m.landing_closing_more()} />
+            <OpenTheMap />
+          </div>
         </section>
       </main>
 
-      <footer className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-s px-m py-l text-s text-neutral-7">
+      <footer
+        className={`${column} flex flex-wrap items-center justify-between gap-s py-xl text-s text-neutral-7 lg:pt-[calc(var(--space-xxl)*1.5)]`}
+      >
         <p>
           {APP_NAME}. {m.landing_footer_license()}
         </p>
-        <nav className="flex gap-m">
-          <Link to="/terms" className="focus-ring rounded-xs hover:text-neutral-10">
+        <nav className="flex flex-wrap gap-m">
+          <Link to="/terms" className={quiet}>
             {m.terms_title()}
           </Link>
-          <a href={apiDocsUrl} className="focus-ring rounded-xs hover:text-neutral-10">
+          <a href={`${api}/v1/docs`} className={quiet}>
             {m.landing_nav_api()}
           </a>
-          <a href={REPOSITORY_URL} className="focus-ring rounded-xs hover:text-neutral-10">
+          <a href="/llms.txt" className={quiet}>
+            llms.txt
+          </a>
+          <a href={REPOSITORY_URL} className={quiet}>
             {m.landing_nav_source()}
           </a>
         </nav>

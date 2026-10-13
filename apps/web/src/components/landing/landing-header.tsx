@@ -6,32 +6,40 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, setLocale } from "@/paraglide/runtime.js";
 
-export function LandingHeader({ apiDocsUrl }: { apiDocsUrl: string }) {
+import { SECTIONS } from "./landing-parts";
+
+export function LandingHeader() {
   const otherLocale = getLocale() === "fr" ? "en" : "fr";
+  const quiet = buttonVariants({ variant: "ghost", size: "sm" });
 
   return (
-    <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-m px-m py-m">
-      <Link to="/" className="focus-ring rounded-xs text-l font-bold">
+    <header className="mx-auto grid w-full max-w-6xl grid-cols-[1fr_auto] items-center gap-m px-m py-m sm:px-l lg:grid-cols-[1fr_auto_1fr]">
+      <Link to="/" className="focus-ring justify-self-start rounded-xs font-bold">
         {APP_NAME}
       </Link>
-      <nav className="flex items-center gap-xxs">
-        <a
-          href={apiDocsUrl}
-          className={buttonVariants({ variant: "ghost", className: "max-sm:hidden" })}
-        >
-          {m.landing_nav_api()}
-        </a>
-        <a
-          href={REPOSITORY_URL}
-          className={buttonVariants({ variant: "ghost", className: "max-sm:hidden" })}
-        >
+      <nav aria-label={m.landing_nav_label()} className="flex items-center gap-xxs max-lg:hidden">
+        <Link to="/" hash={SECTIONS.features} className={quiet}>
+          {m.landing_nav_features()}
+        </Link>
+        <Link to="/" hash={SECTIONS.agents} className={quiet}>
+          {m.landing_nav_agents()}
+        </Link>
+        <Link to="/" hash={SECTIONS.story} className={quiet}>
+          {m.landing_nav_story()}
+        </Link>
+        <a href={REPOSITORY_URL} className={quiet}>
           {m.landing_nav_source()}
         </a>
-        <Button variant="ghost" lang={otherLocale} onClick={() => setLocale(otherLocale)}>
+      </nav>
+      <div className="flex items-center gap-xxs justify-self-end">
+        <Button variant="ghost" size="sm" lang={otherLocale} onClick={() => setLocale(otherLocale)}>
           {m.landing_switch_locale()}
         </Button>
         <ThemeToggle label={m.landing_toggle_theme()} />
-      </nav>
+        <Link to="/app" className={buttonVariants({ size: "sm", className: "max-sm:hidden" })}>
+          {m.landing_open_map()}
+        </Link>
+      </div>
     </header>
   );
 }

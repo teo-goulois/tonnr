@@ -16,10 +16,10 @@ const linked = "focus-ring rounded-xs underline underline-offset-2";
  * What an account agrees to: what becomes of a spot it asks to make public, and of what it
  * writes in the guide of a public spot.
  */
-export function TermsPage({ apiDocsUrl }: { apiDocsUrl: string }) {
+export function TermsPage() {
   return (
     <div className="flex min-h-svh flex-col">
-      <LandingHeader apiDocsUrl={apiDocsUrl} />
+      <LandingHeader />
 
       <main className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-xl px-m py-xl">
         <h1 className="text-xl font-bold sm:text-xxl">{m.terms_title()}</h1>
