@@ -8,6 +8,8 @@ On a phone the header is gone. A bar that floats at the bottom leads to the map,
 
 The map's legend and its buttons stand at the bottom of the map, under your thumb, and over the panel of what you opened. The map's credits fold away once you move the map, and the legend opens them again.
 
+A phone's buttons are larger, and of the same sizes on every screen: the map's, the ones of your account, and the choice of a unit.
+
 Your lists are on the map itself, behind the button beside the one that finds you: press it, then a list to see it alone there, and "All" to see everything again.
 
 Your account has a screen with its settings: the units, how to be told of your alerts, the theme and the language. On a wide screen it opens from your account's menu, under "Settings". The alert settings moved there from the alerts panel, which has a button that leads to them.
