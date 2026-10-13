@@ -30,6 +30,7 @@ const TOOLS: Record<string, string> = {
   get_station: "v1.stations.get",
   get_station_readings: "v1.stations.readings",
   get_surf_break: "v1.breaks.get",
+  get_surf_break_guide: "v1.guides.get",
   get_tide_extremes: "v1.tides.extremes",
   get_tide_timeline: "v1.tides.timeline",
   list_stations: "v1.stations.list",
@@ -191,14 +192,17 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
     await usage.flush();
     const rows = await database.db.select().from(apiUsage);
     return rows
-      .map(({ via, keyId, procedure, outcome, calls }) => ({
+      .map(({ via, way, keyId, procedure, outcome, calls }) => ({
         via,
+        way,
         keyId,
         procedure,
         outcome,
         calls,
       }))
-      .sort((a, b) => `${a.procedure}${a.outcome}`.localeCompare(`${b.procedure}${b.outcome}`));
+      .sort((a, b) =>
+        `${a.procedure}${a.way}${a.outcome}`.localeCompare(`${b.procedure}${b.way}${b.outcome}`),
+      );
   };
 
   describe("its tools", () => {
@@ -326,6 +330,18 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
       expect(tides.station.license.type).toBeTruthy();
     });
 
+    it("reads a break's guide, line by line", async () => {
+      const { key } = await makeKey();
+      const client = await agent(key);
+      const guide = read<{ breakId: string; lines: { line: string; value: unknown }[] }>(
+        await client.callTool({ name: "get_surf_break_guide", arguments: { breakId: BREAK } }),
+      );
+      expect(guide.breakId).toBe(BREAK);
+      expect(guide.lines.map(({ line }) => line)).toEqual(
+        expect.arrayContaining(["access", "entry", "hazards", "rules"]),
+      );
+    });
+
     it("is counted as a call to its procedure, under the key, and listing is not", async () => {
       const { key, id } = await makeKey();
       const client = await agent(key);
@@ -337,12 +353,95 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
       await client.callTool({ name: "get_station", arguments: { id: "nowhere" } });
 
       expect(await counted()).toEqual([
-        { via: "key", keyId: id, procedure: "v1.stations.get", outcome: "invalid", calls: 1 },
-        { via: "key", keyId: id, procedure: "v1.stations.list", outcome: "answered", calls: 2 },
+        {
+          via: "key",
+          way: "mcp",
+          keyId: id,
+          procedure: "v1.stations.get",
+          outcome: "invalid",
+          calls: 1,
+        },
+        {
+          via: "key",
+          way: "mcp",
+          keyId: id,
+          procedure: "v1.stations.list",
+          outcome: "answered",
+          calls: 2,
+        },
       ]);
       // Each of the three was let in against the hour of the key's developer account.
       const [hour] = await database.db.select().from(developerCalls);
       expect(hour?.calls).toBe(3);
+    });
+
+    it("is told from a call by the API's routes, by who made it and how many", async () => {
+      const agents = await makeKey();
+      const scripts = await makeKey();
+      const client = await agent(agents.key);
+      await client.callTool({ name: "list_stations", arguments: {} });
+      await client.callTool({ name: "get_station", arguments: { id: "buoy" } });
+      // The same procedure, called as a program calls a route, by each of the two keys.
+      for (const { key } of [agents, scripts]) {
+        await call(
+          v1Router.stations.list,
+          {},
+          { context: { ...asOperator().context, session: null, authorization: `Bearer ${key}` } },
+        );
+      }
+
+      expect(await counted()).toEqual([
+        {
+          via: "key",
+          way: "mcp",
+          keyId: agents.id,
+          procedure: "v1.stations.get",
+          outcome: "answered",
+          calls: 1,
+        },
+        {
+          via: "key",
+          way: "api",
+          keyId: agents.id,
+          procedure: "v1.stations.list",
+          outcome: "answered",
+          calls: 1,
+        },
+        {
+          via: "key",
+          way: "api",
+          keyId: scripts.id,
+          procedure: "v1.stations.list",
+          outcome: "answered",
+          calls: 1,
+        },
+        {
+          via: "key",
+          way: "mcp",
+          keyId: agents.id,
+          procedure: "v1.stations.list",
+          outcome: "answered",
+          calls: 1,
+        },
+      ]);
+
+      // What an operator reads of it: how much came each way, and whose agents called.
+      const span = { from: new Date(Date.now() - 3_600_000), to: new Date(Date.now() + 3_600_000) };
+      const byWay = await call(v1Router.usage.breakdown, { ...span, by: "way" }, asOperator());
+      expect(byWay.rows.map(({ id, answered }) => ({ id, answered }))).toEqual([
+        { id: "api", answered: 2 },
+        { id: "mcp", answered: 2 },
+      ]);
+      const whose = await call(
+        v1Router.usage.breakdown,
+        { ...span, by: "developer", way: "mcp" },
+        asOperator(),
+      );
+      expect(whose.rows.map(({ id, answered }) => ({ id, answered }))).toEqual([
+        { id: agents.developerId, answered: 2 },
+      ]);
+      const series = await call(v1Router.usage.series, { ...span, way: "mcp" }, asOperator());
+      expect(series.points.map(({ answered }) => answered)).toEqual([2]);
     });
 
     it("is held to the limit of the key's developer account, and told how long to wait", async () => {
@@ -359,8 +458,22 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
       expect(textOf(over)).toMatch(/^TOO_MANY_REQUESTS: .+ Ask again in \d+ seconds\.$/);
 
       expect(await counted()).toEqual([
-        { via: "key", keyId: id, procedure: "v1.stations.list", outcome: "answered", calls: 2 },
-        { via: "key", keyId: id, procedure: "v1.stations.list", outcome: "limited", calls: 1 },
+        {
+          via: "key",
+          way: "mcp",
+          keyId: id,
+          procedure: "v1.stations.list",
+          outcome: "answered",
+          calls: 2,
+        },
+        {
+          via: "key",
+          way: "mcp",
+          keyId: id,
+          procedure: "v1.stations.list",
+          outcome: "limited",
+          calls: 1,
+        },
       ]);
     });
 

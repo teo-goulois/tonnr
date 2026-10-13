@@ -8,7 +8,8 @@ const EVERY = 30 * 1000;
 // Where the reader's day starts.
 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-type Filter = { developerId?: string };
+// Which calls to keep: a developer account's, and those that came one way.
+type Filter = { developerId?: string; way?: "api" | "mcp" };
 
 /** The calls over a span of time, hour by hour or day by day. */
 export function useUsageSeries(range: Range, filter: Filter = {}) {
@@ -25,7 +26,7 @@ export function useUsageSeries(range: Range, filter: Filter = {}) {
 /** The calls of a span of time, by who called or by what was called. */
 export function useUsageBreakdown(
   range: Range,
-  by: "via" | "developer" | "key" | "procedure",
+  by: "via" | "way" | "developer" | "key" | "procedure",
   filter: Filter = {},
 ) {
   return useQuery(
@@ -53,8 +54,12 @@ export function useConsoleSeries(range: Range, developerId: string) {
   );
 }
 
-/** The calls of a developer account in a span of time, by key or by what was called. */
-export function useConsoleBreakdown(range: Range, by: "key" | "procedure", developerId: string) {
+/** The calls of a developer account in a span of time, by key, by way in or by what was called. */
+export function useConsoleBreakdown(
+  range: Range,
+  by: "key" | "way" | "procedure",
+  developerId: string,
+) {
   return useQuery(
     orpc.v1.console.breakdown.queryOptions({
       input: { from: range.from, to: range.to, by, developerId },

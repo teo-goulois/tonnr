@@ -7,11 +7,13 @@ import { z } from "zod";
 import { protectedProcedure } from "../index";
 import {
   APPROXIMATE,
+  cameBy,
   countsSchema,
   isKnownTimeZone,
   readBreakdown,
   readSeries,
   span,
+  wayAsked,
 } from "./usage";
 
 // What a member of a developer account reads of it: decision 027. An operator names the
@@ -43,7 +45,7 @@ async function requireMember(db: Database, developerId: string, userId: string) 
   if (!found) throw new ORPCError("NOT_FOUND", { message: "No such developer account." });
 }
 
-const asked = span.extend({ developerId: z.uuid() });
+const asked = span.extend({ developerId: z.uuid(), way: wayAsked });
 
 export const consoleRouter = {
   get: protectedProcedure
@@ -172,6 +174,7 @@ export const consoleRouter = {
       const scope = and(
         eq(apiKey.developerId, input.developerId),
         isMember(context.db, input.developerId, me),
+        cameBy(input.way),
       );
       return { points: await readSeries(context.db, input, scope) };
     }),
@@ -182,16 +185,17 @@ export const consoleRouter = {
       path: "/console/usage/breakdown",
       summary: "The calls of a developer account's keys in a span, by key or by what was called",
       description:
-        `${MEMBER_ONLY} ${APPROXIMATE} The rows with the most calls come first, a hundred at ` +
-        "most. A developer account the caller is no member of answers 404.",
+        `${MEMBER_ONLY} ${APPROXIMATE} \`by=way\` tells the calls that came by the MCP ` +
+        "server from the others. The rows with the most calls come first, a hundred at most. " +
+        "A developer account the caller is no member of answers 404.",
       tags: ["Console"],
     })
-    .input(asked.extend({ by: z.enum(["key", "procedure"]) }))
+    .input(asked.extend({ by: z.enum(["key", "way", "procedure"]) }))
     .output(
       z.object({
         rows: z.array(
           countsSchema.extend({
-            // The id of a key, or the procedure.
+            // The id of a key, the way in, or the procedure.
             id: z.string().nullable(),
             // The name of the key. Null for a procedure.
             name: z.string().nullable(),
@@ -205,6 +209,7 @@ export const consoleRouter = {
       const scope = and(
         eq(apiKey.developerId, input.developerId),
         isMember(context.db, input.developerId, me),
+        cameBy(input.way),
       );
       return { rows: await readBreakdown(context.db, input, scope) };
     }),

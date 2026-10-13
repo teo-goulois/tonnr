@@ -7,22 +7,26 @@ import {
   operatorAction,
   type USAGE_OUTCOMES,
   type USAGE_VIA,
+  type USAGE_WAYS,
 } from "@repo/db/schema/access";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 export type Via = (typeof USAGE_VIA)[number];
+export type Way = (typeof USAGE_WAYS)[number];
 export type Outcome = (typeof USAGE_OUTCOMES)[number];
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 // How long a count is kept after its hour, and the record of an operator's action after it.
 const KEPT_MONTHS = 13;
-// How many rows one statement writes: six values a row, and a statement takes 65,535 of them.
+// How many rows one statement writes: seven values a row, and a statement takes 65,535 of them.
 const ROWS_A_WRITE = 5000;
 
 /** One run of a procedure, as it is counted. */
 export type Call = {
   via: Via;
+  // The way the call came in: by the API's own transports unless it says by the MCP server.
+  way?: Way;
   // The key the request named, when the instance knows it.
   keyId: string | null;
   procedure: string;
@@ -92,7 +96,7 @@ export function createUsage(db: Database, options: Options = {}): Usage {
   const now = options.now ?? (() => new Date());
   const every = options.every === undefined ? 30 * 1000 : options.every;
 
-  type Counted = Omit<Call, "worked"> & { hour: number; calls: number };
+  type Counted = Omit<Call, "worked" | "way"> & { way: Way; hour: number; calls: number };
   let counts = new Map<string, Counted>();
   // The minute each key was last used while it worked.
   let lastUsed = new Map<string, number>();
@@ -126,6 +130,7 @@ export function createUsage(db: Database, options: Options = {}): Usage {
             target: [
               apiUsage.hour,
               apiUsage.via,
+              apiUsage.way,
               apiUsage.keyId,
               apiUsage.procedure,
               apiUsage.outcome,
@@ -191,13 +196,13 @@ export function createUsage(db: Database, options: Options = {}): Usage {
   timer?.unref();
 
   return {
-    count({ via, keyId, procedure, outcome, worked = false }) {
+    count({ via, way = "api", keyId, procedure, outcome, worked = false }) {
       const at = now().getTime();
       const hour = Math.floor(at / HOUR_MS) * HOUR_MS;
-      const bucket = [hour, via, keyId ?? "", procedure, outcome].join("\n");
+      const bucket = [hour, via, way, keyId ?? "", procedure, outcome].join("\n");
       const counted = counts.get(bucket);
       if (counted) counted.calls += 1;
-      else counts.set(bucket, { hour, via, keyId, procedure, outcome, calls: 1 });
+      else counts.set(bucket, { hour, via, way, keyId, procedure, outcome, calls: 1 });
 
       if (keyId !== null && worked) {
         lastUsed.set(keyId, Math.floor(at / MINUTE_MS) * MINUTE_MS);

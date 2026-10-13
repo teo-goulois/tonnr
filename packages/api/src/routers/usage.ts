@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
-import { apiKey, apiUsage, developer, USAGE_OUTCOMES } from "@repo/db/schema/access";
+import { apiKey, apiUsage, developer, USAGE_OUTCOMES, USAGE_WAYS } from "@repo/db/schema/access";
 import { and, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
@@ -57,6 +57,16 @@ function within(input: { from: Date; to: Date }, longest: number) {
   return and(gte(apiUsage.hour, input.from), lt(apiUsage.hour, input.to));
 }
 
+// Only the calls that came one way: by the API's own transports, or by the MCP server.
+export const wayAsked = z
+  .enum(USAGE_WAYS)
+  .optional()
+  .describe("Only the calls that came this way: `api` for `/v1` and `/rpc`, `mcp` for `/mcp`.");
+
+/** The condition that keeps the calls that came one way. Undefined for either. */
+export const cameBy = (way: (typeof USAGE_WAYS)[number] | undefined) =>
+  way ? eq(apiUsage.way, way) : undefined;
+
 export function isKnownTimeZone(timeZone: string) {
   try {
     new Intl.DateTimeFormat("en", { timeZone });
@@ -98,7 +108,7 @@ export async function readSeries(
  */
 export async function readBreakdown(
   db: Database,
-  input: { from: Date; to: Date; by: "via" | "developer" | "key" | "procedure" },
+  input: { from: Date; to: Date; by: "via" | "way" | "developer" | "key" | "procedure" },
   scope: SQL | undefined,
 ) {
   const inSpan = and(within(input, LONGEST.day), scope);
@@ -124,7 +134,12 @@ export async function readBreakdown(
       .limit(100);
   }
 
-  id = input.by === "via" ? sql<string>`${apiUsage.via}` : sql<string>`${apiUsage.procedure}`;
+  id =
+    input.by === "via"
+      ? sql<string>`${apiUsage.via}`
+      : input.by === "way"
+        ? sql<string>`${apiUsage.way}`
+        : sql<string>`${apiUsage.procedure}`;
   return from()
     .from(apiUsage)
     .leftJoin(apiKey, eq(apiKey.id, apiUsage.keyId))
@@ -158,6 +173,7 @@ export const usageRouter = {
         // Only the calls of this developer account's keys, or of this key.
         developerId: z.uuid().optional(),
         keyId: z.uuid().optional(),
+        way: wayAsked,
       }),
     )
     .output(z.object({ points: z.array(countsSchema.extend({ at: z.date() })) }))
@@ -168,6 +184,7 @@ export const usageRouter = {
         and(
           input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
           input.keyId ? eq(apiUsage.keyId, input.keyId) : undefined,
+          cameBy(input.way),
         ),
       ),
     })),
@@ -179,23 +196,26 @@ export const usageRouter = {
       summary: "The calls of a span of time, by who called or by what was called",
       description:
         `${ADMIN_ONLY} ${APPROXIMATE} \`by\` chooses the rows: \`via\` for the kind of caller ` +
-        "(a key, the accounts as a whole, or no one), `developer` and `key` for the calls made " +
-        "with keys, `procedure` for what was called. The rows with the most calls come first, " +
-        "a hundred at most.",
+        "(a key, the accounts as a whole, or no one), `way` for the way a call came in (`api` " +
+        "for `/v1` and `/rpc`, `mcp` for the MCP server), `developer` and `key` for the calls " +
+        "made with keys, `procedure` for what was called. `way` as an input keeps the calls " +
+        "that came one way: with `by=developer` it says which developer accounts' agents call " +
+        "by MCP, and how much. The rows with the most calls come first, a hundred at most.",
       tags: ["Usage"],
     })
     .input(
       span.extend({
-        by: z.enum(["via", "developer", "key", "procedure"]),
+        by: z.enum(["via", "way", "developer", "key", "procedure"]),
         // Only the calls of this developer account's keys.
         developerId: z.uuid().optional(),
+        way: wayAsked,
       }),
     )
     .output(
       z.object({
         rows: z.array(
           countsSchema.extend({
-            // What the row is about: the kind of caller, the procedure, or the id of a
+            // What the row is about: the kind of caller, the way in, the procedure, or the id of a
             // developer account or of a key. Null for the keys that have no developer account.
             id: z.string().nullable(),
             // The name of the developer account or of the key. Null for the other rows.
@@ -208,7 +228,10 @@ export const usageRouter = {
       rows: await readBreakdown(
         context.db,
         input,
-        input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
+        and(
+          input.developerId ? eq(apiKey.developerId, input.developerId) : undefined,
+          cameBy(input.way),
+        ),
       ),
     })),
 };

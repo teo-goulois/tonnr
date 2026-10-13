@@ -184,6 +184,8 @@ export function createMcp(services: Services, { onError, now = () => new Date() 
       session: null,
       site: null,
       authorization: requestInfo?.headers.get("authorization") ?? null,
+      // The call is counted as its procedure's, and as one that came this way.
+      way: "mcp",
       reply: {},
     });
 

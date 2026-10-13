@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { BreakdownTable } from "@/components/usage/breakdown-table";
 import { RangePicker } from "@/components/usage/range-picker";
 import { UsageSummary } from "@/components/usage/usage-summary";
+import { wayLabel } from "@/components/usage/ways";
 import type { BreakdownRow } from "@/lib/api";
 import type { Range, RangeName, UsagePoint } from "@/lib/usage";
 import { m } from "@/paraglide/messages.js";
@@ -14,7 +15,10 @@ type OverviewPageProps = {
   // Each is undefined while it loads.
   points: UsagePoint[] | undefined;
   byVia: BreakdownRow[] | undefined;
+  byWay: BreakdownRow[] | undefined;
   byDeveloper: BreakdownRow[] | undefined;
+  // The developer accounts whose calls came by the MCP server.
+  byMcpDeveloper: BreakdownRow[] | undefined;
   byProcedure: BreakdownRow[] | undefined;
 };
 
@@ -34,9 +38,25 @@ export function OverviewPage({
   range,
   points,
   byVia,
+  byWay,
   byDeveloper,
+  byMcpDeveloper,
   byProcedure,
 }: OverviewPageProps) {
+  // A developer account, as a link to its page.
+  const developerLabel = (row: BreakdownRow) =>
+    row.id === null ? (
+      m.usage_no_developer()
+    ) : (
+      <Link
+        to="/developers/$developerId"
+        params={{ developerId: row.id }}
+        className="focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline"
+      >
+        {row.name}
+      </Link>
+    );
+
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-s">
@@ -61,20 +81,28 @@ export function OverviewPage({
         <BreakdownTable
           heading={m.developer_name()}
           rows={byDeveloper}
-          label={(row) =>
-            row.id === null ? (
-              m.usage_no_developer()
-            ) : (
-              <Link
-                to="/developers/$developerId"
-                params={{ developerId: row.id }}
-                className="focus-ring rounded-(--radius-xs) underline-offset-4 outline-none hover:underline"
-              >
-                {row.name}
-              </Link>
-            )
-          }
+          label={developerLabel}
           empty={m.usage_empty_keys()}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-s">
+        <h2 className="text-m font-medium">{m.usage_by_way()}</h2>
+        <BreakdownTable
+          heading={m.usage_way()}
+          rows={byWay}
+          label={wayLabel}
+          empty={m.usage_empty()}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-s">
+        <h2 className="text-m font-medium">{m.usage_mcp_developers()}</h2>
+        <BreakdownTable
+          heading={m.developer_name()}
+          rows={byMcpDeveloper}
+          label={developerLabel}
+          empty={m.usage_empty_mcp()}
         />
       </section>
 

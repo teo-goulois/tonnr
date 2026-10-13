@@ -8,6 +8,7 @@ import { NotFound } from "@/components/shared/not-found";
 import { BreakdownTable } from "@/components/usage/breakdown-table";
 import { RangePicker } from "@/components/usage/range-picker";
 import { UsageSummary } from "@/components/usage/usage-summary";
+import { wayLabel } from "@/components/usage/ways";
 import { useNow, useRange } from "@/lib/use-now";
 import { useUsageBreakdown, useUsageSeries } from "@/lib/use-usage";
 import { type RangeName, isRangeName, rangeNameOf } from "@/lib/usage";
@@ -51,6 +52,7 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
   const filter = { developerId };
   const series = useUsageSeries(range, filter);
   const byKey = useUsageBreakdown(range, "key", filter);
+  const byWay = useUsageBreakdown(range, "way", filter);
   const byProcedure = useUsageBreakdown(range, "procedure", filter);
   // What was done to the account, to its keys and to its members, the latest first. The page
   // of the activity has all of it.
@@ -84,6 +86,15 @@ function DeveloperScreen({ developerId }: { developerId: string }) {
         <div className="grid grid-cols-1 gap-s">
           <h3 className="text-s font-medium text-neutral-7">{m.usage_by_key()}</h3>
           <BreakdownTable heading={m.key_name()} rows={byKey.data?.rows} empty={m.usage_empty()} />
+        </div>
+        <div className="grid grid-cols-1 gap-s">
+          <h3 className="text-s font-medium text-neutral-7">{m.usage_by_way()}</h3>
+          <BreakdownTable
+            heading={m.usage_way()}
+            rows={byWay.data?.rows}
+            label={wayLabel}
+            empty={m.usage_empty()}
+          />
         </div>
         <div className="grid grid-cols-1 gap-s">
           <h3 className="text-s font-medium text-neutral-7">{m.usage_by_procedure()}</h3>

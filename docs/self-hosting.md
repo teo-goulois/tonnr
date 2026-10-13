@@ -311,8 +311,8 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 The API is also an MCP server, at `/mcp`: an agent such as Claude Code or Cursor lists its tools and calls them in place of the routes of `/v1`. There is nothing to deploy and nothing to set: it comes with the API. Decision 045 gives the rules, and [`docs/mcp.md`](mcp.md) says how a client connects.
 
 - It takes one of the keys above, in `Authorization: Bearer`, and nothing else: no session, and no request without a key. Hand a key over as you would for a program.
-- A call to a tool is a call to its route. It is held to the developer account's limit and shows in its counts, under the route's name: the counts do not tell one way in from the other. Listing the tools is not counted.
-- Its tools read the shared data and nothing of an account: the stations, the forecasts, the tides and the catalogue of breaks.
+- A call to a tool is a call to its route. It is held to the developer account's limit and shows in its counts, under the route's name. The counts say which way a call came: the admin's overview shows how much comes by MCP and whose agents call, and `GET /v1/usage/breakdown` answers it with `by=way`, or with `way=mcp` beside `by=developer`. Listing the tools is not counted.
+- Its tools read the shared data and nothing of an account: the stations, the forecasts, the tides, the catalogue of breaks and their guides.
 - A proxy in front of the API lets `POST /mcp` through, and does not hold back an answer that comes as a stream. An agent's client is no browser, so the API's CORS does not concern it.
 - The server keeps nothing between two requests, so several API processes answer one agent in turn.
 

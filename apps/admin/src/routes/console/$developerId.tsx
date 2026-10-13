@@ -8,6 +8,7 @@ import { Loader } from "@/components/shared/loader";
 import { BreakdownTable } from "@/components/usage/breakdown-table";
 import { RangePicker } from "@/components/usage/range-picker";
 import { UsageSummary } from "@/components/usage/usage-summary";
+import { wayLabel } from "@/components/usage/ways";
 import { useNow, useRange } from "@/lib/use-now";
 import { useConsoleBreakdown, useConsoleSeries } from "@/lib/use-usage";
 import { type Range, type RangeName, isRangeName, rangeNameOf } from "@/lib/usage";
@@ -66,13 +67,14 @@ function ConsoleCalls({ developerId, range }: { developerId: string; range: Rang
   const queryClient = useQueryClient();
   const series = useConsoleSeries(range, developerId);
   const byKey = useConsoleBreakdown(range, "key", developerId);
+  const byWay = useConsoleBreakdown(range, "way", developerId);
   const byProcedure = useConsoleBreakdown(range, "procedure", developerId);
 
   // The API answers that there is no such developer account: the reader is no longer one of
   // its members. The answer is enough to take the developer account off the screen, its name
   // and its keys with its calls: it is struck from what the page holds, without waiting for
   // the API to say again what the reader is a member of. That is asked as well.
-  const lost = [series, byKey, byProcedure].some((asked) => isMissing(asked.error));
+  const lost = [series, byKey, byWay, byProcedure].some((asked) => isMissing(asked.error));
   useEffect(() => {
     if (!lost) return;
     queryClient.setQueryData(orpc.v1.console.get.queryKey(), (held) =>
@@ -88,6 +90,15 @@ function ConsoleCalls({ developerId, range }: { developerId: string; range: Rang
       <div className="grid grid-cols-1 gap-s">
         <h3 className="text-s font-medium text-neutral-7">{m.usage_by_key()}</h3>
         <BreakdownTable heading={m.key_name()} rows={byKey.data?.rows} empty={m.usage_empty()} />
+      </div>
+      <div className="grid grid-cols-1 gap-s">
+        <h3 className="text-s font-medium text-neutral-7">{m.usage_by_way()}</h3>
+        <BreakdownTable
+          heading={m.usage_way()}
+          rows={byWay.data?.rows}
+          label={wayLabel}
+          empty={m.usage_empty()}
+        />
       </div>
       <div className="grid grid-cols-1 gap-s">
         <h3 className="text-s font-medium text-neutral-7">{m.usage_by_procedure()}</h3>

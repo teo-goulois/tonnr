@@ -164,6 +164,9 @@ export const developerCalls = pgTable(
 // readers of the lists shared by a link, all together too, the visitors of the web app, who
 // have no account, all together as well, or no one the instance knows.
 export const USAGE_VIA = ["key", "session", "link", "visitor", "none"] as const;
+// The way a call came in: by the API's own transports, `/v1` and `/rpc`, or by its MCP server,
+// where an agent calls a procedure as a tool. Decision 045.
+export const USAGE_WAYS = ["api", "mcp"] as const;
 // What came of a call. Decision 020 says which answer gets which word.
 export const USAGE_OUTCOMES = ["answered", "invalid", "refused", "limited", "failed"] as const;
 
@@ -178,6 +181,8 @@ export const apiUsage = pgTable(
     // The start of the hour, UTC's.
     hour: timestamp("hour", { withTimezone: true }).notNull(),
     via: text("via", { enum: USAGE_VIA }).notNull(),
+    // A row from before the MCP server came by the API: it was the one way in.
+    way: text("way", { enum: USAGE_WAYS }).notNull().default("api"),
     // The key that was named, working or not. Null unless a key the instance knows was named.
     keyId: text("key_id").references(() => apiKey.id, { onDelete: "cascade" }),
     // The procedure's place in the router, such as `v1.stations.list`.
@@ -188,7 +193,7 @@ export const apiUsage = pgTable(
   (table) => [
     // One row for each of these, the calls without a key too: a write adds to the row it finds.
     unique("api_usage_bucket")
-      .on(table.hour, table.via, table.keyId, table.procedure, table.outcome)
+      .on(table.hour, table.via, table.way, table.keyId, table.procedure, table.outcome)
       .nullsNotDistinct(),
     index("api_usage_keyId_hour_idx").on(table.keyId, table.hour),
     check("api_usage_via_key", sql`(${table.via} = 'key') = (${table.keyId} is not null)`),

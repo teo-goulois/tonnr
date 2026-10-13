@@ -74,6 +74,7 @@ const knownProcedure = publicProcedure.use(async ({ context, next, procedure }) 
     try {
       context.usage.count({
         via: named.via,
+        way: context.way,
         keyId: named.via === "key" ? named.keyId : null,
         procedure: procedureName(procedure),
         outcome: error === undefined ? "answered" : outcomeOf(error),

@@ -16,17 +16,18 @@ A request with no working key gets 401, the list of the tools too. A session's c
 
 Every tool reads, and none writes. An agent reads what a key reads at `/v1`: nothing of an account.
 
-| Tool                   | What it answers                                                           |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `list_stations`        | Buoys and wind stations in an area, each with what it measured last       |
-| `get_station`          | One station with what it measured last                                    |
-| `get_station_readings` | What a station measured over a period, the newest first                   |
-| `get_forecast`         | The hourly forecast of waves, wind and weather at a point, 7 days at most |
-| `get_tide_extremes`    | The high and the low tides near a point                                   |
-| `get_tide_timeline`    | The tide's height at regular steps near a point                           |
-| `list_surf_breaks`     | The surf breaks of the catalogue in an area, with what is known of each   |
-| `search_surf_breaks`   | Surf breaks by their name or their town's, the likeliest first            |
-| `get_surf_break`       | One surf break of the catalogue                                           |
+| Tool                   | What it answers                                                             |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `list_stations`        | Buoys and wind stations in an area, each with what it measured last         |
+| `get_station`          | One station with what it measured last                                      |
+| `get_station_readings` | What a station measured over a period, the newest first                     |
+| `get_forecast`         | The hourly forecast of waves, wind and weather at a point, 7 days at most   |
+| `get_tide_extremes`    | The high and the low tides near a point                                     |
+| `get_tide_timeline`    | The tide's height at regular steps near a point                             |
+| `list_surf_breaks`     | The surf breaks of the catalogue in an area, with what is known of each     |
+| `search_surf_breaks`   | Surf breaks by their name or their town's, the likeliest first              |
+| `get_surf_break`       | One surf break of the catalogue                                             |
+| `get_surf_break_guide` | What the people who surf a break wrote of it: access, entry, hazards, rules |
 
 - A tool is a route of the API, and answers the same JSON: [the reference](https://api.example.org/v1/docs) says what each field is.
 - Heights are in metres, periods in seconds, speeds in metres per second, and directions in degrees clockwise from north that the sea or the wind comes from. Times are in UTC.
@@ -37,6 +38,8 @@ Every tool reads, and none writes. An agent reads what a key reads at `/v1`: not
 ## The limit
 
 A call to a tool is a call to its route. It is counted under the key, and held to the limit of the key's developer account: so many calls in an hour of the clock, shared by its keys and by both ways in, `/v1` and `/mcp`. Listing the tools takes nothing of it. Over the limit, a tool answers an error that says how many seconds to wait.
+
+The counts say which way a call came. Whoever runs the instance reads in the admin how much comes by MCP and whose agents call, and a member of a developer account reads its own in the console.
 
 ## Claude Code
 
@@ -119,7 +122,7 @@ The answer holds the tools, as JSON or as the one event of a stream.
 
 On 2026-10-13, against an API started from its release build, with invented stations and breaks:
 
-- The official SDK's client, `@modelcontextprotocol/client` 2.3.1, in the 2026-07-28 revision of the protocol and in the one before, 2025-11-25: it lists the nine tools and calls them, and is refused at connection without a working key.
+- The official SDK's client, `@modelcontextprotocol/client` 2.3.1, in the 2026-07-28 revision of the protocol and in the one before, 2025-11-25: it lists the tools, nine of them that day, and calls them, and is refused at connection without a working key.
 - The same client through `mcp-remote`, as the configuration for Claude Desktop above runs it.
 - The `curl` call above.
 

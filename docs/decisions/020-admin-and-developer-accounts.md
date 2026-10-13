@@ -1,6 +1,6 @@
 # 020. An admin app, developer accounts, and counted calls
 
-Status: decided by Téo on 2026-10-09. It amends decision 019 on four points, named below.
+Status: decided by Téo on 2026-10-09. It amends decision 019 on four points, named below. Amended on 2026-10-13 by [decision 045](045-mcp-server.md): the API has a third transport, its MCP server, and a count also says which way its calls came in.
 
 Not built: a limit on what an account calls with its session, and a limit on calls made with a key that no longer works. The budget of calls to the forecast provider came with decision 023, and the console where a developer reads their own keys and calls with decision 027. Téo left for later, the same day: checking an account's address, moderation, and closing sign-up.
 

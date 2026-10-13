@@ -101,11 +101,17 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       () => "answered",
       (error: { code?: string }) => error.code,
     );
-  const counted = () =>
-    database.db
+  // Every call here comes by the API's own transports: `mcp.db.test.ts` has the other way in.
+  const counted = async () => {
+    const rows = await database.db
       .select()
       .from(apiUsage)
       .orderBy(apiUsage.hour, apiUsage.via, apiUsage.procedure, apiUsage.outcome);
+    return rows.map(({ way, ...row }) => {
+      expect(way).toBe("api");
+      return row;
+    });
+  };
 
   describe("a developer account", () => {
     it("is made with its name alone, and has no limit, no key and no call", async () => {

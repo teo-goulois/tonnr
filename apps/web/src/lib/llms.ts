@@ -57,7 +57,7 @@ curl ${api}/v1/stations/${EXAMPLE_STATION} \\
 
 - Address: \`${api}/mcp\`, over Streamable HTTP. Nothing is kept between two requests.
 - It takes the same key, in the same header: \`Authorization: Bearer <key>\`. Without a working key it answers 401.
-- Its tools read what the routes above read, under names of their own: \`list_stations\`, \`get_station\`, \`get_station_readings\`, \`get_forecast\`, \`get_tide_extremes\`, \`get_tide_timeline\`, \`list_surf_breaks\`, \`search_surf_breaks\` and \`get_surf_break\`. Each one reads, and none writes.
+- Its tools read what the routes above read, under names of their own: \`list_stations\`, \`get_station\`, \`get_station_readings\`, \`get_forecast\`, \`get_tide_extremes\`, \`get_tide_timeline\`, \`list_surf_breaks\`, \`search_surf_breaks\`, \`get_surf_break\` and \`get_surf_break_guide\`. Each one reads, and none writes.
 - A call to a tool is a call to its route: it answers the same JSON, and counts against the same limit.
 - Claude Code: \`claude mcp add --transport http ${APP_NAME.toLowerCase()} ${api}/mcp --header "Authorization: Bearer $${KEY_VARIABLE}"\`
 - [How to connect another client](${REPOSITORY_URL}/blob/main/docs/mcp.md).

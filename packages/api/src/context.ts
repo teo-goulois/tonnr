@@ -5,7 +5,7 @@ import type { Database } from "@repo/db";
 
 import type { Analytics, AnalyticsRequest } from "./analytics";
 import type { Places } from "./places";
-import type { Usage } from "./usage";
+import type { Usage, Way } from "./usage";
 
 export type Context = {
   session: Session | null;
@@ -22,6 +22,9 @@ export type Context = {
   adminSites: readonly string[];
   // Where the calls are counted.
   usage: Usage;
+  // The way the call came in, which it is counted with: the MCP server says `mcp`, and the
+  // API's own transports say nothing. Decision 045.
+  way?: Way;
   // What sends an account the mail that checks its address. Decision 026.
   verification: Verification;
   // What a procedure says of its answer beyond its body. The program that serves it reads it.

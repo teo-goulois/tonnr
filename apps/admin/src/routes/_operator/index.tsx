@@ -21,7 +21,9 @@ function OverviewRoute() {
 
   const series = useUsageSeries(range);
   const byVia = useUsageBreakdown(range, "via");
+  const byWay = useUsageBreakdown(range, "way");
   const byDeveloper = useUsageBreakdown(range, "developer");
+  const byMcpDeveloper = useUsageBreakdown(range, "developer", { way: "mcp" });
   const byProcedure = useUsageBreakdown(range, "procedure");
 
   return (
@@ -33,7 +35,9 @@ function OverviewRoute() {
       range={range}
       points={series.data?.points}
       byVia={byVia.data?.rows}
+      byWay={byWay.data?.rows}
       byDeveloper={byDeveloper.data?.rows}
+      byMcpDeveloper={byMcpDeveloper.data?.rows}
       byProcedure={byProcedure.data?.rows}
     />
   );
