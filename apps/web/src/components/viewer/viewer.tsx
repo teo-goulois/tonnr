@@ -1086,9 +1086,11 @@ export function Viewer({
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
-  // Where the map says something of itself: at the top and in the middle. On a phone it stands
-  // over the legend, at the bottom of the map.
-  const said = wide ? "absolute top-s left-1/2 -translate-x-1/2" : undefined;
+  // Where the map says something of itself: at the top and in the middle, under the header. On
+  // a phone it stands over the legend, at the bottom of the map.
+  const said = wide
+    ? "absolute top-[calc(var(--spacing-s)+var(--app-header-lift,0px))] left-1/2 -translate-x-1/2"
+    : undefined;
   // On a phone the map's buttons and its legend stand at the bottom of the map, under the thumb:
   // over the bar of tabs, and over a sheet that is open beside the map. A sheet that is raised
   // leaves them no room, and covers them where they stand: they go down with it when it leaves.
@@ -1334,11 +1336,11 @@ export function Viewer({
 
         {wide ? (
           <div
-            // Beside the station's panel when it is open, not under it.
-            className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
+            // Under the header, and beside the station's panel when it is open, not under it.
+            // The header has the search of a wide screen.
+            className="absolute top-[calc(var(--spacing-s)+var(--app-header-lift,0px))] right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
             style={{ translate: `${-padding.right}px 0` }}
           >
-            {searchButton}
             {/* A phone adds a spot from the "+" of its bar, with whatever else is added. */}
             <Button
               variant="outline"

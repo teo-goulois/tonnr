@@ -17,6 +17,15 @@
   }
 }
 
+/* A wide screen's header floats over the top of the screen. What stands at the top of the map is
+   lowered to keep clear of it, and by nothing where there is no such header: on a phone, and on
+   the wall of an instance that is closed. */
+@media (width >= 64rem) {
+  :root:has([data-app-header]) {
+    --app-header-lift: calc(2.5rem + var(--spacing-s));
+  }
+}
+
 /* The map's credits, on the theme's surface and in its type. They leave the legend its corner.
    The map's own stylesheet loads after this one, so each rule names the map to outrank it. */
 .maplibregl-map .maplibregl-ctrl-bottom-right {

@@ -42,13 +42,14 @@ export function ViewerSkeleton({ className }: { className?: string }) {
       <div
         aria-hidden
         className={cn(
-          "absolute right-s grid gap-xs max-lg:right-[calc(var(--spacing-s)+0.375rem)] lg:top-s",
+          "absolute right-s grid gap-xs max-lg:right-[calc(var(--spacing-s)+0.375rem)]",
+          "lg:top-[calc(var(--spacing-s)+var(--app-header-lift,0px))]",
           foot,
         )}
       >
-        {/* The button that searches, which is first on a wide screen and over the one that finds
-            the reader on a phone. */}
-        <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />
+        {/* The button that searches, over the one that finds the reader: a wide screen searches
+            from its header. */}
+        <div className={cn(floating, "size-12 rounded-full lg:hidden")} />
         {/* The button that adds a spot: a phone has it beside its bar of tabs. */}
         <div className={cn(floating, "size-10 rounded-full max-lg:hidden")} />
         <div className={cn(floating, "size-10 rounded-full max-lg:size-12")} />

@@ -15,8 +15,8 @@ type AppShellProps = {
 };
 
 /**
- * What stands around every screen of the product: the header above it on a wide screen, and the
- * bar of tabs that floats over its bottom on a phone. CSS tells the two apart, since the server
+ * What stands around every screen of the product: the header that floats over its top on a wide
+ * screen, and the bar of tabs that floats over its bottom on a phone. CSS tells the two apart, since the server
  * draws this before it knows the screen, and says by `data-bottom-nav` that there is a bar to keep
  * clear of: `index.css` gives its height. Wide is `lg`, as in the viewer. Decision 040.
  */
@@ -40,7 +40,7 @@ export function AppShell({ nav = true, children }: AppShellProps) {
         // the page keeps what is fixed above it.
         className="fixed inset-0 grid grid-rows-[auto_minmax(0,1fr)]"
       >
-        <Header className="row-start-1 max-lg:hidden" />
+        <Header nav={nav} className="max-lg:hidden" />
         <div className="row-start-2 grid min-h-0 grid-rows-[minmax(0,1fr)]">{children}</div>
         {nav && <BottomNav className="absolute inset-x-0 bottom-0 z-30 lg:hidden" />}
       </div>
