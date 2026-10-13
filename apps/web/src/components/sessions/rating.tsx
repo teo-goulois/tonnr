@@ -151,8 +151,9 @@ export function RatingInput({
       }}
     >
       {STARS.map((star) => (
-        // A star is as wide as a finger.
-        <span key={star} className="grid size-10 place-items-center">
+        // The stars stand close to one another, and each is as tall as a finger: a press that
+        // lands beside the one it was meant for is set right by sliding.
+        <span key={star} className="grid h-10 w-7.5 place-items-center">
           <Star rating={value ?? 0} star={star} className="size-6" />
         </span>
       ))}

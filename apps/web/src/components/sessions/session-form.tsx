@@ -202,7 +202,8 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
               value={rating}
               onChange={setRating}
               disabled={isSaving}
-              className="-mr-xs"
+              // The last star ends where the pills of the lines above do.
+              className="-mr-0.75"
             />
           </Row>
         </div>
