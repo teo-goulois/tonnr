@@ -64,6 +64,7 @@ import { SessionSamples } from "@/components/design-system/session-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
 import { BottomNav } from "@/components/shared/bottom-nav";
+import { MorphText } from "@/components/shared/morph-text";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -416,6 +417,7 @@ export function DesignSystemPage() {
   const [chip, setChip] = useState<string>();
   const [seaTime, setSeaTime] = useState(SAMPLE_NOW);
   const [searched, setSearched] = useState("po");
+  const [morphed, setMorphed] = useState(0);
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-xxl px-m py-xl">
@@ -823,6 +825,18 @@ export function DesignSystemPage() {
             floats over. */}
         <div className="max-w-sm rounded-(--radius-xs) bg-neutral-3 pt-s">
           <BottomNav />
+        </div>
+      </Section>
+
+      <Section title="Morphing text">
+        {/* A value that its reader changes by hand moves to what it becomes. */}
+        <div className="flex items-center gap-m">
+          <p className="text-xl font-medium tabular-nums">
+            <MorphText>{morphed % 2 === 0 ? "1 h 30" : "2 h 45"}</MorphText>
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => setMorphed(morphed + 1)}>
+            Change
+          </Button>
         </div>
       </Section>
 

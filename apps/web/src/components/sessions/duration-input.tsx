@@ -7,6 +7,7 @@ import { useState } from "react";
 import { formatDuration } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
+import { MorphText } from "../shared/morph-text";
 import { ViewerDrawer } from "../viewer/viewer-drawer";
 
 /** How long a session is taken to last until its surfer says. */
@@ -68,7 +69,8 @@ export function DurationInput({ value, onChange, label, wide, disabled }: Durati
             className="min-w-0 flex-1 px-0 max-lg:px-0"
             onClick={() => setOwn(within(value))}
           >
-            {isUsual ? m.session_duration_other() : formatDuration(value)}
+            {/* The choice becomes the length that was set, and its letters move to it. */}
+            <MorphText>{isUsual ? m.session_duration_other() : formatDuration(value)}</MorphText>
           </TabsTab>
         </TabsList>
       </Tabs>
@@ -83,8 +85,9 @@ export function DurationInput({ value, onChange, label, wide, disabled }: Durati
       >
         {own !== null && (
           <div className="grid gap-l">
+            {/* The slider says the length to who cannot see it. Its figures slide as it moves. */}
             <p aria-hidden className="text-center text-xl font-medium tabular-nums">
-              {formatDuration(own)}
+              <MorphText>{formatDuration(own)}</MorphText>
             </p>
             <div className="flex items-center gap-s">
               <Button

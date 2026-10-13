@@ -5,7 +5,6 @@ import { Label } from "@repo/ui/components/ui/label";
 import { cn } from "@repo/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
-import { TextMorph } from "torph/react";
 import { z } from "zod";
 
 import {
@@ -14,6 +13,7 @@ import {
   usernameRefusal,
   useUsernameFree,
 } from "@/components/account/username";
+import { MorphText } from "@/components/shared/morph-text";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 import { client } from "@/utils/orpc";
@@ -229,7 +229,7 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthForm
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
           <Button type="submit" isPending={isSubmitting}>
-            <TextMorph>{isSignUp ? m.auth_create_account() : m.auth_sign_in()}</TextMorph>
+            <MorphText>{isSignUp ? m.auth_create_account() : m.auth_sign_in()}</MorphText>
           </Button>
         )}
       </form.Subscribe>
