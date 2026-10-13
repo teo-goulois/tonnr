@@ -221,6 +221,7 @@ const tally = z.object({ count: z.number().int(), minutes: z.number().int() });
 
 export const sessionsRouter = {
   create: protectedProcedure
+    .meta({ analytics: "session_logged" })
     .route({
       method: "POST",
       path: "/sessions",
@@ -394,6 +395,7 @@ export const sessionsRouter = {
     }),
 
   recap: protectedProcedure
+    .meta({ analytics: "logbook_recap_viewed" })
     .route({
       method: "GET",
       path: "/sessions/recap",
@@ -513,6 +515,7 @@ export const sessionsRouter = {
     }),
 
   update: protectedProcedure
+    .meta({ analytics: "session_updated" })
     .route({
       method: "PATCH",
       path: "/sessions/{id}",
@@ -580,6 +583,7 @@ export const sessionsRouter = {
     }),
 
   delete: protectedProcedure
+    .meta({ analytics: "session_deleted" })
     .route({
       method: "DELETE",
       path: "/sessions/{id}",

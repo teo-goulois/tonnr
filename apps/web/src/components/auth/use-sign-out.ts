@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
+import { resetAnalytics } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { leftPushHere } from "@/lib/push-here";
 import { clearRecents } from "@/lib/recents";
@@ -19,6 +20,7 @@ export function useSignOut() {
     const answer = await authClient.signOut().catch(() => null);
     // A sign-out that did not happen leaves everything as it was.
     if (!answer || answer.error) return;
+    resetAnalytics();
     // The API forgot this browser's push with the session: the browser lets go of it too.
     await leftPushHere();
     // What was loaded for the account must not outlive the session: whoever signs out goes

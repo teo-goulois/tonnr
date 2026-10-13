@@ -14,6 +14,7 @@ import {
   useUsernameFree,
 } from "@/components/account/username";
 import { MorphText } from "@/components/shared/morph-text";
+import { identifyAnalytics } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 import { client } from "@/utils/orpc";
@@ -139,6 +140,7 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthForm
         toast.error(reason || m.auth_failed());
         return;
       }
+      identifyAnalytics(answer.data?.user.id);
       if (isSignUp) void announceCheck(value.email);
       onSuccess();
     },

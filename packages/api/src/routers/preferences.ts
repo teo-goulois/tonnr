@@ -128,6 +128,7 @@ export const preferencesRouter = {
     }),
 
   saveShortcuts: protectedProcedure
+    .meta({ analytics: "shortcuts_updated" })
     .input(z.object({ overrides: overridesSchema }))
     .output(savedShortcutsSchema)
     .handler(async ({ input, context }) => {
@@ -155,6 +156,7 @@ export const preferencesRouter = {
     }),
 
   saveUnits: protectedProcedure
+    .meta({ analytics: "units_updated" })
     // The units the caller changes. The others stay as they are: an app that knows fewer units
     // than the API does not undo the choice of another.
     .input(unitsSchema.partial())
@@ -208,8 +210,11 @@ export const preferencesRouter = {
       return recentsOf(context.db, userId);
     }),
 
-  clearRecents: protectedProcedure.output(z.array(recentSchema)).handler(async ({ context }) => {
-    await context.db.delete(recentView).where(eq(recentView.userId, context.session.user.id));
-    return [];
-  }),
+  clearRecents: protectedProcedure
+    .meta({ analytics: "recent_places_cleared" })
+    .output(z.array(recentSchema))
+    .handler(async ({ context }) => {
+      await context.db.delete(recentView).where(eq(recentView.userId, context.session.user.id));
+      return [];
+    }),
 };

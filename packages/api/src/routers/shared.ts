@@ -32,6 +32,7 @@ function locked() {
 
 export const sharedRouter = {
   open: linkProcedure
+    .meta({ analytics: "shared_list_opened" })
     .route({
       method: "POST",
       path: "/shared/open",
@@ -96,6 +97,7 @@ export const sharedRouter = {
     }),
 
   join: protectedProcedure
+    .meta({ analytics: "shared_list_joined" })
     .route({
       method: "POST",
       path: "/shared/join",

@@ -34,6 +34,13 @@ export default Alchemy.Stack(
       },
       env: {
         VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
+        VITE_POSTHOG_PROJECT_TOKEN: Config.String("VITE_POSTHOG_PROJECT_TOKEN").pipe(
+          Config.withDefault(""),
+        ),
+        VITE_POSTHOG_HOST: Config.String("VITE_POSTHOG_HOST").pipe(Config.withDefault("")),
+        VITE_POSTHOG_ENVIRONMENT: Config.String("VITE_POSTHOG_ENVIRONMENT").pipe(
+          Config.withDefault(""),
+        ),
         // The web app tells search engines to leave the stage out, unless this says "true".
         WEB_INDEXED: Config.String("WEB_INDEXED").pipe(Config.withDefault("false")),
       },

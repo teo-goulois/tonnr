@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
+import { AnalyticsSetting } from "@/components/shared/analytics";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { UnitsSettings } from "@/components/shared/units-settings";
 import { AccountPrompt } from "@/components/viewer/saved-panel";
@@ -253,6 +254,8 @@ export function AccountPanel({
           </Button>
         </div>
       </Section>
+
+      <AnalyticsSetting />
 
       {account && (
         <div>

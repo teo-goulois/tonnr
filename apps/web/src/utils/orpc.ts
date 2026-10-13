@@ -6,6 +6,7 @@ import type { AppRouterClient } from "@repo/api/routers/index";
 import { toast } from "sonner";
 
 import { ENV } from "../env.public";
+import { analyticsHeaders } from "../lib/analytics";
 import { linkAuthorization } from "../lib/shared-link";
 import { isClosedToVisitors } from "../lib/visitors";
 
@@ -49,7 +50,7 @@ const link = new RPCLink({
   // A visitor who reads a shared list is known by its link, where an account is by its cookie.
   headers: () => {
     const authorization = linkAuthorization();
-    return authorization ? { authorization } : {};
+    return { ...analyticsHeaders(), ...(authorization ? { authorization } : {}) };
   },
   fetch(url, options) {
     return fetch(url, {

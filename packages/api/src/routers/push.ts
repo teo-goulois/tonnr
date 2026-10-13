@@ -180,6 +180,7 @@ export const pushRouter = {
     }),
 
   subscribe: protectedProcedure
+    .meta({ analytics: "push_subscribed" })
     .route({
       method: "POST",
       path: "/push/devices",
@@ -345,6 +346,7 @@ export const pushRouter = {
     }),
 
   forget: protectedProcedure
+    .meta({ analytics: "push_disabled" })
     .route({
       method: "POST",
       path: "/push/devices/forget",
@@ -377,6 +379,7 @@ export const pushRouter = {
     }),
 
   remove: protectedProcedure
+    .meta({ analytics: "push_device_removed" })
     .route({
       method: "DELETE",
       path: "/push/devices/{id}",

@@ -69,6 +69,7 @@ const ANSWERS_ANYONE = [
 // A visitor of the web app, who has no account, is answered by the same ones, while the
 // instance is open to visitors.
 const ANSWERS_A_KEY = [
+  "v1.activity.record",
   "v1.breaks.get",
   "v1.breaks.list",
   "v1.breaks.search",

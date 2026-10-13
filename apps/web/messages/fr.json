@@ -867,5 +867,11 @@
   "session_duration_done": "Valider",
   "release_new": "Une nouvelle version est disponible",
   "release_new_detail": "Recharge la page pour l'avoir.",
-  "release_reload": "Recharger"
+  "release_reload": "Recharger",
+  "analytics_title": "Statistiques d’utilisation",
+  "analytics_description": "Autoriser PostHog à mesurer les fonctionnalités que vous utilisez ? La position de vos spots, vos recherches et vos textes ne sont jamais transmis. Vous pouvez changer ce choix dans les réglages du compte.",
+  "analytics_allow": "Autoriser les statistiques",
+  "analytics_refuse": "Continuer sans statistiques",
+  "analytics_disable": "Désactiver les statistiques",
+  "analytics_terms": "Avec votre accord, les statistiques transmettent à PostHog un identifiant opaque de compte ou d’appareil, des identifiants techniques de session et les fonctionnalités utilisées. La position de vos spots, vos recherches et vos textes sont exclus. Refuser ne limite pas l’application. Vous pouvez changer ce choix dans les réglages du compte."
 }

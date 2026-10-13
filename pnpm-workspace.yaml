@@ -10,6 +10,7 @@ allowBuilds:
   nucleo-micro-bold: true
   nucleo-ui-fill-18: true
   nucleo-ui-outline-18: true
+  core-js: false
 catalog:
   zod: ^4.5.4
   typescript: ^7.0.2

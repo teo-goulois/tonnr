@@ -343,6 +343,7 @@ export const guidesRouter = {
     }),
 
   answer: protectedProcedure
+    .meta({ analytics: "guide_question_answered" })
     .route({
       method: "PUT",
       path: "/breaks/{breakId}/guide/answers/{question}",

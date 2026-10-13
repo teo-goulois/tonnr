@@ -392,3 +392,15 @@ The worker calls the providers from your server, each on its schedule, from ever
 ## What the licence asks
 
 Tonnr is under the GNU Affero General Public License, version 3. Running it as it is asks nothing more of you. If you change the code and let other people use your instance, offer them the source of your version.
+
+## Product analytics
+
+Optional: use your own PostHog project. Without these settings your instance sends no analytics. Decision 044 and [Analytics](analytics.md) give the event contract.
+
+- In `apps/server/.env` (or your hosted API's runtime environment), set `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` and `POSTHOG_ENVIRONMENT`.
+- In `apps/web/.env` for local development, or `packages/infra/.env.<stage>` for a release, set `VITE_POSTHOG_PROJECT_TOKEN`, `VITE_POSTHOG_HOST` and `VITE_POSTHOG_ENVIRONMENT`.
+- Use the same project and environment for the API and its web app. The ingestion host is `https://eu.i.posthog.com` for EU or `https://us.i.posthog.com` for US. Environments are `development`, `dev` and `production`.
+- Set all three together, or none. The deploy command passes browser values to the release build and refuses an incomplete group. A project token is public in the browser bundle; no personal API key is used. Tests and CI send nothing.
+- Restart/deploy the API first, then deploy the web app. Easypanel's deploy hook does not copy ignored local environment files: add the API's variables in its service environment before restarting it. The worker needs none.
+- The web app asks for permission on first product use. Anyone can refuse, then change their choice in the account tab. `/ingest` forwards approved browser analytics to your fixed Cloud region without forwarding cookies, auth, query strings or incoming IP headers. The landing loads no SDK.
+- After a release, grant permission on a controlled browser and open the app. Check that exactly one `app_active` arrives in your project with the release environment and API commit. Reload and check the count stays one for the same identity/day. Create an alert and check `alert_created` arrives once. Filter local/pre-production/internal events out of production reports.

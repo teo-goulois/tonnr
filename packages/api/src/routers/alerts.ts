@@ -302,6 +302,7 @@ function tidied(week: z.infer<typeof dayHoursSchema>[]) {
 
 export const alertsRouter = {
   create: protectedProcedure
+    .meta({ analytics: "alert_created" })
     .route({
       method: "POST",
       path: "/alerts",
@@ -403,6 +404,7 @@ export const alertsRouter = {
     }),
 
   update: protectedProcedure
+    .meta({ analytics: "alert_updated" })
     .route({
       method: "PATCH",
       path: "/alerts/{id}",
@@ -504,6 +506,7 @@ export const alertsRouter = {
     }),
 
   delete: protectedProcedure
+    .meta({ analytics: "alert_deleted" })
     .route({
       method: "DELETE",
       path: "/alerts/{id}",
@@ -523,6 +526,7 @@ export const alertsRouter = {
     }),
 
   preview: protectedProcedure
+    .meta({ analytics: "alert_previewed" })
     .route({
       method: "POST",
       path: "/alerts/preview",
@@ -652,6 +656,7 @@ export const alertsRouter = {
     }),
 
   updateSettings: protectedProcedure
+    .meta({ analytics: "alert_settings_updated" })
     .route({
       method: "PATCH",
       path: "/alert-settings",

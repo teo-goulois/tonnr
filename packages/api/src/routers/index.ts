@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "../index";
 import { nameProcedures } from "../procedures";
 import { accountRouter } from "./account";
+import { activityRouter } from "./activity";
 import { accountsRouter } from "./accounts";
 import { actionsRouter } from "./actions";
 import { alertsRouter } from "./alerts";
@@ -37,6 +38,7 @@ import { visitorsRouter } from "./visitors";
 // developer account, and decision 039 which answer a visitor of the web app.
 export const v1Router = {
   account: accountRouter,
+  activity: activityRouter,
   accounts: accountsRouter,
   actions: actionsRouter,
   alerts: alertsRouter,

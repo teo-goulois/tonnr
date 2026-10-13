@@ -21,6 +21,7 @@ import { authClient } from "@/lib/auth-client";
 import { useRecents } from "@/lib/recents";
 import { useShortcut, useShortcuts } from "@/lib/shortcuts";
 import { useDebounced } from "@/lib/use-debounced";
+import { analyticsConfigured } from "@/lib/analytics";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, setLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
@@ -234,6 +235,15 @@ export function CommandPalette() {
           label: m.account_settings(),
           run: () => void navigate({ to: "/app", search: { panel: "account" } }),
         },
+        ...(analyticsConfigured
+          ? [
+              {
+                value: `${m.analytics_title()} posthog privacy statistics`,
+                label: m.analytics_title(),
+                run: () => void navigate({ to: "/app", search: { panel: "account" } }),
+              },
+            ]
+          : []),
         {
           value: `${m.command_sign_in()} login account`,
           label: m.command_sign_in(),

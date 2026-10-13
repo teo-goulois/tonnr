@@ -63,6 +63,7 @@ import { GuideSamples } from "@/components/design-system/guide-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
+import { AnalyticsConsentDialog } from "@/components/shared/analytics";
 import { BottomNav } from "@/components/shared/bottom-nav";
 import { MorphText } from "@/components/shared/morph-text";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
@@ -363,6 +364,18 @@ function Row({ children }: { children: ReactNode }) {
 }
 
 // Every shared component with its variants and states. Development only.
+function AnalyticsSample() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Open analytics consent
+      </Button>
+      <AnalyticsConsentDialog open={open} onChoice={() => setOpen(false)} />
+    </>
+  );
+}
+
 // The account's devices, and every state push can be in on one of them: decision 031, "Push".
 const SAMPLE_DEVICES: PushDevice[] = [
   {
@@ -1081,6 +1094,10 @@ export function DesignSystemPage() {
             </div>
           ))}
         </div>
+      </Section>
+
+      <Section title="Analytics consent">
+        <AnalyticsSample />
       </Section>
 
       <Section title="Feedback">

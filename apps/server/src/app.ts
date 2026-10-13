@@ -3,6 +3,7 @@ import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { analyticsRequest, captureAction, type Analytics } from "@repo/api/analytics";
 import type { Context } from "@repo/api/context";
 import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { appRouter, v1Router } from "@repo/api/routers/index";
@@ -17,6 +18,7 @@ import { logger } from "hono/logger";
 type Services = {
   env: { BETTER_AUTH_URL: string; CORS_ORIGIN: string; ADMIN_ORIGIN?: string | undefined };
   db: Database;
+  analytics?: Analytics | undefined;
   auth: ReturnType<typeof createAuth>;
   // Where the calls are counted.
   usage: Usage;
@@ -60,6 +62,7 @@ function logFault(error: unknown) {
 export function createApp({
   env,
   db,
+  analytics,
   auth,
   usage,
   forecasts,
@@ -98,13 +101,51 @@ export function createApp({
       // The API's own pages need no leave to call it.
       origin: [...new Set([webOrigin, ...(env.ADMIN_ORIGIN ? adminSites : [])])],
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Analytics-Consent",
+        "X-PostHog-Distinct-Id",
+        "X-PostHog-Session-Id",
+      ],
       exposeHeaders: ["Retry-After"],
       credentials: true,
     }),
   );
 
-  app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
+  app.on(["POST", "GET"], "/api/auth/*", async (c) => {
+    const request =
+      c.req.header("origin") === webOrigin ? analyticsRequest(c.req.raw.headers) : undefined;
+    const event = (
+      {
+        "/api/auth/sign-up/email": "account_created",
+        "/api/auth/sign-in/email": "account_signed_in",
+        "/api/auth/sign-out": "account_signed_out",
+        "/api/auth/update-user": "account_updated",
+      } as Record<string, string>
+    )[c.req.path];
+    const before =
+      request && event === "account_signed_out"
+        ? await auth.api.getSession({ headers: c.req.raw.headers }).catch(() => null)
+        : null;
+    const answer = await auth.handler(c.req.raw);
+    if (request && event && answer.ok && c.req.method === "POST") {
+      // Read only the authenticated identifier, never an email/name/password or token.
+      const body = (await answer
+        .clone()
+        .json()
+        .catch(() => null)) as { user?: { id?: string } } | null;
+      const account = before?.user.id ?? body?.user?.id;
+      // update-user answers no user; read its checked session instead.
+      const id =
+        account ??
+        (event === "account_updated"
+          ? (await auth.api.getSession({ headers: c.req.raw.headers }).catch(() => null))?.user.id
+          : undefined);
+      if (id) captureAction(analytics, request, event, id);
+    }
+    return answer;
+  });
 
   const v1Handler = new OpenAPIHandler(v1Router, {
     plugins: [
@@ -174,6 +215,9 @@ export function createApp({
 
     const context = {
       db,
+      analytics,
+      analyticsRequest:
+        request.origin === webOrigin ? analyticsRequest(c.req.raw.headers) : undefined,
       session: await auth.api.getSession({ headers: c.req.raw.headers }),
       authorization: c.req.header("authorization") ?? null,
       site: siteOf(request),

@@ -53,6 +53,7 @@ export const accountRouter = {
     }),
 
   sendVerification: protectedProcedure
+    .meta({ analytics: "verification_requested" })
     .route({
       method: "POST",
       path: "/account/verification",

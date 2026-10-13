@@ -68,7 +68,13 @@
     "VERCEL_PROJECT_PRODUCTION_URL",
     "VERCEL_URL",
     "VITE_SERVER_URL",
-    "_VARLOCK_ENV_KEY"
+    "_VARLOCK_ENV_KEY",
+    "VITE_POSTHOG_PROJECT_TOKEN",
+    "VITE_POSTHOG_HOST",
+    "VITE_POSTHOG_ENVIRONMENT",
+    "POSTHOG_PROJECT_TOKEN",
+    "POSTHOG_HOST",
+    "POSTHOG_ENVIRONMENT"
   ],
   "globalDependencies": [".env*", "apps/*/.env*", "packages/*/.env*"]
 }

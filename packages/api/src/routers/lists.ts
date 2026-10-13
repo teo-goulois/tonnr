@@ -325,6 +325,7 @@ export const listsRouter = {
     }),
 
   create: protectedProcedure
+    .meta({ analytics: "list_created" })
     .route({
       method: "POST",
       path: "/lists",
@@ -364,6 +365,7 @@ export const listsRouter = {
     }),
 
   update: protectedProcedure
+    .meta({ analytics: "list_updated" })
     .route({
       method: "PATCH",
       path: "/lists/{id}",
@@ -394,6 +396,7 @@ export const listsRouter = {
     }),
 
   delete: protectedProcedure
+    .meta({ analytics: "list_deleted" })
     .route({
       method: "DELETE",
       path: "/lists/{id}",
@@ -417,6 +420,7 @@ export const listsRouter = {
     }),
 
   addStation: protectedProcedure
+    .meta({ analytics: "station_saved" })
     .route({
       method: "PUT",
       path: "/lists/{id}/stations/{stationId}",
@@ -462,6 +466,7 @@ export const listsRouter = {
     }),
 
   removeStation: protectedProcedure
+    .meta({ analytics: "station_unsaved" })
     .route({
       method: "DELETE",
       path: "/lists/{id}/stations/{stationId}",
@@ -492,6 +497,7 @@ export const listsRouter = {
     }),
 
   addBreak: protectedProcedure
+    .meta({ analytics: "break_saved" })
     .route({
       method: "PUT",
       path: "/lists/{id}/breaks/{breakId}",
@@ -537,6 +543,7 @@ export const listsRouter = {
     }),
 
   removeBreak: protectedProcedure
+    .meta({ analytics: "break_unsaved" })
     .route({
       method: "DELETE",
       path: "/lists/{id}/breaks/{breakId}",
@@ -564,6 +571,7 @@ export const listsRouter = {
     }),
 
   addSpot: protectedProcedure
+    .meta({ analytics: "spot_added_to_list" })
     .route({
       method: "PUT",
       path: "/lists/{id}/spots/{spotId}",
@@ -615,6 +623,7 @@ export const listsRouter = {
     }),
 
   removeSpot: protectedProcedure
+    .meta({ analytics: "spot_removed_from_list" })
     .route({
       method: "DELETE",
       path: "/lists/{id}/spots/{spotId}",
@@ -642,6 +651,7 @@ export const listsRouter = {
     }),
 
   share: protectedProcedure
+    .meta({ analytics: "list_shared" })
     .route({
       method: "PUT",
       path: "/lists/{id}/share",
@@ -684,6 +694,7 @@ export const listsRouter = {
     }),
 
   renewShare: protectedProcedure
+    .meta({ analytics: "list_share_renewed" })
     .route({
       method: "POST",
       path: "/lists/{id}/share/renew",
@@ -713,6 +724,7 @@ export const listsRouter = {
     }),
 
   unshare: protectedProcedure
+    .meta({ analytics: "list_unshared" })
     .route({
       method: "DELETE",
       path: "/lists/{id}/share",
@@ -736,6 +748,7 @@ export const listsRouter = {
     }),
 
   view: protectedProcedure
+    .meta({ analytics: "list_viewed" })
     .route({
       method: "GET",
       path: "/lists/{id}/view",
@@ -766,6 +779,7 @@ export const listsRouter = {
     }),
 
   leave: protectedProcedure
+    .meta({ analytics: "list_left" })
     .route({
       method: "DELETE",
       path: "/lists/{id}/membership",

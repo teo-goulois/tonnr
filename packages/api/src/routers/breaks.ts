@@ -150,6 +150,7 @@ export const breaksRouter = {
 
   // A search and not a page of the catalogue: what is found is ranked, and none follows.
   search: callerProcedure
+    .meta({ analytics: "break_searched" })
     .route({
       method: "GET",
       path: "/breaks/search",

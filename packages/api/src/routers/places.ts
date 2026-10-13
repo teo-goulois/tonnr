@@ -27,6 +27,7 @@ export const placesRouter = {
   // An account's and not a key's: the search is a tool to place a spot, and the places are a
   // service's that the instance asks, not data it holds. Decision 030.
   search: protectedProcedure
+    .meta({ analytics: "place_searched" })
     .route({
       method: "GET",
       path: "/places",

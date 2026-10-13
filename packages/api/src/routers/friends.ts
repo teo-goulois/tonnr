@@ -136,6 +136,7 @@ export const friendsRouter = {
     }),
 
   renewLink: protectedProcedure
+    .meta({ analytics: "invitation_renewed" })
     .route({
       method: "POST",
       path: "/friends/link/renew",
@@ -179,6 +180,7 @@ export const friendsRouter = {
     }),
 
   accept: protectedProcedure
+    .meta({ analytics: "friend_added" })
     .route({
       method: "POST",
       path: "/friends",
@@ -302,6 +304,7 @@ export const friendsRouter = {
     }),
 
   remove: protectedProcedure
+    .meta({ analytics: "friend_removed" })
     .route({
       method: "DELETE",
       path: "/friends/{id}",

@@ -63,6 +63,10 @@ export function TermsPage({ apiDocsUrl }: { apiDocsUrl: string }) {
           <h2 className="text-l font-medium">{m.terms_shared_title()}</h2>
           <p className="text-neutral-7">{m.terms_shared_text()}</p>
         </section>
+        <section className="grid gap-s">
+          <h2 className="text-l font-medium">{m.analytics_title()}</h2>
+          <p className="text-neutral-7">{m.analytics_terms()}</p>
+        </section>
       </main>
     </div>
   );

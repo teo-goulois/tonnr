@@ -118,6 +118,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const contributionsRouter = {
   propose: protectedProcedure
+    .meta({ analytics: "contribution_proposed" })
     .route({
       method: "POST",
       path: "/contributions",
@@ -267,6 +268,7 @@ export const contributionsRouter = {
     }),
 
   withdraw: protectedProcedure
+    .meta({ analytics: "contribution_withdrawn" })
     .route({
       method: "DELETE",
       path: "/contributions/{id}",
@@ -361,6 +363,7 @@ export const contributionsRouter = {
     }),
 
   confirm: protectedProcedure
+    .meta({ analytics: "contribution_confirmed" })
     .route({
       method: "PUT",
       path: "/contributions/{id}/confirmation",
@@ -441,6 +444,7 @@ export const contributionsRouter = {
     }),
 
   contest: protectedProcedure
+    .meta({ analytics: "contribution_contested" })
     .route({
       method: "PUT",
       path: "/contributions/{id}/contest",

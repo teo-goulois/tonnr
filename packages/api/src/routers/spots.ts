@@ -215,6 +215,7 @@ async function changingSpot<Result>(
 
 export const spotsRouter = {
   create: protectedProcedure
+    .meta({ analytics: "spot_created" })
     .route({
       method: "POST",
       path: "/spots",
@@ -330,6 +331,7 @@ export const spotsRouter = {
     }),
 
   update: protectedProcedure
+    .meta({ analytics: "spot_updated" })
     .route({
       method: "PATCH",
       path: "/spots/{id}",
@@ -389,6 +391,7 @@ export const spotsRouter = {
     }),
 
   requestPublication: protectedProcedure
+    .meta({ analytics: "spot_publication_requested" })
     .route({
       method: "PUT",
       path: "/spots/{id}/publication",
@@ -460,6 +463,7 @@ export const spotsRouter = {
     }),
 
   cancelPublication: protectedProcedure
+    .meta({ analytics: "spot_publication_cancelled" })
     .route({
       method: "DELETE",
       path: "/spots/{id}/publication",
@@ -490,6 +494,7 @@ export const spotsRouter = {
     }),
 
   delete: protectedProcedure
+    .meta({ analytics: "spot_deleted" })
     .route({
       method: "DELETE",
       path: "/spots/{id}",

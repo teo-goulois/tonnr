@@ -3,11 +3,14 @@ import type { Verification } from "@repo/auth/verification";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
 
+import type { Analytics, AnalyticsRequest } from "./analytics";
 import type { Places } from "./places";
 import type { Usage } from "./usage";
 
 export type Context = {
   session: Session | null;
+  analytics?: Analytics | undefined;
+  analyticsRequest?: AnalyticsRequest | undefined;
   db: Database;
   // The request's Authorization header, where a program gives its API key. Null without one.
   authorization: string | null;

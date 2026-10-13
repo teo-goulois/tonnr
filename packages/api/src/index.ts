@@ -2,6 +2,7 @@ import { ORPCError, os } from "@orpc/server";
 import { operator } from "@repo/db/schema/access";
 import { eq } from "drizzle-orm";
 
+import { captureAction, type ProcedureMeta } from "./analytics";
 import type { Context } from "./context";
 import { isFromAdminSite } from "./cross-site";
 import { admitKey, type KeyState, readAuthorization } from "./keys";
@@ -10,7 +11,7 @@ import { admitLink } from "./shares";
 import { outcomeOf } from "./usage";
 import { answersVisitors, isFromWebApp, visitorsClosed } from "./visitors";
 
-export const o = os.$context<Context>();
+export const o = os.$context<Context>().$meta<ProcedureMeta>({});
 
 /** Answers anyone. Only the health check is that open. */
 export const publicProcedure = o;
@@ -100,6 +101,13 @@ const knownProcedure = publicProcedure.use(async ({ context, next, procedure }) 
     throw error;
   }
   count();
+  // Only a successful action, declared beside the procedure, is sent. No input or output is read.
+  captureAction(
+    context.analytics,
+    context.analyticsRequest,
+    procedure["~orpc"].meta.analytics,
+    named.via === "session" ? named.userId : undefined,
+  );
   return result;
 });
 

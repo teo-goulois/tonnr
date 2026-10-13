@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute, useRouter, useRouterState } from "@tanstack/react-router";
 
 import { LoginWall } from "@/components/auth/login-wall";
+import { Analytics } from "@/components/shared/analytics";
 import { AppPending } from "@/components/shared/app-pending";
 import { AppShell } from "@/components/shared/app-shell";
 import { authClient } from "@/lib/auth-client";
@@ -49,6 +50,7 @@ export const Route = createFileRoute("/app")({
 
 function AppLayout() {
   const { walled } = Route.useRouteContext();
+  const session = authClient.useSession();
   const router = useRouter();
   // The link someone gave the visitor, when the address names one: the wall takes it too.
   const invite = useRouterState({
@@ -58,6 +60,7 @@ function AppLayout() {
   return (
     // The wall leads nowhere but in: it has no bar of tabs.
     <AppShell nav={!walled}>
+      <Analytics account={session.data?.user.id} isReady={!session.isPending} />
       {walled ? (
         <LoginWall
           onSignedIn={() => void router.invalidate()}

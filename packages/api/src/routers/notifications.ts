@@ -118,6 +118,7 @@ export const notificationsRouter = {
     }),
 
   markRead: protectedProcedure
+    .meta({ analytics: "notification_read" })
     .route({
       method: "POST",
       path: "/notifications/{id}/read",

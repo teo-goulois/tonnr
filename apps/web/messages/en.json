@@ -867,5 +867,11 @@
   "session_duration_done": "Done",
   "release_new": "A new version is ready",
   "release_new_detail": "Reload the page to get it.",
-  "release_reload": "Reload"
+  "release_reload": "Reload",
+  "analytics_title": "Usage analytics",
+  "analytics_description": "Allow PostHog to measure which features you use? Your spot locations, searches and written content are never sent. You can change this in your account settings.",
+  "analytics_allow": "Allow analytics",
+  "analytics_refuse": "Continue without analytics",
+  "analytics_disable": "Disable analytics",
+  "analytics_terms": "With your permission, usage analytics sends PostHog an opaque account or device ID, technical session identifiers and the features you use. Your spot locations, searches and written content are excluded. Refusing does not limit the app. Change your choice in the account settings."
 }
