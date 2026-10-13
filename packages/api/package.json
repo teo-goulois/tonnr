@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
@@ -26,6 +27,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
     "@repo/config": "workspace:*",
     "typescript": "catalog:",
     "vitest": "^5.0.3"

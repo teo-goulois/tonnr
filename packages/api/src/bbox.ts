@@ -17,7 +17,11 @@ export const bboxSchema = z
   .transform((value) => value.split(","))
   .pipe(z.tuple([partSchema, partSchema, partSchema, partSchema]))
   .pipe(z.tuple([longitudeSchema, latitudeSchema, longitudeSchema, latitudeSchema]))
-  .refine(([, south, , north]) => south <= north, "south is above north");
+  .refine(([, south, , north]) => south <= north, "south is above north")
+  .describe(
+    'An area as "west,south,east,north" in decimal degrees, the longitudes first: ' +
+      '"-5.2,47.6,-4.0,48.5". West is greater than east for a box across the antimeridian.',
+  );
 
 type Bbox = z.infer<typeof bboxSchema>;
 

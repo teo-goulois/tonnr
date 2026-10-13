@@ -6,6 +6,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { analyticsRequest, captureAction, type Analytics } from "@repo/api/analytics";
 import type { Context } from "@repo/api/context";
 import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
+import { createMcp } from "@repo/api/mcp";
 import { appRouter, v1Router } from "@repo/api/routers/index";
 import type { Usage } from "@repo/api/usage";
 import type { createAuth } from "@repo/auth";
@@ -248,6 +249,26 @@ export function createApp({
     if (answered.status === 503 && context.reply.retryAfterSeconds !== undefined) {
       answered.headers.set("Retry-After", String(context.reply.retryAfterSeconds));
     }
+    return c.newResponse(answered.body, answered);
+  });
+
+  // The MCP server: what an agent lists and calls in place of the routes of `/v1`. It takes an
+  // API key and reads no cookie, and each tool is a procedure of the router above: decision 045.
+  const mcp = createMcp(
+    {
+      db,
+      usage,
+      forecasts,
+      places,
+      verification,
+      adminSites,
+      server: { startedAt, webOrigin, revision, pushKey },
+    },
+    { onError: logFault },
+  );
+  app.all("/mcp", async (c) => {
+    const answered = await mcp.fetch(c.req.raw);
+    answered.headers.set("Cache-Control", NOT_CACHED);
     return c.newResponse(answered.body, answered);
   });
 

@@ -83,6 +83,10 @@ function describeReading(row: typeof reading.$inferSelect) {
   };
 }
 
+const stationId = z
+  .string()
+  .describe('A station\'s `id`, as a list of stations gives it: "candhis-05602".');
+
 // A station's latest reading is the one observed at `latestObservedAt`.
 const isLatestReading = and(
   eq(reading.stationId, station.id),
@@ -91,6 +95,25 @@ const isLatestReading = and(
 
 export const stationsRouter = {
   list: callerProcedure
+    .meta({
+      mcp: {
+        name: "list_stations",
+        title: "Buoys and wind stations in an area",
+        description:
+          "Buoys and wind stations with what each measured last: wave height, period and " +
+          "direction, wind speed, gusts and direction, water temperature. Give `bbox` to " +
+          "look around a place: a box of one degree around a spot is a good start, and a " +
+          "wider one when it holds no station. `measures` keeps the stations that report " +
+          "waves, or wind. `latestReading.observedAt` says when a station measured: a " +
+          "reading of some hours ago is not the sea now. A station whose `exposure` is " +
+          "`sheltered` sits in a harbour or an estuary and says little of the open coast. " +
+          "Stations come in the order of their id, not by distance, and no page follows: " +
+          "narrow the box rather than raise `limit`. Each one names its `attribution` and " +
+          "its `license`. Next: get_station_readings for the hours before, get_forecast " +
+          "for the hours ahead.",
+        defaults: { limit: 25 },
+      },
+    })
     .route({
       method: "GET",
       path: "/stations",
@@ -100,9 +123,14 @@ export const stationsRouter = {
     .input(
       z.object({
         bbox: bboxSchema.optional(),
-        provider: z.string().optional(),
-        // Only the stations that report this.
-        measures: z.enum(["waves", "wind"]).optional(),
+        provider: z
+          .string()
+          .optional()
+          .describe("Only the stations of one network, as a station's `provider` names it."),
+        measures: z
+          .enum(["waves", "wind"])
+          .optional()
+          .describe("Only the stations that report this."),
         limit: z.coerce.number().int().min(1).max(500).default(100),
       }),
     )
@@ -136,13 +164,23 @@ export const stationsRouter = {
     }),
 
   get: callerProcedure
+    .meta({
+      mcp: {
+        name: "get_station",
+        title: "One buoy or wind station",
+        description:
+          "One station by its `id`, with what it measured last and when, its place, what " +
+          "it reports, its `attribution` and its `license`. Next: get_station_readings for " +
+          "its readings over a period.",
+      },
+    })
     .route({
       method: "GET",
       path: "/stations/{id}",
       summary: "One buoy with its latest reading",
       tags: ["Stations"],
     })
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: stationId }))
     .output(stationSchema.extend({ latestReading: readingSchema.nullable() }))
     .handler(async ({ input, context }) => {
       const [row] = await context.db
@@ -159,6 +197,22 @@ export const stationsRouter = {
     }),
 
   readings: callerProcedure
+    .meta({
+      mcp: {
+        name: "get_station_readings",
+        title: "What a station measured over a period",
+        description:
+          "A station's readings over a period, the newest first, with the station's " +
+          "`attribution` and `license`. Without `start` and `end` it is the last two days. " +
+          "Many buoys report every half hour, so the 48 readings asked for by default are " +
+          "about a day: raise `limit`, to 2,000 at most, for a longer period, or give a " +
+          "shorter one. `validated: false` marks a real-time value that its provider has " +
+          "not checked yet. A buoy has nulls for the wind, and a wind station for the " +
+          "waves. Use it to say how the sea or the wind changed, and compare it with " +
+          "get_forecast at the station's place.",
+        defaults: { limit: 48 },
+      },
+    })
     .route({
       method: "GET",
       path: "/stations/{id}/readings",
@@ -167,10 +221,15 @@ export const stationsRouter = {
     })
     .input(
       z.object({
-        id: z.string(),
-        // Defaults to the last two days.
-        start: z.coerce.date().optional(),
-        end: z.coerce.date().optional(),
+        id: stationId,
+        start: z.coerce
+          .date()
+          .optional()
+          .describe("The start of the period, ISO 8601 in UTC. Two days before `end` if left out."),
+        end: z.coerce
+          .date()
+          .optional()
+          .describe("The end of the period, ISO 8601 in UTC. Now if left out."),
         limit: z.coerce.number().int().min(1).max(2000).default(500),
       }),
     )

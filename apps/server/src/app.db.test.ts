@@ -1336,6 +1336,68 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     });
   });
 
+  describe("the MCP server", () => {
+    // One message of the protocol, as an agent's client posts it.
+    const post = (message: object, headers: Record<string, string> = {}) =>
+      app.request("/mcp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+          ...headers,
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, ...message }),
+      });
+    // What the server answered a message: as JSON, or as the one event of a stream.
+    async function resultOf<Result>(response: Response) {
+      const text = await response.text();
+      const data = /^data: (.+)$/m.exec(text)?.[1] ?? text;
+      return (JSON.parse(data) as { result: Result }).result;
+    }
+
+    it("lists its tools to a key, and counts a call to one as a call to its route", async () => {
+      const cookie = await signUpOperator();
+      const { key, id } = await makeKey(cookie);
+      const by = { Authorization: `Bearer ${key}` };
+
+      const listed = await post({ method: "tools/list" }, by);
+      expect([listed.status, listed.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      const { tools } = await resultOf<{ tools: { name: string }[] }>(listed);
+      expect(tools.map((tool) => tool.name)).toContain("get_forecast");
+
+      const called = await post(
+        { method: "tools/call", params: { name: "list_stations", arguments: {} } },
+        by,
+      );
+      expect([called.status, called.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      const { content } = await resultOf<{ content: { text: string }[] }>(called);
+      expect(JSON.parse(content[0]?.text ?? "")).toEqual({ stations: [] });
+
+      await usage.flush();
+      const counted = await database.db.select().from(apiUsage);
+      // The call is the key's, under the route's own name, whatever carried it.
+      expect(
+        counted
+          .filter((row) => row.via === "key")
+          .map(({ keyId, procedure, outcome, calls }) => ({ keyId, procedure, outcome, calls })),
+      ).toEqual([{ keyId: id, procedure: "v1.stations.list", outcome: "answered", calls: 1 }]);
+    });
+
+    it("refuses a request with no key, an account's session too", async () => {
+      const cookie = await signUpOperator();
+      const without: Record<string, string>[] = [
+        {},
+        { Cookie: cookie },
+        { Cookie: cookie, Origin: APP },
+      ];
+      for (const headers of without) {
+        const refused = await post({ method: "tools/list" }, headers);
+        expect([refused.status, refused.headers.get("Cache-Control")]).toEqual([401, NOT_CACHED]);
+        expect(refused.headers.get("WWW-Authenticate")).toBe("Bearer");
+      }
+    });
+  });
+
   describe("the log", () => {
     it("leaves out what follows the question mark, and what a refused request held", async () => {
       const cookie = await signUpOperator();

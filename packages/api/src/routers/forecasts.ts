@@ -37,6 +37,28 @@ export function forecastUnavailable(failure: { _tag: string }) {
 
 export const forecastsRouter = {
   get: callerProcedure
+    .meta({
+      mcp: {
+        name: "get_forecast",
+        title: "Hourly forecast of waves, wind and weather at a point",
+        description:
+          "The hourly forecast at a point of the coast or of the sea. Each hour has the " +
+          "whole sea, swell and wind sea together as a buoy measures it (`waveHeightMeters`, " +
+          "its mean period `wavePeriodSeconds`, its peak period `wavePeakPeriodSeconds`, " +
+          "`waveDirectionDegrees`), the first swell apart from the wind sea where a model " +
+          "gives one (`primarySwell…`, less sure than the whole sea), the wind, its gusts " +
+          "and its direction, the cloud cover, the precipitation of the hour before and the " +
+          "air temperature. The hours start at 00:00 UTC of today, less `pastDays`, and run " +
+          "for `days` days: today and tomorrow unless `days` says another, 7 at most. Each " +
+          "day is 24 hours and about 10 kB, so ask for the days you need. " +
+          "`point` is the model's grid point the answer was computed for, which may lie " +
+          "some kilometres from the one asked. `waveModels` names the models and their " +
+          "resolution. A point with no sea nearby answers NOT_FOUND. `stale: true` marks " +
+          "an older forecast, given because the provider could not be asked. Credit " +
+          "`source.attribution`. Next: get_tide_extremes at the same point for the same days.",
+        defaults: { days: 2 },
+      },
+    })
     .route({
       method: "GET",
       path: "/forecasts",
@@ -45,9 +67,15 @@ export const forecastsRouter = {
     })
     .input(
       z.object({
-        latitude: z.coerce.number().min(-90).max(90),
-        longitude: z.coerce.number().min(-180).max(180),
-        days: z.coerce.number().int().min(1).max(MAX_FORECAST_DAYS).default(3),
+        latitude: z.coerce.number().min(-90).max(90).describe("Decimal degrees, north positive."),
+        longitude: z.coerce.number().min(-180).max(180).describe("Decimal degrees, east positive."),
+        days: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_FORECAST_DAYS)
+          .default(3)
+          .describe("How many days of hours, from the start of today in UTC."),
         pastDays: z.coerce
           .number()
           .int()

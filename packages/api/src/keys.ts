@@ -75,6 +75,35 @@ function isGoneDeveloper(error: unknown) {
   return code === "23503" && constraint === GONE_DEVELOPER;
 }
 
+// A key the instance knows, by what is stored of it, and whether it works: it is not revoked,
+// its developer account is not suspended, and its maker is still an operator.
+function named(key: string) {
+  return sql`
+    select
+      ${apiKey.id},
+      ${apiKey.developerId},
+      ${developer.callsPerHour},
+      (${apiKey.revokedAt} is null and ${developer.suspendedAt} is null
+        and ${operator.userId} is not null) as works
+    from ${apiKey}
+    left join ${developer} on ${developer.id} = ${apiKey.developerId}
+    left join ${operator} on ${operator.userId} = ${apiKey.userId}
+    where ${apiKey.keyHash} = ${hashKey(key)}
+  `;
+}
+
+/**
+ * Whether a key works now. It lets no call in: nothing is added to what the key's developer
+ * account made this hour, and a key that has used its limit still works. For a door that
+ * stands before the calls, as the MCP server's does: decision 045.
+ */
+export async function keyWorks(db: Database, key: string) {
+  const { rows } = await db.execute<{ works: boolean }>(
+    sql`select named.works from (${named(key)}) named`,
+  );
+  return rows[0]?.works === true;
+}
+
 async function admit(db: Database, key: string) {
   const limit = sql`(select calls_per_hour from named)`;
   const { rows } = await db.execute<{
@@ -83,18 +112,7 @@ async function admit(db: Database, key: string) {
     counted: boolean;
     let_in: boolean;
   }>(sql`
-    with named as (
-      select
-        ${apiKey.id},
-        ${apiKey.developerId},
-        ${developer.callsPerHour},
-        (${apiKey.revokedAt} is null and ${developer.suspendedAt} is null
-          and ${operator.userId} is not null) as works
-      from ${apiKey}
-      left join ${developer} on ${developer.id} = ${apiKey.developerId}
-      left join ${operator} on ${operator.userId} = ${apiKey.userId}
-      where ${apiKey.keyHash} = ${hashKey(key)}
-    ), let_in as (
+    with named as (${named(key)}), let_in as (
       insert into ${developerCalls} as counted (hour, developer_id, calls)
       select date_trunc('hour', now(), 'UTC'), named.developer_id, 1
       from named

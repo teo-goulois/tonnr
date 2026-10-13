@@ -15,4 +15,9 @@ describe("llmsText", () => {
   it("says how a program calls", () => {
     expect(text).toContain("Authorization: Bearer");
   });
+
+  it("gives an agent the address of the MCP server", () => {
+    expect(text).toContain("`https://api.example/mcp`");
+    expect(text).toContain("get_forecast");
+  });
 });

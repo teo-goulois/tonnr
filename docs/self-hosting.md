@@ -306,6 +306,16 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - An instance with no operator still serves its accounts. Nobody can make a key.
 - A key made before the developer accounts was given one named after its maker, when the instance was updated.
 
+### The MCP server
+
+The API is also an MCP server, at `/mcp`: an agent such as Claude Code or Cursor lists its tools and calls them in place of the routes of `/v1`. There is nothing to deploy and nothing to set: it comes with the API. Decision 045 gives the rules, and [`docs/mcp.md`](mcp.md) says how a client connects.
+
+- It takes one of the keys above, in `Authorization: Bearer`, and nothing else: no session, and no request without a key. Hand a key over as you would for a program.
+- A call to a tool is a call to its route. It is held to the developer account's limit and shows in its counts, under the route's name: the counts do not tell one way in from the other. Listing the tools is not counted.
+- Its tools read the shared data and nothing of an account: the stations, the forecasts, the tides and the catalogue of breaks.
+- A proxy in front of the API lets `POST /mcp` through, and does not hold back an answer that comes as a stream. An agent's client is no browser, so the API's CORS does not concern it.
+- The server keeps nothing between two requests, so several API processes answer one agent in turn.
+
 ### The admin app
 
 `apps/admin` is a web app for all of the above. It is optional, and it is not one of the containers. It goes to Cloudflare as the second app of a stage, beside the web app:
@@ -338,6 +348,19 @@ Anyone opens your web app without an account and reads the map: the buoys, the b
 - `GET /v1/visitors` says whether the instance answers visitors, to anyone.
 - It takes effect at once, with no restart. What you set stays across restarts and updates, and holds whatever the day's count says: an instance you closed stays closed past midnight.
 - Update the API before the web app: a web app of this version in front of an older API shows its visitors a map that loads nothing.
+
+## Signing in with Google
+
+Email and password work on every instance. Google sign-in is optional: set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together in the API's environment (`apps/server/.env` from a clone or with Docker Compose). Leave both empty to keep email alone. The web app learns whether Google is enabled from the API; no web build variable is needed. Decision 046 gives the account rules.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), configure the OAuth consent screen and create an OAuth client of type **Web application**.
+2. Register `${BETTER_AUTH_URL}/api/auth/callback/google` as an authorized redirect URI, with the actual public API address substituted and no trailing slash on the base address. This is the API's address, not the web app's. Use separate credentials for development and production.
+3. Set both credentials in the API environment and restart or deploy the API. A partial pair prevents startup. If the consent screen is in testing, add the accounts that will test it.
+4. Check that the web app offers **Continue with Google**, and complete a sign-in from it. Google Cloud requires an HTTPS callback on an eligible public domain, or HTTP on localhost for development; a `.localify` domain is not a public OAuth callback domain.
+
+Google receives the request to sign in and returns a name, an email address and an image. The auth library stores them and the provider's tokens in the existing auth tables. Only identity scopes are requested; this does not give the app access to Drive or Gmail. An existing email account links only after its local address is verified. A new Google account chooses its username when the app needs one.
+
+Provider setup follows [Better Auth's Google documentation](https://better-auth.com/docs/authentication/google).
 
 ## Checking addresses by mail
 

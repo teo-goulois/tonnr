@@ -93,6 +93,26 @@ const coordinate = (least: number, most: number) =>
 
 export const breaksRouter = {
   list: callerProcedure
+    .meta({
+      mcp: {
+        name: "list_surf_breaks",
+        title: "Surf breaks in an area",
+        description:
+          "The surf breaks of the catalogue in an area (`bbox`), or whose name holds `q`, " +
+          "each with its place and what is known of it: the type of break, the bottom, the " +
+          "way the wave goes, the level and the boards it suits, the seasons, the tides, " +
+          "and the swell and wind directions it likes, as points of the compass a swell or " +
+          "a wind comes from. `offshoreDirectionDegrees` is where the wind comes from when " +
+          "it blows straight off that shore. A characteristic that is null is not known, " +
+          "which is common. The catalogue is what the instance's operator put in it: it is " +
+          "not every break of a coast. Breaks come in the order of their id: pass an " +
+          "answer's `next` as `after` for the ones that follow, until `next` is null. " +
+          "`source` says where a break was read and under which licence, and holds nulls " +
+          "where the instance does not say. For one break by its name, use " +
+          "search_surf_breaks, which ranks.",
+        defaults: { limit: 50 },
+      },
+    })
     .route({
       method: "GET",
       path: "/breaks",
@@ -107,10 +127,14 @@ export const breaksRouter = {
     .input(
       z.object({
         bbox: bboxSchema.optional(),
-        // Part of the name, in any case and with or without its marks.
-        q: z.string().trim().min(2).max(80).optional(),
-        // The `next` of the page before.
-        after: z.uuid().optional(),
+        q: z
+          .string()
+          .trim()
+          .min(2)
+          .max(80)
+          .optional()
+          .describe("Part of the name, in any case and with or without its accents."),
+        after: z.uuid().optional().describe("The `next` of the page before."),
         limit: z.coerce.number().int().min(1).max(2000).default(500),
       }),
     )
@@ -150,7 +174,23 @@ export const breaksRouter = {
 
   // A search and not a page of the catalogue: what is found is ranked, and none follows.
   search: callerProcedure
-    .meta({ analytics: "break_searched" })
+    .meta({
+      analytics: "break_searched",
+      mcp: {
+        name: "search_surf_breaks",
+        title: "Find a surf break by its name",
+        description:
+          "Surf breaks by their name or their town's, the likeliest first, whatever the " +
+          'case and the accents: "guethary" finds "Guéthary", and a town finds its ' +
+          "breaks. Give `latitude` and `longitude` together to bring forward the breaks " +
+          "nearest a point. It answers 8 breaks unless `limit` says another, 20 at most, " +
+          "and no page follows: type more of the name when too many are found. An empty " +
+          "list means that the catalogue holds no break of that name, not that nobody " +
+          "surfs there. Each break has what list_surf_breaks gives. Next: get_forecast " +
+          "and get_tide_extremes at the break's `latitude` and `longitude`, and " +
+          "list_stations around it for what the sea does now.",
+      },
+    })
     .route({
       method: "GET",
       path: "/breaks/search",
@@ -168,7 +208,12 @@ export const breaksRouter = {
     .input(
       z
         .object({
-          q: z.string().trim().min(2).max(80),
+          q: z
+            .string()
+            .trim()
+            .min(2)
+            .max(80)
+            .describe("The name of a break or of its town, or its beginning."),
           latitude: coordinate(-90, 90).optional(),
           longitude: coordinate(-180, 180).optional(),
           limit: z.coerce.number().int().min(1).max(20).default(8),
@@ -214,13 +259,27 @@ export const breaksRouter = {
     }),
 
   get: callerProcedure
+    .meta({
+      mcp: {
+        name: "get_surf_break",
+        title: "One surf break",
+        description:
+          "One surf break of the catalogue by its `id`, with its place, its time zone, " +
+          "what is known of it and where it was read, as list_surf_breaks gives them. Use " +
+          "it to read again a break whose id you hold.",
+      },
+    })
     .route({
       method: "GET",
       path: "/breaks/{id}",
       summary: "One surf break of the catalogue",
       tags: ["Breaks"],
     })
-    .input(z.object({ id: z.uuid() }))
+    .input(
+      z.object({
+        id: z.uuid().describe("A break's `id`, as a list or a search of breaks gives it."),
+      }),
+    )
     .output(breakSchema)
     .handler(async ({ input, context }) => {
       const [row] = await context.db.select().from(surfBreak).where(eq(surfBreak.id, input.id));

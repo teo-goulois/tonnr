@@ -1,3 +1,5 @@
+import type { Tool } from "./mcp";
+
 /** Product analytics is optional. The server supplies the transport; tests supply none. */
 export type Analytics = {
   capture: (event: string, request: AnalyticsRequest, account?: string) => void;
@@ -9,7 +11,9 @@ export type AnalyticsRequest = {
   sessionId: string;
 };
 
-export type ProcedureMeta = { analytics?: string };
+// What a procedure declares of itself: the event a success of it is, for the product's
+// analytics, and the tool it is for an agent, on the MCP server (decision 045).
+export type ProcedureMeta = { analytics?: string; mcp?: Tool };
 
 /** Consent and SDK IDs from the web app. An account ID always comes from authentication. */
 export function analyticsRequest(headers: Headers): AnalyticsRequest | undefined {

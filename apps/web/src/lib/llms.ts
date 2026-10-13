@@ -8,8 +8,8 @@ export const KEY_VARIABLE = `${APP_NAME.toUpperCase()}_KEY`;
 
 /**
  * What an agent reads at `/llms.txt`: what the service is and how to call its API, as Markdown.
- * It names routes of `packages/api`: a route that changes there changes here. English alone, as
- * the API's reference is.
+ * It names routes of `packages/api`, and the tools of its MCP server: a route or a tool that
+ * changes there changes here. English alone, as the API's reference is.
  */
 export function llmsText({ site, api }: { site: string; api: string }) {
   return `# ${APP_NAME}
@@ -52,6 +52,15 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 curl ${api}/v1/stations/${EXAMPLE_STATION} \\
   -H "Authorization: Bearer $${KEY_VARIABLE}"
 \`\`\`
+
+## For an agent: the MCP server
+
+- Address: \`${api}/mcp\`, over Streamable HTTP. Nothing is kept between two requests.
+- It takes the same key, in the same header: \`Authorization: Bearer <key>\`. Without a working key it answers 401.
+- Its tools read what the routes above read, under names of their own: \`list_stations\`, \`get_station\`, \`get_station_readings\`, \`get_forecast\`, \`get_tide_extremes\`, \`get_tide_timeline\`, \`list_surf_breaks\`, \`search_surf_breaks\` and \`get_surf_break\`. Each one reads, and none writes.
+- A call to a tool is a call to its route: it answers the same JSON, and counts against the same limit.
+- Claude Code: \`claude mcp add --transport http ${APP_NAME.toLowerCase()} ${api}/mcp --header "Authorization: Bearer $${KEY_VARIABLE}"\`
+- [How to connect another client](${REPOSITORY_URL}/blob/main/docs/mcp.md).
 
 ## The project
 
