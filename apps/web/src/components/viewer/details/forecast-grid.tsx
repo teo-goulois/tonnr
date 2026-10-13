@@ -44,6 +44,9 @@ type ForecastGridProps = {
   // How many columns of the past stay in view before the one of now, when the grid opens.
   lead?: number;
   isLoading?: boolean;
+  // Whether the rows say their names. Without them the grid is wider by their column, for a
+  // reader who knows its rows by their order and their colors.
+  named?: boolean;
 };
 
 const COLUMN = 34;
@@ -72,12 +75,16 @@ function RowLabel({
       scope="row"
       className={cn(
         "sticky left-0 z-10 bg-neutral-1 py-0 pr-xs pl-0 text-left text-xs font-normal whitespace-nowrap",
+        "group-data-unnamed/grid:pr-0",
         quiet && "text-neutral-7",
         className,
       )}
     >
-      {children}
-      {unit && <span className="ml-1 text-neutral-6">{unit}</span>}
+      {/* A grid without names still says them to a screen reader. */}
+      <span className="group-data-unnamed/grid:sr-only">
+        {children}
+        {unit && <span className="ml-1 text-neutral-6">{unit}</span>}
+      </span>
     </th>
   );
 }
@@ -97,7 +104,9 @@ export function ForecastGrid({
   place,
   lead = 0,
   isLoading = false,
+  named = true,
 }: ForecastGridProps) {
+  const labels = named ? LABELS : 0;
   // Drawn again when the reader changes units: the wind's row is written in them.
   useUnits();
   const all = metrics();
@@ -304,11 +313,12 @@ export function ForecastGrid({
         onPointerCancel={() => (drag.current = null)}
       >
         <table
-          className="table-fixed border-separate border-spacing-0 select-none"
-          style={{ width: LABELS + width }}
+          className="group/grid table-fixed border-separate border-spacing-0 select-none"
+          data-unnamed={named ? undefined : ""}
+          style={{ width: labels + width }}
         >
           <colgroup>
-            <col style={{ width: LABELS }} />
+            <col style={{ width: labels }} />
             {columns.map((column) => (
               <col key={column.time} style={{ width: COLUMN }} />
             ))}
@@ -325,7 +335,7 @@ export function ForecastGrid({
                     index % 2 === 1 && "bg-neutral-2",
                   )}
                 >
-                  <span className={cn(bandName, "px-xxs")} style={{ left: LABELS }}>
+                  <span className={cn(bandName, "px-xxs")} style={{ left: labels }}>
                     {day.count > 1 ? formatDay(new Date(day.time)) : ""}
                   </span>
                 </th>
@@ -364,7 +374,7 @@ export function ForecastGrid({
                   colSpan={lastMeasured + 1}
                   className="h-5 p-0 text-left text-xs font-medium shadow-[inset_0_calc(-1*var(--border-l))_0_var(--neutral-10)]"
                 >
-                  <span className={bandName} style={{ left: LABELS }}>
+                  <span className={bandName} style={{ left: labels }}>
                     <LineGlyph />
                     {m.details_buoy()}
                   </span>
@@ -374,7 +384,7 @@ export function ForecastGrid({
                     colSpan={columns.length - lastMeasured - 1}
                     className="h-5 border-b border-dashed border-neutral-6 p-0 pl-xs text-left text-xs font-normal text-neutral-7"
                   >
-                    <span className={bandName} style={{ left: LABELS + 8 }}>
+                    <span className={bandName} style={{ left: labels + 8 }}>
                       <LineGlyph dashed />
                       {m.details_model()}
                     </span>

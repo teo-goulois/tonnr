@@ -1,5 +1,7 @@
+import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
+import { PanelLeftIcon } from "@repo/ui/icon";
 import {
   type ComponentProps,
   type ReactNode,
@@ -11,6 +13,7 @@ import {
 } from "react";
 
 import { formatDayAndClock } from "@/lib/format";
+import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
 
 import { type PointConditionsProps, TideChart } from "../point-conditions";
@@ -46,9 +49,19 @@ import {
  * - Every table is the grid that scrolls sideways, a column for each hour.
  * - The energy is in kilojoules.
  * - As little text as the panel can do with. What explains is behind a button.
+ *
+ * And on 2026-10-13:
+ * - The lanes reach 12, 24 or 48 hours on each side of now, or the week, and open on 24.
+ * - The legend of the lanes stands over the columns their figures are written in.
+ * - What a reader learns once is not said again: how a finger reads the curves, until it has, and
+ *   the names of the grid's rows, which a button folds away.
  */
 
-type Range = "live" | "week";
+// How far the lanes reach on each side of now, in hours. The week keeps a day of the past and
+// goes as far as the model does.
+const SPANS = { "12h": 12, "24h": 24, "48h": 48 } as const;
+type Range = keyof typeof SPANS | "week";
+const RANGES = [...Object.keys(SPANS), "week"] as Range[];
 
 // The lanes draw with the chart library, which is heavy: they load apart from the map, as the
 // other charts do. The viewer asks for them as soon as the map is up.
@@ -70,14 +83,19 @@ function MetricLanes(props: ComponentProps<typeof LazyMetricLanes>) {
  */
 const Conditions = memo(function Conditions(props: DetailsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes } = props;
-  const [range, setRange] = useState<Range>("live");
+  const [range, setRange] = useState<Range>("24h");
+  // The names of the grid's rows, which a reader who knows them folds away: kept in the browser.
+  const [named, setNamed] = useStoredState("tonnr:grid-names", true, (stored) =>
+    typeof stored === "boolean" ? stored : null,
+  );
 
   const first = model[0]?.time ?? now;
   const last = model.at(-1)?.time ?? now;
   // Around a buoy, as much of the past as of the days ahead. Elsewhere, the days ahead alone.
-  const back = hasBuoy ? (range === "live" ? 2 * DAY_MS : DAY_MS) : 3 * HOUR_MS;
+  const span = range === "week" ? undefined : SPANS[range] * HOUR_MS;
+  const back = hasBuoy ? (span ?? DAY_MS) : 3 * HOUR_MS;
   const start = Math.max(first, now - back);
-  const end = range === "live" ? Math.min(last, now + 2 * DAY_MS) : last;
+  const end = span === undefined ? last : Math.min(last, now + span);
   const nights = useMemo(
     () => (place ? nightsBetween(start, end, place.latitude, place.longitude) : []),
     // The nights move with the hours, not with the minutes.
@@ -86,7 +104,7 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
   );
 
   return (
-    <div className="grid gap-l">
+    <div className="grid gap-m">
       {/* What a phone's sheet shows before it is raised. */}
       <div className="grid gap-xs" {...SHEET_FOLD}>
         <NowTiles {...props} />
@@ -122,8 +140,13 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
                   <About {...props} />
                   <Tabs value={range} onValueChange={(value) => setRange(value as Range)}>
                     <TabsList variant="segment">
-                      <TabsTab value="live">48 h</TabsTab>
-                      <TabsTab value="week">7 {m.details_days_short()}</TabsTab>
+                      {RANGES.map((one) => (
+                        <TabsTab key={one} value={one} className="max-lg:px-xs!">
+                          {one === "week"
+                            ? `7 ${m.details_days_short()}`
+                            : `${SPANS[one]} ${m.details_hours_short()}`}
+                        </TabsTab>
+                      ))}
                     </TabsList>
                   </Tabs>
                 </>
@@ -141,8 +164,24 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
             </Block>
           )}
 
-          <Block title={m.details_week()}>
+          <Block
+            title={m.details_week()}
+            control={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="text-neutral-7"
+                aria-pressed={named}
+                aria-label={m.details_row_names()}
+                title={m.details_row_names()}
+                onClick={() => setNamed(!named)}
+              >
+                <PanelLeftIcon data-slot="icon" aria-hidden />
+              </Button>
+            }
+          >
             <ForecastGrid
+              named={named}
               model={model}
               measured={hasBuoy ? measured : undefined}
               start={hasBuoy ? Math.max(first, now - 2 * DAY_MS) : now - 1.5 * HOUR_MS}

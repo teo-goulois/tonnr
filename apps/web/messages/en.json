@@ -293,6 +293,8 @@
   "details_buoy_and_model": "Buoy and model",
   "details_week": "7 days",
   "details_days_short": "d",
+  "details_hours_short": "h",
+  "details_row_names": "Names of the rows",
   "details_more": "More",
   "details_max_height": "Max height",
   "details_water": "Water",

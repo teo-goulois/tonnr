@@ -10,10 +10,11 @@ import {
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { useUnits } from "@/lib/units";
+import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 
@@ -70,6 +71,14 @@ const LIVE_REACH = 3 * HOUR_MS;
 // than the `h-24` of the others, so the four plots are one height.
 const X_AXIS_HEIGHT = 30;
 const Y_AXIS_WIDTH = 30;
+// The columns a lane writes its figures in, over its plot: the buoy's, the model's, and what
+// parts them. They are the same on every lane, so the four read as a table under one legend.
+const BUOY_COLUMN = "flex w-14 items-center justify-end gap-xxs";
+const MODEL_COLUMN = "flex w-12 items-center justify-end gap-xxs";
+const GAP_COLUMN = "flex w-11 justify-end";
+// A span of time this short names its hours, every few of them, and not its days alone.
+const HOURS_NAMED_UNDER = 2 * DAY_MS;
+const HOURS_STEP = 6;
 
 function rowsOf(
   key: Metric["key"],
@@ -320,13 +329,16 @@ function Lane({
       ),
     [metric, rows],
   );
-  // A day is named under its noon, and ruled at its midnight.
+  // A day is named under its noon, and ruled at its midnight. A short span names the hours
+  // between them too.
   const noons = useMemo(() => {
     const list: number[] = [];
-    const noon = new Date(start);
-    noon.setHours(12, 0, 0, 0);
-    for (; noon.getTime() < end; noon.setDate(noon.getDate() + 1)) {
-      if (noon.getTime() > start) list.push(noon.getTime());
+    const step = end - start <= HOURS_NAMED_UNDER ? HOURS_STEP : 24;
+    const hour = new Date(start);
+    hour.setHours(12, 0, 0, 0);
+    while (hour.getTime() - step * HOUR_MS > start) hour.setHours(hour.getHours() - step);
+    for (; hour.getTime() < end; hour.setHours(hour.getHours() + step)) {
+      if (hour.getTime() > start) list.push(hour.getTime());
     }
     return list;
   }, [start, end]);
@@ -344,16 +356,21 @@ function Lane({
           hide={!last}
           height={X_AXIS_HEIGHT}
           ticks={noons}
-          tickFormatter={(time: number) => formatDay(new Date(time))}
+          tickFormatter={(time: number) => {
+            const hour = new Date(time).getHours();
+            return hour === 12 ? formatDay(new Date(time)) : String(hour).padStart(2, "0");
+          }}
         />
         <EvilAreaChart.YAxis
           width={Y_AXIS_WIDTH}
           tickMargin={4}
           ticks={ticks}
           domain={[ticks[0]!, ticks.at(-1)!]}
-          tickFormatter={(value: number) =>
-            formatNumber(metric.shown ? metric.shown(value) : value)
-          }
+          tickFormatter={(value: number) => {
+            const shown = metric.shown ? metric.shown(value) : value;
+            // The axis has room for three figures: a thousand is written short.
+            return shown >= 1000 ? `${formatNumber(shown / 1000)}k` : formatNumber(shown);
+          }}
         />
         {hasBuoy && (
           <EvilAreaChart.Area
@@ -410,35 +427,43 @@ function Lane({
   return (
     <div className="grid min-w-0 gap-0.5">
       <div className="flex h-(--line-s) items-center justify-between gap-xs">
-        <span className="text-xs text-neutral-7">
+        <span className="flex items-center gap-xxs text-xs text-neutral-7">
           {metric.label}
-          <span className="ml-1 text-neutral-6">{metric.unit}</span>
+          <span className="text-neutral-6">{metric.unit}</span>
+          {bearing !== undefined && !isLoading && (
+            <DirectionArrow fromDegrees={bearing} className="size-3 text-neutral-10" />
+          )}
         </span>
         {read && !isLoading && (
           <span className="flex items-center gap-xs tabular-nums">
-            {read.buoy !== null && (
-              <span className="flex items-center gap-xxs text-s font-medium">
-                <LineGlyph color={metricColor(metric, read.buoy)} />
-                {formatMetric(metric, read.buoy, false)}
-              </span>
-            )}
-            {read.model !== null && (
-              <span
-                className={cn(
-                  "flex items-center gap-xxs",
-                  read.buoy === null ? "text-s font-medium" : "text-xs text-neutral-7",
-                )}
-              >
-                <LineGlyph dashed color={metricColor(metric, read.model)} />
-                {formatMetric(metric, read.model, false)}
-              </span>
-            )}
-            {bearing !== undefined && <DirectionArrow fromDegrees={bearing} className="size-3" />}
-            {read.buoy !== null && read.model !== null && (
-              <Badge className="min-w-9 tabular-nums">
-                {formatGap(metric, read.model, read.buoy, false)}
-              </Badge>
-            )}
+            <span className={cn(BUOY_COLUMN, "text-s font-medium")}>
+              {read.buoy !== null && (
+                <>
+                  <LineGlyph color={metricColor(metric, read.buoy)} />
+                  {formatMetric(metric, read.buoy, false)}
+                </>
+              )}
+            </span>
+            <span
+              className={cn(
+                MODEL_COLUMN,
+                read.buoy === null ? "text-s font-medium" : "text-xs text-neutral-7",
+              )}
+            >
+              {read.model !== null && (
+                <>
+                  <LineGlyph dashed color={metricColor(metric, read.model)} />
+                  {formatMetric(metric, read.model, false)}
+                </>
+              )}
+            </span>
+            <span className={GAP_COLUMN}>
+              {read.buoy !== null && read.model !== null && (
+                <Badge className="min-w-9 tabular-nums">
+                  {formatGap(metric, read.model, read.buoy, false)}
+                </Badge>
+              )}
+            </span>
           </span>
         )}
       </div>
@@ -499,6 +524,17 @@ export function MetricLanes({
   className,
 }: MetricLanesProps) {
   const [pointed, setPointed] = useState<number>();
+  // How a finger reads the curves is said until it has read them once: kept in the browser.
+  const [knowsHold, setKnowsHold] = useStoredState("tonnr:chart-hold", false, (stored) =>
+    typeof stored === "boolean" ? stored : null,
+  );
+  const onPoint = useCallback(
+    (time: number | undefined) => {
+      setPointed(time);
+      if (time !== undefined && !knowsHold) setKnowsHold(true);
+    },
+    [knowsHold, setKnowsHold],
+  );
   const locale = getLocale();
   const units = useUnits();
   // The metrics are named in the reader's language and written in the reader's units.
@@ -507,28 +543,32 @@ export function MetricLanes({
   const hasBuoy = measured.length > 0;
 
   return (
-    <div className={cn("grid gap-s", className)}>
-      <p className="text-xs text-neutral-7 [@media(pointer:fine)]:hidden">{m.chart_touch_hint()}</p>
+    <div className={cn("grid gap-xs", className)}>
+      {!knowsHold && (
+        <p className="text-xs text-neutral-7 [@media(pointer:fine)]:hidden">
+          {m.chart_touch_hint()}
+        </p>
+      )}
+      {/* The moment the lanes read, then the legend, which stands over the columns it names. */}
       <div className="flex h-(--line-xs) items-center justify-between gap-xs text-xs text-neutral-7">
-        <span className="flex items-center gap-s">
-          {hasBuoy && (
-            <>
-              <span className="flex items-center gap-xxs">
-                <LineGlyph />
-                {m.details_buoy()}
-              </span>
-              <span className="flex items-center gap-xxs">
-                <LineGlyph dashed />
-                {m.details_model()}
-              </span>
-            </>
-          )}
-        </span>
         <span
           className={cn("tabular-nums", pointed !== undefined && "font-medium text-neutral-10")}
         >
           {pointed === undefined ? m.details_now() : formatDayAndClock(new Date(pointed))}
         </span>
+        {hasBuoy && (
+          <span className="flex items-center gap-xs">
+            <span className={BUOY_COLUMN}>
+              <LineGlyph />
+              {m.details_buoy()}
+            </span>
+            <span className={MODEL_COLUMN}>
+              <LineGlyph dashed />
+              {m.details_model()}
+            </span>
+            <span className={GAP_COLUMN} />
+          </span>
+        )}
       </div>
       {keys.map((key, index) => (
         <Lane
@@ -542,7 +582,7 @@ export function MetricLanes({
           nights={nights}
           isLoading={isLoading}
           pointedTime={pointed}
-          onPoint={setPointed}
+          onPoint={onPoint}
           last={index === keys.length - 1}
         />
       ))}

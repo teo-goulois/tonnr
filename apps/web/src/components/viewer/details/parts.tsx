@@ -216,10 +216,11 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
 
   return (
     <div className="grid gap-xs">
+      {/* The button stands in the room under the tiles, and takes no line of its own. */}
       <Button
         variant="ghost"
         size="xs"
-        className="-my-xxs justify-self-end text-xs text-neutral-7"
+        className="-mt-xxs -mb-xs justify-self-end text-xs text-neutral-7"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
