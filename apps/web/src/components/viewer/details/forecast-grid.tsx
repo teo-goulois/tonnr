@@ -1,5 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
+import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type PointerEvent,
@@ -44,13 +45,20 @@ type ForecastGridProps = {
   // How many columns of the past stay in view before the one of now, when the grid opens.
   lead?: number;
   isLoading?: boolean;
-  // Whether the rows say their names. Without them the grid is wider by their column, for a
-  // reader who knows its rows by their order and their colors.
+  // Whether the rows say their names in full. Folded, a row keeps the first letter of its name,
+  // for a reader who knows the rows by their order and their colors, and the hours get the room.
+  // An arrow over the names folds them and unfolds them.
   named?: boolean;
+  onNamedChange?: (named: boolean) => void;
+  // Told how to bring the grid back to now while it is scrolled away from it, and that there is
+  // nothing to bring back once it is there.
+  onAway?: (back: (() => void) | undefined) => void;
 };
 
 const COLUMN = 34;
 const LABELS = 68;
+// The width of the names once they are folded to a letter.
+const LETTERS = 24;
 const ROW = "h-[26px]";
 const MEASURED_REACH = 1.5 * HOUR_MS;
 // A hair of the page's color before the first column of a day. A cell draws it: a column cannot.
@@ -61,29 +69,40 @@ type Column = { time: number; night: boolean; isNow: boolean; day: number; newDa
 
 function RowLabel({
   children,
+  short,
   unit,
   quiet,
   className,
 }: {
   children?: ReactNode;
+  // What stands for the name once the names are folded. A name that is a word gives its letter.
+  short?: ReactNode;
   unit?: string;
   quiet?: boolean;
   className?: string;
 }) {
+  const letter = short ?? (typeof children === "string" ? children.slice(0, 1).toUpperCase() : "");
   return (
     <th
       scope="row"
       className={cn(
         "sticky left-0 z-10 bg-neutral-1 py-0 pr-xs pl-0 text-left text-xs font-normal whitespace-nowrap",
-        "group-data-unnamed/grid:pr-0",
+        "group-data-unnamed/grid:pr-0 group-data-unnamed/grid:text-center",
         quiet && "text-neutral-7",
         className,
       )}
     >
-      {/* A grid without names still says them to a screen reader. */}
+      {/* Folded names are still said in full to a screen reader. */}
       <span className="group-data-unnamed/grid:sr-only">
         {children}
         {unit && <span className="ml-1 text-neutral-6">{unit}</span>}
+      </span>
+      <span
+        aria-hidden
+        title={typeof children === "string" ? children : undefined}
+        className="hidden group-data-unnamed/grid:inline-flex"
+      >
+        {letter}
       </span>
     </th>
   );
@@ -105,8 +124,10 @@ export function ForecastGrid({
   lead = 0,
   isLoading = false,
   named = true,
+  onNamedChange,
+  onAway,
 }: ForecastGridProps) {
-  const labels = named ? LABELS : 0;
+  const labels = named ? LABELS : LETTERS;
   // Drawn again when the reader changes units: the wind's row is written in them.
   useUnits();
   const all = metrics();
@@ -227,7 +248,7 @@ export function ForecastGrid({
         </tr>
         {compares && (
           <tr>
-            <RowLabel quiet className="h-5">
+            <RowLabel quiet className="h-5" short={<LineGlyph dashed />}>
               <span className="flex items-center gap-xxs">
                 <LineGlyph dashed />
                 {m.details_model()}
@@ -291,22 +312,19 @@ export function ForecastGrid({
   return (
     // A grid's track grows to what it holds: `min-w-0` keeps the table inside the panel.
     <div className="relative min-w-0">
-      {away && nowIndex >= 0 && (
-        <Button
-          variant="secondary"
-          size="xs"
-          // In the corner the names of the rows leave empty, over the days and the hours.
-          className="absolute top-0 left-0 z-20"
-          onClick={() => scroller.current?.scrollTo({ left: home, behavior: "smooth" })}
-        >
-          {m.details_back_to_now()}
-        </Button>
-      )}
       <div
         ref={scroller}
         className="cursor-grab overflow-x-auto overscroll-x-contain [scrollbar-width:none] active:cursor-grabbing"
         style={{ maskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)" }}
-        onScroll={(event) => setAway(Math.abs(event.currentTarget.scrollLeft - home) > COLUMN * 2)}
+        onScroll={(event) => {
+          const next =
+            nowIndex >= 0 && Math.abs(event.currentTarget.scrollLeft - home) > COLUMN * 2;
+          if (next === away) return;
+          setAway(next);
+          onAway?.(
+            next ? () => scroller.current?.scrollTo({ left: home, behavior: "smooth" }) : undefined,
+          );
+        }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={() => (drag.current = null)}
@@ -325,7 +343,29 @@ export function ForecastGrid({
           </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-neutral-1 p-0" />
+              {/* In the corner the names leave empty, over the days and the hours. */}
+              <th
+                rowSpan={2}
+                className="sticky left-0 z-10 bg-neutral-1 p-0 text-left align-middle"
+              >
+                {onNamedChange && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-neutral-7"
+                    aria-expanded={named}
+                    aria-label={m.details_row_names()}
+                    title={m.details_row_names()}
+                    onClick={() => onNamedChange(!named)}
+                  >
+                    {named ? (
+                      <ChevronLeftIcon data-slot="icon" aria-hidden />
+                    ) : (
+                      <ChevronRightIcon data-slot="icon" aria-hidden />
+                    )}
+                  </Button>
+                )}
+              </th>
               {days.map((day, index) => (
                 <th
                   key={day.time}
@@ -342,7 +382,6 @@ export function ForecastGrid({
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-10 bg-neutral-1 p-0" />
               {columns.map((column) => (
                 <th
                   key={column.time}

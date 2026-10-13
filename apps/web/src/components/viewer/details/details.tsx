@@ -1,13 +1,13 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
-import { PanelLeftIcon } from "@repo/ui/icon";
 import {
   type ComponentProps,
   type ReactNode,
   Suspense,
   lazy,
   memo,
+  useCallback,
   useMemo,
   useState,
 } from "react";
@@ -54,7 +54,7 @@ import {
  * - The lanes reach 12, 24 or 48 hours on each side of now, or the week, and open on 24.
  * - The legend of the lanes stands over the columns their figures are written in.
  * - What a reader learns once is not said again: how a finger reads the curves, until it has, and
- *   the names of the grid's rows, which a button folds away.
+ *   the names of the grid's rows, which an arrow over them folds to their first letter.
  */
 
 // How far the lanes reach on each side of now, in hours. The week keeps a day of the past and
@@ -84,7 +84,11 @@ function MetricLanes(props: ComponentProps<typeof LazyMetricLanes>) {
 const Conditions = memo(function Conditions(props: DetailsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes } = props;
   const [range, setRange] = useState<Range>("24h");
-  // The names of the grid's rows, which a reader who knows them folds away: kept in the browser.
+  // How to bring the grid back to now, while it is scrolled away from it.
+  const [backToNow, setBackToNow] = useState<{ go: () => void }>();
+  const onGridAway = useCallback((go: (() => void) | undefined) => setBackToNow(go && { go }), []);
+  // The names of the grid's rows, which a reader who knows them folds to a letter: kept in the
+  // browser.
   const [named, setNamed] = useStoredState("tonnr:grid-names", true, (stored) =>
     typeof stored === "boolean" ? stored : null,
   );
@@ -167,21 +171,18 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
           <Block
             title={m.details_week()}
             control={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-neutral-7"
-                aria-pressed={named}
-                aria-label={m.details_row_names()}
-                title={m.details_row_names()}
-                onClick={() => setNamed(!named)}
-              >
-                <PanelLeftIcon data-slot="icon" aria-hidden />
-              </Button>
+              // Only while the grid is scrolled away from now.
+              backToNow && (
+                <Button variant="secondary" size="xs" onClick={backToNow.go}>
+                  {m.details_back_to_now()}
+                </Button>
+              )
             }
           >
             <ForecastGrid
               named={named}
+              onNamedChange={setNamed}
+              onAway={onGridAway}
               model={model}
               measured={hasBuoy ? measured : undefined}
               start={hasBuoy ? Math.max(first, now - 2 * DAY_MS) : now - 1.5 * HOUR_MS}
