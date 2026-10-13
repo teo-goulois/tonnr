@@ -863,5 +863,8 @@
   "session_duration_other": "Autre",
   "session_duration_less": "Cinq minutes de moins",
   "session_duration_more": "Cinq minutes de plus",
-  "session_duration_done": "Valider"
+  "session_duration_done": "Valider",
+  "release_new": "Une nouvelle version est disponible",
+  "release_new_detail": "Recharge la page pour l'avoir.",
+  "release_reload": "Recharger"
 }

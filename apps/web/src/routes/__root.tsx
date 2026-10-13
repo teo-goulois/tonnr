@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 
 import { AppHotkeys } from "@/components/shared/app-hotkeys";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { ReleaseWatcher } from "@/components/shared/release-watcher";
 import { ShortcutSettings } from "@/components/shared/shortcut-settings";
 import type { orpc } from "@/utils/orpc";
 
@@ -91,6 +92,7 @@ function RootDocument() {
           <AppHotkeys />
           <CommandPalette />
           <ShortcutSettings />
+          <ReleaseWatcher />
           <Outlet />
           {/* A toast stands above a phone's bar of tabs, which floats over the bottom of the
               screen: `index.css` says by how much, and by nothing where there is no bar. */}

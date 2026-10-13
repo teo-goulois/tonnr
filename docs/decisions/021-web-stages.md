@@ -47,6 +47,13 @@ Three facts bound the choice:
 - The web app tells search engines not to list a stage, unless the stage sets `WEB_INDEXED=true`. It says so in a header, `X-Robots-Tag: noindex`, on every page it answers.
 - `robots.txt` still allows every page, because a search engine that may not read a page does not read its header.
 
+### A deployment said to an open app
+
+- A build of the web app gives itself a name, from the time it starts. It tells the name to the app and writes it in `release.json`, a file served beside the app.
+- An app that is open reads the file again, past every cache: when it comes back into view, and every ten minutes while it is in view, never twice in a minute. A name that is no longer its own means the stage was deployed since it was loaded.
+- It then says so once, in a toast that stays until it is answered and offers to load the page again. It loads nothing by itself: the reader may be writing something.
+- An app that learns nothing, with no network or on a development server, says nothing.
+
 ## Rejected
 
 - **A list of trusted origins**, so that a local web app could use the online API. Every origin on the list writes with the session of any signed-in account. A name such as `tonnr.localify` is served by whatever runs on a machine, and code that nobody has read would write to the online database.
@@ -70,4 +77,6 @@ Three facts bound the choice:
 - The first deployment from a machine reads the state store's own token and keeps it in `~/.alchemy`.
 - A newer Alchemy may expect another version of the state store, and brings the store to it. That changes it for every project of the account, and `--yes` does it without asking. Check the other projects before changing Alchemy's version here.
 - The pre-production does what the temporary script was written for. Téo had `scripts/demo.mjs` removed on 2026-10-09, and Git's history keeps it.
+- An app loaded before the deployment that brought the toast does not look for a newer one: the toast is seen from the deployment after.
+- A build of the same commit has another name, so deploying twice asks open apps to load again twice.
 - Not decided: whether production gets an API and a database of its own. `api.tonnr.app` is the development instance's today.
