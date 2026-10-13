@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
-import { useEffect, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
 
 import {
   analyticsConfigured,
@@ -131,6 +131,7 @@ export function AnalyticsConsentDialog({
   open: boolean;
   onChoice: (choice: "granted" | "denied") => void;
 }) {
+  const accept = useRef<HTMLButtonElement>(null);
   return (
     <Dialog
       open={open}
@@ -138,17 +139,23 @@ export function AnalyticsConsentDialog({
         if (!shown) onChoice("denied");
       }}
     >
-      <DialogPopup className="w-[min(26rem,calc(100vw-2rem))] gap-m p-l">
+      <DialogPopup initialFocus={accept} className="w-[min(26rem,calc(100vw-2rem))] gap-m p-l">
         <DialogTitle>{m.analytics_title()}</DialogTitle>
         <DialogDescription>{m.analytics_description()}</DialogDescription>
         <div className="flex flex-wrap gap-s">
           <Button variant="secondary" onClick={() => onChoice("denied")}>
             {m.analytics_refuse()}
           </Button>
-          <Button variant="secondary" onClick={() => onChoice("granted")}>
+          <Button ref={accept} variant="secondary" onClick={() => onChoice("granted")}>
             {m.analytics_allow()}
           </Button>
         </div>
+        <Link
+          to="/terms"
+          className="focus-ring self-start rounded-xs text-s underline underline-offset-2"
+        >
+          {m.analytics_details()}
+        </Link>
       </DialogPopup>
     </Dialog>
   );
