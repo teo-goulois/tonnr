@@ -3,23 +3,16 @@ import { Textarea } from "@repo/ui/components/ui/textarea";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
-import { formatClock, formatDate, formatDuration } from "@/lib/format";
+import { formatClock, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import type { Session } from "../viewer/types";
+import { DurationInput, USUAL_MINUTES } from "./duration-input";
 import { RatingInput, ratingWord } from "./rating";
 import type { SessionDraft } from "./types";
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
-// How long a session is taken to last until its surfer says.
-const USUAL_MINUTES = 90;
-// What a session's length is chosen among: every quarter of an hour up to four hours, then every
-// half hour up to eight.
-const DURATIONS = [
-  ...Array.from({ length: 16 }, (_, index) => (index + 1) * 15),
-  ...Array.from({ length: 8 }, (_, index) => 270 + index * 30),
-];
 // A note as the API takes it.
 const NOTE_MOST = 2000;
 // A session is written once it has begun: a clock that runs a little ahead is forgiven.
@@ -61,8 +54,8 @@ export function dayWords(day: Date, now: number) {
   return formatDate(day, now);
 }
 
-// What every native control of the form is: over the whole of its pill, and out of sight. A press
-// on the pill is a press on it, and the phone opens its own wheels or its own list.
+// What a native control of the form is: over the whole of its pill, and out of sight. A press on
+// the pill is a press on it, and the phone opens its own wheels.
 const NATIVE = "absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-default";
 
 // A browser on a wide screen opens a date's or an hour's picker from its small icon alone, which
@@ -108,6 +101,8 @@ type SessionFormProps = {
   // The session that is changed. Left out for a new one.
   session?: Session;
   now: number;
+  // A drawer beside a wide screen, and a sheet on a phone: where the length of one's own is set.
+  wide: boolean;
   isSaving: boolean;
   // The session as it is written, and what of it differs from the one that is changed.
   onSave: (draft: SessionDraft, changed: Partial<SessionDraft>) => void;
@@ -115,11 +110,11 @@ type SessionFormProps = {
 
 /**
  * A session as it is written: when it began, how long it lasted, how it was, and a few words.
- * Each of the first three is a line with its answer on a pill, which opens what the device has
- * for a day, an hour and a list. Only when it began is asked for: the rest has a usual answer, or
- * may wait.
+ * The day and the hour are each on a pill, which opens what the device has for them, the length
+ * is a choice among the usual ones or one's own, and the rating is five stars. Only when it began
+ * is asked for: the rest has a usual answer, or may wait.
  */
-export function SessionForm({ session, now, isSaving, onSave }: SessionFormProps) {
+export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFormProps) {
   const [begun] = useState(() => session?.startedAt ?? usualStart(now));
   const [day, setDay] = useState(() => toDayField(begun));
   const [clock, setClock] = useState(() => toClockField(begun));
@@ -129,10 +124,6 @@ export function SessionForm({ session, now, isSaving, onSave }: SessionFormProps
 
   const startedAt = fromFields(day, clock);
   const isAhead = startedAt !== null && startedAt.getTime() > now + AHEAD_MS;
-  // A session whose length is none of the list's keeps it, among them.
-  const durations = DURATIONS.includes(minutes)
-    ? DURATIONS
-    : [...DURATIONS, minutes].sort((a, b) => a - b);
 
   function save() {
     if (!startedAt || isAhead || isSaving) return;
@@ -189,23 +180,17 @@ export function SessionForm({ session, now, isSaving, onSave }: SessionFormProps
               />
             </Pill>
           </Row>
-          <Row name={m.session_duration()}>
-            <Pill shown={formatDuration(minutes)}>
-              <select
-                aria-label={m.session_duration()}
-                className={NATIVE}
-                value={minutes}
-                disabled={isSaving}
-                onChange={(event) => setMinutes(Number(event.target.value))}
-              >
-                {durations.map((choice) => (
-                  <option key={choice} value={choice}>
-                    {formatDuration(choice)}
-                  </option>
-                ))}
-              </select>
-            </Pill>
-          </Row>
+          {/* The choices take the line's whole width, under its name. */}
+          <div className="grid gap-xs px-xs py-s">
+            <span className="px-xxs">{m.session_duration()}</span>
+            <DurationInput
+              label={m.session_duration()}
+              value={minutes}
+              onChange={setMinutes}
+              wide={wide}
+              disabled={isSaving}
+            />
+          </div>
           {/* The line says the rating in a word once it is given. */}
           <Row
             name={

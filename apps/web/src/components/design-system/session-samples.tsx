@@ -199,7 +199,7 @@ function Sample({ title, children }: { title: string; children: ReactNode }) {
 
 /** The screens of an account's log of its sessions, with invented sessions. Decision 043. */
 export function SessionSamples() {
-  const [rating, setRating] = useState<number | null>(4);
+  const [rating, setRating] = useState<number | null>(3.5);
   const place = {
     now: NOW,
     signedIn: true,
@@ -214,14 +214,19 @@ export function SessionSamples() {
       <Sample title="A rating, as it is given and as it is read">
         <RatingInput label="How was it?" value={rating} onChange={setRating} />
         <div className="flex flex-wrap items-center gap-s">
-          {[1, 3, 5].map((given) => (
+          {[1, 2.5, 3.8, 5].map((given) => (
             <RatingStars key={given} rating={given} />
           ))}
         </div>
       </Sample>
 
       <Sample title="A new session">
-        <SessionForm now={NOW} isSaving={false} onSave={(draft) => toast(draft.note || "Saved")} />
+        <SessionForm
+          now={NOW}
+          wide
+          isSaving={false}
+          onSave={(draft) => toast(draft.note || "Saved")}
+        />
       </Sample>
 
       <Sample title="What was kept of the sea with a session">

@@ -4,7 +4,7 @@ import {
   integer,
   jsonb,
   pgTable,
-  smallint,
+  real,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -104,8 +104,8 @@ export const surfSession = pgTable(
     longitude: doublePrecision("longitude").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     durationMinutes: integer("duration_minutes").notNull(),
-    // From 1 to 5. Null for a session that is not rated.
-    rating: smallint("rating"),
+    // From half a star to five, by halves. Null for a session that is not rated.
+    rating: real("rating"),
     note: text("note"),
     // Null until it is taken.
     conditions: jsonb("conditions").$type<SessionConditions>(),

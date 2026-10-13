@@ -1,12 +1,13 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { PlusIcon, RatingFillIcon } from "@repo/ui/icon";
+import { PlusIcon } from "@repo/ui/icon";
 import { useMemo } from "react";
 
-import { formatDuration, formatMonth, formatNumber } from "@/lib/format";
+import { formatDuration, formatMonth } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import type { Loadable, Session, SessionRecap } from "../viewer/types";
+import { RatingStars } from "./rating";
 import { SessionRow } from "./session-row";
 
 type LogbookPanelProps = {
@@ -101,12 +102,8 @@ export function LogbookPanel({ now, log, recap, onAdd, onOpen, onOpenPlace }: Lo
                 <>
                   <span className="min-w-0 flex-1 truncate">{place.name}</span>
                   <span className="flex shrink-0 items-center gap-xs text-s text-neutral-7 tabular-nums">
-                    {place.averageRating !== null && (
-                      <span className="inline-flex items-center gap-xxs">
-                        <RatingFillIcon aria-hidden className="size-3.5 text-neutral-10" />
-                        {formatNumber(place.averageRating)}
-                      </span>
-                    )}
+                    {/* How the sessions there were rated, to the nearest half star. */}
+                    <RatingStars rating={place.averageRating} />
                     {place.count === 1
                       ? m.sessions_count_one()
                       : m.sessions_count({ count: place.count })}

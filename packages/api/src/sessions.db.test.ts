@@ -216,9 +216,12 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
     await expect(
       create({ breakId: "point", ...morning, startedAt: new Date("2026-10-10T13:00:00Z") }),
     ).rejects.toThrow(refusal("BAD_REQUEST"));
-    await expect(create({ breakId: "point", ...morning, rating: 6 })).rejects.toThrow(
-      refusal("BAD_REQUEST"),
-    );
+    // A rating is stars, by halves: from half a star to five.
+    for (const rating of [6, 0, 4.3]) {
+      await expect(create({ breakId: "point", ...morning, rating })).rejects.toThrow(
+        refusal("BAD_REQUEST"),
+      );
+    }
     await expect(create({ breakId: "point", ...morning, durationMinutes: 5 })).rejects.toThrow(
       refusal("BAD_REQUEST"),
     );
@@ -312,10 +315,10 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
 
     const rated = await call(
       v1Router.sessions.update,
-      { id: made.id, rating: 5, note: "The best of the autumn." },
+      { id: made.id, rating: 4.5, note: "The best of the autumn." },
       by("ana"),
     );
-    expect(rated).toMatchObject({ rating: 5, note: "The best of the autumn." });
+    expect(rated).toMatchObject({ rating: 4.5, note: "The best of the autumn." });
     // The conditions are those of the morning, read at noon.
     expect(rated.conditionsTakenAt).toEqual(AT);
     expect(rated.conditions).toEqual(made.conditions);
@@ -457,8 +460,8 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
       durationMinutes: number;
       rating?: number;
     }) => call(v1Router.sessions.create, input, by("ana"));
-    await create({ breakId: "point", startedAt: now, durationMinutes: 60, rating: 5 });
-    await create({ breakId: "point", startedAt: longAgo, durationMinutes: 120, rating: 4 });
+    await create({ breakId: "point", startedAt: now, durationMinutes: 60, rating: 4.5 });
+    await create({ breakId: "point", startedAt: longAgo, durationMinutes: 120, rating: 3.5 });
     await create({ breakId: "point", startedAt: longAgo, durationMinutes: 30 });
     await create({ spotId: "left", startedAt: now, durationMinutes: 90 });
     await call(
@@ -473,14 +476,14 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
       month: { count: 2, minutes: 150 },
       placeCount: 2,
       places: [
-        // Rated 5 and 4, and once not at all.
+        // Rated four and a half and three and a half stars, and once not at all.
         {
           name: "The point",
           breakId: "point",
           spotId: null,
           count: 3,
           minutes: 210,
-          averageRating: 4.5,
+          averageRating: 4,
         },
         {
           name: "My left",

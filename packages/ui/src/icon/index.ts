@@ -98,12 +98,9 @@ export { IconCircleUserOutline18 as UserIcon } from "nucleo-ui-outline-18/compon
 export { IconCrosshairs2Outline18 as LocateIcon } from "nucleo-ui-outline-18/components/IconCrosshairs2Outline18";
 export { IconBookmarkListOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconBookmarkListOutline18";
 export { IconLockOutline18 as LockIcon } from "nucleo-ui-outline-18/components/IconLockOutline18";
-export { IconMagnifierOutline18 as MagnifierIcon } from "nucleo-ui-outline-18/components/IconMagnifierOutline18";
 export { IconMapOutline18 as MapIcon } from "nucleo-ui-outline-18/components/IconMapOutline18";
 export { IconShareRightOutline18 as ShareIcon } from "nucleo-ui-outline-18/components/IconShareRightOutline18";
-export { IconStarOutline18 as RatingIcon } from "nucleo-ui-outline-18/components/IconStarOutline18";
 export { IconUserOutline18 as PersonIcon } from "nucleo-ui-outline-18/components/IconUserOutline18";
-export { IconNotebookOutline18 as LogbookIcon } from "nucleo-ui-outline-18/components/IconNotebookOutline18";
 export { IconPinOutline18 as PinIcon } from "nucleo-ui-outline-18/components/IconPinOutline18";
 export { IconPinPlusOutline18 as PinPlusIcon } from "nucleo-ui-outline-18/components/IconPinPlusOutline18";
 export { IconTrashOutline18 as TrashIcon } from "nucleo-ui-outline-18/components/IconTrashOutline18";
@@ -111,12 +108,19 @@ export { IconWaterWaveOutline18 as WaveIcon } from "nucleo-ui-outline-18/compone
 export { IconWindOutline18 as WindIcon } from "nucleo-ui-outline-18/components/IconWindOutline18";
 
 // What is on, drawn full — Nucleo UI fill 18, each the fill of a line above: the tab in view of a
-// phone's bar, what is saved, and the stars of a rating that are given.
+// phone's bar, and what is saved.
 export { IconBellFill18 as BellFillIcon } from "nucleo-ui-fill-18/components/IconBellFill18";
 export { IconBookmarkFill18 as BookmarkFillIcon } from "nucleo-ui-fill-18/components/IconBookmarkFill18";
 export { IconMapFill18 as MapFillIcon } from "nucleo-ui-fill-18/components/IconMapFill18";
-export { IconStarFill18 as RatingFillIcon } from "nucleo-ui-fill-18/components/IconStarFill18";
 export { IconUserFill18 as PersonFillIcon } from "nucleo-ui-fill-18/components/IconUserFill18";
+
+// Nucleo Micro Bold, from its package: what an icon is taken from when it is new, as Téo asked
+// on 2026-10-13. The stars of a rating are the three he chose there: the line, the full one, and
+// the left half, which is drawn over the line.
+export { IconNotebook as LogbookIcon } from "nucleo-micro-bold/components/IconNotebook";
+export { IconStar as RatingIcon } from "nucleo-micro-bold/components/IconStar";
+export { IconStarFilled as RatingFillIcon } from "nucleo-micro-bold/components/IconStarFilled";
+export { IconStarHalf2 as RatingHalfIcon } from "nucleo-micro-bold/components/IconStarHalf2";
 
 // Small interface primitives — Nucleo Micro Bold, except LoaderIcon which keeps
 // its Lucide artwork.

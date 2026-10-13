@@ -857,5 +857,11 @@
   "session_clock": "Heure",
   "session_day_today": "Aujourd'hui",
   "session_day_yesterday": "Hier",
-  "session_day_none": "Jour"
+  "session_day_none": "Jour",
+  "session_rating_none": "Pas de note",
+  "session_rating_figure": "{rating} sur 5",
+  "session_duration_other": "Autre",
+  "session_duration_less": "Cinq minutes de moins",
+  "session_duration_more": "Cinq minutes de plus",
+  "session_duration_done": "Valider"
 }

@@ -7,6 +7,7 @@ allowBuilds:
   msgpackr-extract: true
   workerd: true
   # The Nucleo icons check the licence in NUCLEO_LICENSE_KEY when they install: decision 012.
+  nucleo-micro-bold: true
   nucleo-ui-fill-18: true
   nucleo-ui-outline-18: true
 catalog:

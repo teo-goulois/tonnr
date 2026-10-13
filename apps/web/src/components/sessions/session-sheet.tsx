@@ -148,6 +148,7 @@ export function SessionSheet({
           // Another place starts its form over.
           key={`${place.kind} ${place.id}`}
           now={now}
+          wide={wide}
           isSaving={sessioning.isSaving}
           onSave={(draft) => void sessioning.onAdd(place, draft)}
         />
@@ -182,6 +183,7 @@ export function SessionSheet({
             key={session.id}
             session={session}
             now={now}
+            wide={wide}
             isSaving={sessioning.isSaving}
             onSave={(_draft, changed) => void sessioning.onChange(session, changed)}
           />

@@ -1,0 +1,1 @@
+ALTER TABLE "surf_session" ALTER COLUMN "rating" SET DATA TYPE real USING "rating"::real;

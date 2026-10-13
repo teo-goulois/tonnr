@@ -147,8 +147,8 @@ const sessionSchema = z.object({
   }),
   startedAt: z.date(),
   durationMinutes: z.number().int(),
-  // From 1 to 5. Null for a session that is not rated.
-  rating: z.number().int().nullable(),
+  // From 0.5 to 5, by halves. Null for a session that is not rated.
+  rating: z.number().nullable(),
   note: z.string().nullable(),
   figures: figuresSchema,
   modelMissing: conditionsSchema.shape.modelMissing,
@@ -190,7 +190,8 @@ function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No session "${id}".` });
 }
 
-const ratingSchema = z.number().int().min(1).max(5);
+// Stars, by halves.
+const ratingSchema = z.number().min(0.5).max(5).multipleOf(0.5);
 const noteSchema = z
   .string()
   .trim()
@@ -467,7 +468,9 @@ export const sessionsRouter = {
           spotId: sql<string | null>`max(${surfSession.spotId})`,
           count: all.count,
           minutes: all.minutes,
-          averageRating: sql<number | null>`(round(avg(${surfSession.rating}), 1))::float8`,
+          averageRating: sql<
+            number | null
+          >`(round(avg(${surfSession.rating})::numeric, 1))::float8`,
           lastAt: sql<Date>`max(${surfSession.startedAt})`.mapWith(surfSession.startedAt),
         })
         .from(surfSession)

@@ -7,10 +7,10 @@ import {
   ListsIcon,
   LocateIcon,
   LockIcon,
-  MagnifierIcon,
   MinusIcon,
   PinPlusIcon,
   PlusIcon,
+  SearchIcon,
   SettingsIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
@@ -1174,7 +1174,7 @@ export function Viewer({
       aria-label={m.search_open()}
       onClick={openSearch}
     >
-      <MagnifierIcon data-slot="icon" aria-hidden />
+      <SearchIcon data-slot="icon" aria-hidden />
     </Button>
   );
   const locateButton = (

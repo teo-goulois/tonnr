@@ -24,6 +24,7 @@
     "cn": "^0.2.5",
     "motion": "^14.0.0",
     "next-themes": "catalog:",
+    "nucleo-micro-bold": "^1.2.1",
     "nucleo-ui-fill-18": "^1.5.1",
     "nucleo-ui-outline-18": "^1.5.1",
     "react": "catalog:",
