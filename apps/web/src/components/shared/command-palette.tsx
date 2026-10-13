@@ -15,11 +15,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { useRecents } from "@/lib/recents";
 import { useShortcut, useShortcuts } from "@/lib/shortcuts";
+import { useDebounced } from "@/lib/use-debounced";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, setLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
@@ -37,9 +38,40 @@ type PaletteAction = {
 
 type PaletteGroup = { value: string; label: string; items: PaletteAction[] };
 
+// The catalogue is asked once the keys have stopped, from this many characters.
+const SEARCH_WAIT_MS = 250;
+const SEARCH_FROM = 2;
+const BREAKS_MOST = 6;
+
+// A module-level store, so that a button of the map can open the palette from outside it.
+let isOpen = false;
+const listeners = new Set<() => void>();
+
+function setOpen(next: boolean) {
+  if (isOpen === next) return;
+  isOpen = next;
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Opens the palette, where a spot is found by its name. */
+export function openCommandPalette() {
+  setOpen(true);
+}
+
 // Every page and primary action of the app, one key press away.
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+  const open = useSyncExternalStore(
+    subscribe,
+    () => isOpen,
+    () => false,
+  );
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const bindings = useShortcuts();
@@ -64,6 +96,28 @@ export function CommandPalette() {
 
   const recents = useRecents();
 
+  // A spot is found by its name: the account's own, which the palette is given whole, and the
+  // breaks of the catalogue, which the API searches once the keys have stopped.
+  const spots = useQuery(
+    orpc.v1.spots.list.queryOptions({
+      enabled: open && Boolean(session.data),
+      select: (answer) => answer.spots,
+      meta: { quiet: true },
+    }),
+  );
+  const typed = query.trim();
+  const asked = useDebounced(typed, SEARCH_WAIT_MS);
+  const isAsking = open && typed.length >= SEARCH_FROM && asked === typed;
+  const breaks = useQuery(
+    orpc.v1.breaks.search.queryOptions({
+      input: { q: asked, limit: BREAKS_MOST },
+      enabled: isAsking,
+      staleTime: 10 * 60 * 1000,
+      meta: { quiet: true },
+    }),
+  );
+  const foundBreaks = isAsking ? (breaks.data?.breaks ?? []) : [];
+
   const isDark = resolvedTheme === "dark";
   const groups: PaletteGroup[] = [
     // What the reader looked at last comes first: it is what an open palette shows before a key.
@@ -85,6 +139,34 @@ export function CommandPalette() {
                         ? { break: recent.id }
                         : { spot: recent.id },
                 }),
+            })),
+          },
+        ]
+      : []),
+    ...((spots.data?.length ?? 0) > 0
+      ? [
+          {
+            value: "spots",
+            label: m.spots_title(),
+            items: (spots.data ?? []).map((spot) => ({
+              value: `${spot.name} spot ${spot.id}`,
+              label: spot.name,
+              run: () => void navigate({ to: "/app", search: { spot: spot.id } }),
+            })),
+          },
+        ]
+      : []),
+    ...(foundBreaks.length > 0
+      ? [
+          {
+            value: "breaks",
+            label: m.map_breaks(),
+            items: foundBreaks.map((found) => ({
+              // The API read the name without its marks: what is typed stands in the value, so
+              // that the palette, which reads them, keeps what was found.
+              value: `${found.name} ${typed} ${found.id}`,
+              label: found.name,
+              run: () => void navigate({ to: "/app", search: { break: found.id } }),
             })),
           },
         ]

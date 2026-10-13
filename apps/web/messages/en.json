@@ -781,5 +781,11 @@
   "create_alert_spot": "Which spot is it for?",
   "create_alert_no_spot": "An alert is set on a spot of your own. Add one first.",
   "auth_reason_add_alert": "Sign in to set an alert.",
-  "lists_showing": "Lists: {name} is shown alone"
+  "lists_showing": "Lists: {name} is shown alone",
+  "search_open": "Search for a spot",
+  "search_title": "Search",
+  "search_placeholder": "A spot, a buoy, a town",
+  "search_hint": "Type the name of a spot, of a buoy or of a town.",
+  "search_empty": "Nothing by that name.",
+  "search_failed": "The search is not answering. Try again in a moment."
 }

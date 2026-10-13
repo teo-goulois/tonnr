@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./app": "./src/app.ts",
+    "./names": "./src/names.ts",
     "./username": "./src/username.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"
   }

@@ -7,6 +7,7 @@ import {
   ListsIcon,
   LocateIcon,
   LockIcon,
+  MagnifierIcon,
   MinusIcon,
   PinPlusIcon,
   PlusIcon,
@@ -23,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
@@ -39,6 +41,7 @@ import { FriendsPanel } from "@/components/friends/friends-panel";
 import { InviteDialog } from "@/components/friends/invite-dialog";
 import type { Friending, Invitation } from "@/components/friends/types";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
+import { openCommandPalette } from "@/components/shared/command-palette";
 import type { Guiding } from "@/components/guides/types";
 import type { SpotDescription } from "@/components/spots/spot-guide";
 import { ListChips } from "@/components/lists/list-chips";
@@ -62,7 +65,8 @@ import { CreateSheet } from "./create-sheet";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
-import { AccountPrompt, SavedPanel } from "./saved-panel";
+import { type Found, type PlaceSearching, SearchScreen } from "./place-search";
+import { AccountPrompt, RecentPlaces, SavedPanel } from "./saved-panel";
 import { SeaTimeline, type SeaTimes } from "./sea-timeline";
 import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
 import { ReadingAge, StationActions, holds, listName } from "./station-actions";
@@ -186,6 +190,8 @@ type ViewerProps = {
     nearbyWind: NearbyWind | undefined;
   };
   adding: AddingSpot;
+  // The search of the map by a name, which a phone shows as a screen of its own.
+  search: PlaceSearching & { isOpen: boolean; onOpenChange: (open: boolean) => void };
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
   // Asks for a week of the selected station's readings.
@@ -442,6 +448,7 @@ export function Viewer({
   selectedSpotId,
   selected,
   adding,
+  search,
   onTideExtend,
   onHistoryExtend,
   buoy,
@@ -501,6 +508,8 @@ export function Viewer({
   onReadNotification,
 }: ViewerProps) {
   const map = useRef<StationMapHandle>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const promptAuth = useAuthPrompt();
   const [userLocation, setUserLocation] = useState<MapPoint | null>(null);
   const [isLocating, setIsLocating] = useState(false);
@@ -890,6 +899,32 @@ export function Viewer({
     onSelectSpot(spotId);
   }
 
+  // A phone searches on a screen of its own, and a wide screen in the command palette, where a
+  // spot is found by its name too.
+  const isSearching = search.isOpen && !wide;
+  function openSearch() {
+    if (wide) {
+      openCommandPalette();
+      return;
+    }
+    // A phone opens its keyboard for a field that takes the focus while the press is still
+    // being answered: the screen is drawn at once, and its field is focused in the same turn.
+    flushSync(() => search.onOpenChange(true));
+    searchInput.current?.focus();
+  }
+  function closeSearch() {
+    search.onOpenChange(false);
+    searchButtonRef.current?.focus();
+  }
+  // What was found opens as a press on the map opens it. A place has no panel: the map goes there.
+  function pickFound(found: Found) {
+    search.onOpenChange(false);
+    if (found.kind === "place" || !found.id) map.current?.focus(found, PLACE_ZOOM);
+    else if (found.kind === "spot") onSelectSpot(found.id);
+    else if (found.kind === "break") onSelectBreak(found.id);
+    else onSelect(found.id);
+  }
+
   function toggleFavorite() {
     if (!shownItem) return;
     const item = shownItem;
@@ -1031,6 +1066,19 @@ export function Viewer({
         {waveStations.isPending ? m.map_loading() : m.map_load_failed()}
       </p>
     );
+  // Not while a spot is being added: its panel has the search that puts the marker.
+  const searchButton = !isAdding && (
+    <Button
+      ref={searchButtonRef}
+      variant="outline"
+      size="icon"
+      className={floating}
+      aria-label={m.search_open()}
+      onClick={openSearch}
+    >
+      <MagnifierIcon data-slot="icon" aria-hidden />
+    </Button>
+  );
   const locateButton = (
     <Button
       variant="outline"
@@ -1105,7 +1153,7 @@ export function Viewer({
     >
       {/* The map and what floats on it. A tab's screen covers them on a phone: they are then
           out of reach of the keyboard and of a screen reader too. */}
-      <div className="absolute inset-0" inert={isScreen}>
+      <div className="absolute inset-0" inert={isScreen || isSearching}>
         <StationMap
           ref={map}
           stations={mapStations}
@@ -1168,6 +1216,7 @@ export function Viewer({
             className="absolute top-s right-s grid gap-xs transition-[translate] duration-(--motion-large-duration) ease-theme-large"
             style={{ translate: `${-padding.right}px 0` }}
           >
+            {searchButton}
             {/* A phone adds a spot from the "+" of its bar, with whatever else is added. */}
             <Button
               variant="outline"
@@ -1190,6 +1239,7 @@ export function Viewer({
           <div inert={isCovered} className={cn("absolute right-s grid gap-xs", foot)}>
             {zoomButtons}
             {listsButton}
+            {searchButton}
             {locateButton}
           </div>
         )}
@@ -1584,6 +1634,33 @@ export function Viewer({
           />
         )}
       </ViewerTab>
+
+      <SearchScreen
+        open={isSearching}
+        onClose={closeSearch}
+        search={search}
+        onPick={pickFound}
+        inputRef={searchInput}
+      >
+        {/* Before a key is pressed: what was looked at last, a press away. */}
+        <RecentPlaces
+          recents={recents}
+          onSelect={(id) => {
+            search.onOpenChange(false);
+            onSelect(id);
+          }}
+          onSelectBreak={(id) => {
+            search.onOpenChange(false);
+            onSelectBreak(id);
+          }}
+          onSelectSpot={(id) => {
+            search.onOpenChange(false);
+            onSelectSpot(id);
+          }}
+          onClear={onClearRecents}
+        />
+        {recents.length === 0 && <p className="text-s text-neutral-7">{m.search_hint()}</p>}
+      </SearchScreen>
 
       <CreateSheet
         open={isCreating}

@@ -781,5 +781,11 @@
   "create_alert_spot": "Sur quel spot ?",
   "create_alert_no_spot": "Une alerte se pose sur un de tes spots. Ajoutes-en un d'abord.",
   "auth_reason_add_alert": "Connecte-toi pour poser une alerte.",
-  "lists_showing": "Listes : {name} est affichée seule"
+  "lists_showing": "Listes : {name} est affichée seule",
+  "search_open": "Rechercher un spot",
+  "search_title": "Recherche",
+  "search_placeholder": "Un spot, une bouée, une ville",
+  "search_hint": "Écris le nom d'un spot, d'une bouée ou d'une ville.",
+  "search_empty": "Rien à ce nom.",
+  "search_failed": "La recherche ne répond pas. Réessaie dans un instant."
 }

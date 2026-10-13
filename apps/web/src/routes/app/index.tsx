@@ -48,6 +48,7 @@ import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useRecentViews } from "./-recents";
+import { usePlaceSearch } from "./-search";
 import { useSharedList } from "./-shared";
 
 export const Route = createFileRoute("/app/")({
@@ -830,8 +831,13 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     }),
   );
   const foundBreaks = useQuery(
-    orpc.v1.breaks.list.queryOptions({
-      input: { q: asked.q, limit: SEARCH_LIMIT },
+    orpc.v1.breaks.search.queryOptions({
+      // The breaks nearest the middle of the map come first, as the places do.
+      input: {
+        q: asked.q,
+        ...(asked.near && { latitude: asked.near.latitude, longitude: asked.near.longitude }),
+        limit: SEARCH_LIMIT,
+      },
       enabled: isSearching,
       staleTime: 60 * MINUTE_MS,
       meta: { quiet: true },
@@ -870,6 +876,16 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       foundPlaces.isError,
     ],
   );
+  // The search of the map by a name: a phone's screen. It reads what the map holds already, the
+  // account's spots and the buoys, and asks the API for the rest.
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searching = usePlaceSearch({
+    isOn: isSearchOpen,
+    near: middle,
+    spots: spots.data,
+    stations: waves.data,
+    withPlaces: signedIn,
+  });
   // The name follows what the marker is put on, until the user writes one.
   const nameFor = (current: SpotDraft, name: string | undefined) =>
     name && (!current.name.trim() || current.name === suggested) ? name.slice(0, 80) : undefined;
@@ -1248,6 +1264,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         onNameChange: (name) => setDraft((current) => ({ ...current, name })),
         onSave: saveSpot,
       }}
+      search={{ ...searching, isOpen: isSearchOpen, onOpenChange: setIsSearchOpen }}
       onSelect={(station) => void navigate({ search: { ...mode, station } })}
       onSelectBreak={(id) => void navigate({ search: { ...mode, break: id } })}
       onSelectSpot={(id) => void navigate({ search: { ...mode, spot: id } })}

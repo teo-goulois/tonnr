@@ -98,6 +98,7 @@ export { IconCircleUserOutline18 as UserIcon } from "nucleo-ui-outline-18/compon
 export { IconCrosshairs2Outline18 as LocateIcon } from "nucleo-ui-outline-18/components/IconCrosshairs2Outline18";
 export { IconBookmarkListOutline18 as ListsIcon } from "nucleo-ui-outline-18/components/IconBookmarkListOutline18";
 export { IconLockOutline18 as LockIcon } from "nucleo-ui-outline-18/components/IconLockOutline18";
+export { IconMagnifierOutline18 as MagnifierIcon } from "nucleo-ui-outline-18/components/IconMagnifierOutline18";
 export { IconMapOutline18 as MapIcon } from "nucleo-ui-outline-18/components/IconMapOutline18";
 export { IconShareRightOutline18 as ShareIcon } from "nucleo-ui-outline-18/components/IconShareRightOutline18";
 export { IconUserOutline18 as PersonIcon } from "nucleo-ui-outline-18/components/IconUserOutline18";

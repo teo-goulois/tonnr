@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
+import { FOLDING, fold } from "@repo/config/names";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, eq, gt, ilike } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
@@ -74,6 +75,20 @@ function literal(text: string) {
   return text.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
+// A break's name as a search reads it: in small letters and without its marks, as `fold` reads
+// what is typed.
+const foldedName = sql`translate(lower(${surfBreak.name}), ${FOLDING.marked}, ${FOLDING.plain})`;
+/** The breaks whose name holds what is typed, whatever its case and its marks. */
+const named = (q: string) => sql`${foldedName} like ${`%${literal(fold(q))}%`}`;
+
+// A number as a query string writes it. Nothing else is read as one.
+const coordinate = (least: number, most: number) =>
+  z.preprocess(
+    (given) =>
+      typeof given === "string" && /^-?\d+(\.\d+)?$/.test(given.trim()) ? Number(given) : given,
+    z.number().min(least).max(most),
+  );
+
 export const breaksRouter = {
   list: callerProcedure
     .route({
@@ -90,7 +105,7 @@ export const breaksRouter = {
     .input(
       z.object({
         bbox: bboxSchema.optional(),
-        // Part of the name, in any case.
+        // Part of the name, in any case and with or without its marks.
         q: z.string().trim().min(2).max(80).optional(),
         // The `next` of the page before.
         after: z.uuid().optional(),
@@ -111,7 +126,7 @@ export const breaksRouter = {
         .where(
           and(
             inBbox(surfBreak.latitude, surfBreak.longitude, input.bbox),
-            input.q ? ilike(surfBreak.name, `%${literal(input.q)}%`) : undefined,
+            input.q ? named(input.q) : undefined,
             input.after ? gt(surfBreak.id, input.after) : undefined,
           ),
         )
@@ -129,6 +144,66 @@ export const breaksRouter = {
         breaks: page.map((row) => describeBreak(row, confirmed.get(row.id))),
         next: rows.length > input.limit ? (page.at(-1)?.id ?? null) : null,
       };
+    }),
+
+  // A search and not a page of the catalogue: what is found is ranked, and none follows.
+  search: callerProcedure
+    .route({
+      method: "GET",
+      path: "/breaks/search",
+      summary: "Surf breaks by their name, the likeliest first",
+      description:
+        'The breaks whose name holds `q`, whatever its case and its marks: "guethary" finds ' +
+        '"Guéthary". A name that begins with it comes first, then one in which a word does. ' +
+        "Given together, `latitude` and `longitude` bring forward the breaks nearest that " +
+        "point among those, as the middle of a map does. No page follows: a search that " +
+        "finds too many is typed further.",
+      tags: ["Breaks"],
+    })
+    .input(
+      z
+        .object({
+          q: z.string().trim().min(2).max(80),
+          latitude: coordinate(-90, 90).optional(),
+          longitude: coordinate(-180, 180).optional(),
+          limit: z.coerce.number().int().min(1).max(20).default(8),
+        })
+        .refine(
+          (input) => (input.latitude === undefined) === (input.longitude === undefined),
+          "latitude and longitude go together",
+        ),
+    )
+    .output(z.object({ breaks: z.array(breakSchema) }))
+    .handler(async ({ input, context }) => {
+      const typed = literal(fold(input.q));
+      // Where the name holds what is typed: at its start, at the start of a word, or elsewhere.
+      const rank = sql`case
+        when ${foldedName} like ${`${typed}%`} then 0
+        when ${foldedName} like ${`% ${typed}%`} then 1
+        else 2
+      end`;
+      // How far a break is, near enough to order by: degrees on a flat earth, the short way
+      // round the antimeridian.
+      const { latitude, longitude } = input;
+      const away =
+        latitude !== undefined && longitude !== undefined
+          ? sql`power(${surfBreak.latitude} - ${latitude}, 2) + power(
+              (mod((${surfBreak.longitude} - ${longitude} + 540)::numeric, 360) - 180)
+                * cos(radians(${latitude})),
+              2
+            )`
+          : undefined;
+      const rows = await context.db
+        .select()
+        .from(surfBreak)
+        .where(named(input.q))
+        .orderBy(rank, ...(away ? [away] : []), asc(surfBreak.name), asc(surfBreak.id))
+        .limit(input.limit);
+      const confirmed = await confirmedWordsOf(
+        context.db,
+        rows.map((row) => row.id),
+      );
+      return { breaks: rows.map((row) => describeBreak(row, confirmed.get(row.id))) };
     }),
 
   get: callerProcedure

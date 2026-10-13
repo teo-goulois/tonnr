@@ -67,6 +67,7 @@ import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { MapLegend } from "@/components/viewer/map-legend";
+import { type Found, PlaceSearch } from "@/components/viewer/place-search";
 import { SeaTimeline } from "@/components/viewer/sea-timeline";
 import {
   BreakDisc,
@@ -133,6 +134,27 @@ const NEUTRALS = [
 const HOUR_MS = 60 * 60 * 1000;
 // A fixed moment, so the samples below draw the same curves on every visit.
 const SAMPLE_NOW = Date.UTC(2026, 9, 9, 6);
+// What a search of the map finds, one of each kind: invented places.
+const SAMPLE_FOUND: Found[] = [
+  { kind: "spot", id: "s1", name: "My left at the point", latitude: 47.8, longitude: -4.3 },
+  {
+    kind: "break",
+    id: "b1",
+    name: "Pointe de la Torche",
+    where: "Plomeur, Finistère",
+    latitude: 47.84,
+    longitude: -4.35,
+  },
+  { kind: "station", id: "st1", name: "Pierres Noires", latitude: 48.29, longitude: -4.97 },
+  {
+    kind: "place",
+    name: "Pointe du Raz",
+    where: "Plogoff, Finistère",
+    latitude: 48.04,
+    longitude: -4.74,
+  },
+];
+
 const SAMPLE_SEA_TIMES = {
   present: SAMPLE_NOW,
   earliest: SAMPLE_NOW - 24 * HOUR_MS,
@@ -392,6 +414,7 @@ export function DesignSystemPage() {
   const [legendExpanded, setLegendExpanded] = useState(true);
   const [chip, setChip] = useState<string>();
   const [seaTime, setSeaTime] = useState(SAMPLE_NOW);
+  const [searched, setSearched] = useState("po");
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-xxl px-m py-xl">
@@ -799,6 +822,31 @@ export function DesignSystemPage() {
             floats over. */}
         <div className="max-w-sm rounded-(--radius-xs) bg-neutral-3 pt-s">
           <BottomNav />
+        </div>
+      </Section>
+
+      <Section title="Place search">
+        {/* The search of the map by a name, with what it found of each kind. */}
+        <div className="grid max-w-sm gap-xs">
+          <PlaceSearch
+            search={{
+              query: searched,
+              onQueryChange: setSearched,
+              isSearching: searched.trim().length >= 2,
+              spots: SAMPLE_FOUND.filter((one) => one.kind === "spot"),
+              breaks: SAMPLE_FOUND.filter((one) => one.kind === "break"),
+              stations: SAMPLE_FOUND.filter((one) => one.kind === "station"),
+              places: SAMPLE_FOUND.filter((one) => one.kind === "place"),
+              isPending: false,
+              isError: false,
+              credit: "© OpenStreetMap contributors",
+            }}
+            onPick={(found) => toast(found.name)}
+            label="Search"
+            placeholder="A spot, a buoy, a town"
+          >
+            <p className="text-s text-neutral-7">Type two letters to see what a search finds.</p>
+          </PlaceSearch>
         </div>
       </Section>
 

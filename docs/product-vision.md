@@ -1,6 +1,6 @@
 # Product vision
 
-Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Changed again on 2026-10-12: a spot is made public by a request, and shared through a list, the accounts that know a public spot write its guide, and an account has friends, made by a link of its own. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
+Confirmed with Téo on 2026-10-08, and changed at his request on 2026-10-11: a spot and its alert are two things. Changed again on 2026-10-12: a spot is made public by a request, and shared through a list, the accounts that know a public spot write its guide, and an account has friends, made by a link of its own. Changed on 2026-10-13: a spot is found by its name, and an account keeps a log of its sessions. Update this file when the product changes. Decisions about how it is built go in `docs/decisions/`.
 
 ## Audience and problem
 
@@ -15,6 +15,7 @@ Surfers who want to know when their own spots work. Existing apps show buoy data
 - A user keeps buoys, wind stations, surf breaks and their own spots as favorites and sorts them into lists. Decision 017 gives the model.
 - A user shares a list by a link, with a password if they wish. Whoever has the link sees the map with that list alone, their private spots in it too, and needs no account. Decision 035 gives the rules.
 - The map colors the sea by its wave height, between the buoys and for the days ahead. Decision 018 covers the source.
+- A reader finds a spot, a buoy or a town by its name, from the map, whatever marks the name carries.
 - Anyone opens the map without an account: the buoys, the breaks, the forecasts and the tides. An account is for what a user keeps: spots, lists and alerts. While demand is strong the map closes to visitors, by itself or when whoever runs the instance says so: they are then asked to sign in or to create an account. Decision 039 gives the rules.
 - An account has a username, which is what others read of it. Sign-up asks for it.
 - An account has a link of its own, which it sends or shows as a code. Whoever makes an account through it has the link's owner as sponsor, and the two are friends. An account that exists already and opens it becomes a friend. Friends read each other's username, rank and contributions, and nothing of each other's spots, alerts or lists. An account that was brought and then contributes counts for its sponsor.
