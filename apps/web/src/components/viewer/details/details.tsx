@@ -52,7 +52,8 @@ import {
  *
  * And on 2026-10-13:
  * - The lanes reach 12, 24 or 48 hours on each side of now, or the week, and open on 24.
- * - The legend of the lanes stands over the columns their figures are written in.
+ * - The lanes write their figures in the same columns. Their legend is behind the button that
+ *   explains, and the moment under the pointer is written over its line.
  * - What a reader learns once is not said again: how a finger reads the curves, until it has, and
  *   the names of the grid's rows, which an arrow over them folds to their first letter.
  */

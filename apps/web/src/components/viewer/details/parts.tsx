@@ -272,6 +272,17 @@ export function About(props: DetailsProps) {
         <InfoIcon data-slot="icon" aria-hidden />
       </PopoverTrigger>
       <PopoverPopup align="end" className="w-72 rounded-(--radius-xs) p-s text-s">
+        {/* The legend of the curves: which line is the buoy's and which the model's. */}
+        <p className="flex items-center gap-s text-xs text-neutral-7">
+          <span className="flex items-center gap-xxs">
+            <LineGlyph />
+            {m.details_buoy()}
+          </span>
+          <span className="flex items-center gap-xxs">
+            <LineGlyph dashed />
+            {m.details_model()}
+          </span>
+        </p>
         {notes.map((note) => (
           <p key={note} className="text-pretty">
             {note}

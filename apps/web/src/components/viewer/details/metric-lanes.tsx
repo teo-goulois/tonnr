@@ -79,6 +79,9 @@ const GAP_COLUMN = "flex w-11 justify-end";
 // A span of time this short names its hours, every few of them, and not its days alone.
 const HOURS_NAMED_UNDER = 2 * DAY_MS;
 const HOURS_STEP = 6;
+// Half the room the moment under the pointer takes when it is written, in pixels: nearer a side
+// of the plot than this, it is written from that side.
+const TIME_LABEL_REACH = 48;
 
 function rowsOf(
   key: Metric["key"],
@@ -148,6 +151,7 @@ function LaneMarks({
   onPoint,
   touchTime,
   isTouch,
+  saysTime,
 }: {
   metric: Metric;
   start: number;
@@ -158,6 +162,7 @@ function LaneMarks({
   onPoint: (time: number | undefined) => void;
   touchTime: number | undefined;
   isTouch: boolean;
+  saysTime: boolean;
 }) {
   const plot = usePlotArea();
   const xScale = useXAxisScale();
@@ -242,6 +247,26 @@ function LaneMarks({
                 className="stroke-neutral-10"
                 strokeOpacity={0.5}
               />
+              {saysTime && (
+                // Kept inside the plot at its sides, and ringed in the page's color over the curves.
+                <text
+                  x={Math.min(Math.max(x(pointed.time), plot.x + 4), plot.x + plot.width - 4)}
+                  y={top + 9}
+                  textAnchor={
+                    x(pointed.time) < plot.x + TIME_LABEL_REACH
+                      ? "start"
+                      : x(pointed.time) > plot.x + plot.width - TIME_LABEL_REACH
+                        ? "end"
+                        : "middle"
+                  }
+                  paintOrder="stroke"
+                  strokeWidth={4}
+                  strokeLinejoin="round"
+                  className="fill-neutral-10 stroke-neutral-1 text-xs font-medium tabular-nums"
+                >
+                  {formatDayAndClock(new Date(pointed.time))}
+                </text>
+              )}
               {pointed.model !== null && (
                 <circle
                   cx={x(pointed.time)}
@@ -279,6 +304,8 @@ type LaneProps = Required<
   // The moment under the pointer, on whichever lane it is.
   pointedTime: number | undefined;
   onPoint: (time: number | undefined) => void;
+  // The first lane writes the moment under the pointer, over the line that marks it on all four.
+  first: boolean;
   // The last lane writes the days under its plot, for all four.
   last: boolean;
 };
@@ -295,6 +322,7 @@ function Lane({
   isLoading,
   pointedTime,
   onPoint,
+  first,
   last,
 }: LaneProps) {
   const isMyTurn = useChartTurn();
@@ -495,6 +523,7 @@ function Lane({
                 now={now}
                 nights={nights}
                 pointed={pointed}
+                saysTime={first}
                 onPoint={onPoint}
                 touchTime={nearestChartPoint(rows, touch.time)?.time}
                 isTouch={touch.isTouch}
@@ -540,7 +569,6 @@ export function MetricLanes({
   // The metrics are named in the reader's language and written in the reader's units.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const all = useMemo(() => metrics(), [locale, units]);
-  const hasBuoy = measured.length > 0;
 
   return (
     <div className={cn("grid gap-xs", className)}>
@@ -549,27 +577,6 @@ export function MetricLanes({
           {m.chart_touch_hint()}
         </p>
       )}
-      {/* The moment the lanes read, then the legend, which stands over the columns it names. */}
-      <div className="flex h-(--line-xs) items-center justify-between gap-xs text-xs text-neutral-7">
-        <span
-          className={cn("tabular-nums", pointed !== undefined && "font-medium text-neutral-10")}
-        >
-          {pointed === undefined ? m.details_now() : formatDayAndClock(new Date(pointed))}
-        </span>
-        {hasBuoy && (
-          <span className="flex items-center gap-xs">
-            <span className={BUOY_COLUMN}>
-              <LineGlyph />
-              {m.details_buoy()}
-            </span>
-            <span className={MODEL_COLUMN}>
-              <LineGlyph dashed />
-              {m.details_model()}
-            </span>
-            <span className={GAP_COLUMN} />
-          </span>
-        )}
-      </div>
       {keys.map((key, index) => (
         <Lane
           key={key}
@@ -583,6 +590,7 @@ export function MetricLanes({
           isLoading={isLoading}
           pointedTime={pointed}
           onPoint={onPoint}
+          first={index === 0}
           last={index === keys.length - 1}
         />
       ))}
