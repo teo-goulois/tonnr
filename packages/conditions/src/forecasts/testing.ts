@@ -2,7 +2,13 @@ import { UpstreamError } from "@repo/upstream";
 import { Effect } from "effect";
 
 import { type ForecastStore, makeForecasts } from "./forecasts";
-import { type Cell, type ForecastData, KEPT_DAYS, KEPT_PAST_DAYS } from "./open-meteo";
+import {
+  type Cell,
+  type ForecastData,
+  KEPT_DAYS,
+  KEPT_PAST_DAYS,
+  type PastDays,
+} from "./open-meteo";
 
 // What the tests of forecasts are made of, here and in the programs that use them. No test asks
 // the provider: a store in memory stands for the database, and a function for the provider.
@@ -10,17 +16,20 @@ import { type Cell, type ForecastData, KEPT_DAYS, KEPT_PAST_DAYS } from "./open-
 const HOUR = 3600;
 const DAY = 24 * HOUR;
 
-/** What the provider answers when asked at a moment: the span that is kept, from its own day. */
+/**
+ * What the provider answers when asked at a moment: the span that is kept, from its own day.
+ * Asked for days of the past, it answers those days whole.
+ */
 export function answer(
   at: number,
   waves: (seconds: number) => number | null = () => 1.5,
   swell: (seconds: number) => number | null = () => 1.2,
+  days?: PastDays,
 ): ForecastData {
   const today = Math.floor(at / 1000 / DAY) * DAY;
-  const time = Array.from(
-    { length: (KEPT_PAST_DAYS + KEPT_DAYS) * 24 },
-    (_, index) => today - KEPT_PAST_DAYS * DAY + index * HOUR,
-  );
+  const first = days ? Date.parse(`${days.start}T00:00:00Z`) / 1000 : today - KEPT_PAST_DAYS * DAY;
+  const end = days ? Date.parse(`${days.end}T00:00:00Z`) / 1000 + DAY : today + KEPT_DAYS * DAY;
+  const time = Array.from({ length: (end - first) / HOUR }, (_, index) => first + index * HOUR);
   const flat = (value: number) => time.map(() => value);
   const waveHeightMeters = time.map(waves);
   return {
@@ -83,6 +92,8 @@ export function provider() {
   // wave height it gives for an hour, and `swell` the height of the swell apart in it.
   const state = {
     asked: 0,
+    // The days of the past it was asked for by themselves, in the order they were asked.
+    past: [] as PastDays[],
     fails: null as null | (() => unknown),
     behind: 0,
     waves: (() => 1.5) as (seconds: number) => number | null,
@@ -96,7 +107,17 @@ export function provider() {
       if (state.fails) return yield* Effect.fail(state.fails() as never);
       return answer(Date.now() - state.behind, state.waves, state.swell);
     });
-  return { fetch, state };
+  // Days of the past are the provider's own models: no swell apart is laid over them.
+  const fetchPast: Parameters<typeof makeForecasts>[2] = (_cell, spend, days) =>
+    Effect.gen(function* () {
+      yield* spend;
+      yield* spend;
+      if (days) state.past.push(days);
+      if (state.fails) return yield* Effect.fail(state.fails() as never);
+      const data = answer(Date.now() - state.behind, state.waves, () => null, days);
+      return { ...data, swellModels: [] };
+    });
+  return { fetch, fetchPast, state };
 }
 
 /** What a provider that cannot answer fails with. */
@@ -107,5 +128,9 @@ export const providerDown = () =>
 export function testForecasts() {
   const kept = memoryStore();
   const asked = provider();
-  return { forecasts: makeForecasts(kept.store, asked.fetch), ...kept, provider: asked.state };
+  return {
+    forecasts: makeForecasts(kept.store, asked.fetch, asked.fetchPast),
+    ...kept,
+    provider: asked.state,
+  };
 }

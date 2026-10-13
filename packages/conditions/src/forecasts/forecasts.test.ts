@@ -531,6 +531,108 @@ describe("the forecasts of a program", () => {
     });
     expect((await got(forecasts.get({ ...elsewhere, days: 3 })))?.hours).toHaveLength(3 * 24);
   });
+
+  it("answer the hours of a span about now from the forecast that is kept, with its swell", async () => {
+    const { store, seen } = memoryStore();
+    const { fetch, fetchPast, state } = provider();
+    const forecasts = makeForecasts(store, fetch, fetchPast);
+    await got(forecasts.get(here));
+
+    // A session of an hour and a half, the evening two days before: the first day that is kept.
+    const found = await got(
+      forecasts.over({
+        latitude: here.latitude,
+        longitude: here.longitude,
+        from: new Date("2026-10-07T17:20:00Z"),
+        until: new Date("2026-10-07T18:50:00Z"),
+      }),
+    );
+
+    expect(found.hours?.map((hour) => hour.time.toISOString())).toEqual([
+      "2026-10-07T17:00:00.000Z",
+      "2026-10-07T18:00:00.000Z",
+    ]);
+    expect(found.hours?.[0]).toMatchObject({
+      waveHeightMeters: 1.5,
+      primarySwellHeightMeters: 1.2,
+    });
+    expect(found.models).toEqual([{ id: "ecmwf_wam", from: new Date("2026-10-07T17:00:00Z") }]);
+    expect(found.swellModels).toEqual([{ id: "mfwam", from: new Date("2026-10-07T17:00:00Z") }]);
+    // Nothing more was asked of the provider.
+    expect(state).toMatchObject({ asked: 1, past: [] });
+    expect(seen.spent).toBe(2);
+  });
+
+  it("ask the provider for the days of an older span, each time, and keep nothing of them", async () => {
+    const { store, seen, rows } = memoryStore();
+    const { fetch, fetchPast, state } = provider();
+    const forecasts = makeForecasts(store, fetch, fetchPast);
+    // A session that began before midnight, three weeks before, and ended after it.
+    const span = {
+      latitude: here.latitude,
+      longitude: here.longitude,
+      from: new Date("2026-09-18T22:40:00Z"),
+      until: new Date("2026-09-19T00:10:00Z"),
+    };
+
+    const found = await got(forecasts.over(span));
+
+    expect(found.hours?.map((hour) => hour.time.toISOString())).toEqual([
+      "2026-09-18T22:00:00.000Z",
+      "2026-09-18T23:00:00.000Z",
+      "2026-09-19T00:00:00.000Z",
+    ]);
+    // The provider's own models: the whole sea, and no swell apart.
+    expect(found.hours?.[0]).toMatchObject({
+      waveHeightMeters: 1.5,
+      primarySwellHeightMeters: null,
+    });
+    expect(found.swellModels).toEqual([]);
+    expect(state.past).toEqual([{ start: "2026-09-18", end: "2026-09-19" }]);
+    expect(seen).toMatchObject({ spent: 2, writes: 0 });
+    expect(rows.size).toBe(0);
+
+    await got(forecasts.over(span));
+    expect(state.past).toHaveLength(2);
+    expect(seen.spent).toBe(4);
+  });
+
+  it("ask nothing for a span further back than the provider answers", async () => {
+    const { store, seen } = memoryStore();
+    const { fetch, fetchPast, state } = provider();
+    const forecasts = makeForecasts(store, fetch, fetchPast);
+
+    expect(
+      await failed(
+        forecasts.over({
+          latitude: here.latitude,
+          longitude: here.longitude,
+          from: new Date("2026-05-01T09:00:00Z"),
+          until: new Date("2026-05-01T10:30:00Z"),
+        }),
+      ),
+    ).toMatchObject({ _tag: "ForecastTooOld" });
+    expect(state.past).toEqual([]);
+    expect(seen.spent).toBe(0);
+  });
+
+  it("say that a point had no sea over an older span, and fail when the budget is spent", async () => {
+    const { store, limit } = memoryStore();
+    const { fetch, fetchPast, state } = provider();
+    const forecasts = makeForecasts(store, fetch, fetchPast);
+    const span = {
+      latitude: 45.76,
+      longitude: 4.83,
+      from: new Date("2026-09-18T09:00:00Z"),
+      until: new Date("2026-09-18T10:30:00Z"),
+    };
+
+    state.waves = () => null;
+    expect(await got(forecasts.over(span))).toMatchObject({ hours: null, models: [] });
+
+    limit(0);
+    expect(await failed(forecasts.over(span))).toBeInstanceOf(BudgetSpent);
+  });
 });
 
 describe("the models over a span of hours", () => {

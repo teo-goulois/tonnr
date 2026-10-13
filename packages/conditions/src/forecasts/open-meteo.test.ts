@@ -251,6 +251,24 @@ describe("fetchForecast", () => {
     }
   });
 
+  it("asks for days of the past by their dates, in place of the span that is kept", async () => {
+    const asked = provider();
+    const { seen, spend } = counted();
+
+    const result = await run(
+      fetchForecast(cell, spend, { start: "2026-09-18", end: "2026-09-19" }),
+    );
+
+    expect(Result.isSuccess(result)).toBe(true);
+    expect(seen.spent).toBe(2);
+    for (const url of asked) {
+      const sent = Object.fromEntries(url.searchParams);
+      expect(sent).toMatchObject({ start_date: "2026-09-18", end_date: "2026-09-19" });
+      expect(sent).not.toHaveProperty("forecast_days");
+      expect(sent).not.toHaveProperty("past_days");
+    }
+  });
+
   it("asks the first wave model alone when it has a sea, for the whole sea and its peak", async () => {
     const asked = provider();
 

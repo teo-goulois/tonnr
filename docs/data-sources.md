@@ -83,6 +83,8 @@ Integrated through `GET /v1/forecasts`. Decision 005 records the choice, and dec
 
 Open-Meteo's marine API serves wave forecasts as JSON from several models. Its weather API serves the wind, the cloud cover, the precipitation and the air temperature. The free tier is for non-commercial use, which its terms define as private or non-profit sites and apps without subscriptions or advertising. It allows 10,000 calls a day, 5,000 an hour, 600 a minute, and 300,000 a month. A request counts for one call up to ten values and two weeks, and for more beyond. The data is under CC BY 4.0. Its documentation says accuracy near the coast is limited.
 
+Both APIs take `start_date` and `end_date` in place of `forecast_days` and `past_days`, and then answer days of the past: what the models last computed of them. Seen on 2026-10-13: the weather API refused a day more than 92 days back ("out of allowed range"), and the marine API answered `ecmwf_wam` 200 days back and nothing but nulls 500 days back. The instance asks 90 days back at most, for the hours of a session that is written later: decision 043.
+
 What the credit of a forecast must say, read on 2026-10-12. `packages/conditions/src/forecasts/wave-models.ts` holds the words, and decision 036 the choice.
 
 - Open-Meteo's licence page: "You must give appropriate credit, provide a link to the licence, and indicate if changes were made", and "You must include a link next to any location Open-Meteo data are displayed", with the example of a link to `https://open-meteo.com/` that reads "Weather data by Open-Meteo.com".

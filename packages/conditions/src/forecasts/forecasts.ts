@@ -6,12 +6,14 @@ import {
   BudgetSpent,
   type Cell,
   cellOf,
-  type fetchForecast,
+  fetchForecast,
   forecastData,
   type ForecastData,
   type ForecastFormatError,
   KEPT_DAYS,
   KEPT_PAST_DAYS,
+  PAST_REACH_DAYS,
+  type PastDays,
 } from "./open-meteo";
 
 const MINUTE_MS = 60 * 1000;
@@ -81,6 +83,9 @@ export class ForecastTooShort extends Schema.TaggedError<ForecastTooShort>()(
   {},
 ) {}
 
+/** The hours asked for are further back than the provider is asked. */
+export class ForecastTooOld extends Schema.TaggedError<ForecastTooOld>()("ForecastTooOld", {}) {}
+
 // `pastDays` adds the days before today, as the models last computed them.
 export type ForecastQuery = {
   latitude: number;
@@ -91,18 +96,13 @@ export type ForecastQuery = {
 
 type Asked = Pick<ForecastQuery, "days" | "pastDays">;
 
-/**
- * The hours of a kept forecast that answer a question asked at a moment: from the start of that
- * UTC day, less the past days, for the days asked. Null when the point has no sea forecast over
- * those hours, and `"short"` when what is kept does not cover them.
- */
-export function hoursFor(data: ForecastData, asked: Asked, at: number) {
-  const { time, ...values } = data.hours;
-  const today = Math.floor(at / 1000 / DAY_S) * DAY_S;
-  const from = today - (asked.pastDays ?? 0) * DAY_S;
-  const until = today + asked.days * DAY_S;
-  if ((time[0] ?? Infinity) > from || (time.at(-1) ?? -Infinity) < until - HOUR_S) return "short";
+/** A span of time at a point, which is about now or in the past: the hours of a session. */
+export type ForecastSpan = { latitude: number; longitude: number; from: Date; until: Date };
 
+// The hours of a forecast from one moment to another, the first included, in seconds since 1970,
+// and whether any of them has a wave height.
+function hoursIn(data: ForecastData, from: number, until: number) {
+  const { time, ...values } = data.hours;
   const hours = [];
   let hasWaves = false;
   for (const [index, seconds] of time.entries()) {
@@ -125,6 +125,22 @@ export function hoursFor(data: ForecastData, asked: Asked, at: number) {
       airTemperatureCelsius: values.airTemperatureCelsius[index] ?? null,
     });
   }
+  return { hours, hasWaves };
+}
+
+/**
+ * The hours of a kept forecast that answer a question asked at a moment: from the start of that
+ * UTC day, less the past days, for the days asked. Null when the point has no sea forecast over
+ * those hours, and `"short"` when what is kept does not cover them.
+ */
+export function hoursFor(data: ForecastData, asked: Asked, at: number) {
+  const { time } = data.hours;
+  const today = Math.floor(at / 1000 / DAY_S) * DAY_S;
+  const from = today - (asked.pastDays ?? 0) * DAY_S;
+  const until = today + asked.days * DAY_S;
+  if ((time[0] ?? Infinity) > from || (time.at(-1) ?? -Infinity) < until - HOUR_S) return "short";
+
+  const { hours, hasWaves } = hoursIn(data, from, until);
   // No wave height at any of the hours asked for: the point has no sea nearby.
   return hasWaves ? hours : null;
 }
@@ -184,7 +200,13 @@ type Fetch = typeof fetchForecast;
  * The forecasts of a program: kept in its memory, then in the store that every program of the
  * instance shares, and asked of the provider when neither has a fresh one. Decision 023.
  */
-export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForecast()) {
+export function makeForecasts(
+  store: ForecastStore,
+  fetch: Fetch = makeCellForecast(),
+  // What asks for days that are no longer kept: the provider's own models, with nothing laid
+  // over them.
+  fetchPast: Fetch = fetchForecast,
+) {
   // The provider failed to answer: nothing is asked of it before this moment, and then one
   // question at a time until one is answered. Null while it answers.
   let leftAloneUntil: number | null = null;
@@ -203,13 +225,13 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForec
     return { data: data.data, fetchedAt: row.fetchedAt, stale, age, seenAt: passed() };
   };
 
-  const ask = Effect.fn("askForecast")(function* (cell: Cell) {
+  const ask = Effect.fn("askForecast")(function* (cell: Cell, days?: PastDays) {
     const isAfterFailure = leftAloneUntil !== null;
     if (leftAloneUntil !== null && (passed() < leftAloneUntil || isTrying)) {
       return yield* new ProviderLeftAlone();
     }
     isTrying = isAfterFailure;
-    return yield* fetch(cell, spend).pipe(
+    return yield* (days ? fetchPast(cell, spend, days) : fetch(cell, spend)).pipe(
       Effect.tap(() =>
         Effect.sync(() => {
           leftAloneUntil = null;
@@ -266,50 +288,90 @@ export function makeForecasts(store: ForecastStore, fetch: Fetch = makeCellForec
     }),
   );
 
-  return {
-    /**
-     * Hourly waves and wind at a point, with the wave models they come from, each from its first
-     * hour, and the same for the swell apart. `hours` is null when the point has no sea nearby over the hours asked for. `stale`
-     * says that the provider could not be asked and that this is an older answer, with or
-     * without hours.
-     */
-    get: Effect.fn("getForecast")(function* (query: ForecastQuery) {
-      const cell = cellOf(query);
-      const key = `${cell.latStep},${cell.lonStep}`;
-      let found = yield* Cache.get(memory, key);
-      // The memory lets go of a forecast when its time is up, by the machine's clock. This
-      // checks it by the time that passed, which no setting of that clock changes.
-      if (memoryLeft(found) <= 0) {
-        const expired = found;
-        // Only the forecast that was read is let go. Questions that arrived together read
-        // the same one, and share the one that takes its place.
-        yield* Cache.invalidateWhen(memory, key, (held) => held === expired);
-        found = yield* Cache.get(memory, key);
-        if (lifeLeft(found) <= 0) return yield* new ForecastExpired();
-      }
+  /**
+   * Hourly waves and wind at a point, with the wave models they come from, each from its first
+   * hour, and the same for the swell apart. `hours` is null when the point has no sea nearby over the hours asked for. `stale`
+   * says that the provider could not be asked and that this is an older answer, with or
+   * without hours.
+   */
+  const get = Effect.fn("getForecast")(function* (query: ForecastQuery) {
+    const cell = cellOf(query);
+    const key = `${cell.latStep},${cell.lonStep}`;
+    let found = yield* Cache.get(memory, key);
+    // The memory lets go of a forecast when its time is up, by the machine's clock. This
+    // checks it by the time that passed, which no setting of that clock changes.
+    if (memoryLeft(found) <= 0) {
+      const expired = found;
+      // Only the forecast that was read is let go. Questions that arrived together read
+      // the same one, and share the one that takes its place.
+      yield* Cache.invalidateWhen(memory, key, (held) => held === expired);
+      found = yield* Cache.get(memory, key);
+      if (lifeLeft(found) <= 0) return yield* new ForecastExpired();
+    }
 
-      const hours = hoursFor(found.data, query, found.fetchedAt.getTime() + ageOf(found));
-      if (hours === "short") {
-        // The next question reads the store again, which asks for a forecast that covers.
-        yield* Cache.invalidate(memory, key);
-        return yield* new ForecastTooShort();
-      }
+    const hours = hoursFor(found.data, query, found.fetchedAt.getTime() + ageOf(found));
+    if (hours === "short") {
+      // The next question reads the store again, which asks for a forecast that covers.
+      yield* Cache.invalidate(memory, key);
+      return yield* new ForecastTooShort();
+    }
+    return {
+      point: found.data.point,
+      models:
+        hours && hours[0] && hours.at(-1)
+          ? modelsOver(found.data.models, hours[0].time, hours.at(-1)!.time)
+          : [],
+      swellModels:
+        hours && hours[0] && hours.at(-1)
+          ? modelsOver(found.data.swellModels, hours[0].time, hours.at(-1)!.time)
+          : [],
+      hours,
+      fetchedAt: found.fetchedAt,
+      stale: found.stale,
+    };
+  });
+
+  /**
+   * The hours of a span of time that is about now or in the past, from the hour its start falls
+   * in to the one its end falls in: what the models last computed of them. The forecast that is
+   * kept answers for the two days before today, with the finer waves and the swell apart it
+   * holds. Older hours are asked of the provider by themselves, each time and at the price of a
+   * forecast: they are the provider's own models, with no swell apart, and nothing keeps them.
+   * `hours` is null when the point has no sea nearby. Fails with `ForecastTooOld` further back
+   * than the provider is asked.
+   */
+  const over = Effect.fn("getForecastOver")(function* (span: ForecastSpan) {
+    const first = Math.floor(span.from.getTime() / 1000 / HOUR_S) * HOUR_S;
+    const last = Math.max(first, Math.floor(span.until.getTime() / 1000 / HOUR_S) * HOUR_S);
+    const today = Math.floor(Date.now() / 1000 / DAY_S) * DAY_S;
+    const described = (data: ForecastData) => {
+      const { hours, hasWaves } = hoursIn(data, first, last + HOUR_S);
+      const [start, end] = [new Date(first * 1000), new Date(last * 1000)];
       return {
-        point: found.data.point,
-        models:
-          hours && hours[0] && hours.at(-1)
-            ? modelsOver(found.data.models, hours[0].time, hours.at(-1)!.time)
-            : [],
-        swellModels:
-          hours && hours[0] && hours.at(-1)
-            ? modelsOver(found.data.swellModels, hours[0].time, hours.at(-1)!.time)
-            : [],
-        hours,
-        fetchedAt: found.fetchedAt,
-        stale: found.stale,
+        point: data.point,
+        models: hasWaves ? modelsOver(data.models, start, end) : [],
+        swellModels: hasWaves ? modelsOver(data.swellModels, start, end) : [],
+        hours: hasWaves ? hours : null,
       };
-    }),
-  };
+    };
+
+    if (first >= today - MAX_PAST_DAYS * DAY_S) {
+      // The span is asked whole, so that what is kept answers whatever the hour of the day.
+      const cell = cellOf(span);
+      const key = `${cell.latStep},${cell.lonStep}`;
+      // Reading the days checks that the forecast is still in force, as any question does.
+      yield* get({ ...span, days: 1, pastDays: MAX_PAST_DAYS });
+      const found = yield* Cache.get(memory, key);
+      return described(found.data);
+    }
+    if (first < today - PAST_REACH_DAYS * DAY_S) return yield* new ForecastTooOld();
+
+    const day = (seconds: number) => new Date(seconds * 1000).toISOString().slice(0, 10);
+    const data = yield* ask(cellOf(span), { start: day(first), end: day(last) });
+    return described(data);
+  });
+
+  return { get, over };
 }
 
 export type Forecasts = ReturnType<typeof makeForecasts>;
@@ -320,4 +382,5 @@ export type ForecastFailure =
   | ForecastStoreError
   | ProviderLeftAlone
   | ForecastExpired
-  | ForecastTooShort;
+  | ForecastTooShort
+  | ForecastTooOld;

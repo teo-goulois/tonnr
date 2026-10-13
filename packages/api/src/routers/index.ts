@@ -23,6 +23,7 @@ import { preferencesRouter } from "./preferences";
 import { publicationsRouter } from "./publications";
 import { reviewsRouter } from "./reviews";
 import { pushRouter } from "./push";
+import { sessionsRouter } from "./sessions";
 import { sharedRouter } from "./shared";
 import { spotsRouter } from "./spots";
 import { stationsRouter } from "./stations";
@@ -55,6 +56,7 @@ export const v1Router = {
   publications: publicationsRouter,
   push: pushRouter,
   reviews: reviewsRouter,
+  sessions: sessionsRouter,
   shared: sharedRouter,
   spots: spotsRouter,
   stations: stationsRouter,

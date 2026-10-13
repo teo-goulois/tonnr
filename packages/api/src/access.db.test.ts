@@ -153,6 +153,13 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.push.remove",
   "v1.push.renew",
   "v1.push.subscribe",
+  // An account's log of its sessions is its own: decision 043.
+  "v1.sessions.create",
+  "v1.sessions.delete",
+  "v1.sessions.get",
+  "v1.sessions.list",
+  "v1.sessions.recap",
+  "v1.sessions.update",
   // Keeping the list a link opens takes an account: decision 035.
   "v1.shared.join",
   // A spot is its owner's alone, and so is what they ask of it: decision 034.

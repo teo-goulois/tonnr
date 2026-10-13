@@ -58,7 +58,7 @@ Téo asked why the instance calls the provider at each request rather than calli
 - **A longer time in memory.** It would still empty at each deployment, and the worker would still not share it.
 - **A row for each question**, as the memory's keys were: a cell, a number of days, a number of past days. One cell would be fetched once for the map's panel and once for the alerts.
 - **A row without hours for a point with no sea.** Whether a point has a sea forecast depends on the hours asked for, and the provider's answer can change.
-- **Keeping every forecast that was fetched.** That is the history the product wants one day, to compare a forecast with what happened. It is a table that grows without end and a product decision: which points, for how long. Here a cell keeps its last forecast.
+- **Keeping every forecast that was fetched.** That is the history the product wants one day, to compare a forecast with what happened. It is a table that grows without end and a product decision: which points, for how long. Here a cell keeps its last forecast. A session of the log keeps the hours it lasted, and no more: [decision 043](043-session-log.md).
 - **The program's clock for a forecast's age.** Two programs on two machines would not agree on which fetch is the later one, nor on when two hours have passed.
 - **Planning alerts on a stale forecast.** Yesterday's forecast would announce a window that today's has taken back, or call one off for want of news.
 - **One count for the day.** The worker's first run after midnight could spend it all, and the provider's limits by the hour and the minute would be left to the provider to enforce.

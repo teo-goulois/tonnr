@@ -66,6 +66,14 @@ export function pointOf(cell: Cell) {
 export const KEPT_PAST_DAYS = 2;
 export const KEPT_DAYS = 8;
 
+// How far back the provider is asked for days that are no longer kept. Its weather answers for
+// 92 days before today, as seen on 2026-10-13, and its waves for longer: the nearer of the two
+// bounds the question, with a margin.
+export const PAST_REACH_DAYS = 90;
+
+/** Days of the past that are asked for by themselves, as UTC dates, both included. */
+export type PastDays = { start: string; end: string };
+
 export class ForecastFormatError extends Schema.TaggedError<ForecastFormatError>()(
   "ForecastFormatError",
   { message: Schema.String },
@@ -213,12 +221,13 @@ export function buildForecast(model: OpenMeteoModelId, marineJson: unknown, weat
   return data;
 }
 
-function url(base: string, cell: Cell, parameters: Record<string, string>) {
+function url(base: string, cell: Cell, parameters: Record<string, string>, days?: PastDays) {
   const search = new URLSearchParams({
     latitude: String(pointOf(cell).latitude),
     longitude: String(pointOf(cell).longitude),
-    forecast_days: String(KEPT_DAYS),
-    past_days: String(KEPT_PAST_DAYS),
+    ...(days
+      ? { start_date: days.start, end_date: days.end }
+      : { forecast_days: String(KEPT_DAYS), past_days: String(KEPT_PAST_DAYS) }),
     timeformat: "unixtime",
     timezone: "GMT",
     ...parameters,
@@ -240,8 +249,14 @@ const oneMoreTry = {
  * for the waves of the first model. A later model is asked only when the one before has no sea
  * at the point, so nearly every cell costs two requests.
  * `spend` counts a request before it is sent, and fails when the instance may send no more.
+ * With `days`, it asks for those days of the past in place of the span that is kept: what the
+ * models last computed of them, at the same price.
  */
-export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) => {
+export const fetchForecast = <E>(
+  cell: Cell,
+  spend: Effect.Effect<void, BudgetSpent | E>,
+  days?: PastDays,
+) => {
   const ask = (address: string) =>
     spend.pipe(
       Effect.flatMap(() => fetchJsonOnce(address)),
@@ -249,14 +264,19 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
     );
   const askWaves = (model: OpenMeteoModelId) =>
     ask(
-      url(MARINE_URL, cell, {
-        hourly: Object.keys(marineHourly.shape)
-          .filter((name) => name !== "time")
-          .join(","),
-        models: model,
-        // Take the nearest sea cell: a spot on the shore would otherwise fall on land.
-        cell_selection: "sea",
-      }),
+      url(
+        MARINE_URL,
+        cell,
+        {
+          hourly: Object.keys(marineHourly.shape)
+            .filter((name) => name !== "time")
+            .join(","),
+          models: model,
+          // Take the nearest sea cell: a spot on the shore would otherwise fall on land.
+          cell_selection: "sea",
+        },
+        days,
+      ),
     );
 
   return Effect.gen(function* () {
@@ -265,12 +285,17 @@ export const fetchForecast = <E>(cell: Cell, spend: Effect.Effect<void, BudgetSp
       [
         askWaves(first),
         ask(
-          url(WEATHER_URL, cell, {
-            hourly: Object.keys(weatherHourly.shape)
-              .filter((name) => name !== "time")
-              .join(","),
-            wind_speed_unit: "ms",
-          }),
+          url(
+            WEATHER_URL,
+            cell,
+            {
+              hourly: Object.keys(weatherHourly.shape)
+                .filter((name) => name !== "time")
+                .join(","),
+              wind_speed_unit: "ms",
+            },
+            days,
+          ),
         ),
       ],
       { concurrency: 2 },
