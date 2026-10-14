@@ -118,6 +118,7 @@ function Choosing({
           otherLabel={gone.name}
           choices={choices}
           onChange={setChoices}
+          confirmed={kept.confirmed}
         />
       </div>
 

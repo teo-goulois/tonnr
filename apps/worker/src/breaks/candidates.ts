@@ -371,7 +371,10 @@ export const storeCandidates = Effect.fn("storeCandidates")(function* (
                 eq(breakCandidate.list, found.list),
                 inArray(breakCandidate.ref, refs.slice(start, start + 5_000)),
               ),
-            );
+            )
+            // An operator who decides one meanwhile waits, or is waited for: what was decided
+            // is never written over.
+            .for("update");
           for (const row of rows) stored.set(row.ref, row);
         }
         const known = await knownRefs(tx, found.list, refs);

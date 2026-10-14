@@ -607,5 +607,7 @@
   "word_mid_high": "Mi-marée à haute",
   "word_high": "Haute",
   "catalogue_queue_show": "Candidats ({count})",
-  "catalogue_queue_hide": "Masquer les candidats"
+  "catalogue_queue_hide": "Masquer les candidats",
+  "catalogue_wait_again": "Remettre en attente",
+  "catalogue_merge_confirmed": "Le guide affiche ce que des comptes ont confirmé, quoi que garde la fusion : {lines}."
 }

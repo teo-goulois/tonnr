@@ -35,8 +35,9 @@ export function draftOf(
 ): BreakDraft {
   return {
     name: values.name,
-    latitude: values.latitude.toFixed(5),
-    longitude: values.longitude.toFixed(5),
+    // As stored: a break saved for its name keeps its point to the last decimal.
+    latitude: String(values.latitude),
+    longitude: String(values.longitude),
     characteristics: values.characteristics,
     description: values.description?.text ?? "",
     language: values.description?.language ?? language,
@@ -45,6 +46,13 @@ export function draftOf(
 
 const isNumber = (text: string, least: number, most: number) =>
   /^-?\d+(\.\d+)?$/.test(text.trim()) && Number(text) >= least && Number(text) <= most;
+
+/** The point a draft says, or null while what is typed is not one. */
+export function pointOfDraft(draft: { latitude: string; longitude: string }) {
+  return isNumber(draft.latitude, -90, 90) && isNumber(draft.longitude, -180, 180)
+    ? { latitude: Number(draft.latitude), longitude: Number(draft.longitude) }
+    : null;
+}
 
 /** What is wrong with a draft, by field, or nothing. */
 export function faultsOf(draft: BreakDraft) {

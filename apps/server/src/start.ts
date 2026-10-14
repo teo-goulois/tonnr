@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { catchUpListings } from "@repo/db/catalogue";
 import { creditPublications } from "@repo/db/credits";
 import { migrateDatabase } from "@repo/db/migrate";
 
@@ -34,4 +35,13 @@ try {
   await creditPublications(db);
 } catch (error) {
   console.error("The accepted spots were not counted", error);
+}
+
+// A break that the version before this one added while this one was being deployed is named by
+// its list, with what the list said of it: decision 049.
+try {
+  const { db } = await import("./services");
+  await catchUpListings(db);
+} catch (error) {
+  console.error("The breaks' listings were not caught up", error);
 }

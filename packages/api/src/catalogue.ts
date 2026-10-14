@@ -3,7 +3,7 @@ import type { Database } from "@repo/db";
 import { reopenCandidatesOf } from "@repo/db/catalogue";
 import { breakCandidate } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
-import { stationListBreak } from "@repo/db/schema/lists";
+import { stationList, stationListBreak } from "@repo/db/schema/lists";
 import { recentView } from "@repo/db/schema/preferences";
 import { surfSession } from "@repo/db/schema/sessions";
 import {
@@ -14,7 +14,7 @@ import {
   surfBreak,
   surfBreakListing,
 } from "@repo/db/schema/spots";
-import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { inBbox } from "./bbox";
@@ -193,6 +193,24 @@ export async function holdBreak(tx: Transaction, id: string, updatedAt: Date) {
   if (!row) throw noBreak(id);
   if (row.updatedAt.getTime() !== updatedAt.getTime()) throw changedSince();
   return row;
+}
+
+/** Holds, in the order of their ids, the accounts' lists that hold some breaks. */
+export async function holdListsOf(tx: Transaction, breakIds: string[]) {
+  await tx
+    .select({ id: stationList.id })
+    .from(stationList)
+    .where(
+      inArray(
+        stationList.id,
+        tx
+          .select({ id: stationListBreak.listId })
+          .from(stationListBreak)
+          .where(inArray(stationListBreak.breakId, breakIds)),
+      ),
+    )
+    .orderBy(asc(stationList.id))
+    .for("update");
 }
 
 /** What uses a break: the accounts' spots, lists, sessions, guide and its requests. */

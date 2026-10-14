@@ -22,6 +22,7 @@ import {
   type BreakDraft,
   type DescriptionLanguage,
   faultsOf,
+  pointOfDraft,
   valuesOf,
 } from "./break-fields";
 import { CatalogueMap } from "./catalogue-map";
@@ -105,10 +106,7 @@ export function CandidateDesk({
     description: "",
     language,
   }));
-  const point =
-    /^-?\d/.test(draft.latitude) && /^-?\d/.test(draft.longitude)
-      ? { latitude: Number(draft.latitude), longitude: Number(draft.longitude) }
-      : null;
+  const point = pointOfDraft(draft);
   const side: Side = {
     name: draft.name,
     latitude: point?.latitude ?? target.data?.break.latitude ?? 0,
@@ -415,6 +413,7 @@ export function CandidateDesk({
                 choices={chosen}
                 onChange={(next) => setChoices({ id: kept.id, choices: next })}
                 without={["description"]}
+                confirmed={kept.confirmed}
               />
               <Field label={m.catalogue_description()} hint={m.catalogue_description_own()}>
                 {() => (
@@ -455,7 +454,7 @@ export function CandidateDesk({
               {mode === "add" ? m.catalogue_add() : m.catalogue_merge()}
               <ShortcutKeys hotkey={bindings["candidate-accept"]} className="max-md:hidden" />
             </Button>
-            {candidate.status === "waiting" && (
+            {candidate.status === "waiting" ? (
               <Button
                 variant="outline"
                 isPending={decide.isPending && decide.variables === "later"}
@@ -463,6 +462,14 @@ export function CandidateDesk({
               >
                 {m.catalogue_later()}
                 <ShortcutKeys hotkey={bindings["candidate-later"]} className="max-md:hidden" />
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                isPending={decide.isPending && decide.variables === "reopen"}
+                onClick={() => decide.mutate("reopen")}
+              >
+                {m.catalogue_wait_again()}
               </Button>
             )}
             <Button variant="ghost" onClick={() => setIgnoring(true)}>

@@ -63,3 +63,24 @@ export async function reopenCandidatesOf(tx: Transaction, breakIds: string[]) {
       ),
     );
 }
+
+/**
+ * Names by its list every break that names its list and its reference and has no listing yet,
+ * with what the list said of it besides, and gives a listing that holds nothing what the list
+ * said. The version before this one adds breaks without listings, and may while this one is
+ * deployed: the API runs this each time it starts, after the migrations, as the migration that
+ * made the table did once. It writes nothing twice.
+ */
+export async function catchUpListings(db: Pick<Database, "execute">) {
+  await db.execute(sql`
+    insert into surf_break_listing (list, ref, break_id, details, created_at)
+    select b.provider, b.provider_ref, b.id, r.details, b.created_at
+    from surf_break b
+    left join surf_break_record r on r.break_id = b.id
+    where b.provider is not null and b.provider_ref is not null
+    on conflict (list, ref) do update set details = excluded.details
+    where surf_break_listing.details is null
+      and excluded.details is not null
+      and surf_break_listing.break_id = excluded.break_id
+  `);
+}

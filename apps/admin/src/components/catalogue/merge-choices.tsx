@@ -108,6 +108,8 @@ type MergeChoicesProps = {
   onChange: (choices: Choices) => void;
   // A field the operator writes apart, such as the description of a break a candidate goes into.
   without?: Field[];
+  // What accounts confirmed of the break that stays, which its guide shows over the catalogue.
+  confirmed?: Partial<BreakCharacteristics>;
 };
 
 /**
@@ -122,7 +124,13 @@ export function MergeChoices({
   choices,
   onChange,
   without = [],
+  confirmed = {},
 }: MergeChoicesProps) {
+  // The lines whose words the guide takes from accounts, whatever the merge keeps.
+  const over = LIST_LINES.flatMap((line) => {
+    const words = readLine(line, confirmed[line] as string[] | null | undefined);
+    return words ? [`${LINES[line].label()} : ${words}`] : [];
+  });
   const fields = FIELDS.filter((field) => !without.includes(field));
   const differ = fields.filter((field) => !same(valueOf(kept, field), valueOf(other, field)));
   const alike = fields.length - differ.length;
@@ -186,6 +194,11 @@ export function MergeChoices({
           </div>
         );
       })}
+      {over.length > 0 && (
+        <p className="text-s text-neutral-7">
+          {m.catalogue_merge_confirmed({ lines: over.join(" · ") })}
+        </p>
+      )}
       {differ.length === 0 ? (
         <p className="text-neutral-7">{m.catalogue_alike_all()}</p>
       ) : (

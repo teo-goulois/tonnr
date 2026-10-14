@@ -14,7 +14,7 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { client, orpc } from "@/utils/orpc";
 
-import { type BreakDraft, draftOf, type DescriptionLanguage } from "./break-fields";
+import { type BreakDraft, draftOf, type DescriptionLanguage, pointOfDraft } from "./break-fields";
 import { BreakPanel } from "./break-panel";
 import { CatalogueMap } from "./catalogue-map";
 import { MergeDialog } from "./merge-dialog";
@@ -144,10 +144,7 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
     onError: (error) => toast.error(error.message),
   });
 
-  const marker =
-    draft && /^-?\d/.test(draft.latitude) && /^-?\d/.test(draft.longitude)
-      ? { latitude: Number(draft.latitude), longitude: Number(draft.longitude) }
-      : null;
+  const marker = draft ? pointOfDraft(draft) : null;
 
   return (
     <div className="grid gap-m lg:h-[calc(100svh-12rem)] lg:min-h-[36rem] lg:grid-cols-[minmax(0,1fr)_28rem]">

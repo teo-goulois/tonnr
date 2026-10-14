@@ -1,5 +1,6 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { catchUpListings } from "@repo/db/catalogue";
 import { operator, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { breakCandidate, breakCandidateImage } from "@repo/db/schema/catalogue";
@@ -7,7 +8,7 @@ import { breakAnswer, breakContribution } from "@repo/db/schema/community";
 import { stationList, stationListBreak } from "@repo/db/schema/lists";
 import { recentView } from "@repo/db/schema/preferences";
 import { surfSession } from "@repo/db/schema/sessions";
-import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
+import { spot, surfBreak, surfBreakListing, surfBreakRecord } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -230,6 +231,35 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         await failure(call(v1Router.catalogue.update, input, { context: context("owner", WEB) })),
       ).toBe("FORBIDDEN");
     });
+  });
+
+  it("names by its list a break that the version before this one added, with what its list said", async () => {
+    const { db } = database;
+    await db.insert(surfBreak).values({
+      id: "00000000-0000-4000-8000-000000000009",
+      name: "Added during a deployment",
+      latitude: 41,
+      longitude: 9,
+      provider: "other",
+      providerRef: "d1",
+    });
+    await db.insert(surfBreakRecord).values({
+      breakId: "00000000-0000-4000-8000-000000000009",
+      details: { crowd: 1 },
+    });
+
+    await catchUpListings(db);
+    await catchUpListings(db);
+
+    expect(
+      await db.select().from(surfBreakListing).where(eq(surfBreakListing.ref, "d1")),
+    ).toMatchObject([
+      { list: "other", breakId: "00000000-0000-4000-8000-000000000009", details: { crowd: 1 } },
+    ]);
+    // A listing that holds something keeps it.
+    expect(
+      await db.select().from(surfBreakListing).where(eq(surfBreakListing.ref, "n1")),
+    ).toMatchObject([{ details: { crowd: 2 } }]);
   });
 
   describe("merging two breaks", () => {

@@ -73,6 +73,8 @@ export function BreakPanel({
       }),
     onSuccess: (next) => {
       toast.success(m.catalogue_saved({ name: next.break.name }));
+      // A save that changed nothing keeps the version: the draft is the break again all the same.
+      onDraftChange(draftOf(next.break, draft.language));
       onSaved(next);
     },
     onError: (error) => toast.error(error.message),

@@ -607,5 +607,7 @@
   "word_mid_high": "Mid to high",
   "word_high": "High",
   "catalogue_queue_show": "Candidates ({count})",
-  "catalogue_queue_hide": "Hide the candidates"
+  "catalogue_queue_hide": "Hide the candidates",
+  "catalogue_wait_again": "Back to waiting",
+  "catalogue_merge_confirmed": "The guide shows what accounts confirmed, whatever the merge keeps: {lines}."
 }

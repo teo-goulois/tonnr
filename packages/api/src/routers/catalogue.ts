@@ -16,6 +16,7 @@ import {
   deleteBreak,
   describeAllForOperator,
   holdBreak,
+  holdListsOf,
   listingsOf,
   mergeBreaks,
   nearbySchema,
@@ -218,6 +219,10 @@ export const catalogueRouter = {
       }
       return context.db.transaction(async (tx) => {
         await holdCatalogue(tx);
+        // The lists that hold either break, before the breaks: adding a break to a list holds
+        // the list, then the break, and a merge that held them the other way round would wait
+        // on it while it waits on the merge.
+        await holdListsOf(tx, [input.id, input.mergeId]);
         // The two rows in the order of their ids, as anything that holds both does.
         const [first, second] = [
           [input.id, input.updatedAt],
