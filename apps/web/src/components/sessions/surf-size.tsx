@@ -9,7 +9,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { ViewerDrawer } from "../viewer/viewer-drawer";
 // PROTOTYPE
-import { PrototypeChoices } from "./surf-size-prototype";
+import { ArtSwitcher, PrototypeArt } from "./surf-size-art-prototype";
 import type { SurfSize } from "./types";
 
 // How big the waves of a session looked, said by its surfer against a body: decision 043.
@@ -109,34 +109,16 @@ export function SurfSizePicture({
   const back = behind ? SURF_FACES[behind].drawn : 0;
   // The scale fits the tallest of the surfer and the waves in the box.
   const perMeter = (WATER - TOP) / Math.max(SURFER * 1.05, face, back);
-  const color = scaleColor(WAVE_HEIGHT_SCALE, face);
-
+  // PROTOTYPE: the drawing is one of the prototype's styles.
   return (
-    <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      aria-hidden
-      className={cn("block h-auto w-full text-neutral-12", className)}
-    >
-      {back > face && (
-        <path
-          d={wavePath(back * perMeter)}
-          fill={scaleColor(WAVE_HEIGHT_SCALE, back)}
-          opacity={0.35}
-          transform="translate(-6 0)"
-        />
-      )}
-      <path d={wavePath(face * perMeter)} fill={color} />
-      <line
-        x1={0}
-        x2={WIDTH}
-        y1={WATER}
-        y2={WATER}
-        stroke="currentColor"
-        strokeOpacity={0.25}
-        strokeWidth={0.75}
-      />
-      <Surfer x={16} y={WATER} tall={SURFER * perMeter} />
-    </svg>
+    <PrototypeArt
+      tall={SURFER * perMeter}
+      high={face * perMeter}
+      backHigh={back * perMeter}
+      color={scaleColor(WAVE_HEIGHT_SCALE, face)}
+      backColor={scaleColor(WAVE_HEIGHT_SCALE, back)}
+      className={className}
+    />
   );
 }
 
@@ -237,11 +219,16 @@ export function SurfSizeInput({ waves, sets, onChange, wide, disabled }: SurfSiz
         description={m.surf_size_hint()}
         onBack={step === "sets" ? () => setStep("waves") : undefined}
       >
+        {/* PROTOTYPE */}
+        <div className="mb-m">
+          <ArtSwitcher />
+        </div>
         {step === "waves" && (
           <div className="grid gap-m">
-            <PrototypeChoices
+            <SizeChoices
               label={m.surf_size_waves()}
               value={picked}
+              picture={(size) => <SurfSizePicture size={size} />}
               onPick={(size) => {
                 setPicked(size);
                 setStep("sets");
@@ -261,11 +248,13 @@ export function SurfSizeInput({ waves, sets, onChange, wide, disabled }: SurfSiz
           </div>
         )}
         {step === "sets" && picked && (
-          <PrototypeChoices
+          <SizeChoices
             label={m.surf_size_sets()}
             // The sets said before stay chosen while they are no smaller than the waves.
             value={sets && SIZES.indexOf(sets) >= SIZES.indexOf(picked) ? sets : null}
             least={picked}
+            // Each set is drawn behind the waves that were said.
+            picture={(size) => <SurfSizePicture size={picked} behind={size} />}
             onPick={(size) => {
               onChange(picked, size);
               setStep(null);
