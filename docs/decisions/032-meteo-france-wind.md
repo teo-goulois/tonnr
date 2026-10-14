@@ -14,7 +14,7 @@ No provider had asked for an account before, so every instance fetched from ever
 
 - The worker fetches the API "Package Observations", version 2. One request gives every station of the network at one moment, about 1,900 of them.
 - It keeps the wind and nothing else of a station: the speed `ff`, a mean over ten minutes, the direction `dd`, and the gust `raf10`, the strongest of those ten minutes, in metres per second. A station without a wind speed is not stored.
-- Every station with a wind speed is stored, inland ones too, as OpenWindMap's are.
+- Every station with a wind speed is stored, inland ones too, as OpenWindMap's are. Decision 048 keeps it so, and shows one station for each place on the map.
 - A run asks for three documents: the list of stations, which names them, and the packages of two moments. The package of a moment was out three minutes after it with 692 of its 778 wind stations, and was written again six minutes later with the rest. A run takes the latest moment that is three and a half minutes old, and the one before it. It starts at minutes 4, 10, 16 and so on of each hour.
 - The package of a moment that is not out yet is an empty list. It is read as no reading, and the next run asks for that moment again.
 - The key is `METEO_FRANCE_API_KEY`, and it is optional. Without it an instance runs as before: the provider is not listed, it has no job, and the worker deletes the queue it left if it had one. Its stations and readings stay.

@@ -243,10 +243,16 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       select: (answer) => answer.stations,
     }),
   );
-  // Wind stations are many, so only the ones in view are loaded.
+  // Wind stations are many, so only the ones in view are loaded, and one for each place where
+  // several networks stand together: decision 048.
   const wind = useQuery(
     orpc.v1.stations.list.queryOptions({
-      input: { measures: "wind", bbox: bounds?.join(",") ?? "", limit: WIND_LIMIT },
+      input: {
+        measures: "wind",
+        bbox: bounds?.join(",") ?? "",
+        limit: WIND_LIMIT,
+        places: "one",
+      },
       enabled: layers.wind && bounds !== null,
       placeholderData: keepPreviousData,
       // The worker fetches the wind every ten minutes.

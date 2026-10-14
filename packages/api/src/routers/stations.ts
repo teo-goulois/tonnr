@@ -5,9 +5,12 @@ import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
 import { callerProcedure } from "../index";
+import { oneByPlace } from "../wind-places";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HISTORY_DAYS = 2;
+// The wind stations read to keep one for each place. More than the world holds today.
+const MOST_WIND_STATIONS = 20_000;
 
 const readingSchema = z.object({
   observedAt: z.date(),
@@ -132,6 +135,15 @@ export const stationsRouter = {
           .optional()
           .describe("Only the stations that report this."),
         limit: z.coerce.number().int().min(1).max(500).default(100),
+        places: z
+          .enum(["all", "one"])
+          .default("all")
+          .describe(
+            'With `measures=wind`, "one" keeps one station for each place: of the stations ' +
+              "within 2 km of each other, the one that measured in the last two hours, then " +
+              "the one that gives gusts, then the one that measures most often. For a map, " +
+              "where several networks meet.",
+          ),
       }),
     )
     .output(
@@ -140,6 +152,7 @@ export const stationsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
+      const onePerPlace = input.places === "one" && input.measures === "wind";
       const rows = await context.db
         .select({ station, reading })
         .from(station)
@@ -153,10 +166,27 @@ export const stationsRouter = {
           ),
         )
         .orderBy(station.id)
-        .limit(input.limit);
+        .limit(onePerPlace ? MOST_WIND_STATIONS : input.limit);
+
+      const shown = onePerPlace
+        ? oneByPlace(
+            rows.map((row) => ({
+              ...row,
+              id: row.station.id,
+              provider: row.station.provider,
+              latitude: row.station.latitude,
+              longitude: row.station.longitude,
+              measuredAt: row.reading?.windSpeedMs == null ? null : row.reading.observedAt,
+              gust: row.reading?.windGustMs != null,
+            })),
+            new Date(),
+          )
+            .sort((one, other) => (one.id < other.id ? -1 : 1))
+            .slice(0, input.limit)
+        : rows;
 
       return {
-        stations: rows.map((row) => ({
+        stations: shown.map((row) => ({
           ...describeStation(row.station),
           latestReading: row.reading ? describeReading(row.reading) : null,
         })),
