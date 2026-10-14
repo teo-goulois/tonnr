@@ -1,4 +1,4 @@
-import { fetchJson } from "@repo/upstream";
+import { fetchJson, UpstreamError } from "@repo/upstream";
 import { Effect } from "effect";
 
 import { FormatError } from "./format-error";
@@ -113,34 +113,46 @@ export function parseWind(json: unknown, place: Place): Snapshot | FormatError {
 }
 
 const windUrl = (id: string) =>
-  `${DATA_URL}?range=1&station=${id}&product=wind&units=metric&time_zone=gmt&format=json&application=${APPLICATION}`;
+  `${DATA_URL}?range=2&station=${id}&product=wind&units=metric&time_zone=gmt&format=json&application=${APPLICATION}`;
+
+/** Whether the service refused the program itself, as it does one that asks too much. */
+export function isRefusal(error: unknown) {
+  return error instanceof UpstreamError && (error.status === 403 || error.status === 429);
+}
+
+// The service sits behind a firewall that refuses an address that asks too fast: two runs of
+// 315 requests within a minute were refused with 403 on 2026-10-14. One request a second.
+const PAUSE = "1 second";
 
 export const coops: Provider = {
   id: "coops",
-  // A value every six minutes. A run asks for the last hour of every station, three hundred
-  // requests, so it comes every half hour and keeps every value.
-  schedule: "11,41 * * * *",
+  // A value every six minutes. A run asks every station for its last two hours, one request a
+  // second for some five minutes, so it comes once an hour and still keeps every value.
+  schedule: "11 * * * *",
   fetchSnapshot: Effect.gen(function* () {
     const places = parseStations(yield* fetchJson(STATIONS_URL));
     if (places instanceof FormatError) return yield* places;
 
-    // Two at a time, to stay light on a public service.
     const snapshots = yield* Effect.forEach(
       places,
       (place) =>
         Effect.gen(function* () {
+          yield* Effect.sleep(PAUSE);
           const snapshot = parseWind(yield* fetchJson(windUrl(place.id)), place);
           if (snapshot instanceof FormatError) return yield* snapshot;
           return snapshot;
         }).pipe(
           Effect.catch((error) =>
-            Effect.gen(function* () {
-              yield* Effect.logWarning(`coops: skipped station ${place.id}`, error);
-              return null;
-            }),
+            // A refusal is for every station that follows too: the run stops at the first.
+            isRefusal(error)
+              ? Effect.fail(error)
+              : Effect.gen(function* () {
+                  yield* Effect.logWarning(`coops: skipped station ${place.id}`, error);
+                  return null;
+                }),
           ),
         ),
-      { concurrency: 2 },
+      { concurrency: 1 },
     );
 
     const read = snapshots.filter((snapshot) => snapshot !== null);

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStations, parseWind } from "./coops";
+import { UpstreamError } from "@repo/upstream";
+
+import { isRefusal, parseStations, parseWind } from "./coops";
 import { FormatError } from "./format-error";
 
 const SAN_FRANCISCO = {
@@ -103,5 +105,15 @@ describe("parseWind", () => {
 
   it("refuses an answer that is neither data nor an error", () => {
     expect(parseWind({ metadata: {} }, SAN_FRANCISCO)).toBeInstanceOf(FormatError);
+  });
+});
+
+describe("isRefusal", () => {
+  it("tells a refusal of the program from a failure of one station", () => {
+    const url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
+
+    expect(isRefusal(new UpstreamError({ url, status: 403, retryable: false }))).toBe(true);
+    expect(isRefusal(new UpstreamError({ url, status: 429, retryable: true }))).toBe(true);
+    expect(isRefusal(new UpstreamError({ url, status: 502, retryable: true }))).toBe(false);
   });
 });

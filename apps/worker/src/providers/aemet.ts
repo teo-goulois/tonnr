@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { FormatError } from "./format-error";
 import { isPosition, plausible } from "./plausible";
 import type { Provider, ReadingInput, Snapshot, StationInput } from "./provider";
-import { utcDate } from "./utc-date";
+import { parseZonedTime } from "./utc-date";
 
 export const AEMET_ID = "aemet";
 
@@ -82,21 +82,17 @@ export function decodeData(bytes: Uint8Array) {
   }
 }
 
-/** Reads the end of an hour of observation, as `2026-10-14T13:00:00`, which is in UTC. */
-function endOf(text: unknown) {
-  const match =
-    typeof text === "string"
-      ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::00)?$/.exec(text)
-      : null;
-  if (!match) return null;
-  const [year, month, day, hour, minute] = match.slice(1).map(Number) as [
-    number,
-    number,
-    number,
-    number,
-    number,
-  ];
-  return utcDate(year, month, day, hour, minute);
+/**
+ * Reads the end of an hour of observation, which is in UTC: `2026-10-14T13:00:00+0000` as the
+ * agency writes it, or with no zone, or with one written `+00:00` or `Z`.
+ */
+export function endOf(text: unknown) {
+  if (typeof text !== "string") return null;
+  const written = text.trim();
+  const zoned = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(written)
+    ? `${written}Z`
+    : written.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
+  return parseZonedTime(zoned);
 }
 
 const numberOrNull = (value: unknown) =>
@@ -114,10 +110,13 @@ export function parseObservations(json: unknown): Snapshot | FormatError {
   const stations = new Map<string, StationInput>();
   const readings: ReadingInput[] = [];
   let rejected = 0;
+  // What the first row that could not be read held, to say what changed when none could be.
+  let firstRejected: unknown;
 
   for (const entry of json) {
     if (!isRecord(entry)) {
       rejected += 1;
+      firstRejected ??= entry;
       continue;
     }
     const speed = numberOrNull(entry.vv);
@@ -136,11 +135,13 @@ export function parseObservations(json: unknown): Snapshot | FormatError {
       !isPosition(latitude, longitude)
     ) {
       rejected += 1;
+      firstRejected ??= entry;
       continue;
     }
     const windSpeedMs = plausible("windSpeedMs", speed);
     if (windSpeedMs === null) {
       rejected += 1;
+      firstRejected ??= entry;
       continue;
     }
     const gust = numberOrNull(entry.vmax);
@@ -167,6 +168,17 @@ export function parseObservations(json: unknown): Snapshot | FormatError {
       windDirectionDeg:
         direction === null || windSpeedMs === 0 ? null : plausible("windDirectionDeg", direction),
     });
+  }
+
+  if (readings.length === 0 && rejected > 0) {
+    const shown = isRecord(firstRejected)
+      ? ["idema", "fint", "lat", "lon", "vv"].map(
+          (key) => `${key} ${JSON.stringify(firstRejected[key])}`,
+        )
+      : [JSON.stringify(firstRejected)];
+    return formatError(
+      `all ${rejected} rows were rejected, the first with ${shown.join(", ").slice(0, 200)}`,
+    );
   }
 
   return { stations: [...stations.values()], readings, rejected };

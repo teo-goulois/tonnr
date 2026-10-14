@@ -17,7 +17,7 @@ Téo weighed two things. A surfer reads the wind at the coast, but a station inl
 - The networks are added in this order, each one a provider module:
   1. DMI, Denmark, the Faroes and Greenland, and Rijkswaterstaat, the Netherlands: no key, one request for every station. Added with this decision.
   2. The JMA's AMeDAS, Japan: about 900 stations with wind, many on capes and the coast, in one file every ten minutes. Added the same day, without gusts: the file holds none.
-  3. NOAA CO-OPS, the United States: the anemometers of the tide stations, on the shore itself, which NDBC does not carry. One request per station. Added the same day: 233 stations, read every half hour, two requests at a time.
+  3. NOAA CO-OPS, the United States: the anemometers of the tide stations, on the shore itself, which NDBC does not carry. One request per station. Added the same day: 233 stations, read once an hour, one request a second, and a run stops at the first refusal: its firewall refused the server that asked 630 times in a minute.
 - The airports' METAR come after these: one file for the whole world, but an airport says little of a beach. Added the same day, with IPMA, Portugal, whose terms allow no profit, and AEMET, Spain.
 - AEMET asks for the key of a free account. It is `AEMET_API_KEY`, optional, and follows the rules decision 032 gave Météo-France's key.
 

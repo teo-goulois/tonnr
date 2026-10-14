@@ -220,7 +220,7 @@ const GROUPS: readonly Group[] = [
         by: "Center for Operational Oceanographic Products and Services",
         region: m.sources_coops_region,
         text: m.sources_coops_text,
-        every: () => m.sources_every_minutes({ count: 30 }),
+        every: m.sources_every_hour,
         licence: {
           name: m.sources_licence_public_domain,
           url: "https://tidesandcurrents.noaa.gov/disclaimers.html",

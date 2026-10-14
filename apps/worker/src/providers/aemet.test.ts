@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeData, parseDataAddress, parseObservations, stationName } from "./aemet";
+import { decodeData, endOf, parseDataAddress, parseObservations, stationName } from "./aemet";
 import { FormatError } from "./format-error";
 
 function entry(overrides: Record<string, unknown> = {}) {
@@ -10,7 +10,7 @@ function entry(overrides: Record<string, unknown> = {}) {
     lat: 43.428,
     alt: 52,
     ubi: "SANTANDER, CMT",
-    fint: "2026-10-14T13:00:00",
+    fint: "2026-10-14T13:00:00+0000",
     prec: 0,
     vv: 6.2,
     vmax: 11.4,
@@ -68,10 +68,22 @@ describe("stationName", () => {
   });
 });
 
+describe("endOf", () => {
+  it("reads the end of an hour as the agency writes it, and in the other ways of UTC", () => {
+    const at = new Date("2026-10-14T13:00:00Z");
+
+    expect(endOf("2026-10-14T13:00:00+0000")).toEqual(at);
+    expect(endOf("2026-10-14T13:00:00")).toEqual(at);
+    expect(endOf("2026-10-14T13:00:00+00:00")).toEqual(at);
+    expect(endOf("2026-10-14T13:00:00Z")).toEqual(at);
+    expect(endOf("2026-10-14T15:00:00+0200")).toEqual(at);
+  });
+});
+
 describe("parseObservations", () => {
   it("turns each hour of a station into a wind reading", () => {
     const { stations, readings } = parse([
-      entry({ fint: "2026-10-14T12:00:00", vv: 5.1, vmax: 9.8, dv: 280 }),
+      entry({ fint: "2026-10-14T12:00:00+0000", vv: 5.1, vmax: 9.8, dv: 280 }),
       entry(),
     ]);
 
@@ -116,8 +128,19 @@ describe("parseObservations", () => {
   });
 
   it("rejects an hour that cannot be, and a station with no place", () => {
-    const { rejected } = parse([entry({ fint: "2026-02-31T13:00:00" }), entry({ lat: undefined })]);
+    const { rejected } = parse([
+      entry({ fint: "2026-02-31T13:00:00+0000" }),
+      entry({ lat: undefined }),
+      entry(),
+    ]);
 
     expect(rejected).toBe(2);
+  });
+
+  it("says what the first row held when no row could be read", () => {
+    const error = parseObservations([entry({ fint: "14/10/2026 13:00" })]);
+
+    expect(error).toBeInstanceOf(FormatError);
+    expect(String((error as FormatError).message)).toContain('fint "14/10/2026 13:00"');
   });
 });
