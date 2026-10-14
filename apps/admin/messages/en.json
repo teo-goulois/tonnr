@@ -525,6 +525,8 @@
   "catalogue_queue_merged": "Merged",
   "catalogue_queue_ignored": "Left out",
   "catalogue_queue_empty": "No candidate here.",
+  "catalogue_queue_search": "Find by name or place",
+  "catalogue_queue_none_found": "No candidate of that name here.",
   "catalogue_queue_done": "Nothing waits here.",
   "catalogue_action_add": "New",
   "catalogue_action_merge": "Known",

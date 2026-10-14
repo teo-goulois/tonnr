@@ -1,5 +1,7 @@
 import { Badge } from "@repo/ui/components/ui/badge";
+import { fold } from "@repo/config/names";
 import { Button } from "@repo/ui/components/ui/button";
+import { Input } from "@repo/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import { cn } from "@repo/ui/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,7 +63,16 @@ export function ImportPage({
     }),
   );
 
-  const listed = queue.data?.candidates ?? [];
+  // What is typed in the search: the queue shows the candidates whose name or places hold it,
+  // whatever its case and its marks.
+  const [query, setQuery] = useState("");
+  const typed = fold(query.trim());
+  const listed = (queue.data?.candidates ?? []).filter(
+    (one) =>
+      typed === "" ||
+      fold(one.name).includes(typed) ||
+      (one.location ?? []).some((place) => fold(place).includes(typed)),
+  );
   const [isQueueShown, setQueueShown] = useState(false);
   // The first of the queue, when none is asked for.
   const first = listed[0]?.id;
@@ -153,10 +164,20 @@ export function ImportPage({
             !isQueueShown && candidateId && "max-lg:hidden",
           )}
         >
+          <Input
+            type="search"
+            className="mb-xs"
+            aria-label={m.catalogue_queue_search()}
+            placeholder={m.catalogue_queue_search()}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
           {queue.isPending ? (
             <Loader />
           ) : listed.length === 0 ? (
-            <p className="text-neutral-7">{m.catalogue_queue_empty()}</p>
+            <p className="text-neutral-7">
+              {typed === "" ? m.catalogue_queue_empty() : m.catalogue_queue_none_found()}
+            </p>
           ) : (
             listed.map((one) => (
               <button

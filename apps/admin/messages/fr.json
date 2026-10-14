@@ -525,6 +525,8 @@
   "catalogue_queue_merged": "Fusionnés",
   "catalogue_queue_ignored": "Écartés",
   "catalogue_queue_empty": "Aucun candidat ici.",
+  "catalogue_queue_search": "Chercher par nom ou lieu",
+  "catalogue_queue_none_found": "Aucun candidat de ce nom ici.",
   "catalogue_queue_done": "Plus rien n’attend ici.",
   "catalogue_action_add": "Nouveau",
   "catalogue_action_merge": "Connu",
