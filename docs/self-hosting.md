@@ -351,6 +351,19 @@ Anyone opens your web app without an account and reads the map: the buoys, the b
 - It takes effect at once, with no restart. What you set stays across restarts and updates, and holds whatever the day's count says: an instance you closed stays closed past midnight.
 - Update the API before the web app: a web app of this version in front of an older API shows its visitors a map that loads nothing.
 
+## Signing in with Google
+
+Email and password work on every instance. Google sign-in is optional: set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together in the API's environment (`apps/server/.env` from a clone or with Docker Compose). Leave both empty to keep email alone. The web app learns whether Google is enabled from the API; no web build variable is needed. Decision 046 gives the account rules.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), configure the OAuth consent screen and create an OAuth client of type **Web application**.
+2. Register `${BETTER_AUTH_URL}/api/auth/callback/google` as an authorized redirect URI, with the actual public API address substituted and no trailing slash on the base address. This is the API's address, not the web app's. Use separate credentials for development and production.
+3. Set both credentials in the API environment and restart or deploy the API. A partial pair prevents startup. If the consent screen is in testing, add the accounts that will test it.
+4. Check that the web app offers **Continue with Google**, and complete a sign-in from it. Google Cloud requires an HTTPS callback on an eligible public domain, or HTTP on localhost for development; a `.localify` domain is not a public OAuth callback domain.
+
+Google receives the request to sign in and returns a name, an email address and an image. The auth library stores them and the provider's tokens in the existing auth tables. Only identity scopes are requested; this does not give the app access to Drive or Gmail. An existing email account links only after its local address is verified. A new Google account chooses its username when the app needs one.
+
+Provider setup follows [Better Auth's Google documentation](https://better-auth.com/docs/authentication/google).
+
 ## Checking addresses by mail
 
 An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. Decision 026 gives the rules.

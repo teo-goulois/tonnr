@@ -53,7 +53,8 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs"
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { Toggle } from "@repo/ui/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
+import { ArrowRightIcon, GoogleIcon, PlusIcon } from "@repo/ui/icon";
+import { m } from "@/paraglide/messages.js";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
@@ -466,6 +467,20 @@ export function DesignSystemPage() {
       </Section>
 
       <Section title="Button">
+        <Row>
+          <Button variant="outline">
+            <GoogleIcon data-slot="icon" aria-hidden />
+            {m.auth_google()}
+          </Button>
+          <Button variant="outline" isPending>
+            <GoogleIcon data-slot="icon" aria-hidden />
+            {m.auth_google()}
+          </Button>
+          <Button variant="outline" disabled>
+            <GoogleIcon data-slot="icon" aria-hidden />
+            {m.auth_google()}
+          </Button>
+        </Row>
         {VARIANTS.map((variant) => (
           <Row key={variant}>
             <Button variant={variant}>{variant}</Button>

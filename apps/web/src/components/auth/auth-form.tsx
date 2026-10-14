@@ -4,6 +4,7 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { cn } from "@repo/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
+import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -19,6 +20,8 @@ import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 import { client } from "@/utils/orpc";
 
+import { GoogleSignIn } from "./google-sign-in";
+
 export type AuthMode = "sign-in" | "sign-up";
 
 type AuthFormProps = {
@@ -28,6 +31,7 @@ type AuthFormProps = {
   // What the link someone gave the visitor ends with. It goes with a sign-up: the new account
   // then has the link's owner as its sponsor, and the two are friends. Decision 041.
   invitation?: string | undefined;
+  returnTo?: string | undefined;
 };
 
 function Field({
@@ -114,12 +118,14 @@ async function announceCheck(email: string) {
 }
 
 /** Signs a visitor in, or creates their account. One form does both, and a link switches. */
-export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthFormProps) {
+export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }: AuthFormProps) {
   const isSignUp = mode === "sign-up";
+  const [googlePending, setGooglePending] = useState(false);
 
   const form = useForm({
     defaultValues: { username: "", email: "", password: "" },
     onSubmit: async ({ value }) => {
+      if (googlePending) return;
       const answer = isSignUp
         ? // The sign-in library asks every account for a name: a new one gives its username,
           // which is what it is called by.
@@ -168,6 +174,16 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthForm
         void form.handleSubmit();
       }}
     >
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (
+          <GoogleSignIn
+            invitation={invitation}
+            returnTo={returnTo}
+            disabled={isSubmitting}
+            onPendingChange={setGooglePending}
+          />
+        )}
+      </form.Subscribe>
       {/* The username stays in the page and its row collapses, so the form changes height smoothly.
           The padding leaves room for the focus ring, and the margins cancel it: they add up to
           minus the gap, so a collapsed row takes no room at all. */}
@@ -230,7 +246,7 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation }: AuthForm
 
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
-          <Button type="submit" isPending={isSubmitting}>
+          <Button type="submit" isPending={isSubmitting} disabled={googlePending}>
             <MorphText>{isSignUp ? m.auth_create_account() : m.auth_sign_in()}</MorphText>
           </Button>
         )}

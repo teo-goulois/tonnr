@@ -5,12 +5,13 @@ import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
 import { agentSignIn } from "./agents";
-import { invitations } from "./invitation";
+import { googleProvider, type GoogleConfig, signInProviders } from "./google";
+import { invitations, oauthInvitation } from "./invitation";
 import { suspensionHooks } from "./suspension";
 import { keepsUsername, usernameHooks, usernames } from "./username";
 import { type Verification, VERIFICATION_SECONDS } from "./verification";
 
-export type AuthConfig = {
+export type AuthConfig = GoogleConfig & {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
   CORS_ORIGIN: string;
@@ -26,6 +27,8 @@ export function createAuth(
   // mail, no address is checked.
   verification?: Verification,
 ) {
+  const socialProviders = googleProvider(env);
+  const userHooks = usernameHooks(database);
   return betterAuth({
     appName: APP_NAME,
     database: drizzleAdapter(database, {
@@ -38,6 +41,10 @@ export function createAuth(
       ...desktopOrigins,
     ],
     emailAndPassword: { enabled: true },
+    socialProviders,
+    account: {
+      accountLinking: { enabled: true, requireLocalEmailVerified: true, trustedProviders: [] },
+    },
     // An account is sent a mail to check its address when it signs up, and is signed in
     // whether it follows the link or not. The link signs no one in. Decision 026.
     ...(verification?.isOn && {
@@ -58,7 +65,15 @@ export function createAuth(
     databaseHooks: {
       session: { create: suspensionHooks(database) },
       // A username that an operator took away stays away: decision 041.
-      user: usernameHooks(database),
+      user: {
+        ...userHooks,
+        create: {
+          after: async (made, context) => {
+            await userHooks.create.after(made);
+            if (context?.path === "/callback/:id") await oauthInvitation(database, made, context);
+          },
+        },
+      },
     },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
@@ -74,6 +89,7 @@ export function createAuth(
     hooks: { before: keepsUsername, after: invitations(database) },
     plugins: [
       usernames(database),
+      signInProviders("google" in socialProviders),
       // What signs an agent in as an account: decision 047.
       ...agentSignIn(env, database),
     ],

@@ -1,5 +1,8 @@
 export type { IconProps } from "./icon-types";
 
+// Brand artwork, supplied by the provider.
+export { GoogleIcon } from "./google-icon";
+
 // Local icons — fill
 export { AtSignFillIcon } from "./at-sign-icon";
 export { CalendarFillIcon } from "./calendar-icon";

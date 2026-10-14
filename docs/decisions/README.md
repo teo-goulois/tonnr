@@ -49,4 +49,5 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [043. An account keeps a log of its sessions, with what the sea did](043-session-log.md)
 - [044. Product analytics](044-product-analytics.md)
 - [045. An MCP server, for an agent that reads the sea](045-mcp-server.md)
+- [046. Sign in with Google when the instance offers it](046-google-sign-in.md)
 - [047. An agent signs in as an account, and reads what it keeps](047-agents-sign-in.md)

@@ -1,6 +1,33 @@
 import type { Database } from "@repo/db";
 import { befriend, ownerOfLink, sponsor } from "@repo/db/friends";
-import { createAuthMiddleware } from "better-auth/api";
+import type { GenericEndpointContext } from "@better-auth/core";
+import { createAuthMiddleware, getOAuthState } from "better-auth/api";
+
+type InvitedAccount = { id: string; username?: unknown };
+
+async function keepInvitation(database: Database, made: InvitedAccount, token: unknown) {
+  if (typeof token !== "string" || token.length > 64) return;
+  await database.transaction(async (tx) => {
+    const owner = await ownerOfLink(tx, token);
+    if (owner === null || owner === made.id) return;
+    await sponsor(tx, owner, made.id);
+    if (typeof made.username === "string") await befriend(tx, made.id, owner);
+  });
+}
+
+/** Runs only when OAuth creates an account; returning accounts acquire no sponsor. */
+export async function oauthInvitation(
+  database: Database,
+  made: InvitedAccount,
+  context: GenericEndpointContext,
+) {
+  try {
+    const state = await getOAuthState<{ invitation?: unknown }>();
+    await keepInvitation(database, made, state?.invitation);
+  } catch {
+    context.context.logger.error("An invitation was not kept");
+  }
+}
 
 /**
  * An account that is made through another's link has the link's owner as its sponsor, and the
@@ -23,12 +50,7 @@ export function invitations(database: Database) {
     if (typeof token !== "string" || token.length > 64 || !made) return;
 
     try {
-      await database.transaction(async (tx) => {
-        const owner = await ownerOfLink(tx, token);
-        if (owner === null || owner === made.id) return;
-        await sponsor(tx, owner, made.id);
-        if (typeof made.username === "string") await befriend(tx, made.id, owner);
-      });
+      await keepInvitation(database, made, token);
     } catch (error) {
       answering.context.logger.error("An invitation was not kept", error);
     }
