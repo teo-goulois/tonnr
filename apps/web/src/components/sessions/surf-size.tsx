@@ -53,13 +53,17 @@ const TOP = 6;
 const SURFER = 1.75;
 
 // What the two icons draw of their box of 18: the person from their head to their feet, and the
-// wave from its crest to the foot of its body, whose line of water under it is left out.
+// wave from its crest down to the flat water it rises from, cut there from the curves under it.
 const PERSON = { left: 4.6, top: 0, wide: 8.8, high: 18 };
-const WAVE = { left: 1, top: 2.1, wide: 16, high: 9.9 };
-// Where the wave begins, and how far its width follows its height: a small wave is not drawn
-// too narrow to be read, nor a big one wider than the box.
+const WAVE = { left: 1, top: 2.1, wide: 16, high: 8.3 };
+// Where the wave begins, and how far its width follows its height: a small wave is stretched a
+// little, so that it is not drawn too narrow to be read, and a big one no wider than the box.
 const WAVE_LEFT = 30;
-const WAVE_STRETCH = { least: 2.2, most: 4.4 };
+const WAVE_STRETCH = { least: 1.6, most: 4.4 };
+// Room over the surfer, which keeps them a little short of the top of a picture of small waves.
+const HEADROOM = 1.2;
+// The least a wave is drawn, in pixels: an ankle's, drawn to the surfer's scale, would be a line.
+const LEAST_WAVE = 8;
 
 /** A surfer standing, drawn from their feet at (x, WATER), `tall` pixels tall. */
 function Surfer({ x, tall }: { x: number; tall: number }) {
@@ -95,7 +99,6 @@ function Wave({
         height={high}
         viewBox={`${WAVE.left} ${WAVE.top} ${WAVE.wide} ${WAVE.high}`}
         preserveAspectRatio="none"
-        className="[&_[data-color]]:hidden"
         {...props}
       />
     </g>
@@ -118,7 +121,7 @@ export function SurfSizePicture({
   const face = SURF_FACES[size].drawn;
   const back = behind ? SURF_FACES[behind].drawn : 0;
   // The scale fits the tallest of the surfer and the waves in the box.
-  const perMeter = (WATER - TOP) / Math.max(SURFER * 1.05, face, back);
+  const perMeter = (WATER - TOP) / Math.max(SURFER * HEADROOM, face, back);
 
   return (
     <svg
@@ -134,7 +137,10 @@ export function SurfSizePicture({
           opacity={0.4}
         />
       )}
-      <Wave high={face * perMeter} color={scaleColor(WAVE_HEIGHT_SCALE, face)} />
+      <Wave
+        high={Math.max(face * perMeter, LEAST_WAVE)}
+        color={scaleColor(WAVE_HEIGHT_SCALE, face)}
+      />
       <line
         x1={0}
         x2={WIDTH}
