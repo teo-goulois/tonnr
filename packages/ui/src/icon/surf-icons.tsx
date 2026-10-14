@@ -1,5 +1,8 @@
 import { type ReactNode, useId } from "react";
 
+import { IconPersonFill18 } from "nucleo-ui-fill-18/components/IconPersonFill18";
+import { IconWaterWaveFill18 } from "nucleo-ui-fill-18/components/IconWaterWaveFill18";
+
 import type { IconProps } from "./icon-types";
 
 /*
@@ -607,46 +610,62 @@ export function BoardIcon({ look = SURF_LOOK, ...props }: GlyphProps) {
   );
 }
 
-// The height the gauge of a size reaches at its top, in meters.
-const SIZE_TOP = 6;
-// Where a height stands on the gauge, from the floor to its top.
-const heightAt = (meters: number) => 32 - (Math.min(meters, SIZE_TOP) / SIZE_TOP) * 22;
+// A size is drawn as a session's is, in `SurfSizePicture`: a surfer of 1.75 m beside a wave
+// as high as the largest, both to one scale, with Nucleo UI's own person and wave. What the two
+// draw of their box of 18: the person from head to feet, the wave from its crest to its water.
+const PERSON = { left: 4.6, top: 0, wide: 8.8, high: 18 };
+const WAVE = { left: 1, top: 2.1, wide: 16, high: 8.3 };
+const SURFER = 1.75;
+// The water both stand on, and the top a wave reaches.
+const WATER = 31;
+const SKY = 6;
+// A size with no largest is drawn as a wave this high, in meters.
+const UNBOUNDED = 5;
+// The least a wave is drawn, so that a small one still reads, and how wide it is for its height.
+const LEAST_WAVE = 6;
+const WAVE_WIDTH = { least: 12, most: 22, perHigh: 1.6 };
 
 /**
- * The size a break works at: a band from its smallest wave to its largest, beside a wave as high
- * as the largest. A size with no largest goes on past the top of the round.
+ * The size a break works at, as a session's size is drawn: a surfer beside a wave as high as the
+ * largest, on one scale, so that the wave reads against a body. A size with no largest is drawn
+ * as a big wave.
  */
 export function WaveSizeIcon({
-  smallest,
   largest,
   look = SURF_LOOK,
   ...props
-}: GlyphProps & { smallest: number | null; largest: number | null }) {
-  const low = heightAt(smallest ?? 0);
-  const high = largest === null ? 6 : heightAt(largest);
-  const crest = Math.max(high, 10);
-  // The face rises from the floor to its crest, which pitches forward.
-  const face = (
-    <path
-      d={`M17 33C24 33 26 ${crest} 30 ${crest}C33 ${crest} 34.5 ${crest + 1.5} 33.5 ${crest + 4}`}
-    />
-  );
-  // The duo's band and floor are full, and say their edges themselves.
-  if (look === "duo")
-    return (
-      <Glyph look={look} {...props}>
-        <rect x="0" y="33" width="40" height="7" {...solid} />
-        <rect x="6" y={high} width="8" height={Math.max(low - high, 1.5)} rx="1" {...solid} />
-        {face}
-      </Glyph>
-    );
+}: GlyphProps & { largest: number | null }) {
+  const face = largest ?? UNBOUNDED;
+  const perMeter = (WATER - SKY) / Math.max(SURFER * 1.2, face);
+  const tall = SURFER * perMeter;
+  const high = Math.max(face * perMeter, LEAST_WAVE);
+  const wide = Math.min(Math.max(high * WAVE_WIDTH.perHigh, WAVE_WIDTH.least), WAVE_WIDTH.most);
+  const person = (tall * PERSON.wide) / PERSON.high;
+  const left = 17;
   return (
     <Glyph look={look} {...props}>
-      <rect x="0" y="33" width="40" height="7" {...duo} />
-      <rect x="7" y={high} width="8" height={Math.max(low - high, 1)} {...duo} />
-      {smallest !== null && <path d={`M7 ${low}H15`} />}
-      {largest !== null && <path d={`M7 ${high}H15`} />}
-      {face}
+      <rect x="0" y={WATER} width="40" height={40 - WATER} {...(look === "duo" ? solid : duo)} />
+      {/* Nucleo's shapes are full, and take none of the glyph's line. */}
+      <g stroke="none">
+        <IconPersonFill18
+          x={11 - person / 2}
+          y={WATER - tall + 0.5}
+          width={person}
+          height={tall}
+          viewBox={`${PERSON.left} ${PERSON.top} ${PERSON.wide} ${PERSON.high}`}
+        />
+        {/* Turned, so that it breaks toward the surfer. */}
+        <g transform={`translate(${2 * left + wide} 0) scale(-1 1)`}>
+          <IconWaterWaveFill18
+            x={left}
+            y={WATER - high + 0.5}
+            width={wide}
+            height={high}
+            viewBox={`${WAVE.left} ${WAVE.top} ${WAVE.wide} ${WAVE.high}`}
+            preserveAspectRatio="none"
+          />
+        </g>
+      </g>
     </Glyph>
   );
 }

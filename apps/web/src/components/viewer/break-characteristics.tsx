@@ -264,7 +264,7 @@ type WaveSize = NonNullable<Characteristics["waveSizeMeters"]>;
 
 /** The glyph of the size a break works at. */
 export function SizeIcon({ size, look }: { size: WaveSize; look?: SurfLook }) {
-  return <WaveSizeIcon className={glyph} look={look} smallest={size.min} largest={size.max} />;
+  return <WaveSizeIcon className={glyph} look={look} largest={size.max} />;
 }
 
 /**
