@@ -8,6 +8,8 @@ import { scaleColor, WAVE_HEIGHT_SCALE } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
 import { ViewerDrawer } from "../viewer/viewer-drawer";
+// PROTOTYPE
+import { PrototypeChoices } from "./surf-size-prototype";
 import type { SurfSize } from "./types";
 
 // How big the waves of a session looked, said by its surfer against a body: decision 043.
@@ -237,10 +239,9 @@ export function SurfSizeInput({ waves, sets, onChange, wide, disabled }: SurfSiz
       >
         {step === "waves" && (
           <div className="grid gap-m">
-            <SizeChoices
+            <PrototypeChoices
               label={m.surf_size_waves()}
               value={picked}
-              picture={(size) => <SurfSizePicture size={size} />}
               onPick={(size) => {
                 setPicked(size);
                 setStep("sets");
@@ -260,13 +261,11 @@ export function SurfSizeInput({ waves, sets, onChange, wide, disabled }: SurfSiz
           </div>
         )}
         {step === "sets" && picked && (
-          <SizeChoices
+          <PrototypeChoices
             label={m.surf_size_sets()}
             // The sets said before stay chosen while they are no smaller than the waves.
             value={sets && SIZES.indexOf(sets) >= SIZES.indexOf(picked) ? sets : null}
             least={picked}
-            // Each set is drawn behind the waves that were said.
-            picture={(size) => <SurfSizePicture size={picked} behind={size} />}
             onPick={(size) => {
               onChange(picked, size);
               setStep(null);
