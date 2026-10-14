@@ -1,15 +1,18 @@
 import type { Database } from "@repo/db";
 import { Effect } from "effect";
 
+import { AEMET_ID, aemet } from "./providers/aemet";
 import { candhis } from "./providers/candhis";
 import { coops } from "./providers/coops";
 import { copernicus } from "./providers/copernicus";
 import { dmi } from "./providers/dmi";
 import { fmi } from "./providers/fmi";
 import { hidrografico } from "./providers/hidrografico";
+import { ipma } from "./providers/ipma";
 import { irishLights } from "./providers/irish-lights";
 import { jma } from "./providers/jma";
 import { marineInstitute } from "./providers/marine-institute";
+import { metar } from "./providers/metar";
 import { METEO_FRANCE_ID, meteoFrance } from "./providers/meteo-france";
 import { ndbc } from "./providers/ndbc";
 import { openwindmap } from "./providers/openwindmap";
@@ -26,9 +29,11 @@ const open: readonly Provider[] = [
   dmi,
   fmi,
   hidrografico,
+  ipma,
   irishLights,
   jma,
   marineInstitute,
+  metar,
   ndbc,
   openwindmap,
   queensland,
@@ -36,11 +41,18 @@ const open: readonly Provider[] = [
 ];
 
 /** The keys an instance may hold, for the providers that ask for an account. Decision 032. */
-export type ProviderKeys = { METEO_FRANCE_API_KEY?: string | undefined };
+export type ProviderKeys = {
+  AEMET_API_KEY?: string | undefined;
+  METEO_FRANCE_API_KEY?: string | undefined;
+};
 
 /** The providers an instance fetches from: the open ones, and those whose key it holds. */
 export function providersOf(keys: ProviderKeys): readonly Provider[] {
-  return [...open, ...(keys.METEO_FRANCE_API_KEY ? [meteoFrance(keys.METEO_FRANCE_API_KEY)] : [])];
+  return [
+    ...open,
+    ...(keys.AEMET_API_KEY ? [aemet(keys.AEMET_API_KEY)] : []),
+    ...(keys.METEO_FRANCE_API_KEY ? [meteoFrance(keys.METEO_FRANCE_API_KEY)] : []),
+  ];
 }
 
 /**
@@ -49,7 +61,11 @@ export function providersOf(keys: ProviderKeys): readonly Provider[] {
  * someone deletes them.
  */
 export function retiredProviderIdsOf(keys: ProviderKeys): readonly string[] {
-  return ["cefas", ...(keys.METEO_FRANCE_API_KEY ? [] : [METEO_FRANCE_ID])];
+  return [
+    "cefas",
+    ...(keys.AEMET_API_KEY ? [] : [AEMET_ID]),
+    ...(keys.METEO_FRANCE_API_KEY ? [] : [METEO_FRANCE_ID]),
+  ];
 }
 
 /** Fetches what a provider publishes now and stores it. */

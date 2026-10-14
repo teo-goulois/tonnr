@@ -33,7 +33,7 @@ To check the instance:
 Run the same three services: `postgres:18` with its volume mounted at `/var/lib/postgresql`, an image built from `apps/server/Dockerfile`, and one built from `apps/worker/Dockerfile`. Both builds take the repository root as their context.
 
 - The API needs `DATABASE_URL` and the three values above. It listens on `PORT`, 3000 by default, and answers `GET /` with `OK` for a health check.
-- The worker needs `DATABASE_URL` only, the same as the API's. It listens on no port. `METEO_FRANCE_API_KEY` is optional: "Météo-France's wind stations" below says what it adds.
+- The worker needs `DATABASE_URL` only, the same as the API's. It listens on no port. `METEO_FRANCE_API_KEY` and `AEMET_API_KEY` are optional: "Météo-France's wind stations" and "AEMET's wind stations" below say what they add.
 - A container with a missing or malformed value stops at once and names it.
 
 The services may start in any order, and together.
@@ -400,6 +400,17 @@ An instance fetches the wind of Météo-France's stations only with a key of its
 - The data is under the Licence Ouverte 2.0. Show "Météo-France" with a station's data: the API returns it as the station's attribution.
 - Without the key, the worker stops fetching at its next start. The stations it stored stay, with their last readings.
 
+## AEMET's wind stations
+
+An instance fetches the wind of Spain's stations only with a key of its own, as it does Météo-France's. Without one it shows none of them.
+
+1. Ask for a key at `opendata.aemet.es`, under "Obtención de API Key", with an email address. The key comes by mail.
+2. Set `AEMET_API_KEY` to the key: in the root `.env` with Docker Compose, or in the worker's environment on another platform. From a clone, set it in `apps/server/.env`.
+3. Start the worker again. Its log shows `Scheduled ingest-aemet`, then a line with the count of its stations.
+
+- The worker sends AEMET two requests an hour.
+- Show "© AEMET" with a station's data: the API returns it as the station's attribution.
+
 ## What an instance owes the data providers
 
 The worker calls the providers from your server, each on its schedule, from every few minutes to once an hour. You answer to them for your instance.
@@ -411,7 +422,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 - The search that finds a place by its name asks Photon's public service, at `photon.komoot.io`, which Komoot offers for fair use and without any promise. It is sent what a surfer types, the language, the middle of the map to a tenth of a degree and the map's zoom, from your server's address. To ask another Photon, yours for instance, set `PLACES_URL` in `apps/server/.env` to its address, such as `http://photon:2322`. Your API asks it 240 times a minute at most, and leaves it alone for 30 seconds after a refusal. Show "© OpenStreetMap contributors" where the places are listed. Decision 030 gives the rules.
 - From the French coast north of La Rochelle to the North Sea, the waves of a forecast come from a finer model that your API and your worker read from the Copernicus Marine Service's public store, with no account: about 1 MB for a forecast they do not hold, from `stac.marine.copernicus.eu` and the store its catalogue names. When it cannot be read a forecast has Open-Meteo's waves, and says so in its credits. Show the credit the forecast gives. Decision 037 gives the rules. Every forecast also takes the swell apart from the wind sea from the same service's store of the world, about 1 MB more for a forecast they do not hold: decision 038. Each of the two programs keeps up to 32 MB of what it read there in memory.
 - The map colors the sea with tiles that each visitor's browser fetches from the Copernicus Marine Service. Your API reads only their description, two documents an hour. Keep the credit the map shows for them. Decision 018 says what that provider sees.
-- A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid.
+- A station whose `license.commercialUse` is `false` or `null` must stay out of anything paid. IPMA's stations, in Portugal, are among them: its terms allow no profit, and it asks to be told, at `webmaster@ipma.pt`, what its data is used for.
 - The code's licence covers the code. The measurements stay under their providers' terms.
 
 ## What the licence asks

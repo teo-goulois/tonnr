@@ -18,7 +18,8 @@ Téo weighed two things. A surfer reads the wind at the coast, but a station inl
   1. DMI, Denmark, the Faroes and Greenland, and Rijkswaterstaat, the Netherlands: no key, one request for every station. Added with this decision.
   2. The JMA's AMeDAS, Japan: about 900 stations with wind, many on capes and the coast, in one file every ten minutes. Added the same day, without gusts: the file holds none.
   3. NOAA CO-OPS, the United States: the anemometers of the tide stations, on the shore itself, which NDBC does not carry. One request per station. Added the same day: 233 stations, read every half hour, two requests at a time.
-- The airports' METAR come after these: one file for the whole world, but an airport says little of a beach.
+- The airports' METAR come after these: one file for the whole world, but an airport says little of a beach. Added the same day, with IPMA, Portugal, whose terms allow no profit, and AEMET, Spain.
+- AEMET asks for the key of a free account. It is `AEMET_API_KEY`, optional, and follows the rules decision 032 gave Météo-France's key.
 
 ## Rejected
 
@@ -30,5 +31,5 @@ Téo weighed two things. A surfer reads the wind at the coast, but a station inl
 ## Consequences
 
 - A list asked for with `"one"` reads every wind station of its box, up to 20,000, before it keeps its limit. It costs the database more than a list of 500.
-- A network not named in `wind-places.ts` is taken to measure every hour. A new wind provider names its interval there.
+- A network not named in `wind-places.ts` is taken to measure every hour, as the airports, IPMA and AEMET do. A new wind provider names its interval there.
 - Rijkswaterstaat's query names its 58 stations, read from its catalogue on 2026-10-14. A station it adds later waits for a change of the module. The catalogue is 2.2 MB, too much to read at every run, and no provider module keeps anything between two runs.
