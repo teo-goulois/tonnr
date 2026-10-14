@@ -616,14 +616,18 @@ export function BoardIcon({ look = SURF_LOOK, ...props }: GlyphProps) {
 const PERSON = { left: 4.6, top: 0, wide: 8.8, high: 18 };
 const WAVE = { left: 1, top: 2.1, wide: 16, high: 8.3 };
 const SURFER = 1.75;
-// The water both stand on, and the top a wave reaches.
+// The water both stand on, and the top a wave reaches: no higher than keeps it as wide as the
+// round allows, so that a big wave stands as Nucleo drew it and is not squeezed.
 const WATER = 31;
-const SKY = 6;
+const SKY = 13;
 // A size with no largest is drawn as a wave this high, in meters.
 const UNBOUNDED = 5;
-// The least a wave is drawn, so that a small one still reads, and how wide it is for its height.
+// The least a wave is drawn, so that a small one still reads, and how wide it is: as Nucleo drew
+// it, from where it begins to the edge of the round.
 const LEAST_WAVE = 6;
-const WAVE_WIDTH = { least: 12, most: 22, perHigh: 1.6 };
+const WAVE_LEFT = 13;
+const WAVE_WIDTH = { least: 12, most: 26, perHigh: WAVE.wide / WAVE.high };
+const SURFER_AT = 7.5;
 
 /**
  * The size a break works at, as a session's size is drawn: a surfer beside a wave as high as the
@@ -641,23 +645,22 @@ export function WaveSizeIcon({
   const high = Math.max(face * perMeter, LEAST_WAVE);
   const wide = Math.min(Math.max(high * WAVE_WIDTH.perHigh, WAVE_WIDTH.least), WAVE_WIDTH.most);
   const person = (tall * PERSON.wide) / PERSON.high;
-  const left = 17;
   return (
     <Glyph look={look} {...props}>
       <rect x="0" y={WATER} width="40" height={40 - WATER} {...(look === "duo" ? solid : duo)} />
       {/* Nucleo's shapes are full, and take none of the glyph's line. */}
       <g stroke="none">
         <IconPersonFill18
-          x={11 - person / 2}
+          x={SURFER_AT - person / 2}
           y={WATER - tall + 0.5}
           width={person}
           height={tall}
           viewBox={`${PERSON.left} ${PERSON.top} ${PERSON.wide} ${PERSON.high}`}
         />
         {/* Turned, so that it breaks toward the surfer. */}
-        <g transform={`translate(${2 * left + wide} 0) scale(-1 1)`}>
+        <g transform={`translate(${2 * WAVE_LEFT + wide} 0) scale(-1 1)`}>
           <IconWaterWaveFill18
-            x={left}
+            x={WAVE_LEFT}
             y={WATER - high + 0.5}
             width={wide}
             height={high}
