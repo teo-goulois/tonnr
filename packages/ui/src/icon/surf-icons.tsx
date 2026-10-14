@@ -122,9 +122,18 @@ const solid = { fill: "currentColor", stroke: "none" } as const;
 const duo = { fill: "currentColor", stroke: "none", opacity: DUO } as const;
 const faint = { opacity: DUO } as const;
 
+// A row of water as Nucleo draws it in its water levels: scallops that meet at sharp crests.
+const water = (y: number) => {
+  let d = `M-10 ${y}`;
+  for (let crest = 2; crest <= 50; crest += 12) d += `c2.5 3.5 9.5 3.5 12 0`;
+  return d;
+};
+// The rows of water of each third of the tide, from its top.
+const TIDE_ROWS = { high: [6.5, 11.5], mid: [17, 22], low: [27.5, 32.5] } as const;
+
 /**
- * The tide's stages a break works at: a row of waves at each of low, mid and high, full where it
- * works and faint where it does not.
+ * The tide's stages a break works at, as Stormrider draws them: the ring holds water where the
+ * waves are ridden, at low, mid or high, and stands empty where they are not.
  */
 export function TideIcon({
   low = false,
@@ -132,11 +141,12 @@ export function TideIcon({
   high = false,
   ...props
 }: IconProps & { low?: boolean; mid?: boolean; high?: boolean }) {
+  const thirds = { high, mid, low };
   return (
     <Glyph {...props}>
-      <path d={waves(13)} {...(high ? {} : faint)} />
-      <path d={waves(20)} {...(mid ? {} : faint)} />
-      <path d={waves(27)} {...(low ? {} : faint)} />
+      {(Object.keys(TIDE_ROWS) as (keyof typeof TIDE_ROWS)[]).flatMap((third) =>
+        thirds[third] ? TIDE_ROWS[third].map((y) => <path key={y} d={water(y)} />) : [],
+      )}
     </Glyph>
   );
 }
