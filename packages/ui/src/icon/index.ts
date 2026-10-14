@@ -135,17 +135,20 @@ export { IconWaterLevelUpFillDuo18 as WaterLevelFillDuoIcon } from "nucleo-ui-fi
 export { IconWaterWaveFillDuo18 as WaveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterWaveFillDuo18";
 export { IconWindFillDuo18 as WindFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWindFillDuo18";
 
-// What a surf break is like, in rings as Stormrider's guides draw it, each drawn from what it
-// says, to be read at 40 pixels, with Fill Duo's second opacity: Téo asked on 2026-10-14.
+// What a surf break is like, in rounds as Stormrider's guides draw it, each drawn from what it
+// says, to be read at 40 pixels, in Nucleo UI's Fill Duo or in a fine ring: Téo asked on
+// 2026-10-14. `SURF_LOOK` chooses between them.
 export {
   type BottomKind,
   type BreakShape,
   type Season,
+  type SurfLook,
   BoardIcon,
   BottomIcon,
   BreakTypeIcon,
   LevelIcon,
   SeasonIcon,
+  SURF_LOOK,
   SwellWindowIcon,
   TideIcon,
   WaveDirectionIcon,

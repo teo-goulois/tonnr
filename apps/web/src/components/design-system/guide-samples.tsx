@@ -1,3 +1,4 @@
+import type { SurfLook } from "@repo/ui/icon";
 import { toast } from "sonner";
 
 import { BreakGuide } from "@/components/guides/break-guide";
@@ -289,39 +290,63 @@ const SIZES = [
   { min: 3, max: null },
 ];
 
+// The looks a glyph is drawn in, the one in use first.
+const LOOKS: [SurfLook, string][] = [
+  ["duo", "Fill Duo"],
+  ["ring", "Ring"],
+];
+
+/** Every glyph of a guide in one look, each beside what it says. */
+function Glyphs({ look }: { look: SurfLook }) {
+  return (
+    <ul className="grid gap-s sm:grid-cols-2 lg:grid-cols-4">
+      {GLYPHS.map(([field, given]) => (
+        <li key={`${field} ${given.join(" ")}`}>
+          <CharacteristicRow
+            icon={<CharacteristicIcon field={field} given={given} look={look} />}
+            label={CHARACTERISTIC_FIELDS.find((one) => one.key === field)?.label()}
+          >
+            {given.length > 0 ? (
+              readCharacteristic(field, given)
+            ) : (
+              <span className="text-neutral-7">—</span>
+            )}
+          </CharacteristicRow>
+        </li>
+      ))}
+      <li>
+        <CharacteristicRow
+          icon={<OffshoreIcon degrees={120} look={look} />}
+          label={m.break_offshore_wind()}
+        >
+          <Bearing degrees={120} />
+        </CharacteristicRow>
+      </li>
+      {SIZES.map((size) => (
+        <li key={`${size.min} ${size.max}`}>
+          <CharacteristicRow
+            icon={<SizeIcon size={size} look={look} />}
+            label={m.break_wave_size()}
+          >
+            <SizeReading size={size} />
+          </CharacteristicRow>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** The guide of a break as each reader meets it, and where an account stands in the guides. */
 export function GuideSamples() {
   return (
     <div className="grid gap-m">
-      {/* Each glyph beside what it says, as a line of a guide shows it. */}
-      <ul className="grid gap-s sm:grid-cols-2 lg:grid-cols-4">
-        {GLYPHS.map(([field, given]) => (
-          <li key={`${field} ${given.join(" ")}`}>
-            <CharacteristicRow
-              icon={<CharacteristicIcon field={field} given={given} />}
-              label={CHARACTERISTIC_FIELDS.find((one) => one.key === field)?.label()}
-            >
-              {given.length > 0 ? (
-                readCharacteristic(field, given)
-              ) : (
-                <span className="text-neutral-7">—</span>
-              )}
-            </CharacteristicRow>
-          </li>
-        ))}
-        <li>
-          <CharacteristicRow icon={<OffshoreIcon degrees={120} />} label={m.break_offshore_wind()}>
-            <Bearing degrees={120} />
-          </CharacteristicRow>
-        </li>
-        {SIZES.map((size) => (
-          <li key={`${size.min} ${size.max}`}>
-            <CharacteristicRow icon={<SizeIcon size={size} />} label={m.break_wave_size()}>
-              <SizeReading size={size} />
-            </CharacteristicRow>
-          </li>
-        ))}
-      </ul>
+      {/* Each glyph beside what it says, as a line of a guide shows it, in each of its looks. */}
+      {LOOKS.map(([look, name]) => (
+        <div key={look} className="grid gap-xs">
+          <p className="text-s text-neutral-7">{name}</p>
+          <Glyphs look={look} />
+        </div>
+      ))}
       <div className="flex flex-wrap items-center gap-m">
         <RankBadge rank="qs" />
         <RankBadge rank="cs" />

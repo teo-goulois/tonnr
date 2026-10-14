@@ -4,6 +4,7 @@ import {
   BreakTypeIcon,
   LevelIcon,
   SeasonIcon,
+  type SurfLook,
   SwellWindowIcon,
   TideIcon,
   WaveDirectionIcon,
@@ -178,21 +179,24 @@ const bearingsOf = (given: readonly string[]) =>
 export function CharacteristicIcon({
   field,
   given,
+  look,
 }: {
   field: ListedField;
   given: readonly string[];
+  look?: SurfLook;
 }) {
   switch (field) {
     case "breakTypes": {
       const shape = (Object.keys(BREAK_TYPES) as WordOf<"breakTypes">[]).find((word) =>
         given.includes(word),
       );
-      return <BreakTypeIcon className={glyph} shape={shape ?? "beach"} />;
+      return <BreakTypeIcon className={glyph} look={look} shape={shape ?? "beach"} />;
     }
     case "waveDirections":
       return (
         <WaveDirectionIcon
           className={glyph}
+          look={look}
           left={has(given, "left")}
           right={has(given, "right")}
         />
@@ -201,6 +205,7 @@ export function CharacteristicIcon({
       return (
         <BottomIcon
           className={glyph}
+          look={look}
           bottoms={given.filter((word) => word in BOTTOM_TYPES) as WordOf<"bottomTypes">[]}
         />
       );
@@ -209,17 +214,19 @@ export function CharacteristicIcon({
       return (
         <LevelIcon
           className={glyph}
+          look={look}
           levels={given.map((word) => order.indexOf(word)).filter((at) => at >= 0)}
           of={order.length}
         />
       );
     }
     case "boardTypes":
-      return <BoardIcon className={glyph} />;
+      return <BoardIcon className={glyph} look={look} />;
     case "bestSeasons":
       return (
         <SeasonIcon
           className={glyph}
+          look={look}
           seasons={given.filter((word) => word in SEASONS) as WordOf<"bestSeasons">[]}
         />
       );
@@ -227,28 +234,29 @@ export function CharacteristicIcon({
       return (
         <TideIcon
           className={glyph}
+          look={look}
           low={has(given, "low", "mid_low")}
           mid={has(given, "mid_low", "mid", "mid_high")}
           high={has(given, "mid_high", "high")}
         />
       );
     case "bestSwellDirections":
-      return <SwellWindowIcon className={glyph} bearings={bearingsOf(given)} />;
+      return <SwellWindowIcon className={glyph} look={look} bearings={bearingsOf(given)} />;
     case "bestWindDirections":
-      return <WindWindowIcon className={glyph} bearings={bearingsOf(given)} />;
+      return <WindWindowIcon className={glyph} look={look} bearings={bearingsOf(given)} />;
   }
 }
 
 /** The glyph of the wind that blows offshore at a break: its arrow alone. */
-export function OffshoreIcon({ degrees }: { degrees: number }) {
-  return <WindWindowIcon className={glyph} bearings={[degrees]} window={false} />;
+export function OffshoreIcon({ degrees, look }: { degrees: number; look?: SurfLook }) {
+  return <WindWindowIcon className={glyph} look={look} bearings={[degrees]} window={false} />;
 }
 
 type WaveSize = NonNullable<Characteristics["waveSizeMeters"]>;
 
 /** The glyph of the size a break works at. */
-export function SizeIcon({ size }: { size: WaveSize }) {
-  return <WaveSizeIcon className={glyph} smallest={size.min} largest={size.max} />;
+export function SizeIcon({ size, look }: { size: WaveSize; look?: SurfLook }) {
+  return <WaveSizeIcon className={glyph} look={look} smallest={size.min} largest={size.max} />;
 }
 
 /**
