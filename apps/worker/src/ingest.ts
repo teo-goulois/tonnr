@@ -2,6 +2,7 @@ import type { Database } from "@repo/db";
 import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
+import { coops } from "./providers/coops";
 import { copernicus } from "./providers/copernicus";
 import { dmi } from "./providers/dmi";
 import { fmi } from "./providers/fmi";
@@ -20,6 +21,7 @@ import { saveSnapshot } from "./store";
 // The providers that ask for no account: every instance fetches from them.
 const open: readonly Provider[] = [
   candhis,
+  coops,
   copernicus,
   dmi,
   fmi,

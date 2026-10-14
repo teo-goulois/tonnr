@@ -9,6 +9,7 @@ export const LIVE_WIND_MS = 2 * 60 * 60 * 1000;
 // How often each network measures, in minutes. A network not named here is taken to measure
 // every hour, as the buoys do.
 const MINUTES_BETWEEN: Readonly<Record<string, number>> = {
+  coops: 6,
   meteofrance: 6,
   dmi: 10,
   jma: 10,

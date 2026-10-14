@@ -214,6 +214,19 @@ const GROUPS: readonly Group[] = [
         licence: { name: "PDL 1.0", url: "https://www.jma.go.jp/jma/en/copyright.html" },
         site: "https://www.jma.go.jp/bosai/map.html#contents=amedas",
       },
+      {
+        id: "coops",
+        name: "NOAA CO-OPS",
+        by: "Center for Operational Oceanographic Products and Services",
+        region: m.sources_coops_region,
+        text: m.sources_coops_text,
+        every: () => m.sources_every_minutes({ count: 30 }),
+        licence: {
+          name: m.sources_licence_public_domain,
+          url: "https://tidesandcurrents.noaa.gov/disclaimers.html",
+        },
+        site: "https://tidesandcurrents.noaa.gov",
+      },
     ],
   },
   {

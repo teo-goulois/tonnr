@@ -102,6 +102,8 @@
   "sources_rijkswaterstaat_text": "The stations of the Dutch authority of the coast: on the shore, on the Wadden and on the platforms of the North Sea.",
   "sources_jma_region": "Japan",
   "sources_jma_text": "AMeDAS, the automatic stations of the Japanese weather service, many on capes and harbours.",
+  "sources_coops_region": "United States",
+  "sources_coops_text": "The weather sensors of NOAA's tide stations, on piers and harbours, on the shore itself: wind and gusts.",
   "sources_open_meteo_text": "Wave and wind forecasts at any point, from the models of ECMWF, at 9 km, and of Météo-France, at 8 km, with the weather to come.",
   "sources_copernicus_models_text": "The Met Office's fine model, at 1.5 km from the Vendée to Norway; the swell apart from the wind sea, by Météo-France's model; and the map of wave heights.",
   "sources_neaps_text": "Tides computed from open harmonic constants, at the nearest port. They are not SHOM's predictions, so there is no coefficient yet.",
