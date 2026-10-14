@@ -1,6 +1,6 @@
 # 024. One catalogue of breaks, filled once
 
-Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: a way to change a break from the app, the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. The two tables of the private list were dropped one release later, the same day.
+Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. [Decision 049](049-catalogue-in-the-admin.md) built a way to change a break from the admin, and moved what a list said of a break to `surf_break_listing`, which an operator reads. The two tables of the private list were dropped one release later, the same day.
 
 ## Context
 
@@ -20,7 +20,7 @@ Téo wants one list that belongs to the instance. A break enters it once. Nothin
 - Every one of these columns may be null. Null says that nobody has said.
 - A file gives these words and no others. Whoever writes the file translates a list's vocabulary into them: the worker knows no provider's format but OpenStreetMap's.
 - Where a break was read is secondary. The list's name, the break's reference and page, the licence and the attribution may all be null, and the API answers null for them. It states a licence for a break only when the list gave one.
-- What a file says of a break beyond these columns is kept aside, as the file gave it, in `surf_break_record`. No procedure and no scheduled job reads that table. It waits for the day the model of a break grows.
+- What a file says of a break beyond these columns is kept aside, as the file gave it, in `surf_break_record`. No procedure and no scheduled job reads that table. It waits for the day the model of a break grows. Decision 049 keeps it in `surf_break_listing` instead, which the admin reads to its operator.
 - The catalogue is read as decision 019 says: by an account's session and by a key, and by no one without a name.
 
 ## Rejected
@@ -40,7 +40,7 @@ Téo wants one list that belongs to the instance. A break enters it once. Nothin
 - A catalogue filled from OpenStreetMap is a database under the ODbL, and stays one: its rows carry the licence and the credit, and the API returns them.
 - The catalogue no longer follows its source. A break that OpenStreetMap corrects stays as it was added, and one it adds does not arrive. An operator who wants the newer list removes the old one and fetches again, and the spots made from the old breaks lose their link.
 - Nothing matches a file against another. Two files that give the same place under two list names add it twice.
-- A break cannot be corrected from the app yet. Until then a correction is a statement on the database.
+- A break cannot be corrected from the app yet. Until then a correction is a statement on the database. Decision 049 lets its operator correct it from the admin.
 - `last_seen_at` is no longer written. It keeps what the weekly import wrote, and is null for a break added since.
 - `operatorProcedure` builds no procedure today. It stays for what the instance will next keep to its operator.
 - The private list's tables stayed one release, empty of readers, and the next migration dropped them. Their rows went with them: an operator who wants them in the catalogue adds the file again in the new format.

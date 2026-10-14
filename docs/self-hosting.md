@@ -151,7 +151,7 @@ Write the list as one JSON file, in UTF-8:
 - `license`, `attribution` and `url` say where the list comes from and on what terms. Give them when the list has them: the API returns them with each break, and null when the file gave none.
 - `characteristics` takes the catalogue's own words, listed in `packages/db/src/schema/spots.ts`, and no others. Translate your list's words into them, and leave out what your list does not say. A direction of swell or wind is one of the sixteen points of the compass, in English letters. `offshoreDirectionDegrees` is where the wind blows from when it blows off the shore, from 0 to 359.
 - `location` names the places the break lies in, from the widest to the nearest.
-- `details` holds whatever else the list says of the break. It is kept aside as it is, in a table that the API does not read.
+- `details` holds whatever else the list says of the break. It is kept aside as it is, in a table that only the admin reads, to its operator.
 - Any other field refuses the file, and so does one faulty line: nothing of a file is stored unless all of it can be.
 - A number is refused when JavaScript cannot hold it as it is written, such as an integer past 2^53.
 
@@ -175,7 +175,45 @@ docker compose run --rm worker node dist/cli.mjs breaks-remove <list>
 docker compose run --rm worker node dist/cli.mjs breaks-remove <list> --write
 ```
 
-The first line says how many breaks the catalogue holds from the list, and how many spots were made from them. The second deletes the breaks. Those spots keep their name and their point, and lose only the link.
+The first line says how many breaks the catalogue holds from the list, and how many spots were made from them. The second deletes the breaks, and forgets what the list said: added again, the list is added whole. Those spots keep their name and their point, and lose only the link.
+
+A break that an operator merged into another, or deleted, from the admin is not brought back when its list is added again (decision 049).
+
+### Candidates to decide in the admin
+
+A list can also be proposed to the operator rather than added: each break waits in the admin's page Catalogue, under Import, where the operator adds it as a new break, merges it into one the catalogue holds, puts it off or leaves it out. Decision 049 gives the rules. The command reads a folder: `candidates.json`, and the pictures its candidates show in `images/`, JPEG, PNG or WebP, 5 MB each at most.
+
+```json
+{
+  "list": "my-guide",
+  "candidates": [
+    {
+      "ref": "p12-3",
+      "name": "North jetty",
+      "location": ["France", "Finistère"],
+      "latitude": 48.0,
+      "longitude": -4.5,
+      "pointNote": "The beach, not the peak",
+      "characteristics": { "breakTypes": ["jetty"] },
+      "proposal": { "action": "merge", "breakId": "<id of a break>", "note": "Same name, 200 m away", "doubts": ["Which end of the jetty"] },
+      "evidence": [{ "url": "https://example.org/north-jetty", "title": "A page", "note": "What it says" }],
+      "texts": [{ "label": "Description", "language": "en", "text": "The list's own words, for the operator to read." }],
+      "figures": [{ "image": "p12.jpg", "crop": [0, 0, 1, 0.5], "mark": [0.4, 0.2, 0.5, 0.22], "caption": "Page 12" }],
+      "details": { "anything": "else, kept aside" }
+    }
+  ]
+}
+```
+
+Only `list`, and a candidate's `ref` and `name`, are required. `proposal.action` is `add`, `merge`, which names `breakId`, or `hold`. A figure's `crop` and `mark` are boxes in fractions of its picture, left, top, right, bottom: the part shown first, and the break's label in it. A break added from a candidate names its list and its reference, and no page, attribution or licence.
+
+```bash
+docker compose run --rm --volume /path/to/folder:/tmp/candidates:ro worker node dist/cli.mjs candidates /tmp/candidates
+docker compose run --rm --volume /path/to/folder:/tmp/candidates:ro worker node dist/cli.mjs candidates /tmp/candidates --write
+docker compose run --rm worker node dist/cli.mjs candidates-remove <list> --write
+```
+
+Storing the folder again brings up to date the candidates that wait, and leaves those an operator decided. `candidates-remove` deletes a list's candidates and pictures, and leaves what was decided of them in the catalogue. Keep the folder outside the clone, as a file of breaks.
 
 ### Coming from an earlier version
 
@@ -298,7 +336,7 @@ The `Origin` header is what tells the API that a request sent with a cookie come
 - A developer account's limit is a number of calls in an hour of the clock, UTC's, shared by its keys. A call over it gets 429, with `Retry-After`. Leave `callsPerHour` out for no limit. An account calls with its session without a limit.
 - `GET /v1/usage/series` and `GET /v1/usage/breakdown` give the calls by hour or by day, by developer account, by key and by procedure. The API keeps no address and no record of a call: it counts them, writes the counts every thirty seconds, and deletes them after thirteen months. A key's counts show when its developer account calls and what it asks for.
 - `GET /v1/developers/<id>/members` lists the accounts that may read a developer account, `POST` to it with `{"accountId": "<account id>"}` adds one, and `DELETE /v1/developers/<id>/members/<account id>` takes one out. A member signs in and reads, at `GET /v1/console` and under `/v1/console/usage`, the account's limit, its keys by name and their calls. It never reads a key, your contact or your note, and changes nothing. Name the account you know to be theirs, by the identifier they give you: an address proves nothing of who holds an account, checked or not. Decision 027 gives the rules.
-- `GET /v1/actions` lists what the operators did to the developer accounts, their members, the keys and the accounts, and when they closed the instance to visitors or opened it: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
+- `GET /v1/actions` lists what the operators did to the developer accounts, their members, the keys and the accounts, when they closed the instance to visitors or opened it, and what they changed, merged or deleted in the catalogue of breaks and decided of a list's candidates: who, when, and what it changed. A key is named there and never shown, and a contact or a note is only said to have changed. A record is kept thirteen months, a deleted account's too. The commands you run on the server are not recorded.
 - `GET /v1/accounts` lists the accounts that signed up, with their name and their address. Every operator reads it, so name as operators only people who may.
 - `GET /v1/accounts/{id}` gives one account: whether it is suspended, and how many sessions it has open. `DELETE /v1/accounts/{id}/sessions` closes its sessions, which is what to do with your own when a device is lost. `PATCH /v1/accounts/{id}` with `{"suspended": true}` closes them and keeps the account from signing in, until the same call with `false`. What a suspended account owns stays, and what it shared stays visible. An operator is not suspended: take its rights away first. Decision 025 gives the rules.
 - `GET /v1/instance` gives the state of the instance: whether a worker runs, what each of its jobs last did and when it last worked, each provider's stations, when the API started and which addresses it holds, the size of the database, the requests sent to the forecast provider this day, this hour and this minute against what the instance lets itself send, and the mails counted today. A job is late when none of its runs started for the time its schedule leaves between two, and a tenth of it more, ten minutes at least. What failed is given as a kind: the worker's log has the error itself. Decision 022 gives the rules.
@@ -337,6 +375,7 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 - Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
 - Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
 - Its page "Moderation" lists the spots that accounts ask to make public (decision 034). Nobody answers them without an operator: on an instance that has none, a request waits. Accepting publishes a spot's name, its point and what its owner says of it in your catalogue, under the ODbL. The terms of use that accounts agree to are the web app's page `/terms`: it is a first text, and what your instance promises is yours to write there.
+- Its page "Catalogue" draws every break of the catalogue on a map: an operator changes one, writes its description, merges two, or deletes one that no account uses. Its tab "Import" decides one at a time the candidates that `candidates` stored (see "Candidates to decide in the admin"). Decision 049.
 
 ## Visitors of the web app
 
