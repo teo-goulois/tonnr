@@ -1,7 +1,8 @@
 import { SIZES, SURF_FACES } from "@repo/conditions/sessions/sizes";
 import { Button } from "@repo/ui/components/ui/button";
+import { SurferFillIcon, WaveFillIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, type SVGProps, useState } from "react";
 
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
 import { scaleColor, WAVE_HEIGHT_SCALE } from "@/lib/sea-scales";
@@ -43,7 +44,7 @@ export function sizesWords(waves: SurfSize | null, sets: SurfSize | null) {
   return one ? sizeName(one) : null;
 }
 
-// The picture's box: a surfer stands on the left, the wave rises on the right.
+// The picture's box: a surfer stands on the left, the wave rises on the right, its lip towards them.
 const WIDTH = 100;
 const HEIGHT = 64;
 const WATER = 58;
@@ -51,43 +52,54 @@ const TOP = 6;
 // The surfer, in metres, against whom every size is said.
 const SURFER = 1.75;
 
-/** A surfer standing, drawn from their feet at (x, y), `tall` pixels tall. */
-function Surfer({ x, y, tall }: { x: number; y: number; tall: number }) {
-  const at = (share: number) => y - tall * share;
+// What the two icons draw of their box of 18: the person from their head to their feet, and the
+// wave from its crest to the foot of its body, whose line of water under it is left out.
+const PERSON = { left: 4.6, top: 0, wide: 8.8, high: 18 };
+const WAVE = { left: 1, top: 2.1, wide: 16, high: 9.9 };
+// Where the wave begins, and how far its width follows its height: a small wave is not drawn
+// too narrow to be read, nor a big one wider than the box.
+const WAVE_LEFT = 30;
+const WAVE_STRETCH = { least: 2.2, most: 4.4 };
+
+/** A surfer standing, drawn from their feet at (x, WATER), `tall` pixels tall. */
+function Surfer({ x, tall }: { x: number; tall: number }) {
+  const wide = (tall * PERSON.wide) / PERSON.high;
   return (
-    <g stroke="currentColor" strokeLinecap="round" fill="none">
-      <circle cx={x} cy={at(0.93)} r={tall * 0.07} fill="currentColor" stroke="none" />
-      <path d={`M${x} ${at(0.8)} V${at(0.5)}`} strokeWidth={tall * 0.12} />
-      <path
-        d={`M${x - tall * 0.06} ${at(0.78)} L${x - tall * 0.12} ${at(0.52)} M${x + tall * 0.06} ${at(0.78)} L${x + tall * 0.12} ${at(0.52)}`}
-        strokeWidth={tall * 0.055}
-      />
-      <path
-        d={`M${x - tall * 0.03} ${at(0.5)} L${x - tall * 0.06} ${y} M${x + tall * 0.03} ${at(0.5)} L${x + tall * 0.06} ${y}`}
-        strokeWidth={tall * 0.075}
-      />
-    </g>
+    <SurferFillIcon
+      x={x - wide / 2}
+      y={WATER - tall}
+      width={wide}
+      height={tall}
+      viewBox={`${PERSON.left} ${PERSON.top} ${PERSON.wide} ${PERSON.high}`}
+    />
   );
 }
 
-/** A wave whose crest stands `high` pixels over the water, its lip thrown towards the surfer. */
-function wavePath(high: number) {
-  const left = 34;
-  const wide = WIDTH - left;
-  // A point of the wave, from its foot on the left (0, 0) to its back on the right (1, 0).
-  const at = (across: number, up: number) => `${left + across * wide} ${WATER - up * high}`;
-  return [
-    `M${at(0, 0)}`,
-    // The face, hollow as it rises.
-    `C${at(0.38, 0)} ${at(0.48, 0.55)} ${at(0.42, 0.82)}`,
-    // The underside of the lip, out over the face to its tip.
-    `C${at(0.36, 0.95)} ${at(0.25, 0.9)} ${at(0.22, 0.7)}`,
-    // Its top, back to the crest.
-    `C${at(0.3, 0.98)} ${at(0.5, 1.04)} ${at(0.6, 0.97)}`,
-    // The back, which falls away more gently.
-    `C${at(0.76, 0.86)} ${at(0.84, 0)} ${at(1, 0)}`,
-    "Z",
-  ].join(" ");
+/** A wave whose crest stands `high` pixels over the water, turned so that it breaks to the left. */
+function Wave({
+  high,
+  shift = 0,
+  ...props
+}: { high: number; shift?: number } & SVGProps<SVGSVGElement>) {
+  const upright = high / WAVE.high;
+  const across = Math.min(Math.max(upright, WAVE_STRETCH.least), WAVE_STRETCH.most);
+  const wide = WAVE.wide * across;
+  // A wave drawn behind stands a little further, never past the right of the box.
+  const left = Math.min(WAVE_LEFT + shift, WIDTH - wide);
+  return (
+    <g transform={`translate(${2 * left + wide} 0) scale(-1 1)`}>
+      <WaveFillIcon
+        x={left}
+        y={WATER - high}
+        width={wide}
+        height={high}
+        viewBox={`${WAVE.left} ${WAVE.top} ${WAVE.wide} ${WAVE.high}`}
+        preserveAspectRatio="none"
+        className="[&_[data-color]]:hidden"
+        {...props}
+      />
+    </g>
+  );
 }
 
 /**
@@ -107,23 +119,22 @@ export function SurfSizePicture({
   const back = behind ? SURF_FACES[behind].drawn : 0;
   // The scale fits the tallest of the surfer and the waves in the box.
   const perMeter = (WATER - TOP) / Math.max(SURFER * 1.05, face, back);
-  const color = scaleColor(WAVE_HEIGHT_SCALE, face);
 
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       aria-hidden
-      className={cn("block h-auto w-full text-neutral-12", className)}
+      className={cn("block h-auto w-full overflow-hidden text-neutral-12", className)}
     >
       {back > face && (
-        <path
-          d={wavePath(back * perMeter)}
-          fill={scaleColor(WAVE_HEIGHT_SCALE, back)}
-          opacity={0.35}
-          transform="translate(-6 0)"
+        <Wave
+          high={back * perMeter}
+          shift={8}
+          color={scaleColor(WAVE_HEIGHT_SCALE, back)}
+          opacity={0.4}
         />
       )}
-      <path d={wavePath(face * perMeter)} fill={color} />
+      <Wave high={face * perMeter} color={scaleColor(WAVE_HEIGHT_SCALE, face)} />
       <line
         x1={0}
         x2={WIDTH}
@@ -133,7 +144,7 @@ export function SurfSizePicture({
         strokeOpacity={0.25}
         strokeWidth={0.75}
       />
-      <Surfer x={16} y={WATER} tall={SURFER * perMeter} />
+      <Surfer x={16} tall={SURFER * perMeter} />
     </svg>
   );
 }

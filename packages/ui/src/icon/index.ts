@@ -117,6 +117,11 @@ export { IconBookmarkFill18 as BookmarkFillIcon } from "nucleo-ui-fill-18/compon
 export { IconMapFill18 as MapFillIcon } from "nucleo-ui-fill-18/components/IconMapFill18";
 export { IconUserFill18 as PersonFillIcon } from "nucleo-ui-fill-18/components/IconUserFill18";
 
+// The surfer and the wave of a session's sizes, drawn to one scale: Nucleo UI fill 18, as Téo
+// asked on 2026-10-14.
+export { IconPersonFill18 as SurferFillIcon } from "nucleo-ui-fill-18/components/IconPersonFill18";
+export { IconWaterWaveFill18 as WaveFillIcon } from "nucleo-ui-fill-18/components/IconWaterWaveFill18";
+
 // Nucleo Micro Bold, from its package: what an icon is taken from when it is new, as Téo asked
 // on 2026-10-13. The stars of a rating are the three he chose there: the line, the full one, and
 // the left half, which is drawn over the line.
