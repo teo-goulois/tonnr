@@ -115,6 +115,12 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
     setDraft(page ? draftOf(page.break, language) : null);
   }, [version]);
 
+  // A break opened by its address, the page's first: the map goes to it once.
+  const opened = page?.break;
+  useEffect(() => {
+    if (opened && focus === null) setFocus({ key: opened.id, point: opened });
+  }, [opened?.id]);
+
   const choose = (id: string) => {
     const one = breaks?.find((candidate) => candidate.id === id);
     if (one) setFocus({ key: `${id}:${Date.now()}`, point: one });
