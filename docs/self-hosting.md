@@ -198,6 +198,7 @@ A list can also be proposed to the operator rather than added: each break waits 
       "proposal": {
         "action": "merge",
         "breakId": "<id of a break>",
+        "others": ["<id of another break it may be>"],
         "note": "Same name, 200 m away",
         "doubts": ["Which end of the jetty"]
       },
@@ -225,7 +226,7 @@ A list can also be proposed to the operator rather than added: each break waits 
 }
 ```
 
-Only `list`, and a candidate's `ref` and `name`, are required. `proposal.action` is `add`, `merge`, which names `breakId`, or `hold`. A figure's `crop` and `mark` are boxes in fractions of its picture, left, top, right, bottom: the part shown first, and the break's label in it. A break added from a candidate names its list and its reference, and no page, attribution or licence.
+Only `list`, and a candidate's `ref` and `name`, are required. `proposal.action` is `add`, `merge`, which names `breakId`, or `hold`, which may name the break it may be in `breakId`. `proposal.others` names other breaks it may be, wherever they lie: the admin offers them beside the breaks within 3 km. A figure's `crop` and `mark` are boxes in fractions of its picture, left, top, right, bottom: the part shown first, and the break's label in it. A break added from a candidate names its list and its reference, and no page, attribution or licence.
 
 ```bash
 docker compose run --rm --volume /path/to/folder:/tmp/candidates:ro worker node dist/cli.mjs candidates /tmp/candidates

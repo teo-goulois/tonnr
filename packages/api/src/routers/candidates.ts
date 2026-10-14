@@ -8,7 +8,7 @@ import {
   CANDIDATE_STATES,
 } from "@repo/db/schema/catalogue";
 import { surfBreak, surfBreakListing } from "@repo/db/schema/spots";
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { recordAction } from "../actions";
@@ -25,6 +25,7 @@ import {
 } from "../catalogue";
 import { characteristicsSchema, describeCharacteristics } from "../characteristics";
 import { adminProcedure } from "../index";
+import { metersBetween } from "../points";
 import { hasControlCharacter } from "../text";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -58,6 +59,7 @@ const candidateSchema = candidateSummarySchema.extend({
     .object({
       action: z.enum(CANDIDATE_ACTIONS),
       breakId: z.string().optional(),
+      others: z.array(z.string()).optional(),
       name: z.string().optional(),
       note: z.string().optional(),
       doubts: z.array(z.string()).optional(),
@@ -88,6 +90,9 @@ const candidatePageSchema = z.object({
   candidate: candidateSchema,
   // The break it became or was merged into, or else the one it is proposed to be merged into.
   target: operatorBreakSchema.nullable(),
+  // The other breaks whoever prepared the list thought it may be, wherever they are, with how far
+  // they lie from its point, or from its target's, when either is known.
+  others: z.array(nearbySchema.extend({ meters: z.number().nullable() })),
   // The breaks around its point, or around its target's.
   nearby: z.array(nearbySchema),
   // The candidates that wait after it, in the order of the queue: the next to read.
@@ -128,6 +133,20 @@ async function pageOf(db: Pick<Database, "select" | "selectDistinctOn">, row: Ca
       : found
         ? { latitude: found.latitude, longitude: found.longitude }
         : null;
+  const otherIds = (row.proposal?.others ?? []).filter((id) => id !== targetId);
+  const others =
+    otherIds.length > 0
+      ? await db
+          .select({
+            id: surfBreak.id,
+            name: surfBreak.name,
+            latitude: surfBreak.latitude,
+            longitude: surfBreak.longitude,
+            provider: surfBreak.provider,
+          })
+          .from(surfBreak)
+          .where(inArray(surfBreak.id, otherIds))
+      : [];
   // The next that waits in the same list and the same region, after this one.
   const region = row.location?.[0] ?? null;
   const [next] = await db
@@ -159,6 +178,12 @@ async function pageOf(db: Pick<Database, "select" | "selectDistinctOn">, row: Ca
       updatedAt: row.updatedAt,
     },
     target: target ?? null,
+    // In the order the list gave them, which is its own: the likeliest first.
+    others: otherIds.flatMap((id) => {
+      const other = others.find((one) => one.id === id);
+      if (!other) return [];
+      return [{ ...other, meters: around ? Math.round(metersBetween(around, other)) : null }];
+    }),
     nearby: around ? await breaksNear(db, around, NEARBY_METERS) : [],
     next: next?.id ?? null,
   };

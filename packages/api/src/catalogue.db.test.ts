@@ -505,7 +505,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
           name: "North Jetty",
           location: ["France", "Brittany"],
           characteristics: { waveDirections: ["left"] },
-          proposal: { action: "merge", breakId: ids.north },
+          proposal: { action: "merge", breakId: ids.north, others: [ids.far, "gone", ids.north] },
           updatedAt: new Date("2026-10-14T08:00:00Z"),
         },
         {
@@ -514,6 +514,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
           ref: "p002-n01",
           name: "A Spanish point",
           location: ["Spain"],
+          proposal: { action: "hold", others: [ids.south] },
           updatedAt: new Date("2026-10-14T08:00:00Z"),
         },
       ]);
@@ -544,6 +545,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       const read = await call(v1Router.candidates.get, { id: "c-merge" }, asOperator());
       expect(read.target).toMatchObject({ id: ids.north });
       expect(read.nearby.map((one) => one.id)).toEqual([ids.north, ids.south]);
+      // The others the list thought of, wherever they are, and none that is gone.
+      expect(read.others).toEqual([
+        expect.objectContaining({ id: ids.far, meters: expect.any(Number) }),
+      ]);
+      expect((await call(v1Router.candidates.get, { id: "c-spain" }, asOperator())).others).toEqual(
+        [expect.objectContaining({ id: ids.south, meters: null })],
+      );
       // The next of its region.
       expect(read.next).toBeNull();
       expect((await call(v1Router.candidates.get, { id: "c-add" }, asOperator())).next).toBe(

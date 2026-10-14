@@ -28,8 +28,10 @@ export const CANDIDATE_ACTIONS = ["add", "merge", "hold"] as const;
 /** What whoever prepared the list proposes, and why. */
 export type CandidateProposal = {
   action: (typeof CANDIDATE_ACTIONS)[number];
-  // The break of the catalogue to merge it into, for `merge`.
+  // The break of the catalogue to merge it into, for `merge`, or the one it may be, for `hold`.
   breakId?: string;
+  // Other breaks of the catalogue it may be, which whoever prepared the list looked at.
+  others?: string[];
   // The name to give the break, when it is not the list's.
   name?: string;
   // Why, in a few sentences.

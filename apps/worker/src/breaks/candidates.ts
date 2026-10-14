@@ -96,13 +96,17 @@ function isBox(value: unknown): value is [number, number, number, number] {
 function readProposal(given: unknown): CandidateProposal | string[] {
   if (!isRecord(given)) return ['"proposal", when given, must be an object'];
   const faults: string[] = [];
-  const { action, breakId, name, note, doubts } = given;
+  const { action, breakId, others, name, note, doubts } = given;
   if (!(CANDIDATE_ACTIONS as readonly unknown[]).includes(action)) {
     faults.push(`"proposal.action" must be one of: ${CANDIDATE_ACTIONS.join(", ")}`);
   }
   if (breakId !== undefined && !isLabel(breakId)) {
     faults.push('"proposal.breakId", when given, must be the id of a break');
   }
+  const hasOthers =
+    others === undefined ||
+    (Array.isArray(others) && others.length <= MAX_ITEMS && others.every(isLabel));
+  if (!hasOthers) faults.push('"proposal.others", when given, must be a list of ids of breaks');
   if (action === "merge" && breakId === undefined) {
     faults.push('"proposal.breakId" must name the break to merge into');
   }
@@ -116,12 +120,13 @@ function readProposal(given: unknown): CandidateProposal | string[] {
       doubts.length <= MAX_ITEMS &&
       doubts.every((doubt) => isText(doubt, MAX_NOTE_LENGTH)));
   if (!hasDoubts) faults.push('"proposal.doubts" must be a list of short texts');
-  const unknown = unknownKeys(given, ["action", "breakId", "name", "note", "doubts"]);
+  const unknown = unknownKeys(given, ["action", "breakId", "others", "name", "note", "doubts"]);
   if (unknown.length > 0) faults.push(`unknown fields of "proposal": ${unknown.join(", ")}`);
   if (faults.length > 0) return faults;
   return {
     action: action as CandidateProposal["action"],
     ...(typeof breakId === "string" ? { breakId } : {}),
+    ...(Array.isArray(others) ? { others: others as string[] } : {}),
     ...(typeof name === "string" ? { name } : {}),
     ...(typeof note === "string" ? { note } : {}),
     ...(Array.isArray(doubts) ? { doubts: doubts as string[] } : {}),

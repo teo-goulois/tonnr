@@ -479,6 +479,8 @@
   "catalogue_nearby": "Within 1 km",
   "catalogue_nearby_none": "No other break near.",
   "catalogue_nearby_candidate": "Breaks within {meters} m",
+  "catalogue_others": "Also thought of",
+  "catalogue_search_web": "Search the web",
   "catalogue_merge": "Merge",
   "catalogue_merge_into": "Merge into",
   "catalogue_listings": "What the lists said",

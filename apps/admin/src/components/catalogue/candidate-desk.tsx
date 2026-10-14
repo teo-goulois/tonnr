@@ -1,11 +1,13 @@
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
+import { Input } from "@repo/ui/components/ui/input";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { fold } from "@repo/config/names";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Field } from "@/components/shared/field";
@@ -39,6 +41,42 @@ function Part({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="font-medium">{title}</h3>
       {children}
     </section>
+  );
+}
+
+// What the search of a break shows at most.
+const FOUND_MOST = 8;
+
+/** A break of the catalogue the candidate may go into, with what to choose it by. */
+function BreakChoice({
+  name,
+  meters,
+  provider,
+  isChosen,
+  onChoose,
+}: {
+  name: string;
+  meters: number | null;
+  provider: string | null;
+  isChosen: boolean;
+  // Absent once the candidate is decided.
+  onChoose: (() => void) | undefined;
+}) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-xs">
+      <span>
+        {name}
+        <span className="text-s text-neutral-7">
+          {meters !== null && ` · ${m.catalogue_meters({ meters: formatCount(meters) })}`}
+          {provider && ` · ${provider}`}
+        </span>
+      </span>
+      {onChoose && (
+        <Button variant={isChosen ? "default" : "outline"} size="sm" onClick={onChoose}>
+          {m.catalogue_merge_into()}
+        </Button>
+      )}
+    </li>
   );
 }
 
@@ -79,14 +117,17 @@ export function CandidateDesk({
   onOpen,
   onDecided,
 }: CandidateDeskProps) {
-  const { candidate, nearby } = page;
+  const { candidate, others } = page;
+  // A break the list thought of is said once, among those.
+  const nearby = page.nearby.filter((near) => !others.some((other) => other.id === near.id));
   const isOpen = candidate.status === "waiting" || candidate.status === "later";
   const language: DescriptionLanguage = getLocale() === "fr" ? "fr" : "en";
   const bindings = useShortcuts();
 
   // The break it goes into: the one proposed, until the operator chooses another.
   const [targetId, setTargetId] = useState<string | null>(
-    page.target?.id ?? (candidate.proposal?.action === "merge" ? (nearby[0]?.id ?? null) : null),
+    page.target?.id ??
+      (candidate.proposal?.action === "merge" ? (page.nearby[0]?.id ?? null) : null),
   );
   const [mode, setMode] = useState<Mode>(
     targetId && candidate.proposal?.action === "merge" ? "merge" : "add",
@@ -190,6 +231,27 @@ export function CandidateDesk({
 
   const proposal = candidate.proposal;
   const decidedBreak = candidate.breakId;
+  const chooseTarget = isOpen
+    ? (id: string) => {
+        setTargetId(id);
+        setMode("merge");
+      }
+    : undefined;
+
+  // Any break of the catalogue, by its name: the one it is may lie far from where the list put it.
+  const [query, setQuery] = useState("");
+  const found = useMemo(() => {
+    const typed = fold(query.trim());
+    if (typed.length < 2) return [];
+    return breaks.filter((one) => fold(one.name).includes(typed)).slice(0, FOUND_MOST);
+  }, [breaks, query]);
+  // A break chosen by hand, which may lie far from the candidate: the map goes to it.
+  const picked =
+    targetId !== page.target?.id ? breaks.find((one) => one.id === targetId) : undefined;
+  const chosenPoint = picked ? { latitude: picked.latitude, longitude: picked.longitude } : null;
+  const searchWeb = `https://www.google.com/search?q=${encodeURIComponent(
+    [candidate.name, ...(candidate.location ?? []), "surf"].join(" "),
+  )}`;
 
   return (
     <div className="grid gap-l">
@@ -199,7 +261,16 @@ export function CandidateDesk({
           <p className="text-s text-neutral-7">
             {[candidate.location?.join(" · "), `${candidate.list} · ${candidate.ref}`]
               .filter(Boolean)
-              .join(" — ")}
+              .join(" — ")}{" "}
+            ·{" "}
+            <a
+              href={searchWeb}
+              target="_blank"
+              rel="noreferrer"
+              className="focus-ring rounded-xs underline underline-offset-2 hover:text-neutral-10"
+            >
+              {m.catalogue_search_web()}
+            </a>
           </p>
         </div>
         <div className="flex gap-xs">
@@ -227,7 +298,7 @@ export function CandidateDesk({
       {proposal && (
         <section className="edge grid gap-xs rounded-m p-m [--edge-color:var(--neutral-4)]">
           <h3 className="font-medium">{ACTIONS[proposal.action]()}</h3>
-          {proposal.note && <p className="text-pretty">{proposal.note}</p>}
+          {proposal.note && <p className="text-pretty whitespace-pre-line">{proposal.note}</p>}
           {proposal.doubts && proposal.doubts.length > 0 && (
             <ul className="grid gap-xxs">
               {proposal.doubts.map((doubt) => (
@@ -265,7 +336,7 @@ export function CandidateDesk({
                     <span className="text-s text-neutral-7">
                       {[text.label, text.language?.toUpperCase()].filter(Boolean).join(" · ")}
                     </span>
-                    <p lang={text.language} className="text-pretty">
+                    <p lang={text.language} className="text-pretty whitespace-pre-line">
                       {text.text}
                     </p>
                   </li>
@@ -292,6 +363,16 @@ export function CandidateDesk({
               </ul>
             </Part>
           )}
+          {candidate.details && (
+            <details>
+              <summary className="focus-ring cursor-pointer rounded-xs text-s text-neutral-7">
+                {m.catalogue_listing_raw()}
+              </summary>
+              <pre className="mt-xs max-h-96 overflow-auto rounded-xs bg-neutral-3 p-xs font-mono text-xs">
+                {JSON.stringify(candidate.details, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
 
         <div className="grid content-start gap-s">
@@ -299,7 +380,7 @@ export function CandidateDesk({
             <CatalogueMap
               breaks={breaks}
               selectedId={mode === "merge" ? (targetId ?? undefined) : undefined}
-              markedIds={nearby.map((near) => near.id)}
+              markedIds={[...others, ...nearby].map((near) => near.id)}
               marker={point}
               onMarkerMove={
                 isOpen
@@ -311,17 +392,15 @@ export function CandidateDesk({
                       })
                   : undefined
               }
-              onSelect={(id) => {
-                if (!isOpen) return;
-                setTargetId(id);
-                setMode("merge");
-              }}
+              onSelect={(id) => chooseTarget?.(id)}
               focus={
-                point
-                  ? { key: candidate.id, point, zoom: 14 }
-                  : page.target
-                    ? { key: candidate.id, point: page.target, zoom: 14 }
-                    : null
+                chosenPoint
+                  ? { key: `${candidate.id}:${targetId}`, point: chosenPoint, zoom: 14 }
+                  : point
+                    ? { key: candidate.id, point, zoom: 14 }
+                    : page.target
+                      ? { key: candidate.id, point: page.target, zoom: 14 }
+                      : null
               }
             />
           </div>
@@ -344,38 +423,65 @@ export function CandidateDesk({
               )}
             </p>
           )}
+          {others.length > 0 && (
+            <Part title={m.catalogue_others()}>
+              <ul className="grid gap-xxs">
+                {others.map((other) => (
+                  <BreakChoice
+                    key={other.id}
+                    name={other.name}
+                    meters={other.meters}
+                    provider={other.provider}
+                    isChosen={mode === "merge" && targetId === other.id}
+                    onChoose={chooseTarget && (() => chooseTarget(other.id))}
+                  />
+                ))}
+              </ul>
+            </Part>
+          )}
           <Part title={m.catalogue_nearby_candidate({ meters: formatCount(3000) })}>
             {nearby.length > 0 ? (
               <ul className="grid gap-xxs">
                 {nearby.slice(0, 8).map((near) => (
-                  <li key={near.id} className="flex flex-wrap items-center justify-between gap-xs">
-                    <span>
-                      {near.name}
-                      <span className="text-s text-neutral-7">
-                        {" "}
-                        · {m.catalogue_meters({ meters: formatCount(near.meters) })}
-                        {near.provider && ` · ${near.provider}`}
-                      </span>
-                    </span>
-                    {isOpen && (
-                      <Button
-                        variant={mode === "merge" && targetId === near.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setTargetId(near.id);
-                          setMode("merge");
-                        }}
-                      >
-                        {m.catalogue_merge_into()}
-                      </Button>
-                    )}
-                  </li>
+                  <BreakChoice
+                    key={near.id}
+                    name={near.name}
+                    meters={near.meters}
+                    provider={near.provider}
+                    isChosen={mode === "merge" && targetId === near.id}
+                    onChoose={chooseTarget && (() => chooseTarget(near.id))}
+                  />
                 ))}
               </ul>
             ) : (
               <p className="text-neutral-7">{m.catalogue_nearby_none()}</p>
             )}
           </Part>
+          {isOpen && (
+            <div className="grid gap-xs">
+              <Input
+                type="search"
+                value={query}
+                placeholder={m.catalogue_search()}
+                aria-label={m.catalogue_search()}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {found.length > 0 && (
+                <ul className="grid gap-xxs">
+                  {found.map((one) => (
+                    <BreakChoice
+                      key={one.id}
+                      name={one.name}
+                      meters={null}
+                      provider={one.provider}
+                      isChosen={mode === "merge" && targetId === one.id}
+                      onChoose={chooseTarget && (() => chooseTarget(one.id))}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

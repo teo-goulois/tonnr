@@ -479,6 +479,8 @@
   "catalogue_nearby": "À moins d’1 km",
   "catalogue_nearby_none": "Aucun autre spot à côté.",
   "catalogue_nearby_candidate": "Spots à moins de {meters} m",
+  "catalogue_others": "Aussi envisagés",
+  "catalogue_search_web": "Chercher sur le web",
   "catalogue_merge": "Fusionner",
   "catalogue_merge_into": "Fusionner avec",
   "catalogue_listings": "Ce que les listes en disaient",
