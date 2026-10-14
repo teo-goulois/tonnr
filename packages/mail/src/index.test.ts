@@ -166,7 +166,7 @@ describe("a mail over SMTP, to a server of this machine that stands for one", ()
   it("leaves with its sender, its subject, its two bodies and its headers", async () => {
     const server = await serving(true);
 
-    const sent = await smtpOut(server.at).send(message, context);
+    const sent = await smtpOut(server.at).send({ ...message, replyTo: "lea@example.org" }, context);
 
     expect(sent).toMatchObject({ adapter: "smtp", accepted: ["ana@example.org"] });
     expect(server.taken).toHaveLength(1);
@@ -174,6 +174,7 @@ describe("a mail over SMTP, to a server of this machine that stands for one", ()
       "From: Tonnr <hello@example.org>",
       "To: ana@example.org",
       "Subject: A subject",
+      "Reply-To: lea@example.org",
       "List-Unsubscribe: <https://api.example.org/off?u=a&k=b>",
       "List-Unsubscribe-Post: List-Unsubscribe=One-Click",
       "text/plain",

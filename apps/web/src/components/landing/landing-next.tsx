@@ -3,6 +3,8 @@ import { ArrowUpIcon } from "@repo/ui/icon";
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
+import { IdeaDialog } from "./landing-idea";
+
 import { SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
 
 // The orange of a wind that rises, for what is still to come.
@@ -33,13 +35,21 @@ export function LandingNext() {
         more={m.landing_next_more()}
         className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
       />
-      <ul className="grid gap-x-xl sm:grid-cols-3">
+      <ul className="grid gap-x-xl sm:grid-cols-2 lg:grid-cols-4">
         {IDEAS.map((idea) => (
           <li key={idea.name()} className={`${ruled} grid content-start gap-xxs py-m`}>
             <h3 className="font-medium">{idea.name()}</h3>
             <p className="text-neutral-7">{idea.text()}</p>
           </li>
         ))}
+        {/* The reader's own, which reaches its maker by mail. */}
+        <li className={`${ruled} grid content-start gap-xxs py-m`}>
+          <h3 className="font-medium">{m.landing_next_yours_name()}</h3>
+          <p className="text-neutral-7">{m.landing_next_yours_text()}</p>
+          <div className="mt-xs">
+            <IdeaDialog />
+          </div>
+        </li>
       </ul>
     </section>
   );

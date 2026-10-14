@@ -4,6 +4,7 @@ import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
 
 import type { Analytics, AnalyticsRequest } from "./analytics";
+import type { Ideas } from "./ideas";
 import type { Places } from "./places";
 import type { Usage, Way } from "./usage";
 
@@ -27,6 +28,9 @@ export type Context = {
   way?: Way;
   // What sends an account the mail that checks its address. Decision 026.
   verification: Verification;
+  // What sends whoever makes the product the ideas sent from the landing. Without it, an idea is
+  // answered as an instance that sends no mail answers it. Decision 026.
+  ideas?: Ideas | undefined;
   // What a procedure says of its answer beyond its body. The program that serves it reads it.
   reply: {
     // After how many seconds a caller that was told to wait may ask again.

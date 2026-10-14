@@ -5,7 +5,7 @@ import { createApp } from "./app";
 import { createAnalytics } from "./analytics";
 import { ENV } from "./env.server";
 import { readRevision } from "./revision";
-import { auth, db, forecasts, places, usage, verification } from "./services";
+import { auth, db, forecasts, ideas, places, usage, verification } from "./services";
 
 // The moment the process started, which the migrations may have followed by minutes: the state
 // of the instance shows it, to tell whether a deployment took.
@@ -23,6 +23,7 @@ const app = createApp({
   forecasts,
   places,
   verification,
+  ideas,
   pushKey,
   startedAt,
   revision,

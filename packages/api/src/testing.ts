@@ -4,6 +4,7 @@ import { testMailer } from "@repo/mail/testing";
 import { UpstreamError } from "@repo/upstream";
 import { Effect } from "effect";
 
+import { createIdeas } from "./ideas";
 import { createPlaces } from "./places";
 
 // For the tests of the API and of a program that serves it: forecasts and places with a function
@@ -48,6 +49,16 @@ export function testVerification(db: Database, mailing: Mailing = {}) {
     sent,
     // The link of the last mail, as the account would follow it.
     link: () => /https?:\/\/\S+/.exec(sent().at(-1)?.text ?? "")?.[0] ?? null,
+  };
+}
+
+/** What sends the ideas of the landing, in a test. `sent` gives the mails that left. */
+export function testIdeas(db: Database, mailing: Omit<Mailing, "settings"> = {}) {
+  const { on = true, failing = false, dailyLimit } = mailing;
+  const out = on ? testMailer({ failing }) : null;
+  return {
+    ideas: createIdeas(db, out?.mailer ?? null, dailyLimit),
+    sent: () => out?.sent() ?? [],
   };
 }
 

@@ -35,6 +35,8 @@ type Services = {
   places: Context["places"];
   // What sends an account the mail that checks its address.
   verification: Context["verification"];
+  // What sends the ideas sent from the landing. Without it, none is sent.
+  ideas?: Context["ideas"];
   // The public key of the pair the instance sends push with, as `pushKeyOf` checked it. Without
   // it the instance sends none, and takes no subscription.
   pushKey?: string | undefined;
@@ -75,6 +77,7 @@ export function createApp({
   forecasts,
   places,
   verification,
+  ideas,
   pushKey,
   startedAt = new Date(),
   revision = null,
@@ -233,6 +236,7 @@ export function createApp({
       forecasts,
       places,
       verification,
+      ideas,
       reply: {} as Context["reply"],
       server: { startedAt, webOrigin, revision, pushKey },
     };

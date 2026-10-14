@@ -442,6 +442,7 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 - The instance counts its mails and stops at the day's limit, the alerts' mails with the others. An account is sent three mails that check its address an hour at most, and five a day: its alert mails are counted apart. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
 - The log keeps how a mail failed, never to whom it went.
+- The landing's form sends the ideas of its readers to `CONTACT_EMAIL`, in `packages/config/src/app.ts`, through the same mail: put your own address there. 20 a day at most, counted with the day's mails. Without mail, the form gives that address to write to.
 
 ## Météo-France's wind stations
 

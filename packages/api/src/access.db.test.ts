@@ -83,6 +83,9 @@ const ANSWERS_A_KEY = [
   "v1.tides.extremes",
   "v1.tides.timeline",
 ];
+// What a person sends from the pages of the web app, a visitor or an account, and no key or
+// link: an idea for whoever makes the product (decision 026). It is named with an account's too.
+const ANSWERS_A_PERSON = ["v1.ideas.send"];
 const takesASession = everyProcedure.filter(
   ([name]) => !ANSWERS_ANYONE.includes(name) && !ANSWERS_A_KEY.includes(name),
 );
@@ -125,6 +128,7 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.contributions.withdraw",
   "v1.guides.answer",
   "v1.guides.mine",
+  ...ANSWERS_A_PERSON,
   // An account's link, and the friends it made: decision 041.
   "v1.friends.accept",
   "v1.friends.get",
@@ -508,11 +512,23 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       expect(["answered", "BAD_REQUEST"]).toContain(outcome);
     });
 
-    it.each(takesASession)("is refused %s, which takes a session", async (_, procedure) => {
-      await expect(call(procedure, undefined as never, fromSite(WEB))).rejects.toEqual(
-        refusal("UNAUTHORIZED"),
-      );
-    });
+    it.each(takesASession.filter(([name]) => !ANSWERS_A_PERSON.includes(name)))(
+      "is refused %s, which takes a session",
+      async (_, procedure) => {
+        await expect(call(procedure, undefined as never, fromSite(WEB))).rejects.toEqual(
+          refusal("UNAUTHORIZED"),
+        );
+      },
+    );
+
+    it.each(everyProcedure.filter(([name]) => ANSWERS_A_PERSON.includes(name)))(
+      "gets past the door of %s, which a person sends",
+      async (_, procedure) => {
+        await expect(call(procedure, undefined as never, fromSite(WEB))).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+        });
+      },
+    );
 
     it("is whoever comes from the web app, and from no other site", async () => {
       expect(await stations(fromSite(WEB))).toEqual({ stations: [] });

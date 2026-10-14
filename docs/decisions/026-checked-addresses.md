@@ -49,6 +49,16 @@ The instance sends no mail at all today.
 - An account's page says whether its address is checked, as it does since decision 025.
 - The page of the instance says whether mail is set up, through what, and how many mails were counted today against the limit.
 
+### Ideas from the landing
+
+Added on 2026-10-14.
+
+- The last column of the landing's ideas opens a form: a first name, an address and an idea. The API sends it by mail to `CONTACT_EMAIL` in `packages/config/src/app.ts`, the address of whoever makes the product, as the repository is theirs. Its subject is `Feature from landing: ` and the first name, and an answer goes to the address given.
+- `v1.ideas.send` takes a person on a page of the web app: a visitor, whether or not the instance answers visitors, or an account. It takes no key and no link.
+- The instance sends 20 ideas a day at most, counted with its mails for the day, before each leaves.
+- Nothing of an idea is kept: the mail is all there is of it. The API checks the address as a sender's, and a first name on one line.
+- An instance that sends no mail, or has sent its ideas for the day, says so, and the form gives the address to write to.
+
 ## Rejected
 
 - **Refusing the sign-in of an unchecked account.** Every account that exists would be locked out the day the instance starts checking.
@@ -57,6 +67,8 @@ The instance sends no mail at all today.
 - **A mail in both languages at once.** It is twice as long, and reads like a form.
 - **Tracking who opens the mail.** The instance has no use for it, and the reader did not ask for it. The provider's own tracking is a setting of the provider's account, to leave off.
 - **A link that signs in.** It would be a second key to the account, good for a day, in a mailbox and in the provider's records.
+- **A link `mailto:` in place of the form.** It needs a mail program set up on the device, which many phones and shared computers lack, and loses the idea of whoever has none.
+- **Sending the idea to the address given, as a copy.** Anyone could then have the instance mail any address, with words of their own in it.
 - **A limit by the address of the network a sign-up comes from.** The API sits behind proxies, and which header to believe depends on them. Decision 020 keeps no address of a caller either. The day's limit holds the mails meanwhile.
 
 ## Consequences
@@ -72,3 +84,5 @@ The instance sends no mail at all today.
 - A suspended account that follows its link has its address checked, and is no more signed in than it was.
 - The sign-in library writes in the log the address a link would end on when it refuses it. The instance's own links end on `/verified`, which names no one.
 - An instance without a web app sends a link that ends on the API's own answer, with no page.
+- Someone who sends ideas again and again spends the day's 20, and the ideas sent after that day are told to write by mail. The address given is not checked: an answer to an idea may go to someone who did not send it, as a mail from whoever makes the product, which they read or not.
+- An instance that someone else runs sends the ideas of its landing to the same address, through its own mail, until its operator changes `CONTACT_EMAIL`.

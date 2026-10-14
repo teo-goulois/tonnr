@@ -35,6 +35,8 @@ export type Mail = {
   text: string;
   html: string;
   headers?: { name: string; value: string }[];
+  // Where an answer goes, when it is not the sender: an address as `readSender` reads one.
+  replyTo?: string;
 };
 
 export type Mailer = {
@@ -144,10 +146,18 @@ export function createMailer(
 
   return {
     via,
-    send: async ({ to, subject, text, html, headers }) => {
+    send: async ({ to, subject, text, html, headers, replyTo }) => {
       try {
         await client.send(
-          { from, to, subject, text, html, ...(headers ? { headers } : {}) },
+          {
+            from,
+            to,
+            subject,
+            text,
+            html,
+            ...(headers ? { headers } : {}),
+            ...(replyTo ? { replyTo } : {}),
+          },
           { signal: AbortSignal.timeout(sendMs) },
         );
         return "accepted";

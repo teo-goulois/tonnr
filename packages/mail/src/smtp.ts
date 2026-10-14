@@ -71,6 +71,9 @@ export function smtpOut(server: Server): EmailAdapter<"smtp"> {
           from: address(message.from),
           to: [message.to].flat().map(address),
           subject: message.subject,
+          ...(message.replyTo === undefined
+            ? {}
+            : { replyTo: [message.replyTo].flat().map(address) }),
           ...(message.text === undefined ? {} : { text: message.text }),
           ...(typeof message.html === "string" ? { html: message.html } : {}),
           headers: [message.headers ?? []]

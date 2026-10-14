@@ -17,6 +17,7 @@ import { developersRouter } from "./developers";
 import { forecastsRouter } from "./forecasts";
 import { friendsRouter } from "./friends";
 import { guidesRouter } from "./guides";
+import { ideasRouter } from "./ideas";
 import { instanceRouter } from "./instance";
 import { keysRouter } from "./keys";
 import { listsRouter } from "./lists";
@@ -57,6 +58,7 @@ export const v1Router = {
   forecasts: forecastsRouter,
   friends: friendsRouter,
   guides: guidesRouter,
+  ideas: ideasRouter,
   instance: instanceRouter,
   keys: keysRouter,
   lists: listsRouter,
