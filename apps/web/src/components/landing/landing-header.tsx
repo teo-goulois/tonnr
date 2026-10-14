@@ -10,6 +10,7 @@ import { SECTIONS, column } from "./landing-parts";
 
 const LINKS = [
   { hash: SECTIONS.features, label: m.landing_nav_features },
+  { hash: SECTIONS.sources, label: m.landing_nav_sources },
   { hash: SECTIONS.agents, label: m.landing_nav_agents },
   { hash: SECTIONS.story, label: m.landing_nav_story },
   { hash: SECTIONS.next, label: m.landing_nav_next },

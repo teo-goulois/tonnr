@@ -10,6 +10,7 @@ import { LandingFooter, OpenTheMap } from "./landing-footer";
 import { LandingHeader } from "./landing-header";
 import { LandingNext } from "./landing-next";
 import { column } from "./landing-parts";
+import { LandingSources } from "./landing-sources";
 import { LandingStory } from "./landing-story";
 
 // The top of the page comes in once, a part after the other. Nothing else on the page moves
@@ -18,8 +19,8 @@ const arrives =
   "animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-500 motion-reduce:animate-none";
 
 /**
- * The page a visitor lands on: what the product is, what it does, that a program reads it too,
- * who makes it and what he thinks of next.
+ * The page a visitor lands on: what the product is, what it does, where its figures come from,
+ * that a program reads it too, who makes it and what he thinks of next.
  */
 export function LandingPage() {
   const api = apiOrigin(ENV.VITE_SERVER_URL);
@@ -51,6 +52,7 @@ export function LandingPage() {
 
         <LandingAlert />
         <LandingFeatures />
+        <LandingSources />
         <LandingAgents api={api} />
         <LandingStory />
         <LandingNext />

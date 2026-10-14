@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 /** The parts of the landing its header leads to, by the id each one answers to. */
 export const SECTIONS = {
   features: "features",
+  sources: "sources",
   agents: "agents",
   story: "story",
   next: "next",

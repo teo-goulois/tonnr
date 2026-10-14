@@ -20,6 +20,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 
 - [The map](${site}/app): buoys, wind stations, surf breaks, forecasts and tides. No account is needed to read it.
 - [What ${APP_NAME} does](${site}/): every feature, in a page.
+- [Where the data comes from](${site}/sources): every network and model the instance reads, with its coverage, how often it is read, and its licence.
 
 ## The API
 
