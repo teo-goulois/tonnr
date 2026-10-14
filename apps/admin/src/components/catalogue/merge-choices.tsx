@@ -2,7 +2,6 @@ import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-grou
 import { useState } from "react";
 
 import type { BreakCharacteristics, BreakValues, OperatorBreak } from "@/lib/api";
-import { formatCount } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import { inOrder, LINES, LIST_LINES, type ListLine, readLine, readSize } from "./words";
@@ -139,8 +138,8 @@ export function MergeChoices({
     return words ? [`${LINES[line].label()} : ${words}`] : [];
   });
   const fields = FIELDS.filter((field) => !without.includes(field));
-  const differ = fields.filter((field) => !same(valueOf(kept, field), valueOf(other, field)));
-  const alike = fields.length - differ.length;
+  const isAlike = (field: Field) => same(valueOf(kept, field), valueOf(other, field));
+  const differ = fields.filter((field) => !isAlike(field));
 
   // A value as a choice: a text may be long, so it wraps inside its box.
   const choice =
@@ -149,14 +148,28 @@ export function MergeChoices({
 
   return (
     <div className="grid gap-s">
-      {differ.length > 0 && (
-        <div className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_minmax(0,1fr)] gap-xs text-s text-neutral-7">
-          <span />
-          <span>{keptLabel}</span>
-          <span>{otherLabel}</span>
-        </div>
-      )}
-      {differ.map((field) => {
+      {differ.length === 0 && <p className="text-neutral-7">{m.catalogue_alike_all()}</p>}
+      <div className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_minmax(0,1fr)] gap-xs text-s text-neutral-7">
+        <span />
+        <span>{keptLabel}</span>
+        <span>{otherLabel}</span>
+      </div>
+      {fields.map((field) => {
+        // A field both sides say alike is shown once, to be read: there is nothing to choose.
+        if (isAlike(field)) {
+          return (
+            <div
+              key={field}
+              className="grid grid-cols-[minmax(0,7rem)_minmax(0,2fr)] items-start gap-xs text-s"
+            >
+              <span className="font-medium">{labelOf(field)}</span>
+              <span className="grid gap-xxs px-s">
+                <span className="break-words">{read(kept, field) ?? nothing}</span>
+                <span className="text-neutral-7">{m.catalogue_same_on_both()}</span>
+              </span>
+            </div>
+          );
+        }
         const isList = (LIST_LINES as string[]).includes(field);
         const both = isList && isSaid(valueOf(kept, field)) && isSaid(valueOf(other, field));
         const keptRead = read(kept, field);
@@ -205,15 +218,6 @@ export function MergeChoices({
         <p className="text-s text-neutral-7">
           {m.catalogue_merge_confirmed({ lines: over.join(" · ") })}
         </p>
-      )}
-      {differ.length === 0 ? (
-        <p className="text-neutral-7">{m.catalogue_alike_all()}</p>
-      ) : (
-        alike > 0 && (
-          <p className="text-s text-neutral-7">
-            {m.catalogue_alike({ count: formatCount(alike) })}
-          </p>
-        )
       )}
     </div>
   );
