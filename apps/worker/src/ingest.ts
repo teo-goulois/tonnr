@@ -3,6 +3,7 @@ import { Effect } from "effect";
 
 import { candhis } from "./providers/candhis";
 import { copernicus } from "./providers/copernicus";
+import { dmi } from "./providers/dmi";
 import { fmi } from "./providers/fmi";
 import { hidrografico } from "./providers/hidrografico";
 import { irishLights } from "./providers/irish-lights";
@@ -10,14 +11,16 @@ import { marineInstitute } from "./providers/marine-institute";
 import { METEO_FRANCE_ID, meteoFrance } from "./providers/meteo-france";
 import { ndbc } from "./providers/ndbc";
 import { openwindmap } from "./providers/openwindmap";
-import { queensland } from "./providers/queensland";
 import type { Provider } from "./providers/provider";
+import { queensland } from "./providers/queensland";
+import { rijkswaterstaat } from "./providers/rijkswaterstaat";
 import { saveSnapshot } from "./store";
 
 // The providers that ask for no account: every instance fetches from them.
 const open: readonly Provider[] = [
   candhis,
   copernicus,
+  dmi,
   fmi,
   hidrografico,
   irishLights,
@@ -25,6 +28,7 @@ const open: readonly Provider[] = [
   ndbc,
   openwindmap,
   queensland,
+  rijkswaterstaat,
 ];
 
 /** The keys an instance may hold, for the providers that ask for an account. Decision 032. */

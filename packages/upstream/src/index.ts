@@ -35,14 +35,25 @@ export type RequestHeaders = Readonly<Record<string, string>>;
 const fetchBody = Effect.fn("fetchBody")(function* <Body>(
   url: string,
   read: (response: Response) => Promise<Body>,
-  { retry = true, headers = {} }: { retry?: boolean; headers?: RequestHeaders } = {},
+  {
+    retry = true,
+    headers = {},
+    body,
+  }: { retry?: boolean; headers?: RequestHeaders; body?: string } = {},
 ) {
   // One step for the request and its body: the signal that stops the request, on a timeout or
   // when the run is interrupted, then stops the download too.
   const request = Effect.tryPromise({
     try: async (signal) => {
       const response = await fetch(url, {
-        headers: { ...headers, "user-agent": USER_AGENT },
+        // A body is sent as JSON, to the providers whose query is written in one.
+        ...(body === undefined
+          ? { headers: { ...headers, "user-agent": USER_AGENT } }
+          : {
+              method: "POST",
+              body,
+              headers: { ...headers, "content-type": "application/json", "user-agent": USER_AGENT },
+            }),
         signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
       });
       if (!response.ok) {
@@ -131,6 +142,15 @@ const parseJson = (url: string, text: string) =>
 /** Fetches a JSON document from a provider. The caller validates its shape. */
 export const fetchJson = Effect.fn("fetchJson")(function* (url: string, headers?: RequestHeaders) {
   return yield* parseJson(url, yield* fetchText(url, headers));
+});
+
+/**
+ * Sends a query written in JSON to a provider and reads its JSON answer. For the providers that
+ * take their query as the body of a POST: it asks for something and changes nothing, so it is
+ * retried as a GET is.
+ */
+export const postJson = Effect.fn("postJson")(function* (url: string, query: unknown) {
+  return yield* parseJson(url, yield* fetchBody(url, readText, { body: JSON.stringify(query) }));
 });
 
 /**

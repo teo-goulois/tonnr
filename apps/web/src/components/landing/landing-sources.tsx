@@ -28,6 +28,7 @@ import { m } from "@/paraglide/messages.js";
 import { SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
 
 const CC_BY = { name: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" };
+const CC0 = { name: "CC0 1.0", url: "https://creativecommons.org/publicdomain/zero/1.0/" };
 const ETALAB = {
   name: "Etalab 2.0",
   url: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
@@ -183,6 +184,25 @@ const GROUPS: readonly Group[] = [
           url: "https://developers.pioupiou.fr/data-licensing/",
         },
         site: "https://www.openwindmap.org",
+      },
+      {
+        id: "dmi",
+        name: "DMI",
+        by: "Danmarks Meteorologiske Institut",
+        region: m.sources_dmi_region,
+        text: m.sources_dmi_text,
+        every: () => m.sources_every_minutes({ count: 10 }),
+        licence: CC_BY,
+        site: "https://www.dmi.dk",
+      },
+      {
+        id: "rijkswaterstaat",
+        name: "Rijkswaterstaat",
+        region: m.sources_rijkswaterstaat_region,
+        text: m.sources_rijkswaterstaat_text,
+        every: () => m.sources_every_minutes({ count: 10 }),
+        licence: CC0,
+        site: "https://rijkswaterstaatdata.nl/waterdata/",
       },
     ],
   },

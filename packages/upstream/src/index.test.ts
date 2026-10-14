@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { Effect, Fiber } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { fetchBytes, fetchJson, fetchJsonOnce, fetchText } from "./index";
+import { fetchBytes, fetchJson, fetchJsonOnce, fetchText, postJson } from "./index";
 
 type Handler = (request: http.IncomingMessage, response: http.ServerResponse) => void;
 
@@ -63,6 +63,22 @@ describe("fetchText and fetchJson", () => {
 
     expect(await Effect.runPromise(fetchJson(url, headers))).toEqual({ height: 2.5 });
     expect(seen.headers.apikey).toBe("a-key");
+    expect(seen.userAgent).toMatch(/^[a-z]+\/\d/);
+  });
+
+  it("send a query written in JSON, and read the answer", async () => {
+    let sent = { method: "", type: "", body: "" };
+    const { url, seen } = await provider((request, response) => {
+      let body = "";
+      request.on("data", (chunk: Buffer) => (body += chunk.toString()));
+      request.on("end", () => {
+        sent = { method: request.method ?? "", type: request.headers["content-type"] ?? "", body };
+        response.end('{"wind": 7}');
+      });
+    });
+
+    expect(await Effect.runPromise(postJson(url, { station: "a12" }))).toEqual({ wind: 7 });
+    expect(sent).toEqual({ method: "POST", type: "application/json", body: '{"station":"a12"}' });
     expect(seen.userAgent).toMatch(/^[a-z]+\/\d/);
   });
 
