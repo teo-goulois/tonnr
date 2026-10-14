@@ -1,5 +1,7 @@
 import { toast } from "sonner";
 
+import { CharacteristicIcon, OffshoreIcon } from "@/components/viewer/break-characteristics";
+
 import { BreakGuide } from "@/components/guides/break-guide";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
 import { Author, RankBadge } from "@/components/guides/rank";
@@ -237,10 +239,53 @@ const guidingOf = (signedIn: boolean): Guiding => ({
 
 const framed = "edge rounded-(--radius-xs) p-m";
 
+// Each glyph of a characteristic, with what it is drawn from: every word of the catalogue that
+// changes its drawing, and the empty one a line that says nothing shows.
+const GLYPHS: [Parameters<typeof CharacteristicIcon>[0]["field"], string[]][] = [
+  ["bestTides", ["low", "mid", "high"]],
+  ["bestTides", ["low"]],
+  ["bestTides", ["mid"]],
+  ["bestTides", ["high"]],
+  ["bestTides", ["mid", "mid_high", "high"]],
+  ["bestTides", ["low", "mid_low", "mid"]],
+  ["waveDirections", ["left"]],
+  ["waveDirections", ["right"]],
+  ["waveDirections", ["left", "right"]],
+  ...["beach", "reef", "point", "jetty", "pier", "offshore", "slab", "canyon"].map(
+    (shape) => ["breakTypes", [shape]] as ["breakTypes", string[]],
+  ),
+  ["bottomTypes", ["sand"]],
+  ["bottomTypes", ["rock"]],
+  ["bottomTypes", ["rock", "sand"]],
+  ["bottomTypes", ["coral"]],
+  ["bottomTypes", ["lava"]],
+  ["bestSwellDirections", ["W", "WNW"]],
+  ["bestSwellDirections", ["SW", "WSW", "W", "WNW", "NW"]],
+  ["bestSwellDirections", []],
+  ["bestWindDirections", ["NE", "E"]],
+  ["bestWindDirections", []],
+  ["abilityLevels", ["beginner"]],
+  ["abilityLevels", ["beginner", "intermediate"]],
+  ["abilityLevels", ["advanced", "pro"]],
+  ["boardTypes", ["longboard"]],
+  ["bestSeasons", ["autumn", "winter"]],
+  ["bestSeasons", []],
+];
+
 /** The guide of a break as each reader meets it, and where an account stands in the guides. */
 export function GuideSamples() {
   return (
     <div className="grid gap-m">
+      <ul className="flex flex-wrap gap-s">
+        {GLYPHS.map(([field, given]) => (
+          <li key={`${field} ${given.join(" ")}`} title={`${field}: ${given.join(", ") || "—"}`}>
+            <CharacteristicIcon field={field} given={given} />
+          </li>
+        ))}
+        <li title="offshoreDirectionDegrees: 120">
+          <OffshoreIcon degrees={120} />
+        </li>
+      </ul>
       <div className="flex flex-wrap items-center gap-m">
         <RankBadge rank="qs" />
         <RankBadge rank="cs" />

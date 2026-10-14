@@ -1,4 +1,15 @@
-import { Fragment, type ReactNode } from "react";
+import {
+  BoardIcon,
+  BottomIcon,
+  BreakTypeIcon,
+  LevelIcon,
+  SeasonIcon,
+  SwellWindowIcon,
+  TideIcon,
+  WaveDirectionIcon,
+  WindWindowIcon,
+} from "@repo/ui/icon";
+import type { ReactNode } from "react";
 
 import { compassPoint } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -89,10 +100,6 @@ const COMPASS: WordOf<"bestSwellDirections">[] = [
   "NNW",
 ];
 
-function words<Word extends string>(given: Word[] | null, readings: Record<Word, () => string>) {
-  return given?.map((word) => readings[word]()).join(", ");
-}
-
 /** A point of the compass as the reader's language writes it. */
 export function pointName(point: WordOf<"bestSwellDirections">) {
   return compassPoint(COMPASS.indexOf(point) * 22.5);
@@ -153,6 +160,111 @@ export function readCharacteristic(key: ListedField, given: readonly string[]): 
     .join(", ");
 }
 
+const glyph = "size-8 shrink-0";
+const has = (given: readonly string[], ...words: string[]) =>
+  words.some((word) => given.includes(word));
+const bearingsOf = (given: readonly string[]) =>
+  COMPASS.filter((point) => given.includes(point)).map((point) => COMPASS.indexOf(point) * 22.5);
+
+/**
+ * A characteristic's glyph, drawn from what it says, as Stormrider's guides draw a break. One
+ * that says nothing yet is drawn empty.
+ */
+export function CharacteristicIcon({
+  field,
+  given,
+}: {
+  field: ListedField;
+  given: readonly string[];
+}) {
+  switch (field) {
+    case "breakTypes": {
+      const shape = (Object.keys(BREAK_TYPES) as WordOf<"breakTypes">[]).find((word) =>
+        given.includes(word),
+      );
+      return <BreakTypeIcon className={glyph} shape={shape ?? "beach"} />;
+    }
+    case "waveDirections":
+      return (
+        <WaveDirectionIcon
+          className={glyph}
+          left={has(given, "left")}
+          right={has(given, "right")}
+        />
+      );
+    case "bottomTypes":
+      return (
+        <BottomIcon
+          className={glyph}
+          bottoms={given.filter((word) => word in BOTTOM_TYPES) as WordOf<"bottomTypes">[]}
+        />
+      );
+    case "abilityLevels": {
+      const order = Object.keys(ABILITY_LEVELS);
+      return (
+        <LevelIcon
+          className={glyph}
+          levels={given.map((word) => order.indexOf(word)).filter((at) => at >= 0)}
+          of={order.length}
+        />
+      );
+    }
+    case "boardTypes":
+      return <BoardIcon className={glyph} />;
+    case "bestSeasons":
+      return (
+        <SeasonIcon
+          className={glyph}
+          seasons={given.filter((word) => word in SEASONS) as WordOf<"bestSeasons">[]}
+        />
+      );
+    case "bestTides":
+      return (
+        <TideIcon
+          className={glyph}
+          low={has(given, "low", "mid_low")}
+          mid={has(given, "mid_low", "mid", "mid_high")}
+          high={has(given, "mid_high", "high")}
+        />
+      );
+    case "bestSwellDirections":
+      return <SwellWindowIcon className={glyph} bearings={bearingsOf(given)} />;
+    case "bestWindDirections":
+      return <WindWindowIcon className={glyph} bearings={bearingsOf(given)} />;
+  }
+}
+
+/** The glyph of the wind that blows offshore at a break: its arrow alone. */
+export function OffshoreIcon({ degrees }: { degrees: number }) {
+  return <WindWindowIcon className={glyph} bearings={[degrees]} window={false} />;
+}
+
+/**
+ * A characteristic as a guide gives it: its glyph, then its name over what it says. A row with no
+ * glyph keeps its place, so that what the rows say stands in one column.
+ */
+export function CharacteristicRow({
+  icon,
+  label,
+  children,
+}: {
+  icon?: ReactNode;
+  label: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-s text-left text-s">
+      <span aria-hidden className="flex size-8">
+        {icon}
+      </span>
+      <span className="grid">
+        <span className="text-neutral-7">{label}</span>
+        <span className="break-words">{children}</span>
+      </span>
+    </span>
+  );
+}
+
 /**
  * What is known of a place where the sea is surfed, as a list. Nothing is shown of a place of
  * which nothing is known.
@@ -168,34 +280,38 @@ export function CharacteristicsList({
   title: string;
 }) {
   const offshore = known.offshoreDirectionDegrees;
-  const listed: [string, ReactNode][] = [
+  const listed: { label: string; value: ReactNode; icon?: ReactNode }[] = [
     // The nearest place first, as an address reads.
-    [m.break_location(), location && [...location].reverse().join(", ")],
-    [m.break_types(), words(known.breakTypes, BREAK_TYPES)],
-    [m.break_wave_directions(), words(known.waveDirections, WAVE_DIRECTIONS)],
-    [m.break_bottom_types(), words(known.bottomTypes, BOTTOM_TYPES)],
-    [m.break_ability_levels(), words(known.abilityLevels, ABILITY_LEVELS)],
-    [m.break_board_types(), words(known.boardTypes, BOARD_TYPES)],
-    [m.break_best_seasons(), words(known.bestSeasons, SEASONS)],
-    [m.break_best_tides(), words(known.bestTides, TIDE_STAGES)],
-    [m.break_best_swell(), points(known.bestSwellDirections)],
-    [m.break_best_wind(), points(known.bestWindDirections)],
-    [m.break_offshore_wind(), offshore == null ? undefined : <Bearing degrees={offshore} />],
+    { label: m.break_location(), value: location && [...location].reverse().join(", ") },
+    ...CHARACTERISTIC_FIELDS.map(({ key, label }) => {
+      const given = known[key];
+      return {
+        label: label(),
+        value: given && given.length > 0 ? readCharacteristic(key, given) : undefined,
+        icon: given && <CharacteristicIcon field={key} given={given} />,
+      };
+    }),
+    {
+      label: m.break_offshore_wind(),
+      value: offshore == null ? undefined : <Bearing degrees={offshore} />,
+      icon: offshore == null ? undefined : <OffshoreIcon degrees={offshore} />,
+    },
   ];
-  const rows = listed.filter(([, value]) => Boolean(value));
+  const rows = listed.filter(({ value }) => Boolean(value));
 
   if (rows.length === 0) return null;
 
   return (
     <Section title={title}>
-      <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-s gap-y-xxs text-s">
-        {rows.map(([label, value]) => (
-          <Fragment key={label}>
-            <dt className="text-neutral-7">{label}</dt>
-            <dd className="break-words">{value}</dd>
-          </Fragment>
+      <ul className="grid gap-xs">
+        {rows.map(({ label, value, icon }) => (
+          <li key={label}>
+            <CharacteristicRow icon={icon} label={label}>
+              {value}
+            </CharacteristicRow>
+          </li>
         ))}
-      </dl>
+      </ul>
     </Section>
   );
 }

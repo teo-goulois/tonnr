@@ -135,6 +135,23 @@ export { IconWaterLevelUpFillDuo18 as WaterLevelFillDuoIcon } from "nucleo-ui-fi
 export { IconWaterWaveFillDuo18 as WaveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterWaveFillDuo18";
 export { IconWindFillDuo18 as WindFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWindFillDuo18";
 
+// What a surf break is like, in rings as Stormrider's guides draw it, each drawn from what it
+// says on Nucleo Micro Bold's grid, with Fill Duo's second opacity: Téo asked on 2026-10-14.
+export {
+  type BottomKind,
+  type BreakShape,
+  type Season,
+  BoardIcon,
+  BottomIcon,
+  BreakTypeIcon,
+  LevelIcon,
+  SeasonIcon,
+  SwellWindowIcon,
+  TideIcon,
+  WaveDirectionIcon,
+  WindWindowIcon,
+} from "./surf-icons";
+
 // Nucleo Micro Bold, from its package: what an icon is taken from when it is new, as Téo asked
 // on 2026-10-13. The stars of a rating are the three he chose there: the line, the full one, and
 // the left half, which is drawn over the line.

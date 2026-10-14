@@ -17,6 +17,9 @@ import {
   BreakDescription,
   CHARACTERISTIC_FIELDS,
   type CharacteristicField,
+  CharacteristicIcon,
+  CharacteristicRow,
+  OffshoreIcon,
   readCharacteristic,
 } from "../viewer/break-characteristics";
 import { Section } from "../viewer/point-conditions";
@@ -448,25 +451,33 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
       <button
         type="button"
         aria-expanded={isOpen}
-        className="focus-ring -mx-xs grid min-h-9 cursor-pointer grid-cols-[minmax(0,2fr)_minmax(0,3fr)] content-center items-baseline gap-x-s rounded-(--radius-xs) px-xs py-xxs text-left text-s outline-none hover:bg-neutral-3-transparent"
+        className="focus-ring -mx-xs block cursor-pointer rounded-(--radius-xs) px-xs py-xxs outline-none hover:bg-neutral-3-transparent"
         onClick={isOpen ? onClose : onOpen}
       >
-        <span className="text-neutral-7">{field.label()}</span>
-        {value ? (
-          <span className="grid gap-xxs break-words">
-            <span>{readCharacteristic(field.key, value)}</span>
-            {line.origin === "contribution" && (
-              <span className="text-neutral-7">
-                <Author by={line.by} />
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-xxs font-medium text-neutral-10">
-            <PlusIcon data-slot="icon" aria-hidden className="size-3" />
-            {m.guide_add()}
-          </span>
-        )}
+        <CharacteristicRow
+          icon={
+            <span className={value ? undefined : "text-neutral-6"}>
+              <CharacteristicIcon field={field.key} given={value ?? []} />
+            </span>
+          }
+          label={field.label()}
+        >
+          {value ? (
+            <span className="grid gap-xxs">
+              <span>{readCharacteristic(field.key, value)}</span>
+              {line.origin === "contribution" && (
+                <span className="text-neutral-7">
+                  <Author by={line.by} />
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-xxs font-medium text-neutral-10">
+              <PlusIcon data-slot="icon" aria-hidden className="size-3" />
+              {m.guide_add()}
+            </span>
+          )}
+        </CharacteristicRow>
       </button>
       <Waiting {...props} />
       {isOpen && (
@@ -666,10 +677,11 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
         <BreakDescription description={found.description} />
         <ul className="grid gap-xxs">
           {found.location && (
-            <li className="grid min-h-9 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] content-center items-baseline gap-x-s py-xxs text-s">
-              <span className="text-neutral-7">{m.break_location()}</span>
-              {/* The nearest place first, as an address reads. */}
-              <span className="break-words">{[...found.location].reverse().join(", ")}</span>
+            <li className="py-xxs">
+              <CharacteristicRow label={m.break_location()}>
+                {/* The nearest place first, as an address reads. */}
+                {[...found.location].reverse().join(", ")}
+              </CharacteristicRow>
             </li>
           )}
           {CHARACTERISTIC_FIELDS.map((field) => {
@@ -677,11 +689,13 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
             return line ? <WordsLine key={field.key} field={field} {...propsOf(line)} /> : null;
           })}
           {offshore != null && (
-            <li className="grid min-h-9 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] content-center items-baseline gap-x-s py-xxs text-s">
-              <span className="text-neutral-7">{m.break_offshore_wind()}</span>
-              <span>
+            <li className="py-xxs">
+              <CharacteristicRow
+                icon={<OffshoreIcon degrees={offshore} />}
+                label={m.break_offshore_wind()}
+              >
                 <Bearing degrees={offshore} />
-              </span>
+              </CharacteristicRow>
             </li>
           )}
         </ul>
