@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Outlet, createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useLocation, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { AdminShell } from "@/components/shared/admin-shell";
@@ -41,6 +41,8 @@ function OperatorLayout() {
   const account = asked.data ?? context.account;
   // What waits for an answer in the moderation, counted beside the page that answers it.
   const waiting = useWaiting();
+  // The catalogue's map takes the whole width.
+  const wide = useLocation({ select: (location) => location.pathname.startsWith("/catalogue") });
   // The guard above asks again: it sends an account that is no longer signed in to the
   // sign-in, and one that no longer runs the instance to the console. It is also the guard
   // that drops what the page loaded for an account when another one is signed in.
@@ -58,7 +60,12 @@ function OperatorLayout() {
   return (
     // The screens belong to the account they were drawn for. Another account gets new ones,
     // which have read nothing: see `readBy`.
-    <AdminShell key={account.id} account={account} waiting={waiting.spots + waiting.guides}>
+    <AdminShell
+      key={account.id}
+      account={account}
+      waiting={waiting.spots + waiting.guides}
+      wide={wide}
+    >
       <Outlet />
     </AdminShell>
   );

@@ -56,6 +56,8 @@ type ShellProps = {
   nav?: ReactNode;
   // What the keyboard reaches: the palette and the shortcuts of whoever reads.
   commands: ReactNode;
+  // A page that takes the whole width of the screen, such as a map.
+  wide?: boolean;
   children: ReactNode;
 };
 
@@ -63,7 +65,7 @@ type ShellProps = {
  * The bar above every screen, and the column the screen sits in. An operator and a member of a
  * developer account have the same bar, with the pages and the commands of each.
  */
-export function Shell({ account, home, nav, commands, children }: ShellProps) {
+export function Shell({ account, home, nav, commands, wide = false, children }: ShellProps) {
   const bindings = useShortcuts();
 
   return (
@@ -102,25 +104,31 @@ export function Shell({ account, home, nav, commands, children }: ShellProps) {
       </header>
       {commands}
       {/* One column that takes the room it has: a wide table scrolls in its own box. */}
-      <main className="mx-auto grid grid-cols-1 w-full max-w-(--container-6xl) content-start gap-l px-m py-l">
+      <main
+        className={cn(
+          "mx-auto grid w-full grid-cols-1 content-start gap-l px-m py-l",
+          !wide && "max-w-(--container-6xl)",
+        )}
+      >
         {children}
       </main>
     </div>
   );
 }
 
-type AdminShellProps = Pick<ShellProps, "account" | "children"> & {
+type AdminShellProps = Pick<ShellProps, "account" | "children" | "wide"> & {
   // How many spots and contributions wait for an answer in the moderation. Shown beside its
   // page once known.
   waiting?: number;
 };
 
 /** The admin of an operator: every page that runs the instance, and its commands. */
-export function AdminShell({ account, waiting = 0, children }: AdminShellProps) {
+export function AdminShell({ account, waiting = 0, wide, children }: AdminShellProps) {
   return (
     <Shell
       account={account}
       home="/"
+      wide={wide}
       nav={
         <>
           <NavLink to="/" exact>
@@ -138,6 +146,7 @@ export function AdminShell({ account, waiting = 0, children }: AdminShellProps) 
               </Badge>
             )}
           </NavLink>
+          <NavLink to="/catalogue">{m.nav_catalogue()}</NavLink>
           <NavLink to="/instance">{m.nav_instance()}</NavLink>
         </>
       }

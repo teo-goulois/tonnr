@@ -20,3 +20,16 @@ export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;
 export type Job = InstanceState["jobs"][number];
 export type JobFailure = NonNullable<Job["failure"]>;
+// The catalogue of breaks, as its operator keeps it: decision 049.
+export type MapBreak = Answer<V1["catalogue"]["map"]>["breaks"][number];
+export type BreakPage = Answer<V1["catalogue"]["get"]>;
+export type OperatorBreak = BreakPage["break"];
+export type BreakCharacteristics = OperatorBreak["characteristics"];
+export type BreakUses = BreakPage["uses"];
+export type NearbyBreak = BreakPage["nearby"][number];
+export type BreakValues = Parameters<V1["catalogue"]["update"]>[0]["values"];
+export type CandidateList = Answer<V1["candidates"]["list"]>;
+export type CandidateSummary = CandidateList["candidates"][number];
+export type CandidateStatus = CandidateSummary["status"];
+export type CandidatePage = Answer<V1["candidates"]["get"]>;
+export type Candidate = CandidatePage["candidate"];

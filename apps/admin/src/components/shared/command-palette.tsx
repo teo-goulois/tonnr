@@ -149,6 +149,21 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/moderation", search: { kind: "guides" } }),
         },
         {
+          value: `${m.nav_catalogue()} catalogue breaks spots map merge edit`,
+          label: m.nav_catalogue(),
+          run: () => void navigate({ to: "/catalogue" }),
+        },
+        {
+          value: `${m.nav_catalogue()} ${m.catalogue_tab_import()} import candidates queue list book`,
+          label: `${m.nav_catalogue()} : ${m.catalogue_tab_import()}`,
+          run: () => void navigate({ to: "/catalogue/import" }),
+        },
+        {
+          value: `${m.catalogue_filter_close()} duplicates close pairs doublons`,
+          label: `${m.nav_catalogue()} : ${m.catalogue_filter_close()}`,
+          run: () => void navigate({ to: "/catalogue", search: { filter: "close" } }),
+        },
+        {
           value: `${m.nav_instance()} instance state status worker jobs providers health`,
           label: m.nav_instance(),
           run: () => void navigate({ to: "/instance" }),

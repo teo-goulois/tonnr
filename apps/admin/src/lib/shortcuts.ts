@@ -16,13 +16,26 @@ import { m } from "@/paraglide/messages.js";
 export const SHORTCUT_ACTIONS = [
   { id: "command-palette", label: () => m.shortcut_command_palette(), defaultHotkey: "Mod+K" },
   { id: "new-developer", label: () => m.developer_new(), defaultHotkey: "N" },
+  // What decides the candidate of a list in view: decision 049.
+  { id: "candidate-accept", label: () => m.shortcut_candidate_accept(), defaultHotkey: "A" },
+  { id: "candidate-later", label: () => m.shortcut_candidate_later(), defaultHotkey: "S" },
+  { id: "candidate-ignore", label: () => m.shortcut_candidate_ignore(), defaultHotkey: "I" },
+  { id: "candidate-next", label: () => m.shortcut_candidate_next(), defaultHotkey: "J" },
+  { id: "candidate-previous", label: () => m.shortcut_candidate_previous(), defaultHotkey: "K" },
   { id: "toggle-theme", label: () => m.shortcut_toggle_theme(), defaultHotkey: "D" },
   { id: "switch-locale", label: () => m.shortcut_switch_locale(), defaultHotkey: "L" },
 ] as const;
 
 // The shortcuts of an operator alone. The console of a developer account registers none of
 // them, and does not offer to rebind them.
-export const OPERATOR_SHORTCUTS: readonly string[] = ["new-developer"];
+export const OPERATOR_SHORTCUTS: readonly string[] = [
+  "new-developer",
+  "candidate-accept",
+  "candidate-later",
+  "candidate-ignore",
+  "candidate-next",
+  "candidate-previous",
+];
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 export type ShortcutId = ShortcutAction["id"];

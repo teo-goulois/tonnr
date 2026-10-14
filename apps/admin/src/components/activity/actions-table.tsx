@@ -98,6 +98,22 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_visitors_closed()];
     case "visitors.open":
       return [m.action_visitors_opened()];
+    case "break.update":
+      return [m.action_break_updated()];
+    case "break.merge":
+      return [m.action_break_merged()];
+    case "break.delete":
+      return [m.action_break_deleted()];
+    case "candidate.add":
+      return [m.action_candidate_added({ ref: action.changes?.candidate?.ref ?? "" })];
+    case "candidate.merge":
+      return [m.action_candidate_merged({ ref: action.changes?.candidate?.ref ?? "" })];
+    case "candidate.ignore":
+      return [m.action_candidate_ignored({ ref: action.changes?.candidate?.ref ?? "" })];
+    case "candidate.later":
+      return [m.action_candidate_later({ ref: action.changes?.candidate?.ref ?? "" })];
+    case "candidate.reopen":
+      return [m.action_candidate_reopened({ ref: action.changes?.candidate?.ref ?? "" })];
     // An API of a later version records what this admin has no words for yet.
     default:
       return [m.action_unknown({ action: action.action })];

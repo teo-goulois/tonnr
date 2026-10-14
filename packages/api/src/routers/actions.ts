@@ -42,10 +42,17 @@ const actionSchema = z.object({
       note: z.literal(true).optional(),
       // How many open sessions of an account were closed.
       sessions: z.number().optional(),
-      // The break of the catalogue that publishing a spot made.
+      // The break of the catalogue that publishing a spot made, or that an operator changed,
+      // merged into or deleted, or that a candidate became or was merged into.
       breakId: z.string().optional(),
       // The contribution to a guide that was confirmed, refused, or kept though contested.
       contributionId: z.string().optional(),
+      // The break that was merged into `breakId`, and is gone.
+      mergedId: z.string().optional(),
+      // What of a break was changed, by the name of its fields.
+      fields: z.array(z.string()).optional(),
+      // The candidate of a list that was decided.
+      candidate: z.object({ list: z.string(), ref: z.string() }).optional(),
     })
     .nullable(),
 });
@@ -62,7 +69,8 @@ export const actionsRouter = {
         "it: creating, changing, suspending, resuming and deleting a developer account, adding " +
         "a member to it and taking one out, making and revoking a key, closing an account's " +
         "sessions, suspending an account and letting it in again, closing the instance to the " +
-        "visitors of its web app and opening it again. A record of a member names " +
+        "visitors of its web app and opening it again, and changing, merging and deleting a " +
+        "break of the catalogue and deciding what a list proposes to it. A record of a member names " +
         "the developer account and the account. A key is named and never shown. The commands " +
         "run on the server are not recorded: whoever runs them is no account. A record is kept " +
         "thirteen months. Pages follow one another through `after`.",
