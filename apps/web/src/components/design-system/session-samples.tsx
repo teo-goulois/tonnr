@@ -6,7 +6,10 @@ import { PlaceSessions } from "@/components/sessions/place-sessions";
 import { RatingInput, RatingStars } from "@/components/sessions/rating";
 import { SessionForm } from "@/components/sessions/session-form";
 import { SessionConditions, SessionCredits } from "@/components/sessions/session-sea";
+import { SurfSizeInput, SurfSizePicture } from "@/components/sessions/surf-size";
+import type { SurfSize } from "@/components/sessions/types";
 import type { Session, SessionDetail, SessionRecap } from "@/components/viewer/types";
+import { SIZES } from "@repo/conditions/sessions/sizes";
 
 const NOW = new Date("2026-10-13T09:00:00Z").getTime();
 
@@ -55,6 +58,8 @@ function session(
     durationMinutes: 90,
     rating,
     note: null,
+    waveSize: null,
+    setSize: null,
     figures: { ...NOTHING, ...figures },
     modelMissing: null,
     conditionsTakenAt: startedAt,
@@ -65,16 +70,22 @@ function session(
 }
 
 const SESSIONS: Session[] = [
-  session("s-1", "2026-10-11", 5, {
-    waveHeightMeters: 1.5,
-    wavePeakPeriodSeconds: 13,
-    waveDirectionDegrees: 285,
-    windSpeedMetersPerSecond: 3.5,
-    windDirectionDegrees: 90,
-    shoreWind: "offshore",
-    tideHeightMeters: 2.6,
-    tideTrend: "rising",
-  }),
+  session(
+    "s-1",
+    "2026-10-11",
+    5,
+    {
+      waveHeightMeters: 1.5,
+      wavePeakPeriodSeconds: 13,
+      waveDirectionDegrees: 285,
+      windSpeedMetersPerSecond: 3.5,
+      windDirectionDegrees: 90,
+      shoreWind: "offshore",
+      tideHeightMeters: 2.6,
+      tideTrend: "rising",
+    },
+    { waveSize: "chest", setSize: "overhead" },
+  ),
   session("s-2", "2026-10-04", 4, {
     waveHeightMeters: 1.2,
     wavePeakPeriodSeconds: 11,
@@ -200,6 +211,7 @@ function Sample({ title, children }: { title: string; children: ReactNode }) {
 /** The screens of an account's log of its sessions, with invented sessions. Decision 043. */
 export function SessionSamples() {
   const [rating, setRating] = useState<number | null>(3.5);
+  const [sizes, setSizes] = useState<[SurfSize | null, SurfSize | null]>(["waist", "head"]);
   const place = {
     now: NOW,
     signedIn: true,
@@ -217,6 +229,24 @@ export function SessionSamples() {
           {[1, 2.5, 3.8, 5].map((given) => (
             <RatingStars key={given} rating={given} />
           ))}
+        </div>
+      </Sample>
+
+      <Sample title="How big the waves looked: each size, a set behind waves, and the pill">
+        <div className="grid grid-cols-3 gap-xs">
+          {SIZES.map((size) => (
+            <SurfSizePicture key={size} size={size} />
+          ))}
+        </div>
+        <SurfSizePicture size="chest" behind="overhead" className="max-w-40" />
+        <div>
+          <SurfSizeInput
+            waves={sizes[0]}
+            sets={sizes[1]}
+            onChange={(waves, sets) => setSizes([waves, sets])}
+            // The sheet of a phone: the form below opens the drawer of a wide screen.
+            wide={false}
+          />
         </div>
       </Sample>
 

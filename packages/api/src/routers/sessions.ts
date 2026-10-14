@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { sessionFigures } from "@repo/conditions/sessions/figures";
+import { setsFit } from "@repo/conditions/sessions/sizes";
 import { SHORE_WINDS } from "@repo/conditions/shore-wind";
 import { user } from "@repo/db/schema/auth";
-import { surfSession } from "@repo/db/schema/sessions";
+import { SURF_SIZES, surfSession } from "@repo/db/schema/sessions";
 import { spot, surfBreak } from "@repo/db/schema/spots";
 import { and, count, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -134,6 +135,9 @@ const figuresSchema = z.object({
     .nullable(),
 });
 
+// How big the waves looked, the smallest first: the height of a face against a body.
+const sizeSchema = z.enum(SURF_SIZES);
+
 const sessionSchema = z.object({
   id: z.string(),
   // Where it was surfed. The name and the point are the session's own: `breakId` and `spotId`
@@ -150,6 +154,10 @@ const sessionSchema = z.object({
   // From 0.5 to 5, by halves. Null for a session that is not rated.
   rating: z.number().nullable(),
   note: z.string().nullable(),
+  // How big most of the waves looked, and the biggest of the sets, said against a surfer
+  // standing beside them, from `ankle` to `triple_overhead`. Null when the surfer did not say.
+  waveSize: sizeSchema.nullable(),
+  setSize: sizeSchema.nullable(),
   figures: figuresSchema,
   modelMissing: conditionsSchema.shape.modelMissing,
   // When the conditions were read. Null for a session that has none.
@@ -176,6 +184,8 @@ function describeSession(row: Row) {
     durationMinutes: row.durationMinutes,
     rating: row.rating,
     note: row.note,
+    waveSize: row.waveSize,
+    setSize: row.setSize,
     figures: sessionFigures(row.conditions, row.startedAt, row.durationMinutes),
     modelMissing: row.conditions?.modelMissing ?? null,
     conditionsTakenAt: row.conditionsTakenAt,
@@ -201,6 +211,7 @@ const noteSchema = z
     (note) => !hasControlCharacter(note.replace(/[\n\r]/g, "")),
     "must not contain control characters",
   );
+const SETS_SMALLER = "The sets are never smaller than the waves.";
 const durationSchema = z.number().int().min(15).max(720);
 
 // A session is of the past, and of no more than a little of the future.
@@ -232,7 +243,9 @@ export const sessionsRouter = {
         "`breakId` and `spotId`. It takes the place's name and its point, and keeps them as its " +
         "own. It may be written long after it was surfed. What the sea did while it lasted is " +
         "read then and kept with it: what the models last computed of its hours, the tide, and " +
-        "what the nearest buoy and wind station measured. The models answer for the last 90 " +
+        "what the nearest buoy and wind station measured. `waveSize` and `setSize` say how " +
+        "big most of the waves and the sets looked, against a surfer standing beside them: " +
+        "the sets are never smaller than the waves. The models answer for the last 90 " +
         "days: a session further back keeps the tide and the stations alone. A part that could " +
         "not be had is null, and the session is written all the same.",
       tags: ["Sessions"],
@@ -246,11 +259,14 @@ export const sessionsRouter = {
           durationMinutes: durationSchema.default(DEFAULT_MINUTES),
           rating: ratingSchema.optional(),
           note: noteSchema.optional(),
+          waveSize: sizeSchema.optional(),
+          setSize: sizeSchema.optional(),
         })
         .refine(
           (input) => (input.breakId === undefined) !== (input.spotId === undefined),
           "one of breakId and spotId",
-        ),
+        )
+        .refine((input) => setsFit(input.waveSize ?? null, input.setSize ?? null), SETS_SMALLER),
     )
     .output(detailSchema)
     .handler(async ({ input, context }) => {
@@ -330,6 +346,8 @@ export const sessionsRouter = {
             durationMinutes: input.durationMinutes,
             rating: input.rating ?? null,
             note: input.note || null,
+            waveSize: input.waveSize ?? null,
+            setSize: input.setSize ?? null,
             conditions,
             conditionsTakenAt: new Date(),
           })
@@ -354,11 +372,14 @@ export const sessionsRouter = {
         description:
           "The surf sessions the account you act for wrote in its log, the latest first: " +
           "where (`place`), when (`startedAt`, UTC), how long, a `rating` from 0.5 to 5 " +
-          "when the person rated it, their `note`, and `figures`, one figure for each " +
+          "when the person rated it, their `note`, `waveSize` and `setSize`, how big most " +
+          "of the waves and the sets looked to them, from `ankle` to `triple_overhead`, " +
+          "and `figures`, one figure for each " +
           "thing the sea did at the middle of the session. `breakId` or `spotId` keeps " +
           "the sessions at one place. It answers 20 unless `limit` says another, 200 at " +
           "most: pass an answer's `next` as `before` for the sessions that follow. Use it " +
-          "to say what the person surfed, and which conditions they rated best. " +
+          "to say what the person surfed, and which conditions they rated best, or how " +
+          "the sizes they saw compare with the models' heights. " +
           "get_my_session gives the full conditions of one session, and " +
           "get_my_sessions_recap the totals.",
         defaults: { limit: 20 },
@@ -562,9 +583,11 @@ export const sessionsRouter = {
     .route({
       method: "PATCH",
       path: "/sessions/{id}",
-      summary: "Change a session: when it was, how long, its rating, its note",
+      summary: "Change a session: when it was, how long, its rating, its note, its sizes",
       description:
-        "What is left out stays, and `rating` or `note` given as null is taken away. The " +
+        "What is left out stays, and `rating`, `note`, `waveSize` or `setSize` given as null " +
+        "is taken away. The sets are never smaller than the waves, as the session stands " +
+        "once it is changed. The " +
         "conditions are read again when the session moves in time, and when the models could " +
         "not be asked the time before: a request that changes nothing asks them once more.",
       tags: ["Sessions"],
@@ -576,6 +599,8 @@ export const sessionsRouter = {
         durationMinutes: durationSchema.optional(),
         rating: ratingSchema.nullable().optional(),
         note: noteSchema.nullable().optional(),
+        waveSize: sizeSchema.nullable().optional(),
+        setSize: sizeSchema.nullable().optional(),
       }),
     )
     .output(detailSchema)
@@ -584,6 +609,10 @@ export const sessionsRouter = {
       const mine = and(eq(surfSession.id, input.id), eq(surfSession.userId, userId));
       const [current] = await context.db.select().from(surfSession).where(mine);
       if (!current) throw notFound(input.id);
+      const waveSize = input.waveSize === undefined ? current.waveSize : input.waveSize;
+      const setSize = input.setSize === undefined ? current.setSize : input.setSize;
+      if (!setsFit(waveSize, setSize))
+        throw new ORPCError("BAD_REQUEST", { message: SETS_SMALLER });
 
       const startedAt = input.startedAt ?? current.startedAt;
       const durationMinutes = input.durationMinutes ?? current.durationMinutes;
@@ -616,6 +645,8 @@ export const sessionsRouter = {
           durationMinutes,
           ...(input.rating !== undefined && { rating: input.rating }),
           ...(input.note !== undefined && { note: input.note || null }),
+          waveSize,
+          setSize,
           ...(conditions && { conditions, conditionsTakenAt: new Date() }),
         })
         .where(mine)

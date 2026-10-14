@@ -110,6 +110,8 @@ export function useSessions({ signedIn, isLogShown, place, onSeeLog }: Asked): S
           durationMinutes: draft.durationMinutes,
           ...(draft.rating !== null && { rating: draft.rating }),
           ...(draft.note && { note: draft.note }),
+          ...(draft.waveSize && { waveSize: draft.waveSize }),
+          ...(draft.setSize && { setSize: draft.setSize }),
         });
         setOpen(null);
         void refresh();

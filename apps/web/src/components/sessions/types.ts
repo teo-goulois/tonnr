@@ -1,5 +1,8 @@
 import type { Loadable, Session, SessionDetail, SessionRecap } from "../viewer/types";
 
+/** How big the waves of a session looked, from `ankle` to `triple_overhead`. */
+export type SurfSize = NonNullable<Session["waveSize"]>;
+
 /** Where a session is: a break of the catalogue or a spot of the account's own. */
 export type SessionPlace = { kind: "break" | "spot"; id: string; name: string };
 
@@ -10,6 +13,9 @@ export type SessionDraft = {
   // From 1 to 5. Null for a session that is not rated.
   rating: number | null;
   note: string;
+  // How big most of the waves and the sets looked. Null while the surfer has not said.
+  waveSize: SurfSize | null;
+  setSize: SurfSize | null;
 };
 
 /** What the sheet of a session is open on: a new one, at a place when it is known, or one of the log. */

@@ -14,6 +14,23 @@ import { spot, surfBreak } from "./spots";
 
 // An account's log of its sessions: decision 043.
 
+/**
+ * How big the waves looked, said against a surfer standing beside them, the smallest first.
+ * `packages/conditions/src/sessions/sizes.ts` says what height of face each one stands for.
+ */
+export const SURF_SIZES = [
+  "ankle",
+  "knee",
+  "waist",
+  "chest",
+  "shoulder",
+  "head",
+  "overhead",
+  "double_overhead",
+  "triple_overhead",
+] as const;
+export type SurfSize = (typeof SURF_SIZES)[number];
+
 /** One hour of the models over a session. Null is a value they did not give. */
 export type SessionHour = {
   time: string;
@@ -107,6 +124,10 @@ export const surfSession = pgTable(
     // From half a star to five, by halves. Null for a session that is not rated.
     rating: real("rating"),
     note: text("note"),
+    // How big most of the waves looked, and the biggest of the sets, as the surfer said. Each is
+    // null until it is said, and the sets are never smaller than the waves.
+    waveSize: text("wave_size").$type<SurfSize>(),
+    setSize: text("set_size").$type<SurfSize>(),
     // Null until it is taken.
     conditions: jsonb("conditions").$type<SessionConditions>(),
     conditionsTakenAt: timestamp("conditions_taken_at", { withTimezone: true }),

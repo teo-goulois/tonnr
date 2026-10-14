@@ -9,6 +9,7 @@ import { m } from "@/paraglide/messages.js";
 import type { Session } from "../viewer/types";
 import { DurationInput, USUAL_MINUTES } from "./duration-input";
 import { RatingInput, ratingWord } from "./rating";
+import { SurfSizeInput } from "./surf-size";
 import type { SessionDraft } from "./types";
 
 const MINUTE_MS = 60 * 1000;
@@ -109,7 +110,8 @@ type SessionFormProps = {
 };
 
 /**
- * A session as it is written: when it began, how long it lasted, how it was, and a few words.
+ * A session as it is written: when it began, how long it lasted, how big the waves looked, how
+ * it was, and a few words.
  * The day and the hour are each on a pill, which opens what the device has for them, the length
  * is a choice among the usual ones or one's own, and the rating is five stars. Only when it began
  * is asked for: the rest has a usual answer, or may wait.
@@ -121,18 +123,29 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
   const [minutes, setMinutes] = useState(session?.durationMinutes ?? USUAL_MINUTES);
   const [rating, setRating] = useState(session?.rating ?? null);
   const [note, setNote] = useState(session?.note ?? "");
+  const [waveSize, setWaveSize] = useState(session?.waveSize ?? null);
+  const [setSize, setSetSize] = useState(session?.setSize ?? null);
 
   const startedAt = fromFields(day, clock);
   const isAhead = startedAt !== null && startedAt.getTime() > now + AHEAD_MS;
 
   function save() {
     if (!startedAt || isAhead || isSaving) return;
-    const draft = { startedAt, durationMinutes: minutes, rating, note: note.trim() };
+    const draft = {
+      startedAt,
+      durationMinutes: minutes,
+      rating,
+      note: note.trim(),
+      waveSize,
+      setSize,
+    };
     onSave(draft, {
       ...(startedAt.getTime() !== session?.startedAt.getTime() && { startedAt }),
       ...(minutes !== session?.durationMinutes && { durationMinutes: minutes }),
       ...(rating !== (session?.rating ?? null) && { rating }),
       ...(draft.note !== (session?.note ?? "") && { note: draft.note }),
+      ...(waveSize !== (session?.waveSize ?? null) && { waveSize }),
+      ...(setSize !== (session?.setSize ?? null) && { setSize }),
     });
   }
 
@@ -191,6 +204,18 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
               disabled={isSaving}
             />
           </div>
+          <Row name={m.surf_size_title()}>
+            <SurfSizeInput
+              waves={waveSize}
+              sets={setSize}
+              onChange={(waves, sets) => {
+                setWaveSize(waves);
+                setSetSize(sets);
+              }}
+              wide={wide}
+              disabled={isSaving}
+            />
+          </Row>
           {/* The line says the rating in a word once it is given. */}
           <Row
             name={

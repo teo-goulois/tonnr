@@ -352,6 +352,43 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
     ).rejects.toThrow(refusal("BAD_REQUEST"));
   });
 
+  it("keeps how big the waves and the sets looked, never the sets smaller", async () => {
+    const made = await call(
+      v1Router.sessions.create,
+      { breakId: "point", ...morning, waveSize: "chest", setSize: "overhead" },
+      by("ana"),
+    );
+    expect(made).toMatchObject({ waveSize: "chest", setSize: "overhead" });
+    await expect(
+      call(
+        v1Router.sessions.create,
+        { breakId: "point", ...morning, waveSize: "head", setSize: "waist" },
+        by("ana"),
+      ),
+    ).rejects.toThrow(refusal("BAD_REQUEST"));
+    await expect(
+      call(
+        v1Router.sessions.create,
+        { breakId: "point", ...morning, waveSize: "huge" } as never,
+        by("ana"),
+      ),
+    ).rejects.toThrow(refusal("BAD_REQUEST"));
+
+    // The sets are held to the waves as the session stands once it is changed.
+    await expect(
+      call(v1Router.sessions.update, { id: made.id, waveSize: "double_overhead" }, by("ana")),
+    ).rejects.toThrow(refusal("BAD_REQUEST"));
+    const bigger = await call(
+      v1Router.sessions.update,
+      { id: made.id, waveSize: "double_overhead", setSize: "triple_overhead" },
+      by("ana"),
+    );
+    expect(bigger).toMatchObject({ waveSize: "double_overhead", setSize: "triple_overhead" });
+    // A size alone is taken, and a size taken away is unsaid.
+    const unsaid = await call(v1Router.sessions.update, { id: made.id, setSize: null }, by("ana"));
+    expect(unsaid).toMatchObject({ waveSize: "double_overhead", setSize: null });
+  });
+
   it("is the account's alone", async () => {
     const made = await call(v1Router.sessions.create, { breakId: "point", ...morning }, by("ana"));
 
