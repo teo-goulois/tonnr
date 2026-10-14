@@ -39,6 +39,11 @@ const BREAK_TYPES: Readings<"breakTypes"> = {
   offshore: m.break_type_offshore,
   slab: m.break_type_slab,
   canyon: m.break_type_canyon,
+  peak: m.break_type_peak,
+  rivermouth: m.break_type_rivermouth,
+  man_made: m.break_type_man_made,
+  tidal_bore: m.break_type_tidal_bore,
+  standing_wave: m.break_type_standing_wave,
 };
 const WAVE_DIRECTIONS: Readings<"waveDirections"> = {
   left: m.break_wave_left,
@@ -49,6 +54,9 @@ const BOTTOM_TYPES: Readings<"bottomTypes"> = {
   rock: m.break_bottom_rock,
   coral: m.break_bottom_coral,
   lava: m.break_bottom_lava,
+  uneven_reef: m.break_bottom_uneven_reef,
+  boulders: m.break_bottom_boulders,
+  rock_shelf: m.break_bottom_rock_shelf,
 };
 const ABILITY_LEVELS: Readings<"abilityLevels"> = {
   beginner: m.break_level_beginner,

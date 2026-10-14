@@ -49,6 +49,11 @@ export const LINES: { [Line in ListLine]: { label: () => string; words: Readings
       offshore: m.word_offshore,
       slab: m.word_slab,
       canyon: m.word_canyon,
+      peak: m.word_peak,
+      rivermouth: m.word_rivermouth,
+      man_made: m.word_man_made,
+      tidal_bore: m.word_tidal_bore,
+      standing_wave: m.word_standing_wave,
     },
   },
   waveDirections: {
@@ -57,7 +62,15 @@ export const LINES: { [Line in ListLine]: { label: () => string; words: Readings
   },
   bottomTypes: {
     label: m.moderation_said_bottom,
-    words: { sand: m.word_sand, rock: m.word_rock, coral: m.word_coral, lava: m.word_lava },
+    words: {
+      sand: m.word_sand,
+      rock: m.word_rock,
+      coral: m.word_coral,
+      lava: m.word_lava,
+      uneven_reef: m.word_uneven_reef,
+      boulders: m.word_boulders,
+      rock_shelf: m.word_rock_shelf,
+    },
   },
   abilityLevels: {
     label: m.moderation_said_ability,

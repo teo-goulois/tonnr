@@ -41,7 +41,8 @@ export type SpotCriteria = {
 };
 
 // What a break is said to be. Each list is the whole vocabulary of its column: the import refuses
-// any other word, and the API answers with these.
+// any other word, and the API answers with these. The words after the first ones are a surf
+// guide's, which says more than most lists: decision 051.
 export const BREAK_TYPES = [
   "beach",
   "reef",
@@ -51,9 +52,26 @@ export const BREAK_TYPES = [
   "offshore",
   "slab",
   "canyon",
+  // A peak that breaks in the same place, as over a reef: where `beach` shifts with the sand.
+  "peak",
+  "rivermouth",
+  // A wave a work of man makes, of which a guide does not say which: a harbour wall, a groyne.
+  "man_made",
+  "tidal_bore",
+  // A wave that stands still in a river.
+  "standing_wave",
 ] as const;
 export const WAVE_DIRECTIONS = ["left", "right"] as const;
-export const BOTTOM_TYPES = ["sand", "rock", "coral", "lava"] as const;
+// `rock` is a hard bottom of which a list says no more. The three after `lava` say which.
+export const BOTTOM_TYPES = [
+  "sand",
+  "rock",
+  "coral",
+  "lava",
+  "uneven_reef",
+  "boulders",
+  "rock_shelf",
+] as const;
 export const ABILITY_LEVELS = ["beginner", "intermediate", "advanced", "pro"] as const;
 export const BOARD_TYPES = [
   "shortboard",

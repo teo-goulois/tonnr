@@ -302,7 +302,12 @@ export type BreakShape =
   | "pier"
   | "offshore"
   | "slab"
-  | "canyon";
+  | "canyon"
+  | "peak"
+  | "rivermouth"
+  | "man_made"
+  | "tidal_bore"
+  | "standing_wave";
 
 // What stands under the sea at each kind of break, drawn solid as Stormrider draws the land, and
 // how high the wave over it stands.
@@ -316,6 +321,44 @@ const SHAPES: Record<SurfLook, Record<BreakShape, { wave: number; shape: ReactNo
     offshore: { wave: 15, shape: <ellipse cx="20" cy="27" rx="9" ry="3.5" {...solid} /> },
     slab: { wave: 14, shape: <path d="M0 40V23H21V30H40V40Z" {...solid} /> },
     canyon: { wave: 14, shape: <path d="M0 40V25H13L20 34L27 25H40V40Z" {...solid} /> },
+    // One mound that the wave peaks over, in the same place each time.
+    peak: {
+      wave: 14,
+      shape: <path d="M0 40V34Q12 34 16 28Q20 24 24 28Q28 34 40 34V40Z" {...solid} />,
+    },
+    // The two banks of a river, where it meets the sea.
+    rivermouth: {
+      wave: 14,
+      shape: (
+        <>
+          <path d="M0 40V25H11L15 40Z" {...solid} />
+          <path d="M40 40V25H29L25 40Z" {...solid} />
+        </>
+      ),
+    },
+    // A wall built of blocks, in steps.
+    man_made: { wave: 14, shape: <path d="M14 40V30H19V25H26V21H40V40Z" {...solid} /> },
+    // A river between high banks, which the tide runs up as one wave.
+    tidal_bore: {
+      wave: 14,
+      shape: (
+        <>
+          <path d="M0 40V19H10V40Z" {...solid} />
+          <path d="M40 40V19H30V40Z" {...solid} />
+        </>
+      ),
+    },
+    // A river over a rock, whose wave stands where it is.
+    standing_wave: {
+      wave: 14,
+      shape: (
+        <>
+          <path d="M0 40V19H10V40Z" {...solid} />
+          <path d="M40 40V19H30V40Z" {...solid} />
+          <ellipse cx="20" cy="31" rx="6" ry="3" {...solid} />
+        </>
+      ),
+    },
   },
   ring: {
     beach: { wave: 17, shape: <path d="M0 27Q20 23 40 27V40H0Z" {...solid} /> },
@@ -342,6 +385,55 @@ const SHAPES: Record<SurfLook, Record<BreakShape, { wave: number; shape: ReactNo
     offshore: { wave: 17, shape: <ellipse cx="20" cy="27" rx="8" ry="3" {...solid} /> },
     slab: { wave: 15, shape: <path d="M0 40V23H21V30H40V40Z" {...solid} /> },
     canyon: { wave: 15, shape: <path d="M0 40V25H13L20 34L27 25H40V40Z" {...solid} /> },
+    // One mound that the wave peaks over, in the same place each time.
+    peak: {
+      wave: 15,
+      shape: <path d="M0 40V33Q12 33 16 26Q20 22 24 26Q28 33 40 33V40Z" {...solid} />,
+    },
+    // The river's bed between its two banks, where it meets the sea.
+    rivermouth: {
+      wave: 15,
+      shape: (
+        <>
+          <rect x="0" y="32" width="40" height="8" {...duo} />
+          <path d="M0 40V26H11L15 40Z" {...solid} />
+          <path d="M40 40V26H29L25 40Z" {...solid} />
+        </>
+      ),
+    },
+    // A wall built of blocks, in steps.
+    man_made: {
+      wave: 15,
+      shape: (
+        <>
+          <rect x="0" y="32" width="40" height="8" {...duo} />
+          <path d="M14 40V30H19V25H26V21H40V40Z" {...solid} />
+        </>
+      ),
+    },
+    // A river between high banks, which the tide runs up as one wave.
+    tidal_bore: {
+      wave: 15,
+      shape: (
+        <>
+          <rect x="0" y="30" width="40" height="10" {...duo} />
+          <path d="M0 40V19H10V40Z" {...solid} />
+          <path d="M40 40V19H30V40Z" {...solid} />
+        </>
+      ),
+    },
+    // A river over a rock, whose wave stands where it is.
+    standing_wave: {
+      wave: 15,
+      shape: (
+        <>
+          <rect x="0" y="30" width="40" height="10" {...duo} />
+          <path d="M0 40V19H10V40Z" {...solid} />
+          <path d="M40 40V19H30V40Z" {...solid} />
+          <ellipse cx="20" cy="31" rx="6" ry="3" {...solid} />
+        </>
+      ),
+    },
   },
 };
 
@@ -360,7 +452,18 @@ export function BreakTypeIcon({
   );
 }
 
-export type BottomKind = "sand" | "rock" | "coral" | "lava";
+export type BottomKind =
+  | "sand"
+  | "rock"
+  | "coral"
+  | "lava"
+  | "uneven_reef"
+  | "boulders"
+  | "rock_shelf";
+
+// A round stone, as a path: what a bottom of boulders is drawn of.
+const stone = (x: number, y: number, r: number) =>
+  `M${x - r} ${y}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0Z`;
 
 // A hard bottom's profile, drawn solid.
 const HARD: Record<Exclude<BottomKind, "sand">, string> = {
@@ -368,6 +471,17 @@ const HARD: Record<Exclude<BottomKind, "sand">, string> = {
   coral:
     "M0 40V27A4.5 4.5 0 0 1 9 25A4 4 0 0 1 17 26A4.5 4.5 0 0 1 26 24.5A4 4 0 0 1 34 26A4 4 0 0 1 40 27V40Z",
   lava: "M0 40V26L8 21L13 27L20 20L25 26L31 22L40 27V40Z",
+  // Steps of rock of every height, close together.
+  uneven_reef: "M0 40V28H5V24H10V29H15V21H21V26H26V23H31V29H35V25H40V40Z",
+  boulders: [
+    "M0 40V33H40V40Z",
+    stone(7.5, 30, 4),
+    stone(17, 29, 4.5),
+    stone(26, 30.5, 3.5),
+    stone(34, 29, 4.5),
+  ].join(""),
+  // One flat slab, ending in a step.
+  rock_shelf: "M0 40V25H26L29 30H40V40Z",
 };
 
 // The grains of sand of the duo, alone or beside a hard bottom.
@@ -395,7 +509,9 @@ export function BottomIcon({
   look = SURF_LOOK,
   ...props
 }: GlyphProps & { bottoms: readonly BottomKind[] }) {
-  const hard = (["rock", "coral", "lava"] as const).find((kind) => bottoms.includes(kind));
+  const hard = (["uneven_reef", "boulders", "rock_shelf", "rock", "coral", "lava"] as const).find(
+    (kind) => bottoms.includes(kind),
+  );
   const sand = bottoms.includes("sand");
   const rock = hard && (
     <path d={HARD[hard]} {...solid} transform={sand ? "scale(0.55 1)" : undefined} />
