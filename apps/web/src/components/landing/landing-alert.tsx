@@ -1,10 +1,12 @@
+import { BellFillIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 
 import { arcWords, rangeWords } from "@/components/alerts/alert-words";
 import type { AlertCriteria } from "@/components/viewer/types";
+import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { Card, SectionTitle, apart, column } from "./landing-parts";
+import { Card, SectionTitle, Tile, apart, column } from "./landing-parts";
 
 const KNOTS_PER_MS = 1.943844;
 
@@ -19,11 +21,13 @@ const EXAMPLE = {
   tideHeightMeters: { min: 2, max: 4 },
 } satisfies AlertCriteria;
 const SHORTEST_HOURS = 2;
+// The green the map gives a sea of a metre and a half: a spot that works.
+const WORKS_COLOR = scaleColor(WAVE_HEIGHT_SCALE, 1.5);
 
 // A part its writer sets. The editor underlines it the same way, where it opens what changes it.
 function Part({ children }: { children: ReactNode }) {
   return (
-    <span className="font-medium text-neutral-10 underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em]">
+    <span className="font-medium text-neutral-10 underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) hover:decoration-neutral-10">
       {children}
     </span>
   );
@@ -34,7 +38,14 @@ export function LandingAlert() {
   return (
     <section className={`${column} ${apart} grid gap-xl`}>
       <SectionTitle
-        title={m.landing_alert_title()}
+        title={
+          <>
+            <Tile color={WORKS_COLOR}>
+              <BellFillIcon />
+            </Tile>
+            {m.landing_alert_title()}
+          </>
+        }
         more={m.landing_alert_more()}
         className="max-w-4xl"
       />

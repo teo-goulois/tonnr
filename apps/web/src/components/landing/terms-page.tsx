@@ -2,6 +2,7 @@ import { APP_NAME } from "@repo/config/app";
 
 import { m } from "@/paraglide/messages.js";
 
+import { LandingFooter } from "./landing-footer";
 import { LandingHeader } from "./landing-header";
 
 // The licence a spot is published under once an operator accepts it: decision 034. A list of
@@ -68,6 +69,8 @@ export function TermsPage() {
           <p className="text-neutral-7">{m.analytics_terms()}</p>
         </section>
       </main>
+
+      <LandingFooter />
     </div>
   );
 }

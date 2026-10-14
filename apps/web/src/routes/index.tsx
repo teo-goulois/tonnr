@@ -2,8 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
 
 import { LandingPage } from "@/components/landing/landing-page";
-import { ENV } from "@/env.public";
-import { apiOrigin, siteOrigin } from "@/lib/site";
+import { siteOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, localizeHref } from "@/paraglide/runtime.js";
 
@@ -66,10 +65,5 @@ export const Route = createFileRoute("/")({
       ],
     };
   },
-  component: Landing,
+  component: LandingPage,
 });
-
-function Landing() {
-  const { site } = Route.useLoaderData();
-  return <LandingPage api={apiOrigin(ENV.VITE_SERVER_URL)} site={site} />;
-}

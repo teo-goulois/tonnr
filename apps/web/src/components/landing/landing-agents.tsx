@@ -1,14 +1,24 @@
-import { FEEDBACK_URL } from "@repo/config/app";
+import { Link } from "@tanstack/react-router";
+import { APP_NAME, FEEDBACK_URL, REPOSITORY_URL } from "@repo/config/app";
 import { Button } from "@repo/ui/components/ui/button";
-import { ArrowUpRightIcon, CircleCheckIcon, CopyIcon } from "@repo/ui/icon";
+import {
+  ArrowRightIcon,
+  ArrowUpRightIcon,
+  CircleCheckIcon,
+  CopyIcon,
+  SparkleIcon,
+} from "@repo/ui/icon";
 import { useEffect, useState } from "react";
 
 import { EXAMPLE_STATION, KEY_VARIABLE } from "@/lib/llms";
+import { WAVE_PERIOD_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { Card, SECTIONS, SectionTitle, apart, column, ruled } from "./landing-parts";
+import { Card, SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
 
 const COPIED_MS = 2000;
+// The violet of a long swell, for what is said to a program.
+const AGENT_COLOR = scaleColor(WAVE_PERIOD_SCALE, 14);
 
 // What the request answers, cut to what the picture of the map shows of the same buoy.
 const ANSWER = `{
@@ -48,7 +58,89 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function Resource({ href, name, text }: { href: string; name: string; text: string }) {
+/** A text someone takes away, under what it is, with the button that copies it. */
+function Copyable({
+  label,
+  text,
+  isCode = false,
+}: {
+  label: string;
+  text: string;
+  isCode?: boolean;
+}) {
+  return (
+    <Card className="grid gap-s">
+      <div className="flex items-center justify-between gap-m">
+        <h3 className="text-s text-neutral-7">{label}</h3>
+        <CopyButton text={text} />
+      </div>
+      {isCode ? (
+        <pre className="overflow-x-auto font-mono text-s" translate="no">
+          <code>{text}</code>
+        </pre>
+      ) : (
+        <p>{text}</p>
+      )}
+    </Card>
+  );
+}
+
+// How Claude Code is given the MCP server, as `/llms.txt` and `docs/mcp.md` say it.
+const connect = (api: string) =>
+  `claude mcp add --transport http ${APP_NAME.toLowerCase()} ${api}/mcp \\\n  --header "Authorization: Bearer $${KEY_VARIABLE}"`;
+
+function AgentsTitle({ title, more, id }: { title: string; more: string; id?: string }) {
+  return (
+    <SectionTitle
+      id={id}
+      title={
+        <>
+          <Tile color={AGENT_COLOR}>
+            <SparkleIcon />
+          </Tile>
+          {title}
+        </>
+      }
+      more={more}
+      className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
+    />
+  );
+}
+
+/** On the landing: that a program reads the service too, and the one thing to say to it. */
+export function LandingAgents({ api }: { api: string }) {
+  return (
+    <section aria-labelledby={SECTIONS.agents} className={`${column} ${apart} grid gap-xl`}>
+      <AgentsTitle
+        id={SECTIONS.agents}
+        title={m.landing_agents_title()}
+        more={m.landing_agents_more()}
+      />
+      <div className="grid items-start gap-l lg:grid-cols-12 lg:gap-x-xl">
+        <div className="lg:col-span-8">
+          <Copyable label={m.landing_agents_mcp_label()} text={connect(api)} isCode />
+        </div>
+        <ul className="lg:col-span-4">
+          <Resource href="/llms.txt" name="llms.txt" />
+          <li className={ruled}>
+            <Link
+              to="/agents"
+              className="group focus-ring flex items-center justify-between gap-m rounded-xs py-m font-medium"
+            >
+              {m.landing_agents_all()}
+              <ArrowRightIcon
+                aria-hidden
+                className="size-4 text-neutral-6 transition-[color,translate] duration-(--motion-duration) ease-theme group-hover:translate-x-0.5 group-hover:text-neutral-10"
+              />
+            </Link>
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function Resource({ href, name, text }: { href: string; name: string; text?: string }) {
   return (
     <li className={ruled}>
       <a
@@ -66,18 +158,17 @@ function Resource({ href, name, text }: { href: string; name: string; text: stri
   );
 }
 
-/** What a program reads of the service, and where an agent starts. */
-export function LandingAgents({ api, site }: { api: string; site: string }) {
-  const prompt = m.landing_agents_prompt({ url: `${site}/llms.txt` });
-
+/** The page for whoever builds on the service: what a program reads, and how it starts. */
+export function AgentsGuide({ api, site }: { api: string; site: string }) {
   return (
-    <section aria-labelledby={SECTIONS.agents} className={`${column} ${apart} grid gap-xl`}>
-      <SectionTitle
-        id={SECTIONS.agents}
-        title={m.landing_agents_title()}
-        more={m.landing_agents_more()}
-        className="max-w-4xl scroll-mt-xl"
-      />
+    <section className={`${column} grid gap-xl pt-xl lg:pt-xxl`}>
+      <h1 className="group/lively max-w-4xl text-l font-medium text-balance lg:text-xl">
+        <Tile color={AGENT_COLOR}>
+          <SparkleIcon />
+        </Tile>
+        {m.landing_agents_page_title()}
+        <span className="text-neutral-7"> {m.landing_agents_page_more()}</span>
+      </h1>
       <div className="grid gap-xl lg:grid-cols-12 lg:gap-x-xl">
         <div className="grid content-start gap-l lg:col-span-6">
           <p className="text-neutral-7">{m.landing_agents_body()}</p>
@@ -94,23 +185,28 @@ export function LandingAgents({ api, site }: { api: string; site: string }) {
               text={m.landing_agents_docs_text()}
             />
             <Resource
+              href={`${REPOSITORY_URL}/blob/main/docs/mcp.md`}
+              name="MCP"
+              text={m.landing_agents_mcp_docs()}
+            />
+            <Resource
               href={FEEDBACK_URL}
               name={m.landing_agents_key_name()}
               text={m.landing_agents_key_text()}
             />
           </ul>
         </div>
-
         <div className="grid content-start gap-m lg:col-span-6">
+          <div className="grid gap-xs">
+            <Copyable label={m.landing_agents_mcp_label()} text={connect(api)} isCode />
+            <p className="px-l text-s text-neutral-7">{m.landing_agents_mcp_text()}</p>
+          </div>
+          <Copyable
+            label={m.landing_agents_prompt_label()}
+            text={m.landing_agents_prompt({ url: `${site}/llms.txt` })}
+          />
           <Card className="grid gap-s">
-            <div className="flex items-center justify-between gap-m">
-              <h3 className="text-s text-neutral-7">{m.landing_agents_prompt_label()}</h3>
-              <CopyButton text={prompt} />
-            </div>
-            <p>{prompt}</p>
-          </Card>
-          <Card className="grid gap-s">
-            <h3 className="text-s text-neutral-7">{m.landing_agents_request_label()}</h3>
+            <h2 className="text-s text-neutral-7">{m.landing_agents_request_label()}</h2>
             <pre className="overflow-x-auto font-mono text-s" translate="no">
               <code>
                 {`curl ${api}/v1/stations/${EXAMPLE_STATION} \\\n  -H "Authorization: Bearer $${KEY_VARIABLE}"`}

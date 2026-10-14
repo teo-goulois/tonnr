@@ -120,7 +120,11 @@ export function Analytics({
   }, [consent, feature, isReady]);
 
   if (!analyticsConfigured) return null;
-  return <AnalyticsConsentDialog open={consent === null} onChoice={setAnalyticsConsent} />;
+  // The app shown inside the landing asks nothing: whoever tries it there has not come to it yet.
+  const isFramed = typeof window !== "undefined" && window.self !== window.top;
+  return (
+    <AnalyticsConsentDialog open={consent === null && !isFramed} onChoice={setAnalyticsConsent} />
+  );
 }
 
 /** The consent presentation also appears in /design-system with no analytics transport. */
