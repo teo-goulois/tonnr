@@ -204,6 +204,16 @@ const GROUPS: readonly Group[] = [
         licence: CC0,
         site: "https://rijkswaterstaatdata.nl/waterdata/",
       },
+      {
+        id: "jma",
+        name: "JMA",
+        by: "Japan Meteorological Agency",
+        region: m.sources_jma_region,
+        text: m.sources_jma_text,
+        every: () => m.sources_every_minutes({ count: 10 }),
+        licence: { name: "PDL 1.0", url: "https://www.jma.go.jp/jma/en/copyright.html" },
+        site: "https://www.jma.go.jp/bosai/map.html#contents=amedas",
+      },
     ],
   },
   {

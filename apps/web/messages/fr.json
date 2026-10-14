@@ -100,6 +100,8 @@
   "sources_dmi_text": "Les stations du service météo danois, dont beaucoup sur des phares et des ports : vent et rafales.",
   "sources_rijkswaterstaat_region": "Pays-Bas",
   "sources_rijkswaterstaat_text": "Les stations de l’autorité néerlandaise du littoral : sur la côte, sur la mer des Wadden et sur les plateformes de la mer du Nord.",
+  "sources_jma_region": "Japon",
+  "sources_jma_text": "AMeDAS, les stations automatiques du service météo japonais, dont beaucoup sur des caps et des ports.",
   "sources_open_meteo_text": "Les prévisions de houle et de vent en tout point, des modèles de l’ECMWF, à 9 km, et de Météo-France, à 8 km, avec le temps qu’il fera.",
   "sources_copernicus_models_text": "Le modèle fin du Met Office, à 1,5 km de la Vendée à la Norvège ; la houle à part de la mer du vent, par le modèle de Météo-France ; et la carte des hauteurs de vagues.",
   "sources_neaps_text": "Les marées calculées à partir de constantes harmoniques ouvertes, au port le plus proche. Ce ne sont pas les prédictions du SHOM : pas encore de coefficient.",

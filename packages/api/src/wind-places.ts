@@ -11,6 +11,7 @@ export const LIVE_WIND_MS = 2 * 60 * 60 * 1000;
 const MINUTES_BETWEEN: Readonly<Record<string, number>> = {
   meteofrance: 6,
   dmi: 10,
+  jma: 10,
   openwindmap: 10,
   rijkswaterstaat: 10,
 };

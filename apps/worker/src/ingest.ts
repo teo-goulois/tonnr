@@ -7,6 +7,7 @@ import { dmi } from "./providers/dmi";
 import { fmi } from "./providers/fmi";
 import { hidrografico } from "./providers/hidrografico";
 import { irishLights } from "./providers/irish-lights";
+import { jma } from "./providers/jma";
 import { marineInstitute } from "./providers/marine-institute";
 import { METEO_FRANCE_ID, meteoFrance } from "./providers/meteo-france";
 import { ndbc } from "./providers/ndbc";
@@ -24,6 +25,7 @@ const open: readonly Provider[] = [
   fmi,
   hidrografico,
   irishLights,
+  jma,
   marineInstitute,
   ndbc,
   openwindmap,

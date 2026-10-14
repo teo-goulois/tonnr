@@ -16,7 +16,7 @@ Téo weighed two things. A surfer reads the wind at the coast, but a station inl
 - The map of the web app asks for `"one"`. What says the wind at a break or a spot reads every station around it, and keeps the nearest that measured lately.
 - The networks are added in this order, each one a provider module:
   1. DMI, Denmark, the Faroes and Greenland, and Rijkswaterstaat, the Netherlands: no key, one request for every station. Added with this decision.
-  2. The JMA's AMeDAS, Japan: about 900 stations with wind, many on capes and the coast, in one file every ten minutes.
+  2. The JMA's AMeDAS, Japan: about 900 stations with wind, many on capes and the coast, in one file every ten minutes. Added the same day, without gusts: the file holds none.
   3. NOAA CO-OPS, the United States: the anemometers of the tide stations, on the shore itself, which NDBC does not carry. One request per station.
 - The airports' METAR come after these: one file for the whole world, but an airport says little of a beach.
 
