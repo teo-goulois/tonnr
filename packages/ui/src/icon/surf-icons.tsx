@@ -202,10 +202,12 @@ export function WindWindowIcon({
       {showWindow &&
         windowOf(bearings).map(({ from, to }) => <path key={from} d={sector(from, to)} {...duo} />)}
       {tip !== undefined && (
-        <>
-          <path d={`M${at(tip + 180, 9)}L${at(tip, 9)}`} />
-          <path d={`M${at(tip - 28, 3.5)}L${at(tip, 9)}L${at(tip + 28, 3.5)}`} />
-        </>
+        // Micro Bold's arrow-triangle-line, drawn upward and turned: a shaft, and a full head
+        // with rounded corners.
+        <g transform={`rotate(${tip} ${C} ${C})`}>
+          <path d="M20 31V18" strokeWidth={2} />
+          <path d="M20 9.5L26 18.5H14Z" {...solid} stroke="currentColor" strokeWidth={2.5} />
+        </g>
       )}
     </Glyph>
   );
