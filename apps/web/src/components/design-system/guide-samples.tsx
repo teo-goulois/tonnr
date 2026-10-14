@@ -1,12 +1,19 @@
 import { toast } from "sonner";
 
-import { CharacteristicIcon, OffshoreIcon } from "@/components/viewer/break-characteristics";
-
 import { BreakGuide } from "@/components/guides/break-guide";
 import { ContributionsPanel } from "@/components/guides/contributions-panel";
 import { Author, RankBadge } from "@/components/guides/rank";
 import type { Guiding } from "@/components/guides/types";
+import { Bearing } from "@/components/viewer/bearing";
+import {
+  CHARACTERISTIC_FIELDS,
+  CharacteristicIcon,
+  CharacteristicRow,
+  OffshoreIcon,
+  readCharacteristic,
+} from "@/components/viewer/break-characteristics";
 import type { Guide, GuideLine, GuideOwn, Standing, SurfBreak } from "@/components/viewer/types";
+import { m } from "@/paraglide/messages.js";
 
 // An invented break, and an invented guide of it: a few lines from the list it came from, a few
 // that accounts wrote, one that waits to be confirmed, and questions half answered.
@@ -276,14 +283,26 @@ const GLYPHS: [Parameters<typeof CharacteristicIcon>[0]["field"], string[]][] = 
 export function GuideSamples() {
   return (
     <div className="grid gap-m">
-      <ul className="flex flex-wrap gap-s">
+      {/* Each glyph beside what it says, as a line of a guide shows it. */}
+      <ul className="grid gap-s sm:grid-cols-2 lg:grid-cols-4">
         {GLYPHS.map(([field, given]) => (
-          <li key={`${field} ${given.join(" ")}`} title={`${field}: ${given.join(", ") || "—"}`}>
-            <CharacteristicIcon field={field} given={given} />
+          <li key={`${field} ${given.join(" ")}`}>
+            <CharacteristicRow
+              icon={<CharacteristicIcon field={field} given={given} />}
+              label={CHARACTERISTIC_FIELDS.find((one) => one.key === field)?.label()}
+            >
+              {given.length > 0 ? (
+                readCharacteristic(field, given)
+              ) : (
+                <span className="text-neutral-7">—</span>
+              )}
+            </CharacteristicRow>
           </li>
         ))}
-        <li title="offshoreDirectionDegrees: 120">
-          <OffshoreIcon degrees={120} />
+        <li>
+          <CharacteristicRow icon={<OffshoreIcon degrees={120} />} label={m.break_offshore_wind()}>
+            <Bearing degrees={120} />
+          </CharacteristicRow>
         </li>
       </ul>
       <div className="flex flex-wrap items-center gap-m">

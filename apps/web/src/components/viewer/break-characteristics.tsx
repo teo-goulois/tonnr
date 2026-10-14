@@ -160,7 +160,7 @@ export function readCharacteristic(key: ListedField, given: readonly string[]): 
     .join(", ");
 }
 
-const glyph = "size-8 shrink-0";
+const glyph = "size-10 shrink-0";
 const has = (given: readonly string[], ...words: string[]) =>
   words.some((word) => given.includes(word));
 const bearingsOf = (given: readonly string[]) =>
@@ -254,7 +254,7 @@ export function CharacteristicRow({
 }) {
   return (
     <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-s text-left text-s">
-      <span aria-hidden className="flex size-8">
+      <span aria-hidden className="flex size-10">
         {icon}
       </span>
       <span className="grid">

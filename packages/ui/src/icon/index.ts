@@ -136,7 +136,7 @@ export { IconWaterWaveFillDuo18 as WaveFillDuoIcon } from "nucleo-ui-fill-duo-18
 export { IconWindFillDuo18 as WindFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWindFillDuo18";
 
 // What a surf break is like, in rings as Stormrider's guides draw it, each drawn from what it
-// says on Nucleo Micro Bold's grid, with Fill Duo's second opacity: Téo asked on 2026-10-14.
+// says, to be read at 40 pixels, with Fill Duo's second opacity: Téo asked on 2026-10-14.
 export {
   type BottomKind,
   type BreakShape,

@@ -4,15 +4,17 @@ import type { IconProps } from "./icon-types";
 
 /*
  * What a surf break is like, drawn as Stormrider's guides draw it: a ring, with what it says
- * inside. They are drawn on Nucleo Micro Bold's grid, 20 pixels with a ring of 7 and a stroke
- * of 2, and what stands behind is at Nucleo's second opacity, as in its Fill Duo. Each glyph is
- * drawn from what it says, so that a break's window, tide or level reads in its icon.
+ * inside. They are drawn to be read at 40 pixels, beside two lines of text: on a grid of 40, with
+ * a line of 1.5 and as few marks as say it, and what stands behind is at Nucleo's second
+ * opacity, as in its Fill Duo. Each glyph is drawn from what it says, so that a break's window,
+ * tide or level reads in its icon.
  */
 
-const C = 10;
-const RING = 7;
+const C = 20;
+const RING = 18.75;
 // What a glyph draws inside is cut at the inside of the ring.
-const INSIDE = 6;
+const INSIDE = 18;
+const LINE = 1.5;
 const DUO = 0.4;
 
 /** A point at a bearing, clockwise from north, and a distance from the center. */
@@ -39,8 +41,8 @@ function arc(from: number, to: number, radius: number) {
   return `M${at(from, radius)}A${radius} ${radius} 0 ${sweep > 180 ? 1 : 0} 1 ${at(to, radius)}`;
 }
 
-/** A row of small waves across the glyph, at a height. */
-const waves = (y: number) => `M1 ${y}q1.5-1.25 3 0t3 0t3 0t3 0t3 0t3 0`;
+/** A row of waves across the glyph, at a height. */
+const waves = (y: number) => `M-1 ${y}q3.5-3 7 0t7 0t7 0t7 0t7 0t7 0`;
 
 /**
  * The sectors a set of directions covers, each direction standing for its share of the compass
@@ -93,7 +95,7 @@ function Glyph({
     <svg
       height={height ?? size}
       width={width ?? size}
-      viewBox="0 0 20 20"
+      viewBox="0 0 40 40"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
@@ -107,19 +109,23 @@ function Glyph({
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.5"
+        strokeWidth={LINE}
       >
         {children}
       </g>
-      <circle cx={C} cy={C} r={RING} fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx={C} cy={C} r={RING} fill="none" stroke="currentColor" strokeWidth={LINE} />
     </svg>
   );
 }
 
 const solid = { fill: "currentColor", stroke: "none" } as const;
 const duo = { fill: "currentColor", stroke: "none", opacity: DUO } as const;
+const faint = { opacity: DUO } as const;
 
-/** The tide's stages a break works at, from low to high: a row of waves for each. */
+/**
+ * The tide's stages a break works at: a row of waves at each of low, mid and high, full where it
+ * works and faint where it does not.
+ */
 export function TideIcon({
   low = false,
   mid = false,
@@ -128,17 +134,17 @@ export function TideIcon({
 }: IconProps & { low?: boolean; mid?: boolean; high?: boolean }) {
   return (
     <Glyph {...props}>
-      {high && <path d={waves(7)} />}
-      {mid && <path d={waves(10.25)} />}
-      {low && <path d={waves(13.5)} />}
+      <path d={waves(13)} {...(high ? {} : faint)} />
+      <path d={waves(20)} {...(mid ? {} : faint)} />
+      <path d={waves(27)} {...(low ? {} : faint)} />
     </Glyph>
   );
 }
 
 /**
  * The directions a swell works from, as Stormrider draws them: what is closed to it stands
- * behind, as land does, and the window open to it holds the swell's rings. A bearing is where the swell
- * comes from.
+ * behind, as land does, and the window open to it holds the swell's rings. A bearing is where
+ * the swell comes from.
  */
 export function SwellWindowIcon({
   bearings,
@@ -151,24 +157,20 @@ export function SwellWindowIcon({
   const closed =
     open.length === 0
       ? [{ from: 0, to: 360 }]
-      : open.map(({ to }, index) => ({
-          from: to,
-          to: (open[index + 1] ?? open[0]!).from,
-        }));
+      : open.map(({ to }, index) => ({ from: to, to: (open[index + 1] ?? open[0]!).from }));
   return (
     <Glyph {...props}>
-      {/* The swell's rings, as they come in through the window. */}
-      {open.map(({ from, to }) => (
-        <g key={from}>
-          <path d={arc(from, to, 2.75)} />
-          <path d={arc(from, to, 5.25)} />
-        </g>
-      ))}
       {closed.map(({ from, to }) =>
         from % 360 === to % 360 && open.length > 0 ? null : (
           <path key={from} d={sector(from, to)} {...duo} />
         ),
       )}
+      {open.map(({ from, to }) => (
+        <g key={from}>
+          <path d={arc(from, to, 7)} />
+          <path d={arc(from, to, 12.5)} />
+        </g>
+      ))}
     </Glyph>
   );
 }
@@ -190,10 +192,10 @@ export function WindWindowIcon({
       {showWindow &&
         windowOf(bearings).map(({ from, to }) => <path key={from} d={sector(from, to)} {...duo} />)}
       {tip !== undefined && (
-        <g strokeWidth="2">
-          <path d={`M${at(tip + 180, 3.5)}L${at(tip, 3.5)}`} />
-          <path d={`M${at(tip - 35, 1.25)}L${at(tip, 3.5)}L${at(tip + 35, 1.25)}`} />
-        </g>
+        <>
+          <path d={`M${at(tip + 180, 9)}L${at(tip, 9)}`} />
+          <path d={`M${at(tip - 28, 3.5)}L${at(tip, 9)}L${at(tip + 28, 3.5)}`} />
+        </>
       )}
     </Glyph>
   );
@@ -211,17 +213,17 @@ export function WaveDirectionIcon({
   // Each crest bends toward the shore where it breaks first, and runs straight to its shoulder.
   const crest = (y: number) =>
     left && right
-      ? `M2 ${y}H6Q10 ${y + 3.5} 14 ${y}H18`
+      ? `M0 ${y}H12Q20 ${y + 7} 28 ${y}H40`
       : left
-        ? `M4 ${y + 3}Q5.5 ${y} 9 ${y}H18`
-        : `M16 ${y + 3}Q14.5 ${y} 11 ${y}H2`;
+        ? `M7 ${y + 7}Q10 ${y} 17 ${y}H40`
+        : `M33 ${y + 7}Q30 ${y} 23 ${y}H0`;
   return (
     <Glyph {...props}>
-      <rect x="0" y="14.5" width="20" height="6" {...duo} />
+      <rect x="0" y="30" width="40" height="10" {...duo} />
       {(left || right) && (
         <>
-          <path d={crest(6.5)} />
-          <path d={crest(10.5)} />
+          <path d={crest(11)} />
+          <path d={crest(19)} />
         </>
       )}
     </Glyph>
@@ -238,42 +240,41 @@ export type BreakShape =
   | "slab"
   | "canyon";
 
-// What stands under the sea at each kind of break, drawn solid as Stormrider draws the land.
-const SHAPES: Record<BreakShape, ReactNode> = {
-  beach: <path d="M0 13.5Q10 11.5 20 13.5V20H0Z" {...solid} />,
-  reef: (
-    <>
-      <rect x="0" y="15.5" width="20" height="5" {...duo} />
-      <path d="M0 20V14.5H4.5V12.5H8V14H11.5V12H15V13.5H20V20Z" {...solid} />
-    </>
-  ),
-  point: <path d="M0 6.5L9.5 13.5L12 20H0Z" {...solid} />,
-  jetty: (
-    <>
-      <rect x="0" y="15" width="20" height="5" {...duo} />
-      <rect x="8.5" y="8" width="3" height="12" rx="0.75" {...solid} />
-    </>
-  ),
-  pier: (
-    <>
-      <rect x="0" y="15" width="20" height="5" {...duo} />
-      <path d="M8 7V20M12 7V20M8 9.5H12M8 12.5H12M8 15.5H12" />
-    </>
-  ),
-  offshore: <ellipse cx="10" cy="13.75" rx="4" ry="1.75" {...solid} />,
-  slab: <path d="M0 20V11.5H10.5V15H20V20Z" {...solid} />,
-  canyon: <path d="M0 20V12.5H7L10 17L13 12.5H20V20Z" {...solid} />,
+// What stands under the sea at each kind of break, drawn solid as Stormrider draws the land, and
+// how high the wave over it stands.
+const SHAPES: Record<BreakShape, { wave: number; shape: ReactNode }> = {
+  beach: { wave: 17, shape: <path d="M0 27Q20 23 40 27V40H0Z" {...solid} /> },
+  reef: { wave: 15, shape: <path d="M0 40V29H9V25H16V28H23V24H30V27H40V40Z" {...solid} /> },
+  point: { wave: 15, shape: <path d="M0 14L19 27L23 40H0Z" {...solid} /> },
+  jetty: {
+    wave: 15,
+    shape: (
+      <>
+        <rect x="0" y="31" width="40" height="9" {...duo} />
+        <rect x="17" y="20" width="6" height="20" rx="1.5" {...solid} />
+      </>
+    ),
+  },
+  pier: {
+    wave: 15,
+    shape: (
+      <>
+        <rect x="0" y="31" width="40" height="9" {...duo} />
+        <path d="M16 20V40M24 20V40M16 25H24" />
+      </>
+    ),
+  },
+  offshore: { wave: 17, shape: <ellipse cx="20" cy="27" rx="8" ry="3" {...solid} /> },
+  slab: { wave: 15, shape: <path d="M0 40V23H21V30H40V40Z" {...solid} /> },
+  canyon: { wave: 15, shape: <path d="M0 40V25H13L20 34L27 25H40V40Z" {...solid} /> },
 };
 
-/** The kind of a break: what the sea breaks on, under the waves. */
+/** The kind of a break: what the sea breaks on, under a wave. */
 export function BreakTypeIcon({ shape, ...props }: IconProps & { shape: BreakShape }) {
-  // The waves stand over the shape, and go round what rises through them.
-  const under = shape === "point" ? 12 : shape === "beach" || shape === "offshore" ? 9 : 8;
   return (
     <Glyph {...props}>
-      <path d={waves(under - 3.25)} />
-      {shape !== "point" && shape !== "jetty" && shape !== "pier" && <path d={waves(under)} />}
-      {SHAPES[shape]}
+      <path d={waves(SHAPES[shape].wave)} />
+      {SHAPES[shape].shape}
     </Glyph>
   );
 }
@@ -282,44 +283,29 @@ export type BottomKind = "sand" | "rock" | "coral" | "lava";
 
 // A hard bottom's profile, drawn solid.
 const HARD: Record<Exclude<BottomKind, "sand">, string> = {
-  rock: "M0 20V13.5H5V11.5H9V14H12.5V12H16V13.5H20V20Z",
+  rock: "M0 40V27H10V23H18V28H25V24H32V27H40V40Z",
   coral:
-    "M0 20V13.5A2.25 2.25 0 0 1 4.5 12.5A2 2 0 0 1 8.5 13A2.25 2.25 0 0 1 13 12.25A2 2 0 0 1 17 13A2 2 0 0 1 20 13.5V20Z",
-  lava: "M0 20V13L4 10.5L6.5 13.5L10 10L12.5 13L15.5 11L20 13.5V20Z",
+    "M0 40V27A4.5 4.5 0 0 1 9 25A4 4 0 0 1 17 26A4.5 4.5 0 0 1 26 24.5A4 4 0 0 1 34 26A4 4 0 0 1 40 27V40Z",
+  lava: "M0 40V26L8 21L13 27L20 20L25 26L31 22L40 27V40Z",
 };
 
-/** What a break's bottom is: a hard bottom drawn solid, and sand behind it or alone. */
+/** What a break's bottom is: a hard bottom drawn solid, and sand beside it or alone. */
 export function BottomIcon({ bottoms, ...props }: IconProps & { bottoms: readonly BottomKind[] }) {
   const hard = (["rock", "coral", "lava"] as const).find((kind) => bottoms.includes(kind));
   const sand = bottoms.includes("sand");
   return (
     <Glyph {...props}>
       {sand && (
-        <path
-          d={hard ? "M9 20V13.25Q13 11.75 20 12.5V20Z" : "M0 13Q5 10.5 10 12.25T20 11.5V20H0Z"}
-          {...duo}
-        />
+        <path d={hard ? "M18 40V27Q27 24 40 25V40Z" : "M0 26Q10 21 20 24.5T40 23V40H0Z"} {...duo} />
       )}
-      {sand &&
-        (hard
-          ? [
-              [12.5, 15],
-              [14.5, 16.75],
-            ]
-          : [
-              [6, 15.25],
-              [10, 14.75],
-              [14, 15.75],
-              [8, 17.25],
-            ]
-        ).map(([x, y]) => <circle key={`${x} ${y}`} cx={x} cy={y} r="0.8" {...solid} />)}
-      {hard && (
-        <path
-          d={HARD[hard]}
-          {...solid}
-          transform={sand ? "translate(-0.5 0) scale(0.55 1)" : undefined}
-        />
+      {sand && !hard && (
+        <>
+          <circle cx="13" cy="31" r="1.25" {...solid} />
+          <circle cx="21" cy="30" r="1.25" {...solid} />
+          <circle cx="28" cy="32" r="1.25" {...solid} />
+        </>
       )}
+      {hard && <path d={HARD[hard]} {...solid} transform={sand ? "scale(0.55 1)" : undefined} />}
     </Glyph>
   );
 }
@@ -334,19 +320,16 @@ export function LevelIcon({
   ...props
 }: IconProps & { levels: readonly number[]; of?: number }) {
   const angle = (level: number) => -90 + (180 * (level + 0.5)) / of;
+  const known = levels.length > 0;
   const lowest = Math.min(...levels);
   const highest = Math.max(...levels);
-  const known = levels.length > 0;
   const needle = angle((lowest + highest) / 2);
   return (
     <Glyph {...props}>
       {known && <path d={sector(angle(lowest) - 90 / of, angle(highest) + 90 / of)} {...duo} />}
-      {known && (
-        <g strokeWidth="2">
-          <path d={`M${at(needle + 180, 1.5)}L${at(needle, 4.5)}`} />
-        </g>
-      )}
-      <circle cx={C} cy={C} r="1.25" {...solid} />
+      <path d={`M${at(-90, 13)}L${at(-90, 16)}M${at(90, 13)}L${at(90, 16)}`} {...faint} />
+      {known && <path d={`M${C} ${C}L${at(needle, 12)}`} />}
+      <circle cx={C} cy={C} r="2" {...solid} />
     </Glyph>
   );
 }
@@ -355,8 +338,9 @@ export function LevelIcon({
 export function BoardIcon(props: IconProps) {
   return (
     <Glyph {...props}>
-      <g transform={`rotate(25 ${C} ${C})`}>
-        <path d="M10 3.25C13 6 13.25 12.25 12 16.75H8C6.75 12.25 7 6 10 3.25Z" {...solid} />
+      <g transform={`rotate(30 ${C} ${C})`}>
+        <path d="M20 6C25 11 25.5 24 23.5 33H16.5C14.5 24 15 11 20 6Z" />
+        <path d="M20 12V29" {...faint} />
       </g>
     </Glyph>
   );
@@ -376,7 +360,7 @@ export function SeasonIcon({ seasons, ...props }: IconProps & { seasons: readonl
         return (
           <path
             key={season}
-            d={sector(middle - 37, middle + 37, 4.5)}
+            d={sector(middle - 38, middle + 38, 11)}
             {...(seasons.includes(season) ? solid : duo)}
           />
         );
