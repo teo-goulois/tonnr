@@ -4,6 +4,7 @@ import { and, inArray, isNull, lt, sql } from "drizzle-orm";
 import { Effect, Schema } from "effect";
 
 import { cleanText } from "./clean-text";
+import { shoreDistanceKm, worldCoast } from "./coast";
 import type { Snapshot } from "./providers/provider";
 
 export class StoreError extends Schema.TaggedError<StoreError>()("StoreError", {
@@ -54,6 +55,8 @@ const hasMoved = sql`(${halfAngle} > ${MOVED_KM / (2 * EARTH_RADIUS_KM)})`;
 // How many readings one statement writes. A reading takes up to fourteen parameters, and
 // Postgres accepts 65,535 in a statement.
 const READINGS_PER_STATEMENT = 2000;
+// A station takes 14 values: a statement holds no more than 65,535, and METAR sends 5,000 stations.
+const STATIONS_PER_STATEMENT = 2000;
 
 type ReadingInput = Snapshot["readings"][number];
 
@@ -107,7 +110,13 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
   snapshot: Snapshot,
 ) {
   if (snapshot.stations.length === 0) {
-    return { stations: 0, newReadings: 0, completedReadings: 0, failedStations: 0 };
+    return {
+      stations: 0,
+      newReadings: 0,
+      completedReadings: 0,
+      failedStations: 0,
+      stationByStation: false,
+    };
   }
 
   const latestByStation = new Map<string, Date>();
@@ -137,6 +146,8 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     latestObservedAt: latestByStation.get(input.providerStationId) ?? null,
     reportsWaves: withWaves.has(input.providerStationId),
     reportsWind: withWind.has(input.providerStationId),
+    // Worked out again at each snapshot, so that a station that moved is measured where it is.
+    shoreDistanceKm: shoreDistanceKm(worldCoast(), input.latitude, input.longitude),
   }));
   // One row per station and moment: the database refuses to complete a row twice in a statement.
   const readingRows = mergeReadings(snapshot.readings).map(toRow);
@@ -146,28 +157,31 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
 
   const save = (stations: StationRow[], readings: ReadingRow[]) =>
     db.transaction(async (tx) => {
-      await tx
-        .insert(station)
-        .values(stations)
-        .onConflictDoUpdate({
-          target: station.id,
-          set: {
-            name: sql`excluded.name`,
-            latitude: sql`excluded.latitude`,
-            longitude: sql`excluded.longitude`,
-            licenseType: sql`excluded.license_type`,
-            licenseUrl: sql`excluded.license_url`,
-            attribution: sql`excluded.attribution`,
-            commercialUse: sql`excluded.commercial_use`,
-            reportsWaves: sql`${station.reportsWaves} or excluded.reports_waves`,
-            reportsWind: sql`${station.reportsWind} or excluded.reports_wind`,
-            latestObservedAt: sql`greatest(${station.latestObservedAt}, excluded.latest_observed_at)`,
-            // What was known of a station's exposure was known of the place it has left.
-            exposure: sql`case when ${hasMoved} then null else ${station.exposure} end`,
-            movedAt: sql`case when ${hasMoved} then now() else ${station.movedAt} end`,
-            updatedAt: sql`now()`,
-          },
-        });
+      for (let start = 0; start < stations.length; start += STATIONS_PER_STATEMENT) {
+        await tx
+          .insert(station)
+          .values(stations.slice(start, start + STATIONS_PER_STATEMENT))
+          .onConflictDoUpdate({
+            target: station.id,
+            set: {
+              name: sql`excluded.name`,
+              latitude: sql`excluded.latitude`,
+              longitude: sql`excluded.longitude`,
+              licenseType: sql`excluded.license_type`,
+              licenseUrl: sql`excluded.license_url`,
+              attribution: sql`excluded.attribution`,
+              commercialUse: sql`excluded.commercial_use`,
+              reportsWaves: sql`${station.reportsWaves} or excluded.reports_waves`,
+              reportsWind: sql`${station.reportsWind} or excluded.reports_wind`,
+              latestObservedAt: sql`greatest(${station.latestObservedAt}, excluded.latest_observed_at)`,
+              // What was known of a station's exposure was known of the place it has left.
+              exposure: sql`case when ${hasMoved} then null else ${station.exposure} end`,
+              shoreDistanceKm: sql`excluded.shore_distance_km`,
+              movedAt: sql`case when ${hasMoved} then now() else ${station.movedAt} end`,
+              updatedAt: sql`now()`,
+            },
+          });
+      }
 
       const written: { isNew: boolean }[] = [];
       for (let start = 0; start < readings.length; start += READINGS_PER_STATEMENT) {
@@ -215,9 +229,22 @@ export const saveSnapshot = Effect.fn("saveSnapshot")(function* (
     try: async () => {
       try {
         const written = await save(stationRows, readingRows);
-        return { stations: stationRows.length, ...written, failedStations: 0 };
+        return {
+          stations: stationRows.length,
+          ...written,
+          failedStations: 0,
+          stationByStation: false,
+        };
       } catch (error) {
-        const saved = { stations: 0, newReadings: 0, completedReadings: 0, failedStations: 0 };
+        // The snapshot as a whole was refused: each station is tried on its own, which says
+        // which ones the database refuses, and costs a transaction each.
+        const saved = {
+          stations: 0,
+          newReadings: 0,
+          completedReadings: 0,
+          failedStations: 0,
+          stationByStation: true,
+        };
         for (const stationRow of stationRows) {
           try {
             const written = await save(

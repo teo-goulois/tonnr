@@ -145,6 +145,15 @@ export const stationsRouter = {
               "leaves more than `limit`, the stations are kept further apart, 4 km, then 8, " +
               "until they fit, so that they spread over the whole box. For a map.",
           ),
+        prefer: z
+          .enum(["sea"])
+          .optional()
+          .describe(
+            'With `places=one`, "sea" puts the stations at sea or within 10 km of the shore ' +
+              "before the others once they are kept further apart than 2 km, after those that " +
+              "measured in the last two hours. A wide map then shows the wind of the coast, " +
+              "and an inland area its own station where none by the sea stands near.",
+          ),
       }),
     )
     .output(
@@ -156,6 +165,13 @@ export const stationsRouter = {
           .describe(
             "With `places=one`, the distance under which one station was kept: 2, or more " +
               "when the box held more places than `limit` and some were left out.",
+          ),
+        truncated: z
+          .boolean()
+          .optional()
+          .describe(
+            "With `places=one`, true when the box held more than 20,000 wind stations: the " +
+              "first 20,000 by id were weighed, and the others left out. Narrow the box.",
           ),
       }),
     )
@@ -174,11 +190,12 @@ export const stationsRouter = {
           ),
         )
         .orderBy(station.id)
-        .limit(onePerPlace ? MOST_WIND_STATIONS : input.limit);
+        .limit(onePerPlace ? MOST_WIND_STATIONS + 1 : input.limit);
 
+      const truncated = onePerPlace && rows.length > MOST_WIND_STATIONS;
       const spread = onePerPlace
         ? spreadOut(
-            rows.map((row) => ({
+            rows.slice(0, MOST_WIND_STATIONS).map((row) => ({
               ...row,
               id: row.station.id,
               provider: row.station.provider,
@@ -186,9 +203,11 @@ export const stationsRouter = {
               longitude: row.station.longitude,
               measuredAt: row.reading?.windSpeedMs == null ? null : row.reading.observedAt,
               gust: row.reading?.windGustMs != null,
+              shoreKm: row.station.shoreDistanceKm,
             })),
             new Date(),
             input.limit,
+            { sea: input.prefer === "sea" },
           )
         : null;
       const shown = spread
@@ -196,7 +215,7 @@ export const stationsRouter = {
         : rows;
 
       return {
-        ...(spread ? { apartKm: spread.apartKm } : {}),
+        ...(spread ? { apartKm: spread.apartKm, truncated } : {}),
         stations: shown.map((row) => ({
           ...describeStation(row.station),
           latestReading: row.reading ? describeReading(row.reading) : null,

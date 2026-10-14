@@ -254,6 +254,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         bbox: bounds?.join(",") ?? "",
         limit: WIND_LIMIT,
         places: "one",
+        // A wide view keeps the wind of the coast first.
+        prefer: "sea",
       },
       enabled: layers.wind && bounds !== null,
       placeholderData: keepPreviousData,
@@ -263,7 +265,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   );
   const windStations = wind.data?.stations;
   // More places than the limit stood in view, so the API kept the stations further apart.
-  const windThinned = (wind.data?.apartKm ?? 0) > WIND_APART_KM;
+  const windThinned = (wind.data?.apartKm ?? 0) > WIND_APART_KM || wind.data?.truncated === true;
   const breaks = useQuery(
     orpc.v1.breaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },

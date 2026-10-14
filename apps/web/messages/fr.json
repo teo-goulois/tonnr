@@ -115,6 +115,7 @@
   "sources_catalogue_name": "Le catalogue de {name}",
   "sources_catalogue_text": "Les spots ajoutés par l’opérateur de l’instance, complétés par ce que les comptes en écrivent. Un spot qu’un compte rend public le rejoint, sous ODbL.",
   "sources_openfreemap_text": "Le fond de carte, dessiné d’après OpenStreetMap.",
+  "sources_natural_earth_text": "Le trait de côte qui distingue une station de vent du littoral d’une station de l’intérieur, pour qu’une vue large montre d’abord le vent de la mer.",
   "sources_photon_text": "La recherche d’un lieu par son nom, pour un compte.",
   "sources_missing_name": "Il manque une source ?",
   "sources_missing_text": "Dis-moi laquelle, et où elle publie. Le détail technique de chaque source, son accès et ses conditions, est dans le dépôt.",

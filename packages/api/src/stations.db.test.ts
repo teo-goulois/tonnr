@@ -120,6 +120,45 @@ describe.skipIf(!TEST_DATABASE_URL)("the wind stations of a map", () => {
     expect(answer.apartKm).toBeGreaterThan(2);
   });
 
+  it("keeps the station by the sea when asked to, once the stations are kept apart", async () => {
+    await database.db.update(station).set({ shoreDistanceKm: 40 });
+    await database.db.update(station).set({ shoreDistanceKm: -1 }).where(eq(station.id, "north"));
+    const answer = await call(
+      v1Router.stations.list,
+      { measures: "wind", places: "one", limit: 1, prefer: "sea" },
+      context(),
+    );
+
+    expect(answer.stations.map((one) => one.id)).toEqual(["north"]);
+    expect(answer.truncated).toBe(false);
+  });
+
+  it("says when the box held more wind stations than it weighs", async () => {
+    // 20,001 stations in a box of their own, in the South Pacific, a hundred metres apart.
+    const crowd = Array.from({ length: 20_001 }, (_, index) => ({
+      id: `crowd-${index}`,
+      provider: "test",
+      providerStationId: `${index}`,
+      name: `Crowd ${index}`,
+      latitude: -40 + Math.floor(index / 200) * 0.001,
+      longitude: -140 + (index % 200) * 0.001,
+      licenseType: "test",
+      licenseUrl: "https://example.org/licence",
+      attribution: "Test network",
+      reportsWind: true,
+    }));
+    for (let start = 0; start < crowd.length; start += 2000) {
+      await database.db.insert(station).values(crowd.slice(start, start + 2000));
+    }
+    const answer = await call(
+      v1Router.stations.list,
+      { measures: "wind", places: "one", bbox: "-141,-41,-139,-39" },
+      context(),
+    );
+
+    expect(answer.truncated).toBe(true);
+  });
+
   it("says the stations were kept 2 km apart when all the places fit", async () => {
     const answer = await call(
       v1Router.stations.list,

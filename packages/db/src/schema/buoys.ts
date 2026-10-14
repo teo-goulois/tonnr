@@ -32,6 +32,10 @@ export const station = pgTable(
     // Whether the station gets the waves its neighbours get, worked out from its readings and
     // theirs. Null until rough days have told.
     exposure: text("exposure").$type<"open" | "sheltered">(),
+    // How far the station stands from the sea's shore, in kilometres: positive on land, negative
+    // at sea, 50 or -50 beyond. The worker writes it from Natural Earth's coastline each time it
+    // stores the station. Null until then. Decision 048.
+    shoreDistanceKm: real("shore_distance_km"),
     // When the station was last seen far from where it was. Readings from before speak for
     // another place. Null for a station that has not moved.
     movedAt: timestamp("moved_at", { withTimezone: true }),

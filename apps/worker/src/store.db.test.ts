@@ -54,6 +54,7 @@ describe.skipIf(!TEST_DATABASE_URL)("saveSnapshot", () => {
       newReadings: 1,
       completedReadings: 0,
       failedStations: 0,
+      stationByStation: false,
     });
     expect(await save([buoy("once")], readings)).toMatchObject({
       newReadings: 0,
@@ -95,6 +96,32 @@ describe.skipIf(!TEST_DATABASE_URL)("saveSnapshot", () => {
 
     await save([buoy("checked")], [{ ...height, peakPeriodS: 10, validated: false }]);
     expect(await readingRows("checked")).toMatchObject([{ peakPeriodS: 10, validated: false }]);
+  });
+
+  it("writes how far a station stands from the shore, and again once it moved", async () => {
+    // At sea off the Pointe du Raz, then in Paris.
+    await save([buoy("shore", 48.04, -4.9)]);
+    expect((await stationRow("shore"))?.shoreDistanceKm).toBeLessThan(0);
+
+    await save([buoy("shore", 48.8566, 2.3522)]);
+    expect((await stationRow("shore"))?.shoreDistanceKm).toBe(50);
+  });
+
+  it("writes 5,000 stations in one snapshot, more than one statement holds", async () => {
+    const many = Array.from({ length: 5000 }, (_, index) =>
+      buoy(`many${index}`, 40 + index / 1000, -5),
+    );
+    const readings = many.map((one) => ({
+      providerStationId: one.providerStationId,
+      observedAt: AT_1000,
+      windSpeedMs: 5,
+    }));
+
+    expect(await save(many, readings)).toMatchObject({
+      stations: 5000,
+      failedStations: 0,
+      stationByStation: false,
+    });
   });
 
   it("remembers what a station has reported, and its latest reading", async () => {

@@ -12,6 +12,7 @@ export type StationInput = Omit<
   | "reportsWaves"
   | "reportsWind"
   | "exposure"
+  | "shoreDistanceKm"
   | "movedAt"
   | "createdAt"
   | "updatedAt"

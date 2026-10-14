@@ -24,7 +24,8 @@
     "effect": "catalog:",
     "nodemailer": "10.0.16",
     "pg-boss": "^12.37.0",
-    "varlock": "catalog:"
+    "varlock": "catalog:",
+    "world-atlas": "2.0.2"
   },
   "devDependencies": {
     "@repo/config": "workspace:*",

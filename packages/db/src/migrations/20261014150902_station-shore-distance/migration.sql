@@ -1,0 +1,1 @@
+ALTER TABLE "station" ADD COLUMN "shore_distance_km" real;

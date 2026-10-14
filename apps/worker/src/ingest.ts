@@ -76,6 +76,11 @@ export const ingest = Effect.fn("ingest")(function* (provider: Provider, db: Dat
   yield* Effect.logInfo(
     `${provider.id}: ${saved.stations} stations, ${saved.newReadings} new readings, ${saved.completedReadings} completed, ${snapshot.rejected} rows rejected`,
   );
+  if (saved.stationByStation) {
+    yield* Effect.logWarning(
+      `${provider.id}: the database refused the snapshot as a whole, and took it station by station`,
+    );
+  }
   if (saved.failedStations > 0) {
     yield* Effect.logWarning(
       `${provider.id}: the database refused ${saved.failedStations} stations`,

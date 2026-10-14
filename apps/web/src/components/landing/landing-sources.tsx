@@ -341,6 +341,17 @@ const GROUPS: readonly Group[] = [
         site: "https://openfreemap.org",
       },
       {
+        id: "natural-earth",
+        name: "Natural Earth",
+        region: m.sources_world,
+        text: m.sources_natural_earth_text,
+        licence: {
+          name: m.sources_licence_public_domain,
+          url: "https://www.naturalearthdata.com/about/terms-of-use/",
+        },
+        site: "https://www.naturalearthdata.com",
+      },
+      {
         id: "photon",
         name: "Photon",
         by: "komoot, OpenStreetMap",
