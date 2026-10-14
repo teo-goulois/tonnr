@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
 import { callerProcedure } from "../index";
-import { oneByPlace } from "../wind-places";
+import { spreadOut } from "../wind-places";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HISTORY_DAYS = 2;
@@ -141,14 +141,22 @@ export const stationsRouter = {
           .describe(
             'With `measures=wind`, "one" keeps one station for each place: of the stations ' +
               "within 2 km of each other, the one that measured in the last two hours, then " +
-              "the one that gives gusts, then the one that measures most often. For a map, " +
-              "where several networks meet.",
+              "the one that gives gusts, then the one that measures most often. When that " +
+              "leaves more than `limit`, the stations are kept further apart, 4 km, then 8, " +
+              "until they fit, so that they spread over the whole box. For a map.",
           ),
       }),
     )
     .output(
       z.object({
         stations: z.array(stationSchema.extend({ latestReading: readingSchema.nullable() })),
+        apartKm: z
+          .number()
+          .optional()
+          .describe(
+            "With `places=one`, the distance under which one station was kept: 2, or more " +
+              "when the box held more places than `limit` and some were left out.",
+          ),
       }),
     )
     .handler(async ({ input, context }) => {
@@ -168,8 +176,8 @@ export const stationsRouter = {
         .orderBy(station.id)
         .limit(onePerPlace ? MOST_WIND_STATIONS : input.limit);
 
-      const shown = onePerPlace
-        ? oneByPlace(
+      const spread = onePerPlace
+        ? spreadOut(
             rows.map((row) => ({
               ...row,
               id: row.station.id,
@@ -180,12 +188,15 @@ export const stationsRouter = {
               gust: row.reading?.windGustMs != null,
             })),
             new Date(),
+            input.limit,
           )
-            .sort((one, other) => (one.id < other.id ? -1 : 1))
-            .slice(0, input.limit)
+        : null;
+      const shown = spread
+        ? spread.stations.sort((one, other) => (one.id < other.id ? -1 : 1))
         : rows;
 
       return {
+        ...(spread ? { apartKm: spread.apartKm } : {}),
         stations: shown.map((row) => ({
           ...describeStation(row.station),
           latestReading: row.reading ? describeReading(row.reading) : null,

@@ -12,6 +12,7 @@ Téo weighed two things. A surfer reads the wind at the coast, but a station inl
 
 - Every station with a wind speed is stored, inland ones too, as decision 032 has it. No network is filtered by its distance to the coast.
 - `v1.stations.list` takes `places`. With `measures=wind`, `"one"` keeps one station for each place: of the stations within 2 km of each other, the one that measured in the last two hours, then the one that gives gusts, then the one whose network measures most often, then an official one over a community beacon, then the first by id. `packages/api/src/wind-places.ts` holds the rule, as functions that read no clock and no database.
+- When the box holds more places than the list's `limit`, the stations are kept further apart, 4 km, then 8 and so on, until they fit, and the answer says the distance in `apartKm`. A map that shows a country then draws the better station of each area all over it, rather than the first 500 by id: on 2026-10-14 those were AEMET's alone, over Spain, on a map of Western Europe. The map says "Zoom in to see them all" when `apartKm` is more than 2.
 - The choice is made each time the list is asked for, never as the stations are stored. When the station kept stops measuring, its neighbour takes its place at the next answer, and the API's other callers still read every station.
 - The map of the web app asks for `"one"`. What says the wind at a break or a spot reads every station around it, and keeps the nearest that measured lately.
 - The networks are added in this order, each one a provider module:

@@ -141,6 +141,8 @@ const HOUR_MS = 60 * MINUTE_MS;
 const TIDE_DAYS = { before: 1, after: 6 };
 const TIDE_DAYS_MOST = 15;
 const WIND_LIMIT = 500;
+// The distance under which the API keeps one wind station for each place: decision 048.
+const WIND_APART_KM = 2;
 const BREAK_LIMIT = 1000;
 const DEFAULT_LAYERS: MapLayers = { sea: true, buoys: true, wind: false, breaks: true };
 // How many spots an account holds, as the API says when it refuses one more.
@@ -257,9 +259,11 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       placeholderData: keepPreviousData,
       // The worker fetches the wind every ten minutes.
       refetchInterval: 5 * MINUTE_MS,
-      select: (answer) => answer.stations,
     }),
   );
+  const windStations = wind.data?.stations;
+  // More places than the limit stood in view, so the API kept the stations further apart.
+  const windThinned = (wind.data?.apartKm ?? 0) > WIND_APART_KM;
   const breaks = useQuery(
     orpc.v1.breaks.list.queryOptions({
       input: { bbox: bounds?.join(",") ?? "", limit: BREAK_LIMIT },
@@ -400,10 +404,10 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
 
   const loaded = useMemo(() => {
     const byId = new Map<string, Station>();
-    for (const station of wind.data ?? []) byId.set(station.id, station);
+    for (const station of windStations ?? []) byId.set(station.id, station);
     for (const station of waves.data ?? []) byId.set(station.id, station);
     return byId;
-  }, [waves.data, wind.data]);
+  }, [waves.data, windStations]);
 
   // A saved station that is neither a buoy nor a wind station in view is fetched on its own.
   const savedIds = useMemo(
@@ -1145,8 +1149,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       waveStations={
         listWaves ? { data: listWaves, isPending: false, isError: false } : loadable(waves)
       }
-      windStations={listWind ?? wind.data ?? []}
-      windTruncated={!listView && wind.data?.length === WIND_LIMIT}
+      windStations={listWind ?? windStations ?? []}
+      windTruncated={!listView && windThinned}
       breaks={listBreaks ?? mapBreaks}
       breaksTruncated={!listView && breaks.data?.next != null}
       sea={sea.data}

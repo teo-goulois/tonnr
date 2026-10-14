@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { oneByPlace, type WindPlace } from "./wind-places";
+import { oneByPlace, spreadOut, type WindPlace } from "./wind-places";
 
 const now = new Date("2026-10-14T14:00:00Z");
 const lately = new Date("2026-10-14T13:50:00Z");
@@ -72,5 +72,32 @@ describe("oneByPlace", () => {
     const chain = [0, 1.5, 3, 4.5].map((km, index) => station(`s${index}`, {}, km));
 
     expect(ids(oneByPlace(chain, now))).toEqual(["s0", "s2"]);
+  });
+});
+
+describe("spreadOut", () => {
+  // A line of stations every kilometre, 100 km long, going north.
+  const line = Array.from({ length: 100 }, (_, km) =>
+    station(`s${String(km).padStart(3, "0")}`, {}, km),
+  );
+
+  it("keeps one by place when that is few enough", () => {
+    const { stations, apartKm } = spreadOut(line, now, 100);
+
+    expect(apartKm).toBe(2);
+    // Two stations exactly 2 km apart, as the line's are, stand at one place.
+    expect(stations).toHaveLength(34);
+  });
+
+  it("keeps them further apart until they are few enough, over the whole line", () => {
+    const { stations, apartKm } = spreadOut(line, now, 10);
+    const kmNorth = stations
+      .map((one) => Math.round((one.latitude - 43.47) * 111.2))
+      .sort((a, b) => a - b);
+
+    expect(stations.length).toBeLessThanOrEqual(10);
+    expect(apartKm).toBeGreaterThan(2);
+    expect(kmNorth[0]).toBeLessThan(16);
+    expect(kmNorth.at(-1)).toBeGreaterThan(80);
   });
 });

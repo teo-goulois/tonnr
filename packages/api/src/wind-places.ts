@@ -70,10 +70,11 @@ export function better(one: WindPlace, other: WindPlace, now: Date) {
 export function oneByPlace<Station extends WindPlace>(
   stations: readonly Station[],
   now: Date,
+  apartKm = APART_KM,
 ): Station[] {
   // Cells of the size of the distance in latitude: a station near one kept is in its cell or in
   // a neighbour, further in longitude where the meridians close in.
-  const cellDegrees = APART_KM / KM_PER_DEGREE;
+  const cellDegrees = apartKm / KM_PER_DEGREE;
   const cells = new Map<string, Station[]>();
   const kept: Station[] = [];
 
@@ -87,7 +88,7 @@ export function oneByPlace<Station extends WindPlace>(
     for (let rowStep = -1; rowStep <= 1 && !near; rowStep += 1) {
       for (let step = -reach; step <= reach && !near; step += 1) {
         const there = cells.get(`${row + rowStep} ${column + step}`) ?? [];
-        near = there.some((other) => distanceKm(station, other) < APART_KM);
+        near = there.some((other) => distanceKm(station, other) < apartKm);
       }
     }
     if (near) continue;
@@ -97,4 +98,25 @@ export function oneByPlace<Station extends WindPlace>(
     cells.set(key, [...(cells.get(key) ?? []), station]);
   }
   return kept;
+}
+
+/**
+ * At most `most` stations, spread over the whole box: one for each place within `APART_KM`, and
+ * when that leaves too many, one within twice the distance, and so on. A map that shows a
+ * country then draws stations all over it, the better one of each area, rather than the first
+ * ones of a list. Gives the distance it kept them apart by.
+ */
+export function spreadOut<Station extends WindPlace>(
+  stations: readonly Station[],
+  now: Date,
+  most: number,
+) {
+  let apartKm = APART_KM;
+  let kept = oneByPlace(stations, now, apartKm);
+  while (kept.length > most) {
+    apartKm *= 2;
+    // The stations kept at a distance are the better ones of theirs, so the next pass reads them.
+    kept = oneByPlace(kept, now, apartKm);
+  }
+  return { stations: kept, apartKm };
 }

@@ -108,7 +108,25 @@ describe.skipIf(!TEST_DATABASE_URL)("the wind stations of a map", () => {
     expect(await ids({ measures: "wind", places: "one" })).toEqual(["hourly", "north"]);
   });
 
-  it("keeps to the limit after one station was chosen for each place", async () => {
-    expect(await ids({ measures: "wind", places: "one", limit: 1 })).toEqual(["north"]);
+  it("keeps the stations further apart when the limit leaves room for fewer places", async () => {
+    const answer = await call(
+      v1Router.stations.list,
+      { measures: "wind", places: "one", limit: 1 },
+      context(),
+    );
+
+    // Of the harbour and the station ten kilometres north, the better one.
+    expect(answer.stations.map((one) => one.id)).toEqual(["official"]);
+    expect(answer.apartKm).toBeGreaterThan(2);
+  });
+
+  it("says the stations were kept 2 km apart when all the places fit", async () => {
+    const answer = await call(
+      v1Router.stations.list,
+      { measures: "wind", places: "one" },
+      context(),
+    );
+
+    expect(answer.apartKm).toBe(2);
   });
 });
