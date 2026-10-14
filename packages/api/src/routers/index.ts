@@ -9,6 +9,8 @@ import { actionsRouter } from "./actions";
 import { agentsRouter } from "./agents";
 import { alertsRouter } from "./alerts";
 import { breaksRouter } from "./breaks";
+import { candidatesRouter } from "./candidates";
+import { catalogueRouter } from "./catalogue";
 import { consoleRouter } from "./console";
 import { contributionsRouter } from "./contributions";
 import { developersRouter } from "./developers";
@@ -37,7 +39,8 @@ import { visitorsRouter } from "./visitors";
 // Every procedure asks who calls: decision 019 says which take a key and which a session,
 // decision 020 which take the admin's site as well, decision 027 which take a member of a
 // developer account, and decision 039 which answer a visitor of the web app. Decisions 045 and
-// 047 say which an agent calls as a tool of the MCP server.
+// 047 say which an agent calls as a tool of the MCP server, and decision 049 how an operator
+// keeps the catalogue of breaks.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -46,6 +49,8 @@ export const v1Router = {
   agents: agentsRouter,
   alerts: alertsRouter,
   breaks: breaksRouter,
+  candidates: candidatesRouter,
+  catalogue: catalogueRouter,
   console: consoleRouter,
   contributions: contributionsRouter,
   developers: developersRouter,

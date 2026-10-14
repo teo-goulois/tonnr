@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { FOLDING, fold } from "@repo/config/names";
-import { surfBreak } from "@repo/db/schema/spots";
+import { BREAK_DESCRIPTION_LANGUAGES, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -23,6 +23,11 @@ const breakSchema = z.object({
   location: z.array(z.string()).nullable(),
   // The IANA name of the time zone.
   timezone: z.string().nullable(),
+  // A few sentences on the break, which the instance's operator wrote, and their language. Null
+  // while nobody has: decision 049.
+  description: z
+    .object({ text: z.string(), language: z.enum(BREAK_DESCRIPTION_LANGUAGES) })
+    .nullable(),
   // Where the break was read. Each field is null when the instance does not say.
   source: z.object({
     provider: z.string().nullable(),
@@ -60,6 +65,10 @@ function describeBreak(
     },
     location: row.location,
     timezone: row.timezone,
+    description:
+      row.description && row.descriptionLanguage
+        ? { text: row.description, language: row.descriptionLanguage }
+        : null,
     source: {
       provider: row.provider,
       url: row.sourceUrl,
@@ -104,7 +113,9 @@ export const breaksRouter = {
           "and the swell and wind directions it likes, as points of the compass a swell or " +
           "a wind comes from. `offshoreDirectionDegrees` is where the wind comes from when " +
           "it blows straight off that shore. A characteristic that is null is not known, " +
-          "which is common. The catalogue is what the instance's operator put in it: it is " +
+          "which is common. `description` is a few sentences the instance's operator wrote of " +
+          "the break, in the language it names, or null. The catalogue is what the " +
+          "instance's operator put in it: it is " +
           "not every break of a coast. Breaks come in the order of their id: pass an " +
           "answer's `next` as `after` for the ones that follow, until `next` is null. " +
           "`source` says where a break was read and under which licence, and holds nulls " +

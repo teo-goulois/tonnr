@@ -200,13 +200,29 @@ export function CharacteristicsList({
   );
 }
 
+/**
+ * What the instance's operator wrote of a break, in the language they wrote it in, whichever the
+ * reader's: decision 049.
+ */
+export function BreakDescription({ description }: { description: SurfBreak["description"] }) {
+  if (!description) return null;
+  return (
+    <p lang={description.language} className="text-s text-pretty">
+      {description.text}
+    </p>
+  );
+}
+
 /** What the catalogue knows of a break. Nothing is shown of a break of which it knows no more than the place. */
 export function BreakCharacteristics({ found }: { found: SurfBreak }) {
   return (
-    <CharacteristicsList
-      known={found.characteristics}
-      location={found.location}
-      title={m.break_about()}
-    />
+    <div className="grid gap-m">
+      <BreakDescription description={found.description} />
+      <CharacteristicsList
+        known={found.characteristics}
+        location={found.location}
+        title={m.break_about()}
+      />
+    </div>
   );
 }

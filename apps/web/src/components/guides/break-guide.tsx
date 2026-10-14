@@ -14,6 +14,7 @@ import { getLocale } from "@/paraglide/runtime.js";
 import { Bearing } from "../viewer/bearing";
 import {
   BreakCharacteristics,
+  BreakDescription,
   CHARACTERISTIC_FIELDS,
   type CharacteristicField,
   readCharacteristic,
@@ -662,6 +663,7 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
       <p className="text-s text-neutral-7">{m.guide_hint()}</p>
 
       <Section title={m.break_about()}>
+        <BreakDescription description={found.description} />
         <ul className="grid gap-xxs">
           {found.location && (
             <li className="grid min-h-9 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] content-center items-baseline gap-x-s py-xxs text-s">

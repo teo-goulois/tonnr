@@ -14,7 +14,7 @@ import {
 import { user } from "@repo/db/schema/auth";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { workerProcess } from "@repo/db/schema/instance";
-import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
+import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -415,6 +415,19 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.accounts.update",
         "v1.accounts.removeUsername",
         "v1.actions.list",
+        "v1.candidates.list",
+        "v1.candidates.get",
+        "v1.candidates.image",
+        "v1.candidates.add",
+        "v1.candidates.merge",
+        "v1.candidates.ignore",
+        "v1.candidates.later",
+        "v1.candidates.reopen",
+        "v1.catalogue.map",
+        "v1.catalogue.get",
+        "v1.catalogue.update",
+        "v1.catalogue.merge",
+        "v1.catalogue.remove",
         "v1.developers.list",
         "v1.developers.create",
         "v1.developers.update",
@@ -950,6 +963,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
 
     beforeEach(async () => {
       const { db } = database;
+      // A listing outlives its break.
+      await db.delete(surfBreakListing);
       await db.insert(surfBreak).values([
         {
           id: ids.north,
@@ -964,6 +979,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           offshoreDirectionDegrees: 90,
           location: ["France", "Finistère"],
           timezone: "Europe/Paris",
+          description: "A jetty that holds a left.",
+          descriptionLanguage: "en",
           sourceUrl: "https://example.org/a1",
           licenseType: "test",
           licenseUrl: "https://example.org/licence",
@@ -972,7 +989,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         // A break of which only the place is known, from a list that names no source.
         { id: ids.south, name: "South reef", latitude: -33.9, longitude: 151.3 },
       ]);
-      await db.insert(surfBreakRecord).values({ breakId: ids.north, details: { crowd: "kept" } });
+      await db
+        .insert(surfBreakListing)
+        .values({ list: "example", ref: "a1", breakId: ids.north, details: { crowd: "kept" } });
     });
 
     it("gives an account and a key each break with what is known of it", async () => {
@@ -991,6 +1010,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         },
         location: ["France", "Finistère"],
         timezone: "Europe/Paris",
+        description: { text: "A jetty that holds a left.", language: "en" },
         source: {
           provider: "example",
           url: "https://example.org/a1",
@@ -1006,6 +1026,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         characteristics: unknown,
         location: null,
         timezone: null,
+        description: null,
         source: { provider: null, url: null, attribution: null, license: null },
       };
 

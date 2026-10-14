@@ -27,6 +27,10 @@ const BREAK: SurfBreak = {
   },
   location: ["France", "Bretagne", "Plomeur"],
   timezone: "Europe/Paris",
+  description: {
+    text: "A beach in the lee of the lighthouse, which works when the west wind blows elsewhere.",
+    language: "en",
+  },
   source: { provider: null, url: null, attribution: null, license: null },
 };
 
