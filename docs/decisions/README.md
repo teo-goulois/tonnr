@@ -53,3 +53,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [047. An agent signs in as an account, and reads what it keeps](047-agents-sign-in.md)
 - [048. Wind stations beyond France, and one station for each place on the map](048-wind-beyond-france.md)
 - [049. The catalogue kept from the admin, and the candidates of a list decided one at a time](049-catalogue-in-the-admin.md)
+- [050. The size a break works at](050-break-wave-size.md)

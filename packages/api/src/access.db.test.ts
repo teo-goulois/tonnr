@@ -975,6 +975,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       bestSwellDirections: null,
       bestWindDirections: null,
       offshoreDirectionDegrees: null,
+      waveSizeMeters: null,
     };
 
     beforeEach(async () => {
@@ -993,6 +994,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           waveDirections: ["left"],
           bestSwellDirections: ["W", "WNW"],
           offshoreDirectionDegrees: 90,
+          waveSizeMeters: { min: 1, max: 3 },
           location: ["France", "Finistère"],
           timezone: "Europe/Paris",
           description: "A jetty that holds a left.",
@@ -1023,6 +1025,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           waveDirections: ["left"],
           bestSwellDirections: ["W", "WNW"],
           offshoreDirectionDegrees: 90,
+          waveSizeMeters: { min: 1, max: 3 },
         },
         location: ["France", "Finistère"],
         timezone: "Europe/Paris",

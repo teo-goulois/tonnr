@@ -73,7 +73,7 @@ To rename the product, change `APP_NAME`, then the name in `apps/web/public/site
 - Fetch from the upstream providers listed in `docs/data-sources.md`.
 - Store each station's license and attribution, and return them in API responses.
 - The catalogue of breaks, `surf_break`, holds what the instance's operator added to it, by hand and once: decision 024. It also holds the spots their owners asked to make public and an operator accepted, under the ODbL and with no account named: decision 034. A spot is otherwise its owner's alone, and one thing answers it to anyone else: a list that holds it, shared by its link (decision 035). A break's source and licence may be null, and the API then answers null: never write one that the list did not give.
-- What a break is like is said in the words listed in `packages/db/src/schema/spots.ts`. A list's own words are translated into them outside this repository, and what does not fit is kept in `surf_break_listing`, which the admin reads to its operator and nothing else reads. A break's description is its operator's own words, never a list's text: decision 049.
+- What a break is like is said in the words listed in `packages/db/src/schema/spots.ts`, and how big its waves are in meters: decision 050. A list's own words are translated into them outside this repository, and what does not fit is kept in `surf_break_listing`, which the admin reads to its operator and nothing else reads. A break's description is its operator's own words, never a list's text: decision 049.
 - Only a source whose terms allow it is fetched, and only when an operator asks: OpenStreetMap today. No collected list, and no sample of one, goes into the repository. A test reads invented breaks.
 
 ## Working with others

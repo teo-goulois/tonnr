@@ -5,7 +5,7 @@ import type { BreakCharacteristics, BreakValues, OperatorBreak } from "@/lib/api
 import { formatCount } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import { inOrder, LINES, LIST_LINES, type ListLine, readLine } from "./words";
+import { inOrder, LINES, LIST_LINES, type ListLine, readLine, readSize } from "./words";
 
 /** What one side of a merge says of a break. */
 export type Side = {
@@ -16,11 +16,15 @@ export type Side = {
   description: OperatorBreak["description"];
 };
 
-export type Field = "name" | "point" | ListLine | "offshoreDirectionDegrees" | "description";
+// What a break says in one value, which a merge takes from one side or the other.
+const SINGLE = ["offshoreDirectionDegrees", "waveSizeMeters"] as const;
+type Single = (typeof SINGLE)[number];
+
+export type Field = "name" | "point" | ListLine | Single | "description";
 type Choice = "kept" | "other" | "both";
 export type Choices = Record<Field, Choice>;
 
-const FIELDS: Field[] = ["name", "point", ...LIST_LINES, "offshoreDirectionDegrees", "description"];
+const FIELDS: Field[] = ["name", "point", ...LIST_LINES, ...SINGLE, "description"];
 
 function valueOf(side: Side, field: Field): unknown {
   if (field === "name") return side.name;
@@ -66,6 +70,7 @@ export function mergedValues(kept: Side, other: Side, choices: Choices): BreakVa
   characteristics.offshoreDirectionDegrees = pick(
     "offshoreDirectionDegrees",
   ).characteristics.offshoreDirectionDegrees;
+  characteristics.waveSizeMeters = pick("waveSizeMeters").characteristics.waveSizeMeters;
   return {
     name: pick("name").name,
     latitude: pick("point").latitude,
@@ -83,6 +88,7 @@ function read(side: Side, field: Field) {
     const degrees = side.characteristics.offshoreDirectionDegrees;
     return degrees === null ? null : `${degrees}°`;
   }
+  if (field === "waveSizeMeters") return readSize(side.characteristics.waveSizeMeters);
   return readLine(field, side.characteristics[field]);
 }
 
@@ -91,6 +97,7 @@ function labelOf(field: Field) {
   if (field === "point") return m.catalogue_point();
   if (field === "description") return m.catalogue_description();
   if (field === "offshoreDirectionDegrees") return m.moderation_said_offshore();
+  if (field === "waveSizeMeters") return m.catalogue_size();
   return LINES[field].label();
 }
 

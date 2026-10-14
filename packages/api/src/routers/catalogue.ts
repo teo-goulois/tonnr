@@ -121,7 +121,7 @@ export const catalogueRouter = {
           latitude: surfBreak.latitude,
           longitude: surfBreak.longitude,
           provider: surfBreak.provider,
-          known: sql<boolean>`coalesce(${surfBreak.breakTypes}, ${surfBreak.waveDirections}, ${surfBreak.bottomTypes}, ${surfBreak.abilityLevels}, ${surfBreak.boardTypes}, ${surfBreak.bestSeasons}, ${surfBreak.bestTides}, ${surfBreak.bestSwellDirections}, ${surfBreak.bestWindDirections}) is not null or ${surfBreak.offshoreDirectionDegrees} is not null`,
+          known: sql<boolean>`coalesce(${surfBreak.breakTypes}, ${surfBreak.waveDirections}, ${surfBreak.bottomTypes}, ${surfBreak.abilityLevels}, ${surfBreak.boardTypes}, ${surfBreak.bestSeasons}, ${surfBreak.bestTides}, ${surfBreak.bestSwellDirections}, ${surfBreak.bestWindDirections}) is not null or ${surfBreak.offshoreDirectionDegrees} is not null or ${surfBreak.waveSizeMeters} is not null`,
           described: isNotNull(surfBreak.description).mapWith(Boolean),
         })
         .from(surfBreak)

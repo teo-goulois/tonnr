@@ -7,11 +7,13 @@ import {
   SwellWindowIcon,
   TideIcon,
   WaveDirectionIcon,
+  WaveSizeIcon,
   WindWindowIcon,
 } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 
 import { compassPoint } from "@/lib/format";
+import { heightFigure, heightUnit, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "./bearing";
@@ -118,7 +120,10 @@ function points(given: WordOf<"bestSwellDirections">[] | null) {
 }
 
 // A characteristic that is said in a list of words, with the words it may be said in.
-export type ListedField = Exclude<keyof Characteristics, "offshoreDirectionDegrees">;
+export type ListedField = Exclude<
+  keyof Characteristics,
+  "offshoreDirectionDegrees" | "waveSizeMeters"
+>;
 export type CharacteristicField = {
   [Field in ListedField]: {
     key: Field;
@@ -239,6 +244,28 @@ export function OffshoreIcon({ degrees }: { degrees: number }) {
   return <WindWindowIcon className={glyph} bearings={[degrees]} window={false} />;
 }
 
+type WaveSize = NonNullable<Characteristics["waveSizeMeters"]>;
+
+/** The glyph of the size a break works at. */
+export function SizeIcon({ size }: { size: WaveSize }) {
+  return <WaveSizeIcon className={glyph} smallest={size.min} largest={size.max} />;
+}
+
+/**
+ * The size a break works at, in the reader's unit: a whole number of feet, as a list gives them,
+ * or meters to the tenth.
+ */
+export function SizeReading({ size }: { size: WaveSize }) {
+  const { height } = useUnits();
+  const figure = (meters: number) => heightFigure(meters, height === "ft" ? 0 : 1);
+  const unit = heightUnit();
+  if (size.min !== null && size.max !== null) {
+    return m.break_size_range({ min: figure(size.min), max: figure(size.max), unit });
+  }
+  if (size.min !== null) return m.break_size_from({ min: figure(size.min), unit });
+  return size.max === null ? null : m.break_size_up_to({ max: figure(size.max), unit });
+}
+
 /**
  * A characteristic as a guide gives it: its glyph, then its name over what it says. A row with no
  * glyph keeps its place, so that what the rows say stands in one column.
@@ -280,6 +307,7 @@ export function CharacteristicsList({
   title: string;
 }) {
   const offshore = known.offshoreDirectionDegrees;
+  const size = known.waveSizeMeters;
   const listed: { label: string; value: ReactNode; icon?: ReactNode }[] = [
     // The nearest place first, as an address reads.
     { label: m.break_location(), value: location && [...location].reverse().join(", ") },
@@ -295,6 +323,11 @@ export function CharacteristicsList({
       label: m.break_offshore_wind(),
       value: offshore == null ? undefined : <Bearing degrees={offshore} />,
       icon: offshore == null ? undefined : <OffshoreIcon degrees={offshore} />,
+    },
+    {
+      label: m.break_wave_size(),
+      value: size ? <SizeReading size={size} /> : undefined,
+      icon: size ? <SizeIcon size={size} /> : undefined,
     },
   ];
   const rows = listed.filter(({ value }) => Boolean(value));

@@ -55,6 +55,7 @@ describe("parseBreaks", () => {
       bestSwellDirections: ["W", "WNW"],
       bestWindDirections: ["E", "ENE"],
       offshoreDirectionDegrees: 0,
+      waveSizeMeters: { min: 1.2, max: null },
     };
     const placed = { location: ["France", "Finistère"], timezone: "Europe/Paris" };
 
@@ -69,6 +70,14 @@ describe("parseBreaks", () => {
     expect(parseBreaks(file([bare]))).toEqual({
       provider: "example",
       breaks: [{ ref: "a1", name: "North jetty", latitude: 48, longitude: -4.5 }],
+    });
+  });
+
+  it("keeps a size to the tenth of a meter", () => {
+    const characteristics = { waveSizeMeters: { min: 1.2192, max: 5.4864 } };
+
+    expect(parseBreaks(file([line({ characteristics })]))).toMatchObject({
+      breaks: [{ characteristics: { waveSizeMeters: { min: 1.2, max: 5.5 } } }],
     });
   });
 
@@ -142,6 +151,21 @@ describe("parseBreaks", () => {
       "an offshore direction that is not whole",
       { characteristics: { offshoreDirectionDegrees: 22.5 } },
       '"offshoreDirectionDegrees" must be',
+    ],
+    [
+      "a size with no bound",
+      { characteristics: { waveSizeMeters: { min: null, max: null } } },
+      '"waveSizeMeters" must be',
+    ],
+    [
+      "a size whose smallest is larger than its largest",
+      { characteristics: { waveSizeMeters: { min: 3, max: 1 } } },
+      '"waveSizeMeters" must be',
+    ],
+    [
+      "a size in another unit",
+      { characteristics: { waveSizeMeters: { min: 4, max: 18, unit: "ft" } } },
+      '"waveSizeMeters" must be',
     ],
     [
       "a characteristic the catalogue does not have",

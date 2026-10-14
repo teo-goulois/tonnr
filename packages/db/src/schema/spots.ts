@@ -93,6 +93,14 @@ export const COMPASS_POINTS = [
 
 type CompassPoint = (typeof COMPASS_POINTS)[number];
 
+/**
+ * The height of the faces of the waves a place works at, in meters, from the smallest to the
+ * largest. A bound that is null was not given: a list that says "4 feet and up" has no largest.
+ */
+export type WaveSize = { min: number | null; max: number | null };
+// The most a bound of a size may be, in meters: the largest waves ridden.
+export const WAVE_SIZE_MOST = 30;
+
 // The languages a break's description is written in: those of the web app.
 export const BREAK_DESCRIPTION_LANGUAGES = ["en", "fr"] as const;
 // A description is a few sentences, as a text of a guide is.
@@ -113,6 +121,7 @@ export type SpotCharacteristics = {
   bestSwellDirections?: CompassPoint[];
   bestWindDirections?: CompassPoint[];
   offshoreDirectionDegrees?: number;
+  waveSizeMeters?: WaveSize;
 };
 
 /**
@@ -143,6 +152,8 @@ export const surfBreak = pgTable(
     bestWindDirections: text("best_wind_directions").$type<CompassPoint>().array(),
     // Where the wind blows from when it blows off the shore, clockwise from north.
     offshoreDirectionDegrees: integer("offshore_direction_degrees"),
+    // The height of the faces of the waves it works at, from the smallest to the largest.
+    waveSizeMeters: jsonb("wave_size_meters").$type<WaveSize>(),
     // The places the break lies in, from the widest to the nearest.
     location: text("location").array(),
     // The IANA name of the time zone, such as "Europe/Paris".

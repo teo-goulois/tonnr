@@ -149,6 +149,7 @@ export {
   SwellWindowIcon,
   TideIcon,
   WaveDirectionIcon,
+  WaveSizeIcon,
   WindWindowIcon,
 } from "./surf-icons";
 

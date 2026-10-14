@@ -8,6 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
+import { readSize } from "@/components/catalogue/words";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Field } from "@/components/shared/field";
 import { Loader } from "@/components/shared/loader";
@@ -35,6 +36,7 @@ const SAID: { key: keyof Publication["spot"]["characteristics"]; label: () => st
   { key: "bestSwellDirections", label: m.moderation_said_swell },
   { key: "bestWindDirections", label: m.moderation_said_wind },
   { key: "offshoreDirectionDegrees", label: m.moderation_said_offshore },
+  { key: "waveSizeMeters", label: m.catalogue_size },
 ];
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -64,7 +66,13 @@ function Request({ publication, now, onAccept, onRefuse }: RequestProps) {
   const said = SAID.flatMap(({ key, label }) => {
     const value = spot.characteristics[key];
     if (value === null) return [];
-    return [`${label()} : ${Array.isArray(value) ? value.join(", ") : `${value}°`}`];
+    const read =
+      typeof value === "number"
+        ? `${value}°`
+        : Array.isArray(value)
+          ? value.join(", ")
+          : readSize(value);
+    return [`${label()} : ${read}`];
   });
 
   return (

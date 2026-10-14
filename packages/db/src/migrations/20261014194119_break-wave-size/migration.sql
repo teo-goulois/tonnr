@@ -1,0 +1,1 @@
+ALTER TABLE "surf_break" ADD COLUMN "wave_size_meters" jsonb;

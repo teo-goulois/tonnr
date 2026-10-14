@@ -4,7 +4,7 @@ import { m } from "@/paraglide/messages.js";
 // The words a break is said in, and how each reads. A word the catalogue gains has to be given
 // its reading here before the admin builds.
 
-type ListLine = Exclude<keyof BreakCharacteristics, "offshoreDirectionDegrees">;
+type ListLine = Exclude<keyof BreakCharacteristics, "offshoreDirectionDegrees" | "waveSizeMeters">;
 export type WordOf<Line extends ListLine> = NonNullable<BreakCharacteristics[Line]>[number];
 type Readings<Line extends ListLine> = Record<WordOf<Line>, () => string>;
 
@@ -135,4 +135,14 @@ export const NOTHING_SAID: BreakCharacteristics = {
   bestSwellDirections: null,
   bestWindDirections: null,
   offshoreDirectionDegrees: null,
+  waveSizeMeters: null,
 };
+
+/** The height of the faces of the waves a break works at, as it reads, or null. */
+export function readSize(size: BreakCharacteristics["waveSizeMeters"]) {
+  if (!size) return null;
+  const { min, max } = size;
+  if (min !== null && max !== null) return m.catalogue_size_range({ min, max });
+  if (min !== null) return m.catalogue_size_from({ min });
+  return max === null ? null : m.catalogue_size_up_to({ max });
+}

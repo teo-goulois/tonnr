@@ -27,6 +27,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     bestSwellDirections: null,
     bestWindDirections: null,
     offshoreDirectionDegrees: null,
+    waveSizeMeters: null,
   };
 
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -108,6 +109,8 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
           boardTypes: [],
           bottomTypes: null,
           offshoreDirectionDegrees: 0,
+          // Kept to the tenth of a meter, with no largest.
+          waveSizeMeters: { min: 1.2192 },
         },
       },
       by("ana"),
@@ -120,6 +123,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
       bestSwellDirections: ["W", "WNW"],
       // North is a direction, and zero is said.
       offshoreDirectionDegrees: 0,
+      waveSizeMeters: { min: 1.2, max: null },
     };
     expect(made.characteristics).toEqual(said);
     expect((await call(v1Router.spots.get, { id: made.id }, by("ana"))).characteristics).toEqual(
@@ -135,6 +139,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
       bestTides: ["mid", "high"],
       bestSwellDirections: ["W", "WNW"],
       offshoreDirectionDegrees: 0,
+      waveSizeMeters: { min: 1.2, max: null },
     });
   });
 
@@ -204,6 +209,9 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     ["a list that is not one", { bestTides: "low" }],
     ["a direction past the compass", { offshoreDirectionDegrees: 360 }],
     ["a direction between two degrees", { offshoreDirectionDegrees: 12.5 }],
+    ["a size with no bound", { waveSizeMeters: {} }],
+    ["a size whose smallest is the larger", { waveSizeMeters: { min: 3, max: 1 } }],
+    ["a size past the largest waves", { waveSizeMeters: { max: 40 } }],
   ])("refuses %s", async (_what, characteristics) => {
     await expect(
       call(v1Router.spots.create, { ...point, characteristics } as never, by("ana")),

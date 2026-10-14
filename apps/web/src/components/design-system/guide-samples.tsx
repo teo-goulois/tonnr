@@ -11,6 +11,8 @@ import {
   CharacteristicRow,
   OffshoreIcon,
   readCharacteristic,
+  SizeIcon,
+  SizeReading,
 } from "@/components/viewer/break-characteristics";
 import type { Guide, GuideLine, GuideOwn, Standing, SurfBreak } from "@/components/viewer/types";
 import { m } from "@/paraglide/messages.js";
@@ -33,6 +35,7 @@ const BREAK: SurfBreak = {
     bestSwellDirections: ["W", "WNW"],
     bestWindDirections: null,
     offshoreDirectionDegrees: 90,
+    waveSizeMeters: { min: 0.6, max: 2.4 },
   },
   location: ["France", "Bretagne", "Plomeur"],
   timezone: "Europe/Paris",
@@ -279,6 +282,13 @@ const GLYPHS: [Parameters<typeof CharacteristicIcon>[0]["field"], string[]][] = 
   ["bestSeasons", []],
 ];
 
+// Sizes a break works at: a small wave's, a big one's, and one with no largest.
+const SIZES = [
+  { min: 0.6, max: 1.8 },
+  { min: 1.2, max: 5.5 },
+  { min: 3, max: null },
+];
+
 /** The guide of a break as each reader meets it, and where an account stands in the guides. */
 export function GuideSamples() {
   return (
@@ -304,6 +314,13 @@ export function GuideSamples() {
             <Bearing degrees={120} />
           </CharacteristicRow>
         </li>
+        {SIZES.map((size) => (
+          <li key={`${size.min} ${size.max}`}>
+            <CharacteristicRow icon={<SizeIcon size={size} />} label={m.break_wave_size()}>
+              <SizeReading size={size} />
+            </CharacteristicRow>
+          </li>
+        ))}
       </ul>
       <div className="flex flex-wrap items-center gap-m">
         <RankBadge rank="qs" />

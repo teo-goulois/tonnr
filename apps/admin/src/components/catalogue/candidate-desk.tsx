@@ -25,6 +25,7 @@ import {
   type DescriptionLanguage,
   faultsOf,
   pointOfDraft,
+  sizeDraftOf,
   valuesOf,
 } from "./break-fields";
 import { CatalogueMap } from "./catalogue-map";
@@ -144,6 +145,7 @@ export function CandidateDesk({
     latitude: candidate.latitude?.toFixed(5) ?? "",
     longitude: candidate.longitude?.toFixed(5) ?? "",
     characteristics: candidate.characteristics ?? NOTHING_SAID,
+    size: sizeDraftOf(candidate.characteristics ?? NOTHING_SAID),
     description: "",
     language,
   }));

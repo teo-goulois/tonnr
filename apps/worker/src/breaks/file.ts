@@ -7,6 +7,7 @@ import {
   SEASONS,
   TIDE_STAGES,
   WAVE_DIRECTIONS,
+  WAVE_SIZE_MOST,
 } from "@repo/db/schema/spots";
 
 import { FormatError } from "../providers/format-error";
@@ -37,7 +38,7 @@ const WORDS = {
   bestSwellDirections: COMPASS_POINTS,
   bestWindDirections: COMPASS_POINTS,
 } satisfies { [Field in keyof Characteristics]: readonly string[] };
-const CHARACTERISTIC_KEYS = [...Object.keys(WORDS), "offshoreDirectionDegrees"];
+const CHARACTERISTIC_KEYS = [...Object.keys(WORDS), "offshoreDirectionDegrees", "waveSizeMeters"];
 export const PROVIDER = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_REF_LENGTH = 200;
 const MAX_TEXT_LENGTH = 200;
@@ -112,9 +113,34 @@ export function readCharacteristics(given: unknown): Characteristics | string[] 
     } else faults.push('"offshoreDirectionDegrees" must be a whole number from 0 to 359');
   }
 
+  const size = given.waveSizeMeters;
+  if (size !== undefined) {
+    const sized = readSize(size);
+    if (sized) read.waveSizeMeters = sized;
+    else
+      faults.push(
+        `"waveSizeMeters" must be { "min", "max" }, each a number of meters from 0 to ${WAVE_SIZE_MOST} or null, one at least a number, "min" no larger than "max"`,
+      );
+  }
+
   const unknown = unknownKeys(given, CHARACTERISTIC_KEYS);
   if (unknown.length > 0) faults.push(`unknown characteristics: ${unknown.join(", ")}`);
   return faults.length > 0 ? faults : read;
+}
+
+// A bound of a size, kept to the tenth of a meter: a list's feet say no more.
+const isBound = (value: unknown): value is number | null =>
+  value === null || (typeof value === "number" && value >= 0 && value <= WAVE_SIZE_MOST);
+const tenth = (meters: number | null) => (meters === null ? null : Math.round(meters * 10) / 10);
+
+/** The height of the faces of the waves a break works at, as a list gives it, or null. */
+function readSize(given: unknown) {
+  if (!isRecord(given) || unknownKeys(given, ["min", "max"]).length > 0) return null;
+  const min = given.min ?? null;
+  const max = given.max ?? null;
+  if (!isBound(min) || !isBound(max) || (min === null && max === null)) return null;
+  if (min !== null && max !== null && min > max) return null;
+  return { min: tenth(min), max: tenth(max) };
 }
 
 /**

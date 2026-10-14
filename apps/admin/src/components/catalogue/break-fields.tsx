@@ -19,9 +19,17 @@ export type BreakDraft = {
   latitude: string;
   longitude: string;
   characteristics: BreakCharacteristics;
+  // The size it works at, in meters, as it is typed: `characteristics` holds it as it was read.
+  size: { min: string; max: string };
   description: string;
   language: DescriptionLanguage;
 };
+
+/** The size a break works at, as a draft types it. */
+export function sizeDraftOf(characteristics: BreakCharacteristics) {
+  const size = characteristics.waveSizeMeters;
+  return { min: size?.min?.toString() ?? "", max: size?.max?.toString() ?? "" };
+}
 
 export function draftOf(
   values: {
@@ -39,6 +47,7 @@ export function draftOf(
     latitude: String(values.latitude),
     longitude: String(values.longitude),
     characteristics: values.characteristics,
+    size: sizeDraftOf(values.characteristics),
     description: values.description?.text ?? "",
     language: values.description?.language ?? language,
   };
@@ -54,12 +63,30 @@ export function pointOfDraft(draft: { latitude: string; longitude: string }) {
     : null;
 }
 
+// The most a bound of a size may be, in meters, as the API takes it.
+const SIZE_MOST = 30;
+
+/** The size a draft says, null when it says none, or undefined while what is typed is not one. */
+function sizeOfDraft({ min, max }: BreakDraft["size"]) {
+  const bound = (typed: string) =>
+    typed.trim() === "" ? null : isNumber(typed, 0, SIZE_MOST) ? Number(typed) : undefined;
+  const least = bound(min);
+  const most = bound(max);
+  if (least === undefined || most === undefined) return undefined;
+  if (least === null && most === null) return null;
+  if (least !== null && most !== null && least > most) return undefined;
+  return { min: least, max: most };
+}
+
 /** What is wrong with a draft, by field, or nothing. */
 export function faultsOf(draft: BreakDraft) {
-  const faults: Partial<Record<"name" | "point" | "description", string>> = {};
+  const faults: Partial<Record<"name" | "point" | "size" | "description", string>> = {};
   if (draft.name.trim() === "") faults.name = m.catalogue_fault_name();
   if (!isNumber(draft.latitude, -90, 90) || !isNumber(draft.longitude, -180, 180)) {
     faults.point = m.catalogue_fault_point();
+  }
+  if (sizeOfDraft(draft.size) === undefined) {
+    faults.size = m.catalogue_fault_size({ most: SIZE_MOST });
   }
   const text = draft.description.trim();
   if (text !== "" && (text.length < 3 || text.length > DESCRIPTION_MOST)) {
@@ -75,7 +102,7 @@ export function valuesOf(draft: BreakDraft): BreakValues {
     name: draft.name.trim(),
     latitude: Number(draft.latitude),
     longitude: Number(draft.longitude),
-    characteristics: draft.characteristics,
+    characteristics: { ...draft.characteristics, waveSizeMeters: sizeOfDraft(draft.size) ?? null },
     description: text === "" ? null : { text, language: draft.language },
   };
 }
@@ -203,6 +230,39 @@ export function BreakFields({
           />
         )}
       </Field>
+
+      <fieldset className="grid gap-xxs">
+        <legend className="mb-xxs font-medium">{m.catalogue_size()}</legend>
+        <div className="grid max-w-80 grid-cols-2 gap-xs">
+          <Field label={m.catalogue_size_min()}>
+            {(invalid) => (
+              <Input
+                inputMode="decimal"
+                value={draft.size.min}
+                aria-invalid={invalid || Boolean(faults.size) || undefined}
+                onChange={(event) => set({ size: { ...draft.size, min: event.target.value } })}
+              />
+            )}
+          </Field>
+          <Field label={m.catalogue_size_max()}>
+            {(invalid) => (
+              <Input
+                inputMode="decimal"
+                value={draft.size.max}
+                aria-invalid={invalid || Boolean(faults.size) || undefined}
+                onChange={(event) => set({ size: { ...draft.size, max: event.target.value } })}
+              />
+            )}
+          </Field>
+        </div>
+        {faults.size ? (
+          <span role="alert" className="text-s text-error">
+            {faults.size}
+          </span>
+        ) : (
+          <span className="text-s text-neutral-7">{m.catalogue_size_hint()}</span>
+        )}
+      </fieldset>
 
       <div className="grid gap-xxs">
         <Field

@@ -8,6 +8,7 @@ import {
   type SpotCharacteristics,
   TIDE_STAGES,
   WAVE_DIRECTIONS,
+  WAVE_SIZE_MOST,
 } from "@repo/db/schema/spots";
 import { z } from "zod";
 
@@ -29,6 +30,24 @@ const VOCABULARY = {
 type Listed = keyof typeof VOCABULARY;
 const LISTED = Object.keys(VOCABULARY) as Listed[];
 
+/** The height of the faces of the waves a place works at, in meters. */
+const waveSizeSchema = z.object({ min: z.number().nullable(), max: z.number().nullable() });
+
+const bound = z.number().min(0).max(WAVE_SIZE_MOST).nullish();
+/** A size as it is given: one bound at least, the smallest no larger than the largest. */
+const waveSizeInput = z
+  .object({ min: bound, max: bound })
+  .refine(({ min, max }) => min != null || max != null, "gives no bound")
+  .refine(
+    ({ min, max }) => min == null || max == null || min <= max,
+    "has a smallest larger than its largest",
+  )
+  .nullish();
+
+// A bound is kept to the tenth of a meter: a list's feet say no more.
+const tenth = (meters: number | null | undefined) =>
+  meters == null ? null : Math.round(meters * 10) / 10;
+
 /** What is known of a place where the sea is surfed. Null where nobody has said. */
 export const characteristicsSchema = z.object({
   breakTypes: z.array(z.enum(BREAK_TYPES)).nullable(),
@@ -43,6 +62,7 @@ export const characteristicsSchema = z.object({
   bestWindDirections: z.array(z.enum(COMPASS_POINTS)).nullable(),
   // Where the wind blows from when it blows off the shore, clockwise from north.
   offshoreDirectionDegrees: z.number().nullable(),
+  waveSizeMeters: waveSizeSchema.nullable(),
 });
 
 // A list as its owner sends it: no longer than its vocabulary, whatever it repeats.
@@ -67,6 +87,7 @@ export const characteristicsInput = z.object({
   bestSwellDirections: said(COMPASS_POINTS),
   bestWindDirections: said(COMPASS_POINTS),
   offshoreDirectionDegrees: z.number().int().min(0).max(359).nullish(),
+  waveSizeMeters: waveSizeInput,
 });
 
 /**
@@ -77,7 +98,7 @@ export function keptCharacteristics(
   given: z.infer<typeof characteristicsInput> | null,
 ): SpotCharacteristics | null {
   if (!given) return null;
-  const kept: Record<string, readonly string[] | number> = {};
+  const kept: Record<string, unknown> = {};
   for (const key of LISTED) {
     const words: readonly string[] = given[key] ?? [];
     const ordered = VOCABULARY[key].filter((word) => words.includes(word));
@@ -85,6 +106,12 @@ export function keptCharacteristics(
   }
   if (given.offshoreDirectionDegrees != null) {
     kept.offshoreDirectionDegrees = given.offshoreDirectionDegrees;
+  }
+  if (given.waveSizeMeters) {
+    kept.waveSizeMeters = {
+      min: tenth(given.waveSizeMeters.min),
+      max: tenth(given.waveSizeMeters.max),
+    };
   }
   return Object.keys(kept).length > 0 ? (kept as SpotCharacteristics) : null;
 }
@@ -104,5 +131,6 @@ export function describeCharacteristics(
     bestSwellDirections: kept?.bestSwellDirections ?? null,
     bestWindDirections: kept?.bestWindDirections ?? null,
     offshoreDirectionDegrees: kept?.offshoreDirectionDegrees ?? null,
+    waveSizeMeters: kept?.waveSizeMeters ?? null,
   };
 }

@@ -231,6 +231,7 @@ export const publicationsRouter = {
           bestSwellDirections: said.bestSwellDirections ?? null,
           bestWindDirections: said.bestWindDirections ?? null,
           offshoreDirectionDegrees: said.offshoreDirectionDegrees ?? null,
+          waveSizeMeters: said.waveSizeMeters ?? null,
           ...COMMUNITY,
           // A break is known again by its provider and this: its own id, which names no one.
           providerRef: breakId,

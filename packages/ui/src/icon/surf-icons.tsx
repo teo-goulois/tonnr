@@ -358,6 +358,37 @@ export function BoardIcon(props: IconProps) {
   );
 }
 
+// The size a glyph draws, in meters: a wave this high reaches the top of the gauge.
+const SIZE_TOP = 6;
+// Where a height stands on the gauge, from the floor to its top.
+const heightAt = (meters: number) => 32 - (Math.min(meters, SIZE_TOP) / SIZE_TOP) * 22;
+
+/**
+ * The size a break works at: a band from its smallest wave to its largest, beside a wave as high
+ * as the largest. A size with no largest goes on past the top of the ring.
+ */
+export function WaveSizeIcon({
+  smallest,
+  largest,
+  ...props
+}: IconProps & { smallest: number | null; largest: number | null }) {
+  const low = heightAt(smallest ?? 0);
+  const high = largest === null ? 6 : heightAt(largest);
+  const crest = Math.max(high, 10);
+  // The face rises from the floor to its crest, which pitches forward.
+  return (
+    <Glyph {...props}>
+      <rect x="0" y="33" width="40" height="7" {...duo} />
+      <rect x="7" y={high} width="8" height={Math.max(low - high, 1)} {...duo} />
+      {smallest !== null && <path d={`M7 ${low}H15`} />}
+      {largest !== null && <path d={`M7 ${high}H15`} />}
+      <path
+        d={`M17 33C24 33 26 ${crest} 30 ${crest}C33 ${crest} 34.5 ${crest + 1.5} 33.5 ${crest + 4}`}
+      />
+    </Glyph>
+  );
+}
+
 export type Season = "winter" | "spring" | "summer" | "autumn";
 
 // Each season is a quarter of the year round the ring, winter at its top.

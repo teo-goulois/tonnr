@@ -137,6 +137,7 @@ export function describeForOperator(
       bestSwellDirections: row.bestSwellDirections,
       bestWindDirections: row.bestWindDirections,
       offshoreDirectionDegrees: row.offshoreDirectionDegrees,
+      waveSizeMeters: row.waveSizeMeters,
     },
     confirmed,
     description:

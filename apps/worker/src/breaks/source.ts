@@ -20,6 +20,7 @@ export type Characteristics = {
       | "bestSwellDirections"
       | "bestWindDirections"
       | "offshoreDirectionDegrees"
+      | "waveSizeMeters"
   ]?: NonNullable<Row[Field]>;
 };
 

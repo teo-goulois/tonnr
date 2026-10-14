@@ -21,6 +21,8 @@ import {
   CharacteristicRow,
   OffshoreIcon,
   readCharacteristic,
+  SizeIcon,
+  SizeReading,
 } from "../viewer/break-characteristics";
 import { Section } from "../viewer/point-conditions";
 import type { Guide, GuideLine, GuideOwn, Loadable, SurfBreak } from "../viewer/types";
@@ -661,6 +663,7 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
   });
 
   const offshore = found.characteristics.offshoreDirectionDegrees;
+  const size = found.characteristics.waveSizeMeters;
   const levels = found.characteristics.abilityLevels;
   const listedLevel =
     levels && levels.length > 0
@@ -695,6 +698,13 @@ export function BreakGuide({ found, guide, own, guiding }: BreakGuideProps) {
                 label={m.break_offshore_wind()}
               >
                 <Bearing degrees={offshore} />
+              </CharacteristicRow>
+            </li>
+          )}
+          {size && (
+            <li className="py-xxs">
+              <CharacteristicRow icon={<SizeIcon size={size} />} label={m.break_wave_size()}>
+                <SizeReading size={size} />
               </CharacteristicRow>
             </li>
           )}

@@ -136,7 +136,8 @@ Write the list as one JSON file, in UTF-8:
         "bestTides": ["mid_low", "mid"],
         "bestSwellDirections": ["W", "WNW"],
         "bestWindDirections": ["E", "ENE"],
-        "offshoreDirectionDegrees": 90
+        "offshoreDirectionDegrees": 90,
+        "waveSizeMeters": { "min": 0.6, "max": 2.4 }
       },
       "location": ["France", "Finistère"],
       "timezone": "Europe/Paris",
@@ -149,7 +150,7 @@ Write the list as one JSON file, in UTF-8:
 - `provider` is a short name in lower case for the list. With `ref`, the break's identifier in the list, it tells a break the catalogue already holds. A file gives each `ref` once.
 - Only `provider`, and a break's `ref`, `name`, `latitude` and `longitude`, are required.
 - `license`, `attribution` and `url` say where the list comes from and on what terms. Give them when the list has them: the API returns them with each break, and null when the file gave none.
-- `characteristics` takes the catalogue's own words, listed in `packages/db/src/schema/spots.ts`, and no others. Translate your list's words into them, and leave out what your list does not say. A direction of swell or wind is one of the sixteen points of the compass, in English letters. `offshoreDirectionDegrees` is where the wind blows from when it blows off the shore, from 0 to 359.
+- `characteristics` takes the catalogue's own words, listed in `packages/db/src/schema/spots.ts`, and no others. Translate your list's words into them, and leave out what your list does not say. A direction of swell or wind is one of the sixteen points of the compass, in English letters. `offshoreDirectionDegrees` is where the wind blows from when it blows off the shore, from 0 to 359. `waveSizeMeters` is the height of the faces of the waves the break works at, in meters from 0 to 30: `min` and `max`, either null when the list gives no such bound. It is kept to the tenth of a meter.
 - `location` names the places the break lies in, from the widest to the nearest.
 - `details` holds whatever else the list says of the break. It is kept aside as it is, in a table that only the admin reads, to its operator.
 - Any other field refuses the file, and so does one faulty line: nothing of a file is stored unless all of it can be.

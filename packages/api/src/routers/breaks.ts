@@ -59,6 +59,7 @@ function describeBreak(
       bestSwellDirections: row.bestSwellDirections,
       bestWindDirections: row.bestWindDirections,
       offshoreDirectionDegrees: row.offshoreDirectionDegrees,
+      waveSizeMeters: row.waveSizeMeters,
       // The words of a contribution are the catalogue's: they were checked when it was
       // written, and the answer is checked again as it leaves.
       ...(confirmed as Partial<z.infer<typeof characteristicsSchema>>),
@@ -112,7 +113,9 @@ export const breaksRouter = {
           "way the wave goes, the level and the boards it suits, the seasons, the tides, " +
           "and the swell and wind directions it likes, as points of the compass a swell or " +
           "a wind comes from. `offshoreDirectionDegrees` is where the wind comes from when " +
-          "it blows straight off that shore. A characteristic that is null is not known, " +
+          "it blows straight off that shore. `waveSizeMeters` is the height of the faces of " +
+          "the waves it works at, in meters, from `min` to `max`, a bound that is null not " +
+          "given. A characteristic that is null is not known, " +
           "which is common. `description` is a few sentences the instance's operator wrote of " +
           "the break, in the language it names, or null. The catalogue is what the " +
           "instance's operator put in it: it is " +
