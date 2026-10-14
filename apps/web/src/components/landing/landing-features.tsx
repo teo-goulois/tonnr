@@ -1,4 +1,3 @@
-import { APP_NAME } from "@repo/config/app";
 import { ArrowLeftIcon, CircleCheckIcon, LockIcon, PinIcon, ShareIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
@@ -18,7 +17,7 @@ import { formatHeight, formatWind } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 
-import { SECTIONS, SectionTitle, Tile, apart, column } from "./landing-parts";
+import { AppName, SECTIONS, SectionTitle, Woven, apart, column } from "./landing-parts";
 
 // Every figure drawn here is an example, in the colors the app gives the same figure: a card
 // shows what a feature looks like, not what the sea does.
@@ -340,24 +339,11 @@ function Open() {
 
 /** What the product does, drawn: a card for each thing, in the colors the app gives it. */
 export function LandingFeatures() {
-  const [before, after] = m.landing_features_title({ name: "\u0000" }).split("\u0000");
-
   return (
     <section aria-labelledby={SECTIONS.features} className={`${column} ${apart} grid gap-xl`}>
       <SectionTitle
         id={SECTIONS.features}
-        title={
-          <>
-            {before}
-            <span className="whitespace-nowrap">
-              <Tile className="mr-[0.2em]">
-                <img src="/favicon.svg" alt="" />
-              </Tile>
-              {APP_NAME}
-            </span>
-            {after}
-          </>
-        }
+        title={<Woven say={m.landing_features_title} words={{ name: <AppName /> }} />}
         more={m.landing_features_more()}
         className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
       />

@@ -6,7 +6,7 @@ import {
   ArrowUpRightIcon,
   CircleCheckIcon,
   CopyIcon,
-  SparkleIcon,
+  SparklesFillDuoIcon,
 } from "@repo/ui/icon";
 import { useEffect, useState } from "react";
 
@@ -14,7 +14,17 @@ import { EXAMPLE_STATION, KEY_VARIABLE } from "@/lib/llms";
 import { WAVE_PERIOD_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { Card, SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
+import {
+  AppName,
+  Card,
+  SECTIONS,
+  SectionTitle,
+  Tile,
+  Woven,
+  apart,
+  column,
+  ruled,
+} from "./landing-parts";
 
 const COPIED_MS = 2000;
 // The violet of a long swell, for what is said to a program.
@@ -89,21 +99,15 @@ function Copyable({
 const connect = (api: string) =>
   `claude mcp add --transport http ${APP_NAME.toLowerCase()} ${api}/mcp \\\n  --header "Authorization: Bearer $${KEY_VARIABLE}"`;
 
-function AgentsTitle({ title, more, id }: { title: string; more: string; id?: string }) {
+// The word "agents", with its tile.
+function Agents() {
   return (
-    <SectionTitle
-      id={id}
-      title={
-        <>
-          <Tile color={AGENT_COLOR}>
-            <SparkleIcon />
-          </Tile>
-          {title}
-        </>
-      }
-      more={more}
-      className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
-    />
+    <>
+      <Tile color={AGENT_COLOR}>
+        <SparklesFillDuoIcon />
+      </Tile>
+      {m.landing_agents_word()}
+    </>
   );
 }
 
@@ -111,10 +115,11 @@ function AgentsTitle({ title, more, id }: { title: string; more: string; id?: st
 export function LandingAgents({ api }: { api: string }) {
   return (
     <section aria-labelledby={SECTIONS.agents} className={`${column} ${apart} grid gap-xl`}>
-      <AgentsTitle
+      <SectionTitle
         id={SECTIONS.agents}
-        title={m.landing_agents_title()}
+        title={<Woven say={m.landing_agents_title} words={{ agents: <Agents /> }} />}
         more={m.landing_agents_more()}
+        className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
       />
       <div className="grid items-start gap-l lg:grid-cols-12 lg:gap-x-xl">
         <div className="lg:col-span-8">
@@ -162,11 +167,11 @@ function Resource({ href, name, text }: { href: string; name: string; text?: str
 export function AgentsGuide({ api, site }: { api: string; site: string }) {
   return (
     <section className={`${column} grid gap-xl pt-xl lg:pt-xxl`}>
-      <h1 className="group/lively max-w-4xl text-l font-medium text-balance lg:text-xl">
-        <Tile color={AGENT_COLOR}>
-          <SparkleIcon />
-        </Tile>
-        {m.landing_agents_page_title()}
+      <h1 className="max-w-4xl text-l font-medium text-balance lg:text-xl">
+        <Woven
+          say={m.landing_agents_page_title}
+          words={{ name: <AppName />, agents: <Agents /> }}
+        />
         <span className="text-neutral-7"> {m.landing_agents_page_more()}</span>
       </h1>
       <div className="grid gap-xl lg:grid-cols-12 lg:gap-x-xl">

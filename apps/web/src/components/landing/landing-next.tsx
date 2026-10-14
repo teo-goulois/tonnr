@@ -1,11 +1,11 @@
-import { ArrowUpIcon } from "@repo/ui/icon";
+import { RocketFillDuoIcon } from "@repo/ui/icon";
 
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
 import { IdeaDialog } from "./landing-idea";
 
-import { SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
+import { SECTIONS, SectionTitle, Tile, Woven, apart, column, ruled } from "./landing-parts";
 
 // The orange of a wind that rises, for what is still to come.
 const NEXT_COLOR = scaleColor(WIND_SPEED_SCALE, 25);
@@ -25,12 +25,19 @@ export function LandingNext() {
       <SectionTitle
         id={SECTIONS.next}
         title={
-          <>
-            <Tile color={NEXT_COLOR}>
-              <ArrowUpIcon />
-            </Tile>
-            {m.landing_next_title()}
-          </>
+          <Woven
+            say={m.landing_next_title}
+            words={{
+              next: (
+                <>
+                  <Tile color={NEXT_COLOR}>
+                    <RocketFillDuoIcon />
+                  </Tile>
+                  {m.landing_next_word()}
+                </>
+              ),
+            }}
+          />
         }
         more={m.landing_next_more()}
         className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"

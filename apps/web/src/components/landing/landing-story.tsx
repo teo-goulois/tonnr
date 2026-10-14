@@ -3,7 +3,16 @@ import { buttonVariants } from "@repo/ui/components/ui/button";
 
 import { m } from "@/paraglide/messages.js";
 
-import { InlineLink, SECTIONS, SectionTitle, Tile, apart, column } from "./landing-parts";
+import {
+  AppName,
+  InlineLink,
+  SECTIONS,
+  SectionTitle,
+  Tile,
+  Woven,
+  apart,
+  column,
+} from "./landing-parts";
 
 // The app the project began from, which its maker thanks by name.
 const INSPIRATION = { name: "La Bouée", url: "https://labouee.app" };
@@ -24,12 +33,20 @@ export function LandingStory() {
       <SectionTitle
         id={SECTIONS.story}
         title={
-          <>
-            <Tile className="rounded-full">
-              <img src={AUTHOR.portrait} alt="" />
-            </Tile>
-            {m.landing_story_title()}
-          </>
+          <Woven
+            say={m.landing_story_title}
+            words={{
+              me: (
+                <>
+                  <Tile className="rounded-full">
+                    <img src={AUTHOR.portrait} alt="" />
+                  </Tile>
+                  {m.landing_story_word()}
+                </>
+              ),
+              name: <AppName />,
+            }}
+          />
         }
         className="scroll-mt-[calc(var(--space-xxl)*2)] lg:col-span-4"
       />
@@ -48,7 +65,7 @@ export function LandingStory() {
           <InlineLink
             href={AUTHOR.url}
             icon={
-              <Tile className="size-5 translate-y-[0.2em] rounded-full">
+              <Tile className="rounded-full [--tile:--spacing(5)]">
                 <img src={AUTHOR.portrait} alt="" />
               </Tile>
             }

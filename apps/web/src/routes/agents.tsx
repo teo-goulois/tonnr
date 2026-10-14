@@ -12,7 +12,9 @@ export const Route = createFileRoute("/agents")({
   loader: () => ({ site: siteOrigin() }),
   head: () => ({
     meta: [
-      { title: `${m.landing_agents_page_title()} · ${APP_NAME}` },
+      {
+        title: m.landing_agents_page_title({ name: APP_NAME, agents: m.landing_agents_word() }),
+      },
       { name: "description", content: m.landing_agents_body() },
     ],
   }),

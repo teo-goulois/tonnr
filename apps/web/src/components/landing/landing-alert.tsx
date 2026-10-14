@@ -1,12 +1,15 @@
-import { BellFillIcon } from "@repo/ui/icon";
+import { BellOnFillDuoIcon } from "@repo/ui/icon";
+import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
 
-import { arcWords, rangeWords } from "@/components/alerts/alert-words";
+import { type Arc, rangeWords } from "@/components/alerts/alert-words";
+import { TideTrend } from "@/components/alerts/tide-trend";
+import { Bearing } from "@/components/viewer/bearing";
 import type { AlertCriteria } from "@/components/viewer/types";
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { Card, SectionTitle, Tile, apart, column } from "./landing-parts";
+import { AppName, Card, SectionTitle, Tile, Woven, apart, column } from "./landing-parts";
 
 const KNOTS_PER_MS = 1.943844;
 
@@ -19,17 +22,33 @@ const EXAMPLE = {
   windSpeedMetersPerSecond: { max: 12 / KNOTS_PER_MS },
   windDirectionDegrees: { from: 45, to: 135 },
   tideHeightMeters: { min: 2, max: 4 },
+  tideTrend: "rising",
 } satisfies AlertCriteria;
 const SHORTEST_HOURS = 2;
 // The green the map gives a sea of a metre and a half: a spot that works.
 const WORKS_COLOR = scaleColor(WAVE_HEIGHT_SCALE, 1.5);
 
-// A part its writer sets. The editor underlines it the same way, where it opens what changes it.
-function Part({ children }: { children: ReactNode }) {
+// How the editor underlines a part its writer sets, where it opens what changes it. A direction
+// carries its own line, which an arrow interrupts, and draws it darker when its part is pointed at.
+const underlined =
+  "underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) group-hover/part:decoration-neutral-10";
+
+function Part({ className, children }: { className?: string; children: ReactNode }) {
   return (
-    <span className="font-medium text-neutral-10 underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) hover:decoration-neutral-10">
+    <span className={cn("group/part font-medium text-neutral-10", underlined, className)}>
       {children}
     </span>
+  );
+}
+
+// A sector, as the editor shows it: an arrow and a name for each of its ends, clockwise, on one
+// line.
+function Sector({ arc }: { arc: Arc }) {
+  return (
+    <Part className="whitespace-nowrap">
+      {m.alert_from()} <Bearing degrees={arc.from} className={underlined} />–
+      <Bearing degrees={arc.to} className={underlined} />
+    </Part>
   );
 }
 
@@ -39,14 +58,21 @@ export function LandingAlert() {
     <section className={`${column} ${apart} grid gap-xl`}>
       <SectionTitle
         title={
-          <>
-            <Tile color={WORKS_COLOR}>
-              <BellFillIcon />
-            </Tile>
-            {m.landing_alert_title()}
-          </>
+          <Woven
+            say={m.landing_alert_title}
+            words={{
+              alert: (
+                <>
+                  <Tile color={WORKS_COLOR}>
+                    <BellOnFillDuoIcon />
+                  </Tile>
+                  {m.landing_alert_word()}
+                </>
+              ),
+            }}
+          />
         }
-        more={m.landing_alert_more()}
+        more={<Woven say={m.landing_alert_more} words={{ name: <AppName /> }} />}
         className="max-w-4xl"
       />
       <div className="grid gap-l lg:grid-cols-12 lg:gap-x-xl">
@@ -65,20 +91,21 @@ export function LandingAlert() {
                 range: rangeWords("wavePeakPeriodSeconds", EXAMPLE.wavePeakPeriodSeconds),
               })}
             </Part>
-            , <Part>{m.alert_from_sector({ arc: arcWords(EXAMPLE.waveDirectionDegrees) })}</Part>,{" "}
-            {m.alert_says_wind()}{" "}
+            , <Sector arc={EXAMPLE.waveDirectionDegrees} />, {m.alert_says_wind()}{" "}
             <Part>
               {m.alert_wind_at({
                 range: rangeWords("windSpeedMetersPerSecond", EXAMPLE.windSpeedMetersPerSecond),
               })}
             </Part>
-            , <Part>{m.alert_from_sector({ arc: arcWords(EXAMPLE.windDirectionDegrees) })}</Part>,{" "}
-            {m.alert_says_tide()}{" "}
+            , <Sector arc={EXAMPLE.windDirectionDegrees} />, {m.alert_says_tide()}{" "}
             <Part>
               {m.alert_tide_at({ range: rangeWords("tideHeightMeters", EXAMPLE.tideHeightMeters) })}
             </Part>
-            , <Part>{m.alert_trend_rising()}</Part>, {m.alert_says_for()}{" "}
-            <Part>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
+            ,{" "}
+            <Part>
+              <TideTrend trend={EXAMPLE.tideTrend} className={underlined} />
+            </Part>
+            , {m.alert_says_for()} <Part>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
           </p>
         </Card>
       </div>

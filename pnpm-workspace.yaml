@@ -9,6 +9,7 @@ allowBuilds:
   # The Nucleo icons check the licence in NUCLEO_LICENSE_KEY when they install: decision 012.
   nucleo-micro-bold: true
   nucleo-ui-fill-18: true
+  nucleo-ui-fill-duo-18: true
   nucleo-ui-outline-18: true
   core-js: false
 catalog:

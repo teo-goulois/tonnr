@@ -45,6 +45,7 @@ import {
   sliderEnds,
   thumbsOf,
 } from "./alert-words";
+import { TideTrend } from "./tide-trend";
 import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
 import { HourStrip } from "./hour-strip";
@@ -477,6 +478,10 @@ export function AlertEditor({
           isSet={criteria.tideTrend !== undefined}
           isWide
           words={trends.find((trend) => trend.value === (criteria.tideTrend ?? "any"))?.label ?? ""}
+          shown={
+            // A trend is an arrow and a word, as a direction is.
+            criteria.tideTrend && <TideTrend trend={criteria.tideTrend} className={underlined} />
+          }
         >
           {tideChart}
           <ToggleGroup
@@ -494,7 +499,7 @@ export function AlertEditor({
           >
             {trends.map((trend) => (
               <ToggleGroupItem key={trend.value} value={trend.value}>
-                {trend.label}
+                {trend.value === "any" ? trend.label : <TideTrend trend={trend.value} />}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>

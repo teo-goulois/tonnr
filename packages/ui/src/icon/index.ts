@@ -122,6 +122,19 @@ export { IconUserFill18 as PersonFillIcon } from "nucleo-ui-fill-18/components/I
 export { IconPersonFill18 as SurferFillIcon } from "nucleo-ui-fill-18/components/IconPersonFill18";
 export { IconWaterWaveFill18 as WaveFillIcon } from "nucleo-ui-fill-18/components/IconWaterWaveFill18";
 
+// The tiles of the landing, Nucleo UI fill duo 18 as Téo asked on 2026-10-14: a full shape in
+// white on a color, and a lighter one behind it.
+export { IconBellOnFillDuo18 as BellOnFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconBellOnFillDuo18";
+export { IconCalendarFillDuo18 as CalendarFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconCalendarFillDuo18";
+export { IconChartStackedAreaFillDuo18 as ChartAreaFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconChartStackedAreaFillDuo18";
+export { IconLayersFillDuo18 as LayersFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLayersFillDuo18";
+export { IconLocationFillDuo18 as LocationFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLocationFillDuo18";
+export { IconRocketFillDuo18 as RocketFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconRocketFillDuo18";
+export { IconSparkleFillDuo18 as SparklesFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconSparkleFillDuo18";
+export { IconWaterLevelUpFillDuo18 as WaterLevelFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterLevelUpFillDuo18";
+export { IconWaterWaveFillDuo18 as WaveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterWaveFillDuo18";
+export { IconWindFillDuo18 as WindFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWindFillDuo18";
+
 // Nucleo Micro Bold, from its package: what an icon is taken from when it is new, as Téo asked
 // on 2026-10-13. The stars of a rating are the three he chose there: the line, the full one, and
 // the left half, which is drawn over the line.

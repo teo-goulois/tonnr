@@ -4,13 +4,13 @@ import { buttonVariants } from "@repo/ui/components/ui/button";
 import {
   ArrowRightIcon,
   ArrowUpRightIcon,
-  CalendarIcon,
-  ClockIcon,
-  EarthFillDuoIcon,
-  MapIcon,
-  PinIcon,
-  WaveIcon,
-  WindIcon,
+  CalendarFillDuoIcon,
+  ChartAreaFillDuoIcon,
+  LayersFillDuoIcon,
+  LocationFillDuoIcon,
+  WaterLevelFillDuoIcon,
+  WaveFillDuoIcon,
+  WindFillDuoIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
@@ -25,7 +25,16 @@ import {
 } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
-import { SECTIONS, SectionTitle, Tile, apart, column, ruled } from "./landing-parts";
+import {
+  AppName,
+  SECTIONS,
+  SectionTitle,
+  Tile,
+  Woven,
+  apart,
+  column,
+  ruled,
+} from "./landing-parts";
 
 const CC_BY = { name: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" };
 const CC0 = { name: "CC0 1.0", url: "https://creativecommons.org/publicdomain/zero/1.0/" };
@@ -73,7 +82,7 @@ const GROUPS: readonly Group[] = [
     id: "buoys",
     name: m.sources_group_buoys,
     color: scaleColor(WAVE_HEIGHT_SCALE, 0.5),
-    icon: <WaveIcon />,
+    icon: <WaveFillDuoIcon />,
     sources: [
       {
         id: "candhis",
@@ -162,7 +171,7 @@ const GROUPS: readonly Group[] = [
     id: "wind",
     name: m.sources_group_wind,
     color: scaleColor(WIND_SPEED_SCALE, 25),
-    icon: <WindIcon />,
+    icon: <WindFillDuoIcon />,
     sources: [
       {
         id: "meteo-france",
@@ -266,7 +275,7 @@ const GROUPS: readonly Group[] = [
     id: "forecasts",
     name: m.sources_group_forecasts,
     color: scaleColor(WAVE_PERIOD_SCALE, 13),
-    icon: <CalendarIcon />,
+    icon: <CalendarFillDuoIcon />,
     sources: [
       {
         id: "open-meteo",
@@ -293,7 +302,7 @@ const GROUPS: readonly Group[] = [
     id: "tides",
     name: m.sources_group_tides,
     color: TIDE_COLOR,
-    icon: <ClockIcon />,
+    icon: <WaterLevelFillDuoIcon />,
     sources: [
       {
         id: "neaps",
@@ -314,7 +323,7 @@ const GROUPS: readonly Group[] = [
     id: "breaks",
     name: m.sources_group_breaks,
     color: scaleColor(WAVE_ENERGY_SCALE, 2000),
-    icon: <PinIcon />,
+    icon: <LocationFillDuoIcon />,
     sources: [
       {
         id: "catalogue",
@@ -329,7 +338,7 @@ const GROUPS: readonly Group[] = [
     id: "map",
     name: m.sources_group_map,
     color: scaleColor(WAVE_HEIGHT_SCALE, 1.5),
-    icon: <MapIcon />,
+    icon: <LayersFillDuoIcon />,
     sources: [
       {
         id: "openfreemap",
@@ -367,16 +376,23 @@ const GROUPS: readonly Group[] = [
 const SOURCES_COLOR = scaleColor(WAVE_HEIGHT_SCALE, 0);
 
 // A tile that stands before a short name, rather than in a line of text.
-const bigTile = "mr-0 size-7 translate-y-0 rounded-[0.5rem] [&_svg]:size-4";
+const bigTile = "mr-0 rounded-[0.5rem] [--tile:--spacing(7)] [&_svg]:size-4";
 
 function SourcesTitle() {
   return (
-    <>
-      <Tile color={SOURCES_COLOR}>
-        <EarthFillDuoIcon />
-      </Tile>
-      {m.landing_sources_title()}
-    </>
+    <Woven
+      say={m.landing_sources_title}
+      words={{
+        figure: (
+          <>
+            <Tile color={SOURCES_COLOR}>
+              <ChartAreaFillDuoIcon />
+            </Tile>
+            {m.landing_sources_word()}
+          </>
+        ),
+      }}
+    />
   );
 }
 
@@ -390,7 +406,7 @@ export function LandingSources() {
       <SectionTitle
         id={SECTIONS.sources}
         title={<SourcesTitle />}
-        more={m.landing_sources_more({ name: APP_NAME })}
+        more={<Woven say={m.landing_sources_more} words={{ name: <AppName /> }} />}
         className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
       />
       <div className="grid gap-l">
@@ -515,9 +531,12 @@ export function SourcesGuide() {
   return (
     <section className={`${column} grid gap-xxl pt-xl lg:pt-xxl`}>
       <div className="grid gap-xl">
-        <h1 className="group/lively max-w-4xl text-l font-medium text-balance lg:text-xl">
+        <h1 className="max-w-4xl text-l font-medium text-balance lg:text-xl">
           <SourcesTitle />
-          <span className="text-neutral-7"> {m.sources_page_more({ name: APP_NAME })}</span>
+          <span className="text-neutral-7">
+            {" "}
+            <Woven say={m.sources_page_more} words={{ name: <AppName /> }} />
+          </span>
         </h1>
         <ul className="grid gap-m sm:grid-cols-3">
           {PRINCIPLES.map((principle) => (

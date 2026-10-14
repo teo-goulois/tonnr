@@ -70,7 +70,7 @@ export function LandingFooter() {
               href={AUTHOR.url}
               className="group/lively focus-ring rounded-xs font-medium text-neutral-10 underline decoration-neutral-5 underline-offset-4 hover:decoration-neutral-10"
             >
-              <Tile className="size-4 translate-y-[0.2em] rounded-full">
+              <Tile className="rounded-full [--tile:--spacing(4)]">
                 <img src={AUTHOR.portrait} alt="" />
               </Tile>
               {AUTHOR.name}

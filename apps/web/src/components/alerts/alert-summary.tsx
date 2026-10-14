@@ -6,6 +6,7 @@ import { m } from "@/paraglide/messages.js";
 import { Bearing } from "../viewer/bearing";
 import type { Alert, AlertCriteria } from "../viewer/types";
 import { type Arc, type RangeKey, isSetRange, rangeWords } from "./alert-words";
+import { TideTrend } from "./tide-trend";
 
 /**
  * Conditions in a line: the swell, the wind and the tide, each with what is asked of it. What
@@ -54,9 +55,7 @@ export function ConditionsSummary({
       m.alert_summary_tide(),
       [
         ...range("tideHeightMeters"),
-        ...(criteria.tideTrend
-          ? [criteria.tideTrend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling()]
-          : []),
+        ...(criteria.tideTrend ? [<TideTrend trend={criteria.tideTrend} />] : []),
       ],
     ],
   ];

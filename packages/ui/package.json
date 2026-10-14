@@ -26,6 +26,7 @@
     "next-themes": "catalog:",
     "nucleo-micro-bold": "^1.2.1",
     "nucleo-ui-fill-18": "^1.5.1",
+    "nucleo-ui-fill-duo-18": "^1.5.1",
     "nucleo-ui-outline-18": "^1.5.1",
     "react": "catalog:",
     "react-dom": "catalog:",
