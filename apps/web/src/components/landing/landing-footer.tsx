@@ -84,11 +84,11 @@ export function LandingFooter() {
           <Link to="/" hash={SECTIONS.features} className={quiet}>
             {m.landing_nav_features()}
           </Link>
-          <Link to="/sources" className={quiet}>
-            {m.landing_nav_sources()}
-          </Link>
           <Link to="/" hash={SECTIONS.next} className={quiet}>
             {m.landing_nav_next()}
+          </Link>
+          <Link to="/sources" className={quiet}>
+            {m.landing_nav_sources()}
           </Link>
         </Links>
         <Links title={m.landing_footer_agents()}>
