@@ -195,10 +195,30 @@ A list can also be proposed to the operator rather than added: each break waits 
       "longitude": -4.5,
       "pointNote": "The beach, not the peak",
       "characteristics": { "breakTypes": ["jetty"] },
-      "proposal": { "action": "merge", "breakId": "<id of a break>", "note": "Same name, 200 m away", "doubts": ["Which end of the jetty"] },
-      "evidence": [{ "url": "https://example.org/north-jetty", "title": "A page", "note": "What it says" }],
-      "texts": [{ "label": "Description", "language": "en", "text": "The list's own words, for the operator to read." }],
-      "figures": [{ "image": "p12.jpg", "crop": [0, 0, 1, 0.5], "mark": [0.4, 0.2, 0.5, 0.22], "caption": "Page 12" }],
+      "proposal": {
+        "action": "merge",
+        "breakId": "<id of a break>",
+        "note": "Same name, 200 m away",
+        "doubts": ["Which end of the jetty"]
+      },
+      "evidence": [
+        { "url": "https://example.org/north-jetty", "title": "A page", "note": "What it says" }
+      ],
+      "texts": [
+        {
+          "label": "Description",
+          "language": "en",
+          "text": "The list's own words, for the operator to read."
+        }
+      ],
+      "figures": [
+        {
+          "image": "p12.jpg",
+          "crop": [0, 0, 1, 0.5],
+          "mark": [0.4, 0.2, 0.5, 0.22],
+          "caption": "Page 12"
+        }
+      ],
       "details": { "anything": "else, kept aside" }
     }
   ]
