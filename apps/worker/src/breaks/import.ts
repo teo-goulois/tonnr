@@ -1,6 +1,7 @@
 import type { Database } from "@repo/db";
-import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
-import { count, eq, inArray, sql } from "drizzle-orm";
+import { holdCatalogue, knownRefs, reopenCandidatesOf } from "@repo/db/catalogue";
+import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
+import { count, eq, inArray } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { StoreError } from "../store";
@@ -12,7 +13,7 @@ export const breakSources: readonly BreakSource[] = [osm];
 // A break takes some twenty parameters, and Postgres accepts 65,535 in a statement.
 const BREAKS_PER_STATEMENT = 1000;
 // What a list says besides can weigh several kilobytes a break.
-const RECORDS_PER_STATEMENT = 500;
+const LISTINGS_PER_STATEMENT = 500;
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -24,18 +25,18 @@ class Undone<Report> {
 }
 
 /**
- * Runs the work in one transaction. `work` says whether to keep what it wrote: the transaction
- * is undone when it does not, and its report is returned either way.
+ * Runs the work in one transaction, the catalogue held. `work` says whether to keep what it
+ * wrote: the transaction is undone when it does not, and its report is returned either way.
  */
-async function inTransaction<Report>(
+export async function inTransaction<Report>(
   db: Database,
   work: (tx: Transaction) => Promise<{ keep: boolean; report: Report }>,
 ) {
   try {
     return await db.transaction(async (tx) => {
       // One change of the catalogue at a time. Two together would each count without the
-      // other's rows.
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('breaks'))`);
+      // other's rows, and an operator's merge would move rows under the count.
+      await holdCatalogue(tx);
       const { keep, report } = await work(tx);
       if (!keep) throw new Undone(report);
       return report;
@@ -58,7 +59,8 @@ export const countBreaks = Effect.fn("countBreaks")(function* (db: Database) {
 /**
  * Adds a list's breaks to the catalogue, all of them or none. A break the catalogue already
  * holds from the same list, under the same reference, is left as it is: a break belongs to the
- * instance once it is in, and no list changes it afterwards.
+ * instance once it is in, and no list changes it afterwards. One that an operator merged into
+ * another, or deleted, is known too, and does not come back (decision 049).
  *
  * Without `write`, the same work is done and undone, and the counts say what it would do. With
  * `intoEmpty`, nothing is added to a catalogue that holds a break already, whatever its list:
@@ -96,31 +98,48 @@ export const addBreaks = Effect.fn("addBreaks")(function* (
           return { keep: false, report: { ...counts, added: 0, known: 0, isRefused: true } };
         }
 
+        const known = await knownRefs(
+          tx,
+          list.provider,
+          rows.map((row) => row.providerRef),
+        );
         const added = new Set<string>();
-        for (let start = 0; start < rows.length; start += BREAKS_PER_STATEMENT) {
+        const fresh = rows.filter((row) => !known.has(row.providerRef));
+        for (let start = 0; start < fresh.length; start += BREAKS_PER_STATEMENT) {
           const stored = await tx
             .insert(surfBreak)
-            .values(rows.slice(start, start + BREAKS_PER_STATEMENT))
+            .values(fresh.slice(start, start + BREAKS_PER_STATEMENT))
+            // A file that names a reference twice adds its first line.
             .onConflictDoNothing({ target: [surfBreak.provider, surfBreak.providerRef] })
             .returning({ id: surfBreak.id });
           for (const { id } of stored) added.add(id);
         }
 
-        const records = listed.flatMap(({ id, found }) =>
-          added.has(id) && found.details && Object.keys(found.details).length > 0
-            ? [{ breakId: id, details: found.details }]
+        // Each break added is named by its list, with what the list says of it besides.
+        const listings = listed.flatMap(({ id, found }) =>
+          added.has(id)
+            ? [
+                {
+                  list: list.provider,
+                  ref: found.ref,
+                  breakId: id,
+                  details:
+                    found.details && Object.keys(found.details).length > 0 ? found.details : null,
+                },
+              ]
             : [],
         );
-        for (let start = 0; start < records.length; start += RECORDS_PER_STATEMENT) {
+        for (let start = 0; start < listings.length; start += LISTINGS_PER_STATEMENT) {
           await tx
-            .insert(surfBreakRecord)
-            .values(records.slice(start, start + RECORDS_PER_STATEMENT));
+            .insert(surfBreakListing)
+            .values(listings.slice(start, start + LISTINGS_PER_STATEMENT));
         }
 
         const report = {
           ...counts,
           added: added.size,
-          // The breaks the catalogue already held from this list. They were left as they are.
+          // The breaks the catalogue already held from this list, or that an operator merged or
+          // deleted. They were left as they are.
           known: rows.length - added.size,
           isRefused: false,
         };
@@ -131,9 +150,11 @@ export const addBreaks = Effect.fn("addBreaks")(function* (
 });
 
 /**
- * Deletes the breaks the catalogue holds from one list, as they are now. The spots made from
- * them keep their own name and point, and lose only the link. Without `write`, the same work is
- * done and undone.
+ * Deletes the breaks the catalogue holds from one list, as they are now, and forgets what the
+ * list said of any break: added again, the list is added whole. A break of another list that one
+ * of its breaks was merged into stays. The spots made from the deleted breaks keep their own
+ * name and point, and lose only the link, and the candidates that went into them wait to be
+ * decided again. Without `write`, the same work is done and undone.
  */
 export const removeBreaks = Effect.fn("removeBreaks")(function* (
   db: Database,
@@ -151,13 +172,30 @@ export const removeBreaks = Effect.fn("removeBreaks")(function* (
           .select({ total: count() })
           .from(spot)
           .where(inArray(spot.breakId, ofList));
+        const going = await ofList;
+        await reopenCandidatesOf(
+          tx,
+          going.map(({ id }) => id),
+        );
+        const forgotten = await tx
+          .delete(surfBreakListing)
+          .where(eq(surfBreakListing.list, provider))
+          .returning({ ref: surfBreakListing.ref });
         const removed = await tx
           .delete(surfBreak)
           .where(eq(surfBreak.provider, provider))
           .returning({ id: surfBreak.id });
 
-        const report = { removed: removed.length, spots: linked?.total ?? 0 };
-        return { keep: options.write && removed.length > 0, report };
+        const report = {
+          removed: removed.length,
+          spots: linked?.total ?? 0,
+          // What the list said of breaks it no longer has: merged into another, or deleted.
+          forgotten: Math.max(0, forgotten.length - removed.length),
+        };
+        return {
+          keep: options.write && (removed.length > 0 || forgotten.length > 0),
+          report,
+        };
       }),
     catch: failed,
   });

@@ -2,7 +2,13 @@ import { createDb } from "@repo/db";
 import { Effect } from "effect";
 
 import { evaluateAlerts } from "./alerts";
-import { addBreaksFile, fetchBreaks, removeBreaksOf } from "./breaks/command";
+import {
+  addBreaksFile,
+  addCandidates,
+  fetchBreaks,
+  removeBreaksOf,
+  removeCandidatesOf,
+} from "./breaks/command";
 import { mailOutOf, pushOutOf } from "./deliveries";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
@@ -13,8 +19,9 @@ import { grantOperator, removeOperator } from "./operators";
 import { pushKeys } from "./push-keys";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
-// `... job moments`, or `... job exposure`. Five more take a value and write only with `--write`:
+// `... job moments`, or `... job exposure`. Seven more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
+// `... job candidates <folder>`, `... job candidates-remove <list>`,
 // `... job operator <account id>` and `... job operator-remove <account id>`. One reads and
 // writes nothing: `... job push-keys` makes the pair of keys an instance sends push with.
 const [job, ...rest] = process.argv.slice(2);
@@ -26,6 +33,8 @@ const commands = {
   breaks: addBreaksFile,
   "breaks-fetch": fetchBreaks,
   "breaks-remove": removeBreaksOf,
+  candidates: addCandidates,
+  "candidates-remove": removeCandidatesOf,
   operator: grantOperator,
   "operator-remove": removeOperator,
 };

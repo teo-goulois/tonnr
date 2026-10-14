@@ -38,7 +38,7 @@ const WORDS = {
   bestWindDirections: COMPASS_POINTS,
 } satisfies { [Field in keyof Characteristics]: readonly string[] };
 const CHARACTERISTIC_KEYS = [...Object.keys(WORDS), "offshoreDirectionDegrees"];
-const PROVIDER = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export const PROVIDER = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_REF_LENGTH = 200;
 const MAX_TEXT_LENGTH = 200;
 const MAX_PLACES = 10;
@@ -47,24 +47,24 @@ const MAX_DEPTH = 64;
 // A file with a fault in every line would otherwise print them all.
 const MAX_PROBLEMS_SHOWN = 20;
 
-function refused(problems: string[]) {
+export function refused(problems: string[]) {
   const shown = problems.slice(0, MAX_PROBLEMS_SHOWN);
   if (problems.length > shown.length) shown.push(`and ${problems.length - shown.length} more`);
   return new FormatError({ provider: "breaks", message: shown.join("\n") });
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isWebAddress(value: unknown): value is string {
+export function isWebAddress(value: unknown): value is string {
   if (typeof value !== "string" || !URL.canParse(value)) return false;
   const { protocol } = new URL(value);
   return protocol === "https:" || protocol === "http:";
 }
 
 /** A short text with something in it and no space around. */
-function isLabel(value: unknown): value is string {
+export function isLabel(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value !== "" &&
@@ -87,7 +87,7 @@ function isTimezone(value: unknown): value is string {
  * What a line says the break is like, or its faults. A field takes the catalogue's own words
  * and no other: whoever writes the file translates a list's vocabulary into them.
  */
-function readCharacteristics(given: unknown): Characteristics | string[] {
+export function readCharacteristics(given: unknown): Characteristics | string[] {
   if (!isRecord(given)) return ['"characteristics", when given, must be an object'];
 
   const faults: string[] = [];
@@ -121,7 +121,7 @@ function readCharacteristics(given: unknown): Characteristics | string[] {
  * Why the database would not hold the value as it is, or null when it would. Postgres stores
  * no text with U+0000, and half of a surrogate pair reaches it as another character.
  */
-function unstorable(root: unknown) {
+export function unstorable(root: unknown) {
   const pending: [value: unknown, depth: number][] = [[root, 0]];
 
   for (let next = pending.pop(); next; next = pending.pop()) {
@@ -139,7 +139,7 @@ function unstorable(root: unknown) {
   return null;
 }
 
-function unknownKeys(record: Record<string, unknown>, known: string[]) {
+export function unknownKeys(record: Record<string, unknown>, known: string[]) {
   return Object.keys(record).filter((key) => !known.includes(key));
 }
 

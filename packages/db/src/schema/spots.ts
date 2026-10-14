@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -92,6 +93,11 @@ export const COMPASS_POINTS = [
 
 type CompassPoint = (typeof COMPASS_POINTS)[number];
 
+// The languages a break's description is written in: those of the web app.
+export const BREAK_DESCRIPTION_LANGUAGES = ["en", "fr"] as const;
+// A description is a few sentences, as a text of a guide is.
+export const BREAK_DESCRIPTION_MOST = 600;
+
 /**
  * What the owner of a spot says it is like, in the words the catalogue uses for a break. A field
  * left out says that they have not said, and no list is empty.
@@ -112,8 +118,9 @@ export type SpotCharacteristics = {
 /**
  * A place where the sea is surfed. The catalogue is what a user picks a spot from. A break is
  * added once, by hand, and belongs to the instance from then on: nothing brings it back in line
- * with the list it came from. Of what a user wrote it holds one thing: a spot they asked to make
- * public, once an operator accepted it (decision 034).
+ * with the list it came from, and only an operator changes it, from the admin (decision 049). Of
+ * what a user wrote it holds one thing: a spot they asked to make public, once an operator
+ * accepted it (decision 034).
  */
 export const surfBreak = pgTable(
   "surf_break",
@@ -140,6 +147,11 @@ export const surfBreak = pgTable(
     location: text("location").array(),
     // The IANA name of the time zone, such as "Europe/Paris".
     timezone: text("timezone"),
+    // A few sentences on the break, which an operator wrote in their own words, and the language
+    // they wrote them in. Null while nobody has: a list's own text is kept aside, in
+    // `surf_break_listing`, and never shown.
+    description: text("description"),
+    descriptionLanguage: text("description_language", { enum: BREAK_DESCRIPTION_LANGUAGES }),
 
     // Where the break was read, when the list it came from says so. An import knows a break
     // again by the first two.
@@ -154,6 +166,8 @@ export const surfBreak = pgTable(
     // When the break was read in its list. The weekly import of decision 015 wrote it.
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // When an operator last changed it: what changes a break says which version it read.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("surf_break_provider_ref_idx").on(table.provider, table.providerRef),
@@ -162,9 +176,10 @@ export const surfBreak = pgTable(
 );
 
 /**
- * What the list a break came from says of it beyond what the catalogue holds, as the list gave
- * it. It is kept for the day the model of a break grows, and nothing reads it until then: no
- * procedure of the API, and no scheduled job.
+ * What the list a break came from says of it beyond what the catalogue holds, one row a break.
+ * Left from decision 024: `surf_break_listing` holds the same since decision 049, and nothing
+ * reads this one. The version before still writes it while this one is deployed (decision 009),
+ * so the table stays one release, and the next drops it.
  */
 export const surfBreakRecord = pgTable("surf_break_record", {
   breakId: text("break_id")
@@ -173,6 +188,30 @@ export const surfBreakRecord = pgTable("surf_break_record", {
   details: jsonb("details").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * A break as one list gave it: the list's short name and the break's reference in it, the break
+ * of the catalogue it is now, and what the list says of it beyond what the catalogue holds, as
+ * the list gave it. A break has a row for its own list and one for each list whose break was
+ * merged into it. A row stays when its break is deleted, with no break: a list added again then
+ * does not bring back what an operator deleted, nor what they merged. Only an operator reads
+ * it, from the admin: decision 049.
+ */
+export const surfBreakListing = pgTable(
+  "surf_break_listing",
+  {
+    list: text("list").notNull(),
+    ref: text("ref").notNull(),
+    breakId: text("break_id").references(() => surfBreak.id, { onDelete: "set null" }),
+    // Null when the list said nothing more of the break.
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.list, table.ref] }),
+    index("surf_break_listing_breakId_idx").on(table.breakId),
+  ],
+);
 
 export const spot = pgTable(
   "spot",

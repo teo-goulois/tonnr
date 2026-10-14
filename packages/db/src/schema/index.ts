@@ -9,3 +9,4 @@ export * from "./instance";
 export * from "./forecasts";
 export * from "./community";
 export * from "./sessions";
+export * from "./catalogue";

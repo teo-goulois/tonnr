@@ -1,7 +1,8 @@
 import { user } from "@repo/db/schema/auth";
-import { spot, surfBreak, surfBreakRecord } from "@repo/db/schema/spots";
+import { breakCandidate } from "@repo/db/schema/catalogue";
+import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
-import { asc } from "drizzle-orm";
+import { asc, eq, isNotNull } from "drizzle-orm";
 import { Effect } from "effect";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -27,7 +28,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
   beforeEach(async () => {
     await database.db.delete(spot);
     await database.db.delete(user);
+    await database.db.delete(breakCandidate);
     await database.db.delete(surfBreak);
+    await database.db.delete(surfBreakListing);
   });
 
   const add = (given: BreakList, options: { write?: boolean; intoEmpty?: boolean } = {}) =>
@@ -35,7 +38,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
   const remove = (provider: string, write = true) =>
     Effect.runPromise(removeBreaks(database.db, provider, { write }));
   const rows = () => database.db.select().from(surfBreak).orderBy(asc(surfBreak.providerRef));
-  const records = () => database.db.select().from(surfBreakRecord);
+  const listings = () =>
+    database.db
+      .select()
+      .from(surfBreakListing)
+      .orderBy(asc(surfBreakListing.list), asc(surfBreakListing.ref));
+  // What a list said of its breaks besides.
+  const records = () =>
+    database.db.select().from(surfBreakListing).where(isNotNull(surfBreakListing.details));
 
   it("adds a list with what it says of each break", async () => {
     const found = await add(
@@ -93,7 +103,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
     });
     // A break that says no more than where it is, from a list that names no terms of its own.
     expect(second).toMatchObject({ providerRef: "a2", breakTypes: null, sourceUrl: null });
-    expect(await records()).toMatchObject([{ breakId: first?.id, details: { crowd: 3 } }]);
+    expect(await listings()).toMatchObject([
+      { list: "example", ref: "a1", breakId: first?.id, details: { crowd: 3 } },
+      { list: "example", ref: "a2", breakId: second?.id, details: null },
+    ]);
   });
 
   it("stores no source for a list that names none", async () => {
@@ -176,12 +189,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
       longitude: -4.4,
     });
 
-    expect(await remove("first", false)).toEqual({ removed: 1, spots: 1 });
+    expect(await remove("first", false)).toEqual({ removed: 1, spots: 1, forgotten: 0 });
     expect(await rows()).toHaveLength(2);
 
-    expect(await remove("first")).toEqual({ removed: 1, spots: 1 });
+    expect(await remove("first")).toEqual({ removed: 1, spots: 1, forgotten: 0 });
     expect((await rows()).map((row) => row.provider)).toEqual(["second"]);
     expect(await records()).toEqual([]);
+    expect((await listings()).map((row) => row.list)).toEqual(["second"]);
     expect(await database.db.select().from(spot)).toMatchObject([
       { id: "spot-1", breakId: null, name: "My jetty", latitude: 48.1, longitude: -4.4 },
     ]);
@@ -190,7 +204,53 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
   it("deletes nothing of a list the catalogue does not hold", async () => {
     await add(list("first", [listed("a1")]));
 
-    expect(await remove("second")).toEqual({ removed: 0, spots: 0 });
+    expect(await remove("second")).toEqual({ removed: 0, spots: 0, forgotten: 0 });
     expect(await rows()).toHaveLength(1);
+  });
+
+  it("does not bring back a break that an operator merged into another or deleted", async () => {
+    await add(list("example", [listed("a1"), listed("a2"), listed("a3")]));
+    const [first, second] = await rows();
+    // a2 was merged into a1, and a3 deleted: decision 049.
+    await database.db
+      .update(surfBreakListing)
+      .set({ breakId: first?.id })
+      .where(eq(surfBreakListing.ref, "a2"));
+    await database.db.delete(surfBreak).where(eq(surfBreak.providerRef, "a2"));
+    await database.db.delete(surfBreak).where(eq(surfBreak.providerRef, "a3"));
+    expect(second?.providerRef).toBe("a2");
+
+    expect(
+      await add(list("example", [listed("a1"), listed("a2"), listed("a3"), listed("a4")])),
+    ).toMatchObject({ listed: 4, added: 1, known: 3 });
+    expect((await rows()).map((row) => row.providerRef)).toEqual(["a1", "a4"]);
+  });
+
+  it("forgets what a list said of the breaks it no longer has, and adds them again after", async () => {
+    await add(list("example", [listed("a1"), listed("a2")]));
+    await database.db.delete(surfBreak).where(eq(surfBreak.providerRef, "a2"));
+
+    expect(await remove("example")).toEqual({ removed: 1, spots: 0, forgotten: 1 });
+    expect(await listings()).toEqual([]);
+    expect(await add(list("example", [listed("a1"), listed("a2")]))).toMatchObject({ added: 2 });
+  });
+
+  it("puts back in the queue a candidate whose break it deletes", async () => {
+    await add(list("example", [listed("a1")]));
+    const [made] = await rows();
+    await database.db.insert(breakCandidate).values({
+      id: "candidate-1",
+      list: "guide",
+      ref: "g1",
+      name: "Guide's jetty",
+      status: "merged",
+      breakId: made?.id,
+    });
+
+    await remove("example");
+
+    expect(await database.db.select().from(breakCandidate)).toMatchObject([
+      { id: "candidate-1", status: "waiting", breakId: null, decidedAt: null },
+    ]);
   });
 });

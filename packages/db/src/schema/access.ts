@@ -222,6 +222,14 @@ export const OPERATOR_ACTIONS = [
   "contribution.keep",
   "visitors.close",
   "visitors.open",
+  "break.update",
+  "break.merge",
+  "break.delete",
+  "candidate.add",
+  "candidate.merge",
+  "candidate.ignore",
+  "candidate.later",
+  "candidate.reopen",
 ] as const;
 
 /**
@@ -236,10 +244,17 @@ export type OperatorChanges = {
   note?: true;
   // How many open sessions of an account were closed.
   sessions?: number;
-  // The break of the catalogue that publishing a spot made.
+  // The break of the catalogue that publishing a spot made, or that an operator changed, merged
+  // into or deleted, or that a candidate became or was merged into.
   breakId?: string;
   // The contribution to a guide that was confirmed, refused, or kept though contested.
   contributionId?: string;
+  // The break that was merged into `breakId`, and is gone.
+  mergedId?: string;
+  // What of a break was changed, by the name of its fields. The values are not copied.
+  fields?: string[];
+  // The candidate of a list that was decided, by its list and its reference.
+  candidate?: { list: string; ref: string };
 };
 
 /**
