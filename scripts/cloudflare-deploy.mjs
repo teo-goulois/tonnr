@@ -176,6 +176,11 @@ if (analyticsValues.some((name) => values[name])) {
   if (!["development", "dev", "production"].includes(values.VITE_POSTHOG_ENVIRONMENT))
     faults.push("VITE_POSTHOG_ENVIRONMENT is not a known environment");
 }
+const audienceValues = ["VITE_UMAMI_SCRIPT_URL", "VITE_UMAMI_WEBSITE_ID"];
+if (audienceValues.some((name) => values[name])) {
+  for (const name of audienceValues)
+    if (!values[name]) faults.push(`${name} is missing from .env.${stage}`);
+}
 if (faults.length > 0) fail(`packages/infra cannot deploy "${stage}":\n- ${faults.join("\n- ")}`);
 
 // The icons check their licence when they install. The key is the root .env's, or the shell's.
@@ -232,6 +237,8 @@ const deployed =
         VITE_POSTHOG_PROJECT_TOKEN: values.VITE_POSTHOG_PROJECT_TOKEN ?? "",
         VITE_POSTHOG_HOST: values.VITE_POSTHOG_HOST ?? "",
         VITE_POSTHOG_ENVIRONMENT: values.VITE_POSTHOG_ENVIRONMENT ?? "",
+        VITE_UMAMI_SCRIPT_URL: values.VITE_UMAMI_SCRIPT_URL ?? "",
+        VITE_UMAMI_WEBSITE_ID: values.VITE_UMAMI_WEBSITE_ID ?? "",
         // The stack declares the admin app whenever the stage has one, whichever app is
         // deployed: a deployment of the web app alone must not find the admin gone from it.
         ...(values.ADMIN_DOMAIN !== undefined && { ADMIN_DOMAIN: values.ADMIN_DOMAIN }),

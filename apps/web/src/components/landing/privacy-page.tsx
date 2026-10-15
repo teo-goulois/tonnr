@@ -38,6 +38,7 @@ export function PrivacyPage() {
 
       <LegalSection title={m.privacy_visit_title()}>
         <p>{m.privacy_visit_text()}</p>
+        <p>{m.privacy_visit_audience(who)}</p>
         <p>{m.privacy_visit_browser()}</p>
       </LegalSection>
 

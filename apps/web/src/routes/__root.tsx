@@ -10,6 +10,7 @@ import { AppHotkeys } from "@/components/shared/app-hotkeys";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ReleaseWatcher } from "@/components/shared/release-watcher";
 import { ShortcutSettings } from "@/components/shared/shortcut-settings";
+import { ENV } from "@/env.public";
 import type { orpc } from "@/utils/orpc";
 
 import { getLocale } from "@/paraglide/runtime.js";
@@ -75,12 +76,29 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
 const isDevtoolsEnabled = false;
 
+// Umami counts the pages read on every page, the landing's too, with no cookie and no consent to
+// ask: decision 055. It reads no query and no fragment, where a shared list's key and an
+// assistant's sign-in travel. An instance that names no Umami loads nothing.
+const audience =
+  ENV.VITE_UMAMI_SCRIPT_URL && ENV.VITE_UMAMI_WEBSITE_ID
+    ? { src: ENV.VITE_UMAMI_SCRIPT_URL, website: ENV.VITE_UMAMI_WEBSITE_ID }
+    : undefined;
+
 function RootDocument() {
   return (
     // next-themes sets the theme class on <html> before React hydrates.
     <html lang={getLocale()} suppressHydrationWarning>
       <head>
         <HeadContent />
+        {audience && (
+          <script
+            defer
+            src={audience.src}
+            data-website-id={audience.website}
+            data-exclude-search="true"
+            data-exclude-hash="true"
+          />
+        )}
       </head>
       <body>
         <ThemeProvider

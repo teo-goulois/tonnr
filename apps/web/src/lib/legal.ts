@@ -42,6 +42,7 @@ export const RECIPIENTS: {
   { name: "Scaleway", does: m.privacy_does_api, where: m.privacy_where_france },
   { name: "Unosend", does: m.privacy_does_mail, where: m.privacy_where_us },
   { name: "PostHog", does: m.privacy_does_analytics, where: m.privacy_where_eu },
+  { name: "Umami", does: m.privacy_does_audience },
   { name: "Google", does: m.privacy_does_google, where: m.privacy_where_us },
   { name: "komoot (Photon)", does: m.privacy_does_search, where: m.privacy_where_germany },
   { name: "OpenFreeMap", does: m.privacy_does_tiles },

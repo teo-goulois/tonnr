@@ -1,12 +1,12 @@
 # 044. Product analytics
 
-Status: decided on 2026-10-13, at Téo's request to install PostHog and follow his analytics handbook. The landing page is due to be rebuilt. [Decision 054](054-error-reports.md) amended it on 2026-10-15: the same consent covers error reports, and the API reports its faults.
+Status: decided on 2026-10-13, at Téo's request to install PostHog and follow his analytics handbook. The landing page is due to be rebuilt. [Decision 054](054-error-reports.md) amended it on 2026-10-15: the same consent covers error reports, and the API reports its faults. [Decision 055](055-audience-counts.md) amended it the same day: Umami counts the pages read, the landing's too.
 
 ## Decision
 
 - The product web app uses PostHog. Analytics is optional for an instance and starts only after a visitor explicitly agrees, with refusal as easy as agreement. The account tab lets them withdraw that choice. A choice lasts 180 days in that browser.
 - The consent window explains simply that usage analytics helps improve the new app, without naming the provider in that short text. A link leads to the privacy details, which name the provider and data sent. At Téo's request, initial focus goes to acceptance; both choices retain the same appearance, and focus alone grants nothing. Since decision 054, the same text and the same choice cover error reports.
-- The landing loads no analytics SDK and declares no section/click events. Its refactor can keep this contract. A later decision may add Umami, the handbook's default for a simple public site.
+- The landing loads no PostHog SDK and declares no section/click events. Since decision 055, Umami counts its pages, and the product's.
 - Each product action names its `object_verb` event, in the past tense, in its oRPC metadata. One middleware captures on success, after authorization and the procedure's work. It reads no input or output. Operational counts of decision 020 remain independent.
 - `app_active` is recorded on first visible use of a UTC day, including a tab left open overnight. The API gives an account/day or device/day a stable event UUID and midnight timestamp, providing a stable deduplication key across retries, devices and process restarts. The browser also remembers the day and environment after success, across reloads. Authentication supplies the account identifier; an anonymous browser supplies a device UUID.
 - `alert_created` is activation: the user set the conditions that make a spot work. Use it as the start event for retention to `app_active`, and `session_logged` as a second measure of value.

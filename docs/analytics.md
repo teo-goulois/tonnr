@@ -2,13 +2,15 @@
 
 Provider: PostHog EU. The operated instance uses the Tonnr project; configure a project of your own when self-hosting. [Analytics handbook](https://teogoulois.com/code/stack/analytics). Decision 044 defines privacy and capture behavior, and decision 054 the error reports.
 
+Audience counts: Umami, on every page of the web app, with no query string and no fragment, and no consent asked. Decision 055. Its pageviews are the only figures for the landing; PostHog's events below stay the product's.
+
 Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too.
 
 ## Events
 
 Every event has `surface=web`, `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release or `local`). Server events also carry `authenticated` and the browser's technical `$session_id`. No event carries inputs or resource IDs.
 
-Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone; `$exception`, below. Landing: none, until its new version has a measurement plan.
+Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone; `$exception`, below. Landing: none in PostHog; Umami counts its pages.
 
 Authentication: `account_created`, `account_signed_in`, `account_signed_out`, `account_updated`.
 
