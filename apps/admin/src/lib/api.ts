@@ -18,6 +18,7 @@ export type Publication = Answer<V1["publications"]["list"]>["publications"][num
 export type Review = Answer<V1["reviews"]["list"]>["reviews"][number];
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;
+export type Overview = Answer<V1["instance"]["overview"]>;
 export type Job = InstanceState["jobs"][number];
 export type JobFailure = NonNullable<Job["failure"]>;
 // The catalogue of breaks, as its operator keeps it: decision 049.

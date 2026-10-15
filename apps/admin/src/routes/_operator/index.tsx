@@ -1,9 +1,14 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { OverviewPage } from "@/components/overview/overview-page";
 import { useRange } from "@/lib/use-now";
 import { useUsageBreakdown, useUsageSeries } from "@/lib/use-usage";
 import { type RangeName, isRangeName, rangeNameOf } from "@/lib/usage";
+import { orpc } from "@/utils/orpc";
+
+// The API writes its counts every thirty seconds.
+const EVERY = 30 * 1000;
 
 export const Route = createFileRoute("/_operator/")({
   // How far back the counts go is in the address, so that a view can be kept or sent.
@@ -19,6 +24,7 @@ function OverviewRoute() {
   const navigate = useNavigate({ from: Route.fullPath });
   const range = useRange(rangeName);
 
+  const overview = useQuery(orpc.v1.instance.overview.queryOptions({ refetchInterval: EVERY }));
   const series = useUsageSeries(range);
   const byVia = useUsageBreakdown(range, "via");
   const byWay = useUsageBreakdown(range, "way");
@@ -28,6 +34,7 @@ function OverviewRoute() {
 
   return (
     <OverviewPage
+      overview={overview.data}
       rangeName={rangeName}
       onRangeChange={(next) =>
         void navigate({ search: next === "day" ? {} : { range: next }, replace: true })

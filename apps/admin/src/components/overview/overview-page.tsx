@@ -4,11 +4,15 @@ import { BreakdownTable } from "@/components/usage/breakdown-table";
 import { RangePicker } from "@/components/usage/range-picker";
 import { UsageSummary } from "@/components/usage/usage-summary";
 import { wayLabel } from "@/components/usage/ways";
-import type { BreakdownRow } from "@/lib/api";
+import type { BreakdownRow, Overview } from "@/lib/api";
 import type { Range, RangeName, UsagePoint } from "@/lib/usage";
 import { m } from "@/paraglide/messages.js";
 
+import { Pulse } from "./pulse";
+
 type OverviewPageProps = {
+  // The instance in a glance. Undefined while it loads.
+  overview: Overview | undefined;
   rangeName: RangeName;
   onRangeChange: (range: RangeName) => void;
   range: Range;
@@ -33,6 +37,7 @@ const VIA: Record<string, () => string> = {
 
 /** The calls the instance took: how many, from whom, and for what. */
 export function OverviewPage({
+  overview,
   rangeName,
   onRangeChange,
   range,
@@ -59,8 +64,11 @@ export function OverviewPage({
 
   return (
     <>
+      <h1 className="text-l font-medium">{m.nav_overview()}</h1>
+      <Pulse overview={overview} />
+
       <div className="flex flex-wrap items-center justify-between gap-s">
-        <h1 className="text-l font-medium">{m.usage_title()}</h1>
+        <h2 className="text-m font-medium">{m.usage_title()}</h2>
         <RangePicker value={rangeName} onChange={onRangeChange} />
       </div>
 

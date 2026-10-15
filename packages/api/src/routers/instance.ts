@@ -2,6 +2,8 @@ import { FORECAST_BUDGET, FORECAST_PROVIDER } from "@repo/conditions/forecasts/o
 import { MAIL_PROVIDER } from "@repo/auth/verification";
 import { currentCalls } from "@repo/db/calls";
 import { countForecastCells } from "@repo/db/forecasts";
+import { accountSuspension, apiUsage, USAGE_VIA } from "@repo/db/schema/access";
+import { session, user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
 import {
   FAILURE_KINDS,
@@ -10,7 +12,7 @@ import {
   type JobFailure,
   workerProcess,
 } from "@repo/db/schema/instance";
-import { asc, count, desc, gt, max, sql } from "drizzle-orm";
+import { asc, count, countDistinct, desc, gt, max, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "@repo/db";
@@ -194,6 +196,124 @@ export const instanceRouter = {
       return {
         ...health,
         api: { startedAt: context.server.startedAt, revision: context.server.revision ?? null },
+      };
+    }),
+
+  overview: adminProcedure
+    .route({
+      method: "GET",
+      path: "/instance/overview",
+      summary: "The instance at a glance: its accounts, its calls, its forecasts, its worker",
+      description:
+        `${ADMIN_ONLY} A few numbers, for an operator who wants to know in a moment whether ` +
+        "many people are here and whether the instance keeps up. The accounts active this week " +
+        "are those with a session that was used in the last seven days. The calls are those " +
+        "of the last twenty-four hours, by the kind of caller, as the counts of decision 020 " +
+        "keep them: approximate, written every thirty seconds. The forecasts are the requests " +
+        "sent to the provider today, UTC, against each share of the day: decision 023.",
+      tags: ["Instance"],
+    })
+    .output(
+      z.object({
+        at: z.date(),
+        accounts: z.object({
+          total: z.number(),
+          // Made in the last seven days.
+          newThisWeek: z.number(),
+          // With a session used in the last seven days.
+          activeThisWeek: z.number(),
+          suspended: z.number(),
+        }),
+        // The calls of the last twenty-four hours, by who made them.
+        calls: z.object({
+          total: z.number(),
+          byVia: z.array(z.object({ via: z.enum(USAGE_VIA), calls: z.number() })),
+        }),
+        forecasts: z.object({
+          people: z.object({ calls: z.number(), limit: z.number() }),
+          alerts: z.object({ calls: z.number(), limit: z.number() }),
+          cells: z.number(),
+        }),
+        visitors: z.object({
+          // Whether a visitor reads the map now: no operator closed the instance to them, and
+          // demand is not strong.
+          open: z.boolean(),
+          busy: z.boolean(),
+          closedAt: z.date().nullable(),
+        }),
+        worker: z.object({
+          // Whether a worker said it was there in the last two minutes.
+          running: z.boolean(),
+          // The jobs no attempt of started for longer than their schedule leaves, and those
+          // whose last attempt failed or ran too long.
+          late: z.number(),
+          failed: z.number(),
+        }),
+      }),
+    )
+    .handler(async ({ context }) => {
+      const { db } = context;
+      const weekAgo = sql`now() - interval '7 days'`;
+      const dayAgo = sql`now() - interval '24 hours'`;
+      const [accounts, active, suspended, byVia, calls, cells, closedAt, workers, jobs, clock] =
+        await Promise.all([
+          db
+            .select({
+              total: count(),
+              newThisWeek: count(sql`case when ${user.createdAt} > ${weekAgo} then 1 end`),
+            })
+            .from(user),
+          db
+            .select({ active: countDistinct(session.userId) })
+            .from(session)
+            .where(gt(session.updatedAt, weekAgo)),
+          db.$count(accountSuspension),
+          db
+            .select({
+              via: apiUsage.via,
+              calls: sql<number>`coalesce(${sum(apiUsage.calls)}, 0)::int`.mapWith(Number),
+            })
+            .from(apiUsage)
+            .where(gt(apiUsage.hour, dayAgo))
+            .groupBy(apiUsage.via)
+            .orderBy(sql`2 desc`),
+          currentCalls(db, FORECAST_PROVIDER),
+          countForecastCells(db),
+          visitorsClosedAt(db),
+          db.select({ seenAt: max(workerProcess.seenAt) }).from(workerProcess),
+          db.select().from(job),
+          db.execute<{ at: string }>(sql`select (extract(epoch from now()) * 1000)::bigint as at`),
+        ]);
+
+      const at = new Date(Number(clock.rows[0]?.at));
+      const states = jobs.map((row) => jobState(row, at));
+      const busy = isDemandStrong(calls);
+      return {
+        at,
+        accounts: {
+          total: accounts[0]?.total ?? 0,
+          newThisWeek: accounts[0]?.newThisWeek ?? 0,
+          activeThisWeek: active[0]?.active ?? 0,
+          suspended,
+        },
+        calls: {
+          total: byVia.reduce((total, row) => total + row.calls, 0),
+          byVia,
+        },
+        forecasts: {
+          people: { calls: calls.get("day:people") ?? 0, limit: FORECAST_BUDGET.day.people },
+          alerts: { calls: calls.get("day:alerts") ?? 0, limit: FORECAST_BUDGET.day.alerts },
+          cells,
+        },
+        visitors: { open: closedAt === null && !busy, busy, closedAt },
+        worker: {
+          running:
+            workers[0]?.seenAt !== null &&
+            workers[0]?.seenAt !== undefined &&
+            at.getTime() - workers[0].seenAt.getTime() < SEEN_WITHIN_S * 1000,
+          late: states.filter((state) => state === "late").length,
+          failed: states.filter((state) => state === "failed" || state === "expired").length,
+        },
       };
     }),
 

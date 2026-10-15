@@ -439,6 +439,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.developers.members",
         "v1.developers.addMember",
         "v1.developers.removeMember",
+        "v1.instance.overview",
         "v1.instance.state",
         "v1.keys.list",
         "v1.keys.create",
