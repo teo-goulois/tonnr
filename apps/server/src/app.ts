@@ -5,6 +5,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { analyticsRequest, captureAction, type Analytics } from "@repo/api/analytics";
 import type { Context } from "@repo/api/context";
+import { clientAddressOf } from "@repo/api/address";
 import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { createMcp } from "@repo/api/mcp";
 import { appRouter, v1Router } from "@repo/api/routers/index";
@@ -18,6 +19,7 @@ import {
 } from "@repo/auth/agents";
 import { APP_NAME } from "@repo/config/app";
 import type { Database } from "@repo/db";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -68,6 +70,16 @@ function logFault(error: unknown) {
 }
 
 /** The API as a Hono app: every route, and nothing that listens. */
+// The address of the connection itself, which is the proxy's behind one. A test's request
+// has no connection.
+function connectionAddressOf(c: Parameters<typeof getConnInfo>[0]) {
+  try {
+    return getConnInfo(c).remote.address ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function createApp({
   env,
   db,
@@ -232,6 +244,7 @@ export function createApp({
       authorization: c.req.header("authorization") ?? null,
       site: siteOf(request),
       adminSites,
+      address: clientAddressOf(c.req.raw.headers, connectionAddressOf(c)),
       usage,
       forecasts,
       places,

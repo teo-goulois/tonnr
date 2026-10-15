@@ -9,6 +9,7 @@ import { and, count, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
+import { admitForecastQuestion } from "../forecast-callers";
 import { takeConditions } from "../sessions";
 import { hasControlCharacter } from "../text";
 
@@ -296,7 +297,8 @@ export const sessionsRouter = {
       if (!place) throw new ORPCError("BAD_REQUEST");
 
       // Read before the session is written, and outside its transaction: the provider may be
-      // slow, and nothing of the database waits for it.
+      // slow, and nothing of the database waits for it. One question of the account's hour.
+      await admitForecastQuestion(context);
       const conditions = await takeConditions({
         db: context.db,
         forecasts: context.forecasts,
@@ -625,6 +627,7 @@ export const sessionsRouter = {
       }
       const reads =
         moved || !current.conditions || current.conditions.modelMissing === "unavailable";
+      if (reads) await admitForecastQuestion(context);
       const conditions = reads
         ? await takeConditions({
             db: context.db,

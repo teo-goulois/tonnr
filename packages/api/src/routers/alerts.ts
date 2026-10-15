@@ -22,6 +22,7 @@ import { z } from "zod";
 
 import { linkProcedure, protectedProcedure } from "../index";
 import { hasControlCharacter } from "../text";
+import { admitForecastQuestion } from "../forecast-callers";
 import { forecastSourceSchema, forecastUnavailable } from "./forecasts";
 
 // Decision 031. An alert and an account's settings are their owner's alone: every procedure here
@@ -616,6 +617,8 @@ export const alertsRouter = {
         .where(eq(alertSettings.userId, userId));
       const availability = availabilityOf(settingsOf(row));
 
+      // One question of the account's hour, whatever the number of spots.
+      await admitForecastQuestion(context);
       // One spot after the other: neighbours share a cell of the forecast, which the first of
       // them fetches for all.
       const assessed = [];

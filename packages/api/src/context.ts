@@ -21,6 +21,9 @@ export type Context = {
   // The sites whose pages may run the instance: the admin app's, or the API's own on an
   // instance that has no admin app.
   adminSites: readonly string[];
+  // The address the request comes from, as the proxy says it: `clientAddressOf`. It names a
+  // visitor for the limits of decision 053, and nothing keeps it. Null when nothing says it.
+  address?: string | null;
   // Where the calls are counted.
   usage: Usage;
   // The way the call came in, which it is counted with: the MCP server says `mcp`, and the

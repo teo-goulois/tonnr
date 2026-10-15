@@ -12,6 +12,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import type { Session } from "@repo/auth";
 import { APP_NAME, APP_SLUG } from "@repo/config/app";
 
+import { clientAddressOf } from "./address";
 import type { Context } from "./context";
 import { keyWorks, readAuthorization } from "./keys";
 import { v1Router } from "./routers/index";
@@ -223,6 +224,7 @@ export function createMcp(
       ...services,
       session,
       site: null,
+      address: requestInfo ? clientAddressOf(requestInfo.headers, null) : null,
       authorization: session ? null : (requestInfo?.headers.get("authorization") ?? null),
       // The call is counted as its procedure's, and as one that came this way.
       way: "mcp",

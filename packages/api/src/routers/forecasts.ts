@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { MAX_FORECAST_DAYS, MAX_PAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { forecastSource, waveModel } from "@repo/conditions/forecasts/wave-models";
+import { admitForecastQuestion } from "../forecast-callers";
 import { callerProcedure } from "../index";
 
 const measurement = z.number().nullable();
@@ -213,6 +214,8 @@ export const forecastsRouter = {
         });
       }
 
+      // One question of the caller's hour, whether or not the provider is asked for it.
+      await admitForecastQuestion(context);
       const result = await Effect.runPromise(
         Effect.result(context.forecasts.get({ latitude, longitude, ...span })),
       );
