@@ -168,6 +168,9 @@ export const forecastData = z.object({
   models: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })),
   // The models the swell apart comes from, listed the same way.
   swellModels: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })),
+  // The models the peak period of the whole sea comes from, when it is another's than the
+  // waves': ECMWF's, laid over MFWAM's files (decision 058). A row written before has none.
+  peakModels: z.array(z.object({ id: z.enum(waveModelIds), from: z.number().int() })).default([]),
   hours: columns.refine(hasOneValuePerHour),
 });
 
@@ -204,6 +207,7 @@ export function buildForecast(model: OpenMeteoModelId, marineJson: unknown, weat
       ? [{ id: model, from: waves.time[0] ?? 0 }]
       : [],
     swellModels: [],
+    peakModels: [],
     hours: {
       time: waves.time,
       waveHeightMeters: waves.wave_height,

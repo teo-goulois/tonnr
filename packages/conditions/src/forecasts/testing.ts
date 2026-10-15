@@ -38,6 +38,7 @@ export function answer(
       ? [{ id: "ecmwf_wam", from: time[0] ?? 0 }]
       : [],
     swellModels: [{ id: "mfwam", from: time[0] ?? 0 }],
+    peakModels: [],
     hours: {
       time,
       waveHeightMeters,

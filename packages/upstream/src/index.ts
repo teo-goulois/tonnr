@@ -135,6 +135,29 @@ export const fetchText = (url: string, headers?: RequestHeaders) =>
 export const fetchBytes = (url: string, maxBytes: number, headers?: RequestHeaders) =>
   fetchBody(url, (response) => readUpTo(response, maxBytes), { headers });
 
+/**
+ * A range of a file's bytes, as a bucket serves them: from `offset`, `size` bytes, and the size
+ * of the whole file, read from the `Content-Range` the answer carries. A server that ignores the
+ * range answers the whole file, which is refused past `size`: a reader asks for the pieces it
+ * needs, never for a file whole. Decision 058.
+ */
+export const fetchRange = (url: string, offset: number, size: number) =>
+  fetchBody(
+    url,
+    async (response) => {
+      const bytes = await readUpTo(response, size);
+      // "bytes 0-23/310212": the number after the slash is the file's size.
+      const total = Number(/\/(\d+)$/.exec(response.headers.get("content-range") ?? "")?.[1]);
+      return {
+        bytes,
+        total: Number.isFinite(total) && total > 0 ? total : null,
+        // The version of the file these bytes belong to, as the server names it.
+        etag: response.headers.get("etag"),
+      };
+    },
+    { headers: { range: `bytes=${offset}-${offset + size - 1}` } },
+  );
+
 const parseJson = (url: string, text: string) =>
   Effect.try({
     try: (): unknown => JSON.parse(text),

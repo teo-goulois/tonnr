@@ -9,9 +9,8 @@ import { keepListedForecasts, pagesDone, SLICES_A_DAY, sliceAt } from "./pages";
 // The forecasts of the listed breaks, kept by the worker in slices over the day: decision 057.
 
 describe("the slice of a run", () => {
-  it("is the eighth of the day the run falls in", () => {
+  it("is the part of the day the run falls in, and every run's when the day has one slice", () => {
     expect(sliceAt(new Date("2026-10-15T00:50:00Z"))).toBe(0);
-    expect(sliceAt(new Date("2026-10-15T03:50:00Z"))).toBe(1);
     expect(sliceAt(new Date("2026-10-15T23:50:00Z"))).toBe(SLICES_A_DAY - 1);
   });
 });
@@ -67,8 +66,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept for the listed breaks", 
     const runs = await day(kept.forecasts);
     expect(runs.map((run) => run.cells)).toEqual(Array(SLICES_A_DAY).fill(2));
     expect(runs.map((run) => run.breaks)).toEqual(Array(SLICES_A_DAY).fill(3));
-    expect(runs.reduce((sum, run) => sum + run.asked, 0)).toBe(2);
-    expect(runs.reduce((sum, run) => sum + run.refreshed, 0)).toBe(2);
+    // Two cells, each asked for once over the day's slices: a fresh one costs nothing again.
+    expect(runs.reduce((sum, run) => sum + run.asked, 0)).toBe(2 * SLICES_A_DAY);
+    expect(runs.reduce((sum, run) => sum + run.refreshed, 0)).toBe(2 * SLICES_A_DAY);
     expect(kept.provider.asked).toBe(2);
     expect(kept.seen.spent).toBe(4);
     expect([...kept.rows.keys()]).toHaveLength(2);
@@ -81,7 +81,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept for the listed breaks", 
     kept.limit(2);
     const runs = await day(kept.forecasts);
     const spent = runs.find((run) => run.budgetSpent);
-    expect(spent).toMatchObject({ failed: 1, refreshed: 0 });
+    // The first cell was fetched, the second refused: the run stopped there.
+    expect(spent).toMatchObject({ failed: 1, refreshed: 1 });
     expect(runs.reduce((sum, run) => sum + run.refreshed, 0)).toBe(1);
     expect(pagesDone(spent!)).toMatchObject({ degraded: true });
   });

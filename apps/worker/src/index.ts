@@ -67,8 +67,8 @@ const jobs: Scheduled[] = [
   { name: ALERTS_QUEUE, schedule: "20 */3 * * *" },
   // What begins, and the evening before, are told to the quarter of an hour.
   { name: MOMENTS_QUEUE, schedule: "*/15 * * * *" },
-  // The forecasts of the listed breaks, an eighth of their cells at each run, so that each is
-  // fetched once a day on the pages' share of the budget: decision 057.
+  // The forecasts of the listed breaks, every three hours, from the models' files, which cost
+  // no quota: decisions 057 and 058.
   { name: PAGES_QUEUE, schedule: "50 */3 * * *" },
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once

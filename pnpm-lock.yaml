@@ -366,6 +366,12 @@ importers:
       '@opencoredev/email-sdk':
         specifier: 2.0.0
         version: 2.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@openmeteo/file-format-wasm':
+        specifier: 0.0.20
+        version: 0.0.20
+      '@openmeteo/file-reader':
+        specifier: 0.0.20
+        version: 0.0.20
       '@orpc/openapi':
         specifier: 'catalog:'
         version: 1.15.4(@opentelemetry/api@1.9.1)(ws@8.22.0)
@@ -560,6 +566,12 @@ importers:
       '@opencoredev/email-sdk':
         specifier: 2.0.0
         version: 2.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@openmeteo/file-format-wasm':
+        specifier: 0.0.20
+        version: 0.0.20
+      '@openmeteo/file-reader':
+        specifier: 0.0.20
+        version: 0.0.20
       '@repo/conditions':
         specifier: workspace:*
         version: link:../../packages/conditions
@@ -716,6 +728,9 @@ importers:
       '@neaps/tide-predictor':
         specifier: 'catalog:'
         version: 0.11.0
+      '@openmeteo/file-reader':
+        specifier: 0.0.20
+        version: 0.0.20
       '@repo/db':
         specifier: workspace:*
         version: link:../db
@@ -2382,6 +2397,12 @@ packages:
         optional: true
       react-dom:
         optional: true
+
+  '@openmeteo/file-format-wasm@0.0.20':
+    resolution: {integrity: sha512-w8FGSOR10in+vVncqazV16zpk1WyBQLE7Lm/YzVYRQy4GqLYHxJ+X9Q9LN0h37KY9+eSZiE3mpfYVj0LwfSmqQ==}
+
+  '@openmeteo/file-reader@0.0.20':
+    resolution: {integrity: sha512-fThrpPMMUuseaugpDGtfX2oT2CHdh/DWzEMWnuC/R3c6Lef0R1AklfHRAbUSwuM7B98dAO5pAMyxWB/yi09mCg==}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -8052,6 +8073,12 @@ snapshots:
     optionalDependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
+
+  '@openmeteo/file-format-wasm@0.0.20': {}
+
+  '@openmeteo/file-reader@0.0.20':
+    dependencies:
+      '@openmeteo/file-format-wasm': 0.0.20
 
   '@opentelemetry/api@1.9.1': {}
 

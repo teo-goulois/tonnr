@@ -7,15 +7,19 @@ import { Effect, Result } from "effect";
 import { StoreError } from "./store";
 
 // The forecasts of the listed breaks, kept by the worker so that the page of each shows its week
-// whatever the hour, and so that a crawler never has the provider asked: decision 057. The
-// cells are refreshed in slices spread over the day, on the pages' share of the budget.
+// whatever the hour, and so that a crawler never has the provider asked: decision 057. The cells
+// can be refreshed in slices spread over the day, when a refresh costs a share of the budget.
 
-/** How many runs share the day's cells: one every three hours, so a cell is fetched once a day. */
-export const SLICES_A_DAY = 8;
+/**
+ * How many runs share the day's cells. One: the forecasts come from the models' files, which
+ * cost no quota, so every cell is refreshed at each run, every three hours (decision 058). Eight
+ * would fetch each once a day, within the pages' share of the budget (decision 057).
+ */
+export const SLICES_A_DAY = 1;
 
 const cellKey = (cell: Cell) => `${cell.latStep},${cell.lonStep}`;
 
-/** Which slice of the cells a run at a moment takes: the eighth of the day it falls in. */
+/** Which slice of the cells a run at a moment takes: the part of the day it falls in. */
 export function sliceAt(now: Date) {
   return Math.floor(now.getUTCHours() / (24 / SLICES_A_DAY));
 }

@@ -8,6 +8,8 @@ import {
   makeSwell,
   type Swell,
 } from "./copernicus-waves";
+import { fetchFromFiles } from "./model-files";
+import { makeOpenData, type OpenData } from "./open-data";
 import {
   type BudgetSpent,
   type Cell,
@@ -109,26 +111,60 @@ export function layWaves(
   }
   if (!isFine && !hasSwell) return data;
   // The grid point is the fine model's when it answered: it is the one nearest the spot.
-  return { point: isFine && fine ? fine.point : data.point, models, swellModels, hours };
+  return {
+    point: isFine && fine ? fine.point : data.point,
+    models,
+    swellModels,
+    peakModels: data.peakModels,
+    hours,
+  };
 }
 
 /**
- * What asks for the forecast of a cell: Open-Meteo for the wind, the weather and the waves, then
- * the fine model for the waves where it has its sea, and the world's model for the swell apart.
- * The two stores are read once Open-Meteo has answered: a question the budget refuses, or that
- * the provider fails, asks nothing of them. They are not counted against the budget, which is
- * Open-Meteo's, and their failure fails nothing.
+ * What asks for the forecast of a cell: the models' files on Open-Meteo's bucket for the wind,
+ * the weather, the waves and the swell apart, then the fine model laid over where it has its
+ * sea. The files cost no quota, so `spend` is not called for them. When they cannot be read, the
+ * HTTP API is asked as before, within the budget, and the world's swell store laid over its
+ * answer, which has no swell apart: decisions 023, 037, 038 and 058. The stores are read once
+ * the forecast is had: a question that fails asks nothing of them, and their failure fails
+ * nothing.
  */
 export function makeCellForecast(
   fineWaves: FetchFineWaves = makeFineWaves(),
   swell: FetchSwell = makeSwell(),
+  files: OpenData | null = makeOpenData(),
 ) {
-  return <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) =>
-    fetchForecast(cell, spend).pipe(
-      Effect.flatMap((data) =>
-        Effect.all([fineWaves(pointOf(cell)), swell(pointOf(cell))], { concurrency: 2 }).pipe(
-          Effect.map(([fine, apart]) => layWaves(data, fine, apart)),
-        ),
+  return <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) => {
+    const fromFiles = files
+      ? fetchFromFiles(files, cell).pipe(
+          Effect.map(({ data }) => ({ data, swellApart: true })),
+          Effect.timeoutOption(FILES_PATIENCE),
+          Effect.flatMap((answered) =>
+            answered._tag === "Some"
+              ? Effect.succeed(answered.value)
+              : Effect.logWarning("the models' files took too long").pipe(Effect.as(null)),
+          ),
+          Effect.catch((error) =>
+            Effect.logWarning("the models' files could not be read", error).pipe(Effect.as(null)),
+          ),
+        )
+      : Effect.succeed(null);
+    return fromFiles.pipe(
+      Effect.flatMap((found) =>
+        found
+          ? Effect.succeed(found)
+          : fetchForecast(cell, spend).pipe(Effect.map((data) => ({ data, swellApart: false }))),
+      ),
+      Effect.flatMap(({ data, swellApart }) =>
+        Effect.all(
+          [fineWaves(pointOf(cell)), swellApart ? Effect.succeed(null) : swell(pointOf(cell))],
+          { concurrency: 2 },
+        ).pipe(Effect.map(([fine, apart]) => layWaves(data, fine, apart))),
       ),
     );
+  };
 }
+
+// How long a cell waits for the files before the API is asked instead: a cold cell takes a few
+// seconds from Europe, the bucket being in Oregon.
+const FILES_PATIENCE = "20 seconds";

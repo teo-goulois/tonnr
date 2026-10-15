@@ -331,6 +331,10 @@ export function makeForecasts(
         hours && hours[0] && hours.at(-1)
           ? modelsOver(found.data.swellModels, hours[0].time, hours.at(-1)!.time)
           : [],
+      peakModels:
+        hours && hours[0] && hours.at(-1)
+          ? modelsOver(found.data.peakModels, hours[0].time, hours.at(-1)!.time)
+          : [],
       hours,
       fetchedAt: found.fetchedAt,
       stale: found.stale,
@@ -357,6 +361,7 @@ export function makeForecasts(
         point: data.point,
         models: hasWaves ? modelsOver(data.models, start, end) : [],
         swellModels: hasWaves ? modelsOver(data.swellModels, start, end) : [],
+        peakModels: hasWaves ? modelsOver(data.peakModels, start, end) : [],
         hours: hasWaves ? hours : null,
       };
     };
@@ -400,6 +405,8 @@ export function makeForecasts(
       models: hasWaves && first && last ? modelsOver(found.data.models, first.time, last.time) : [],
       swellModels:
         hasWaves && first && last ? modelsOver(found.data.swellModels, first.time, last.time) : [],
+      peakModels:
+        hasWaves && first && last ? modelsOver(found.data.peakModels, first.time, last.time) : [],
       hours: hasWaves ? hours : null,
       fetchedAt: found.fetchedAt,
       stale: found.age >= FRESH_MS,

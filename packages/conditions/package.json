@@ -11,6 +11,7 @@
   "dependencies": {
     "@neaps/tide-database": "catalog:",
     "@neaps/tide-predictor": "catalog:",
+    "@openmeteo/file-reader": "0.0.20",
     "@repo/db": "workspace:*",
     "@repo/upstream": "workspace:*",
     "effect": "catalog:",

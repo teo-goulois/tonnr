@@ -14,6 +14,8 @@
   "dependencies": {
     "@neaps/tide-database": "catalog:",
     "@opencoredev/email-sdk": "2.0.0",
+    "@openmeteo/file-format-wasm": "0.0.20",
+    "@openmeteo/file-reader": "0.0.20",
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/mail": "workspace:*",

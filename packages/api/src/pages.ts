@@ -178,6 +178,8 @@ export async function weekAt(
     days,
     fetchedAt: kept.fetchedAt,
     stale: kept.stale,
-    source: forecastSource([...kept.models, ...kept.swellModels].map((model) => model.id)),
+    source: forecastSource(
+      [...kept.models, ...kept.swellModels, ...kept.peakModels].map((model) => model.id),
+    ),
   };
 }
