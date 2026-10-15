@@ -26,5 +26,5 @@ Open-Meteo counts its free requests by the address that asks (decision 023). A s
 ## Consequences
 
 - There is no pre-production. A change is tried locally, then deployed to production. A pre-production comes back with a second instance, on an address of its own for Open-Meteo.
-- The Workers of `dev.tonnr.app` and `admin.dev.tonnr.app` stay deployed, since no command takes a stage down: they load, and every call to the API is refused. Remove them by hand in Cloudflare, or leave it until a pre-production comes back.
+- The Workers of `dev.tonnr.app` and `admin.dev.tonnr.app` stay deployed, since no command takes a stage down: they load, and every call to the API is refused. Remove them by hand in Cloudflare, or leave them until a pre-production comes back.
 - What the database holds from before the release, accounts and spots made while trying the app, stays unless Téo removes it.
