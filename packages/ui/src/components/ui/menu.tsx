@@ -61,9 +61,9 @@ export function MenuPopup({
             // animation
             "origin-(--transform-origin)",
             // structure & layout
-            "rounded-m",
+            "rounded-sm",
             // border & background
-            "edge bg-neutral-1 [--edge-color:var(--neutral-4-transparent)] [--edge-elevation:var(--shadow-m)]",
+            "edge bg-neutral-1 [--edge-color:var(--neutral-7-transparent)] [--edge-elevation:var(--shadow-m)]",
             // outline / ring (focus)
             "outline-none",
             // pseudo-element

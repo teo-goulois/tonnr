@@ -129,6 +129,18 @@ describe.skipIf(!TEST_DATABASE_URL)("an idea from the landing", () => {
     ).toEqual({ sent: false, why: "failed" });
   });
 
+  it("sends a message from the contact page as a message, counted with the ideas", async () => {
+    const out = testIdeas(database.db);
+    const message = { ...IDEA, about: "message" };
+
+    expect(await send(message, by({ ideas: out.ideas }))).toEqual({ sent: true });
+    expect(out.sent()[0]).toMatchObject({ subject: "Message from contact: Léa" });
+    for (let sent = 1; sent < IDEAS_A_DAY; sent += 1) {
+      expect(await send(IDEA, by({ ideas: out.ideas }))).toEqual({ sent: true });
+    }
+    expect(await send(message, by({ ideas: out.ideas }))).toEqual({ sent: false, why: "full" });
+  });
+
   it(`sends ${IDEAS_A_DAY} a day, within the instance's mails`, async () => {
     const out = testIdeas(database.db);
     for (let sent = 0; sent < IDEAS_A_DAY; sent += 1) {

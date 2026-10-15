@@ -64,3 +64,45 @@
 .dark .maplibregl-map .maplibregl-ctrl-attrib-button {
   filter: invert(1);
 }
+
+/* What the cards of the landing do while they are in view: the sea drifts, the wind blows off the
+   shore and sways its marker, the foam runs along the beach. */
+@theme {
+  --animate-landing-drift: landing-drift 18s ease-in-out infinite alternate;
+  --animate-landing-gust: landing-gust 2.4s linear infinite both;
+  --animate-landing-sway: landing-sway 3.2s ease-in-out infinite alternate;
+  --animate-landing-foam: landing-foam 2.4s linear infinite;
+
+  @keyframes landing-drift {
+    to {
+      translate: -20% 0;
+    }
+  }
+  @keyframes landing-gust {
+    0% {
+      translate: 0 0;
+      opacity: 0;
+    }
+    25%,
+    70% {
+      opacity: 1;
+    }
+    100% {
+      translate: -9rem 0;
+      opacity: 0;
+    }
+  }
+  @keyframes landing-sway {
+    from {
+      rotate: -8deg;
+    }
+    to {
+      rotate: 8deg;
+    }
+  }
+  @keyframes landing-foam {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+}

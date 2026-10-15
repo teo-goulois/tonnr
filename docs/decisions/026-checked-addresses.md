@@ -25,11 +25,11 @@ The instance sends no mail at all today.
 ### Checking an address
 
 - Signing up sends the account a mail with a link, in the language the request asks for in `Accept-Language`. The account is signed in at once, as before: nothing waits for the link, and a mail that could not be sent does not undo the sign-up.
-- The link is good for a day. It opens the API, which marks the address as checked and sends the browser on to the web app at `/verified`, or at `/fr/verified` when the mail is in French: the link carries the language of its mail, so the page needs no guess. It signs no one in: the browser that follows it is signed in already, or signs in.
+- The link is good for a day. It opens the API, which marks the address as checked and sends the browser on to the web app at `/verified`, or under its language's prefix, such as `/fr/verified` when the mail is in French: the link carries the language of its mail, so the page needs no guess. It signs no one in: the browser that follows it is signed in already, or signs in.
 - A link that is too old or that was tampered with sends the browser to `/verified?error=TOKEN_EXPIRED` or `/verified?error=INVALID_TOKEN`. A link that was already followed works again until it is too old, and changes nothing.
 - `POST /v1/account/verification` sends the mail again to the account that asks, in the language it names: its body is `{ "locale": "en" }` or `"fr"`, English without one. It answers 200 with `{ "sent": true }` when the provider took the mail, 409 when the address is already checked, 429 with `Retry-After` when the account has had its mails for the hour or the day, and 503 when the instance sends no mail, has sent its mails for the day, or the provider did not take this one. After a 503 the mail may still arrive.
 - The sign-in library's own route, which sends the mail to an address given without a session, is switched off. Anyone could have it mail the addresses that are not checked yet.
-- The mail is plain: who it is from, what the link does, and that it can be ignored. It is written in French for a request that asks for French, and in English otherwise. It carries no image and no tracker, and is addressed to the address alone: the name an account chose is not put in a mail's headers.
+- The mail is plain: who it is from, what the link does, and that it can be ignored. It is written in the language the request likes best of the web app's, and in English when it asks for none of them. It carries no image and no tracker, and is addressed to the address alone: the name an account chose is not put in a mail's headers.
 - `GET /v1/account` says whether the address is checked, and whether this instance checks addresses.
 
 ### What an unchecked account may do
@@ -58,6 +58,14 @@ Added on 2026-10-14.
 - The instance sends 20 ideas a day at most, counted with its mails for the day, before each leaves.
 - Nothing of an idea is kept: the mail is all there is of it. The API checks the address as a sender's, and a first name on one line.
 - An instance that sends no mail, or has sent its ideas for the day, says so, and the form gives the address to write to.
+
+### Messages from the contact page
+
+Added on 2026-10-15.
+
+- `/contact` holds the same form, for whatever a person wants to say: a question, a bug, a source that is missing, or a request for a key. Every link that asked for an issue on GitHub leads there, since most readers do not know what an issue is.
+- It goes through `v1.ideas.send` with `about: "message"`, which the input may leave out for an idea. Its subject is `Message from contact: ` and the first name.
+- An idea and a message are counted together: the instance sends 20 of them a day at most.
 
 ## Rejected
 

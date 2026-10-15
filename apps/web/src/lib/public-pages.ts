@@ -1,3 +1,6 @@
+import { APP_NAME } from "@repo/config/app";
+
+import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, localizeHref } from "@/paraglide/runtime.js";
 import type { Locale } from "@/paraglide/runtime.js";
 import type { FileRoutesByTo } from "@/routeTree.gen";
@@ -11,6 +14,7 @@ export const PUBLIC_PAGES = [
   "/",
   "/sources",
   "/agents",
+  "/contact",
   "/terms",
   "/privacy",
   "/legal",
@@ -32,6 +36,42 @@ export function pageLinks(site: string, page: PublicPage) {
       hrefLang: locale,
       href: pageAddress(site, page, locale),
     })),
+  ];
+}
+
+/**
+ * The picture a link to the site is shown with, in the reader's language: the top of the landing,
+ * which `scripts/landing-shots.mjs` takes for each language.
+ */
+export const SHARED_PICTURE = { width: 1200, height: 630 };
+
+export function sharedPicturePath(locale: Locale) {
+  return `/landing/og-${locale}.jpg`;
+}
+
+/**
+ * What a public page says of itself in its head: its title and description, and what a link to it
+ * is shown with where it is shared.
+ */
+export function pageMeta(
+  site: string,
+  page: PublicPage,
+  { title, description }: { title: string; description: string },
+) {
+  const locale = getLocale();
+  return [
+    { title },
+    { name: "description", content: description },
+    { property: "og:type", content: "website" },
+    { property: "og:site_name", content: APP_NAME },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: pageAddress(site, page, locale) },
+    { property: "og:image", content: `${site}${sharedPicturePath(locale)}` },
+    { property: "og:image:width", content: String(SHARED_PICTURE.width) },
+    { property: "og:image:height", content: String(SHARED_PICTURE.height) },
+    { property: "og:image:alt", content: m.landing_shot_alt({ name: APP_NAME }) },
+    { name: "twitter:card", content: "summary_large_image" },
   ];
 }
 

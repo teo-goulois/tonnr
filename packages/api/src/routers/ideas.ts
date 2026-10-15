@@ -14,12 +14,14 @@ export const ideasRouter = {
     .route({
       method: "POST",
       path: "/ideas",
-      summary: "Send whoever makes the product an idea",
+      summary: "Send whoever makes the product an idea, or a message",
       description:
         "Takes a visitor of the web app or an account, from the web app's site, and no key " +
-        "and no link: an idea is a person's, sent from the landing. It goes by mail to whoever " +
+        "and no link: an idea is a person's, sent from the landing, and so is a message, sent " +
+        "from the contact page, which `about: message` says. It goes by mail to whoever " +
         "makes the product, with the address given as where an answer goes, and nothing of it " +
-        `is kept. The instance sends ${IDEAS_A_DAY} a day at most, within its mails for the day, ` +
+        `is kept. The instance sends ${IDEAS_A_DAY} a day at most, ideas and messages together, ` +
+        "within its mails for the day, " +
         "whether or not it answers visitors. `sent: false` says why: `off`, the instance sends " +
         "no mail; `full`, it has sent its ideas or its mails for the day, in UTC; `failed`, the " +
         "provider did not take the mail. Decision 026.",
@@ -46,6 +48,7 @@ export const ideasRouter = {
           .refine((email) => readSender(email)?.email === email),
         idea: z.string().trim().min(1).max(4000),
         locale: z.enum(["en", "fr"]),
+        about: z.enum(["idea", "message"]).default("idea"),
       }),
     )
     .output(

@@ -53,6 +53,12 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs"
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { Toggle } from "@repo/ui/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipPopup,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/ui/tooltip-popup";
 import { ArrowRightIcon, GoogleIcon, PlusIcon } from "@repo/ui/icon";
 import { m } from "@/paraglide/messages.js";
 import { type ReactNode, useState } from "react";
@@ -135,6 +141,19 @@ const NEUTRALS = [
   "bg-neutral-9",
   "bg-neutral-10",
 ] as const;
+const TRANSPARENT_NEUTRALS = [
+  "bg-neutral-1-transparent",
+  "bg-neutral-2-transparent",
+  "bg-neutral-3-transparent",
+  "bg-neutral-4-transparent",
+  "bg-neutral-5-transparent",
+  "bg-neutral-6-transparent",
+  "bg-neutral-7-transparent",
+  "bg-neutral-8-transparent",
+  "bg-neutral-9-transparent",
+  "bg-neutral-10-transparent",
+] as const;
+const ACCENTS = ["bg-color-1", "bg-success", "bg-warning", "bg-error"] as const;
 
 const HOUR_MS = 60 * 60 * 1000;
 // A fixed moment, so the samples below draw the same curves on every visit.
@@ -424,6 +443,7 @@ export function DesignSystemPage() {
   const bindings = useShortcuts();
   const [layers, setLayers] = useState<MapLayers>({
     sea: true,
+    arrows: true,
     buoys: true,
     wind: true,
     breaks: true,
@@ -442,18 +462,36 @@ export function DesignSystemPage() {
       </header>
 
       <Section title="Colors">
-        <div className="edge flex overflow-hidden rounded-xs">
-    arrows: true,
-          {NEUTRALS.map((neutral) => (
-            <span key={neutral} className={`h-12 flex-1 ${neutral}`} />
+        <TooltipProvider delay={0}>
+          {[NEUTRALS, TRANSPARENT_NEUTRALS].map((neutrals) => (
+            <div key={neutrals[0]} className="edge flex overflow-hidden rounded-xs">
+              {neutrals.map((neutral) => (
+                <Tooltip key={neutral}>
+                  <TooltipTrigger
+                    render={<span />}
+                    tabIndex={0}
+                    aria-label={neutral}
+                    className={`h-12 flex-1 focus-visible:outline-(--focus-ring-outline) focus-visible:-outline-offset-2 ${neutral}`}
+                  />
+                  <TooltipPopup>{neutral}</TooltipPopup>
+                </Tooltip>
+              ))}
+            </div>
           ))}
-        </div>
-        <Row>
-          <span className="size-8 rounded-full bg-color-1" />
-          <span className="size-8 rounded-full bg-success" />
-          <span className="size-8 rounded-full bg-warning" />
-          <span className="size-8 rounded-full bg-error" />
-        </Row>
+          <Row>
+            {ACCENTS.map((accent) => (
+              <Tooltip key={accent}>
+                <TooltipTrigger
+                  render={<span />}
+                  tabIndex={0}
+                  aria-label={accent}
+                  className={`size-8 rounded-full focus-visible:outline-(--focus-ring-outline) ${accent}`}
+                />
+                <TooltipPopup>{accent}</TooltipPopup>
+              </Tooltip>
+            ))}
+          </Row>
+        </TooltipProvider>
       </Section>
 
       <Section title="Type">

@@ -61,9 +61,9 @@ export function PopoverPopup({
             // animation
             "origin-(--transform-origin)",
             // structure & layout
-            "rounded-m",
+            "rounded-lg",
             // border & background
-            "edge bg-neutral-1 [--edge-color:var(--neutral-4-transparent)] [--edge-elevation:var(--shadow-m)]",
+            "edge bg-neutral-1 [--edge-color:var(--neutral-7-transparent)] [--edge-elevation:var(--shadow-m)]",
             // typography
             "text-m text-neutral-10",
             // outline / ring (focus)

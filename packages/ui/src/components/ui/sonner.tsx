@@ -29,7 +29,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         {
           "--normal-bg": "var(--neutral-1)",
           "--normal-text": "var(--neutral-10)",
-          "--normal-border": "var(--neutral-4-transparent)",
+          "--normal-border": "var(--neutral-5-transparent)",
           "--border-radius": "var(--radius-m)",
           "--width": "22rem",
           fontFamily: "var(--font-ui)",

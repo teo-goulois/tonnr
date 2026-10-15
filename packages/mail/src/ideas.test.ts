@@ -17,6 +17,19 @@ describe("the mail of an idea", () => {
     expect(mail.text).toContain("in English");
   });
 
+  it("says a message from the contact page apart from an idea", () => {
+    const mail = ideaMail({
+      name: "Léa",
+      email: "lea@example.org",
+      idea: "A buoy is wrong",
+      locale: "fr",
+      about: "message",
+    });
+
+    expect(mail.subject).toBe("Message from contact: Léa");
+    expect(mail.text).toContain("sent a message from the contact page of");
+  });
+
   it("writes what was typed as text, in its mail of HTML too", () => {
     const mail = ideaMail({
       name: "<b>Léa</b>",

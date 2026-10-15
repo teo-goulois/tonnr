@@ -5,21 +5,22 @@ import { AgentsGuide } from "@/components/landing/landing-agents";
 import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { ENV } from "@/env.public";
-import { pageLinks } from "@/lib/public-pages";
+import { pageLinks, pageMeta } from "@/lib/public-pages";
 import { apiOrigin, siteOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
 
 export const Route = createFileRoute("/agents")({
   loader: () => ({ site: siteOrigin() }),
-  head: ({ loaderData }) => ({
-    meta: [
-      {
-        title: m.landing_agents_page_title({ name: APP_NAME, agents: m.landing_agents_word() }),
-      },
-      { name: "description", content: m.landing_agents_body() },
-    ],
-    links: pageLinks(loaderData?.site ?? "", "/agents"),
-  }),
+  head: ({ loaderData }) => {
+    const site = loaderData?.site ?? "";
+    return {
+      meta: pageMeta(site, "/agents", {
+        title: `${APP_NAME} — ${m.agents_meta_title()}`,
+        description: m.agents_meta_description({ name: APP_NAME }),
+      }),
+      links: pageLinks(site, "/agents"),
+    };
+  },
   component: Agents,
 });
 

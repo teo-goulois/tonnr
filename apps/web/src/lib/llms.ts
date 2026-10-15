@@ -1,4 +1,4 @@
-import { APP_NAME, FEEDBACK_URL, REPOSITORY_URL } from "@repo/config/app";
+import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
 
 /** The buoy the landing shows, and the one its request reads: a real station of the instance. */
 export const EXAMPLE_STATION = "candhis-05602";
@@ -27,7 +27,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - Base address: \`${api}/v1\`
 - [OpenAPI specification](${api}/v1/openapi.json): every route, its parameters and its answers.
 - [Reference](${api}/v1/docs): the same, for a person.
-- A program calls with a key: \`Authorization: Bearer <key>\`. Whoever runs the instance hands the keys out. [Ask for one](${FEEDBACK_URL}) and say what you are building.
+- A program calls with a key: \`Authorization: Bearer <key>\`. Whoever runs the instance hands the keys out. [Ask for one](${site}/contact) and say what you are building.
 - A key reads the data everyone shares. It never stands for an account: spots, lists, alerts and sessions take a signed-in account.
 - Answers are JSON. Heights are in metres, periods in seconds, speeds in metres per second, directions in degrees the sea or the wind comes from, and times in UTC.
 - A station comes with its \`attribution\` and its \`license\`. Show them with the data.
@@ -67,7 +67,7 @@ curl ${api}/v1/stations/${EXAMPLE_STATION} \\
 
 - [Source code](${REPOSITORY_URL}), under the GNU AGPL, version 3. Anyone may host an instance.
 - [Terms of use](${site}/terms), [privacy policy](${site}/privacy) and [legal notice](${site}/legal).
-- [Feedback, and a key](${FEEDBACK_URL}).
+- [Feedback, and a key](${site}/contact): a form that writes to whoever runs the instance.
 - The measurements belong to the networks that publish them, each under its own terms.
 `;
 }

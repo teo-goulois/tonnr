@@ -1,11 +1,24 @@
 import { RocketFillDuoIcon } from "@repo/ui/icon";
+import { cn } from "@repo/ui/lib/utils";
 
 import { WIND_SPEED_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
 import { IdeaDialog } from "./landing-idea";
 
-import { SECTIONS, SectionTitle, Tile, Woven, apart, column, ruled } from "./landing-parts";
+import {
+  SECTIONS,
+  SectionTitle,
+  Tile,
+  Woven,
+  apart,
+  arrive,
+  column,
+  order,
+  ruled,
+  under,
+  useArriving,
+} from "./landing-parts";
 
 // The orange of a wind that rises, for what is still to come.
 const NEXT_COLOR = scaleColor(WIND_SPEED_SCALE, 25);
@@ -20,8 +33,13 @@ const IDEAS = [
 
 /** What may come next, said as ideas and not as promises. */
 export function LandingNext() {
+  const arriving = useArriving<HTMLElement>();
   return (
-    <section aria-labelledby={SECTIONS.next} className={`${column} ${apart} grid gap-xl`}>
+    <section
+      {...arriving}
+      aria-labelledby={SECTIONS.next}
+      className={`${column} ${apart} ${under} group/arrival grid`}
+    >
       <SectionTitle
         id={SECTIONS.next}
         title={
@@ -40,20 +58,31 @@ export function LandingNext() {
           />
         }
         more={m.landing_next_more()}
-        className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
+        className={cn(arrive, "max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]")}
       />
       <ul className="grid gap-x-xl sm:grid-cols-2 lg:grid-cols-4">
-        {IDEAS.map((idea) => (
-          <li key={idea.name()} className={`${ruled} grid content-start gap-xxs py-m`}>
+        {IDEAS.map((idea, index) => (
+          <li
+            key={idea.name()}
+            style={order(1 + index)}
+            className={cn(arrive, ruled, "grid grid-rows-[auto_auto_1fr] gap-xxs py-m")}
+          >
             <h3 className="font-medium">{idea.name()}</h3>
             <p className="text-neutral-7">{idea.text()}</p>
+            {/* The reader says it is the one they wait for, by the same mail as an idea. */}
+            <div className="mt-xs self-end">
+              <IdeaDialog wants={idea.name()} />
+            </div>
           </li>
         ))}
         {/* The reader's own, which reaches its maker by mail. */}
-        <li className={`${ruled} grid content-start gap-xxs py-m`}>
+        <li
+          style={order(1 + IDEAS.length)}
+          className={cn(arrive, ruled, "grid grid-rows-[auto_auto_1fr] gap-xxs py-m")}
+        >
           <h3 className="font-medium">{m.landing_next_yours_name()}</h3>
           <p className="text-neutral-7">{m.landing_next_yours_text()}</p>
-          <div className="mt-xs">
+          <div className="mt-xs self-end">
             <IdeaDialog />
           </div>
         </li>

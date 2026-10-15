@@ -1,6 +1,13 @@
 import { APP_NAME } from "@repo/config/app";
 import { cn } from "@repo/ui/lib/utils";
-import type { CSSProperties, ReactNode } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /** The parts of the landing its header leads to, by the id each one answers to. */
 export const SECTIONS = {
@@ -14,8 +21,67 @@ export const SECTIONS = {
 /** The width every part of the landing keeps to, and its margins. */
 export const column = "mx-auto w-full max-w-6xl px-m sm:px-l";
 
-/** The room over a part of the landing: twice a phone's on a wide screen. */
-export const apart = "pt-[calc(var(--space-xxl)*1.5)] lg:pt-[calc(var(--space-xxl)*3)]";
+/** The room over a part of the landing: a phone's, a tablet's half again, a wide screen's three times. */
+export const apart = "pt-xxl sm:pt-[calc(var(--space-xxl)*1.5)] lg:pt-[calc(var(--space-xxl)*3)]";
+
+/** The room between a part's title and what it shows, tighter on a phone. */
+export const under = "gap-l sm:gap-xl";
+
+/**
+ * How far a part of the landing is in its arrival. One that the server draws, or that is in view
+ * before the page has its script, stays `still`: it shows its end at once. One further down
+ * `wait`s, hidden, then `go`es as it comes into view: once a third of it shows, or a fifth of the
+ * screen for one taller than that. A reader who asked for no motion gets `still` parts.
+ */
+export type Stage = "still" | "wait" | "go";
+export type Arrival = { stage: Stage; moving: boolean };
+
+/** The arrival of an element, and whether its own motion may play now, while it is in view. */
+export function useArrivalOf(element: RefObject<HTMLElement | null>): Arrival {
+  const [stage, setStage] = useState<Stage>("still");
+  const [inView, setInView] = useState(false);
+  const [calm, setCalm] = useState(true);
+
+  useEffect(() => {
+    const target = element.current;
+    if (!target) return;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+    setCalm(reduce.matches);
+    if (!reduce.matches && target.getBoundingClientRect().top > innerHeight) setStage("wait");
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        setInView(entry.isIntersecting);
+        if (entry.intersectionRatio >= 0.3 || entry.intersectionRect.height >= innerHeight / 5) {
+          setStage((stage) => (stage === "wait" ? "go" : stage));
+        }
+      },
+      { threshold: [0, 0.05, 0.1, 0.2, 0.3] },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [element]);
+
+  return { stage, moving: inView && !calm };
+}
+
+/**
+ * What a part of the landing spreads on its element, which is the `group/arrival`, so that what it
+ * holds arrives: each piece marked with `arrive` rises out of a blur as the part comes into view,
+ * in the `order` it is given.
+ */
+export function useArriving<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const { stage } = useArrivalOf(ref);
+  return { ref, "data-stage": stage === "still" ? undefined : stage };
+}
+
+/** A piece of a part that arrives: a rise, a fade and a blur that clears, on the theme's large easing. */
+export const arrive =
+  "transition-[opacity,translate,filter] duration-700 ease-theme-large group-data-[stage=wait]/arrival:translate-y-3 group-data-[stage=wait]/arrival:opacity-0 group-data-[stage=wait]/arrival:blur-[4px]";
+
+/** When a piece arrives: a tenth of a second after the one before it, so that the title comes first. */
+export const order = (place: number): CSSProperties => ({ transitionDelay: `${place * 100}ms` });
 
 // What an icon does under the pointer, wherever the landing sets one in a line of text: the
 // motion of the inline links of teogoulois.com.
@@ -129,7 +195,13 @@ export function SectionTitle({
   className?: string;
 }) {
   return (
-    <h2 id={id} className={cn("text-l font-medium text-balance lg:text-xl", className)}>
+    <h2
+      id={id}
+      className={cn(
+        "text-l font-medium text-balance max-sm:text-[1.25rem] max-sm:leading-[1.3] lg:text-xl",
+        className,
+      )}
+    >
       {title}
       {more && <span className="text-neutral-7"> {more}</span>}
     </h2>
@@ -137,8 +209,20 @@ export function SectionTitle({
 }
 
 /** A piece of the product, or of a program, set apart from the page's prose. */
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn("rounded-(--radius-s) bg-neutral-2 p-l", className)}>{children}</div>;
+export function Card({
+  className,
+  style,
+  children,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  return (
+    <div style={style} className={cn("rounded-(--radius-s) bg-neutral-2 p-m sm:p-l", className)}>
+      {children}
+    </div>
+  );
 }
 
 /** A line between two rows, drawn as the theme draws an edge. */

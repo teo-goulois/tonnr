@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { APP_NAME, FEEDBACK_URL, REPOSITORY_URL } from "@repo/config/app";
+import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
 import { buttonVariants } from "@repo/ui/components/ui/button";
 import {
   ArrowRightIcon,
@@ -7,6 +7,7 @@ import {
   CalendarFillDuoIcon,
   ChartAreaFillDuoIcon,
   LayersFillDuoIcon,
+  LiveFillDuoIcon,
   LocationFillDuoIcon,
   WaterLevelFillDuoIcon,
   WaveFillDuoIcon,
@@ -26,14 +27,17 @@ import {
 import { m } from "@/paraglide/messages.js";
 
 import {
-  AppName,
   SECTIONS,
   SectionTitle,
   Tile,
   Woven,
   apart,
+  arrive,
   column,
+  order,
   ruled,
+  under,
+  useArriving,
 } from "./landing-parts";
 
 const CC_BY = { name: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" };
@@ -378,15 +382,38 @@ const SOURCES_COLOR = scaleColor(WAVE_HEIGHT_SCALE, 0);
 // A tile that stands before a short name, rather than in a line of text.
 const bigTile = "mr-0 rounded-[0.5rem] [--tile:--spacing(7)] [&_svg]:size-4";
 
+// The violet of a long period, as the card of the live buoys has it.
+const LIVE_COLOR = scaleColor(WAVE_PERIOD_SCALE, 14);
+
+/** The title of the page of the sources, which tells where every figure comes from. */
 function SourcesTitle() {
   return (
     <Woven
-      say={m.landing_sources_title}
+      say={m.sources_page_title}
       words={{
         figure: (
           <>
             <Tile color={SOURCES_COLOR}>
               <ChartAreaFillDuoIcon />
+            </Tile>
+            {m.sources_page_word()}
+          </>
+        ),
+      }}
+    />
+  );
+}
+
+/** The title of the landing's section, which says what is read live, with the words searched. */
+function LiveTitle() {
+  return (
+    <Woven
+      say={m.landing_sources_title}
+      words={{
+        live: (
+          <>
+            <Tile color={LIVE_COLOR}>
+              <LiveFillDuoIcon />
             </Tile>
             {m.landing_sources_word()}
           </>
@@ -401,30 +428,33 @@ function SourcesTitle() {
  * and where they measure, every name leading to its place on the page of the sources.
  */
 export function LandingSources() {
+  const arriving = useArriving<HTMLElement>();
   return (
-    <section aria-labelledby={SECTIONS.sources} className={`${column} ${apart} grid gap-xl`}>
+    <section
+      {...arriving}
+      aria-labelledby={SECTIONS.sources}
+      className={`${column} ${apart} ${under} group/arrival grid`}
+    >
       <SectionTitle
         id={SECTIONS.sources}
-        title={<SourcesTitle />}
-        more={<Woven say={m.landing_sources_more} words={{ name: <AppName /> }} />}
-        className="max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]"
+        title={<LiveTitle />}
+        more={m.landing_sources_more({ name: APP_NAME })}
+        className={cn(arrive, "max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]")}
       />
-      <div className="grid gap-l">
-        <ul className="rounded-(--radius-s) bg-neutral-2 px-m sm:px-l">
+      <div className="grid gap-m sm:gap-l">
+        <ul
+          style={order(1)}
+          className={cn(arrive, "rounded-(--radius-s) bg-neutral-2 px-m sm:px-l")}
+        >
           {GROUPS.map((group, index) => (
             <li
               key={group.id}
               className={cn(
-                "group/lively grid gap-s py-l lg:grid-cols-12 lg:items-baseline",
+                "grid gap-s py-m sm:py-l lg:grid-cols-12 lg:items-baseline",
                 index > 0 && ruled,
               )}
             >
-              <h3 className="flex items-center gap-s font-medium lg:col-span-3">
-                <Tile color={group.color} className={bigTile}>
-                  {group.icon}
-                </Tile>
-                {group.name()}
-              </h3>
+              <h3 className="font-medium lg:col-span-3">{group.name()}</h3>
               <ul className="flex flex-wrap gap-xs lg:col-span-9">
                 {group.sources.map((source) => (
                   <li key={source.id}>
@@ -445,17 +475,19 @@ export function LandingSources() {
             </li>
           ))}
         </ul>
-        <Link
-          to="/sources"
-          className={cn(buttonVariants({ variant: "secondary" }), "group/open justify-self-start")}
-        >
-          {m.landing_sources_all()}
-          <ArrowRightIcon
-            data-slot="icon"
-            aria-hidden
-            className="transition-[translate] duration-(--motion-duration) ease-theme group-hover/open:translate-x-0.5 motion-reduce:transition-none"
-          />
-        </Link>
+        <div style={order(2)} className={cn(arrive, "justify-self-start")}>
+          <Link
+            to="/sources"
+            className={cn(buttonVariants({ variant: "secondary" }), "group/open")}
+          >
+            {m.landing_sources_all()}
+            <ArrowRightIcon
+              data-slot="icon"
+              aria-hidden
+              className="transition-[translate] duration-(--motion-duration) ease-theme group-hover/open:translate-x-0.5 motion-reduce:transition-none"
+            />
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -533,10 +565,7 @@ export function SourcesGuide() {
       <div className="grid gap-xl">
         <h1 className="max-w-4xl text-l font-medium text-balance lg:text-xl">
           <SourcesTitle />
-          <span className="text-neutral-7">
-            {" "}
-            <Woven say={m.sources_page_more} words={{ name: <AppName /> }} />
-          </span>
+          <span className="text-neutral-7"> {m.sources_page_more({ name: APP_NAME })}</span>
         </h1>
         <ul className="grid gap-m sm:grid-cols-3">
           {PRINCIPLES.map((principle) => (
@@ -574,9 +603,9 @@ export function SourcesGuide() {
           <p className="text-neutral-7">{m.sources_missing_text()}</p>
         </div>
         <div className="flex flex-wrap gap-xs lg:col-span-5 lg:justify-end">
-          <a href={FEEDBACK_URL} className={buttonVariants()}>
+          <Link to="/contact" className={buttonVariants()}>
             {m.sources_missing_suggest()}
-          </a>
+          </Link>
           <a
             href={`${REPOSITORY_URL}/blob/main/docs/data-sources.md`}
             className={buttonVariants({ variant: "secondary" })}

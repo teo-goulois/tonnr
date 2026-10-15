@@ -18,6 +18,7 @@ export const toggleVariants = cva(
     "font-medium whitespace-nowrap text-neutral-10",
     // transitions
     "transition-[color,background-color,box-shadow] duration-(--motion-duration) ease-theme",
+    "motion-reduce:transition-none focus-visible:transition-none",
     // focus
     "focus-ring outline-none",
     // a finger gets the room it needs, which the layout then keeps for it
@@ -65,14 +66,24 @@ export function Toggle({
       {...props}
     >
       {/* An outlined toggle is a word to press among others: one that is pressed says so with a
-          mark too, and not by its color alone. The mark has its room from the start, so that
-          pressing moves nothing. */}
+          mark too. An unpressed toggle leaves no room for the mark. */}
       {variant === "outline" && (
-        <CheckIcon
+        <span
           aria-hidden
-          data-slot="toggle-check"
-          className="-ml-0.5 size-3! opacity-0 group-data-pressed/toggle:opacity-100"
-        />
+          data-slot="toggle-check-slot"
+          className={cn(
+            "inline-flex w-0 shrink-0 items-center opacity-0",
+            "transition-[width,margin-inline-start,margin-inline-end,opacity] duration-(--motion-duration) ease-theme",
+            "group-data-pressed/toggle:-ms-0.5 group-data-pressed/toggle:w-3 group-data-pressed/toggle:me-0 group-data-pressed/toggle:opacity-100",
+            "motion-reduce:transition-none group-focus-visible/toggle:transition-none",
+            size === "sm" ? "-me-xxs" : "-me-xs",
+          )}
+        >
+          <CheckIcon
+            data-slot="toggle-check"
+            className="size-3! scale-(--motion-popup-scale) transition-transform duration-(--motion-duration) ease-theme group-data-pressed/toggle:scale-100 motion-reduce:transform-none motion-reduce:transition-none group-focus-visible/toggle:transform-none group-focus-visible/toggle:transition-none"
+          />
+        </span>
       )}
       {children}
     </TogglePrimitive>

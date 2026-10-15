@@ -1,7 +1,12 @@
 export type { IconProps } from "./icon-types";
 
 // Brand artwork, supplied by the provider.
+export { ClaudeIcon } from "./claude-icon";
+export { GmailIcon } from "./gmail-icon";
 export { GoogleIcon } from "./google-icon";
+export { OpenAIIcon } from "./openai-icon";
+export { OutlookIcon } from "./outlook-icon";
+export { YahooIcon } from "./yahoo-icon";
 
 // Local icons — fill
 export { AtSignFillIcon } from "./at-sign-icon";
@@ -125,13 +130,22 @@ export { IconWaterWaveFill18 as WaveFillIcon } from "nucleo-ui-fill-18/component
 
 // The tiles of the landing, Nucleo UI fill duo 18 as Téo asked on 2026-10-14: a full shape in
 // white on a color, and a lighter one behind it.
+export { IconBookBookmarkFillDuo18 as BookBookmarkFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconBookBookmarkFillDuo18";
+export { IconHeartFillDuo18 as HeartFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconHeartFillDuo18";
+export { IconLiveFillDuo18 as LiveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLiveFillDuo18";
+export { IconPeople2FillDuo18 as PeopleFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconPeople2FillDuo18";
 export { IconBellOnFillDuo18 as BellOnFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconBellOnFillDuo18";
 export { IconCalendarFillDuo18 as CalendarFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconCalendarFillDuo18";
+export { IconChatBubbleContentFillDuo18 as ChatFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconChatBubbleContentFillDuo18";
+export { IconEnvelopePhoneFillDuo18 as EnvelopePhoneFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconEnvelopePhoneFillDuo18";
 export { IconChartStackedAreaFillDuo18 as ChartAreaFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconChartStackedAreaFillDuo18";
 export { IconLayersFillDuo18 as LayersFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLayersFillDuo18";
 export { IconLocationFillDuo18 as LocationFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLocationFillDuo18";
+export { IconMoonFillDuo18 as MoonFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconMoonFillDuo18";
 export { IconRocketFillDuo18 as RocketFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconRocketFillDuo18";
 export { IconSparkleFillDuo18 as SparklesFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconSparkleFillDuo18";
+export { IconSunriseFillDuo18 as SunriseFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconSunriseFillDuo18";
+export { IconTabletMobileFillDuo18 as AppsFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconTabletMobileFillDuo18";
 export { IconWaterLevelUpFillDuo18 as WaterLevelFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterLevelUpFillDuo18";
 export { IconWaterWaveFillDuo18 as WaveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWaterWaveFillDuo18";
 export { IconWindFillDuo18 as WindFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconWindFillDuo18";
