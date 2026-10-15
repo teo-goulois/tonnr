@@ -2,6 +2,7 @@ import { APP_NAME } from "@repo/config/app";
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
 import type { AgentClient } from "@/lib/agent-sign-in";
 import { m } from "@/paraglide/messages.js";
@@ -35,7 +36,22 @@ type ConnectPageProps =
       onDeny: () => void;
     };
 
-const LAYOUT = "mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl";
+// A page of its own, with no header and no tabs: the account came from an assistant, and has one
+// thing to do here. The product's mark says whose page it is.
+function Frame({ busy, children }: { busy?: boolean; children: ReactNode }) {
+  return (
+    <main
+      className="mx-auto grid w-full max-w-(--container-sm) content-start gap-xl px-m py-xl"
+      aria-busy={busy}
+    >
+      <p className="flex items-center gap-xs font-bold tracking-[-0.02em]">
+        <img src="/favicon.svg" alt="" width={24} height={24} className="size-6" />
+        {APP_NAME}
+      </p>
+      <div className="grid gap-l">{children}</div>
+    </main>
+  );
+}
 
 // What a token lets an assistant read, in the order the account thinks of it.
 const READS = [
@@ -53,7 +69,7 @@ const READS = [
 export function ConnectPage(props: ConnectPageProps) {
   if (props.state === "nothing") {
     return (
-      <main className={LAYOUT}>
+      <Frame>
         <div className="grid gap-xs">
           <h1 className="text-l font-medium">{m.connect_nothing_title()}</h1>
           <p className="text-neutral-7">{m.connect_nothing_text({ app: APP_NAME })}</p>
@@ -63,25 +79,25 @@ export function ConnectPage(props: ConnectPageProps) {
             {m.verify_open_map()}
           </Link>
         </div>
-      </main>
+      </Frame>
     );
   }
 
   if (props.state === "waiting") {
     return (
-      <main className={LAYOUT} aria-busy>
+      <Frame busy>
         <div className="grid gap-xs">
           <Skeleton className="h-7 w-64" />
           <Skeleton className="h-5 w-80 max-w-full" />
         </div>
         <Skeleton className="h-10 w-40 rounded-(--radius-s)" />
-      </main>
+      </Frame>
     );
   }
 
   if (props.state === "sign-in") {
     return (
-      <main className={LAYOUT}>
+      <Frame>
         <div className="grid gap-xs">
           <h1 className="text-l font-medium">{m.connect_title_sign_in()}</h1>
           <p className="text-neutral-7">{m.connect_sign_in_text({ app: APP_NAME })}</p>
@@ -91,13 +107,13 @@ export function ConnectPage(props: ConnectPageProps) {
           onModeChange={props.onModeChange}
           onSuccess={props.onSignedIn}
         />
-      </main>
+      </Frame>
     );
   }
 
   const { client, username, returnsTo, isAnswering, failed, onAllow, onDeny } = props;
   return (
-    <main className={LAYOUT} aria-busy={client === undefined && !failed}>
+    <Frame busy={client === undefined && !failed}>
       <div className="grid gap-xs">
         {client === undefined && !failed ? (
           <Skeleton className="h-7 w-72 max-w-full" />
@@ -137,6 +153,6 @@ export function ConnectPage(props: ConnectPageProps) {
           {m.connect_deny()}
         </Button>
       </div>
-    </main>
+    </Frame>
   );
 }

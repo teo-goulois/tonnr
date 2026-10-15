@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import type { AuthMode } from "@/components/auth/auth-form";
 import { ConnectPage } from "@/components/auth/connect-page";
-import { AppShell } from "@/components/shared/app-shell";
 import { answer, askedAtStart, clientOf, continueAddress } from "@/lib/agent-sign-in";
 import { authClient } from "@/lib/auth-client";
 
@@ -22,11 +21,12 @@ export const Route = createFileRoute("/connect")({
   component: Connect,
 });
 
+// No header and no tabs: the page stands alone, its content in the middle of the screen.
 function Connect() {
   return (
-    <AppShell>
+    <div className="grid min-h-dvh items-center">
       <Asking />
-    </AppShell>
+    </div>
   );
 }
 
