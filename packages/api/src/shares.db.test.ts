@@ -227,6 +227,36 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
     );
   });
 
+  it("counts tries that come at once one after the other, and lets none pass the ten", async () => {
+    const { token } = await shared("offshore");
+    for (let attempt = 0; attempt < 9; attempt += 1)
+      await code(call(v1Router.shared.open, { token, password: "guess" }, anyone));
+
+    const answers = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        code(call(v1Router.shared.open, { token, password: "guess" }, anyone)),
+      ),
+    );
+    expect(answers.filter((answer) => answer === "FORBIDDEN")).toHaveLength(1);
+    expect(answers.filter((answer) => answer === "TOO_MANY_REQUESTS")).toHaveLength(19);
+  });
+
+  it("does not count the right password among the wrong ones", async () => {
+    const { token } = await shared("offshore");
+    for (let attempt = 0; attempt < 9; attempt += 1)
+      await code(call(v1Router.shared.open, { token, password: "guess" }, anyone));
+    for (let attempt = 0; attempt < 3; attempt += 1)
+      expect(await code(call(v1Router.shared.open, { token, password: "offshore" }, anyone))).toBe(
+        "answered",
+      );
+    expect(await code(call(v1Router.shared.open, { token, password: "guess" }, anyone))).toBe(
+      "FORBIDDEN",
+    );
+    expect(await code(call(v1Router.shared.open, { token, password: "offshore" }, anyone))).toBe(
+      "TOO_MANY_REQUESTS",
+    );
+  });
+
   it("is kept by an account that has the link, which then reads it without", async () => {
     const { list, token } = await shared("offshore");
 

@@ -1,8 +1,8 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 import type { Database } from "@repo/db";
 import { stationListShare } from "@repo/db/schema/lists";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, lt, or, sql } from "drizzle-orm";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type Share = typeof stationListShare.$inferSelect;
@@ -22,17 +22,25 @@ export function newToken() {
   return Buffer.from(randomBytes(16)).toString("base64url");
 }
 
+// Off the event loop: a scrypt takes tens of milliseconds, which no other request waits for.
+const scryptOf = (password: string, salt: Buffer, length: number) =>
+  new Promise<Buffer>((resolve, reject) =>
+    scrypt(password, salt, length, (error, key) =>
+      error ? reject(error) : resolve(Buffer.from(key)),
+    ),
+  );
+
 /** A password as it is kept: its salt and its scrypt, never itself. */
-export function hashPassword(password: string) {
+export async function hashPassword(password: string) {
   const salt = Buffer.from(randomBytes(16));
-  const hash = Buffer.from(scryptSync(password, salt, 32));
+  const hash = Buffer.from(await scryptOf(password, salt, 32));
   return `scrypt:${salt.toString("hex")}:${hash.toString("hex")}`;
 }
 
-function isPassword(password: string, kept: string) {
+async function isPassword(password: string, kept: string) {
   const [, salt, hash] = kept.split(":");
   if (!salt || !hash) return false;
-  const given = scryptSync(password, Buffer.from(salt, "hex"), 32);
+  const given = await scryptOf(password, Buffer.from(salt, "hex"), 32);
   const expected = Buffer.from(hash, "hex");
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
@@ -88,19 +96,35 @@ export async function admitLink(db: Database, link: { token: string; pass: strin
  */
 export async function tryPassword(db: Database, share: Share, password: string) {
   if (share.passwordHash === null) return "right" as const;
-  const since = share.wrongSince?.getTime() ?? 0;
-  const inSpan = Date.now() - since < WRONG_SPAN_MS;
-  if (inSpan && share.wrongPasswords >= WRONG_MOST) return "locked" as const;
-  if (isPassword(password, share.passwordHash)) return "right" as const;
 
-  // Counted in the database: whichever process answers the next try reads it.
+  // A try is counted as a wrong one before the password is read, in one statement that reads
+  // the count where it is kept: tries that come at once, to one process or to several, are
+  // counted one after the other, and none passes the ten.
+  const now = new Date();
+  const spanEnded = or(
+    sql`${stationListShare.wrongSince} IS NULL`,
+    lt(stationListShare.wrongSince, new Date(now.getTime() - WRONG_SPAN_MS)),
+  );
+  const [counted] = await db
+    .update(stationListShare)
+    .set({
+      wrongPasswords: sql`CASE WHEN ${spanEnded} THEN 1 ELSE ${stationListShare.wrongPasswords} + 1 END`,
+      wrongSince: sql`CASE WHEN ${spanEnded} THEN ${now}::timestamptz ELSE ${stationListShare.wrongSince} END`,
+    })
+    .where(
+      and(
+        eq(stationListShare.listId, share.listId),
+        or(spanEnded, lt(stationListShare.wrongPasswords, WRONG_MOST)),
+      ),
+    )
+    .returning({ listId: stationListShare.listId });
+  if (!counted) return "locked" as const;
+  if (!(await isPassword(password, share.passwordHash))) return "wrong" as const;
+
+  // The right password takes back the try it was counted as.
   await db
     .update(stationListShare)
-    .set(
-      inSpan
-        ? { wrongPasswords: sql`${stationListShare.wrongPasswords} + 1` }
-        : { wrongPasswords: 1, wrongSince: new Date() },
-    )
+    .set({ wrongPasswords: sql`GREATEST(${stationListShare.wrongPasswords} - 1, 0)` })
     .where(eq(stationListShare.listId, share.listId));
-  return "wrong" as const;
+  return "right" as const;
 }

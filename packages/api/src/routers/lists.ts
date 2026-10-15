@@ -677,7 +677,7 @@ export const listsRouter = {
             ? undefined
             : input.password === null
               ? null
-              : hashPassword(input.password);
+              : await hashPassword(input.password);
         await tx
           .insert(stationListShare)
           .values({ listId: list.id, token: newToken(), passwordHash: passwordHash ?? null })
