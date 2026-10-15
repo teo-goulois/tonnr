@@ -72,6 +72,14 @@ export function invitePicturePath(locale: Locale) {
 }
 
 /**
+ * The picture a shared list is shown with, in the language it was sent in: a list over the
+ * landing's map, which `scripts/landing-shots.mjs` takes from `/og/list` for each language.
+ */
+export function listPicturePath(locale: Locale) {
+  return `/landing/og-list-${locale}.jpg`;
+}
+
+/**
  * The picture a surf break or a station is shown with when it is sent, in the language it was
  * sent in: what the link opens, over the landing's map, which `scripts/landing-shots.mjs` takes
  * from `/og/place` for each language.

@@ -13,7 +13,8 @@ Decision 019 gives every call a name: an account, or a key. A friend with a link
 ## Decision
 
 - The owner of a list shares it with `PUT /v1/lists/{id}/share`, which makes its link: sixteen random bytes, kept as they are in `station_list_share`, so that the owner copies the link again. The web app's address for it is `/l/<token>`.
-- Whoever has the link reads the list: its name, its stations and its breaks by their ids, and the owner's spots in it, whole. Nothing else answers a spot to anyone but its owner. They read, and change nothing.
+- Whoever has the link reads the list: its name, the username of its owner, its stations and its breaks by their ids, and the owner's spots in it, whole. Nothing else answers a spot to anyone but its owner. They read, and change nothing.
+- The server renders the address `/l/<token>`, for the sites a link is sent through: its title names the list and the owner by its username, and its picture is the same for every list, `og-list-<locale>.jpg`. A list that asks for a password names neither. A browser goes on to the map at once. The owner's username added on 2026-10-15, at Téo's request.
 - A link is a third kind of caller. A request that carries `Authorization: List <token>` is judged on it alone, as a key is: it reads what everyone shares (stations, breaks, forecasts, tides, the map of the sea), and nothing of an account. The web app sends it for a visitor who is not signed in, so that the friend gets the map itself, with the list alone on it.
 - Its calls are counted under `link`, all lists together.
 - The owner may ask a password of whoever opens the link: at least four characters, kept as its scrypt. `POST /v1/shared/open` answers `locked` until it is given one. With the list it answers a pass, the SHA-256 of the link and of what is kept of the password, which the reader sends from then on: `List <token>.<pass>`. A new password or a new link ends it.

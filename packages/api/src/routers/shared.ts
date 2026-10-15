@@ -45,7 +45,9 @@ export const sharedRouter = {
         "then on: a reader sends `Authorization: List " +
         "<token>.<pass>`, or `List <token>` without one, to read the stations, the breaks, " +
         "the forecasts and the tides as an account does. The list's owner and an account " +
-        "that kept it are known by their session, and are asked no password. Decision 035.",
+        "that kept it are known by their session, and are asked no password. `owner` is the " +
+        "username of whoever shares the list, null for an account that chose none. " +
+        "Decision 035.",
       tags: ["Lists"],
     })
     .input(linkInput)
@@ -56,6 +58,9 @@ export const sharedRouter = {
           locked: z.literal(false),
           // What stands for the password from then on. Null for a link that asks none.
           pass: z.string().nullable(),
+          // The username of whoever shares the list, which a link is shown with. Null for an
+          // account that chose none.
+          owner: z.string().nullable(),
           list: listViewSchema,
         }),
       ]),
@@ -89,9 +94,14 @@ export const sharedRouter = {
         if (tried === "locked") throw locked();
         if (tried === "wrong") throw new ORPCError("FORBIDDEN", { message: "Wrong password." });
       }
+      const [owner] = await context.db
+        .select({ username: user.username })
+        .from(user)
+        .where(eq(user.id, list.userId));
       return {
         locked: false as const,
         pass: passOf(share),
+        owner: owner?.username ?? null,
         list: await viewOf(context.db, list, access, userId),
       };
     }),

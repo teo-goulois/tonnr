@@ -9,6 +9,8 @@
 //   development page `/og/invite`, which shows the map above too. Run the app in development.
 // - `public/landing/og-place-<locale>.jpg`, the picture a surf break or a station is shown with
 //   when it is sent: the development page `/og/place`, over the same map.
+// - `public/landing/og-list-<locale>.jpg`, the picture a shared list is shown with: the
+//   development page `/og/list`, over the same map.
 //
 // It reads a running app, local or deployed, never a provider. The repository does not depend on a
 // browser driver, so run it from a folder that has one:
@@ -121,17 +123,19 @@ for (const locale of locales) {
   console.log(path);
 }
 
-for (const locale of locales) {
-  const page = await open(SHARED, "light");
-  await page.goto(`${origin}${prefix(locale)}/og/place`, {
-    waitUntil: "networkidle2",
-    timeout: 60_000,
-  });
-  await wait(1000);
-  const path = join(OUT, `og-place-${locale}.jpg`);
-  await page.screenshot({ path, type: "jpeg", quality: 85 });
-  await page.close();
-  console.log(path);
+for (const name of ["place", "list"]) {
+  for (const locale of locales) {
+    const page = await open(SHARED, "light");
+    await page.goto(`${origin}${prefix(locale)}/og/${name}`, {
+      waitUntil: "networkidle2",
+      timeout: 60_000,
+    });
+    await wait(1000);
+    const path = join(OUT, `og-${name}-${locale}.jpg`);
+    await page.screenshot({ path, type: "jpeg", quality: 85 });
+    await page.close();
+    console.log(path);
+  }
 }
 
 await browser.close();

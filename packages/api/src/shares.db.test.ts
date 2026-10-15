@@ -2,6 +2,7 @@ import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { user } from "@repo/db/schema/auth";
 import { surfBreak } from "@repo/db/schema/spots";
+import { eq } from "drizzle-orm";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -133,6 +134,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
     expect(opened).toMatchObject({
       locked: false,
       pass: null,
+      owner: null,
       list: { id: list.id, name: "Winter", access: "link", stationIds: [], breakIds: ["jetty"] },
     });
     if (opened.locked) throw new Error("locked");
@@ -154,6 +156,10 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
     expect(await call(v1Router.shared.open, { token }, by("ana"))).toMatchObject({
       list: { access: "owner", spots: [{ isOwner: true }] },
     });
+
+    // Whoever has the link reads who shares the list, by the username they chose.
+    await database.db.update(user).set({ username: "ana" }).where(eq(user.id, "ana"));
+    expect(await call(v1Router.shared.open, { token }, anyone)).toMatchObject({ owner: "ana" });
   });
 
   it("lets a link read what everyone shares, and nothing of an account", async () => {
