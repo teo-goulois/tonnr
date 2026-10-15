@@ -72,6 +72,15 @@ export function invitePicturePath(locale: Locale) {
 }
 
 /**
+ * The picture a surf break or a station is shown with when it is sent, in the language it was
+ * sent in: what the link opens, over the landing's map, which `scripts/landing-shots.mjs` takes
+ * from `/og/place` for each language.
+ */
+export function placePicturePath(locale: Locale) {
+  return `/landing/og-place-${locale}.jpg`;
+}
+
+/**
  * What a public page says of itself in its head: its title and description, and what a link to it
  * is shown with where it is shared.
  */
