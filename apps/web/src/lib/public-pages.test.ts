@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { locales } from "@/paraglide/runtime.js";
 
-import { PUBLIC_PAGES, pageAddress, pageLinks, searchEngineFile, sitemapXml } from "./public-pages";
+import {
+  PUBLIC_PAGES,
+  isPublicAddress,
+  pageAddress,
+  pageLinks,
+  searchEngineFile,
+  sitemapXml,
+} from "./public-pages";
 
 const site = "https://site.example";
 
@@ -23,7 +30,19 @@ describe("pageLinks", () => {
       { rel: "alternate", hrefLang: "fr", href: "https://site.example/fr/terms" },
       { rel: "alternate", hrefLang: "es", href: "https://site.example/es/terms" },
       { rel: "alternate", hrefLang: "pt", href: "https://site.example/pt/terms" },
+      { rel: "alternate", hrefLang: "x-default", href: "https://site.example/terms" },
     ]);
+  });
+});
+
+describe("isPublicAddress", () => {
+  it("knows a public page in each language, and nothing else", () => {
+    for (const path of ["/", "/fr/", "/sources", "/pt/privacy"]) {
+      expect(isPublicAddress(path)).toBe(true);
+    }
+    for (const path of ["/app", "/fr/app", "/login", "/connect", "/l/abc", "/fr", "/sources/"]) {
+      expect(isPublicAddress(path)).toBe(false);
+    }
   });
 });
 

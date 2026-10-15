@@ -1,6 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
 
-import { searchEngineFile } from "./lib/public-pages";
+import { isPublicAddress, searchEngineFile } from "./lib/public-pages";
 import { permanentWhenSamePage } from "./lib/redirects";
 import { paraglideMiddleware } from "./paraglide/server.js";
 
@@ -21,10 +21,10 @@ export default {
     // No other site frames a page of the app, where an account allows an assistant or signs in.
     response.headers.set("Content-Security-Policy", "frame-ancestors 'none'");
     response.headers.set("X-Frame-Options", "DENY");
-    if (indexed) return response;
+    if (indexed && isPublicAddress(new URL(request.url).pathname)) return response;
 
-    // A page stays out of search engines unless its stage asks to be listed. The header says
-    // so, and `robots.txt` lets them come and read it: decision 021.
+    // A page stays out of search engines unless its stage asks to be listed and it is a public
+    // page. The header says so, and `robots.txt` lets them come and read it: decision 021.
     response.headers.set("X-Robots-Tag", "noindex");
     return response;
   },

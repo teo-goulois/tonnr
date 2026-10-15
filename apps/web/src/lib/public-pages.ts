@@ -1,14 +1,15 @@
 import { APP_NAME } from "@repo/config/app";
 
 import { m } from "@/paraglide/messages.js";
-import { getLocale, locales, localizeHref } from "@/paraglide/runtime.js";
+import { baseLocale, getLocale, locales, localizeHref } from "@/paraglide/runtime.js";
 import type { Locale } from "@/paraglide/runtime.js";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
 /**
  * The pages a search engine may list, each in every language: the sitemap names these and no
- * other. A new public page is added here, and its route gives `pageLinks` to its head. The product, the sign-in, and the pages a link or a
- * mail leads to are left out: they say `noindex`, or only redirect.
+ * other. A new public page is added here, and its route gives `pageLinks` to its head. The
+ * product, the sign-in, and the pages a link or a mail leads to are left out: the Worker says
+ * `noindex` of every address that is not one of these, through `isPublicAddress`.
  */
 export const PUBLIC_PAGES = [
   "/",
@@ -27,15 +28,28 @@ export function pageAddress(site: string, page: PublicPage, locale: Locale) {
   return `${site}${localizeHref(page, { locale })}`;
 }
 
-/** What a public page declares in its head: its own address, then the page in each language. */
+/** Whether a path is a public page in one of its languages, as `pageAddress` writes it. */
+export function isPublicAddress(pathname: string) {
+  return PUBLIC_PAGES.some((page) =>
+    locales.some((locale) => localizeHref(page, { locale }) === pathname),
+  );
+}
+
+/**
+ * What a public page declares in its head: its own address, then the page in each language, and
+ * the base language's for a reader whose language the site does not have.
+ */
 export function pageLinks(site: string, page: PublicPage) {
   return [
     { rel: "canonical", href: pageAddress(site, page, getLocale()) },
-    ...locales.map((locale) => ({
-      rel: "alternate",
-      hrefLang: locale,
-      href: pageAddress(site, page, locale),
-    })),
+    ...alternates(site, page).map(({ hrefLang, href }) => ({ rel: "alternate", hrefLang, href })),
+  ];
+}
+
+function alternates(site: string, page: PublicPage) {
+  return [
+    ...locales.map((locale) => ({ hrefLang: locale, href: pageAddress(site, page, locale) })),
+    { hrefLang: "x-default", href: pageAddress(site, page, baseLocale) },
   ];
 }
 
@@ -82,14 +96,14 @@ export function pageMeta(
 export function sitemapXml(site: string) {
   const urls = PUBLIC_PAGES.flatMap((page) =>
     locales.map((locale) => {
-      const alternates = locales.map(
-        (other) =>
-          `    <xhtml:link rel="alternate" hreflang="${other}" href="${xml(pageAddress(site, page, other))}"/>`,
+      const links = alternates(site, page).map(
+        ({ hrefLang, href }) =>
+          `    <xhtml:link rel="alternate" hreflang="${hrefLang}" href="${xml(href)}"/>`,
       );
       return [
         "  <url>",
         `    <loc>${xml(pageAddress(site, page, locale))}</loc>`,
-        ...alternates,
+        ...links,
         "  </url>",
       ].join("\n");
     }),
