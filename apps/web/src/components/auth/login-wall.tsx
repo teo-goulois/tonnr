@@ -4,6 +4,7 @@ import { useState } from "react";
 import { m } from "@/paraglide/messages.js";
 
 import { AuthForm, type AuthMode } from "./auth-form";
+import { PageColumn } from "@/components/shared/page-column";
 
 type LoginWallProps = {
   // Runs once the visitor is signed in, or has an account.
@@ -22,12 +23,12 @@ export function LoginWall({ onSignedIn, invitation }: LoginWallProps) {
   const [mode, setMode] = useState<AuthMode>(invitation ? "sign-up" : "sign-in");
 
   return (
-    <main className="mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl">
+    <PageColumn>
       <div className="grid gap-xs">
         <h1 className="text-l font-medium">{m.wall_title()}</h1>
         <p className="text-neutral-7">{m.wall_text({ name: APP_NAME })}</p>
       </div>
       <AuthForm mode={mode} onModeChange={setMode} onSuccess={onSignedIn} invitation={invitation} />
-    </main>
+    </PageColumn>
   );
 }

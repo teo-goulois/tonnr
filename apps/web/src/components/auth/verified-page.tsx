@@ -3,6 +3,7 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Link } from "@tanstack/react-router";
 
 import { m } from "@/paraglide/messages.js";
+import { PageColumn } from "@/components/shared/page-column";
 
 /**
  * What the page says. Of the account that is signed in: its address is `checked`, or `pending`,
@@ -78,8 +79,6 @@ const WORDS: Record<VerifiedOutcome, { title: () => string; text: () => string }
   gone: { title: m.verify_title_gone, text: m.verify_gone },
 };
 
-const LAYOUT = "mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl";
-
 /**
  * Where the link of the mail that checks an address lands. The link signs no one in, and may be
  * opened in another browser than the one that signed up, so the page works with and without a
@@ -102,18 +101,18 @@ export function VerifiedPage({
 
   if (signedIn === undefined) {
     return (
-      <main className={LAYOUT} aria-busy>
+      <PageColumn aria-busy>
         <div className="grid gap-xs">
           <Skeleton className="h-7 w-48" />
           <Skeleton className="h-5 w-72" />
         </div>
         <Skeleton className="h-10 w-40 rounded-(--radius-s)" />
-      </main>
+      </PageColumn>
     );
   }
 
   return (
-    <main className={LAYOUT}>
+    <PageColumn>
       <div className="grid gap-xs">
         <h1 className="text-l font-medium">{words.title()}</h1>
         <p className="text-neutral-7">{words.text()}</p>
@@ -140,6 +139,6 @@ export function VerifiedPage({
           </>
         )}
       </div>
-    </main>
+    </PageColumn>
   );
 }

@@ -8,6 +8,7 @@ import type { AgentClient } from "@/lib/agent-sign-in";
 import { m } from "@/paraglide/messages.js";
 
 import { AuthForm, type AuthMode } from "./auth-form";
+import { PageColumn } from "@/components/shared/page-column";
 
 type ConnectPageProps =
   // Nothing asked: the page was opened by its address alone.
@@ -40,16 +41,13 @@ type ConnectPageProps =
 // thing to do here. The product's mark says whose page it is.
 function Frame({ busy, children }: { busy?: boolean; children: ReactNode }) {
   return (
-    <main
-      className="mx-auto grid w-full max-w-(--container-sm) content-start gap-xl px-m py-xl"
-      aria-busy={busy}
-    >
+    <PageColumn className="gap-xl" aria-busy={busy}>
       <p className="flex items-center gap-xs font-bold tracking-[-0.02em]">
         <img src="/favicon.svg" alt="" width={24} height={24} className="size-6" />
         {APP_NAME}
       </p>
       <div className="grid gap-l">{children}</div>
-    </main>
+    </PageColumn>
   );
 }
 

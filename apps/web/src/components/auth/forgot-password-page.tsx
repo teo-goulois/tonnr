@@ -7,6 +7,7 @@ import { z } from "zod";
 import { m } from "@/paraglide/messages.js";
 
 import { Field } from "./auth-form";
+import { PageColumn } from "@/components/shared/page-column";
 
 /**
  * Where the page stands: it is `asking` for an address, the API answered for the one it was
@@ -24,8 +25,6 @@ type ForgotPasswordPageProps = {
   onAsk: (email: string) => Promise<void>;
 };
 
-const LAYOUT = "mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl";
-
 /**
  * Where an account that forgot its password asks for a link to choose another. The page cannot
  * say whether the address has an account: the API does not tell it. Decision 026.
@@ -39,7 +38,7 @@ export function ForgotPasswordPage({ state, onAsk }: ForgotPasswordPageProps) {
 
   if (state.step !== "asking") {
     return (
-      <main className={LAYOUT}>
+      <PageColumn>
         <div className="grid gap-xs" aria-live="polite">
           <h1 className="text-l font-medium">
             {state.step === "sent" ? m.reset_ask_sent_title() : m.reset_ask_title()}
@@ -53,12 +52,12 @@ export function ForgotPasswordPage({ state, onAsk }: ForgotPasswordPageProps) {
             {m.reset_back_to_sign_in()}
           </Link>
         </div>
-      </main>
+      </PageColumn>
     );
   }
 
   return (
-    <main className={LAYOUT}>
+    <PageColumn>
       <div className="grid gap-xs">
         <h1 className="text-l font-medium">{m.reset_ask_title()}</h1>
         <p className="text-pretty text-neutral-7">{m.reset_ask_text()}</p>
@@ -102,6 +101,6 @@ export function ForgotPasswordPage({ state, onAsk }: ForgotPasswordPageProps) {
           </Link>
         </p>
       </form>
-    </main>
+    </PageColumn>
   );
 }

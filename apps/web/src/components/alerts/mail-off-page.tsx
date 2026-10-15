@@ -2,6 +2,7 @@ import { Button, buttonVariants } from "@repo/ui/components/ui/button";
 import { Link } from "@tanstack/react-router";
 
 import { m } from "@/paraglide/messages.js";
+import { PageColumn } from "@/components/shared/page-column";
 
 /**
  * Where the page stands: the link is `asked` to be confirmed, the mails are `off`, the link is
@@ -31,7 +32,7 @@ const WORDS: Record<MailOffState, { title: () => string; text: () => string }> =
 export function MailOffPage({ state, isStopping, onStop }: MailOffPageProps) {
   const words = WORDS[state];
   return (
-    <main className="mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl">
+    <PageColumn>
       <div className="grid gap-xs" aria-live="polite">
         <h1 className="text-l font-medium">{words.title()}</h1>
         <p className="text-neutral-7">{words.text()}</p>
@@ -51,6 +52,6 @@ export function MailOffPage({ state, isStopping, onStop }: MailOffPageProps) {
           </Link>
         )}
       </div>
-    </main>
+    </PageColumn>
   );
 }

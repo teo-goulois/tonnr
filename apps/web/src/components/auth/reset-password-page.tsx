@@ -7,6 +7,7 @@ import { z } from "zod";
 import { m } from "@/paraglide/messages.js";
 
 import { Field } from "./auth-form";
+import { PageColumn } from "@/components/shared/page-column";
 
 // The lengths the sign-in library takes a password of, as a sign-up checks them.
 const PASSWORD_MIN = 8;
@@ -19,8 +20,6 @@ type ResetPasswordPageProps = {
   // Sets the new password. It resolves once the API answered, whatever it answered.
   onReset: (password: string) => Promise<void>;
 };
-
-const LAYOUT = "mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl";
 
 /**
  * Where the link of the mail for a new password lands: the account chooses one, and is signed out
@@ -39,7 +38,7 @@ export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) 
 
   if (!isValid) {
     return (
-      <main className={LAYOUT}>
+      <PageColumn>
         <div className="grid gap-xs" aria-live="polite">
           <h1 className="text-l font-medium">{m.reset_title_invalid()}</h1>
           <p className="text-pretty text-neutral-7">{m.reset_invalid()}</p>
@@ -49,12 +48,12 @@ export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) 
             {m.reset_ask_again()}
           </Link>
         </div>
-      </main>
+      </PageColumn>
     );
   }
 
   return (
-    <main className={LAYOUT}>
+    <PageColumn>
       <h1 className="text-l font-medium">{m.reset_title()}</h1>
       <form
         noValidate
@@ -95,6 +94,6 @@ export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) 
           )}
         </form.Subscribe>
       </form>
-    </main>
+    </PageColumn>
   );
 }

@@ -74,6 +74,7 @@ import { ListChips } from "@/components/lists/list-chips";
 import { AnalyticsConsentDialog } from "@/components/shared/analytics";
 import { BottomNav } from "@/components/shared/bottom-nav";
 import { MorphText } from "@/components/shared/morph-text";
+import { PageColumn } from "@/components/shared/page-column";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
@@ -989,6 +990,21 @@ export function DesignSystemPage() {
           <div className="edge rounded-(--radius-xs)">
             <ConnectPage state="nothing" />
           </div>
+        </div>
+      </Section>
+
+      {/* A page of one column, centered while it fits: the sign-in and the pages a mail leads to. */}
+      <Section title="Page column">
+        <div className="edge grid h-80 overflow-hidden rounded-(--radius-xs)">
+          <PageColumn>
+            <div className="grid gap-xs">
+              <h1 className="text-l font-medium">{m.reset_title_invalid()}</h1>
+              <p className="text-neutral-7">{m.reset_invalid()}</p>
+            </div>
+            <div>
+              <Button>{m.reset_ask_again()}</Button>
+            </div>
+          </PageColumn>
         </div>
       </Section>
 

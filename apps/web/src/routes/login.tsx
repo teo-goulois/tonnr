@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { authReturnTo } from "@/lib/google-auth";
 import { AppShell } from "@/components/shared/app-shell";
 import { m } from "@/paraglide/messages.js";
+import { PageColumn } from "@/components/shared/page-column";
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { error?: string; returnTo?: string } => ({
@@ -29,7 +30,7 @@ function RouteComponent() {
         isReady={!session.isPending}
         recordActivity={false}
       />
-      <main className="mx-auto grid w-full max-w-(--container-sm) content-start gap-l px-m py-xl">
+      <PageColumn>
         <h1 className="text-l font-medium">
           {mode === "sign-up" ? m.auth_create_account() : m.auth_sign_in()}
         </h1>
@@ -50,7 +51,7 @@ function RouteComponent() {
           returnTo={returnTo}
           onSuccess={() => void navigate({ href: returnTo ?? "/app" })}
         />
-      </main>
+      </PageColumn>
     </AppShell>
   );
 }
