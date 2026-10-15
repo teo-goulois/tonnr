@@ -66,6 +66,7 @@ import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import { CreateSheet } from "./create-sheet";
+import { DirectionsActions } from "./directions-actions";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
@@ -966,6 +967,9 @@ export function Viewer({
     if (signedIn) onCopySpot(sharedSpot);
     else requireAccount(m.auth_reason_copy_spot({ name: sharedSpot.name }));
   }
+  // Where a map app is asked to lead: a surf break or a spot, once it is read. A station has no
+  // way to it.
+  const shownPlace = shownSpot?.data ?? shownBreak?.data;
   // What the bookmark and the menu of the panel save: the station, the break when it is known, or
   // the spot when it is the account's own.
   const shownItem: SavedItem | undefined = shown.breakId
@@ -1474,6 +1478,11 @@ export function Viewer({
                   onToggleList={(list, add) => onSave(list.id, shownItem, add)}
                   onCreateList={(name) => onCreateList(name, shownItem)}
                   onManageLists={() => onPanelChange("saved")}
+                />
+              )}
+              {shownPlace && (
+                <DirectionsActions
+                  place={{ latitude: shownPlace.latitude, longitude: shownPlace.longitude }}
                 />
               )}
               {sharedSpot && (
