@@ -1019,8 +1019,11 @@ export function Viewer({
     }
     // A phone opens its keyboard for a field that takes the focus while the press is still
     // being answered: the sheet is drawn at once, and its field is focused in the same turn.
+    // The field is still under the screen while the sheet rises, and Safari would scroll the page
+    // to bring it into view: the sheet would then rest with the page scrolled under it, blank but
+    // for its last line, until a touch put the page back.
     flushSync(() => search.onOpenChange(true));
-    searchInput.current?.focus();
+    searchInput.current?.focus({ preventScroll: true });
   }
   // What was found opens as a press on the map opens it. A place has no panel: the map goes there.
   function pickFound(found: Found) {
@@ -1802,6 +1805,11 @@ export function Viewer({
         fill
         initialFocus={searchInput}
         finalFocus={searchButtonRef}
+        // Safari may still scroll the page as its keyboard comes up for that field: once the sheet
+        // is at rest, the page is put back where it stands.
+        onRest={(open) => {
+          if (open && window.scrollY !== 0) window.scrollTo(0, 0);
+        }}
       >
         <PlaceSearch
           search={search}
