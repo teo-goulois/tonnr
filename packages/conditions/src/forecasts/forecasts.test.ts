@@ -512,10 +512,10 @@ describe("the forecasts of a program", () => {
     const { store, rows } = memoryStore();
     const { fetch, state } = provider();
     const forecasts = makeForecasts(store, fetch);
-    // A row fetched a moment ago, whose hours start two days early: it lacks the last day.
-    // One day early would still cover: the span that is kept has a day to spare.
+    // A row fetched eleven minutes ago, whose hours start two days early: it lacks the last
+    // day. One day early would still cover: the span that is kept has a day to spare.
     rows.set("3492,-116", {
-      fetchedAt: new Date(Date.now() - MINUTE_MS),
+      fetchedAt: new Date(Date.now() - 11 * MINUTE_MS),
       data: answer(Date.now() - 48 * HOUR_MS),
     });
 
@@ -530,6 +530,19 @@ describe("the forecasts of a program", () => {
       _tag: "ForecastTooShort",
     });
     expect((await got(forecasts.get({ ...elsewhere, days: 3 })))?.hours).toHaveLength(3 * 24);
+    expect(state.asked).toBe(2);
+
+    // The provider is not asked again at every question it cannot answer: it answered a
+    // moment ago, and would answer the same. It is asked again after ten minutes.
+    for (let question = 0; question < 3; question += 1) {
+      expect(await failed(forecasts.get({ ...elsewhere, days: 7 }))).toMatchObject({
+        _tag: "ForecastTooShort",
+      });
+    }
+    expect(state.asked).toBe(2);
+    later(10 * MINUTE_MS + 1);
+    await failed(forecasts.get({ ...elsewhere, days: 7 }));
+    expect(state.asked).toBe(3);
   });
 
   it("answer the hours of a span about now from the forecast that is kept, with its swell", async () => {

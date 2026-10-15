@@ -32,6 +32,10 @@ const MEMORY_MS = 10 * MINUTE_MS;
 const STALE_MEMORY_MS = MINUTE_MS;
 // After the provider failed to answer, it is asked nothing for this long.
 const QUIET_MS = MINUTE_MS;
+// A forecast that does not cover the day is asked for again, but not at every question: the
+// provider answered it a moment ago, and would answer the same. Each question it covers is
+// answered from it meanwhile, and one it does not cover is refused.
+const SHORT_RETRY_MS = 10 * MINUTE_MS;
 const MEMORY_CAPACITY = 1000;
 
 // What a question may ask for, given the span that is kept.
@@ -258,7 +262,9 @@ export function makeForecasts(
     // The store's time was read at this moment of the program's: what follows is counted from it.
     const readAt = passed();
     const kept = held(read.now, read.row);
-    if (kept && kept.age < FRESH_MS && coversTheDay(kept.data, read.now.getTime())) return kept;
+    if (kept && kept.age < FRESH_MS) {
+      if (coversTheDay(kept.data, read.now.getTime()) || kept.age < SHORT_RETRY_MS) return kept;
+    }
 
     // The moment the fetch starts orders two fetches of a cell, on the clock they share.
     const fetched = yield* Effect.result(ask(cell));
