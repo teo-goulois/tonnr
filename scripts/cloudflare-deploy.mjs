@@ -163,6 +163,14 @@ if (!URL.canParse(values.VITE_SERVER_URL ?? "") || !values.VITE_SERVER_URL.start
 if (!["true", "false", undefined].includes(values.WEB_INDEXED)) {
   faults.push(`WEB_INDEXED in .env.${stage} is neither "true" nor "false"`);
 }
+const redirects = (values.WEB_REDIRECTS ?? "").split(",").map((host) => host.trim());
+if (
+  redirects.some((host) => host !== "" && (!HOST_NAME.test(host) || host === values.WEB_DOMAIN))
+) {
+  faults.push(
+    `WEB_REDIRECTS in .env.${stage} names something other than host names, or WEB_DOMAIN`,
+  );
+}
 const analyticsValues = [
   "VITE_POSTHOG_PROJECT_TOKEN",
   "VITE_POSTHOG_HOST",
@@ -234,6 +242,7 @@ const deployed =
         WEB_DOMAIN: values.WEB_DOMAIN,
         VITE_SERVER_URL: values.VITE_SERVER_URL,
         WEB_INDEXED: values.WEB_INDEXED ?? "false",
+        WEB_REDIRECTS: values.WEB_REDIRECTS ?? "",
         VITE_POSTHOG_PROJECT_TOKEN: values.VITE_POSTHOG_PROJECT_TOKEN ?? "",
         VITE_POSTHOG_HOST: values.VITE_POSTHOG_HOST ?? "",
         VITE_POSTHOG_ENVIRONMENT: values.VITE_POSTHOG_ENVIRONMENT ?? "",
