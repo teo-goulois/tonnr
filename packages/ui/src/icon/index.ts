@@ -159,7 +159,7 @@ export {
 // Nucleo Micro Bold, from its package: what an icon is taken from when it is new, as Téo asked
 // on 2026-10-13. The stars of a rating are the three he chose there: the line, the full one, and
 // the left half, which is drawn over the line.
-export { IconDirections as DirectionsIcon } from "nucleo-micro-bold/components/IconDirections";
+export { IconMapPin as MapPinIcon } from "nucleo-micro-bold/components/IconMapPin";
 export { IconNotebook as LogbookIcon } from "nucleo-micro-bold/components/IconNotebook";
 export { IconStar as RatingIcon } from "nucleo-micro-bold/components/IconStar";
 export { IconStarFilled as RatingFillIcon } from "nucleo-micro-bold/components/IconStarFilled";

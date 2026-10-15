@@ -7,7 +7,7 @@ import {
   MenuPopup,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
-import { DirectionsIcon } from "@repo/ui/icon";
+import { MapPinIcon } from "@repo/ui/icon";
 
 import {
   DIRECTIONS_APPS,
@@ -44,7 +44,7 @@ export function DirectionsActions({ place }: { place: Destination }) {
           className: "max-lg:hidden",
         })}
       >
-        <DirectionsIcon data-slot="icon" aria-hidden />
+        <MapPinIcon data-slot="icon" aria-hidden />
       </a>
       <Menu>
         <MenuTrigger
@@ -57,7 +57,7 @@ export function DirectionsActions({ place }: { place: Destination }) {
             />
           }
         >
-          <DirectionsIcon data-slot="icon" aria-hidden />
+          <MapPinIcon data-slot="icon" aria-hidden />
         </MenuTrigger>
         <MenuPopup align="end" className="min-w-48">
           <MenuGroup>
