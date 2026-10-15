@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, createFileRoute, useRouter, useRouterState } from "@tanstack/react-router";
 
 import { LoginWall } from "@/components/auth/login-wall";
@@ -5,6 +6,7 @@ import { Analytics } from "@/components/shared/analytics";
 import { AppPending } from "@/components/shared/app-pending";
 import { AppShell } from "@/components/shared/app-shell";
 import { authClient } from "@/lib/auth-client";
+import { forgetSession, sessionQuery } from "@/lib/session-query";
 import { readWithoutLink } from "@/lib/shared-link";
 import { orpc } from "@/utils/orpc";
 
@@ -28,9 +30,10 @@ export const Route = createFileRoute("/app")({
     const shared = (location.search as { shared?: unknown }).shared;
     // Whoever leaves a shared list for the whole map reads it as a visitor, not by the link.
     if (!shared) readWithoutLink();
-    // Asked together, so that the page waits for the API once.
+    // Asked together, so that the page waits for the API once. The session is kept a minute:
+    // a selection on the map is a navigation, and each one comes here.
     const [session, visitors] = await Promise.all([
-      authClient.getSession(),
+      context.queryClient.fetchQuery(sessionQuery()),
       context.queryClient
         .fetchQuery(
           orpc.v1.visitors.get.queryOptions({
@@ -52,6 +55,7 @@ function AppLayout() {
   const { walled } = Route.useRouteContext();
   const session = authClient.useSession();
   const router = useRouter();
+  const queryClient = useQueryClient();
   // The link someone gave the visitor, when the address names one: the wall takes it too.
   const invite = useRouterState({
     select: (state) => (state.location.search as { invite?: unknown }).invite,
@@ -63,7 +67,7 @@ function AppLayout() {
       <Analytics account={session.data?.user.id} isReady={!session.isPending} />
       {walled ? (
         <LoginWall
-          onSignedIn={() => void router.invalidate()}
+          onSignedIn={() => void forgetSession(queryClient).then(() => router.invalidate())}
           invitation={typeof invite === "string" ? invite : undefined}
         />
       ) : (
