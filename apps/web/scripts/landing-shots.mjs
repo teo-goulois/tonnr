@@ -5,6 +5,8 @@
 //   each theme: `LandingHero` shows the one of the reader's.
 // - `public/landing/og-<locale>.jpg`, the picture a link to the site is shown with: the top of the
 //   landing itself, in the light theme, taken after the maps above, which it shows.
+// - `public/landing/og-invite-<locale>.jpg`, the picture an account's link is shown with: the
+//   development page `/og/invite`, which shows the map above too. Run the app in development.
 //
 // It reads a running app, local or deployed, never a provider. The repository does not depend on a
 // browser driver, so run it from a folder that has one:
@@ -99,6 +101,19 @@ for (const locale of locales) {
   await page.goto(`${origin}${prefix(locale)}/`, { waitUntil: "networkidle2", timeout: 60_000 });
   await wait(2000);
   const path = join(OUT, `og-${locale}.jpg`);
+  await page.screenshot({ path, type: "jpeg", quality: 85 });
+  await page.close();
+  console.log(path);
+}
+
+for (const locale of locales) {
+  const page = await open(SHARED, "light");
+  await page.goto(`${origin}${prefix(locale)}/og/invite`, {
+    waitUntil: "networkidle2",
+    timeout: 60_000,
+  });
+  await wait(1000);
+  const path = join(OUT, `og-invite-${locale}.jpg`);
   await page.screenshot({ path, type: "jpeg", quality: 85 });
   await page.close();
   console.log(path);

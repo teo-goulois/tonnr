@@ -64,6 +64,14 @@ export function sharedPicturePath(locale: Locale) {
 }
 
 /**
+ * The picture an account's link is shown with, in the language it was sent in: an invitation over
+ * the landing's map, which `scripts/landing-shots.mjs` takes from `/og/invite` for each language.
+ */
+export function invitePicturePath(locale: Locale) {
+  return `/landing/og-invite-${locale}.jpg`;
+}
+
+/**
  * What a public page says of itself in its head: its title and description, and what a link to it
  * is shown with where it is shared.
  */
