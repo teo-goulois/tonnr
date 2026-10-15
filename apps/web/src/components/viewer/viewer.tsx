@@ -1474,6 +1474,7 @@ export function Viewer({
                 <StationActions
                   item={shownItem}
                   lists={signedIn ? (lists.data ?? []) : undefined}
+                  wide={wide}
                   onToggleFavorite={toggleFavorite}
                   onToggleList={(list, add) => onSave(list.id, shownItem, add)}
                   onCreateList={(name) => onCreateList(name, shownItem)}
