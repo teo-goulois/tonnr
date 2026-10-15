@@ -148,7 +148,7 @@ Each was opened on 2026-10-12. Decision 037 says what each gained against the bu
 
 ### The map of the wave height
 
-Described by `GET /v1/maps/wave-height`. Decision 018 records the choice.
+Described by `GET /v1/maps/wave-height`, with the tiles of the mean wave direction of the same product, `VMDR`, which the map draws as arrows. Decision 018 records the choice.
 
 The Copernicus Marine Service draws its product `GLOBAL_ANALYSISFORECAST_WAV_001_027` as map tiles. The product is MFWAM, Météo-France's global wave model, on a 1/12° grid, with a field every three hours up to ten days ahead. Its record says it is updated twice a day. The WMTS at `wmts.marine.copernicus.eu/teroWmts` needs no account and answers any origin, so the browser reads the tiles itself. The host has no `robots.txt`. Help article 6478168 on `help.marine.copernicus.eu` documents the requests and the styles, and states no limit on requests.
 

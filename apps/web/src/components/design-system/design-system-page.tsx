@@ -443,6 +443,7 @@ export function DesignSystemPage() {
 
       <Section title="Colors">
         <div className="edge flex overflow-hidden rounded-xs">
+    arrows: true,
           {NEUTRALS.map((neutral) => (
             <span key={neutral} className={`h-12 flex-1 ${neutral}`} />
           ))}

@@ -6,6 +6,8 @@ const PRODUCT = "GLOBAL_ANALYSISFORECAST_WAV_001_027";
 const DATASET = "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_202411";
 const WAVE_HEIGHT = `${PRODUCT}/${DATASET}/VHM0`;
 const SWELL_HEIGHT = `${PRODUCT}/${DATASET}/VHM0_SW1`;
+const WAVE_DIRECTION = `${PRODUCT}/${DATASET}/VMDR`;
+const SWELL_DIRECTION = `${PRODUCT}/${DATASET}/VMDR_SW1`;
 const BATHYMETRY = `${PRODUCT}/cmems_mod_wav_anfc_0.083deg_static_202211--ext--bathy/deptho`;
 
 const TIMES = "2022-11-01T03:00:00Z/2026-10-18T00:00:00Z/PT10800S";
@@ -99,6 +101,17 @@ describe("readCapabilities", () => {
     const map = read([layer(SWELL_HEIGHT), layer(WAVE_HEIGHT), layer(BATHYMETRY)]);
 
     expect(map.layer).toBe(WAVE_HEIGHT);
+  });
+
+  it("picks the wave direction when it is asked for, with its own range", () => {
+    const map = readCapabilities(
+      capabilities([layer(WAVE_HEIGHT), layer(WAVE_DIRECTION), layer(SWELL_DIRECTION)]),
+      "direction",
+    );
+    if (map instanceof WaveMapFormatError) throw map;
+
+    expect(map.layer).toBe(WAVE_DIRECTION);
+    expect(map.tileUrlTemplate).toContain("&style=cmap%3Agray%2Crange%3A0%2F360&");
   });
 
   it("takes the newer dataset when two versions are listed", () => {
@@ -308,6 +321,18 @@ describe("readLegend", () => {
 
     expect(metersByLevel[0]).toBe(metersByLevel[5]);
     expect(metersByLevel[255]).toBe(metersByLevel[250]);
+  });
+
+  it("gives each level of red a direction, on the same ramp stretched over the compass", () => {
+    const direction = legend({ valueMax: 360, variableId: "VMDR", units: "degree" });
+    const degreesByLevel = readLegend(direction, "direction");
+    if (degreesByLevel instanceof WaveMapFormatError) throw degreesByLevel;
+
+    // The middle of the range, as for the height: 5.02 m of 10 is 180.7° of 360.
+    expect(degreesByLevel[114]).toBe(180.703);
+    expect(degreesByLevel).toEqual(degreesByLevel.toSorted((a, b) => a - b));
+    // A legend of heights is not read as directions.
+    expect(readLegend(legend(), "direction")).toBeInstanceOf(WaveMapFormatError);
   });
 
   it("reports the colors the service falls back on for a ramp it does not know", () => {

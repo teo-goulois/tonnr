@@ -144,7 +144,13 @@ const WIND_LIMIT = 500;
 // The distance under which the API keeps one wind station for each place: decision 048.
 const WIND_APART_KM = 2;
 const BREAK_LIMIT = 1000;
-const DEFAULT_LAYERS: MapLayers = { sea: true, buoys: true, wind: false, breaks: true };
+const DEFAULT_LAYERS: MapLayers = {
+  sea: true,
+  arrows: true,
+  buoys: true,
+  wind: false,
+  breaks: true,
+};
 // How many spots an account holds, as the API says when it refuses one more.
 const SPOTS_MOST = 100;
 // How long the search waits after the last key before it asks, and how many it shows of each kind.
@@ -180,10 +186,16 @@ function middleOf(bounds: Bounds | null) {
 
 function readLayers(stored: unknown): MapLayers | null {
   if (typeof stored !== "object" || stored === null) return null;
-  const { sea, buoys, wind, breaks } = stored as Record<string, unknown>;
+  const { sea, arrows, buoys, wind, breaks } = stored as Record<string, unknown>;
   return typeof sea === "boolean" && typeof buoys === "boolean" && typeof wind === "boolean"
-    ? // A choice kept from before the breaks were on the map says nothing of them.
-      { sea, buoys, wind, breaks: typeof breaks === "boolean" ? breaks : DEFAULT_LAYERS.breaks }
+    ? // A choice kept from before the breaks or the arrows were on the map says nothing of them.
+      {
+        sea,
+        arrows: typeof arrows === "boolean" ? arrows : DEFAULT_LAYERS.arrows,
+        buoys,
+        wind,
+        breaks: typeof breaks === "boolean" ? breaks : DEFAULT_LAYERS.breaks,
+      }
     : null;
 }
 
@@ -279,7 +291,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   );
   const sea = useQuery(
     orpc.v1.maps.waveHeight.queryOptions({
-      enabled: layers.sea,
+      // The arrows read their tiles from the same description.
+      enabled: layers.sea || layers.arrows,
       staleTime: 30 * MINUTE_MS,
       retry: 1,
       // Without it the map shows the buoys alone, which needs no message.

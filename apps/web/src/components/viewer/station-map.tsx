@@ -22,7 +22,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { PinIcon, WaveIcon } from "@repo/ui/icon";
+import { ArrowUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
 import { formatNumber, type Freshness } from "@/lib/format";
@@ -40,6 +40,8 @@ import {
   LAND_TILE_SIZE,
   landTiles,
   rememberSea,
+  type DirectionTiles,
+  seaArrows,
   seaHeights,
   seaTileKey,
   spreadSea,
@@ -83,6 +85,9 @@ export type SeaLayer = {
   maxZoom: number;
   // A pixel says a height by its gray level: the height each of the 256 levels stands for.
   encoding: { metersByLevel: readonly number[] };
+  // Tiles of where the waves come from, which the arrows on the sea read. Null when the API has
+  // none to give.
+  direction: DirectionTiles | null;
   source: { attribution: string };
 };
 
@@ -99,7 +104,14 @@ export type MapBreak = {
 /** A spot of the user's own: a place they named. */
 export type MapSpot = MapBreak;
 
-export type MapLayers = { sea: boolean; buoys: boolean; wind: boolean; breaks: boolean };
+export type MapLayers = {
+  sea: boolean;
+  // Arrows on the sea, which point the way the waves go.
+  arrows: boolean;
+  buoys: boolean;
+  wind: boolean;
+  breaks: boolean;
+};
 
 // West, south, east, north.
 export type Bounds = [number, number, number, number];
@@ -222,6 +234,9 @@ const BREAK_WAVE_ZOOM = 9.75;
 const BREAK_NAME_ZOOM = 9;
 // The wave of a break's disc, as an image of the map: its name and its size.
 const BREAK_WAVE = { image: "break-wave", size: 13 };
+// The arrow drawn on the sea, as an image of the map: its name and its size. It is the arrow that
+// says a direction in the panels, light with a dark edge, so it reads on every color of the sea.
+const SEA_ARROW = { image: "sea-arrow", size: 15, ink: "#ffffff", edge: "rgba(0, 0, 0, 0.5)" };
 // A station this close to the edge of what is visible is brought back to the middle.
 const REVEAL_MARGIN = 56;
 
@@ -379,9 +394,59 @@ function iconImage(icon: SVGSVGElement, color: string, width: number) {
   context.strokeStyle = color;
   context.lineCap = "round";
   context.lineJoin = "round";
-  for (const path of icon.querySelectorAll("path")) {
-    context.lineWidth = Number(path.getAttribute("stroke-width")) || 1.5;
-    context.stroke(new Path2D(path.getAttribute("d") ?? ""));
+  for (const line of iconLines(icon)) {
+    context.lineWidth = line.width;
+    context.stroke(line.path);
+  }
+  return { image: context.getImageData(0, 0, size, size), pixelRatio: ratio };
+}
+
+// The lines of an icon as paths: a path, a line or a polyline of its SVG.
+function iconLines(icon: SVGSVGElement) {
+  return [...icon.querySelectorAll("path, line, polyline")].map((shape) => {
+    const attribute = (name: string) => shape.getAttribute(name) ?? "";
+    let d = attribute("d");
+    if (shape.tagName === "line") {
+      d = `M${attribute("x1")} ${attribute("y1")}L${attribute("x2")} ${attribute("y2")}`;
+    } else if (shape.tagName === "polyline") {
+      // "x y x y …": a move to the first point, then a line to each of the others.
+      const figures = attribute("points")
+        .trim()
+        .split(/[\s,]+/);
+      d = figures
+        .map((figure, index) => (index % 2 ? ` ${figure}` : `${index ? "L" : "M"}${figure}`))
+        .join("");
+    }
+    return { path: new Path2D(d), width: Number(attribute("stroke-width")) || 1.5 };
+  });
+}
+
+// An icon as an image with an edge around its lines, for what the map draws on the sea's colors.
+function edgedIconImage(icon: SVGSVGElement, ink: string, edge: string, width: number) {
+  const ratio = Math.min(3, Math.ceil(window.devicePixelRatio));
+  const size = width * ratio;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const box = icon.viewBox.baseVal;
+  const scale = size / box.width;
+  context.scale(scale, size / box.height);
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  const lines = iconLines(icon);
+  // The edge is a wider line under the ink, a pixel and a half of the screen on each side.
+  for (const [color, extra] of [
+    [edge, (3 * ratio) / scale],
+    [ink, 0],
+  ] as const) {
+    context.strokeStyle = color;
+    for (const line of lines) {
+      context.lineWidth = line.width + extra;
+      context.stroke(line.path);
+    }
   }
   return { image: context.getImageData(0, 0, size, size), pixelRatio: ratio };
 }
@@ -440,6 +505,18 @@ function seaHeightFeatures(heights: ReturnType<typeof seaHeights>) {
         },
       };
     }),
+  };
+}
+
+// An arrow on the sea, turned the way the waves go: the model says where they come from.
+function arrowFeatures(arrows: ReturnType<typeof seaArrows>) {
+  return {
+    type: "FeatureCollection" as const,
+    features: arrows.map((arrow) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [arrow.longitude, arrow.latitude] },
+      properties: { rotate: Math.round(arrow.fromDegrees + 180) % 360 },
+    })),
   };
 }
 
@@ -511,6 +588,7 @@ export function StationMap({
   const wave = useRef<HTMLSpanElement>(null);
   // And the icon it draws in the disc of a spot.
   const spotPin = useRef<HTMLSpanElement>(null);
+  const seaArrow = useRef<HTMLSpanElement>(null);
   // Counts the styles loaded so far. A new style drops every source and layer added to the last.
   const [styleVersion, setStyleVersion] = useState(0);
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
@@ -1333,6 +1411,86 @@ export function StationMap({
     };
   }, [layers.sea, seaLayer, seaTime, basemap, styleVersion]);
 
+  // Arrows on the sea, which point the way the waves go, read from the tiles of the direction.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || styleVersion === 0) return;
+    const direction = seaLayer?.direction;
+    if (!layers.arrows || !direction || !seaTime) {
+      if (instance.getLayer("sea-arrows")) instance.removeLayer("sea-arrows");
+      if (instance.getSource("sea-arrows")) instance.removeSource("sea-arrows");
+      return;
+    }
+
+    if (!instance.getSource("sea-arrows")) {
+      const icon = seaArrow.current?.querySelector("svg");
+      const drawn = icon && edgedIconImage(icon, SEA_ARROW.ink, SEA_ARROW.edge, SEA_ARROW.size);
+      if (!drawn) return;
+      if (instance.hasImage(SEA_ARROW.image)) instance.removeImage(SEA_ARROW.image);
+      instance.addImage(SEA_ARROW.image, drawn.image, { pixelRatio: drawn.pixelRatio });
+      instance.addSource("sea-arrows", { type: "geojson", data: arrowFeatures([]) });
+      // Over the sea and the land drawn again, under the names of the basemap, which an arrow
+      // does not push away.
+      const names = instance.getStyle().layers.find((layer) => layer.type === "symbol")?.id;
+      instance.addLayer(
+        {
+          id: "sea-arrows",
+          type: "symbol",
+          source: "sea-arrows",
+          layout: {
+            "icon-image": SEA_ARROW.image,
+            "icon-rotate": ["get", "rotate"],
+            "icon-rotation-alignment": "map",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+          paint: { "icon-opacity": 0.85 },
+        },
+        names,
+      );
+    }
+
+    let written = "";
+    let gone = false;
+    const write = () => {
+      const source = instance.getSource<GeoJSONSource>("sea-arrows");
+      if (gone || !source) return;
+      const bounds = instance.getBounds();
+      const features = arrowFeatures(
+        seaArrows(
+          {
+            west: bounds.getWest(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            north: bounds.getNorth(),
+            zoom: instance.getZoom(),
+          },
+          seaTime,
+          direction,
+          write,
+          // An island smaller than a cell of the model is sea to it, and land on the map.
+        ).filter(
+          (arrow) =>
+            !instance.getLayer("water") ||
+            instance.queryRenderedFeatures(instance.project([arrow.longitude, arrow.latitude]), {
+              layers: ["water"],
+            }).length > 0,
+        ),
+      );
+      // Writing redraws the map, which then rests again: the same arrows are not written twice.
+      const signature = JSON.stringify(features);
+      if (signature === written) return;
+      written = signature;
+      source.setData(features);
+    };
+    instance.on("idle", write);
+    write();
+    return () => {
+      gone = true;
+      instance.off("idle", write);
+    };
+  }, [layers.arrows, seaLayer, seaTime, styleVersion]);
+
   // The selected station comes into view when it is off the map or under a drawer. One that is
   // already visible stays where it is: the map does not move under the finger that pressed it.
   const revealed = useRef<string | undefined>(undefined);
@@ -1568,6 +1726,9 @@ export function StationMap({
       </span>
       <span ref={spotPin} hidden>
         <PinIcon strokeWidth={2} />
+      </span>
+      <span ref={seaArrow} hidden>
+        <ArrowUpIcon strokeWidth={2.25} />
       </span>
     </>
   );

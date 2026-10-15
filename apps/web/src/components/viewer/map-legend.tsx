@@ -167,6 +167,12 @@ export function MapLegend({
           </LayerRow>
 
           <LayerRow
+            label={m.map_wave_direction()}
+            checked={layers.arrows}
+            onCheckedChange={(arrows) => onLayersChange({ ...layers, arrows })}
+          />
+
+          <LayerRow
             label={m.map_buoys()}
             checked={layers.buoys}
             onCheckedChange={(buoys) => onLayersChange({ ...layers, buoys })}

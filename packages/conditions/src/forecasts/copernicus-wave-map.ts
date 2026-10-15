@@ -1,5 +1,5 @@
 import { fetchJson, fetchText } from "@repo/upstream";
-import { Cache, Effect, Exit, Schema } from "effect";
+import { Cache, Effect, Exit, Result, Schema } from "effect";
 import { z } from "zod";
 
 // The Copernicus Marine Service draws its products as map tiles, readable without an account.
@@ -9,8 +9,6 @@ const WMTS_URL = "https://wmts.marine.copernicus.eu/teroWmts";
 const PRODUCT = "GLOBAL_ANALYSISFORECAST_WAV_001_027";
 // A dataset's name ends with a version, `_202411` on 2026-10-08, so the layer is looked up.
 const DATASET_PREFIX = "cmems_mod_glo_wav_anfc_0.083deg_PT3H-i_";
-// The significant wave height.
-const VARIABLE = "VHM0";
 const CAPABILITIES_URL = `${WMTS_URL}/${PRODUCT}?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0`;
 
 // The pyramid every web map uses, so a matrix is a zoom, a column an x, and a row a y.
@@ -22,9 +20,20 @@ const TILE_SIZE = 256 as const;
 // service does not know gives that one without a word, so the legend is read too: it names the
 // ramp that was used.
 const COLORMAP = "gray";
-const MIN_METERS = 0;
-const MAX_METERS = 10;
-const STYLE = `cmap:${COLORMAP},range:${MIN_METERS}/${MAX_METERS}`;
+// What a tile can say, and the range its gray ramp is stretched over.
+const VARIABLES = {
+  // The significant wave height, in metres.
+  height: { id: "VHM0", min: 0, max: 10, units: "m" },
+  // Where the waves come from, in degrees clockwise from north: the mean direction of the whole
+  // sea. The ramp's two ends are the same direction, north.
+  direction: { id: "VMDR", min: 0, max: 360, units: "degree" },
+} as const;
+type Variable = keyof typeof VARIABLES;
+
+function styleOf(variable: Variable) {
+  const { min, max } = VARIABLES[variable];
+  return `cmap:${COLORMAP},range:${min}/${max}`;
+}
 // The colors of a ramp, and the levels a channel of a pixel can take.
 const LEVELS = 256;
 
@@ -139,10 +148,10 @@ function readZooms(matrixSet: string) {
 }
 
 /** The address of a tile, with `{z}`, `{x}`, `{y}`, and `{time}` left for the client to fill. */
-function tileUrlTemplate(layer: string, updated: string | undefined) {
+function tileUrlTemplate(layer: string, style: string, updated: string | undefined) {
   const template =
     `${WMTS_URL}?service=WMTS&version=1.0.0&request=GetTile` +
-    `&layer=${encodeURIComponent(layer)}&style=${encodeURIComponent(STYLE)}` +
+    `&layer=${encodeURIComponent(layer)}&style=${encodeURIComponent(style)}` +
     `&format=${encodeURIComponent("image/png")}` +
     `&tilematrixset=${encodeURIComponent(MATRIX_SET)}` +
     "&tilematrix={z}&tilerow={y}&tilecol={x}&time={time}";
@@ -153,18 +162,19 @@ function tileUrlTemplate(layer: string, updated: string | undefined) {
 }
 
 /**
- * Reads the service's capabilities: which layer holds the wave height, the zooms its tiles
- * exist at, and the moments it has a field for. Returns an error when the document has changed.
+ * Reads the service's capabilities: which layer holds the wave height, or the direction, the
+ * zooms its tiles exist at, and the moments it has a field for. Returns an error when the
+ * document has changed.
  */
-export function readCapabilities(xml: string) {
+export function readCapabilities(xml: string, variable: Variable = "height") {
   const layers = elements(xml, "Layer")
     .map((content) => ({ content, id: text(content, "ows:Identifier") ?? "" }))
     .filter(({ id }) => {
-      const [product, dataset = "", variable, ...rest] = id.split("/");
+      const [product, dataset = "", name, ...rest] = id.split("/");
       return (
         product === PRODUCT &&
         dataset.startsWith(DATASET_PREFIX) &&
-        variable === VARIABLE &&
+        name === VARIABLES[variable].id &&
         rest.length === 0
       );
     })
@@ -172,7 +182,7 @@ export function readCapabilities(xml: string) {
     // year and a month, so the last name in order is the newer.
     .toSorted((a, b) => (a.id < b.id ? -1 : 1));
   const layer = layers.at(-1);
-  if (!layer) return formatError("the capabilities list no layer of the wave height");
+  if (!layer) return formatError(`the capabilities list no layer of the wave ${variable}`);
 
   const hasPngTiles = elements(layer.content, "Format").some(
     (format) => format.trim() === "image/png",
@@ -209,6 +219,7 @@ export function readCapabilities(xml: string) {
     layer: layer.id,
     tileUrlTemplate: tileUrlTemplate(
       layer.id,
+      styleOf(variable),
       updated !== undefined && parseInstant(updated) ? updated : undefined,
     ),
     tileSize: TILE_SIZE,
@@ -223,32 +234,35 @@ const level = z
   .min(0)
   .max(LEVELS - 1);
 
-const legendSchema = z.object({
-  continuous: z.object({
-    // The ramp and the range that were used, which are not always the ones asked for.
-    cmapName: z.literal(COLORMAP),
-    valueMin: z.literal(MIN_METERS),
-    valueMax: z.literal(MAX_METERS),
-    units: z.literal("m"),
-    logScale: z.literal(false),
-    // A height outside the range takes the color of the nearest end.
-    clamp: z.literal(true),
-    cmap: z.object({ colorMap: z.array(z.tuple([level, level, level])).length(LEVELS) }),
-  }),
-});
+const legendSchema = (variable: Variable) =>
+  z.object({
+    continuous: z.object({
+      // The ramp and the range that were used, which are not always the ones asked for.
+      cmapName: z.literal(COLORMAP),
+      valueMin: z.literal(VARIABLES[variable].min),
+      valueMax: z.literal(VARIABLES[variable].max),
+      units: z.literal(VARIABLES[variable].units),
+      logScale: z.literal(false),
+      // A value outside the range takes the color of the nearest end.
+      clamp: z.literal(true),
+      cmap: z.object({ colorMap: z.array(z.tuple([level, level, level])).length(LEVELS) }),
+    }),
+  });
 
 /**
- * Reads the legend of the gray style into the height each level of red stands for, in metres.
+ * Reads the legend of the gray style into the value each level of red stands for: a height in
+ * metres, or a direction in degrees.
  *
  * The service cuts the range into 256 equal bins and gives each bin a color of the ramp. The
  * ramp is even to the eye, not in its numbers: red 114 is the middle of the range, not 128, so
  * reading a level as a share of the range is wrong by up to 0.6 m. Measured on 2026-10-08
  * against the service's own values at 45 pixels: the bin is `floor(256 * share of the range)`.
  */
-export function readLegend(json: unknown) {
-  const legend = legendSchema.safeParse(json);
+export function readLegend(json: unknown, variable: Variable = "height") {
+  const { min, max } = VARIABLES[variable];
+  const legend = legendSchema(variable).safeParse(json);
   if (!legend.success) {
-    return formatError(`the legend of ${STYLE} is not the one the tiles are read with`);
+    return formatError(`the legend of ${styleOf(variable)} is not the one the tiles are read with`);
   }
   const reds = legend.data.continuous.cmap.colorMap.map(([red]) => red);
   if (reds.some((red, bin) => red < (reds[bin - 1] ?? 0))) {
@@ -256,54 +270,77 @@ export function readLegend(json: unknown) {
   }
 
   // One point per level the ramp uses: the middle of the bins drawn with it.
-  const points: { level: number; meters: number }[] = [];
+  const points: { level: number; value: number }[] = [];
   for (let bin = 0; bin < reds.length;) {
     let last = bin;
     while (reds[last + 1] === reds[bin]) last += 1;
     const middle = ((bin + last) / 2 + 0.5) / LEVELS;
-    points.push({ level: reds[bin] ?? 0, meters: MIN_METERS + middle * (MAX_METERS - MIN_METERS) });
+    points.push({ level: reds[bin] ?? 0, value: min + middle * (max - min) });
     bin = last + 1;
   }
 
-  // The ramp skips some levels. No pixel has them, and each takes a height between its neighbours'.
+  // The ramp skips some levels. No pixel has them, and each takes a value between its neighbours'.
   return Array.from({ length: LEVELS }, (_, red) => {
     const below = points.findLast((point) => point.level <= red) ?? points[0];
     const above = points.find((point) => point.level >= red) ?? points.at(-1);
-    if (!below || !above) return MIN_METERS;
+    if (!below || !above) return min;
     const share =
       above.level === below.level ? 0 : (red - below.level) / (above.level - below.level);
-    return Math.round((below.meters + share * (above.meters - below.meters)) * 1000) / 1000;
+    return Math.round((below.value + share * (above.value - below.value)) * 1000) / 1000;
   });
 }
 
-function legendUrl(layer: string) {
+function legendUrl(layer: string, variable: Variable) {
   const search = new URLSearchParams({
     SERVICE: "WMTS",
     REQUEST: "GetLegend",
     LAYER: layer,
-    STYLE,
+    STYLE: styleOf(variable),
     FORMAT: "application/json",
   });
   return `${WMTS_URL}?${search}`;
 }
 
-/** Where the tiles of the wave height are and how a pixel says a height. */
+/**
+ * Where the tiles of the wave direction are and how a pixel says a direction. They are of the same
+ * product as the height's, with the same zooms and the same moments.
+ */
+const fetchDirection = Effect.fn("fetchWaveDirection")(function* (xml: string) {
+  const capabilities = readCapabilities(xml, "direction");
+  if (capabilities instanceof WaveMapFormatError) return yield* capabilities;
+
+  const degreesByLevel = readLegend(
+    yield* fetchJson(legendUrl(capabilities.layer, "direction")),
+    "direction",
+  );
+  if (degreesByLevel instanceof WaveMapFormatError) return yield* degreesByLevel;
+
+  const { min, max } = VARIABLES.direction;
+  return {
+    tileUrlTemplate: capabilities.tileUrlTemplate,
+    encoding: { type: "grayscale" as const, minDegrees: min, maxDegrees: max, degreesByLevel },
+  };
+});
+
+/** Where the tiles of the wave height are and how a pixel says a height, then the direction's. */
 const fetchWaveMap = Effect.fn("fetchWaveMap")(function* () {
-  const capabilities = readCapabilities(yield* fetchText(CAPABILITIES_URL));
+  const xml = yield* fetchText(CAPABILITIES_URL);
+  const capabilities = readCapabilities(xml);
   if (capabilities instanceof WaveMapFormatError) return yield* capabilities;
   const { layer, ...map } = capabilities;
 
-  const metersByLevel = readLegend(yield* fetchJson(legendUrl(layer)));
+  const metersByLevel = readLegend(yield* fetchJson(legendUrl(layer, "height")));
   if (metersByLevel instanceof WaveMapFormatError) return yield* metersByLevel;
 
+  // The sea is colored without its direction: a direction that fails leaves the arrows out.
+  const direction = yield* Effect.result(fetchDirection(xml));
+  if (Result.isFailure(direction)) console.error(direction.failure);
+
+  const { min, max } = VARIABLES.height;
   return {
     ...map,
-    encoding: {
-      type: "grayscale" as const,
-      minMeters: MIN_METERS,
-      maxMeters: MAX_METERS,
-      metersByLevel,
-    },
+    encoding: { type: "grayscale" as const, minMeters: min, maxMeters: max, metersByLevel },
+    direction: Result.isSuccess(direction) ? direction.success : null,
   };
 });
 

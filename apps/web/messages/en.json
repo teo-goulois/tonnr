@@ -391,6 +391,7 @@
   "alerts_moment_found": "A window is taking shape",
   "alerts_moment_moved": "The window has moved",
   "alerts_moment_gone": "No longer forecast",
+  "map_wave_direction": "Wave direction",
   "alerts_moment_evening": "The evening before",
   "alerts_moment_begins": "It is on",
   "alerts_line": "{spot} · {hours}",

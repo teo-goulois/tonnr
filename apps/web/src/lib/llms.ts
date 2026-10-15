@@ -44,7 +44,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - \`GET /v1/breaks\`: the catalogue of surf breaks, in an area or by name.
 - \`GET /v1/breaks/search\`: surf breaks by their name or their town's.
 - \`GET /v1/breaks/{id}\`: one surf break, with what is known of it.
-- \`GET /v1/maps/wave-height\`: where to get map tiles of the wave height, and how to read them.
+- \`GET /v1/maps/wave-height\`: where to get map tiles of the wave height and of the direction the waves come from, and how to read them.
 - \`GET /v1/health\`: answers anyone, and says since when the API and its worker run.
 
 ## Example

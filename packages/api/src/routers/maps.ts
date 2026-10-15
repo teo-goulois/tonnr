@@ -30,6 +30,20 @@ export const mapsRouter = {
           maxMeters: z.number(),
           metersByLevel: z.array(z.number()).length(256),
         }),
+        // Tiles of where the waves come from, of the same zooms and moments as the height's, and
+        // read the same way: `degreesByLevel` at the level of a pixel's red, clockwise from north.
+        // Null when the provider does not describe them now: the height stands without them.
+        direction: z
+          .object({
+            tileUrlTemplate: z.string(),
+            encoding: z.object({
+              type: z.literal("grayscale"),
+              minDegrees: z.number(),
+              maxDegrees: z.number(),
+              degreesByLevel: z.array(z.number()).length(256),
+            }),
+          })
+          .nullable(),
         // The moments the model has a field for: every `stepSeconds` from `start` to `end`.
         times: z.object({ start: z.date(), end: z.date(), stepSeconds: z.number() }),
         source: z.object({

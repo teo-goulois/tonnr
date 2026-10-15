@@ -391,6 +391,7 @@
   "alerts_moment_found": "Un créneau se dessine",
   "alerts_moment_moved": "Le créneau a bougé",
   "alerts_moment_gone": "Le créneau n'est plus prévu",
+  "map_wave_direction": "Direction des vagues",
   "alerts_moment_evening": "La veille au soir",
   "alerts_moment_begins": "C'est le moment",
   "alerts_line": "{spot} · {hours}",
