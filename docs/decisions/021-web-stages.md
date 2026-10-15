@@ -20,7 +20,7 @@ Three facts bound the choice:
 
 - A stage is one deployment of the web app: a name, a host name, and the API it talks to. `dev` is the first. It serves `dev.tonnr.app` and talks to `api.tonnr.app`.
 - `tonnr.app` itself serves nothing until a production stage exists.
-- A stage's values are in `packages/infra/.env.<stage>`: `WEB_DOMAIN`, `VITE_SERVER_URL`, and `WEB_INDEXED` when it is wanted. The access to Cloudflare is in `packages/infra/.env`, the same for every stage: an API token and the account's id. Git ignores both files.
+- A stage's values are in `packages/infra/.env.<stage>`: `WEB_DOMAIN`, `VITE_SERVER_URL`, and `WEB_INDEXED` and `WEB_REDIRECTS` when they are wanted. The access to Cloudflare is in `packages/infra/.env`, the same for every stage: an API token and the account's id. Git ignores both files.
 - Nothing of one instance is committed. Whoever hosts their own deploys their web app by filling the same two files.
 - A stage has a host name on its API's site, and the stack refuses to deploy without one. A Worker without a host name only has its `workers.dev` address, which is another site than the API.
 - Each API trusts the web origin of one stage. The API of Téo's instance now names `https://dev.tonnr.app`.
@@ -47,6 +47,7 @@ Three facts bound the choice:
 - The web app tells search engines not to list a stage, unless the stage sets `WEB_INDEXED=true`. It says so in a header, `X-Robots-Tag: noindex`, on every page it answers. A stage that is listed says it too of every page that is not public, the product, the sign-in and what a link or a mail opens: only the pages of `PUBLIC_PAGES`, in each language, go without it.
 - `robots.txt` still allows every page, because a search engine that may not read a page does not read its header.
 - A stage that is listed names its sitemap in `robots.txt`, and serves it at `/sitemap.xml`: the public pages in each language, with their address in the other. A stage that is not listed has no sitemap, since every page it would name says `noindex`. The Worker answers both files before the router, because only it knows whether its stage is listed, and takes their host from the request.
+- A stage may name other hosts in `WEB_REDIRECTS`, such as `www.` before its domain. They are attached to the Worker as its domain is, and the Worker sends every request at one of them on to the same page at `WEB_DOMAIN`, with a `301`, before anything else. Alchemy can make a redirect rule of the zone instead, which asks the token of Cloudflare for one permission more, over the zone's rules.
 - A redirect to the same page written with or without its last slash, such as `/fr` to `/fr/`, is a `308`, so a search engine keeps the final address. The router sends it as a `307`, and the Worker changes it.
 
 ### A deployment said to an open app

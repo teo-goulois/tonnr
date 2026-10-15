@@ -13,7 +13,7 @@ Open-Meteo counts its free requests by the address that asks (decision 023). A s
 ## Decision
 
 - Production is the instance that runs today: the API at `api.tonnr.app`, its worker, and its database. No second instance is made.
-- The production stage of the web app is `prod`. It serves `tonnr.app` and sets `WEB_INDEXED=true`. Its PostHog environment is `production`, on the API and on the web app.
+- The production stage of the web app is `prod`. It serves `tonnr.app`, sends `www.tonnr.app` on to it with `WEB_REDIRECTS`, and sets `WEB_INDEXED=true`. Its PostHog environment is `production`, on the API and on the web app.
 - The API's and the worker's `CORS_ORIGIN` become `https://tonnr.app`. From then on `dev.tonnr.app` is refused by the API: it is no pre-production any more.
 - The admin app moves to the `prod` stage too, at `admin.tonnr.app`, which Téo asked for on 2026-10-15: `ADMIN_DOMAIN` in that stage, and the API's `ADMIN_ORIGIN` becomes `https://admin.tonnr.app`.
 - The database is backed up by Easypanel's own backups, which Téo set up there.

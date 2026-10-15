@@ -16,6 +16,12 @@ export default Alchemy.Stack(
     const dev = yield* Alchemy.ALCHEMY_DEV;
     const domain = Option.getOrUndefined(yield* Config.option(Config.String("WEB_DOMAIN")));
     const adminDomain = Option.getOrUndefined(yield* Config.option(Config.String("ADMIN_DOMAIN")));
+    // Other hosts of the web app, such as `www.` before its domain, which the Worker sends on to
+    // `WEB_DOMAIN`: decision 021.
+    const redirects = (yield* Config.String("WEB_REDIRECTS").pipe(Config.withDefault("")))
+      .split(",")
+      .map((host) => host.trim())
+      .filter((host) => host !== "");
 
     // A stage is deployed with its values, by `pnpm run deploy:web <stage>`: decision 021.
     // Without them the web app would get the address of the local API, and an address on
@@ -28,7 +34,10 @@ export default Alchemy.Stack(
 
     const webWorker = yield* Cloudflare.Website.Vite("web", {
       rootDir: "../../apps/web",
-      domain,
+      domain:
+        domain === undefined || redirects.length === 0
+          ? domain
+          : { name: domain, aliases: redirects },
       compatibility: {
         flags: ["nodejs_compat"],
       },
@@ -45,6 +54,8 @@ export default Alchemy.Stack(
         VITE_UMAMI_WEBSITE_ID: Config.String("VITE_UMAMI_WEBSITE_ID").pipe(Config.withDefault("")),
         // The web app tells search engines to leave the stage out, unless this says "true".
         WEB_INDEXED: Config.String("WEB_INDEXED").pipe(Config.withDefault("false")),
+        WEB_DOMAIN: domain ?? "",
+        WEB_REDIRECTS: redirects.join(","),
       },
       dev: {
         port: 3001,

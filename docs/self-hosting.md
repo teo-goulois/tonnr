@@ -72,6 +72,7 @@ The command builds what `main` holds on the remote named `origin`, in a checkout
 - Alchemy records what it deployed in a Worker of your account, `alchemy-state-store`, and makes it at the first deployment. Every project you deploy with Alchemy shares it, so leave it in place.
 - The token can change every Worker of the account. Keep it as you keep the API's secret.
 - The web app tells search engines not to list a stage. Add `WEB_INDEXED=true` to the stage's file when you want yours listed: `robots.txt` then names a sitemap, at `/sitemap.xml`.
+- Add `WEB_REDIRECTS=www.example.org` to the stage's file when the web app should answer at `www.` too: Cloudflare gives that name a record and a certificate, and the web app sends every request there on to the same page at `WEB_DOMAIN`, with a `301`. Several names are separated by commas.
 - To check a stage, sign in from its address. That proves the web app, the API, and `CORS_ORIGIN` agree.
 
 ## Updating

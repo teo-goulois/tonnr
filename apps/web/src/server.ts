@@ -5,10 +5,13 @@ import { permanentWhenSamePage } from "./lib/redirects";
 import { paraglideMiddleware } from "./paraglide/server.js";
 
 // What Cloudflare gives the Worker of a deployed stage. Nothing gives it in development.
-type Bindings = { WEB_INDEXED?: string };
+type Bindings = { WEB_INDEXED?: string; WEB_DOMAIN?: string; WEB_REDIRECTS?: string };
 
 export default {
   async fetch(request: Request, bindings?: Bindings): Promise<Response> {
+    const moved = movedHost(request, bindings);
+    if (moved !== undefined) return moved;
+
     const indexed = bindings?.WEB_INDEXED === "true";
     const file = searchEngineFile(request, indexed);
     if (file !== undefined) return file;
@@ -29,3 +32,17 @@ export default {
     return response;
   },
 };
+
+/**
+ * A host of the stage other than its domain, such as `www.` before it, sends every request on to
+ * the same page at the domain, for good: decision 021.
+ */
+function movedHost(request: Request, bindings?: Bindings): Response | undefined {
+  const domain = bindings?.WEB_DOMAIN;
+  if (!domain) return undefined;
+  const url = new URL(request.url);
+  const others = (bindings?.WEB_REDIRECTS ?? "").split(",").filter((host) => host !== "");
+  if (!others.includes(url.hostname)) return undefined;
+  url.hostname = domain;
+  return Response.redirect(url.toString(), 301);
+}
