@@ -17,7 +17,7 @@ The web app asked the API who was signed in at every navigation, so at every pre
 - A question of the forecasts is counted to its caller, by the hour, in UTC: `GET /v1/forecasts`, `POST /v1/alerts/preview`, and a session of the log that reads what the sea did. Each is one question, whatever it costs the provider: a forecast that is kept costs nothing, and the question is counted the same.
 - An account may ask 600 in an hour, the link of a shared list 300, and a visitor 300. A visitor is known by the address the request comes from, as the proxy says it: `X-Real-IP`, else the last address of `X-Forwarded-For`, else the connection's. A household or an office shares one. A visitor whose address nothing says is counted with every other such visitor.
 - A key is not counted here: decision 020 holds it to its developer account's limit.
-- The question is counted before it is asked, in the table of decision 023's counts, under a name of its own, in one transaction, as the budget is: the limit holds for every process of the API together. The nightly job prunes the rows with the budget's.
+- The question is counted before it is asked, in the table of decision 023's counts, under a name of its own, in one transaction, as the budget is: the limit holds for every process of the API together. The nightly job prunes the rows with the budget's, two days after their hour. A count names the account or the list by its id, and a visitor by a hash of their address, never the address itself. The privacy policy says so.
 - Past the limit the answer is 429, with `Retry-After` saying when the hour turns. The numbers are written in the code, beside the budget: `packages/api/src/forecast-callers.ts`.
 
 ### A store read once, after the provider

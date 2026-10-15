@@ -1125,7 +1125,7 @@
   "privacy_contact_title": "Nous écrire",
   "privacy_contact_text": "Les formulaires de ce site qui écrivent à {publisher} envoient ton prénom, ton adresse et ton message par mail à {email}. Rien n'en est gardé dans la base de données : le mail est tout ce qu'il en reste.",
   "privacy_running_title": "Faire marcher le service",
-  "privacy_running_text": "L'API compte ses appels par heure, par sorte d'appelant et par résultat, jamais par compte. Son journal note la méthode, le chemin et le statut de chaque requête, sans ton adresse IP. Ce que fait un opérateur, comme suspendre un compte, est noté avec l'identifiant de ce compte. La base de données est sauvegardée par son hébergeur.",
+  "privacy_running_text": "L'API compte ses appels par heure, par sorte d'appelant et par résultat, jamais par compte. Ce que tu demandes aux prévisions est compté à part, par heure, à ton compte, ou à un hachage de ton adresse IP quand tu n'en as pas, pour qu'un seul appelant ne dépense pas les prévisions du jour de tout le monde : ces comptes sont gardés deux jours. Son journal note la méthode, le chemin et le statut de chaque requête, sans ton adresse IP. Ce que fait un opérateur, comme suspendre un compte, est noté avec l'identifiant de ce compte. La base de données est sauvegardée par son hébergeur.",
   "privacy_bases_title": "Sur quelle base",
   "privacy_bases_contract": "Ton compte, ce que tu enregistres, les mails et les notifications, la recherche de lieux et les assistants : fournir le service que tu as demandé (RGPD, article 6.1.b).",
   "privacy_bases_consent": "Les statistiques d'usage : ton consentement (article 6.1.a), que tu retires à tout moment dans le panneau du compte.",

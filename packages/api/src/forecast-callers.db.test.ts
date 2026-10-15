@@ -17,7 +17,12 @@ describe("what a caller may ask of the forecasts in an hour", () => {
     };
     expect(counts.session).toMatchObject({ bucket: "hour:session:ana", span: "hour", limit: 600 });
     expect(counts.link).toMatchObject({ bucket: "hour:link:list", limit: 300 });
-    expect(counts.visitor).toMatchObject({ bucket: "hour:visitor:203.0.113.9", limit: 300 });
+    // The address is not written: a hash of it tells one from another.
+    expect(counts.visitor).toMatchObject({
+      bucket: expect.stringMatching(/^hour:visitor:[0-9a-f]{16}$/),
+      limit: 300,
+    });
+    expect(counts.visitor?.bucket).not.toContain("203.0.113.9");
     expect(counts.unknown).toMatchObject({ bucket: "hour:visitor:unknown" });
     expect(counts.key).toBeNull();
   });

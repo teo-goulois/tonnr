@@ -1125,7 +1125,7 @@
   "privacy_contact_title": "Writing to us",
   "privacy_contact_text": "The forms of this site that write to {publisher} send your first name, your address and your message by mail to {email}. Nothing of them is kept in the database: the mail is all there is.",
   "privacy_running_title": "Running the service",
-  "privacy_running_text": "The API counts its calls by hour, by kind of caller and by outcome, never by account. Its log notes each request's method, path and status, without your IP address. What an operator does, such as suspending an account, is recorded with that account's identifier. The database is backed up by its host.",
+  "privacy_running_text": "The API counts its calls by hour, by kind of caller and by outcome, never by account. What you ask of the forecasts is counted apart, by the hour, to your account, or to a hash of your IP address when you have none, so that one caller cannot spend the day's forecasts of everyone: these counts are kept two days. Its log notes each request's method, path and status, without your IP address. What an operator does, such as suspending an account, is recorded with that account's identifier. The database is backed up by its host.",
   "privacy_bases_title": "Why we may",
   "privacy_bases_contract": "Your account, what you save, mails and push, place search and assistants: providing the service you asked for (GDPR, article 6(1)(b)).",
   "privacy_bases_consent": "Usage analytics: your consent (article 6(1)(a)), which you withdraw at any time in the account's panel.",

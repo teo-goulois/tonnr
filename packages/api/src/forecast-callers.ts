@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { ORPCError } from "@orpc/server";
 import { type Count, countCalls } from "@repo/db/calls";
 
@@ -16,8 +18,14 @@ export const FORECAST_QUESTIONS_AN_HOUR: Limits = {
 
 type Limits = { session: number; visitor: number; link: number };
 
-// The counts are kept with the provider's, under a name of their own, and pruned with them.
+// The counts are kept with the provider's, under a name of their own, and pruned with them,
+// two days after their hour. A visitor's address is not written as it is: the count names a
+// hash of it, enough to tell one address from another and nothing to find it by.
 export const FORECAST_CALLERS = "forecast-callers";
+
+function hashed(address: string) {
+  return createHash("sha256").update(address).digest("hex").slice(0, 16);
+}
 
 type Named = Caller & { address?: string | null };
 
@@ -41,7 +49,10 @@ export function forecastQuestionCount(
       return limit(limits.link, `link:${caller.listId}`);
     case "visitor":
       // A visitor whose address nothing says is counted with every other such visitor.
-      return limit(limits.visitor, `visitor:${caller.address ?? "unknown"}`);
+      return limit(
+        limits.visitor,
+        `visitor:${caller.address ? hashed(caller.address) : "unknown"}`,
+      );
   }
 }
 
