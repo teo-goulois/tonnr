@@ -67,6 +67,7 @@ export function jobState(row: JobRow, now: Date): (typeof JOB_STATES)[number] {
 // What the instance lets itself ask its forecast provider, as decision 023 counts it.
 const BUDGETS = [
   { bucket: "day:people", limit: FORECAST_BUDGET.day.people },
+  { bucket: "day:pages", limit: FORECAST_BUDGET.day.pages },
   { bucket: "day:alerts", limit: FORECAST_BUDGET.day.alerts },
   { bucket: "hour", limit: FORECAST_BUDGET.hour },
   { bucket: "minute", limit: FORECAST_BUDGET.minute },
@@ -232,6 +233,8 @@ export const instanceRouter = {
         }),
         forecasts: z.object({
           people: z.object({ calls: z.number(), limit: z.number() }),
+          // The share of the pages of the listed breaks, which the worker keeps: decision 057.
+          pages: z.object({ calls: z.number(), limit: z.number() }),
           alerts: z.object({ calls: z.number(), limit: z.number() }),
           cells: z.number(),
         }),
@@ -303,6 +306,7 @@ export const instanceRouter = {
         },
         forecasts: {
           people: { calls: calls.get("day:people") ?? 0, limit: FORECAST_BUDGET.day.people },
+          pages: { calls: calls.get("day:pages") ?? 0, limit: FORECAST_BUDGET.day.pages },
           alerts: { calls: calls.get("day:alerts") ?? 0, limit: FORECAST_BUDGET.day.alerts },
           cells,
         },
@@ -418,10 +422,10 @@ export const instanceRouter = {
           cells: z.number(),
           // The requests sent to the forecast provider in the present day, hour and minute, in
           // UTC, against what the instance lets itself send. The day has a share for the
-          // people who look and one for the alerts.
+          // people who look, one for the pages of the listed breaks and one for the alerts.
           calls: z.array(
             z.object({
-              bucket: z.enum(["day:people", "day:alerts", "hour", "minute"]),
+              bucket: z.enum(["day:people", "day:pages", "day:alerts", "hour", "minute"]),
               calls: z.number(),
               limit: z.number(),
             }),

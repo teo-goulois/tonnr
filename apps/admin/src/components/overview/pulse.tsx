@@ -94,6 +94,7 @@ export function Pulse({ overview }: PulseProps) {
           people &&
           m.pulse_forecasts_note({
             people: share(people),
+            pages: share(overview.forecasts.pages),
             alerts: share(overview.forecasts.alerts),
           })
         }

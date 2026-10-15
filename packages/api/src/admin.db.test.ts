@@ -1726,8 +1726,9 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       expect(none).toEqual({
         cells: 0,
         calls: [
-          { bucket: "day:people", calls: 0, limit: 5500 },
-          { bucket: "day:alerts", calls: 0, limit: 2500 },
+          { bucket: "day:people", calls: 0, limit: 2500 },
+          { bucket: "day:pages", calls: 0, limit: 3900 },
+          { bucket: "day:alerts", calls: 0, limit: 1600 },
           { bucket: "hour", calls: 0, limit: 4000 },
           { bucket: "minute", calls: 0, limit: 480 },
         ],
@@ -1742,6 +1743,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
       expect(found.cells).toBe(1);
       expect(found.calls.map((count) => [count.bucket, count.calls])).toEqual([
         ["day:people", 3],
+        ["day:pages", 0],
         ["day:alerts", 1],
         ["hour", 4],
         ["minute", 4],

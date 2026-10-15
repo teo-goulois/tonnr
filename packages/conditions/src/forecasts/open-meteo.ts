@@ -20,7 +20,9 @@ export const FORECAST_PROVIDER = "open-meteo";
 // people who look and one for the alerts, and neither spends the other's. The paid plan has
 // other addresses and a key: one who pays changes them with these numbers. Decision 023.
 export const FORECAST_BUDGET = {
-  day: { people: 5500, alerts: 2500 },
+  // The day has three shares: the people who look, the pages of the listed breaks, whose
+  // forecasts the worker keeps once a day, and the alerts. Decisions 023 and 057.
+  day: { people: 2500, pages: 3900, alerts: 1600 },
   hour: 4000,
   minute: 480,
 } as const;

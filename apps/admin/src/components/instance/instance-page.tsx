@@ -27,9 +27,16 @@ const MAIL_WAYS = { unosend: "Unosend", smtp: "SMTP" } as const;
 type ForecastBucket = InstanceState["forecasts"]["calls"][number]["bucket"];
 
 // The counts of requests to the forecast provider, in the order the API gives them.
-const FORECAST_BUCKETS: ForecastBucket[] = ["day:people", "day:alerts", "hour", "minute"];
+const FORECAST_BUCKETS: ForecastBucket[] = [
+  "day:people",
+  "day:pages",
+  "day:alerts",
+  "hour",
+  "minute",
+];
 const BUCKET_LABELS: Record<ForecastBucket, () => string> = {
   "day:people": m.forecast_calls_people,
+  "day:pages": m.forecast_calls_pages,
   "day:alerts": m.forecast_calls_alerts,
   hour: m.forecast_calls_hour,
   minute: m.forecast_calls_minute,

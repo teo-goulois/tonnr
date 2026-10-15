@@ -172,11 +172,12 @@ describe("the cell a forecast is kept by", () => {
 describe("what the instance lets itself ask", () => {
   it("is counted by the day for one share, and by the hour and the minute for both", () => {
     expect(forecastBudget("people")).toEqual([
-      { bucket: "day:people", span: "day", limit: 5500 },
+      { bucket: "day:people", span: "day", limit: 2500 },
       { bucket: "hour", span: "hour", limit: 4000 },
       { bucket: "minute", span: "minute", limit: 480 },
     ]);
-    expect(forecastBudget("alerts")[0]).toEqual({ bucket: "day:alerts", span: "day", limit: 2500 });
+    expect(forecastBudget("alerts")[0]).toEqual({ bucket: "day:alerts", span: "day", limit: 1600 });
+    expect(forecastBudget("pages")[0]).toEqual({ bucket: "day:pages", span: "day", limit: 3900 });
     // Under what the free tier allows: 10,000 a day, 5,000 an hour, 600 a minute.
     const day = forecastBudget("people")[0].limit + forecastBudget("alerts")[0].limit;
     expect(

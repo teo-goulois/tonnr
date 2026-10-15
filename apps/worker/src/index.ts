@@ -10,6 +10,7 @@ import { mailOutOf, pushOutOf } from "./deliveries";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
+import { keepListedForecasts, pagesDone } from "./pages";
 import { readRevision } from "./revision";
 import {
   announceWorker,
@@ -48,6 +49,7 @@ const PRUNE_QUEUE = "prune-readings";
 const EXPOSURE_QUEUE = "classify-exposure";
 const ALERTS_QUEUE = "evaluate-alerts";
 const MOMENTS_QUEUE = "tell-alert-moments";
+const PAGES_QUEUE = "keep-listed-forecasts";
 // What alert mails leave with. Null on an instance whose worker was given no way out, or not the
 // addresses a mail links to: what an alert tells then stays in the web app's list.
 const mailOut = mailOutOf(ENV);
@@ -65,6 +67,9 @@ const jobs: Scheduled[] = [
   { name: ALERTS_QUEUE, schedule: "20 */3 * * *" },
   // What begins, and the evening before, are told to the quarter of an hour.
   { name: MOMENTS_QUEUE, schedule: "*/15 * * * *" },
+  // The forecasts of the listed breaks, an eighth of their cells at each run, so that each is
+  // fetched once a day on the pages' share of the budget: decision 057.
+  { name: PAGES_QUEUE, schedule: "50 */3 * * *" },
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -220,6 +225,16 @@ await boss.work(
   attemptOf(MOMENTS_QUEUE, (db) => tellMoments(db, mailOut, pushOut), momentsDone),
 );
 await boss.send(ALERTS_QUEUE);
+
+await boss.createQueue(PAGES_QUEUE, { policy: "stately", ...once });
+await boss.updateQueue(PAGES_QUEUE, once);
+await boss.schedule(PAGES_QUEUE, scheduled(PAGES_QUEUE).schedule);
+const pageForecasts = createForecasts(db, "pages");
+await boss.work(
+  PAGES_QUEUE,
+  withStart,
+  attemptOf(PAGES_QUEUE, (db) => keepListedForecasts(db, pageForecasts), pagesDone),
+);
 
 // A queue that stayed would keep queueing runs that nothing works.
 for (const queue of retiredBreakQueues) {

@@ -1,6 +1,6 @@
 # 024. One catalogue of breaks, filled once
 
-Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. [Decision 049](049-catalogue-in-the-admin.md) built a way to change a break from the admin, and moved what a list said of a break to `surf_break_listing`, which an operator reads. The two tables of the private list were dropped one release later, the same day.
+Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. [Decision 049](049-catalogue-in-the-admin.md) built a way to change a break from the admin, and moved what a list said of a break to `surf_break_listing`, which an operator reads. The two tables of the private list were dropped one release later, the same day. [Decision 057](057-public-pages-of-breaks.md) gave each break the address of its page, under its country and its region, written once as it enters the catalogue.
 
 ## Context
 
