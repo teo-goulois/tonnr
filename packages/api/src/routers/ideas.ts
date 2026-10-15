@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { readSender } from "@repo/mail";
+import { LOCALES } from "@repo/config/locales";
 import { z } from "zod";
 
 import { IDEAS_A_DAY } from "../ideas";
@@ -47,7 +48,7 @@ export const ideasRouter = {
           .max(254)
           .refine((email) => readSender(email)?.email === email),
         idea: z.string().trim().min(1).max(4000),
-        locale: z.enum(["en", "fr"]),
+        locale: z.enum(LOCALES),
         about: z.enum(["idea", "message"]).default("idea"),
       }),
     )

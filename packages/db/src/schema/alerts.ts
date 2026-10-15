@@ -1,3 +1,4 @@
+import { LOCALES } from "@repo/config/locales";
 import {
   boolean,
   index,
@@ -171,7 +172,7 @@ export const alertSettings = pgTable("alert_settings", {
   // The IANA name of the account's time zone. Null until it is known: UTC then.
   zone: text("zone"),
   // The language of what is sent. Null until it is known: English then.
-  locale: text("locale", { enum: ["en", "fr"] }),
+  locale: text("locale", { enum: LOCALES }),
   // The moments, each of which can be switched off.
   onFound: boolean("on_found").default(true).notNull(),
   onEvening: boolean("on_evening").default(true).notNull(),

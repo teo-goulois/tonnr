@@ -40,4 +40,4 @@ Finding those is a search service's work. None was among the instance's provider
 - The names are OpenStreetMap's. A spot that takes its name from a place keeps a name anyone could have written there.
 - A place is a point and a name, with nothing about the sea. A beach found this way is where the search put it, which may be its car park: the surfer still places the marker.
 - An address is not found: a street and a house number give nothing. Téo asked for a search "by an address" to find the place, and a town or a beach does that. Asking for streets again is one word in `LAYERS`.
-- The public service gives names in English, French and German and its own default. The route takes the web app's two languages.
+- The public service gives names in English, French and German and its own default. The route takes the web app's languages, and asks names in English or French alone: Spanish and Portuguese get each place's own name.

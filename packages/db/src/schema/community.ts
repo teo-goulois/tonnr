@@ -1,3 +1,4 @@
+import { LOCALES } from "@repo/config/locales";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -55,7 +56,7 @@ export const CONTRIBUTION_STATES = [
 ] as const;
 
 // The languages a text of a guide is written in: those of the web app.
-export const GUIDE_LANGUAGES = ["en", "fr"] as const;
+export const GUIDE_LANGUAGES = LOCALES;
 
 // The terms an account gives a contribution under. A list of words enters the database under
 // the Open Database License, as a break made of a spot does. A text is a work of its own: the

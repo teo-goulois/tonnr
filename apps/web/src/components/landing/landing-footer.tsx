@@ -22,6 +22,7 @@ import type { ReactNode } from "react";
 import { EmailMenu } from "@/components/shared/email-menu";
 import { ENV } from "@/env.public";
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
+import { LANGUAGES } from "@/lib/languages";
 import { apiOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
@@ -40,9 +41,6 @@ import {
   useArriving,
 } from "./landing-parts";
 import { AUTHOR } from "./landing-story";
-
-// A language is named in its own words, whatever language the page is in.
-const LANGUAGES: Record<(typeof locales)[number], string> = { en: "English", fr: "Français" };
 
 // The apps for a phone, which are not out yet: an address put here turns its store into a link.
 const STORES: { name: string; url: string | null }[] = [

@@ -142,7 +142,69 @@ const WORDS = {
     settings: "Régler tes alertes",
     off: "Ne plus recevoir ces mails",
   },
-};
+  es: {
+    moment: {
+      found: "se perfila una ventana",
+      moved: "la ventana se ha movido",
+      gone: "la ventana ya no está prevista",
+      news: "hay novedades",
+      evening: "lo que está previsto",
+      begins: "es el momento",
+    },
+    generic: `Una de tus alertas de ${APP_NAME} tiene novedades`,
+    to: "a",
+    movedRow: (now: string, before: string) => `Se ha movido: ${now} (era ${before})`,
+    goneRow: (hours: string) => `Ya no está previsto: ${hours}`,
+    forecastFor: (hour: string) => `Previsto para ${hour}`,
+    waves: "olas",
+    swell: "solo mar de fondo",
+    wind: "viento",
+    knots: "kn",
+    points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+    station: (name: string, distance: string) => `Olas en ${name}, a ${distance}`,
+    open: "Abrir el spot",
+    forecast: "Previsión",
+    rounded: "Estos valores están redondeados y escritos en tus unidades.",
+    readings: "Mediciones",
+    fetched: "previsión leída",
+    settings: "Ajustar tus alertas",
+    off: "Dejar de recibir estos correos",
+  },
+  pt: {
+    moment: {
+      found: "desenha-se uma janela",
+      moved: "a janela mudou",
+      gone: "a janela já não está prevista",
+      news: "há novidades",
+      evening: "o que está previsto",
+      begins: "é agora",
+    },
+    generic: `Um dos teus alertas do ${APP_NAME} tem novidades`,
+    to: "a",
+    movedRow: (now: string, before: string) => `Mudou: ${now} (era ${before})`,
+    goneRow: (hours: string) => `Já não previsto: ${hours}`,
+    forecastFor: (hour: string) => `Previsto para ${hour}`,
+    waves: "ondas",
+    swell: "só ondulação",
+    wind: "vento",
+    knots: "kn",
+    points: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+    station: (name: string, distance: string) => `Ondas em ${name}, a ${distance}`,
+    open: "Abrir o spot",
+    forecast: "Previsão",
+    rounded: "Estes valores estão arredondados e escritos nas tuas unidades.",
+    readings: "Medições",
+    fetched: "previsão lida",
+    settings: "Ajustar os teus alertas",
+    off: "Deixar de receber estes emails",
+  },
+} satisfies Record<Locale, unknown>;
+
+// The tag each language's dates and figures are written with.
+const TAGS = { en: "en-GB", fr: "fr-FR", es: "es-ES", pt: "pt-PT" } satisfies Record<
+  Locale,
+  string
+>;
 
 /**
  * The words of what an alert says: its headline, and for each spot its name, its hours as rows,
@@ -152,7 +214,7 @@ const WORDS = {
 export function alertWords(said: AlertSaid) {
   const { locale, zone, moment, units } = said;
   const words = WORDS[locale];
-  const tag = locale === "fr" ? "fr-FR" : "en-GB";
+  const tag = TAGS[locale];
   const dayAndClock = new Intl.DateTimeFormat(tag, {
     timeZone: zone,
     weekday: "short",
@@ -202,7 +264,7 @@ export function alertWords(said: AlertSaid) {
         : dayAndClock.format(stretch.end)
     }`;
 
-  // French puts a space before a colon.
+  // French puts a space before a colon, and the other languages none.
   const colon = locale === "fr" ? " :" : ":";
   const listed = said.day
     ? calendarDay

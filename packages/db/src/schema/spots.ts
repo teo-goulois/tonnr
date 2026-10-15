@@ -119,7 +119,7 @@ export type WaveSize = { min: number | null; max: number | null };
 // The most a bound of a size may be, in meters: the largest waves ridden.
 export const WAVE_SIZE_MOST = 30;
 
-// The languages a break's description is written in: those of the web app.
+// The languages a break's description is written in: those its operator writes in, in the admin.
 export const BREAK_DESCRIPTION_LANGUAGES = ["en", "fr"] as const;
 // A description is a few sentences, as a text of a guide is.
 export const BREAK_DESCRIPTION_MOST = 600;

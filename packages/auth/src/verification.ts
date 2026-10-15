@@ -1,3 +1,4 @@
+import { localePrefix } from "@repo/config/locales";
 import type { Database } from "@repo/db";
 import { type Count, countCalls } from "@repo/db/calls";
 import { type Mailer, MAIL_PROVIDER } from "@repo/mail";
@@ -47,13 +48,13 @@ export function createVerification(
   const apiOrigin = new URL(env.BETTER_AUTH_URL).origin;
 
   // The link opens the API, which sends the browser on to the web app, to the page in the
-  // language of the mail: French lives under `/fr` there. An instance with no web app has no
-  // page to end on: the API's own answer ends the link.
+  // language of the mail: French lives under `/fr` there, Spanish under `/es`. An instance with no
+  // web app has no page to end on: the API's own answer ends the link.
   const linkOf = (token: string, locale: Locale) => {
     const link = new URL("/api/auth/verify-email", apiOrigin);
     link.searchParams.set("token", token);
     if (webOrigin !== apiOrigin) {
-      const page = locale === "fr" ? "/fr/verified" : "/verified";
+      const page = `${localePrefix(locale)}/verified`;
       link.searchParams.set("callbackURL", `${webOrigin}${page}`);
     }
     return link.href;

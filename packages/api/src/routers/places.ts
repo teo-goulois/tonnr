@@ -1,3 +1,4 @@
+import { LOCALES } from "@repo/config/locales";
 import { ORPCError } from "@orpc/server";
 import { Effect, Result } from "effect";
 import { z } from "zod";
@@ -58,7 +59,7 @@ export const placesRouter = {
           // How close the map is, as its zoom. It says how wide "near" is.
           zoom: numeric(z.number().min(0).max(22)).optional(),
           // The language the names are wanted in, where a place has one in it.
-          locale: z.enum(["en", "fr"]).optional(),
+          locale: z.enum(LOCALES).optional(),
           limit: numeric(z.number().int().min(1).max(10)).default(5),
         })
         .refine(

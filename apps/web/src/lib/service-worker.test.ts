@@ -198,6 +198,19 @@ describe("the service worker", () => {
       expect(shown.map((one) => one.title)).toEqual(["Une de tes alertes a du nouveau"]);
     });
 
+    it("says it in Spanish or Portuguese to a browser in one of them", async () => {
+      const spanish = worker([], "es-ES");
+      const portuguese = worker([], "pt-PT");
+
+      await spanish.push("not an alert");
+      await portuguese.push("not an alert");
+
+      expect(spanish.shown.map((one) => one.title)).toEqual(["Una de tus alertas tiene novedades"]);
+      expect(portuguese.shown.map((one) => one.title)).toEqual([
+        "Um dos teus alertas tem novidades",
+      ]);
+    });
+
     it("shows the plain line when the browser refuses what the push asked for", async () => {
       const { shown, push, refuseOnce } = worker();
       refuseOnce();

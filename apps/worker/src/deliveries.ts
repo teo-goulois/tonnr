@@ -16,6 +16,7 @@ import {
   zoneOf,
 } from "@repo/conditions/alerts/settings";
 import { FORECAST_SOURCE } from "@repo/conditions/forecasts/wave-models";
+import { localePrefix } from "@repo/config/locales";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
 import { countCalls } from "@repo/db/calls";
@@ -871,7 +872,7 @@ async function takeBy(
       })
       .from(unitPreferences)
       .where(eq(unitPreferences.userId, made.userId));
-    const page = `${out.webOrigin}${locale === "fr" ? "/fr" : ""}`;
+    const page = `${out.webOrigin}${localePrefix(locale)}`;
     const spotIds = said.spotIds;
     // What the two ways out say alike: the moment, in the account's language, zone and units.
     const saidAs = {

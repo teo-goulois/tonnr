@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { locales } from "@/paraglide/runtime.js";
+
 import { PUBLIC_PAGES, pageAddress, pageLinks, searchEngineFile, sitemapXml } from "./public-pages";
 
 const site = "https://site.example";
@@ -19,6 +21,8 @@ describe("pageLinks", () => {
       { rel: "canonical", href: "https://site.example/terms" },
       { rel: "alternate", hrefLang: "en", href: "https://site.example/terms" },
       { rel: "alternate", hrefLang: "fr", href: "https://site.example/fr/terms" },
+      { rel: "alternate", hrefLang: "es", href: "https://site.example/es/terms" },
+      { rel: "alternate", hrefLang: "pt", href: "https://site.example/pt/terms" },
     ]);
   });
 });
@@ -35,7 +39,7 @@ describe("sitemapXml", () => {
   const sitemap = sitemapXml(site);
 
   it("lists each public page in each language, with its address in the others", () => {
-    expect(sitemap.match(/<url>/g)).toHaveLength(PUBLIC_PAGES.length * 2);
+    expect(sitemap.match(/<url>/g)).toHaveLength(PUBLIC_PAGES.length * locales.length);
     expect(sitemap).toContain("<loc>https://site.example/fr/</loc>");
     expect(sitemap).toContain("<loc>https://site.example/fr/sources</loc>");
     expect(sitemap).toContain(
@@ -45,10 +49,12 @@ describe("sitemapXml", () => {
 
   it("names no page in a form the router redirects", () => {
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => loc);
-    // The two landings end with a slash, and no other page does.
+    // The landings end with a slash, and no other page does.
     expect(locs.filter((loc) => loc.endsWith("/"))).toEqual([
       "https://site.example/",
       "https://site.example/fr/",
+      "https://site.example/es/",
+      "https://site.example/pt/",
     ]);
   });
 });

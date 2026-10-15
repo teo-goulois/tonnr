@@ -10,13 +10,15 @@ export const messages = {
   outputStructure: "message-modules",
   cookieName: "PARAGLIDE_LOCALE",
   strategy: ["url", "cookie", "preferredLanguage", "baseLocale"],
-  // English has no prefix, French lives under /fr. The French pattern comes first, or the
-  // English one would match every path.
+  // English has no prefix, and each other language lives under its own: /fr, /es, /pt. The
+  // prefixed patterns come first, or the English one would match every path.
   urlPatterns: [
     {
       pattern: "/:path(.*)?",
       localized: [
         ["fr", "/fr/:path(.*)?"],
+        ["es", "/es/:path(.*)?"],
+        ["pt", "/pt/:path(.*)?"],
         ["en", "/:path(.*)?"],
       ],
     },

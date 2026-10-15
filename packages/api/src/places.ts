@@ -1,4 +1,5 @@
 import { fetchJsonOnce, type UpstreamError } from "@repo/upstream";
+import type { Locale } from "@repo/config/locales";
 import { Effect, Result, Schema } from "effect";
 import { z } from "zod";
 
@@ -53,7 +54,7 @@ export type PlaceSearch = {
   // Where the map is, so that the places near it are brought forward, and how close it is, as
   // its zoom: the closer the map, the smaller the stretch of coast that counts as near.
   near?: { latitude: number; longitude: number; zoom?: number | undefined } | undefined;
-  locale?: "en" | "fr" | undefined;
+  locale?: Locale | undefined;
   limit: number;
 };
 
@@ -139,6 +140,8 @@ export function readPlaces(document: unknown, limit = Number.POSITIVE_INFINITY):
   return places;
 }
 
+const PHOTON_LANGUAGES = new Set<Locale>(["en", "fr"]);
+
 // The map's middle to a tenth of a degree: near enough to rank by, and the same for every search
 // made from one stretch of coast.
 const rounded = (degrees: number) => Math.round(degrees * 10) / 10;
@@ -148,7 +151,11 @@ function addressOf(service: string, search: PlaceSearch) {
   address.searchParams.set("q", search.query);
   address.searchParams.set("limit", String(Math.min(ASKED_MOST, search.limit * 2)));
   for (const layer of LAYERS) address.searchParams.append("layer", layer);
-  if (search.locale) address.searchParams.set("lang", search.locale);
+  // Photon writes names in these languages alone, and refuses another: a place is then named
+  // in its own.
+  if (search.locale && PHOTON_LANGUAGES.has(search.locale)) {
+    address.searchParams.set("lang", search.locale);
+  }
   if (search.near) {
     address.searchParams.set("lat", String(rounded(search.near.latitude)));
     address.searchParams.set("lon", String(rounded(search.near.longitude)));

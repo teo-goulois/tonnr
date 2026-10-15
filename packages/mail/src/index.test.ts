@@ -335,11 +335,15 @@ describe("the mail that asks an account to check its address", () => {
   it("is in the language asked for, with the link in its text and in its page", () => {
     const english = verificationMail("ana@example.org", link, "en");
     const french = verificationMail("ana@example.org", link, "fr");
+    const spanish = verificationMail("ana@example.org", link, "es");
+    const portuguese = verificationMail("ana@example.org", link, "pt");
 
     expect(english.to).toBe("ana@example.org");
     expect(english.subject).toContain("Check your address");
     expect(french.subject).toContain("Vérifie ton adresse");
-    for (const written of [english, french]) {
+    expect(spanish.subject).toContain("Confirma tu dirección");
+    expect(portuguese.subject).toContain("Confirma o teu endereço");
+    for (const written of [english, french, spanish, portuguese]) {
       expect(written.text).toContain(link);
       expect(written.html).toContain(link.replaceAll("&", "&amp;"));
       // Nothing is loaded from elsewhere: no image, no script, no style sheet.
@@ -358,13 +362,15 @@ describe("the mail that asks an account to check its address", () => {
     expect(written.html).toContain("&quot;&gt;&lt;script&gt;");
   });
 
-  it("is in the language a request likes best of the two, and in English otherwise", () => {
+  it("is in the language a request likes best of the product's, and in English otherwise", () => {
     expect(localeOf("fr-FR,fr;q=0.9,en;q=0.8")).toBe("fr");
     expect(localeOf("fr")).toBe("fr");
     expect(localeOf("fr;q=1.0,en;q=0.5")).toBe("fr");
     expect(localeOf("en;q=0.5, fr;q=0.8")).toBe("fr");
     expect(localeOf("de, fr-CA;q=0.7, en;q=0.2")).toBe("fr");
     expect(localeOf("en-GB,fr;q=0.5")).toBe("en");
+    expect(localeOf("es-ES,es;q=0.9,en;q=0.8")).toBe("es");
+    expect(localeOf("de, pt-BR;q=0.7, fr;q=0.5")).toBe("pt");
     // A weight of zero says that the language is not wanted.
     expect(localeOf("fr;q=0, en")).toBe("en");
     expect(localeOf("fr-FR;q=0")).toBe("en");

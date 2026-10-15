@@ -1,4 +1,5 @@
 import { APP_NAME, CONTACT_EMAIL } from "@repo/config/app";
+import type { Locale } from "@repo/config/locales";
 
 import type { Mail } from "./index";
 
@@ -16,7 +17,7 @@ export type Idea = {
   // An idea for the product, from the landing, or a message of any kind, from the contact page.
   about?: "idea" | "message";
   // The language of the page they sent it from.
-  locale: "en" | "fr";
+  locale: Locale;
 };
 
 const ESCAPES: Record<string, string> = {
@@ -28,7 +29,12 @@ const ESCAPES: Record<string, string> = {
 };
 const escape = (text: string) => text.replace(/[&<>"']/g, (character) => ESCAPES[character] ?? "");
 
-const LANGUAGES = { en: "English", fr: "French" } satisfies Record<Idea["locale"], string>;
+const LANGUAGES = {
+  en: "English",
+  fr: "French",
+  es: "Spanish",
+  pt: "Portuguese",
+} satisfies Record<Idea["locale"], string>;
 
 // What the mail says it is, and where it was sent from.
 const ABOUT = {

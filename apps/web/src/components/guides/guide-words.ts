@@ -69,7 +69,14 @@ export const RANKS: Record<Rank, { short: () => string; name: () => string }> = 
   ct: { short: m.rank_ct, name: m.rank_ct_name },
 };
 
+const WRITTEN_IN = {
+  en: m.guide_written_en,
+  fr: m.guide_written_fr,
+  es: m.guide_written_es,
+  pt: m.guide_written_pt,
+} satisfies Record<NonNullable<Guide["lines"][number]["language"]>, () => string>;
+
 /** The language a text was written in, said to a reader of another. */
 export function writtenIn(language: NonNullable<Guide["lines"][number]["language"]>) {
-  return language === "fr" ? m.guide_written_fr() : m.guide_written_en();
+  return WRITTEN_IN[language]();
 }

@@ -1,8 +1,10 @@
 import { APP_NAME } from "@repo/config/app";
+import { isLocale } from "@repo/config/locales";
+import type { Locale } from "@repo/config/locales";
 
 import type { Mail } from "./index";
 
-export type Locale = "en" | "fr";
+export type { Locale };
 
 const ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -28,11 +30,25 @@ const WORDS = {
     after:
       "Le lien est valable un jour. Si tu ne t’es pas inscrit, ignore ce message : rien ne se passe sans le lien.",
   },
+  es: {
+    subject: `Confirma tu dirección para ${APP_NAME}`,
+    intro: `Alguien se ha registrado en ${APP_NAME} con esta dirección. Si has sido tú, sigue este enlace para confirmar que la dirección es tuya:`,
+    button: "Esta dirección es mía",
+    after:
+      "El enlace vale durante un día. Si no te has registrado, ignora este correo: no pasa nada sin el enlace.",
+  },
+  pt: {
+    subject: `Confirma o teu endereço para ${APP_NAME}`,
+    intro: `Alguém se registou no ${APP_NAME} com este endereço. Se foste tu, segue esta ligação para confirmar que o endereço é teu:`,
+    button: "Este endereço é meu",
+    after:
+      "A ligação é válida durante um dia. Se não te registaste, ignora este email: nada acontece sem a ligação.",
+  },
 } satisfies Record<Locale, Record<string, string>>;
 
 /**
- * The language a request asks for, from its `Accept-Language`: the one it likes best of French
- * and English, and English when it names neither or says nothing.
+ * The language a request asks for, from its `Accept-Language`: the one it likes best of those
+ * the product is written in, and English when it names none or says nothing.
  */
 export function localeOf(acceptLanguage: string | null | undefined): Locale {
   const wanted = (acceptLanguage ?? "")
@@ -46,12 +62,10 @@ export function localeOf(acceptLanguage: string | null | undefined): Locale {
       return { language: tag.trim().split("-")[0] ?? "", weight, index };
     })
     // A weight of zero says "not this one", and one that is no weight says nothing.
-    .filter(
-      ({ language, weight }) =>
-        (language === "fr" || language === "en") && weight > 0 && weight <= 1,
-    )
+    .filter(({ language, weight }) => isLocale(language) && weight > 0 && weight <= 1)
     .sort((a, b) => b.weight - a.weight || a.index - b.index);
-  return wanted[0]?.language === "fr" ? "fr" : "en";
+  const best = wanted[0]?.language;
+  return best !== undefined && isLocale(best) ? best : "en";
 }
 
 /**

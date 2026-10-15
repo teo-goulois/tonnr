@@ -9,6 +9,7 @@ import { AnalyticsSetting } from "@/components/shared/analytics";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { UnitsSettings } from "@/components/shared/units-settings";
 import { AccountPrompt } from "@/components/viewer/saved-panel";
+import { LANGUAGES } from "@/lib/languages";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 
@@ -47,9 +48,6 @@ type AccountPanelProps = {
   // empty, the panel says nothing of them. Decision 047.
   agents?: ConnectedAgents | undefined;
 };
-
-// A language is named in itself, whatever language the screen is read in.
-const LANGUAGES: Record<(typeof locales)[number], string> = { en: "English", fr: "Français" };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

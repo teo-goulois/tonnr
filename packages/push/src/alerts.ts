@@ -35,6 +35,8 @@ const NAME_CHARACTERS = 32;
 const MORE = {
   en: (count: number) => `and ${count} more`,
   fr: (count: number) => (count === 1 ? "et 1 autre" : `et ${count} autres`),
+  es: (count: number) => (count === 1 ? "y 1 más" : `y ${count} más`),
+  pt: (count: number) => (count === 1 ? "e mais 1" : `e mais ${count}`),
 };
 
 const letters = new Intl.Segmenter(undefined, { granularity: "grapheme" });

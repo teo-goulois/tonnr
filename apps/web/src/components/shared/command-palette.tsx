@@ -18,12 +18,13 @@ import { useTheme } from "next-themes";
 import { useState, useSyncExternalStore } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { LANGUAGES, nextLocale } from "@/lib/languages";
 import { useRecents } from "@/lib/recents";
 import { useShortcut, useShortcuts } from "@/lib/shortcuts";
 import { useDebounced } from "@/lib/use-debounced";
 import { analyticsConfigured } from "@/lib/analytics";
 import { m } from "@/paraglide/messages.js";
-import { getLocale, setLocale } from "@/paraglide/runtime.js";
+import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
 import { ShortcutKeys } from "./shortcut-keys";
@@ -299,12 +300,15 @@ export function CommandPalette() {
           hotkey: bindings["toggle-theme"],
           run: () => setTheme(isDark ? "light" : "dark"),
         },
-        {
-          value: `${m.shortcut_switch_locale()} language langue english français`,
-          label: m.command_switch_locale(),
-          hotkey: bindings["switch-locale"],
-          run: () => void setLocale(getLocale() === "fr" ? "en" : "fr"),
-        },
+        // Each other language, said in itself, and the shortcut on the one it goes on to.
+        ...locales
+          .filter((locale) => locale !== getLocale())
+          .map((locale) => ({
+            value: `${m.shortcut_switch_locale()} language ${LANGUAGES[locale]} ${m.command_switch_locale({}, { locale })}`,
+            label: m.command_switch_locale({}, { locale }),
+            ...(locale === nextLocale() && { hotkey: bindings["switch-locale"] }),
+            run: () => void setLocale(locale),
+          })),
         {
           value: `${m.command_shortcuts()} keyboard hotkeys`,
           label: m.command_shortcuts(),

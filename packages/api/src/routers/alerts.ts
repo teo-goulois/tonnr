@@ -16,6 +16,8 @@ import {
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { spot } from "@repo/db/schema/spots";
+import { LOCALES, isLocale, localePrefix } from "@repo/config/locales";
+import type { Locale } from "@repo/config/locales";
 import { and, asc, count, eq, inArray, max, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 import { z } from "zod";
@@ -178,7 +180,7 @@ const deviceFields = {
     .optional()
     .describe("The time zone to take if the account has none yet. It keeps the one it has."),
   localeIfNone: z
-    .enum(["en", "fr"])
+    .enum(LOCALES)
     .optional()
     .describe("The language to take if the account has none yet. It keeps the one it has."),
 };
@@ -191,7 +193,7 @@ const deviceFields = {
 async function settleDevice(
   tx: Database | Transaction,
   userId: string,
-  device: { zoneIfNone?: string; localeIfNone?: "en" | "fr" },
+  device: { zoneIfNone?: string; localeIfNone?: Locale },
 ) {
   if (!device.zoneIfNone && !device.localeIfNone) return;
   await tx
@@ -246,7 +248,7 @@ const settingsSchema = z.object({
   horizonDays: z.number(),
   // The IANA name of the account's time zone. Null until it is known: UTC then.
   zone: z.string().nullable(),
-  locale: z.enum(["en", "fr"]).nullable(),
+  locale: z.enum(LOCALES).nullable(),
   // The moments, each of which can be switched off.
   onFound: z.boolean(),
   onEvening: z.boolean(),
@@ -692,7 +694,7 @@ export const alertsRouter = {
         .object({
           horizonDays: z.number().int().min(1).max(MAX_HORIZON_DAYS),
           zone: zoneSchema,
-          locale: z.enum(["en", "fr"]),
+          locale: z.enum(LOCALES),
           onFound: z.boolean(),
           onEvening: z.boolean(),
           eveningMinutes: minutesOfDay,
@@ -853,7 +855,7 @@ export const alertsRouter = {
       const { u = "", k = "", l } = input.query;
       // The page is in the language of the mail, which the link says: nothing is read of the
       // account, since the key of a link reads nothing.
-      const page = `${context.server.webOrigin}${l === "fr" ? "/fr" : ""}/mail-off`;
+      const page = `${context.server.webOrigin}${localePrefix(l && isLocale(l) ? l : "en")}/mail-off`;
       return { headers: { location: `${page}?${new URLSearchParams({ u, k })}` } };
     }),
 };

@@ -28,10 +28,17 @@ function read(data) {
 }
 
 // What is shown for a push that could not be read: a plain line, in the browser's language.
+const PLAIN = {
+  en: "One of your alerts has news",
+  fr: "Une de tes alertes a du nouveau",
+  es: "Una de tus alertas tiene novedades",
+  pt: "Um dos teus alertas tem novidades",
+};
+
 function plain() {
-  const isFrench = (self.navigator.language || "").toLowerCase().startsWith("fr");
+  const language = (self.navigator.language || "").toLowerCase().split("-")[0];
   return {
-    title: isFrench ? "Une de tes alertes a du nouveau" : "One of your alerts has news",
+    title: Object.hasOwn(PLAIN, language) ? PLAIN[language] : PLAIN.en,
     body: "",
     url: HOME,
     tag: "alert",

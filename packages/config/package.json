@@ -6,6 +6,7 @@
   "exports": {
     "./app": "./src/app.ts",
     "./errors": "./src/errors.ts",
+    "./locales": "./src/locales.ts",
     "./names": "./src/names.ts",
     "./username": "./src/username.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"

@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { operator } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
+import { LOCALES } from "@repo/config/locales";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -60,15 +61,15 @@ export const accountRouter = {
       summary: "Send the caller the mail that checks its address, again",
       description:
         "Takes a signed-in session. The mail holds a link, good for a day, which marks the " +
-        "address as checked and opens the web app at `/verified`, or at `/fr/verified` for a " +
-        "mail in French. It signs no one in. The " +
+        "address as checked and opens the web app at `/verified`, or under the prefix of the " +
+        "mail's language, such as `/fr/verified` for a mail in French. It signs no one in. The " +
         "answer is 409 when the address is already checked, 429 with `Retry-After` when the " +
         "account has had its mails for the hour or the day, and 503 when the instance sends " +
         "no mail, has sent its mails for the day, or its provider did not take this one: the " +
         "mail may still arrive then. Decision 026.",
       tags: ["Account"],
     })
-    .input(z.object({ locale: z.enum(["en", "fr"]).default("en") }))
+    .input(z.object({ locale: z.enum(LOCALES).default("en") }))
     .output(z.object({ sent: z.literal(true) }))
     .handler(async ({ input, context }) => {
       const { id, email, emailVerified } = context.session.user;
