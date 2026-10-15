@@ -1,6 +1,6 @@
 # 037. A finer wave model where one has its sea
 
-Status: accepted by Téo on 2026-10-12, who was shown what a finer model gained against the buoys and said to add it. It builds what decision 036 left unbuilt, and amends decisions 005 and 023: a forecast's waves may come from a second provider, read as a grid, and a forecast's cell is finer where that provider has its sea. Not built: Météo-France's coastal model, which did no better on the two weeks it could be compared, and whose runs are being kept for a month to judge it.
+Status: amended on 2026-10-15 by [decision 053](053-what-one-caller-may-ask.md): the stores are read after Open-Meteo has answered, their pieces are kept by their number, 48 at most, and shared between the points that need one at the same moment, a store that failed is left alone for a minute, and the cells near a point are searched inside the grid alone. Accepted by Téo on 2026-10-12, who was shown what a finer model gained against the buoys and said to add it. It builds what decision 036 left unbuilt, and amends decisions 005 and 023: a forecast's waves may come from a second provider, read as a grid, and a forecast's cell is finer where that provider has its sea. Not built: Météo-France's coastal model, which did no better on the two weeks it could be compared, and whose runs are being kept for a month to judge it.
 
 ## Context
 
@@ -30,7 +30,7 @@ Decision 005 took a provider that answers point by point because "decoding their
 - A forecast's cell is 0.0125° wide inside the box, where it is 0.05° wide elsewhere, so that the model is read where the spot stands and not 3 km away. Both widths are counted in steps of 0.0125°: a cell of either has one name.
 - A forecast is kept with the list of its models, each with the first hour it answers. `GET /v1/forecasts` gives it as `waveModels`, in place of `waveModel`, and the credits of a panel say when one model takes over from the other.
 - Reading the fine model never fails a forecast. It is given ten seconds. A failure is logged, and the forecast has the other models alone.
-- The pieces fetched are kept in the program's memory for half an hour, packed as they came, 96 at most: nearby points are in the same pieces. The requests are not counted against the budget of decision 023, which is Open-Meteo's.
+- The pieces fetched are kept in the program's memory for half an hour, packed as they came, 48 at most since decision 053, which also shares a piece between the points that need it at the same moment: nearby points are in the same pieces. The requests are not counted against the budget of decision 023, which is Open-Meteo's.
 - What comes from outside is bounded: a piece may weigh 4 MB packed and 8 MB unpacked, and a piece that says more is refused before anything is set aside for it.
 - The credit is "Wave forecast from the Met Office, generated using E.U. Copernicus Marine Service Information", with the product's DOI, beside the credits of decision 036.
 - No library is added. Decision 010 reads the same provider's other files with what Node has, and the store writes one packing only.

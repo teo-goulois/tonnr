@@ -1,5 +1,5 @@
 import { fetchBytes, fetchJson, type UpstreamError } from "@repo/upstream";
-import { Effect, Schema } from "effect";
+import { Cache, Duration, Effect, Exit, Schema } from "effect";
 import { z } from "zod";
 
 import { BloscError, unblosc } from "./blosc";
@@ -24,12 +24,16 @@ const HOUR_MS = 3600 * 1000;
 const MAX_PIECE_BYTES = 4 * 1024 * 1024;
 const MAX_UNPACKED_BYTES = 8 * 1024 * 1024;
 // A store's layout is kept an hour, and a piece half an hour: a model is renewed once or twice a
-// day. The pieces a store keeps weigh this much at most, packed as they came.
+// day. A store keeps this many pieces at most, packed as they came: 0.2 to 0.5 MB each, so
+// about 20 MB. Two points that need the same piece at the same moment share one fetch.
 const LAYOUT_MS = 60 * 60 * 1000;
 const PIECE_MS = 30 * 60 * 1000;
-const MAX_KEPT_BYTES = 16 * 1024 * 1024;
+const KEPT_PIECES = 48;
 // A point that takes longer than this goes without the store, and has what the others give.
 const PATIENCE = "10 seconds";
+// After the store could not be read, or took too long, it is left alone for this long: every
+// cold forecast would otherwise wait on it in turn.
+const QUIET_MS = 60 * 1000;
 
 type Point = { latitude: number; longitude: number };
 
@@ -197,14 +201,19 @@ export function cellsNear(
   const { latitude, longitude } = layout;
   const row = Math.round((point.latitude - latitude.start) / latitude.step);
   const column = Math.round((point.longitude - longitude.start) / longitude.step);
-  const rows = Math.ceil(reachKm / (latitude.step * KM_PER_DEGREE));
-  const columns = Math.ceil(
-    reachKm / (longitude.step * KM_PER_DEGREE * Math.cos((point.latitude * Math.PI) / 180)),
-  );
+  // Never more rows or columns than the grid has. Near a pole a degree of longitude is next
+  // to nothing, and the columns within reach would be more than a number can count by one:
+  // a loop over them would never end.
+  const rows = Math.min(latitude.length, Math.ceil(reachKm / (latitude.step * KM_PER_DEGREE)));
+  const across = longitude.step * KM_PER_DEGREE * Math.cos((point.latitude * Math.PI) / 180);
+  const columns = Math.min(longitude.length, Math.ceil(reachKm / across) || 0);
   const cells = [];
-  for (let y = row - rows; y <= row + rows; y += 1) {
-    for (let x = column - columns; x <= column + columns; x += 1) {
-      if (y < 0 || y >= latitude.length || x < 0 || x >= longitude.length) continue;
+  for (let y = Math.max(0, row - rows); y <= row + rows && y < latitude.length; y += 1) {
+    for (
+      let x = Math.max(0, column - columns);
+      x <= column + columns && x < longitude.length;
+      x += 1
+    ) {
       const center = {
         latitude: latitude.start + y * latitude.step,
         longitude: longitude.start + x * longitude.step,
@@ -225,25 +234,22 @@ type Read<Value extends string> = {
   values: Record<Value, (number | null)[]>;
 };
 
-type Kept<Held> = { held: Held; until: number };
+// What is kept for a while, and a failure not at all: the next point asks again.
+const keptFor = (ms: number) => (exit: Exit.Exit<unknown, unknown>) =>
+  Exit.isSuccess(exit) ? Duration.millis(ms) : Duration.zero;
 
 /**
  * What reads a store, with what it keeps between two points: the layout of the store, and the
- * pieces it fetched, packed as they came. Nearby points are in the same pieces. It answers null
- * outside the store's sea, and whenever the store cannot be read: a failure here never fails a
- * forecast, which then has what the other sources give.
+ * pieces it fetched, packed as they came. Nearby points are in the same pieces, and two points
+ * that need one at the same moment share its fetch. It answers null outside the store's sea,
+ * and whenever the store cannot be read: a failure here never fails a forecast, which then has
+ * what the other sources give, and the store is then left alone for a minute.
  */
 function makeWaveStore<Value extends string>(store: Store<Value>) {
-  let layout: Kept<Layout<Value>> | null = null;
-  // Null for a piece the store does not have: it holds no sea.
-  const pieces = new Map<string, Kept<Uint8Array | null>>();
-  let keptBytes = 0;
-
-  const readLayout = Effect.fn("readWaveStoreLayout")(function* (now: number) {
-    if (layout && layout.until > now) return layout.held;
+  const fetchLayout = Effect.fn("fetchWaveStoreLayout")(function* (product: string) {
     const url = datasetUrl(
       store,
-      yield* fetchJson(`${CATALOGUE_URL}/${store.product}/product.stac.json`),
+      yield* fetchJson(`${CATALOGUE_URL}/${product}/product.stac.json`),
     );
     if (url instanceof WaveStoreFormatError) return yield* url;
     const record = dataset.safeParse(yield* fetchJson(url));
@@ -254,33 +260,31 @@ function makeWaveStore<Value extends string>(store: Store<Value>) {
       yield* fetchJson(`${record.data.assets.geoChunked.href}/.zmetadata`),
     );
     if (read instanceof WaveStoreFormatError) return yield* read;
-    layout = { held: read, until: now + LAYOUT_MS };
     return read;
   });
+  // One layout, the product's, kept an hour.
+  const layouts = Effect.runSync(
+    Cache.makeWith(fetchLayout, { capacity: 1, timeToLive: keptFor(LAYOUT_MS) }),
+  );
 
-  const readPiece = Effect.fn("readWaveStorePiece")(function* (url: string, now: number) {
-    const kept = pieces.get(url);
-    if (kept && kept.until > now) return kept.held;
-    const packed = yield* fetchBytes(url, MAX_PIECE_BYTES).pipe(
-      // The store answers 403 for a piece it does not have, as for one it refuses.
+  // A piece, packed as it came, or null for one the store does not have: it holds no sea. The
+  // store answers 403 for such a piece, as for one it refuses.
+  const fetchPiece = (url: string) =>
+    fetchBytes(url, MAX_PIECE_BYTES).pipe(
       Effect.catch((error: UpstreamError) =>
         error.status === 403 || error.status === 404 ? Effect.succeed(null) : Effect.fail(error),
       ),
     );
-    keptBytes += (packed?.byteLength ?? 0) - (kept?.held?.byteLength ?? 0);
-    pieces.delete(url);
-    pieces.set(url, { held: packed, until: now + PIECE_MS });
-    // The oldest goes first: a map keeps its keys in the order they came.
-    for (const [key, old] of pieces) {
-      if (keptBytes <= MAX_KEPT_BYTES || key === url) break;
-      keptBytes -= old.held?.byteLength ?? 0;
-      pieces.delete(key);
-    }
-    return packed;
-  });
+  const pieces = Effect.runSync(
+    Cache.makeWith(fetchPiece, { capacity: KEPT_PIECES, timeToLive: keptFor(PIECE_MS) }),
+  );
+  const readPiece = (url: string) => Cache.get(pieces, url);
+
+  // The store failed, or took too long: nothing is asked of it before this moment.
+  let quietUntil = 0;
 
   const read = Effect.fn("readWaveStore")(function* (point: Point, now: number) {
-    const found = yield* readLayout(now);
+    const found = yield* Cache.get(layouts, store.product);
     const { time, latitude, longitude } = found;
     const first = Math.max(0, Math.floor((now - PAST_MS - time.start) / time.step));
     if (first >= time.length) return null;
@@ -306,7 +310,7 @@ function makeWaveStore<Value extends string>(store: Store<Value>) {
         ].join(found.separator);
         const url = `${found.root}/${variable.name}/${key}`;
         if (!unpacked.has(url)) {
-          const packed = yield* readPiece(url, now);
+          const packed = yield* readPiece(url);
           const expected = time.piece * latitude.piece * longitude.piece * 2;
           const bytes =
             packed === null
@@ -371,12 +375,20 @@ function makeWaveStore<Value extends string>(store: Store<Value>) {
   });
 
   return (point: Point, now: number) => {
-    if (!store.covers(point)) return Effect.succeed(null);
+    if (!store.covers(point) || now < quietUntil) return Effect.succeed(null);
     return read(point, now).pipe(
       Effect.timeoutOption(PATIENCE),
-      Effect.map((answered) => (answered._tag === "Some" ? answered.value : null)),
+      Effect.flatMap((answered) =>
+        answered._tag === "Some"
+          ? Effect.succeed(answered.value)
+          : Effect.logWarning(`the wave model ${store.product} took too long`).pipe(
+              Effect.andThen(Effect.sync(() => (quietUntil = now + QUIET_MS))),
+              Effect.as(null),
+            ),
+      ),
       Effect.catch((error) =>
         Effect.logWarning(`the wave model ${store.product} could not be read`, error).pipe(
+          Effect.andThen(Effect.sync(() => (quietUntil = now + QUIET_MS))),
           Effect.as(null),
         ),
       ),

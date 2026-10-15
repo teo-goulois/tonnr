@@ -113,17 +113,22 @@ export function layWaves(
 }
 
 /**
- * What asks for the forecast of a cell: Open-Meteo for the wind, the weather and the waves, the
- * fine model for the waves where it has its sea, and the world's model for the swell apart. The
- * two stores are not counted against the budget, which is Open-Meteo's, and their failure fails
- * nothing.
+ * What asks for the forecast of a cell: Open-Meteo for the wind, the weather and the waves, then
+ * the fine model for the waves where it has its sea, and the world's model for the swell apart.
+ * The two stores are read once Open-Meteo has answered: a question the budget refuses, or that
+ * the provider fails, asks nothing of them. They are not counted against the budget, which is
+ * Open-Meteo's, and their failure fails nothing.
  */
 export function makeCellForecast(
   fineWaves: FetchFineWaves = makeFineWaves(),
   swell: FetchSwell = makeSwell(),
 ) {
   return <E>(cell: Cell, spend: Effect.Effect<void, BudgetSpent | E>) =>
-    Effect.all([fetchForecast(cell, spend), fineWaves(pointOf(cell)), swell(pointOf(cell))], {
-      concurrency: 3,
-    }).pipe(Effect.map(([data, fine, apart]) => layWaves(data, fine, apart)));
+    fetchForecast(cell, spend).pipe(
+      Effect.flatMap((data) =>
+        Effect.all([fineWaves(pointOf(cell)), swell(pointOf(cell))], { concurrency: 2 }).pipe(
+          Effect.map(([fine, apart]) => layWaves(data, fine, apart)),
+        ),
+      ),
+    );
 }

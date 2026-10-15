@@ -284,6 +284,20 @@ describe("the cells near a point", () => {
   it("are none for a point further from the grid than the reach", () => {
     expect(cellsNear(layout, { latitude: 48.5, longitude: -4.616 }, 4)).toEqual([]);
   });
+
+  it("are found in a bounded time at a pole, where a degree of longitude is next to nothing", () => {
+    // Whatever the reach, no more columns than the grid has are walked: at 90° the columns
+    // within reach would be more than a number can count by one.
+    const world = {
+      latitude: { start: -90, step: 0.5, length: 361, piece: 16 },
+      longitude: { start: -180, step: 0.5, length: 720, piece: 16 },
+    };
+    const started = performance.now();
+    const cells = cellsNear(world, { latitude: 90, longitude: 0 }, 14);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(cells.every((cell) => cell.away <= 14)).toBe(true);
+    expect(cellsNear(layout, { latitude: -90, longitude: 12 }, 14)).toEqual([]);
+  });
 });
 
 describe("the fine model's waves at a point", () => {
@@ -325,6 +339,21 @@ describe("the fine model's waves at a point", () => {
     expect(asked).toHaveLength(first);
   });
 
+  it("share one fetch of a piece between the points that need it at the same moment", async () => {
+    const alone = store();
+    await run(makeFineWaves()(PETIT_MINOU, NOW));
+    const byOne = alone.length;
+
+    const together = store();
+    const fineWaves = makeFineWaves();
+    await Promise.all([
+      run(fineWaves(PETIT_MINOU, NOW)),
+      run(fineWaves({ latitude: 48.34, longitude: -4.62 }, NOW)),
+      run(fineWaves(PETIT_MINOU, NOW)),
+    ]);
+    expect(together).toHaveLength(byOne);
+  });
+
   it("are none where no cell within reach has a sea", async () => {
     store();
 
@@ -343,6 +372,17 @@ describe("the fine model's waves at a point", () => {
     store({ product: 400 });
 
     expect(await run(makeFineWaves()(PETIT_MINOU, NOW))).toBeNull();
+  });
+
+  it("leave a store that could not be read alone for a minute, then ask it again", async () => {
+    store({ product: 400 });
+    const fineWaves = makeFineWaves();
+    expect(await run(fineWaves(PETIT_MINOU, NOW))).toBeNull();
+
+    const asked = store();
+    expect(await run(fineWaves(PETIT_MINOU, NOW + 30_000))).toBeNull();
+    expect(asked).toEqual([]);
+    expect(await run(fineWaves(PETIT_MINOU, NOW + 61_000))).not.toBeNull();
   });
 
   it("are none when the store's last hour is long past", async () => {

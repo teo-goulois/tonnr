@@ -47,7 +47,7 @@ ECMWF's model gives no swell apart through Open-Meteo. Copernicus Marine's store
 ## Consequences
 
 - Every forecast that is not kept now reads the store of the world too: about 1 MB from Copernicus's bucket, in two to four requests. A forecast outside the fine model's box took 0.2 s with it.
-- Each store keeps up to 16 MB of pieces, so the API and the worker each hold up to 32 MB more.
+- Each store keeps up to 48 pieces, about 20 MB, so the API and the worker each hold up to 40 MB more: decision 053 counts them by their number.
 - The swell steps where the fine model hands over to MFWAM, as the waves do: two models do not cut the sea into the same swells.
 - The fine model's swell was compared with no buoy. No mooring of the product measures the swell apart on its coasts.
 - An alert that asks about the swell where no model gives one never tells. The editor says so.
