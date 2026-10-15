@@ -76,12 +76,20 @@ export function useArriving<T extends HTMLElement>() {
   return { ref, "data-stage": stage === "still" ? undefined : stage };
 }
 
-/** A piece of a part that arrives: a rise, a fade and a blur that clears, on the theme's large easing. */
+/**
+ * A piece of a part that arrives: a rise, a fade and a blur that clears, on the theme's large
+ * easing. A part in view as the page is drawn, which stays `still`, comes in the same way from the
+ * first paint, after the top of the page: a part further down plays it out of view, and arrives
+ * again as it is reached.
+ */
 export const arrive =
-  "transition-[opacity,translate,filter] duration-700 ease-theme-large group-data-[stage=wait]/arrival:translate-y-3 group-data-[stage=wait]/arrival:opacity-0 group-data-[stage=wait]/arrival:blur-[4px]";
+  "transition-[opacity,translate,filter] duration-700 ease-theme-large group-data-[stage=wait]/arrival:translate-y-3 group-data-[stage=wait]/arrival:opacity-0 group-data-[stage=wait]/arrival:blur-[4px] animate-in fade-in blur-in-[4px] slide-in-from-bottom-3 fill-mode-backwards [animation-delay:300ms] motion-reduce:animate-none";
 
 /** When a piece arrives: a tenth of a second after the one before it, so that the title comes first. */
-export const order = (place: number): CSSProperties => ({ transitionDelay: `${place * 100}ms` });
+export const order = (place: number): CSSProperties => ({
+  transitionDelay: `${place * 100}ms`,
+  animationDelay: `${300 + place * 100}ms`,
+});
 
 // What an icon does under the pointer, wherever the landing sets one in a line of text: the
 // motion of the inline links of teogoulois.com.
