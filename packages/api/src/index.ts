@@ -115,7 +115,8 @@ const knownProcedure = publicProcedure.use(async ({ context, next, procedure }) 
 /**
  * Answers anyone, and counts the call: for what a link does, in a mail or to a shared list,
  * which carries a key of its own and comes with no session, and for what tells a visitor
- * whether the instance answers them. Decisions 031, 035 and 039 name what is built on it.
+ * whether the instance answers them, and for the name of a break or a station, which its short
+ * address is shown with. Decisions 031, 035, 039 and 056 name what is built on it.
  */
 export const linkProcedure = knownProcedure.route({
   // The reference says that such a route asks for neither a key nor a session.

@@ -8,7 +8,7 @@ import { bboxSchema, inBbox } from "../bbox";
 import { characteristicsSchema } from "../characteristics";
 import type { WordLine } from "../community";
 import { confirmedWordsOf } from "../guides";
-import { callerProcedure } from "../index";
+import { callerProcedure, linkProcedure } from "../index";
 
 const breakSchema = z.object({
   id: z.string(),
@@ -299,5 +299,27 @@ export const breaksRouter = {
       const [row] = await context.db.select().from(surfBreak).where(eq(surfBreak.id, input.id));
       if (!row) throw new ORPCError("NOT_FOUND", { message: `No break "${input.id}".` });
       return describeBreak(row, (await confirmedWordsOf(context.db, [row.id])).get(row.id));
+    }),
+
+  named: linkProcedure
+    .route({
+      method: "GET",
+      path: "/breaks/{id}/name",
+      summary: "The name of a surf break, for a link to it",
+      description:
+        "Takes neither a key nor a session, even while the instance is closed to visitors: " +
+        "the web app names a break this way where its short address is shown before it is " +
+        "opened, in a message. It answers the name and nothing else.",
+      tags: ["Breaks"],
+    })
+    .input(z.object({ id: z.uuid() }))
+    .output(z.object({ name: z.string() }))
+    .handler(async ({ input, context }) => {
+      const [row] = await context.db
+        .select({ name: surfBreak.name })
+        .from(surfBreak)
+        .where(eq(surfBreak.id, input.id));
+      if (!row) throw new ORPCError("NOT_FOUND", { message: `No break "${input.id}".` });
+      return row;
     }),
 };

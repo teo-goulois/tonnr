@@ -137,4 +137,18 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
     expect(await found({ q: "0_" })).toEqual([]);
     expect(await found({ q: "%%" })).toEqual([]);
   });
+
+  it("names a break to whoever has its short address, and says nothing else", async () => {
+    const id = "6f1c2b9e-0d4a-4c1e-9b7a-3e5f8a2d1c40";
+    await database.db
+      .insert(surfBreak)
+      .values({ id, name: "Les Pierres Noires", latitude: 48.29, longitude: -4.97 });
+    const anyone = { context: { ...by("ana").context, session: null } };
+    expect(await call(v1Router.breaks.named, { id }, anyone)).toEqual({
+      name: "Les Pierres Noires",
+    });
+    await expect(
+      call(v1Router.breaks.named, { id: "0e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b" }, anyone),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });

@@ -68,6 +68,9 @@ const ANSWERS_ANYONE = [
   "v1.errorReports.get",
   // Whose link this is, said to whoever was given the link: decision 041.
   "v1.friends.open",
+  // The name of a break or a station, said where its short address is shown: decision 056.
+  "v1.breaks.named",
+  "v1.stations.named",
 ];
 // A visitor of the web app, who has no account, is answered by the same ones, while the
 // instance is open to visitors.

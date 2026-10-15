@@ -24,13 +24,14 @@ export function placeOnMap(kind: PlaceKind, id: string) {
 }
 
 /**
- * The name of what was sent, as the API answers a visitor, for the title of the link. A link is
- * still shown, with no name, when the API answers nothing or refuses visitors.
+ * The name of what was sent, for the title of the link, which the API answers whoever has the
+ * address, even while the instance is closed to visitors: decision 056. A link is still shown,
+ * with no name, when the API answers nothing.
  */
 export async function placeNameOf(kind: PlaceKind, id: string): Promise<string | null> {
   try {
     const response = await fetch(
-      `${apiOrigin(ENV.VITE_SERVER_URL)}${PATHS[kind].api}/${encodeURIComponent(id)}`,
+      `${apiOrigin(ENV.VITE_SERVER_URL)}${PATHS[kind].api}/${encodeURIComponent(id)}/name`,
       { signal: AbortSignal.timeout(3000) },
     );
     if (!response.ok) return null;

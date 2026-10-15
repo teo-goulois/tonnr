@@ -4,7 +4,7 @@ import { and, between, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
-import { callerProcedure } from "../index";
+import { callerProcedure, linkProcedure } from "../index";
 import { spreadOut } from "../wind-places";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -254,6 +254,28 @@ export const stationsRouter = {
         ...describeStation(row.station),
         latestReading: row.reading ? describeReading(row.reading) : null,
       };
+    }),
+
+  named: linkProcedure
+    .route({
+      method: "GET",
+      path: "/stations/{id}/name",
+      summary: "The name of a station, for a link to it",
+      description:
+        "Takes neither a key nor a session, even while the instance is closed to visitors: " +
+        "the web app names a station this way where its short address is shown before it is " +
+        "opened, in a message. It answers the name and nothing else.",
+      tags: ["Stations"],
+    })
+    .input(z.object({ id: stationId }))
+    .output(z.object({ name: z.string() }))
+    .handler(async ({ input, context }) => {
+      const [row] = await context.db
+        .select({ name: station.name })
+        .from(station)
+        .where(eq(station.id, input.id));
+      if (!row) throw new ORPCError("NOT_FOUND", { message: `No station "${input.id}".` });
+      return row;
     }),
 
   readings: callerProcedure
