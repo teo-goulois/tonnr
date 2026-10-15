@@ -1,5 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
 
+import { permanentWhenSamePage } from "./lib/redirects";
 import { paraglideMiddleware } from "./paraglide/server.js";
 
 // What Cloudflare gives the Worker of a deployed stage. Nothing gives it in development.
@@ -7,7 +8,10 @@ type Bindings = { WEB_INDEXED?: string };
 
 export default {
   async fetch(request: Request, bindings?: Bindings): Promise<Response> {
-    const response = await paraglideMiddleware(request, () => handler.fetch(request));
+    const response = permanentWhenSamePage(
+      request,
+      await paraglideMiddleware(request, () => handler.fetch(request)),
+    );
     if (bindings?.WEB_INDEXED === "true") return response;
 
     // A page stays out of search engines unless its stage asks to be listed. The header says
