@@ -6,7 +6,7 @@ import {
   SunriseFillDuoIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import type { ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { type Arc, rangeWords } from "@/components/alerts/alert-words";
 import { TideTrend } from "@/components/alerts/tide-trend";
@@ -77,19 +77,59 @@ const MOMENTS = [
 const underlined =
   "underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) group-hover/part:decoration-neutral-10";
 
-function Part({ className, children }: { className?: string; children: ReactNode }) {
+// As the sentence comes into view, a mark passes over each part in turn, `at` its place, as the
+// editor marks what its writer set: `landing-mark` in `index.css`.
+const marked =
+  "box-decoration-clone bg-no-repeat [background-image:linear-gradient(var(--mark),var(--mark))] [background-size:0%_100%] group-data-[seen]/sentence:motion-safe:animate-landing-mark";
+
+function Part({
+  at,
+  className,
+  children,
+}: {
+  at: number;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <span className={cn("group/part font-medium text-neutral-10", underlined, className)}>
+    <span
+      style={{ animationDelay: `${300 + at * 110}ms` }}
+      className={cn("group/part font-medium text-neutral-10", underlined, marked, className)}
+    >
       {children}
     </span>
   );
 }
 
+/** Whether an element has been seen, half of it at once: once it has, it stays seen. */
+function useSeen<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const target = ref.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry || entry.intersectionRatio < 0.5) return;
+        setSeen(true);
+        observer.disconnect();
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, "data-seen": seen || undefined };
+}
+
+// When each tile of the moments moves, once the sentence has been marked.
+const POPS = ["[animation-delay:1100ms]", "[animation-delay:1220ms]", "[animation-delay:1340ms]"];
+
 // A sector, as the editor shows it: an arrow and a name for each of its ends, clockwise, on one
 // line.
-function Sector({ arc }: { arc: Arc }) {
+function Sector({ arc, at }: { arc: Arc; at: number }) {
   return (
-    <Part className="whitespace-nowrap">
+    <Part at={at} className="whitespace-nowrap">
       {m.alert_from()} <Bearing degrees={arc.from} className={underlined} />–
       <Bearing degrees={arc.to} className={underlined} />
     </Part>
@@ -99,6 +139,7 @@ function Sector({ arc }: { arc: Arc }) {
 /** What an alert is, shown as the sentence its editor writes. */
 export function LandingAlert() {
   const arriving = useArriving<HTMLElement>();
+  const sentence = useSeen<HTMLParagraphElement>();
   return (
     <section {...arriving} className={`${column} ${apart} ${under} group/arrival grid`}>
       <SectionTitle
@@ -134,37 +175,46 @@ export function LandingAlert() {
           className={cn(arrive, "self-start max-lg:row-start-1 lg:col-span-8 lg:p-xl")}
           style={order(1)}
         >
-          <p className="text-l text-neutral-7 max-sm:text-[1.0625rem] max-sm:leading-[1.7]">
+          <p
+            {...sentence}
+            style={
+              { "--mark": `color-mix(in oklab, ${WORKS_COLOR} 32%, transparent)` } as CSSProperties
+            }
+            className="group/sentence text-l text-neutral-7 max-sm:text-[1.0625rem] max-sm:leading-[1.7]"
+          >
             {m.alert_says_waves()}{" "}
-            <Part>
+            <Part at={0}>
               {m.alert_height_of({
                 range: rangeWords("waveHeightMeters", EXAMPLE.waveHeightMeters),
               })}
             </Part>
             ,{" "}
-            <Part>
+            <Part at={1}>
               {m.alert_period_of({
                 range: rangeWords("wavePeakPeriodSeconds", EXAMPLE.wavePeakPeriodSeconds),
               })}
             </Part>
-            , <Sector arc={EXAMPLE.waveDirectionDegrees} />, {m.alert_says_wind()}{" "}
-            <Part>
+            , <Sector at={2} arc={EXAMPLE.waveDirectionDegrees} />, {m.alert_says_wind()}{" "}
+            <Part at={3}>
               {m.alert_wind_at({
                 range: rangeWords("windSpeedMetersPerSecond", EXAMPLE.windSpeedMetersPerSecond),
               })}
             </Part>
-            , <Sector arc={EXAMPLE.windDirectionDegrees} />, {m.alert_says_tide()}{" "}
-            <Part>
+            , <Sector at={4} arc={EXAMPLE.windDirectionDegrees} />, {m.alert_says_tide()}{" "}
+            <Part at={5}>
               {m.alert_tide_at({ range: rangeWords("tideHeightMeters", EXAMPLE.tideHeightMeters) })}
             </Part>
             ,{" "}
-            <Part>
+            <Part at={6}>
               <TideTrend trend={EXAMPLE.tideTrend} className={underlined} />
             </Part>
-            , {m.alert_says_for()} <Part>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
+            , {m.alert_says_for()} <Part at={7}>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
           </p>
         </Card>
-        <ul className="grid gap-m sm:grid-cols-3 sm:gap-l lg:col-span-12">
+        <ul
+          data-seen={sentence["data-seen"]}
+          className="group/moments grid gap-m sm:grid-cols-3 sm:gap-l lg:col-span-12"
+        >
           {MOMENTS.map((moment, index) => (
             <li
               key={moment.title()}
@@ -173,7 +223,10 @@ export function LandingAlert() {
             >
               <Tile
                 color={moment.color}
-                className="mr-0 shrink-0 rounded-[0.63em] text-l [--tile:2.25em] max-sm:text-m [&_svg]:size-[1.2em]"
+                className={cn(
+                  "mr-0 shrink-0 rounded-[0.63em] text-l [--tile:2.25em] max-sm:text-m [&_svg]:size-[1.2em] group-data-[seen]/moments:motion-safe:animate-landing-pop",
+                  POPS[index],
+                )}
               >
                 {moment.icon}
               </Tile>

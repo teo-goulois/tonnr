@@ -217,22 +217,30 @@ export function LandingHero() {
       ref={depth}
       className="relative isolate -mt-[calc(var(--space-xxl)*1.4)] min-h-[min(100svh,980px)] overflow-hidden max-sm:min-h-[36rem]"
     >
-      <div aria-hidden className="absolute -inset-[2%] -z-10" style={layer(-6, 1400)}>
-        {/* Both are lazy, so that a browser fetches only the one its theme shows. */}
-        {(["light", "dark"] as const).map((theme) => (
-          <img
-            key={theme}
-            src={mapOf(theme)}
-            alt=""
-            width={MAP.width}
-            height={MAP.height}
-            loading="lazy"
-            className={cn(
-              "absolute inset-y-0 left-[-6%] h-full w-[112%] max-w-none object-cover object-[55%_45%]",
-              theme === "light" ? "dark:hidden" : "hidden dark:block",
-            )}
-          />
-        ))}
+      {/* The map sinks behind the words as the page is scrolled, slower than they go: `landing-sink`
+          in `index.css`, where the browser ties an animation to the scroll. */}
+      <div aria-hidden className="landing-sink absolute -inset-[2%] -z-10">
+        <div className="absolute inset-0" style={layer(-6, 1400)}>
+          {/* The map comes in first, out of a blur and from a little closer, as the page is drawn:
+              the words then arrive over it. */}
+          <div className="absolute inset-0 animate-in fade-in blur-in-[12px] zoom-in-106 fill-mode-both duration-[1600ms] ease-theme-large motion-reduce:animate-none">
+            {/* Both are lazy, so that a browser fetches only the one its theme shows. */}
+            {(["light", "dark"] as const).map((theme) => (
+              <img
+                key={theme}
+                src={mapOf(theme)}
+                alt=""
+                width={MAP.width}
+                height={MAP.height}
+                loading="lazy"
+                className={cn(
+                  "absolute inset-y-0 left-[-6%] h-full w-[112%] max-w-none object-cover object-[55%_45%]",
+                  theme === "light" ? "dark:hidden" : "hidden dark:block",
+                )}
+              />
+            ))}
+          </div>
+        </div>
       </div>
       {/* The page washes over the map, whole under the words, so that no marker shows through
           them, and the map shows beyond. */}
@@ -256,7 +264,7 @@ export function LandingHero() {
       <div
         className={`${column} flex min-h-[inherit] items-center pt-[calc(var(--space-xxl)*2.4)] pb-xxl`}
       >
-        <div className="grid w-full max-w-[42rem] justify-items-start gap-m sm:gap-l">
+        <div className="landing-lift grid w-full max-w-[42rem] justify-items-start gap-m sm:gap-l">
           <h1
             className={`${arrives} text-[2.25rem] leading-[1.04] sm:text-[clamp(2.5rem,4.6vw,4rem)] font-bold tracking-[-0.04em] text-balance text-neutral-9`}
           >
@@ -298,7 +306,10 @@ export function LandingHero() {
         </div>
       </div>
 
-      <div className="absolute top-[30%] right-[12%] max-lg:hidden" style={layer(12, 1000)}>
+      <div
+        className="landing-lift absolute top-[30%] right-[12%] max-lg:hidden"
+        style={layer(12, 1000)}
+      >
         <div className="animate-in fade-in blur-in-[4px] fill-mode-both duration-700 ease-theme-large delay-300 motion-reduce:animate-none">
           <PushStack />
         </div>

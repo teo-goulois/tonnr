@@ -66,12 +66,15 @@
 }
 
 /* What the cards of the landing do while they are in view: the sea drifts, the wind blows off the
-   shore and sways its marker, the foam runs along the beach. */
+   shore and sways its marker, the foam runs along the beach. And what the alert's section does
+   once it is seen: its sentence is marked, then its tiles move. */
 @theme {
   --animate-landing-drift: landing-drift 18s ease-in-out infinite alternate;
   --animate-landing-gust: landing-gust 2.4s linear infinite both;
   --animate-landing-sway: landing-sway 3.2s ease-in-out infinite alternate;
   --animate-landing-foam: landing-foam 2.4s linear infinite;
+  --animate-landing-mark: landing-mark 900ms var(--motion-large-easing) both;
+  --animate-landing-pop: landing-pop 600ms var(--motion-large-easing) both;
 
   @keyframes landing-drift {
     to {
@@ -104,5 +107,60 @@
     to {
       stroke-dashoffset: -20;
     }
+  }
+  /* A mark that passes over a part of the alert's sentence: it grows from the left, then leaves
+     by the right. */
+  @keyframes landing-mark {
+    0% {
+      background-size: 0% 100%;
+      background-position: left;
+    }
+    50% {
+      background-size: 100% 100%;
+      background-position: left;
+    }
+    51% {
+      background-position: right;
+    }
+    100% {
+      background-size: 0% 100%;
+      background-position: right;
+    }
+  }
+  /* A tile that says it is there, once: it lifts and tilts as it does under the pointer. */
+  @keyframes landing-pop {
+    40% {
+      scale: 1.12;
+      rotate: -4deg;
+    }
+  }
+}
+
+/* The top of the landing as the page is scrolled past it: the map sinks behind the words, slower
+   than the page goes, and the words and the alerts rise away faster, fading. Tied to the scroll
+   where the browser can, and still elsewhere and for a reader who asked for no motion. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-sink {
+      animation: landing-sink linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 100vh;
+    }
+    .landing-lift {
+      animation: landing-lift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 80vh;
+    }
+  }
+}
+@keyframes landing-sink {
+  to {
+    transform: translateY(24%) scale(1.04);
+  }
+}
+@keyframes landing-lift {
+  to {
+    transform: translateY(-10vh);
+    opacity: 0;
   }
 }
