@@ -218,6 +218,9 @@ export function LandingFooter() {
           <Link to="/app" className={quiet}>
             {m.landing_open_map()}
           </Link>
+          <Link to="/spots" className={quiet}>
+            {m.page_spots()}
+          </Link>
           <Link to="/" hash={SECTIONS.features} className={quiet}>
             {m.landing_nav_features()}
           </Link>

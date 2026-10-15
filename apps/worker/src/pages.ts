@@ -2,6 +2,7 @@ import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import { type Cell, cellOf, pointOf } from "@repo/conditions/forecasts/open-meteo";
 import type { Database } from "@repo/db";
 import { listedPoints } from "@repo/db/listed";
+import { forecastCell } from "@repo/db/schema/forecasts";
 import { Effect, Result } from "effect";
 
 import { StoreError } from "./store";
@@ -19,8 +20,18 @@ export const SLICES_A_DAY = 1;
 
 /** How many cells are asked for at once: the files are read by range, a few at a time. */
 export const AT_ONCE = 6;
-/** How many runs the start of the list turns through, so that a stopped run's tail comes first later. */
-export const TURNS = 8;
+
+/** When each kept cell was fetched, in milliseconds, by the key of its cell. */
+async function keptAges(db: Database) {
+  const rows = await db
+    .select({
+      latStep: forecastCell.latStep,
+      lonStep: forecastCell.lonStep,
+      fetchedAt: forecastCell.fetchedAt,
+    })
+    .from(forecastCell);
+  return new Map(rows.map((row) => [cellKey(row), row.fetchedAt.getTime()]));
+}
 
 const cellKey = (cell: Cell) => `${cell.latStep},${cell.lonStep}`;
 
@@ -53,11 +64,15 @@ export const keepListedForecasts = Effect.fn("keepListedForecasts")(function* (
   const keys = [...cells.keys()].sort();
   const slice = sliceAt(now);
   const owned = keys.filter((_, index) => index % SLICES_A_DAY === slice);
-  // A run that the scheduler stops before its end leaves the cells after the one it was at:
-  // the next run starts further on, so that no cell waits for ever at the end of the list.
-  const turn = Math.floor(now.getTime() / (3 * 60 * 60 * 1000)) % TURNS;
-  const from = Math.floor((owned.length * turn) / TURNS);
-  const mine = [...owned.slice(from), ...owned.slice(0, from)];
+  // The cells whose forecast is the oldest, or missing, come first: a run that the scheduler
+  // stops before its end leaves the freshest for the next, and no cell waits for ever.
+  const ages = yield* Effect.tryPromise({
+    try: () => keptAges(db),
+    catch: (cause) => new StoreError({ provider: "pages", cause }),
+  });
+  const mine = [...owned].sort(
+    (one, other) => (ages.get(one) ?? 0) - (ages.get(other) ?? 0) || (one < other ? -1 : 1),
+  );
 
   let refreshed = 0;
   let failed = 0;

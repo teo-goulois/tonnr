@@ -344,7 +344,15 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
             ],
           });
           return Array.from(floats);
-        }).pipe(Effect.catchIf(isMissing, () => Effect.succeed(null))),
+        }).pipe(
+          // A chunk the bucket lacks beyond the model's last hour holds nothing yet. One it
+          // lacks within its coverage is a file gone missing, which fails the read.
+          Effect.catchIf(isMissing, () =>
+            chunkStart(found, chunk) <= found.dataEndAt
+              ? Effect.fail(fault(`${fileUrl.chunk(model, variable, chunk)} is missing`))
+              : Effect.succeed(null),
+          ),
+        ),
       ),
       { concurrency: "unbounded" },
     );

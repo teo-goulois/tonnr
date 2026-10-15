@@ -115,16 +115,29 @@ const PROVIDER: Credit[] = [
   },
 ];
 
+// Who produced the wind and the weather read from the models' files, and the credit each asks
+// for its open data: decision 058. DWD's is in `PROVIDER` already.
+const WEATHER_CREDITS: Record<string, Credit> = {
+  "Météo-France": { text: "Weather forecast from Météo-France", url: "https://meteofrance.com/" },
+  NOAA: { text: "Weather forecast from NOAA", url: "https://www.noaa.gov/" },
+};
+
 /**
- * Who a forecast is credited to: Open-Meteo, which serves it, and whoever produced the wave
- * models given. `credits` are the links to show beside the data, `notice` what a producer asks
+ * Who a forecast is credited to: Open-Meteo, which serves it, whoever produced the wave models
+ * given, and whoever produced the weather's when it was read from the files. `credits` are the links to show beside the data, `notice` what a producer asks
  * to be said with them, and `attribution` the whole as one text, for where no link can be made.
  */
-export function forecastSource(models: readonly WaveModelId[]) {
+export function forecastSource(models: readonly WaveModelId[], weather: readonly string[] = []) {
   const producers = [...new Map(models.map((id) => [waveModel(id).producer, waveModel(id)]))].map(
     ([, model]) => model,
   );
-  const credits = [...PROVIDER, ...producers.map((model) => model.credit)];
+  const credits = [
+    ...PROVIDER,
+    ...producers.map((model) => model.credit),
+    ...[...new Set(weather)].flatMap((producer) =>
+      WEATHER_CREDITS[producer] ? [WEATHER_CREDITS[producer]] : [],
+    ),
+  ];
   const notice =
     producers.flatMap((model) => (model.notice === null ? [] : [model.notice])).join(" ") || null;
   return {

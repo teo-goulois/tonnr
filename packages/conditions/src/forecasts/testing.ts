@@ -39,6 +39,7 @@ export function answer(
       : [],
     swellModels: [{ id: "mfwam", from: time[0] ?? 0 }],
     peakModels: [],
+    producers: [],
     hours: {
       time,
       waveHeightMeters,

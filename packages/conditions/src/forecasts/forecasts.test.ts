@@ -698,7 +698,8 @@ describe("the forecast kept for a point, asked of nobody", () => {
     await got(forecasts.get({ ...here, days: 1 }));
     const kept = await got(forecasts.kept(here));
     expect(kept).toMatchObject({ stale: false, point: { latitude: 43.625 } });
-    expect(kept?.hours).toHaveLength((MAX_FORECAST_DAYS + 1) * 24);
+    // A day before today and one after the seven asked, as far as the kept forecast reaches.
+    expect(kept?.hours).toHaveLength((MAX_FORECAST_DAYS + 2) * 24);
     expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-08T00:00:00Z"));
     expect(kept?.models).toEqual([{ id: "ecmwf_wam", from: new Date("2026-10-08T00:00:00Z") }]);
     expect(state.asked).toBe(1);
@@ -715,6 +716,9 @@ describe("the forecast kept for a point, asked of nobody", () => {
     const honolulu = weekOf(kept?.hours ?? [], "Pacific/Honolulu", new Date());
     expect(honolulu[0]).toMatchObject({ day: "2026-10-08", hours: 24 });
     expect(honolulu[0]?.wind?.time).toEqual(new Date("2026-10-08T22:00:00Z"));
+    // A place east of UTC gets its seventh day whole too.
+    const auckland = weekOf(kept?.hours ?? [], "Pacific/Auckland", new Date());
+    expect(auckland.map((day) => day.hours)).toEqual([24, 24, 24, 24, 24, 24, 24]);
   });
 
   it("says that an older forecast is stale, and gives none past its day", async () => {

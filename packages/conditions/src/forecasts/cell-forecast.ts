@@ -145,6 +145,7 @@ export function layWaves(
     models,
     swellModels,
     peakModels,
+    producers: data.producers,
     hours,
   };
 }

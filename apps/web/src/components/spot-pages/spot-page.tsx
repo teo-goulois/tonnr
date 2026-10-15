@@ -40,10 +40,17 @@ function Licence({ license }: { license: { type: string; url: string } }) {
 /** Who measured and computed what the page says: each station, the tides and the models. */
 function Sources({ page }: { page: SpotPageData }) {
   const { waves, wind, tide, week } = page;
-  if (!waves && !wind && !tide && !week) return null;
+  const source = page.break.source;
+  if (!waves && !wind && !tide && !week && !source.attribution) return null;
   return (
     <SpotSection title={m.page_sources()}>
       <ul className="grid gap-xxs">
+        {source.attribution && (
+          <Credit>
+            {m.page_credit_break({ attribution: source.attribution })}
+            {source.license && <Licence license={source.license} />}
+          </Credit>
+        )}
         {waves && (
           <Credit>
             {m.page_credit_waves({ attribution: waves.attribution })}
@@ -77,6 +84,7 @@ function Sources({ page }: { page: SpotPageData }) {
               </span>
             ))}
             <Licence license={week.source.license} />
+            {week.source.notice && <span className="block">{week.source.notice}</span>}
           </Credit>
         )}
       </ul>

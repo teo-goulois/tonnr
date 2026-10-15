@@ -220,7 +220,14 @@ export const forecastsRouter = {
         Effect.result(context.forecasts.get({ latitude, longitude, ...span })),
       );
       if (Result.isFailure(result)) throw forecastUnavailable(result.failure);
-      const { hours: every, models, swellModels, peakModels, ...forecast } = result.success;
+      const {
+        hours: every,
+        models,
+        swellModels,
+        peakModels,
+        producers,
+        ...forecast
+      } = result.success;
       if (!every || models.length === 0) {
         throw new ORPCError("NOT_FOUND", { message: "No sea forecast for this point." });
       }
@@ -236,7 +243,10 @@ export const forecastsRouter = {
       return {
         ...forecast,
         hours,
-        source: forecastSource([...models, ...swellModels, ...peakModels].map((model) => model.id)),
+        source: forecastSource(
+          [...models, ...swellModels, ...peakModels].map((model) => model.id),
+          producers,
+        ),
         waveModels: named(models),
         swellModels: named(swellModels),
       };

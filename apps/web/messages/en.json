@@ -1331,6 +1331,7 @@
   "page_open_on_map": "Open on the map",
   "page_guide": "What surfers say",
   "page_sources": "Sources",
+  "page_credit_break": "Spot: {attribution}",
   "page_credit_waves": "Waves: {attribution}",
   "page_credit_wind": "Wind: {attribution}",
   "page_credit_tides": "Tides:",

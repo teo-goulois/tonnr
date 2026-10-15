@@ -188,6 +188,11 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/app" }),
         },
         {
+          value: `${m.page_spots()} spots pages countries regions`,
+          label: m.page_spots(),
+          run: () => void navigate({ to: "/spots" }),
+        },
+        {
           value: `${m.saved_title()} saved favorites lists`,
           label: m.saved_title(),
           run: () => void navigate({ to: "/app", search: { panel: "saved" } }),

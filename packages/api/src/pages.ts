@@ -186,7 +186,8 @@ export async function nearbyBreaks(db: Reader, found: Break) {
         inBbox(surfBreak.latitude, surfBreak.longitude, boxAround(found, NEARBY_WITHIN_KM)),
       ),
     )
-    .orderBy(awayFrom(found, surfBreak))
+    // The listed ones first, so that none is left behind the nearest unlisted.
+    .orderBy(sql`(${standsAloneSql} and ${hasPageSql}) desc`, awayFrom(found, surfBreak))
     .limit(NEARBY_MOST * 4);
   return rows
     .map(({ row, listed }) => ({ row, listed, distanceKm: distanceKm(found, row) }))
@@ -231,6 +232,7 @@ export async function weekAt(
     stale: kept.stale,
     source: forecastSource(
       [...kept.models, ...kept.swellModels, ...kept.peakModels].map((model) => model.id),
+      kept.producers,
     ),
   };
 }

@@ -63,3 +63,22 @@ describe("who a forecast is credited to", () => {
     expect(texts).toContain("DWD");
   });
 });
+
+describe("the credit of a forecast read from the files", () => {
+  it("names the producers of the weather beside the wave models'", () => {
+    const source = forecastSource(
+      ["meteofrance_wave", "ecmwf_wam025"],
+      ["Météo-France", "NOAA", "DWD"],
+    );
+    expect(source.credits.map((credit) => credit.text)).toEqual([
+      "Weather data by Open-Meteo.com",
+      "CC BY 4.0",
+      "Credit asked by Open-Meteo: German Weather Service DWD",
+      "Wave forecast from Météo-France, generated using E.U. Copernicus Marine Service Information",
+      "This service is based on data and products of the European Centre for Medium-Range Weather Forecasts (ECMWF)",
+      "Weather forecast from Météo-France",
+      "Weather forecast from NOAA",
+    ]);
+    expect(source.notice).toContain("ECMWF");
+  });
+});

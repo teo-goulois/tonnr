@@ -335,6 +335,7 @@ export function makeForecasts(
         hours && hours[0] && hours.at(-1)
           ? modelsOver(found.data.peakModels, hours[0].time, hours.at(-1)!.time)
           : [],
+      producers: found.data.producers,
       hours,
       fetchedAt: found.fetchedAt,
       stale: found.stale,
@@ -362,6 +363,7 @@ export function makeForecasts(
         models: hasWaves ? modelsOver(data.models, start, end) : [],
         swellModels: hasWaves ? modelsOver(data.swellModels, start, end) : [],
         peakModels: hasWaves ? modelsOver(data.peakModels, start, end) : [],
+        producers: data.producers,
         hours: hasWaves ? hours : null,
       };
     };
@@ -387,7 +389,8 @@ export function makeForecasts(
    * crawler may ask for thousands of times (decision 057). Null when none is kept, or when
    * the one kept is past its day. `stale` says that it is over two hours old. `hours` is null
    * when the point has no sea nearby, and holds what the kept forecast has of the days asked,
-   * from the start of the UTC day before today, whether or not it covers them all.
+   * from the start of the UTC day before today to the end of the one after the days asked,
+   * whether or not it covers them all.
    */
   const kept = Effect.fn("keptForecast")(function* (
     point: { latitude: number; longitude: number },
@@ -398,9 +401,10 @@ export function makeForecasts(
     const found = held(read.now, read.row);
     if (!found || found.age >= USABLE_MS) return null;
     const today = Math.floor(read.now.getTime() / 1000 / DAY_S) * DAY_S;
-    // From the UTC day before: a day of a place west of UTC begins in it, and a week told in
-    // the place's own days wants its whole first day.
-    const { hours, hasWaves } = hoursIn(found.data, today - DAY_S, today + days * DAY_S);
+    // From the UTC day before to the one after the days asked: a day of a place west of UTC
+    // begins in the one, east of UTC ends in the other, and a week told in the place's own days
+    // wants them whole.
+    const { hours, hasWaves } = hoursIn(found.data, today - DAY_S, today + (days + 1) * DAY_S);
     const [first, last] = [hours[0], hours.at(-1)];
     return {
       point: found.data.point,
@@ -409,6 +413,7 @@ export function makeForecasts(
         hasWaves && first && last ? modelsOver(found.data.swellModels, first.time, last.time) : [],
       peakModels:
         hasWaves && first && last ? modelsOver(found.data.peakModels, first.time, last.time) : [],
+      producers: found.data.producers,
       hours: hasWaves ? hours : null,
       fetchedAt: found.fetchedAt,
       stale: found.age >= FRESH_MS,

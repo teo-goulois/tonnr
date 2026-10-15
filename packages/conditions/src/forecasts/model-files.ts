@@ -297,6 +297,7 @@ export const fetchFromFiles = Effect.fn("fetchFromFiles")(function* (
       firstSea === undefined || !peak?.peak.some((value) => value !== null)
         ? []
         : [{ id: PEAK_MODEL, from: firstSea }],
+    producers,
     hours: {
       time: hours,
       waveHeightMeters: height,

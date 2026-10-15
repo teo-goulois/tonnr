@@ -1331,6 +1331,7 @@
   "page_open_on_map": "Abrir no mapa",
   "page_guide": "O que dizem os surfistas",
   "page_sources": "Fontes",
+  "page_credit_break": "Spot: {attribution}",
   "page_credit_waves": "Ondas: {attribution}",
   "page_credit_wind": "Vento: {attribution}",
   "page_credit_tides": "Marés:",

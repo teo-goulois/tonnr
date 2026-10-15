@@ -36,7 +36,7 @@ Measured on the night of 2026-10-15 (`scratch/open-meteo-files/REPORT-058.md` in
 
 ### The credit
 
-- A forecast says that its weather data is by Open-Meteo.com, under CC-BY-4.0, and names the producers of the models that answered it: DWD, Météo-France, NOAA, ECMWF. `/sources`, `docs/data-sources.md` and the credits of a forecast change together.
+- A forecast says that its weather data is by Open-Meteo.com, under CC-BY-4.0, and names the producers of the models that answered it: DWD, Météo-France, NOAA, ECMWF. The producers of the wind and the weather are kept with the forecast, as `producers`, so that its credits name them wherever it is shown. `/sources`, `docs/data-sources.md` and the credits of a forecast change together.
 
 ### What follows for the worker and the pages
 
