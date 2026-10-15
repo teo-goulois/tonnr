@@ -1,5 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
 
+import { searchEngineFile } from "./lib/public-pages";
 import { permanentWhenSamePage } from "./lib/redirects";
 import { paraglideMiddleware } from "./paraglide/server.js";
 
@@ -8,11 +9,15 @@ type Bindings = { WEB_INDEXED?: string };
 
 export default {
   async fetch(request: Request, bindings?: Bindings): Promise<Response> {
+    const indexed = bindings?.WEB_INDEXED === "true";
+    const file = searchEngineFile(request, indexed);
+    if (file !== undefined) return file;
+
     const response = permanentWhenSamePage(
       request,
       await paraglideMiddleware(request, () => handler.fetch(request)),
     );
-    if (bindings?.WEB_INDEXED === "true") return response;
+    if (indexed) return response;
 
     // A page stays out of search engines unless its stage asks to be listed. The header says
     // so, and `robots.txt` lets them come and read it: decision 021.

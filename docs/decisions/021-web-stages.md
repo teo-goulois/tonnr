@@ -46,6 +46,8 @@ Three facts bound the choice:
 - Anyone who has a stage's address can open it. Sign-up is open on the API either way, by decision 019.
 - The web app tells search engines not to list a stage, unless the stage sets `WEB_INDEXED=true`. It says so in a header, `X-Robots-Tag: noindex`, on every page it answers.
 - `robots.txt` still allows every page, because a search engine that may not read a page does not read its header.
+- A stage that is listed names its sitemap in `robots.txt`, and serves it at `/sitemap.xml`: the public pages in each language, with their address in the other. A stage that is not listed has no sitemap, since every page it would name says `noindex`. The Worker answers both files before the router, because only it knows whether its stage is listed, and takes their host from the request.
+- A redirect to the same page written with or without its last slash, such as `/fr` to `/fr/`, is a `308`, so a search engine keeps the final address. The router sends it as a `307`, and the Worker changes it.
 
 ### A deployment said to an open app
 

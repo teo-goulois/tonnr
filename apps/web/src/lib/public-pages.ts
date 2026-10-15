@@ -3,8 +3,8 @@ import type { Locale } from "@/paraglide/runtime.js";
 import type { FileRoutesByTo } from "@/routeTree.gen";
 
 /**
- * The pages a search engine may list, each in every language. A new public page is added here,
- * and its route gives `pageLinks` to its head. The product, the sign-in, and the pages a link or a
+ * The pages a search engine may list, each in every language: the sitemap names these and no
+ * other. A new public page is added here, and its route gives `pageLinks` to its head. The product, the sign-in, and the pages a link or a
  * mail leads to are left out: they say `noindex`, or only redirect.
  */
 export const PUBLIC_PAGES = [
@@ -33,4 +33,68 @@ export function pageLinks(site: string, page: PublicPage) {
       href: pageAddress(site, page, locale),
     })),
   ];
+}
+
+/**
+ * The sitemap: every public page in every language, each with its address in the others, as the
+ * pages declare them.
+ */
+export function sitemapXml(site: string) {
+  const urls = PUBLIC_PAGES.flatMap((page) =>
+    locales.map((locale) => {
+      const alternates = locales.map(
+        (other) =>
+          `    <xhtml:link rel="alternate" hreflang="${other}" href="${xml(pageAddress(site, page, other))}"/>`,
+      );
+      return [
+        "  <url>",
+        `    <loc>${xml(pageAddress(site, page, locale))}</loc>`,
+        ...alternates,
+        "  </url>",
+      ].join("\n");
+    }),
+  );
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ...urls,
+    "</urlset>",
+    "",
+  ].join("\n");
+}
+
+/**
+ * `robots.txt` lets every robot read every page, listed or not: a page that a stage keeps out of
+ * search engines says so in a header, which a robot reads only if it may come (decision 021). A
+ * stage that is listed names its sitemap.
+ */
+export function robotsTxt(site: string, indexed: boolean) {
+  const lines = ["# https://www.robotstxt.org/robotstxt.html", "User-agent: *", "Disallow:"];
+  if (indexed) lines.push("", `Sitemap: ${site}/sitemap.xml`);
+  return `${lines.join("\n")}\n`;
+}
+
+/**
+ * What the Worker answers at `/robots.txt` and `/sitemap.xml`, before the router: only it knows
+ * whether its stage is listed. A stage that is not has no sitemap, since every page it would name
+ * says `noindex`. The address is the request's, which Cloudflare gives as the reader typed it.
+ */
+export function searchEngineFile(request: Request, indexed: boolean): Response | undefined {
+  if (request.method !== "GET" && request.method !== "HEAD") return undefined;
+  const url = new URL(request.url);
+  if (url.pathname === "/robots.txt") {
+    return text(robotsTxt(url.origin, indexed), "text/plain; charset=utf-8");
+  }
+  if (url.pathname === "/sitemap.xml" && indexed) {
+    return text(sitemapXml(url.origin), "application/xml; charset=utf-8");
+  }
+  return undefined;
+}
+
+function text(body: string, type: string) {
+  return new Response(body, { headers: { "Content-Type": type } });
+}
+
+function xml(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 }
