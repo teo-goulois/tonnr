@@ -284,7 +284,7 @@ const GROUPS: readonly Group[] = [
       {
         id: "open-meteo",
         name: "Open-Meteo",
-        by: "ECMWF, Météo-France",
+        by: "DWD, Météo-France, NOAA, ECMWF",
         region: m.sources_world,
         text: m.sources_open_meteo_text,
         every: () => m.sources_every_hours({ count: 2 }),

@@ -69,6 +69,7 @@ import { ConnectPage } from "@/components/auth/connect-page";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
+import { SpotPageSamples } from "@/components/design-system/spot-page-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
 import { ListChips } from "@/components/lists/list-chips";
 import { AnalyticsConsentDialog } from "@/components/shared/analytics";
@@ -1075,6 +1076,10 @@ export function DesignSystemPage() {
 
       <Section title="Sessions, and the log an account keeps of them">
         <SessionSamples />
+      </Section>
+
+      <Section title="Public page of a surf break">
+        <SpotPageSamples />
       </Section>
 
       <Section title="Viewer skeleton">

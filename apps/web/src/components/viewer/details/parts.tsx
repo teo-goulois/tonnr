@@ -402,7 +402,8 @@ export function nearestWindStation(
   return nearest;
 }
 
-const SHORE_WIND_NAMES: Record<ShoreWind, () => string> = {
+/** How a wind meets a shore, in words: for the panel of a break, and for its public page. */
+export const SHORE_WIND_NAMES: Record<ShoreWind, () => string> = {
   offshore: m.wind_offshore,
   cross_offshore: m.wind_cross_offshore,
   cross_shore: m.wind_cross_shore,
