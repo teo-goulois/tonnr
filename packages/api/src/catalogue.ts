@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { keepAddressOf } from "@repo/db/addresses";
 import { reopenCandidatesOf } from "@repo/db/catalogue";
 import { breakCandidate } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
@@ -386,6 +387,8 @@ export async function mergeBreaks(
     .update(breakCandidate)
     .set({ breakId: keep.id })
     .where(eq(breakCandidate.breakId, merge.id));
+  // The address of the merged break's page leads to the one that stays: decision 057.
+  await keepAddressOf(tx, merge, keep.id);
 
   await tx.delete(surfBreak).where(eq(surfBreak.id, merge.id));
 

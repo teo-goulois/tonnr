@@ -669,3 +669,67 @@ describe("the models over a span of hours", () => {
     expect(modelsOver([], at(0), at(23))).toEqual([]);
   });
 });
+
+describe("the forecast kept for a point, asked of nobody", () => {
+  const here = { latitude: 43.63, longitude: -1.46 };
+  const got = async <Value, Failure>(effect: Effect.Effect<Value, Failure>) => {
+    const result = await Effect.runPromise(Effect.result(effect));
+    if (Result.isFailure(result)) throw new Error(`failed: ${String(result.failure)}`);
+    return result.success;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date", "performance"] });
+    vi.setSystemTime(utc("2026-10-09T08:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("answers what another question fetched, from the start of today, and asks the provider nothing", async () => {
+    const { store } = memoryStore();
+    const { fetch, state } = provider();
+    const forecasts = makeForecasts(store, fetch);
+
+    expect(await got(forecasts.kept(here))).toBeNull();
+    expect(state.asked).toBe(0);
+
+    await got(forecasts.get({ ...here, days: 1 }));
+    const kept = await got(forecasts.kept(here));
+    expect(kept).toMatchObject({ stale: false, point: { latitude: 43.625 } });
+    expect(kept?.hours).toHaveLength(MAX_FORECAST_DAYS * 24);
+    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-09T00:00:00Z"));
+    expect(kept?.models).toEqual([{ id: "ecmwf_wam", from: new Date("2026-10-09T00:00:00Z") }]);
+    expect(state.asked).toBe(1);
+  });
+
+  it("says that an older forecast is stale, and gives none past its day", async () => {
+    const { store } = memoryStore();
+    const { fetch } = provider();
+    const forecasts = makeForecasts(store, fetch);
+    await got(forecasts.get({ ...here, days: 1 }));
+
+    vi.advanceTimersByTime(3 * HOUR_MS);
+    expect(await got(forecasts.kept(here))).toMatchObject({ stale: true });
+    vi.advanceTimersByTime(22 * HOUR_MS);
+    expect(await got(forecasts.kept(here))).toBeNull();
+  });
+
+  it("still gives seven days the day after the fetch, and no sea where the point has none", async () => {
+    const { store } = memoryStore();
+    const { fetch, state } = provider();
+    const forecasts = makeForecasts(store, fetch);
+    await got(forecasts.get({ ...here, days: 1 }));
+    // Read the day after it was fetched: a forecast holds eight days, so seven still answer.
+    vi.advanceTimersByTime(20 * HOUR_MS);
+    const kept = await got(forecasts.kept(here));
+    expect(kept?.hours).toHaveLength(MAX_FORECAST_DAYS * 24);
+    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-10T00:00:00Z"));
+
+    state.waves = () => null;
+    const flat = { latitude: 10, longitude: 10 };
+    await got(forecasts.get({ ...flat, days: 1 })).catch(() => undefined);
+    const none = await got(forecasts.kept(flat));
+    expect(none).toMatchObject({ hours: null, models: [] });
+  });
+});

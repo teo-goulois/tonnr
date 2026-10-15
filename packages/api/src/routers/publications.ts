@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { addressOf, nearestPlaces } from "@repo/db/addresses";
 import { holdAccounts } from "@repo/db/accounts";
 import { breakContribution } from "@repo/db/schema/community";
 import { PUBLICATION_STATES, spot, spotPublication, surfBreak } from "@repo/db/schema/spots";
@@ -216,8 +217,14 @@ export const publicationsRouter = {
 
         const said = held.spot.characteristics ?? {};
         const breakId = crypto.randomUUID();
+        // A spot names no places: the break takes those of the nearest break of the catalogue,
+        // and the address of its page from them and its name, for good. Decision 057.
+        const location = await nearestPlaces(tx, held.spot);
+        const address = await addressOf(tx, { id: breakId, name: held.spot.name, location });
         await tx.insert(surfBreak).values({
           id: breakId,
+          ...address,
+          location,
           name: held.spot.name,
           latitude: held.spot.latitude,
           longitude: held.spot.longitude,

@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
+import { addressOf } from "@repo/db/addresses";
 import { holdCatalogue } from "@repo/db/catalogue";
 import {
   breakCandidate,
@@ -384,11 +385,19 @@ export const candidatesRouter = {
         await holdCatalogue(tx);
         const row = await holdCandidate(tx, input.id, input.updatedAt);
         const breakId = crypto.randomUUID();
+        const values = columnsOf(input.values);
+        // The address of its page, from its places and its name, for good: decision 057.
+        const address = await addressOf(tx, {
+          id: breakId,
+          name: values.name,
+          location: row.location,
+        });
         const [made] = await tx
           .insert(surfBreak)
           .values({
             id: breakId,
-            ...columnsOf(input.values),
+            ...values,
+            ...address,
             location: row.location,
             provider: row.list,
             providerRef: row.ref,

@@ -37,16 +37,41 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
     await db.delete(surfBreak);
     await db.insert(user).values({ id: "ana", name: "Ana", email: "ana@example.org" });
     await db.insert(surfBreak).values([
-      { id: "torche", name: "La Torche", latitude: 47.84, longitude: -4.35 },
-      { id: "guethary", name: "Guéthary – Parlementia", latitude: 43.43, longitude: -1.61 },
-      { id: "basques", name: "Côte des Basques", latitude: 43.48, longitude: -1.57 },
-      { id: "plage-north", name: "Plage du Nord", latitude: 50.9, longitude: 1.7 },
-      { id: "plage-south", name: "Plage du Sud", latitude: 43.5, longitude: -1.5 },
-      { id: "grande", name: "Grande Plage", latitude: 43.49, longitude: -1.56 },
-      { id: "replage", name: "Surplage", latitude: 43.49, longitude: -1.55 },
-      { id: "percent", name: "100% reef", latitude: -33.9, longitude: 151.3 },
+      { id: "torche", slug: "torche", name: "La Torche", latitude: 47.84, longitude: -4.35 },
+      {
+        id: "guethary",
+        slug: "guethary",
+        name: "Guéthary – Parlementia",
+        latitude: 43.43,
+        longitude: -1.61,
+      },
+      {
+        id: "basques",
+        slug: "basques",
+        name: "Côte des Basques",
+        latitude: 43.48,
+        longitude: -1.57,
+      },
+      {
+        id: "plage-north",
+        slug: "plage-north",
+        name: "Plage du Nord",
+        latitude: 50.9,
+        longitude: 1.7,
+      },
+      {
+        id: "plage-south",
+        slug: "plage-south",
+        name: "Plage du Sud",
+        latitude: 43.5,
+        longitude: -1.5,
+      },
+      { id: "grande", slug: "grande", name: "Grande Plage", latitude: 43.49, longitude: -1.56 },
+      { id: "replage", slug: "replage", name: "Surplage", latitude: 43.49, longitude: -1.55 },
+      { id: "percent", slug: "percent", name: "100% reef", latitude: -33.9, longitude: 151.3 },
       {
         id: "estagnots",
+        slug: "estagnots",
         name: "Les Estagnots",
         latitude: 43.68,
         longitude: -1.44,
@@ -54,12 +79,13 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
       },
       {
         id: "north",
+        slug: "north",
         name: "La Nord",
         latitude: 43.67,
         longitude: -1.44,
         location: ["France", "Landes", "Soorts-Hossegor"],
       },
-      { id: "town", name: "Hossegor pier", latitude: 43.66, longitude: -1.44 },
+      { id: "town", slug: "town", name: "Hossegor pier", latitude: 43.66, longitude: -1.44 },
     ]);
   });
 
@@ -142,7 +168,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a break found by its name", () => {
     const id = "6f1c2b9e-0d4a-4c1e-9b7a-3e5f8a2d1c40";
     await database.db
       .insert(surfBreak)
-      .values({ id, name: "Les Pierres Noires", latitude: 48.29, longitude: -4.97 });
+      .values({ id, slug: id, name: "Les Pierres Noires", latitude: 48.29, longitude: -4.97 });
     const anyone = { context: { ...by("ana").context, session: null } };
     expect(await call(v1Router.breaks.named, { id }, anyone)).toEqual({
       name: "Les Pierres Noires",

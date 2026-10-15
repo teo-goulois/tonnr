@@ -1,4 +1,5 @@
 import type { Database } from "@repo/db";
+import { addressOf } from "@repo/db/addresses";
 import { holdCatalogue, knownRefs, reopenCandidatesOf } from "@repo/db/catalogue";
 import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
 import { count, eq, inArray } from "drizzle-orm";
@@ -104,7 +105,14 @@ export const addBreaks = Effect.fn("addBreaks")(function* (
           rows.map((row) => row.providerRef),
         );
         const added = new Set<string>();
-        const fresh = rows.filter((row) => !known.has(row.providerRef));
+        // Each new break takes the address of its page, from its places and its name, for
+        // good: decision 057. The ones given in this run are reserved against one another.
+        const reserved = new Set<string>();
+        const fresh = [];
+        for (const row of rows) {
+          if (known.has(row.providerRef)) continue;
+          fresh.push({ ...row, ...(await addressOf(tx, row, reserved)) });
+        }
         for (let start = 0; start < fresh.length; start += BREAKS_PER_STATEMENT) {
           const stored = await tx
             .insert(surfBreak)

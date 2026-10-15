@@ -197,10 +197,41 @@ export const surfBreak = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     // When an operator last changed it: what changes a break says which version it read.
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+
+    // The address of the break's page in the web app, `/spots/<country>/<region>/<slug>`: the
+    // first two of its places and its name, as `slugify` writes them, given once as the break
+    // enters the catalogue and never changed by a rename (decision 057). A break with no places
+    // has a slug and no page. `packages/db/src/addresses.ts` gives them.
+    countrySlug: text("country_slug"),
+    regionSlug: text("region_slug"),
+    slug: text("slug").notNull(),
   },
   (table) => [
     uniqueIndex("surf_break_provider_ref_idx").on(table.provider, table.providerRef),
     index("surf_break_position_idx").on(table.latitude, table.longitude),
+    uniqueIndex("surf_break_address_idx").on(table.countrySlug, table.regionSlug, table.slug),
+  ],
+);
+
+/**
+ * An address a break had and that leads to it still: the address of a break that was merged
+ * into it (decision 049), so that a page a search engine holds answers a 301 to the break that
+ * stays. A deleted break's aliases go with it. Decision 057.
+ */
+export const surfBreakAlias = pgTable(
+  "surf_break_alias",
+  {
+    countrySlug: text("country_slug").notNull(),
+    regionSlug: text("region_slug").notNull(),
+    slug: text("slug").notNull(),
+    breakId: text("break_id")
+      .notNull()
+      .references(() => surfBreak.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.countrySlug, table.regionSlug, table.slug] }),
+    index("surf_break_alias_breakId_idx").on(table.breakId),
   ],
 );
 

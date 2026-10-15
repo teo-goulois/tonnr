@@ -143,8 +143,8 @@ describe.skipIf(!TEST_DATABASE_URL)("making a spot public", () => {
 
   it("shows an operator the spot, the breaks near it and how many others keep one there", async () => {
     await database.db.insert(surfBreak).values([
-      { id: "near", name: "Near", latitude: 48.002, longitude: -4.5 },
-      { id: "far", name: "Far", latitude: 48.02, longitude: -4.5 },
+      { id: "near", slug: "near", name: "Near", latitude: 48.002, longitude: -4.5 },
+      { id: "far", slug: "far", name: "Far", latitude: 48.02, longitude: -4.5 },
     ]);
     const made = await call(
       v1Router.spots.create,

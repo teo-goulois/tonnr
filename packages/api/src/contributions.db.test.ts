@@ -52,8 +52,15 @@ describe.skipIf(!TEST_DATABASE_URL)("the guide of a break", () => {
     ]);
     await db.insert(operator).values({ userId: "owner" });
     await db.insert(surfBreak).values([
-      { id: REEF, name: "The reef", latitude: 48, longitude: -4.5, bottomTypes: ["sand"] },
-      { id: BAY, name: "The bay", latitude: 48.1, longitude: -4.6 },
+      {
+        id: REEF,
+        slug: REEF,
+        name: "The reef",
+        latitude: 48,
+        longitude: -4.5,
+        bottomTypes: ["sand"],
+      },
+      { id: BAY, slug: BAY, name: "The bay", latitude: 48.1, longitude: -4.6 },
     ]);
   });
 

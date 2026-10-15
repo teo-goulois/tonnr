@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { FOLDING, fold } from "@repo/config/names";
+import { pathOf } from "@repo/db/addresses";
 import { BREAK_DESCRIPTION_LANGUAGES, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import type { WordLine } from "../community";
 import { confirmedWordsOf } from "../guides";
 import { callerProcedure, linkProcedure } from "../index";
 
-const breakSchema = z.object({
+export const breakSchema = z.object({
   id: z.string(),
   name: z.string(),
   latitude: z.number(),
@@ -23,6 +24,10 @@ const breakSchema = z.object({
   location: z.array(z.string()).nullable(),
   // The IANA name of the time zone.
   timezone: z.string().nullable(),
+  // The path of the break's page in the web app, `/spots/<country>/<region>/<slug>`, before its
+  // language, given for good when the break entered the catalogue. Null for a break with no
+  // places, which has no page: decision 057.
+  page: z.string().nullable(),
   // A few sentences on the break, which the instance's operator wrote, and their language. Null
   // while nobody has: decision 049.
   description: z
@@ -39,7 +44,7 @@ const breakSchema = z.object({
 });
 
 // What the catalogue holds of a break, with what was confirmed of it laid over.
-function describeBreak(
+export function describeBreak(
   row: typeof surfBreak.$inferSelect,
   confirmed: Partial<Record<WordLine, string[]>> = {},
 ) {
@@ -66,6 +71,7 @@ function describeBreak(
     },
     location: row.location,
     timezone: row.timezone,
+    page: pathOf(row),
     description:
       row.description && row.descriptionLanguage
         ? { text: row.description, language: row.descriptionLanguage }

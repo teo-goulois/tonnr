@@ -1,5 +1,6 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { breakAtAddress } from "@repo/db/addresses";
 import { catchUpListings } from "@repo/db/catalogue";
 import { operator, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
@@ -54,6 +55,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
     await db.insert(surfBreak).values([
       {
         id: ids.north,
+        slug: ids.north,
         name: "North jetty",
         latitude: 48,
         longitude: -4.5,
@@ -67,6 +69,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       // 300 meters south of it: the same place, from another list.
       {
         id: ids.south,
+        countrySlug: "france",
+        regionSlug: "finistere",
+        slug: "jetty-north",
         name: "Jetty (north)",
         latitude: 47.9973,
         longitude: -4.5,
@@ -77,6 +82,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       },
       {
         id: ids.far,
+        slug: ids.far,
         name: "Far reef",
         latitude: 40,
         longitude: 10,
@@ -237,6 +243,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
     const { db } = database;
     await db.insert(surfBreak).values({
       id: "00000000-0000-4000-8000-000000000009",
+      slug: "00000000-0000-4000-8000-000000000009",
       name: "Added during a deployment",
       latitude: 41,
       longitude: 9,
@@ -338,6 +345,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       await useSouth();
       const merged = await merge(ids.north, ids.south);
 
+      // The address of the one that went leads to the one that stays: decision 057.
+      expect(
+        await breakAtAddress(database.db, {
+          countrySlug: "france",
+          regionSlug: "finistere",
+          slug: "jetty-north",
+        }),
+      ).toMatchObject({ moved: true, row: { id: ids.north } });
       expect(merged.break).toMatchObject({
         id: ids.north,
         characteristics: { breakTypes: ["jetty"], bottomTypes: ["rock"] },

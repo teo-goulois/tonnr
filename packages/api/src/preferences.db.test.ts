@@ -133,6 +133,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's recent views", () => {
     await db.insert(surfBreak).values(
       ["one", "two", "three", "four", "five", "six"].map((id, index) => ({
         id,
+        slug: id,
         name: `Break ${id}`,
         latitude: 47 + index / 10,
         longitude: -4,

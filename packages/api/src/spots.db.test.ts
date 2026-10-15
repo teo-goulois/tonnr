@@ -49,6 +49,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     ]);
     await db.insert(surfBreak).values({
       id: BREAK,
+      slug: BREAK,
       provider: "example",
       providerRef: "a1",
       name: "North jetty",

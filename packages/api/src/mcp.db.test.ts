@@ -126,6 +126,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
     });
     await db.insert(surfBreak).values({
       id: BREAK,
+      slug: BREAK,
       name: "Guéthary – Parlementia",
       latitude: 43.43,
       longitude: -1.61,

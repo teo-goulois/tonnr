@@ -47,8 +47,8 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's log of its sessions", () => {
       { id: "ben", name: "Ben", email: "ben@example.org" },
     ]);
     await db.insert(surfBreak).values([
-      { id: "point", name: "The point", ...POINT, offshoreDirectionDegrees: 90 },
-      { id: "inland", name: "A lake", latitude: 45.76, longitude: 4.83 },
+      { id: "point", slug: "point", name: "The point", ...POINT, offshoreDirectionDegrees: 90 },
+      { id: "inland", slug: "inland", name: "A lake", latitude: 45.76, longitude: 4.83 },
     ]);
     await db.insert(spot).values([
       { id: "left", userId: "ana", name: "My left", ...POINT, breakId: "point" },

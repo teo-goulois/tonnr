@@ -32,7 +32,7 @@ const invalidRange = {
   message: `end must be after start, and at most ${MAX_RANGE_DAYS} days later`,
 };
 
-const tideStationSchema = z.object({
+export const tideStationSchema = z.object({
   id: z.string(),
   name: z.string(),
   latitude: z.number(),

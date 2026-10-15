@@ -12,7 +12,7 @@ const DEFAULT_HISTORY_DAYS = 2;
 // The wind stations read to keep one for each place. More than the world holds today.
 const MOST_WIND_STATIONS = 20_000;
 
-const readingSchema = z.object({
+export const readingSchema = z.object({
   observedAt: z.date(),
   significantHeightMeters: z.number().nullable(),
   maxHeightMeters: z.number().nullable(),
@@ -29,7 +29,7 @@ const readingSchema = z.object({
   validated: z.boolean(),
 });
 
-const stationSchema = z.object({
+export const stationSchema = z.object({
   id: z.string(),
   provider: z.string(),
   name: z.string(),
@@ -51,7 +51,7 @@ const stationSchema = z.object({
   license: z.object({ type: z.string(), url: z.string(), commercialUse: z.boolean().nullable() }),
 });
 
-function describeStation(row: typeof station.$inferSelect) {
+export function describeStation(row: typeof station.$inferSelect) {
   return {
     id: row.id,
     provider: row.provider,
@@ -68,7 +68,7 @@ function describeStation(row: typeof station.$inferSelect) {
   };
 }
 
-function describeReading(row: typeof reading.$inferSelect) {
+export function describeReading(row: typeof reading.$inferSelect) {
   return {
     observedAt: row.observedAt,
     significantHeightMeters: row.significantHeightM,

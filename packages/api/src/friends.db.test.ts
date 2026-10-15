@@ -47,7 +47,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's link", () => {
     await db.insert(operator).values({ userId: "owner" });
     await db
       .insert(surfBreak)
-      .values({ id: REEF, name: "The reef", latitude: 48, longitude: -4.5 });
+      .values({ id: REEF, slug: REEF, name: "The reef", latitude: 48, longitude: -4.5 });
   });
 
   const context = (id: string | null, site: string): Context => ({

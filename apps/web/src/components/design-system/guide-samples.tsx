@@ -40,6 +40,7 @@ const BREAK: SurfBreak = {
   },
   location: ["France", "Bretagne", "Plomeur"],
   timezone: "Europe/Paris",
+  page: "/spots/france/bretagne/anse-du-phare",
   description: {
     text: "A beach in the lee of the lighthouse, which works when the west wind blows elsewhere.",
     language: "en",

@@ -377,7 +377,36 @@ export function makeForecasts(
     return described(data);
   });
 
-  return { get, over };
+  /**
+   * The forecast kept for a point, read from the store and asked of nobody, for a page that a
+   * crawler may ask for thousands of times (decision 057). Null when none is kept, or when
+   * the one kept is past its day. `stale` says that it is over two hours old. `hours` is null
+   * when the point has no sea nearby, and holds what the kept forecast has of the days asked,
+   * from the start of today, whether or not it covers them all.
+   */
+  const kept = Effect.fn("keptForecast")(function* (
+    point: { latitude: number; longitude: number },
+    days: number = MAX_FORECAST_DAYS,
+  ) {
+    const cell = cellOf(point);
+    const read = yield* stored(() => store.read(cell));
+    const found = held(read.now, read.row);
+    if (!found || found.age >= USABLE_MS) return null;
+    const today = Math.floor(read.now.getTime() / 1000 / DAY_S) * DAY_S;
+    const { hours, hasWaves } = hoursIn(found.data, today, today + days * DAY_S);
+    const [first, last] = [hours[0], hours.at(-1)];
+    return {
+      point: found.data.point,
+      models: hasWaves && first && last ? modelsOver(found.data.models, first.time, last.time) : [],
+      swellModels:
+        hasWaves && first && last ? modelsOver(found.data.swellModels, first.time, last.time) : [],
+      hours: hasWaves ? hours : null,
+      fetchedAt: found.fetchedAt,
+      stale: found.age >= FRESH_MS,
+    };
+  });
+
+  return { get, over, kept };
 }
 
 export type Forecasts = ReturnType<typeof makeForecasts>;

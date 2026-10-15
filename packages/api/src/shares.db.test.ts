@@ -36,7 +36,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
     ]);
     await db
       .insert(surfBreak)
-      .values({ id: "jetty", name: "North jetty", latitude: 48, longitude: -4.5 });
+      .values({ id: "jetty", slug: "jetty", name: "North jetty", latitude: 48, longitude: -4.5 });
   });
 
   const context = (id: string | null, authorization: string | null = null): Context => ({

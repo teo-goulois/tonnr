@@ -83,6 +83,13 @@ const ANSWERS_A_KEY = [
   // A guide is what everyone reads of a break, with the usernames of who wrote it: decision 041.
   "v1.guides.get",
   "v1.maps.waveHeight",
+  // What the public pages of the web app read of the catalogue: decision 057.
+  "v1.pages.break",
+  "v1.pages.countries",
+  "v1.pages.country",
+  "v1.pages.region",
+  "v1.pages.hubs",
+  "v1.pages.listed",
   "v1.stations.get",
   "v1.stations.list",
   "v1.stations.readings",
@@ -1038,6 +1045,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       await db.insert(surfBreak).values([
         {
           id: ids.north,
+          slug: ids.north,
           provider: "example",
           providerRef: "a1",
           name: "North jetty",
@@ -1058,7 +1066,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
           attribution: "Test",
         },
         // A break of which only the place is known, from a list that names no source.
-        { id: ids.south, name: "South reef", latitude: -33.9, longitude: 151.3 },
+        { id: ids.south, slug: ids.south, name: "South reef", latitude: -33.9, longitude: 151.3 },
       ]);
       await db
         .insert(surfBreakListing)
@@ -1082,6 +1090,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         },
         location: ["France", "Finistère"],
         timezone: "Europe/Paris",
+        page: null,
         description: { text: "A jetty that holds a left.", language: "en" },
         source: {
           provider: "example",
@@ -1098,6 +1107,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         characteristics: unknown,
         location: null,
         timezone: null,
+        page: null,
         description: null,
         source: { provider: null, url: null, attribution: null, license: null },
       };
