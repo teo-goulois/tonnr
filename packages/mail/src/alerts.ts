@@ -1,8 +1,9 @@
 import { type AlertLine, type AlertSaid, alertWords } from "./alert-words";
+import { footerLine, heading, mailPage, note, panel } from "./design";
 import type { Mail } from "./index";
 
-// The mail an alert sends: decision 031, "What is sent, and how". Plain: no image, nothing
-// loaded from elsewhere, no link that counts who followed it.
+// The mail an alert sends: decision 031, "What is sent, and how". No image, nothing loaded from
+// elsewhere, no link that counts who followed it.
 
 // What an alert has to say, and the words it is said in, are a push's as much as a mail's.
 export { type AlertMoment, type AlertUnits as MailUnits, STARTING_UNITS } from "./alert-words";
@@ -23,15 +24,6 @@ export type AlertMailContent = Omit<AlertSaid, "lines"> & {
   offUrl: string;
   offPostUrl: string;
 };
-
-const ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-const escape = (text: string) => text.replace(/[&<>"']/g, (character) => ESCAPES[character] ?? "");
 
 /**
  * The mail of an alert's notification, in the account's language and time zone, with the two
@@ -80,17 +72,26 @@ export function alertMail(content: AlertMailContent): Mail {
     `${words.off}${colon} ${content.offUrl}`,
     "",
   ].join("\n");
-  const html = [
-    `<!doctype html><html lang="${locale}"><body style="font-family: sans-serif; line-height: 1.5;">`,
-    `<p><strong>${escape(headline)}</strong></p>`,
-    ...blocks.map(
-      (block) =>
-        `<p><strong>${escape(block.title)}</strong><br>${block.rows.map(escape).join("<br>")}<br><a href="${escape(block.url)}">${escape(words.open)}</a></p>`,
-    ),
-    `<p style="color: #555; font-size: 0.9em;">${credits.map(escape).join("<br>")}</p>`,
-    `<p style="color: #555; font-size: 0.9em;"><a href="${escape(content.settingsUrl)}">${escape(words.settings)}</a> · <a href="${escape(content.offUrl)}">${escape(words.off)}</a></p>`,
-    "</body></html>",
-  ].join("\n");
+  const html = mailPage({
+    locale,
+    content: [
+      heading(headline),
+      ...blocks.map((block) =>
+        panel({
+          title: block.title,
+          rows: block.rows,
+          link: { label: words.open, href: block.url },
+        }),
+      ),
+      ...credits.map(note),
+    ],
+    footer: [
+      footerLine([
+        { label: words.settings, href: content.settingsUrl },
+        { label: words.off, href: content.offUrl },
+      ]),
+    ],
+  });
 
   return {
     to: content.to,

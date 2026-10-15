@@ -2,18 +2,10 @@ import { APP_NAME } from "@repo/config/app";
 import { isLocale } from "@repo/config/locales";
 import type { Locale } from "@repo/config/locales";
 
+import { button, heading, linkAsText, mailPage, note, paragraph } from "./design";
 import type { Mail } from "./index";
 
 export type { Locale };
-
-const ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-const escape = (text: string) => text.replace(/[&<>"']/g, (character) => ESCAPES[character] ?? "");
 
 const WORDS = {
   en: {
@@ -77,9 +69,8 @@ export function verificationMail(to: string, link: string, locale: Locale): Mail
 }
 
 /**
- * A plain mail with one link: what it is about, the link as a button and as text, and what
- * follows. Nothing in it is loaded from elsewhere. The mails of an account's own address are
- * written so.
+ * A mail with one link: what it is about, the link as a button and as text, and what follows.
+ * The mails of an account's own address are written so.
  */
 export function linkMail(
   to: string,
@@ -88,13 +79,15 @@ export function linkMail(
   words: { subject: string; intro: string; button: string; after: string },
 ): Mail {
   const text = `${words.intro}\n\n${link}\n\n${words.after}\n`;
-  const html = [
-    `<!doctype html><html lang="${locale}"><body style="font-family: sans-serif; line-height: 1.5;">`,
-    `<p>${escape(words.intro)}</p>`,
-    `<p><a href="${escape(link)}">${escape(words.button)}</a></p>`,
-    `<p style="color: #555; font-size: 0.9em;">${escape(link)}</p>`,
-    `<p>${escape(words.after)}</p>`,
-    "</body></html>",
-  ].join("\n");
+  const html = mailPage({
+    locale,
+    content: [
+      heading(words.subject),
+      paragraph(words.intro),
+      button(words.button, link),
+      linkAsText(link),
+      note(words.after),
+    ],
+  });
   return { to, subject: words.subject, text, html };
 }

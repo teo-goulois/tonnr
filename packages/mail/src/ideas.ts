@@ -1,6 +1,7 @@
 import { APP_NAME, CONTACT_EMAIL } from "@repo/config/app";
 import type { Locale } from "@repo/config/locales";
 
+import { mailPage, note, panel, paragraph } from "./design";
 import type { Mail } from "./index";
 
 // The mail that brings whoever makes the product an idea that someone sent from the landing, or a
@@ -19,15 +20,6 @@ export type Idea = {
   // The language of the page they sent it from.
   locale: Locale;
 };
-
-const ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-const escape = (text: string) => text.replace(/[&<>"']/g, (character) => ESCAPES[character] ?? "");
 
 const LANGUAGES = {
   en: "English",
@@ -52,12 +44,9 @@ export function ideaMail(
   const intro = `${who} <${email}> sent ${ABOUT[about].sent} of ${APP_NAME}, in ${LANGUAGES[locale]}.`;
   const after = "Answer this mail to answer them.";
   const text = `${intro}\n\n${idea}\n\n${after}\n`;
-  const html = [
-    `<!doctype html><html lang="en"><body style="font-family: sans-serif; line-height: 1.5;">`,
-    `<p>${escape(intro)}</p>`,
-    `<p style="white-space: pre-wrap;">${escape(idea)}</p>`,
-    `<p style="color: #555; font-size: 0.9em;">${escape(after)}</p>`,
-    "</body></html>",
-  ].join("\n");
+  const html = mailPage({
+    locale: "en",
+    content: [paragraph(intro), panel({ rows: [idea], preWrap: true }), note(after)],
+  });
   return { to, subject: `${ABOUT[about].subject}: ${who}`, text, html, replyTo: email };
 }

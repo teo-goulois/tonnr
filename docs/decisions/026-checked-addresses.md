@@ -22,6 +22,15 @@ The instance sends no mail at all today.
 - An account is sent a mail to check its address three times an hour at most, and five times a day. Its count and the instance's are taken together or not at all, before the mail leaves: a mail that the provider then refuses stays counted. When both are full, the account is told of its own.
 - What the log keeps of a mail that did not leave is the provider's name, the kind of failure and its status. Never the address, the link, nor what the provider answered.
 
+### How a mail looks
+
+Added on 2026-10-15, when Téo asked for a little more of an interface in the mails.
+
+- Every mail of the instance is drawn with the pieces of `packages/mail/src/design.ts`: the product's name over a white card, a title, paragraphs, one button in the theme's accent for what the mail asks, the link written out under it, panels for parts set apart, such as each spot of an alert, small notes, and lines of links under the card. A mail that needs another piece adds it there.
+- The colors, the radius and the sizes are those of the web app's light theme. A mail asks to be read in light, and loads no font: Geist where the reader has it, their own sans serif otherwise.
+- A mail program keeps no style sheet: each piece carries its own style, and tables hold the page, as most mail programs read them. Nothing is loaded from elsewhere, no image and no font, so a mail shows the same with the images of a mail program turned off, and tells no one when it is opened.
+- Each mail keeps its text version, as it was.
+
 ### Checking an address
 
 - Signing up sends the account a mail with a link, in the language the request asks for in `Accept-Language`. The account is signed in at once, as before: nothing waits for the link, and a mail that could not be sent does not undo the sign-up.
@@ -29,7 +38,7 @@ The instance sends no mail at all today.
 - A link that is too old or that was tampered with sends the browser to `/verified?error=TOKEN_EXPIRED` or `/verified?error=INVALID_TOKEN`. A link that was already followed works again until it is too old, and changes nothing.
 - `POST /v1/account/verification` sends the mail again to the account that asks, in the language it names: its body is `{ "locale": "en" }` or `"fr"`, English without one. It answers 200 with `{ "sent": true }` when the provider took the mail, 409 when the address is already checked, 429 with `Retry-After` when the account has had its mails for the hour or the day, and 503 when the instance sends no mail, has sent its mails for the day, or the provider did not take this one. After a 503 the mail may still arrive.
 - The sign-in library's own route, which sends the mail to an address given without a session, is switched off. Anyone could have it mail the addresses that are not checked yet.
-- The mail is plain: who it is from, what the link does, and that it can be ignored. It is written in the language the request likes best of the web app's, and in English when it asks for none of them. It carries no image and no tracker, and is addressed to the address alone: the name an account chose is not put in a mail's headers.
+- The mail says who it is from, what the link does, and that it can be ignored, drawn as "How a mail looks" says. It is written in the language the request likes best of the web app's, and in English when it asks for none of them. It carries no image and no tracker, and is addressed to the address alone: the name an account chose is not put in a mail's headers.
 - `GET /v1/account` says whether the address is checked, and whether this instance checks addresses.
 
 ### What an unchecked account may do
@@ -85,6 +94,8 @@ Added on 2026-10-15.
 - **Refusing the sign-in of an unchecked account.** Every account that exists would be locked out the day the instance starts checking.
 - **A sign-in by a link in a mail, without a password.** It makes the mail provider a part of every sign-in.
 - **One provider, written into the code.** Someone who hosts an instance has a mail server of their own or another provider. The library gives SMTP for the price of a setting.
+- **A library of mail components, such as React Email.** It brings a renderer and its dependencies to the API and the worker for five pieces of HTML. A file of functions that write them is enough, and is tested as the mails are.
+- **The product's logo as an image.** It would be loaded from the instance, which tells it who opened a mail, or attached to each mail. The name, written, says the same.
 - **A mail in both languages at once.** It is twice as long, and reads like a form.
 - **Tracking who opens the mail.** The instance has no use for it, and the reader did not ask for it. The provider's own tracking is a setting of the provider's account, to leave off.
 - **A link that signs in.** It would be a second key to the account, good for a day, in a mailbox and in the provider's records.
