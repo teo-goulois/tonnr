@@ -617,11 +617,11 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
 
     it("tells the operator since when the instance is closed", async () => {
       const before = await call(v1Router.instance.state, undefined, bySession("owner"));
-      expect(before.visitors).toEqual({ closedAt: null, busy: false, closesAt: 4400 });
+      expect(before.visitors).toEqual({ closedAt: null, busy: false, closesAt: 2000 });
 
       const { closedAt } = await openToVisitors(false);
       const after = await call(v1Router.instance.state, undefined, bySession("owner"));
-      expect(after.visitors).toEqual({ closedAt, busy: false, closesAt: 4400 });
+      expect(after.visitors).toEqual({ closedAt, busy: false, closesAt: 2000 });
     });
 
     describe("while demand is strong", () => {
@@ -636,7 +636,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         });
 
       it("is four fifths of the day's requests for the people who look", () => {
-        expect(STRONG_DEMAND_AT).toBe(4400);
+        expect(STRONG_DEMAND_AT).toBe(2000);
       });
 
       it("is answered up to it, and no more from it on, with no operator", async () => {
@@ -670,7 +670,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       it("is not what the alerts asked, nor what was asked the day before", async () => {
         await counted("day:alerts", 2500);
         await counted("hour", 4000);
-        await counted("day:people", 5500, 1);
+        await counted("day:people", 2500, 1);
 
         expect(await stations(fromSite(WEB))).toEqual({ stations: [] });
       });
@@ -679,7 +679,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         await counted("day:people", STRONG_DEMAND_AT);
 
         const state = await call(v1Router.instance.state, undefined, bySession("owner"));
-        expect(state.visitors).toEqual({ closedAt: null, busy: true, closesAt: 4400 });
+        expect(state.visitors).toEqual({ closedAt: null, busy: true, closesAt: 2000 });
         expect(await openToVisitors(true)).toEqual({ open: false, closedAt: null, busy: true });
 
         // Closed by an operator as well, it stays closed when the day turns.
