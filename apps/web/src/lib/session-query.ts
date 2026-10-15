@@ -4,7 +4,8 @@ import { authClient } from "./auth-client";
 
 // How long the route takes the session it last read for the one in force. A selection on the
 // map is a navigation, and each navigation asks the route who it takes: without this, every
-// press asked the API again. What signs in or out forgets it.
+// press asked the API again. Whatever signs in or out forgets it: the router listens to the
+// sign-in library for that.
 const FRESH_MS = 60 * 1000;
 
 export const SESSION_KEY = ["auth", "session"] as const;
