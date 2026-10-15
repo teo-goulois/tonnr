@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
 
 import { LandingPage } from "@/components/landing/landing-page";
+import { pageAddress, pageLinks } from "@/lib/public-pages";
 import { siteOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
-import { getLocale, locales, localizeHref } from "@/paraglide/runtime.js";
+import { getLocale, locales } from "@/paraglide/runtime.js";
 
 // The picture a link to the site is shown with, where a link is shared.
 const SHARED_PICTURE = { path: "/landing/og.jpg", width: 1200, height: 630 };
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/")({
     const site = loaderData?.site ?? "";
     const title = `${APP_NAME}: ${m.landing_hero_title()}`;
     const description = m.landing_meta_description();
-    const here = `${site}${localizeHref("/", { locale: getLocale() })}`;
+    const here = pageAddress(site, "/", getLocale());
 
     return {
       meta: [
@@ -34,12 +35,7 @@ export const Route = createFileRoute("/")({
         { name: "twitter:card", content: "summary_large_image" },
       ],
       links: [
-        { rel: "canonical", href: here },
-        ...locales.map((locale) => ({
-          rel: "alternate",
-          hrefLang: locale,
-          href: `${site}${localizeHref("/", { locale })}`,
-        })),
+        ...pageLinks(site, "/"),
         // What a program reads of the site, in place of this page.
         { rel: "alternate", type: "text/markdown", href: `${site}/llms.txt`, title: "llms.txt" },
       ],
