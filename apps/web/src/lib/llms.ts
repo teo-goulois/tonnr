@@ -66,6 +66,7 @@ curl ${api}/v1/stations/${EXAMPLE_STATION} \\
 ## The project
 
 - [Source code](${REPOSITORY_URL}), under the GNU AGPL, version 3. Anyone may host an instance.
+- [Terms of use](${site}/terms), [privacy policy](${site}/privacy) and [legal notice](${site}/legal).
 - [Feedback, and a key](${FEEDBACK_URL}).
 - The measurements belong to the networks that publish them, each under its own terms.
 `;

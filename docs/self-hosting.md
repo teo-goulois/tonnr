@@ -396,7 +396,7 @@ To run it on your machine instead, against an API on your machine, set `VITE_SER
 - Its address and the API's must belong to one site, such as `admin.example.org` and `api.example.org`. The session cookie is the API's, and a browser does not send it from a page of another site. An admin on your machine therefore runs an API on your machine. Do not name an address of your machine in the `ADMIN_ORIGIN` of an instance online: whatever runs there would run the instance.
 - Its address must not be the web app's. Once `ADMIN_ORIGIN` is set, what runs the instance answers that address and no other: a page of the web app is refused there, with your session too, and so is the API's own reference. Your scripts then send `Origin: <the admin's address>`.
 - Without `ADMIN_ORIGIN`, what runs the instance answers the API's own address, as the commands above show. The reference at `/v1/docs` is a page at that address, and it loads its script from a CDN.
-- Its page "Moderation" lists the spots that accounts ask to make public (decision 034). Nobody answers them without an operator: on an instance that has none, a request waits. Accepting publishes a spot's name, its point and what its owner says of it in your catalogue, under the ODbL. The terms of use that accounts agree to are the web app's page `/terms`: it is a first text, and what your instance promises is yours to write there.
+- Its page "Moderation" lists the spots that accounts ask to make public (decision 034). Nobody answers them without an operator: on an instance that has none, a request waits. Accepting publishes a spot's name, its point and what its owner says of it in your catalogue, under the ODbL. The terms of use that accounts agree to are the web app's page `/terms`: "Your legal texts" below says what is yours to write there.
 - Its page "Catalogue" draws every break of the catalogue on a map: an operator changes one, writes its description, merges two, or deletes one that no account uses. Its tab "Import" decides one at a time the candidates that `candidates` stored (see "Candidates to decide in the admin"). Decision 049.
 
 ## Visitors of the web app
@@ -490,6 +490,15 @@ The worker calls the providers from your server, each on its schedule, from ever
 ## What the licence asks
 
 Tonnr is under the GNU Affero General Public License, version 3. Running it as it is asks nothing more of you. If you change the code and let other people use your instance, offer them the source of your version.
+
+## Your legal texts
+
+The web app has three pages that speak for whoever runs the instance: the terms of use at `/terms`, the privacy policy at `/privacy`, and the legal notice at `/legal`, which French law asks of a site. They are written for Téo's instance, and on yours they are your promises: you are the publisher and the controller of your accounts' data, not Téo.
+
+- Name yourself, your hosts and the services that receive data in `apps/web/src/lib/legal.ts`. Both pages read them there.
+- Read the texts again in `apps/web/messages/en.json` and `fr.json`, under `terms_`, `privacy_` and `legal_`: a setting you changed changes what they must say. Without Google sign-in, PostHog or mail, say nothing of them. With an SMTP server in place of Unosend, name it.
+- When you change a text, change `LEGAL_UPDATED` in `apps/web/src/components/landing/legal-page.tsx`: the three pages show it as the date they last changed.
+- The texts are no legal advice. Have them read for your country and for what your instance does.
 
 ## Product analytics
 

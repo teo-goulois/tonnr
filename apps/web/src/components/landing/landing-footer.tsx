@@ -112,6 +112,12 @@ export function LandingFooter() {
           <Link to="/terms" className={quiet}>
             {m.terms_title()}
           </Link>
+          <Link to="/privacy" className={quiet}>
+            {m.privacy_title()}
+          </Link>
+          <Link to="/legal" className={quiet}>
+            {m.legal_title()}
+          </Link>
         </Links>
       </div>
 

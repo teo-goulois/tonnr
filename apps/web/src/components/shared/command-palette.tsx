@@ -245,6 +245,21 @@ export function CommandPalette() {
             ]
           : []),
         {
+          value: `${m.terms_title()} terms conditions cgu legal`,
+          label: m.terms_title(),
+          run: () => void navigate({ to: "/terms" }),
+        },
+        {
+          value: `${m.privacy_title()} privacy gdpr rgpd confidentialité data données`,
+          label: m.privacy_title(),
+          run: () => void navigate({ to: "/privacy" }),
+        },
+        {
+          value: `${m.legal_title()} legal notice mentions légales publisher host éditeur hébergeur`,
+          label: m.legal_title(),
+          run: () => void navigate({ to: "/legal" }),
+        },
+        {
           value: `${m.command_sign_in()} login account`,
           label: m.command_sign_in(),
           run: () => void navigate({ to: "/login" }),

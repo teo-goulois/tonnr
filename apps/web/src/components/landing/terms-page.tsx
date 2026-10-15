@@ -1,9 +1,10 @@
+import { Link } from "@tanstack/react-router";
 import { APP_NAME } from "@repo/config/app";
 
+import { PUBLISHER } from "@/lib/legal";
 import { m } from "@/paraglide/messages.js";
 
-import { LandingFooter } from "./landing-footer";
-import { LandingHeader } from "./landing-header";
+import { LegalPage, LegalSection, linked } from "./legal-page";
 
 // The licence a spot is published under once an operator accepts it: decision 034. A list of
 // words written in a guide goes under it too, and a text under the licence that goes with it
@@ -11,66 +12,87 @@ import { LandingHeader } from "./landing-header";
 const LICENSE_URL = "https://opendatacommons.org/licenses/odbl/1-0/";
 const CONTENTS_LICENSE_URL = "https://opendatacommons.org/licenses/dbcl/1-0/";
 
-const linked = "focus-ring rounded-xs underline underline-offset-2";
-
 /**
- * What an account agrees to: what becomes of a spot it asks to make public, and of what it
- * writes in the guide of a public spot.
+ * What whoever uses the instance agrees to: what the service is and is not, how an account
+ * behaves, and what becomes of a spot it asks to make public, of what it writes in the guide of
+ * a public spot, and of a list it shares.
  */
 export function TermsPage() {
+  const who = { name: APP_NAME, publisher: PUBLISHER.name, email: PUBLISHER.email };
+
   return (
-    <div className="flex min-h-svh flex-col">
-      <LandingHeader />
+    <LegalPage title={m.terms_title()}>
+      <LegalSection title={m.terms_about_title()}>
+        <p>{m.terms_about_text(who)}</p>
+        <p className="flex flex-wrap gap-x-m gap-y-xs">
+          <Link to="/privacy" className={linked}>
+            {m.privacy_title()}
+          </Link>
+          <Link to="/legal" className={linked}>
+            {m.legal_title()}
+          </Link>
+        </p>
+      </LegalSection>
 
-      <main className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-xl px-m py-xl">
-        <h1 className="text-xl font-bold sm:text-xxl">{m.terms_title()}</h1>
+      <LegalSection title={m.terms_figures_title()}>
+        <p>{m.terms_figures_text(who)}</p>
+        <p>
+          {m.terms_figures_sources()}{" "}
+          <Link to="/sources" className={linked}>
+            {m.landing_nav_sources()}
+          </Link>
+        </p>
+      </LegalSection>
 
-        <section className="grid gap-s">
-          <h2 className="text-l font-medium">{m.terms_private_title()}</h2>
-          <p className="text-neutral-7">{m.terms_private_text()}</p>
-        </section>
+      <LegalSection title={m.terms_account_title()}>
+        <p>{m.terms_account_text()}</p>
+      </LegalSection>
 
-        <section className="grid gap-s">
-          <h2 className="text-l font-medium">{m.terms_public_title()}</h2>
-          <p className="text-neutral-7">{m.terms_public_text({ name: APP_NAME })}</p>
-          <p className="text-neutral-7">{m.terms_public_rights()}</p>
-          <p>
-            <a
-              href={LICENSE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="focus-ring rounded-xs underline underline-offset-2"
-            >
-              {m.terms_public_license()}
-            </a>
-          </p>
-        </section>
+      <LegalSection title={m.terms_use_title()}>
+        <p>{m.terms_use_text(who)}</p>
+        <p>{m.terms_use_suspension(who)}</p>
+      </LegalSection>
 
-        <section className="grid gap-s">
-          <h2 className="text-l font-medium">{m.terms_guide_title()}</h2>
-          <p className="text-neutral-7">{m.terms_guide_text({ name: APP_NAME })}</p>
-          <p className="text-neutral-7">{m.terms_guide_rights()}</p>
-          <p className="flex flex-wrap gap-x-m gap-y-xs">
-            <a href={LICENSE_URL} target="_blank" rel="noreferrer" className={linked}>
-              {m.terms_public_license()}
-            </a>
-            <a href={CONTENTS_LICENSE_URL} target="_blank" rel="noreferrer" className={linked}>
-              {m.terms_guide_license()}
-            </a>
-          </p>
-        </section>
+      <LegalSection title={m.terms_private_title()}>
+        <p>{m.terms_private_text()}</p>
+      </LegalSection>
 
-        <section className="grid gap-s">
-          <h2 className="text-l font-medium">{m.terms_shared_title()}</h2>
-          <p className="text-neutral-7">{m.terms_shared_text()}</p>
-        </section>
-        <section className="grid gap-s">
-          <h2 className="text-l font-medium">{m.analytics_title()}</h2>
-          <p className="text-neutral-7">{m.analytics_terms()}</p>
-        </section>
-      </main>
+      <LegalSection title={m.terms_public_title()}>
+        <p>{m.terms_public_text({ name: APP_NAME })}</p>
+        <p>{m.terms_public_rights()}</p>
+        <p>
+          <a href={LICENSE_URL} target="_blank" rel="noreferrer" className={linked}>
+            {m.terms_public_license()}
+          </a>
+        </p>
+      </LegalSection>
 
-      <LandingFooter />
-    </div>
+      <LegalSection title={m.terms_guide_title()}>
+        <p>{m.terms_guide_text({ name: APP_NAME })}</p>
+        <p>{m.terms_guide_rights()}</p>
+        <p className="flex flex-wrap gap-x-m gap-y-xs">
+          <a href={LICENSE_URL} target="_blank" rel="noreferrer" className={linked}>
+            {m.terms_public_license()}
+          </a>
+          <a href={CONTENTS_LICENSE_URL} target="_blank" rel="noreferrer" className={linked}>
+            {m.terms_guide_license()}
+          </a>
+        </p>
+      </LegalSection>
+
+      <LegalSection title={m.terms_shared_title()}>
+        <p>{m.terms_shared_text()}</p>
+      </LegalSection>
+
+      <LegalSection title={m.terms_service_title()}>
+        <p>{m.terms_service_text(who)}</p>
+        <p>{m.terms_service_leave()}</p>
+      </LegalSection>
+
+      <LegalSection title={m.terms_changes_title()}>
+        <p>{m.terms_changes_text(who)}</p>
+        <p>{m.terms_changes_law(who)}</p>
+      </LegalSection>
+    </LegalPage>
   );
 }

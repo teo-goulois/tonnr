@@ -4,6 +4,7 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { cn } from "@repo/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -251,6 +252,27 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }
           </Button>
         )}
       </form.Subscribe>
+
+      {isSignUp && (
+        <p className="text-center text-s text-neutral-7">
+          {m.auth_accept_terms()}{" "}
+          <Link
+            to="/terms"
+            target="_blank"
+            className="focus-ring rounded-xs underline underline-offset-2"
+          >
+            {m.terms_title()}
+          </Link>
+          {", "}
+          <Link
+            to="/privacy"
+            target="_blank"
+            className="focus-ring rounded-xs underline underline-offset-2"
+          >
+            {m.privacy_title()}
+          </Link>
+        </p>
+      )}
 
       <p className="text-center text-s text-neutral-7">
         {isSignUp ? m.auth_have_account() : m.auth_no_account()}{" "}

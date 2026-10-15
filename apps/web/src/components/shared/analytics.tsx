@@ -155,7 +155,8 @@ export function AnalyticsConsentDialog({
           </Button>
         </div>
         <Link
-          to="/terms"
+          to="/privacy"
+          hash="analytics"
           className="focus-ring self-start rounded-xs text-s underline underline-offset-2"
         >
           {m.analytics_details()}
