@@ -55,3 +55,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [049. The catalogue kept from the admin, and the candidates of a list decided one at a time](049-catalogue-in-the-admin.md)
 - [050. The size a break works at](050-break-wave-size.md)
 - [051. The words of a surf guide for a wave and a bottom](051-a-guides-own-words.md)
+- [052. Production on the instance that runs today](052-production.md)

@@ -1,6 +1,6 @@
 # 021. Stages of the web app, and its pre-production
 
-Status: decided by Téo on 2026-10-09 and deployed the same day. The stage `dev` serves `https://dev.tonnr.app`. Not built: a production stage, a command that takes a stage down, and a deployment from CI. Not tried: a stage that asks search engines to list it.
+Status: decided by Téo on 2026-10-09 and deployed the same day. The stage `dev` serves `https://dev.tonnr.app`. Not built: a command that takes a stage down, and a deployment from CI. [Decision 052](052-production.md) made the production stage, `prod` at `tonnr.app`, on the same API, which ends `dev` as a pre-production. Not tried: a stage that asks search engines to list it.
 
 ## Context
 
@@ -79,4 +79,4 @@ Three facts bound the choice:
 - The pre-production does what the temporary script was written for. Téo had `scripts/demo.mjs` removed on 2026-10-09, and Git's history keeps it.
 - An app loaded before the deployment that brought the toast does not look for a newer one: the toast is seen from the deployment after.
 - A build of the same commit has another name, so deploying twice asks open apps to load again twice.
-- Not decided: whether production gets an API and a database of its own. `api.tonnr.app` is the development instance's today.
+- Production has no API or database of its own: [decision 052](052-production.md).

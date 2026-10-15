@@ -28,4 +28,4 @@ Decision 001 puts the API, the worker, and Postgres on Téo's Easypanel server, 
 - A new version applies its migrations while the previous API and worker still run. Write each migration so that the previous version keeps working: add in one release, remove in a later one.
 - The API image weighs about 1 GB and the worker's 660 MB on arm64, 380 MB of which is the Node base image. Most of the rest of the API's is the 400 MB of peer dependencies that `better-auth` brings, development tools among them.
 - Every build installs the dependencies again, since a change to any file comes before the install. `pnpm fetch` would cache the download, but it puts the dependencies of the whole repository in the image, which then weighs 2.8 GB.
-- Not decided yet: backups of Postgres, and how Cloudflare caches the public API.
+- Postgres is backed up by Easypanel's own backups: [decision 052](052-production.md). Not decided yet: how Cloudflare caches the public API.
