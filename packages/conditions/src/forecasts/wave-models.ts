@@ -104,12 +104,13 @@ export function waveModel(id: WaveModelId): WaveModel {
 
 // Open-Meteo's licence page asks for these words as a link beside its data, and for a link to
 // the licence. Its marine API asks every user for a clear credit to DWD beside its own, whatever
-// model answers: the credit says who asks, since no value shown is DWD's.
+// model answers, and since decision 058 the wind and the weather are DWD's models for most of
+// the catalogue: the credit names DWD for both.
 const PROVIDER: Credit[] = [
   { text: "Weather data by Open-Meteo.com", url: "https://open-meteo.com/" },
   { text: "CC BY 4.0", url: CC_BY },
   {
-    text: "Credit asked by Open-Meteo's marine API: German Weather Service DWD",
+    text: "Credit asked by Open-Meteo: German Weather Service DWD",
     url: "https://www.dwd.de/EN/service/copyright/copyright_node.html",
   },
 ];
