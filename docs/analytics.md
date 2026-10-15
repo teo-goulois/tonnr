@@ -1,6 +1,6 @@
 # Product analytics
 
-Provider: PostHog EU. The operated instance uses the Tonnr project; configure a project of your own when self-hosting. [Analytics handbook](https://teogoulois.com/code/stack/analytics). Decision 044 defines privacy and capture behavior.
+Provider: PostHog EU. The operated instance uses the Tonnr project; configure a project of your own when self-hosting. [Analytics handbook](https://teogoulois.com/code/stack/analytics). Decision 044 defines privacy and capture behavior, and decision 054 the error reports.
 
 Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too.
 
@@ -8,7 +8,7 @@ Activation: `alert_created`. The onboarding funnel is `account_created` → `spo
 
 Every event has `surface=web`, `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release or `local`). Server events also carry `authenticated` and the browser's technical `$session_id`. No event carries inputs or resource IDs.
 
-Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone. Landing: none, until its new version has a measurement plan.
+Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone; `$exception`, below. Landing: none, until its new version has a measurement plan.
 
 Authentication: `account_created`, `account_signed_in`, `account_signed_out`, `account_updated`.
 
@@ -64,13 +64,22 @@ Successful oRPC actions:
 - `units_updated`
 - `verification_requested`
 
+## Error reports
+
+`$exception`, in PostHog's Error tracking, from two places:
+
+- The web app, with the same consent as the events above, on `/app` and `/login`: unhandled errors, unhandled rejections and what a route's error boundary caught. It carries the opaque IDs, `environment`, `app_version` and the screen's `feature`, `tab` and `place_kind`. Refusals under 500 and aborted requests are left out; a page sends 20 at most, each error once.
+- The API, with no consent and no person: distinct ID `api`, `service=api`, `environment`, `app_version`, and no person profile. It reports what it logs as a fault: a procedure's, the MCP server's or a route's error with a status of 500 or more.
+
+Each keeps the kind, the scrubbed message and the stack frames of an error and its causes (`packages/config/src/errors.ts`), and nothing else. Web stack traces are minified: no source maps are uploaded. The worker reports nothing yet.
+
 ## Filters and accuracy
 
 - Production reports filter `environment=production`; pre-production reports filter `environment=dev`. Local proof events use `development`. The environment comes from release settings, never a caller-supplied property.
 - Exclude internal test accounts by their opaque auth IDs in the project's internal-traffic filter once known. Do not send emails to classify them. No real account IDs or project tokens belong in this file.
 - `app_active` is one account or anonymous device per UTC day, with a stable UUID and midnight timestamp for deduplication. The browser remembers the successful day across reloads. Analyze unique distinct IDs for daily use; identity merges can join an anonymous device to its new account.
 - Search, preview and read actions measure successful calls. They may repeat as queries refresh; they are not literal button-click counts.
-- Both transports require browser consent. Browser capture uses an allowlist, server capture reads no inputs/outputs. Replay, automatic errors and DOM capture are disabled.
+- Both transports require browser consent. Browser capture uses an allowlist, server capture reads no inputs/outputs. Replay, DOM capture and the SDK's own exception capture are disabled; error reports follow decision 054.
 
 ## Verification
 

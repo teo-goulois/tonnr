@@ -3,6 +3,8 @@ import type { Tool } from "./mcp";
 /** Product analytics is optional. The server supplies the transport; tests supply none. */
 export type Analytics = {
   capture: (event: string, request: AnalyticsRequest, account?: string) => void;
+  // A fault of the API, reported with nothing of the request that met it: decision 054.
+  report?: (error: unknown) => void;
 };
 
 // These fields have their own headers, never a request's body, URL, or authorization.

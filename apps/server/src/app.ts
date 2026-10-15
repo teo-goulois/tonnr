@@ -22,6 +22,7 @@ import type { Database } from "@repo/db";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
 type Services = {
@@ -63,10 +64,18 @@ const NO_DEVICE_ID =
   /(\/push\/devices\/)(?!(?:forget|renew|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\s|$))\S+/i;
 
 // A procedure that refuses a request has answered it: the request's line in the log says so with
-// its status. The refusal itself is not printed: it holds what the caller sent.
-function logFault(error: unknown) {
-  if (error instanceof ORPCError && error.status < 500) return;
-  console.error(error);
+// its status. The refusal itself is not printed: it holds what the caller sent. A fault is
+// printed, and reported when the instance has PostHog (decision 054).
+function faultLogger(analytics: Analytics | undefined) {
+  return (error: unknown) => {
+    if (error instanceof ORPCError && error.status < 500) return;
+    console.error(error);
+    try {
+      analytics?.report?.(error);
+    } catch {
+      /* The report never changes the answer. */
+    }
+  };
 }
 
 /** The API as a Hono app: every route, and nothing that listens. */
@@ -95,6 +104,7 @@ export function createApp({
   revision = null,
 }: Services) {
   const app = new Hono();
+  const logFault = faultLogger(analytics);
 
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
   const apiOrigin = new URL(env.BETTER_AUTH_URL).origin;
@@ -306,6 +316,13 @@ export function createApp({
 
   app.get("/", (c) => {
     return c.text("OK");
+  });
+
+  // What no route handled, such as a fault of the sign-in library, as Hono answers it by itself.
+  app.onError((error, c) => {
+    if (error instanceof HTTPException) return error.getResponse();
+    logFault(error);
+    return c.text("Internal Server Error", 500);
   });
 
   return app;

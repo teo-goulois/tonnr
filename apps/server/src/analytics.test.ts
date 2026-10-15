@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 const sink = vi.hoisted(() => ({
   capture: vi.fn<(event: { uuid?: string; properties: Record<string, unknown> }) => void>(),
+  captureException: vi.fn(),
   shutdown: vi.fn(),
   on: vi.fn(),
 }));
 vi.mock("posthog-node", () => ({
   PostHog: class {
     capture = sink.capture;
+    captureException = sink.captureException;
     shutdown = sink.shutdown;
     on = sink.on;
   },
 }));
-import { createAnalytics } from "./analytics";
+import { createAnalytics, privateFault } from "./analytics";
 
 const env = {
   NODE_ENV: "development",
@@ -65,5 +67,87 @@ describe("the optional analytics transport", () => {
     vi.stubEnv("CI", "");
     createAnalytics(env, null)!.capture("app_active", { ...request, distinctId: "account-one" });
     expect(sink.capture).not.toHaveBeenCalled();
+  });
+  it("reports a fault under the API's name, never a caller's", () => {
+    vi.stubEnv("CI", "");
+    const fault = new Error("boom");
+    createAnalytics(env, null)!.report!(fault);
+    expect(sink.captureException).toHaveBeenCalledWith(fault, "api");
+  });
+});
+describe("a fault's report", () => {
+  it("keeps what failed and where, and nothing of the request or the person", () => {
+    const event = privateFault(
+      {
+        event: "$exception",
+        distinctId: "someone",
+        uuid: "00000000-0000-4000-8000-000000000003",
+        properties: {
+          $exception_list: [
+            {
+              type: "DrizzleQueryError",
+              value:
+                'Failed query: insert into "push_subscription" ("endpoint") values ($1)\n' +
+                "params: https://fcm.googleapis.com/fcm/send/private-token",
+              mechanism: { type: "generic", handled: true },
+              stacktrace: {
+                type: "raw",
+                frames: [
+                  {
+                    filename: "/app/dist/index.mjs",
+                    function: "subscribe",
+                    lineno: 10,
+                    colno: 2,
+                    in_app: true,
+                    context_line: "await db.insert(pushSubscription)",
+                  },
+                ],
+              },
+            },
+          ],
+          url: "https://api.example.org/rpc/push/subscribe?private=1",
+          headers: { cookie: "private" },
+          $exception_personURL: "https://eu.posthog.com/person/someone",
+        },
+      },
+      "production",
+      "b".repeat(40),
+    );
+    expect(event).toEqual({
+      event: "$exception",
+      distinctId: "api",
+      uuid: "00000000-0000-4000-8000-000000000003",
+      properties: {
+        $exception_list: [
+          {
+            type: "DrizzleQueryError",
+            value:
+              'Failed query: insert into "push_subscription" ("endpoint") values ($1)\n[params]',
+            mechanism: { type: "generic", handled: true },
+            stacktrace: {
+              type: "raw",
+              frames: [
+                {
+                  filename: "/app/dist/index.mjs",
+                  function: "subscribe",
+                  lineno: 10,
+                  colno: 2,
+                  in_app: true,
+                  context_line: "await db.insert(pushSubscription)",
+                },
+              ],
+            },
+          },
+        ],
+        service: "api",
+        environment: "production",
+        app_version: "b".repeat(40),
+        $process_person_profile: false,
+        $geoip_disable: true,
+        $ip: null,
+      },
+    });
+    const action = { event: "app_active", distinctId: "x", properties: {} };
+    expect(privateFault(action, "production", null)).toBe(action);
   });
 });

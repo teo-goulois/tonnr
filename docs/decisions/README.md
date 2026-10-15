@@ -57,3 +57,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [051. The words of a surf guide for a wave and a bottom](051-a-guides-own-words.md)
 - [052. Production on the instance that runs today](052-production.md)
 - [053. What one caller may ask of the forecasts, and an instance that keeps up under a sweep](053-what-one-caller-may-ask.md)
+- [054. Error reports](054-error-reports.md)

@@ -238,7 +238,7 @@ export function CommandPalette() {
         ...(analyticsConfigured
           ? [
               {
-                value: `${m.analytics_title()} posthog privacy statistics`,
+                value: `${m.analytics_title()} posthog privacy statistics errors`,
                 label: m.analytics_title(),
                 run: () => void navigate({ to: "/app", search: { panel: "account" } }),
               },

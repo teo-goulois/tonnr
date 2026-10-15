@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/env.public", () => ({ ENV: {} }));
+import { scrubMessage } from "@repo/config/errors";
 import { safeBrowserEvent } from "./analytics";
 import { proxyAnalytics } from "./analytics-proxy";
 
@@ -26,7 +27,77 @@ describe("browser analytics privacy", () => {
       $geoip_disable: true,
     });
     expect(safeBrowserEvent({ event: "$autocapture", properties: {} })).toBeNull();
-    expect(safeBrowserEvent({ event: "$exception", properties: {} })).toBeNull();
+    expect(safeBrowserEvent({ event: "$console_log", properties: {} })).toBeNull();
+  });
+  it("sends an error's kind, scrubbed message and frames, and nothing of the page", () => {
+    const event = safeBrowserEvent({
+      event: "$exception",
+      properties: {
+        distinct_id: "opaque",
+        $current_url: "https://example.org/app?break=private",
+        $pathname: "/app",
+        $exception_steps: [{ $message: "private" }],
+        $exception_personURL: "https://eu.posthog.com/person/opaque",
+        $exception_list: [
+          {
+            type: "TypeError",
+            value: "Failed query: select 1\nparams: private@example.org, 47.12345, -2.98765",
+            mechanism: { type: "onerror", handled: false, synthetic: false, private: "x" },
+            stacktrace: {
+              type: "raw",
+              frames: [
+                {
+                  platform: "web:javascript",
+                  filename: "https://example.org/assets/app.js?v=private",
+                  function: "draw",
+                  lineno: 3,
+                  colno: 9,
+                  in_app: true,
+                  vars: { private: "x" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    expect(event?.properties).toEqual({
+      distinct_id: "opaque",
+      $exception_list: [
+        {
+          type: "TypeError",
+          value: "Failed query: select 1\n[params]",
+          mechanism: { type: "onerror", handled: false, synthetic: false },
+          stacktrace: {
+            type: "raw",
+            frames: [
+              {
+                platform: "web:javascript",
+                filename: "https://example.org/assets/app.js",
+                function: "draw",
+                lineno: 3,
+                colno: 9,
+                in_app: true,
+              },
+            ],
+          },
+        },
+      ],
+      $ip: null,
+      $geoip_disable: true,
+    });
+  });
+  it("takes out of a message what could name someone", () => {
+    expect(
+      scrubMessage(
+        "Push to https://user:secret@fcm.googleapis.com/fcm/send/abc?x=1 failed for " +
+          "someone@example.org on 0b9f2c3e-8f4a-4c55-9e0a-2d4b6c8e1f00 at 47.2184, -1.5536 " +
+          "with eyJhbGciOiJIUzI1NiJ9abcdefghijk",
+      ),
+    ).toBe(
+      "Push to https://fcm.googleapis.com/[…] failed for [email] on [id] at [number], " +
+        "[number] with [token]",
+    );
   });
   it("proxies ingestion to a fixed host without cookies, auth, query or incoming IP headers", async () => {
     const read = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));

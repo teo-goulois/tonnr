@@ -2,6 +2,7 @@ import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 
 import Loader from "./components/loader";
+import { reportError } from "./lib/analytics";
 import { authClient } from "./lib/auth-client";
 import { forgetSession } from "./lib/session-query";
 import { deLocalizeUrl, localizeUrl } from "./paraglide/runtime.js";
@@ -27,6 +28,9 @@ export const getRouter = () => {
     context: { orpc, queryClient },
     defaultPendingComponent: () => <Loader />,
     defaultNotFoundComponent: () => <div>Not Found</div>,
+    // What a route's boundary caught never reaches the window: it is reported here, when the
+    // product's pages are open with consent.
+    defaultOnCatch: (error) => reportError(error),
   });
 
   setupRouterSsrQueryIntegration({

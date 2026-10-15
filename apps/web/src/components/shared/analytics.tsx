@@ -9,6 +9,7 @@ import {
   startAnalytics,
   stopAnalytics,
   trackFeature,
+  watchErrors,
 } from "@/lib/analytics";
 import {
   readAnalyticsConsent,
@@ -106,6 +107,11 @@ export function Analytics({
       document.removeEventListener("visibilitychange", visible);
     };
   }, [consent, account, isReady, recordActivity]);
+  // The same consent covers the error reports, on the same pages: decision 054.
+  useEffect(() => {
+    if (!isReady || consent !== "granted") return;
+    return watchErrors();
+  }, [consent, isReady]);
   useEffect(() => {
     if (!isReady || consent !== "granted") return;
     let cancelled = false;
