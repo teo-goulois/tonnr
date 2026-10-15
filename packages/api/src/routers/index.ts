@@ -14,6 +14,7 @@ import { catalogueRouter } from "./catalogue";
 import { consoleRouter } from "./console";
 import { contributionsRouter } from "./contributions";
 import { developersRouter } from "./developers";
+import { errorReportsRouter } from "./error-reports";
 import { forecastsRouter } from "./forecasts";
 import { friendsRouter } from "./friends";
 import { guidesRouter } from "./guides";
@@ -55,6 +56,7 @@ export const v1Router = {
   console: consoleRouter,
   contributions: contributionsRouter,
   developers: developersRouter,
+  errorReports: errorReportsRouter,
   forecasts: forecastsRouter,
   friends: friendsRouter,
   guides: guidesRouter,

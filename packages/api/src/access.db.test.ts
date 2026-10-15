@@ -7,6 +7,7 @@ import {
   apiKey,
   apiUsage,
   developer,
+  errorReportPause,
   operator,
   operatorAction,
   visitorClosure,
@@ -63,6 +64,8 @@ const ANSWERS_ANYONE = [
   "v1.alerts.mailOffPage",
   "v1.shared.open",
   "v1.visitors.get",
+  // Whether the web app sends error reports, which it asks before it sends one: decision 054.
+  "v1.errorReports.get",
   // Whose link this is, said to whoever was given the link: decision 041.
   "v1.friends.open",
 ];
@@ -217,6 +220,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
     await db.delete(user);
     // An instance answers the visitors of its web app until an operator closes it to them.
     await db.delete(visitorClosure);
+    // And sends the web app's error reports until one turns them off.
+    await db.delete(errorReportPause);
     await db.delete(operatorAction);
     // Nor has the instance asked its forecast provider anything today.
     await db.delete(providerCalls);
@@ -439,6 +444,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.developers.members",
         "v1.developers.addMember",
         "v1.developers.removeMember",
+        "v1.errorReports.update",
         "v1.instance.overview",
         "v1.instance.state",
         "v1.keys.list",
@@ -695,6 +701,49 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         { via: "visitor", outcome: "answered", calls: 1 },
         { via: "visitor", outcome: "refused", calls: 1 },
       ]);
+    });
+  });
+
+  describe("the web app's error reports", () => {
+    const turn = (on: boolean, by = "owner") =>
+      call(v1Router.errorReports.update, { on }, bySession(by));
+
+    it("are on until an operator turns them off, and say so to anyone", async () => {
+      expect(await call(v1Router.errorReports.get, undefined, fromSite(WEB))).toEqual({
+        on: true,
+      });
+      const { pausedAt } = await turn(false);
+      expect(pausedAt).toBeInstanceOf(Date);
+      expect(await call(v1Router.errorReports.get, undefined, fromSite(null))).toEqual({
+        on: false,
+      });
+      expect(await turn(true, "second")).toEqual({ pausedAt: null });
+      expect(await call(v1Router.errorReports.get, undefined, anonymous())).toEqual({ on: true });
+    });
+
+    it("records who turned them off and on, once for each change", async () => {
+      await turn(true);
+      const first = await turn(false);
+      const again = await turn(false, "second");
+      await turn(true, "second");
+      await turn(true);
+
+      const done = await database.db.select().from(operatorAction).orderBy(operatorAction.at);
+      expect(done.map((action) => [action.action, action.operatorId])).toEqual([
+        ["errors.off", "owner"],
+        ["errors.on", "second"],
+      ]);
+      // Off twice, they are off since the first time.
+      expect(again.pausedAt).toEqual(first.pausedAt);
+    });
+
+    it("tell the operator since when they are off", async () => {
+      const before = await call(v1Router.instance.state, undefined, bySession("owner"));
+      expect(before.errorReports).toEqual({ pausedAt: null });
+
+      const { pausedAt } = await turn(false);
+      const after = await call(v1Router.instance.state, undefined, bySession("owner"));
+      expect(after.errorReports).toEqual({ pausedAt });
     });
   });
 

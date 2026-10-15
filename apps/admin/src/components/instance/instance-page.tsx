@@ -45,6 +45,11 @@ type InstancePageProps = {
   onAskingVisitorsChange: (asking: "close" | "open" | undefined) => void;
   // Closes the instance to the visitors of its web app, or opens it. Rejects when it fails.
   onVisitorsChange: (open: boolean) => Promise<unknown>;
+  // The dialog that turns the web app's error reports off, or the one that turns them on.
+  askingErrors: "off" | "on" | undefined;
+  onAskingErrorsChange: (asking: "off" | "on" | undefined) => void;
+  // Turns the web app's error reports off for every browser, or on. Rejects when it fails.
+  onErrorsChange: (on: boolean) => Promise<unknown>;
 };
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -163,8 +168,9 @@ function WorkerFact({ workers, now }: { workers: Worker[]; now: number }) {
 }
 
 /**
- * The state of the instance: its programs, what each job of the worker last did, its data, and
- * whether it answers the visitors of its web app, which an operator changes here.
+ * The state of the instance: its programs, what each job of the worker last did, its data,
+ * whether it answers the visitors of its web app and whether the web app sends error reports,
+ * which an operator changes here.
  */
 export function InstancePage({
   state,
@@ -172,6 +178,9 @@ export function InstancePage({
   askingVisitors,
   onAskingVisitorsChange,
   onVisitorsChange,
+  askingErrors,
+  onAskingErrorsChange,
+  onErrorsChange,
 }: InstancePageProps) {
   // An API of the version before this page's says nothing of forecasts: the admin and the API
   // are not deployed together, and the section waits rather than fail.
@@ -183,6 +192,8 @@ export function InstancePage({
   const isOpen = visitors?.closedAt === null;
   const isBusy = isOpen && visitors.busy === true;
   const closesAt = (visitors?.closesAt as number | undefined) ?? null;
+  const errors = state?.errorReports as InstanceState["errorReports"] | undefined;
+  const errorsOn = errors?.pausedAt === null;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
@@ -216,6 +227,31 @@ export function InstancePage({
                 onClick={() => onAskingVisitorsChange(isOpen ? "close" : "open")}
               >
                 {isOpen ? m.visitors_close() : m.visitors_reopen()}
+              </Button>
+            </span>
+          )}
+        </Fact>
+        <Fact label={m.instance_errors()}>
+          {!errors ? (
+            <Skeleton className="h-6 w-40" />
+          ) : (
+            <span className="grid justify-items-start gap-xs">
+              <span className="flex flex-wrap items-center gap-xs">
+                <Badge variant={errorsOn ? "success" : "warning"}>
+                  {errorsOn ? m.errors_on() : m.errors_off()}
+                </Badge>
+                <span className="text-s text-neutral-7">
+                  {errors.pausedAt
+                    ? m.errors_off_note({ ago: formatAgo(errors.pausedAt, now) })
+                    : m.errors_on_note()}
+                </span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAskingErrorsChange(errorsOn ? "off" : "on")}
+              >
+                {errorsOn ? m.errors_turn_off() : m.errors_turn_on()}
               </Button>
             </span>
           )}
@@ -475,6 +511,23 @@ export function InstancePage({
         confirmLabel={m.visitors_reopen()}
         variant="default"
         onConfirm={() => onVisitorsChange(true)}
+      />
+      <ConfirmDialog
+        open={askingErrors === "off" && errors?.pausedAt === null}
+        onOpenChange={(open) => onAskingErrorsChange(open ? "off" : undefined)}
+        title={m.errors_off_title()}
+        body={m.errors_off_body()}
+        confirmLabel={m.errors_turn_off()}
+        onConfirm={() => onErrorsChange(false)}
+      />
+      <ConfirmDialog
+        open={askingErrors === "on" && errors != null && errors.pausedAt !== null}
+        onOpenChange={(open) => onAskingErrorsChange(open ? "on" : undefined)}
+        title={m.errors_on_title()}
+        body={m.errors_on_body()}
+        confirmLabel={m.errors_turn_on()}
+        variant="default"
+        onConfirm={() => onErrorsChange(true)}
       />
     </>
   );

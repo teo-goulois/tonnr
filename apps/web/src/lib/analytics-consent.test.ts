@@ -4,10 +4,12 @@ import {
   readErrorReports,
   setAnalyticsConsent,
   setErrorReports,
+  setInstanceErrorReports,
 } from "./analytics-consent";
 beforeEach(() => {
   localStorage.clear();
   setAnalyticsConsent(null);
+  setInstanceErrorReports(true);
 });
 describe("analytics consent", () => {
   it("starts unset, remembers refusal and can withdraw permission", () => {
@@ -39,6 +41,16 @@ describe("analytics consent", () => {
     // Accepting answers the one question again, which names the error reports.
     setErrorReports(false);
     setAnalyticsConsent("granted");
+    expect(readErrorReports()).toBe(true);
+  });
+  it("sends none while the instance has them off, whatever the person chose", () => {
+    setAnalyticsConsent("granted");
+    setInstanceErrorReports(false);
+    expect(readErrorReports()).toBe(false);
+    expect(readAnalyticsConsent()).toBe("granted");
+    setErrorReports(true);
+    expect(readErrorReports()).toBe(false);
+    setInstanceErrorReports(true);
     expect(readErrorReports()).toBe(true);
   });
 });

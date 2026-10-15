@@ -8,6 +8,8 @@ let memory: { choice: AnalyticsConsent; at: number } | null = null;
 // Someone who accepted may stop the error reports alone, in the account tab: decision 054.
 const ERRORS_KEY = "error-reports";
 let errorsOff: boolean | null = null;
+// An operator may turn them off for every browser, which the API says: on until it does.
+let instanceErrorsOff = false;
 const fallback = () => (memory && Date.now() - memory.at < LIFETIME_MS ? memory.choice : null);
 
 export function readAnalyticsConsent(): AnalyticsConsent {
@@ -66,7 +68,7 @@ export function useAnalyticsConsent() {
 
 /** Whether error reports are sent: with the consent, unless they were turned off since. */
 export function readErrorReports() {
-  if (readAnalyticsConsent() !== "granted") return false;
+  if (instanceErrorsOff || readAnalyticsConsent() !== "granted") return false;
   if (errorsOff === null) {
     try {
       errorsOff = localStorage.getItem(ERRORS_KEY) === "off";
@@ -90,4 +92,17 @@ export function setErrorReports(on: boolean) {
 
 export function useErrorReports() {
   return useSyncExternalStore(subscribe, readErrorReports, () => false);
+}
+
+/** What the instance says of the web app's error reports, which no person's choice overrides. */
+export function setInstanceErrorReports(on: boolean) {
+  if (instanceErrorsOff === !on) return;
+  instanceErrorsOff = !on;
+  for (const listener of listeners) listener();
+}
+
+const readInstanceErrorReports = () => !instanceErrorsOff;
+
+export function useInstanceErrorReports() {
+  return useSyncExternalStore(subscribe, readInstanceErrorReports, () => true);
 }

@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import type { Database } from "@repo/db";
 
+import { errorReportsPausedAt } from "../error-reports";
 import { adminProcedure, publicProcedure } from "../index";
 import { isDemandStrong, STRONG_DEMAND_AT, visitorsClosedAt } from "../visitors";
 
@@ -401,6 +402,9 @@ export const instanceRouter = {
           busy: z.boolean(),
           closesAt: z.number(),
         }),
+        // Since when an operator has the web app send no error report: decision 054. Null
+        // while none has.
+        errorReports: z.object({ pausedAt: z.date().nullable() }),
         // The mail the API sends: through what, and how many mails it counted today, in UTC,
         // against what it lets out in a day. A mail is counted before it leaves, and stays
         // counted when it did not. `via` is null on an instance that sends none.
@@ -428,42 +432,44 @@ export const instanceRouter = {
     .handler(async ({ context }) => {
       const { db } = context;
 
-      const [workers, jobs, providers, sized, cells, calls, mails, closedAt] = await Promise.all([
-        db
-          .select()
-          .from(workerProcess)
-          .where(gt(workerProcess.seenAt, sql`now() - make_interval(hours => ${SHOWN_HOURS})`))
-          // The ones that run first, so that many failed starts never push them out.
-          .orderBy(
-            desc(gt(workerProcess.seenAt, sql`now() - make_interval(secs => ${SEEN_WITHIN_S})`)),
-            desc(workerProcess.startedAt),
-            desc(workerProcess.id),
-          )
-          .limit(SHOWN_PROCESSES),
-        db.select().from(job).orderBy(asc(job.name)),
-        db
-          .select({
-            id: station.provider,
-            stations: count(),
-            recent:
-              sql<number>`count(*) filter (where ${station.latestObservedAt} > now() - make_interval(hours => ${RECENT_HOURS}))`.mapWith(
-                Number,
-              ),
-            latestReadingAt: max(station.latestObservedAt),
-          })
-          .from(station)
-          .groupBy(station.provider)
-          .orderBy(asc(station.provider)),
-        // The database's clock, which is the one the worker writes its moments with: this
-        // program's own may differ from it.
-        db.execute<{ size: string; at: string }>(
-          sql`select pg_database_size(current_database()) as size, (extract(epoch from now()) * 1000)::bigint as at`,
-        ),
-        countForecastCells(db),
-        currentCalls(db, FORECAST_PROVIDER),
-        currentCalls(db, MAIL_PROVIDER),
-        visitorsClosedAt(db),
-      ]);
+      const [workers, jobs, providers, sized, cells, calls, mails, closedAt, pausedAt] =
+        await Promise.all([
+          db
+            .select()
+            .from(workerProcess)
+            .where(gt(workerProcess.seenAt, sql`now() - make_interval(hours => ${SHOWN_HOURS})`))
+            // The ones that run first, so that many failed starts never push them out.
+            .orderBy(
+              desc(gt(workerProcess.seenAt, sql`now() - make_interval(secs => ${SEEN_WITHIN_S})`)),
+              desc(workerProcess.startedAt),
+              desc(workerProcess.id),
+            )
+            .limit(SHOWN_PROCESSES),
+          db.select().from(job).orderBy(asc(job.name)),
+          db
+            .select({
+              id: station.provider,
+              stations: count(),
+              recent:
+                sql<number>`count(*) filter (where ${station.latestObservedAt} > now() - make_interval(hours => ${RECENT_HOURS}))`.mapWith(
+                  Number,
+                ),
+              latestReadingAt: max(station.latestObservedAt),
+            })
+            .from(station)
+            .groupBy(station.provider)
+            .orderBy(asc(station.provider)),
+          // The database's clock, which is the one the worker writes its moments with: this
+          // program's own may differ from it.
+          db.execute<{ size: string; at: string }>(
+            sql`select pg_database_size(current_database()) as size, (extract(epoch from now()) * 1000)::bigint as at`,
+          ),
+          countForecastCells(db),
+          currentCalls(db, FORECAST_PROVIDER),
+          currentCalls(db, MAIL_PROVIDER),
+          visitorsClosedAt(db),
+          errorReportsPausedAt(db),
+        ]);
 
       const at = new Date(Number(sized.rows[0]?.at));
       const usage = context.usage.state();
@@ -487,6 +493,7 @@ export const instanceRouter = {
         providers,
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
         visitors: { closedAt, busy: isDemandStrong(calls), closesAt: STRONG_DEMAND_AT },
+        errorReports: { pausedAt },
         mail: {
           via: context.verification.via,
           today: mails.get("day") ?? 0,

@@ -16,8 +16,10 @@ import {
   readAnalyticsConsent,
   setAnalyticsConsent,
   setErrorReports,
+  setInstanceErrorReports,
   useAnalyticsConsent,
   useErrorReports,
+  useInstanceErrorReports,
 } from "@/lib/analytics-consent";
 import { ENV } from "@/env.public";
 import { m } from "@/paraglide/messages.js";
@@ -111,6 +113,21 @@ export function Analytics({
       document.removeEventListener("visibilitychange", visible);
     };
   }, [consent, account, isReady, recordActivity]);
+  // An operator may turn the error reports off for every browser: the app asks once, for a
+  // person who accepted them, and sends until the answer says off. Decision 054.
+  useEffect(() => {
+    if (!isReady || consent !== "granted") return;
+    let cancelled = false;
+    client.v1.errorReports
+      .get()
+      .then(({ on }) => !cancelled && setInstanceErrorReports(on))
+      .catch(() => {
+        /* An API that does not answer leaves them as they were. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [consent, isReady]);
   // The same consent covers the error reports, on the same pages, unless the account tab turned
   // them off alone: decision 054.
   useEffect(() => {
@@ -181,6 +198,7 @@ export function AnalyticsConsentDialog({
 export function AnalyticsSetting() {
   const consent = useAnalyticsConsent();
   const errorReports = useErrorReports();
+  const instanceErrorReports = useInstanceErrorReports();
   const id = useId();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
@@ -197,7 +215,8 @@ export function AnalyticsSetting() {
       >
         {consent === "granted" ? m.analytics_disable() : m.analytics_allow()}
       </Button>
-      {consent === "granted" && (
+      {/* An instance whose operator turned them off has no reports to choose. */}
+      {consent === "granted" && instanceErrorReports && (
         <div className="flex items-start justify-between gap-m">
           <div className="grid gap-xxs">
             <span id={id}>{m.analytics_errors()}</span>

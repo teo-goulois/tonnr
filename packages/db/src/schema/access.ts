@@ -66,6 +66,20 @@ export const visitorClosure = pgTable(
 );
 
 /**
+ * The error reports of the web app turned off for every browser: while the row is there, the
+ * web app sends none, whatever a person chose. An operator writes it and deletes it, and
+ * `operator_action` says who. An instance has them on until one does. Decision 054.
+ */
+export const errorReportPause = pgTable(
+  "error_report_pause",
+  {
+    id: text("id").primaryKey().default("instance"),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check("error_report_pause_one_row", sql`${table.id} = 'instance'`)],
+);
+
+/**
  * Whoever consumes the API with keys: a person, a team or a program, as the operator names it.
  * The operator creates it and makes its keys. It is not an account that signs in: it has no
  * password and no session. Decision 020 gives the rules.
@@ -222,6 +236,8 @@ export const OPERATOR_ACTIONS = [
   "contribution.keep",
   "visitors.close",
   "visitors.open",
+  "errors.off",
+  "errors.on",
   "break.update",
   "break.merge",
   "break.delete",

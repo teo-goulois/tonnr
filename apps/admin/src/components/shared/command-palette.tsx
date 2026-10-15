@@ -190,6 +190,16 @@ export function CommandPalette() {
           label: m.visitors_open_command(),
           run: () => void navigate({ to: "/instance", search: { visitors: "open" } }),
         },
+        {
+          value: `${m.errors_off_command()} errors reports posthog exceptions`,
+          label: m.errors_off_command(),
+          run: () => void navigate({ to: "/instance", search: { errors: "off" } }),
+        },
+        {
+          value: `${m.errors_on_command()} errors reports posthog exceptions`,
+          label: m.errors_on_command(),
+          run: () => void navigate({ to: "/instance", search: { errors: "on" } }),
+        },
       ],
     },
     {
