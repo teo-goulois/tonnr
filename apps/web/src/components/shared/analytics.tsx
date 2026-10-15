@@ -1,6 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { Switch } from "@repo/ui/components/ui/switch";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 
 import {
@@ -14,7 +15,9 @@ import {
 import {
   readAnalyticsConsent,
   setAnalyticsConsent,
+  setErrorReports,
   useAnalyticsConsent,
+  useErrorReports,
 } from "@/lib/analytics-consent";
 import { ENV } from "@/env.public";
 import { m } from "@/paraglide/messages.js";
@@ -31,6 +34,7 @@ export function Analytics({
   recordActivity?: boolean;
 }) {
   const consent = useAnalyticsConsent();
+  const errorReports = useErrorReports();
   const feature = useRouterState({
     select: (state) => {
       const search = state.location.search as Record<string, unknown>;
@@ -107,11 +111,12 @@ export function Analytics({
       document.removeEventListener("visibilitychange", visible);
     };
   }, [consent, account, isReady, recordActivity]);
-  // The same consent covers the error reports, on the same pages: decision 054.
+  // The same consent covers the error reports, on the same pages, unless the account tab turned
+  // them off alone: decision 054.
   useEffect(() => {
-    if (!isReady || consent !== "granted") return;
+    if (!isReady || !errorReports) return;
     return watchErrors();
-  }, [consent, isReady]);
+  }, [errorReports, isReady]);
   useEffect(() => {
     if (!isReady || consent !== "granted") return;
     let cancelled = false;
@@ -175,6 +180,8 @@ export function AnalyticsConsentDialog({
 /** The choice can be revisited from the account tab, for a visitor as for an account. */
 export function AnalyticsSetting() {
   const consent = useAnalyticsConsent();
+  const errorReports = useErrorReports();
+  const id = useId();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   if (!analyticsConfigured || !ready) return null;
@@ -190,6 +197,22 @@ export function AnalyticsSetting() {
       >
         {consent === "granted" ? m.analytics_disable() : m.analytics_allow()}
       </Button>
+      {consent === "granted" && (
+        <div className="flex items-start justify-between gap-m">
+          <div className="grid gap-xxs">
+            <span id={id}>{m.analytics_errors()}</span>
+            <span id={`${id}-words`} className="text-s text-neutral-7">
+              {m.analytics_errors_description()}
+            </span>
+          </div>
+          <Switch
+            aria-labelledby={id}
+            aria-describedby={`${id}-words`}
+            checked={errorReports}
+            onCheckedChange={setErrorReports}
+          />
+        </div>
+      )}
     </section>
   );
 }

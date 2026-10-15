@@ -68,7 +68,7 @@ Successful oRPC actions:
 
 `$exception`, in PostHog's Error tracking, from two places:
 
-- The web app, with the same consent as the events above, on `/app` and `/login`: unhandled errors, unhandled rejections and what a route's error boundary caught. It carries the opaque IDs, `environment`, `app_version` and the screen's `feature`, `tab` and `place_kind`. Refusals under 500 and aborted requests are left out; a page sends 20 at most, each error once.
+- The web app, with the same consent as the events above, on `/app` and `/login`, unless the account tab's switch turned the reports off alone: unhandled errors, unhandled rejections and what a route's error boundary caught. It carries the opaque IDs, `environment`, `app_version` and the screen's `feature`, `tab` and `place_kind`. Refusals under 500 and aborted requests are left out; a page sends 20 at most, each error once.
 - The API, with no consent and no person: distinct ID `api`, `service=api`, `environment`, `app_version`, and no person profile. It reports what it logs as a fault: a procedure's, the MCP server's or a route's error with a status of 500 or more.
 
 Each keeps the kind, the scrubbed message and the stack frames of an error and its causes (`packages/config/src/errors.ts`), and nothing else. Web stack traces are minified: no source maps are uploaded. The worker reports nothing yet.

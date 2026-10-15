@@ -1,7 +1,7 @@
 import { privateExceptionList } from "@repo/config/errors";
 import type { PostHog } from "posthog-js";
 import { ENV } from "@/env.public";
-import { readAnalyticsConsent } from "./analytics-consent";
+import { readAnalyticsConsent, readErrorReports } from "./analytics-consent";
 
 let client: PostHog | undefined;
 let loading: Promise<PostHog | undefined> | undefined;
@@ -60,7 +60,7 @@ let watching = false;
 
 /** Sends an error that the app did not handle, while the product's pages are open. */
 export function reportError(error: unknown) {
-  if (!watching || !client || readAnalyticsConsent() !== "granted") return;
+  if (!watching || !client || !readErrorReports()) return;
   if (!(error instanceof Error) || error.name === "AbortError") return;
   // A refusal the API answered is the app working: only a fault is reported.
   const status = (error as { status?: unknown }).status;
@@ -125,6 +125,7 @@ export async function startAnalytics() {
         custom_campaign_params: [],
         before_send: (event) => {
           if (readAnalyticsConsent() !== "granted") return null;
+          if (event?.event === "$exception" && !readErrorReports()) return null;
           const safe = safeBrowserEvent(event);
           return safe
             ? {
