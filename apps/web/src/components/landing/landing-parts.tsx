@@ -31,7 +31,9 @@ export const under = "gap-l sm:gap-xl";
  * How far a part of the landing is in its arrival. One that the server draws, or that is in view
  * before the page has its script, stays `still`: it shows its end at once. One further down
  * `wait`s, hidden, then `go`es as it comes into view: once a third of it shows, or a fifth of the
- * screen for one taller than that. A reader who asked for no motion gets `still` parts.
+ * screen for one taller than that. What shows is counted under the room over the part, which is
+ * empty: a part whose room alone is in view is further down. A reader who asked for no motion
+ * gets `still` parts.
  */
 export type Stage = "still" | "wait" | "go";
 export type Arrival = { stage: Stage; moving: boolean };
@@ -47,16 +49,23 @@ export function useArrivalOf(element: RefObject<HTMLElement | null>): Arrival {
     if (!target) return;
     const reduce = matchMedia("(prefers-reduced-motion: reduce)");
     setCalm(reduce.matches);
-    if (!reduce.matches && target.getBoundingClientRect().top > innerHeight) setStage("wait");
+    const room = parseFloat(getComputedStyle(target).paddingTop) || 0;
+    if (!reduce.matches && target.getBoundingClientRect().top + room > innerHeight) {
+      setStage("wait");
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry) return;
         setInView(entry.isIntersecting);
-        if (entry.intersectionRatio >= 0.3 || entry.intersectionRect.height >= innerHeight / 5) {
+        const box = entry.boundingClientRect;
+        const shown =
+          entry.intersectionRect.bottom - Math.max(box.top + room, entry.intersectionRect.top);
+        if (shown >= Math.min((box.height - room) * 0.3, innerHeight / 5)) {
           setStage((stage) => (stage === "wait" ? "go" : stage));
         }
       },
-      { threshold: [0, 0.05, 0.1, 0.2, 0.3] },
+      // Every twentieth, so that what shows under the room is read often enough.
+      { threshold: Array.from({ length: 21 }, (_, step) => step / 20) },
     );
     observer.observe(target);
     return () => observer.disconnect();
