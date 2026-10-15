@@ -94,6 +94,7 @@ export { IconSparkle4Outline18 as SparkleIcon } from "nucleo-ui-outline-18/compo
 // Map & product icons — Nucleo UI outline 18, for the same reason: they sit next to small labels
 // and numbers.
 export { IconArrowDoorOutOutline18 as LogOutIcon } from "nucleo-ui-outline-18/components/IconArrowDoorOutOutline18";
+export { IconArrowSymbolUpOutline18 as ArrowSymbolUpIcon } from "nucleo-ui-outline-18/components/IconArrowSymbolUpOutline18";
 export { IconArrowUpOutline18 as ArrowUpIcon } from "nucleo-ui-outline-18/components/IconArrowUpOutline18";
 export { IconBellOutline18 as BellIcon } from "nucleo-ui-outline-18/components/IconBellOutline18";
 export { IconBookmarkOutline18 as BookmarkIcon } from "nucleo-ui-outline-18/components/IconBookmarkOutline18";

@@ -22,7 +22,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { ArrowUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
+import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
 import { formatNumber, type Freshness } from "@/lib/format";
@@ -234,9 +234,10 @@ const BREAK_WAVE_ZOOM = 9.75;
 const BREAK_NAME_ZOOM = 9;
 // The wave of a break's disc, as an image of the map: its name and its size.
 const BREAK_WAVE = { image: "break-wave", size: 13 };
-// The arrow drawn on the sea, as an image of the map: its name and its size. It is the arrow that
-// says a direction in the panels, light with a dark edge, so it reads on every color of the sea.
-const SEA_ARROW = { image: "sea-arrow", size: 15, ink: "#ffffff", edge: "rgba(0, 0, 0, 0.5)" };
+// The arrow drawn on the sea, as an image of the map: its name and its size. It is finer than the
+// arrow that says a direction in the panels, light with a dark edge, so it reads on every color
+// of the sea without covering it.
+const SEA_ARROW = { image: "sea-arrow", size: 15, ink: "#ffffff", edge: "rgba(0, 0, 0, 0.35)" };
 // A station this close to the edge of what is visible is brought back to the middle.
 const REVEAL_MARGIN = 56;
 
@@ -437,9 +438,9 @@ function edgedIconImage(icon: SVGSVGElement, ink: string, edge: string, width: n
   context.lineCap = "round";
   context.lineJoin = "round";
   const lines = iconLines(icon);
-  // The edge is a wider line under the ink, a pixel and a half of the screen on each side.
+  // The edge is a wider line under the ink, a pixel of the screen on each side.
   for (const [color, extra] of [
-    [edge, (3 * ratio) / scale],
+    [edge, (2 * ratio) / scale],
     [ink, 0],
   ] as const) {
     context.strokeStyle = color;
@@ -1728,7 +1729,7 @@ export function StationMap({
         <PinIcon strokeWidth={2} />
       </span>
       <span ref={seaArrow} hidden>
-        <ArrowUpIcon strokeWidth={2.25} />
+        <ArrowSymbolUpIcon strokeWidth={1.5} />
       </span>
     </>
   );
