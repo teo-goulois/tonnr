@@ -53,6 +53,7 @@ const page = (characteristics: SpotPage["break"]["characteristics"]): SpotPage =
   wind: null,
   tide: null,
   week: null,
+  texts: [],
   nearby: [],
 });
 

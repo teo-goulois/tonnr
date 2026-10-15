@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { SHORE_WINDS } from "@repo/conditions/shore-wind";
 import { breakAtAddress, pathOf } from "@repo/db/addresses";
+import { GUIDE_LANGUAGES, GUIDE_TEXT_LINES } from "@repo/db/schema/community";
 import { surfBreak } from "@repo/db/schema/spots";
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +9,7 @@ import { z } from "zod";
 import { confirmedWordsOf } from "../guides";
 import { callerProcedure } from "../index";
 import {
+  confirmedTextsOf,
   hasPageSql,
   nearbyBreaks,
   nearestStation,
@@ -16,7 +18,6 @@ import {
   standsAloneSql,
   weekAt,
   windAtShore,
-  withGuideText,
 } from "../pages";
 import { breakSchema, describeBreak } from "./breaks";
 import { forecastSourceSchema } from "./forecasts";
@@ -107,6 +108,15 @@ const pageSchema = z.object({
       source: forecastSourceSchema,
     })
     .nullable(),
+  // The confirmed texts of the break's guide, the latest of each line in each language: what
+  // lists a break that says little else, and what the page shows of it.
+  texts: z.array(
+    z.object({
+      line: z.enum(GUIDE_TEXT_LINES),
+      language: z.enum(GUIDE_LANGUAGES),
+      text: z.string(),
+    }),
+  ),
   // The breaks within 50 km, the listed ones first, eight at most.
   nearby: z.array(
     z.object({
@@ -148,7 +158,7 @@ function noPage() {
 }
 
 // The listed breaks under some places, by name.
-const listedBreaks = (db: Parameters<typeof withGuideText>[0], where: ReturnType<typeof and>) =>
+const listedBreaks = (db: Parameters<typeof confirmedTextsOf>[0], where: ReturnType<typeof and>) =>
   db
     .select()
     .from(surfBreak)
@@ -181,17 +191,16 @@ export const pagesRouter = {
       const found = await breakAtAddress(context.db, address);
       if (!found) throw noPage();
       if (found.moved) {
-        return {
-          moved: true as const,
-          to: addressOf(found.row),
-          page: pathOf(found.row)!,
-        };
+        // The address leads to a break that has no page of its own: a break with no places.
+        const page = pathOf(found.row);
+        if (!page) throw noPage();
+        return { moved: true as const, to: addressOf(found.row), page };
       }
       const row = found.row;
       const now = new Date();
       const [confirmed, texts, waves, wind, nearby, week] = await Promise.all([
         confirmedWordsOf(context.db, [row.id]),
-        withGuideText(context.db, [row.id]),
+        confirmedTextsOf(context.db, row.id),
         nearestStation(context.db, row, "waves", now),
         nearestStation(context.db, row, "wind", now),
         nearbyBreaks(context.db, row),
@@ -210,7 +219,8 @@ export const pagesRouter = {
       return {
         moved: false as const,
         break: described,
-        listed: standsAlone(row, { hasText: texts.has(row.id) }),
+        listed: standsAlone(row, { hasText: texts.length > 0 }),
+        texts,
         places,
         waves: waves && {
           ...describeStation(waves.station),

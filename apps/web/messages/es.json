@@ -1329,6 +1329,7 @@
   "page_nearby": "Spots cercanos",
   "page_away": "a {distance}",
   "page_open_on_map": "Abrir en el mapa",
+  "page_guide": "Lo que dicen los surfistas",
   "page_sources": "Fuentes",
   "page_credit_waves": "Olas: {attribution}",
   "page_credit_wind": "Viento: {attribution}",

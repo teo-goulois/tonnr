@@ -314,11 +314,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the page of a surf break", () => {
     expect(read.week).toBeNull();
     expect(provider.asked).toBe(asked);
     // The listed break first, then the nearest. The one with no places has no page, and is not here.
+    // The listed breaks first, then the nearest: Zarautz, 44 km east, is within reach.
     expect(read.nearby.map((near) => [near.id, near.listed])).toEqual([
       ["bakio", true],
+      ["zarautz", true],
       ["sopelana", false],
     ]);
-    expect(read.nearby[1]?.distanceKm).toBeCloseTo(24.5, 0);
+    expect(read.nearby[2]?.distanceKm).toBeCloseTo(24.5, 0);
   });
 
   it("gives the week from the forecast another question kept, and says when it was fetched", async () => {
@@ -354,6 +356,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the page of a surf break", () => {
     const after = await page("spain", "basque-country", "sopelana");
     if (after.moved) throw new Error("moved");
     expect(after.listed).toBe(true);
+    // What lists the break is on its page.
+    expect(after.texts).toEqual([
+      {
+        line: "access",
+        language: "en",
+        text: "Park at the beach's car park and walk down the ramp.",
+      },
+    ]);
   });
 
   it("leads from the address of a merged break to the one that stays, and finds no page elsewhere", async () => {

@@ -168,7 +168,7 @@ describe("a forecast from the files", () => {
             { row: cell.row, column: cell.column, isSea: false },
             { row: cell.row, column: cell.column + 1, isSea: true },
           ])
-        : Effect.fail(new OpenDataError({ message: "no mask" })),
+        : Effect.fail(new OpenDataError({ message: "HSURF.om: 404" })),
   };
 
   it("lays the finest model over the next with a ramp, reads the waves at the sea cell, and names the models", async () => {

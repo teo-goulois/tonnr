@@ -209,21 +209,28 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
     );
   };
 
-  // A reader of one file, which fetches its blocks through `io` and keeps them. A block that
-  // comes with another version than the probe's, because the bucket rewrote the file meanwhile,
-  // fails the read, which is tried again later with the new version.
+  const CHANGED = " changed while it was being read";
+
+  // A reader of one file, which fetches its blocks through `io` and keeps them. The version it
+  // reads is the one its first probe found, for every block it reads after: a block that comes
+  // with another, because the bucket rewrote the file meanwhile, fails the whole read, which is
+  // tried once more from the new version. The signal stops every fetch of the reader.
   const backendOf = (url: string, signal: AbortSignal) => {
+    let pinned: Promise<{ etag: string | null; total: number }> | null = null;
+    const version = () => (pinned ??= probe(url, signal));
     const block = async (index: number) => {
-      const version = await probe(url, signal);
-      const key = `${url}@${version.etag ?? "?"}:${index}`;
+      const own = await version();
+      const key = `${url}@${own.etag ?? "?"}:${index}`;
       const kept = blocks.get(key);
       if (kept) return kept;
+      // A block shared by the readers that wait for it is fetched with the first one's signal,
+      // and bounded by the request's own timeout when that one gives up.
       const fetched = Effect.runPromise(io.range(url, index * BLOCK_BYTES, MAX_BLOCK_BYTES), {
         signal,
       }).then(({ bytes, etag }) => {
-        if (etag !== version.etag) {
+        if (etag !== own.etag) {
           versions.delete(url);
-          throw fault(`${url} changed while it was being read`);
+          throw fault(`${url}${CHANGED}`);
         }
         return bytes;
       });
@@ -232,11 +239,12 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
       return fetched;
     };
     return {
-      count: async () => (await probe(url, signal)).total,
+      count: async () => (await version()).total,
       getBytes: async (offset: number, size: number) => {
         const out = new Uint8Array(size);
         let written = 0;
         for (let at = offset; at < offset + size;) {
+          if (signal.aborted) throw fault(`${url}: the read was stopped`);
           const index = Math.floor(at / BLOCK_BYTES);
           const bytes = await block(index);
           const start = at - index * BLOCK_BYTES;
@@ -252,32 +260,31 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
     };
   };
 
-  // The reader's WebAssembly is set up once, and each file opened by the reader of the moment.
-  const reader = Effect.fn("openFile")(function* (url: string) {
-    return yield* Effect.tryPromise({
+  const isChanged = (error: OpenDataError) => error.message.endsWith(CHANGED);
+
+  /**
+   * Opens a file, lets `use` read it, and disposes it: one step, whose signal stops the fetches
+   * of the reader when the step is interrupted or times out, and whose disposal waits for the
+   * read to end. A file that changed under the read is read again, once, from its new version.
+   */
+  const withFile = <Value>(url: string, use: (file: Reader) => Promise<Value>) =>
+    Effect.tryPromise({
       try: async (signal) => {
         const { OmFileReader } = await import("@openmeteo/file-reader");
-        return await OmFileReader.create(backendOf(url, signal));
+        const file = await OmFileReader.create(backendOf(url, signal));
+        try {
+          return await use(file);
+        } finally {
+          file.dispose();
+        }
       },
       catch: (cause) =>
         cause instanceof OpenDataError
           ? cause
           : cause instanceof UpstreamError
             ? new OpenDataError({ message: `${url}: ${cause.status ?? "could not be read"}` })
-            : fault(`${url} could not be opened: ${String(cause)}`),
-    });
-  });
-
-  const withFile = <Value>(url: string, use: (file: Reader) => Promise<Value>) =>
-    reader(url).pipe(
-      Effect.flatMap((file) =>
-        Effect.tryPromise({
-          try: () => use(file),
-          catch: (cause) =>
-            cause instanceof OpenDataError ? cause : fault(`${url}: ${String(cause)}`),
-        }).pipe(Effect.ensuring(Effect.sync(() => file.dispose()))),
-      ),
-    );
+            : fault(`${url}: ${String(cause)}`),
+    }).pipe(Effect.retry({ times: 1, while: isChanged }));
 
   const metas = Effect.runSync(
     Cache.makeWith(
@@ -363,24 +370,39 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
     reach: number,
   ) {
     const url = fileUrl.landMask(model);
+    const found = yield* meta(model);
     return yield* withFile(url, async (file) => {
       const [ny, nx] = file.getDimensions();
       if (!ny || !nx) throw fault(`${url} is not a grid`);
+      const grid = gridOf(found.box, ny, nx);
       const rows = {
         start: Math.max(0, cell.row - reach),
         end: Math.min(ny, cell.row + reach + 1),
       };
-      const columns = {
-        start: Math.max(0, cell.column - reach),
-        end: Math.min(nx, cell.column + reach + 1),
-      };
-      const floats = await file.read({ type: OmDataType.FloatArray, ranges: [rows, columns] });
-      const width = columns.end - columns.start;
-      return Array.from(floats, (value, index) => ({
-        row: rows.start + Math.floor(index / width),
-        column: columns.start + (index % width),
-        isSea: value === SEA,
-      }));
+      // A global grid's last column neighbours its first: a square across the seam is read in
+      // two parts. A grid that ends is cut at its edge.
+      const spans: { start: number; end: number }[] = [];
+      const first = cell.column - reach;
+      const last = cell.column + reach;
+      if (isGlobal(grid) && (first < 0 || last >= nx)) {
+        if (first < 0) spans.push({ start: first + nx, end: nx }, { start: 0, end: last + 1 });
+        else spans.push({ start: first, end: nx }, { start: 0, end: last - nx + 1 });
+      } else {
+        spans.push({ start: Math.max(0, first), end: Math.min(nx, last + 1) });
+      }
+      const cells: { row: number; column: number; isSea: boolean }[] = [];
+      for (const columns of spans) {
+        const floats = await file.read({ type: OmDataType.FloatArray, ranges: [rows, columns] });
+        const width = columns.end - columns.start;
+        for (const [index, value] of floats.entries()) {
+          cells.push({
+            row: rows.start + Math.floor(index / width),
+            column: columns.start + (index % width),
+            isSea: value === SEA,
+          });
+        }
+      }
+      return cells;
     });
   });
 

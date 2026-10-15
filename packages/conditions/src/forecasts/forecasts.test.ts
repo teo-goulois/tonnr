@@ -3,6 +3,7 @@ import { Effect, Fiber, Result } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { hoursFor, makeForecasts, MAX_FORECAST_DAYS, MAX_PAST_DAYS, modelsOver } from "./forecasts";
+import { weekOf } from "./week";
 import { BudgetSpent, type Cell, ForecastFormatError } from "./open-meteo";
 import { answer, memoryStore, provider } from "./testing";
 
@@ -697,10 +698,23 @@ describe("the forecast kept for a point, asked of nobody", () => {
     await got(forecasts.get({ ...here, days: 1 }));
     const kept = await got(forecasts.kept(here));
     expect(kept).toMatchObject({ stale: false, point: { latitude: 43.625 } });
-    expect(kept?.hours).toHaveLength(MAX_FORECAST_DAYS * 24);
-    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-09T00:00:00Z"));
-    expect(kept?.models).toEqual([{ id: "ecmwf_wam", from: new Date("2026-10-09T00:00:00Z") }]);
+    expect(kept?.hours).toHaveLength((MAX_FORECAST_DAYS + 1) * 24);
+    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-08T00:00:00Z"));
+    expect(kept?.models).toEqual([{ id: "ecmwf_wam", from: new Date("2026-10-08T00:00:00Z") }]);
     expect(state.asked).toBe(1);
+  });
+
+  it("reaches back to the UTC day before, so that a day west of UTC is whole", async () => {
+    const { store } = memoryStore();
+    const { fetch } = provider();
+    const forecasts = makeForecasts(store, fetch);
+    // 01:00 UTC on the 9th is 15:00 of the 8th in Honolulu: that day is still the current one.
+    vi.setSystemTime(utc("2026-10-09T01:00:00Z"));
+    await got(forecasts.get({ ...here, days: 1 }));
+    const kept = await got(forecasts.kept(here));
+    const honolulu = weekOf(kept?.hours ?? [], "Pacific/Honolulu", new Date());
+    expect(honolulu[0]).toMatchObject({ day: "2026-10-08", hours: 24 });
+    expect(honolulu[0]?.wind?.time).toEqual(new Date("2026-10-08T22:00:00Z"));
   });
 
   it("says that an older forecast is stale, and gives none past its day", async () => {
@@ -723,8 +737,8 @@ describe("the forecast kept for a point, asked of nobody", () => {
     // Read the day after it was fetched: a forecast holds eight days, so seven still answer.
     vi.advanceTimersByTime(20 * HOUR_MS);
     const kept = await got(forecasts.kept(here));
-    expect(kept?.hours).toHaveLength(MAX_FORECAST_DAYS * 24);
-    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-10T00:00:00Z"));
+    expect(kept?.hours).toHaveLength((MAX_FORECAST_DAYS + 1) * 24);
+    expect(kept?.hours?.[0]?.time).toEqual(new Date("2026-10-09T00:00:00Z"));
 
     state.waves = () => null;
     const flat = { latitude: 10, longitude: 10 };

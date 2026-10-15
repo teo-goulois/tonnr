@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
-import { keepAddressOf } from "@repo/db/addresses";
+import { addressOf, keepAddressOf } from "@repo/db/addresses";
 import { reopenCandidatesOf } from "@repo/db/catalogue";
 import { breakCandidate } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
@@ -404,14 +404,21 @@ export async function mergeBreaks(
           attribution: merge.attribution,
         }
       : {};
+  // A list that the one that goes came from says where it lies, when the one that stays does
+  // not. A break that gains its places gains the address of its page with them, for good: the
+  // merged break's address leads to it, and a page is answered there (decision 057).
+  const location = keep.location ?? merge.location;
+  const address =
+    keep.countrySlug === null && location
+      ? await addressOf(tx, { id: keep.id, name: columns.name ?? keep.name, location })
+      : {};
   const [merged] = await tx
     .update(surfBreak)
     .set({
       ...columns,
       ...source,
-      // A list that the one that goes came from says where it lies, when the one that stays
-      // does not.
-      location: keep.location ?? merge.location,
+      ...address,
+      location,
       timezone: keep.timezone ?? merge.timezone,
       updatedAt: new Date(),
     })

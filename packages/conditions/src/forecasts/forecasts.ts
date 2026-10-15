@@ -387,7 +387,7 @@ export function makeForecasts(
    * crawler may ask for thousands of times (decision 057). Null when none is kept, or when
    * the one kept is past its day. `stale` says that it is over two hours old. `hours` is null
    * when the point has no sea nearby, and holds what the kept forecast has of the days asked,
-   * from the start of today, whether or not it covers them all.
+   * from the start of the UTC day before today, whether or not it covers them all.
    */
   const kept = Effect.fn("keptForecast")(function* (
     point: { latitude: number; longitude: number },
@@ -398,7 +398,9 @@ export function makeForecasts(
     const found = held(read.now, read.row);
     if (!found || found.age >= USABLE_MS) return null;
     const today = Math.floor(read.now.getTime() / 1000 / DAY_S) * DAY_S;
-    const { hours, hasWaves } = hoursIn(found.data, today, today + days * DAY_S);
+    // From the UTC day before: a day of a place west of UTC begins in it, and a week told in
+    // the place's own days wants its whole first day.
+    const { hours, hasWaves } = hoursIn(found.data, today - DAY_S, today + days * DAY_S);
     const [first, last] = [hours[0], hours.at(-1)];
     return {
       point: found.data.point,

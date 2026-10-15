@@ -156,6 +156,11 @@ export function turnedDirection(degrees: number | null) {
 const round = (value: number | null, decimals: number) =>
   value === null ? null : Number(value.toFixed(decimals));
 
+/** The difference of two longitudes, the short way round the antimeridian, in degrees. */
+export function eastward(one: Point, other: Point) {
+  return ((((one.longitude - other.longitude) % 360) + 540) % 360) - 180;
+}
+
 /**
  * The sea cell the API would read for a point: among the cells within `reach` of the nearest
  * grid point, the sea cell nearest in squared degrees. Null when none is sea.
@@ -170,7 +175,7 @@ export function seaCellOf(
   for (const cell of cells) {
     if (!cell.isSea) continue;
     const at = pointAt(grid, cell);
-    const away = (at.latitude - point.latitude) ** 2 + (at.longitude - point.longitude) ** 2;
+    const away = (at.latitude - point.latitude) ** 2 + eastward(at, point) ** 2;
     if (away < nearest) {
       nearest = away;
       best = { row: cell.row, column: cell.column };
@@ -257,6 +262,8 @@ export const fetchFromFiles = Effect.fn("fetchFromFiles")(function* (
   }
 
   // The waves: MFWAM at the sea cell the API would take, and ECMWF's peak period the same way.
+  // The waves fail the read when their files cannot be read; the peak period, which is laid
+  // over them, goes without when its own cannot.
   const [waves, peak] = yield* Effect.all(
     [
       seaSeries(files, WAVES_MODEL, point, span, hours, {
@@ -268,7 +275,13 @@ export const fetchFromFiles = Effect.fn("fetchFromFiles")(function* (
       }),
       seaSeries(files, PEAK_MODEL, point, span, hours, {
         peak: ["wave_peak_period", "value"],
-      }),
+      }).pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("the peak period's files could not be read", error).pipe(
+            Effect.as(null),
+          ),
+        ),
+      ),
     ],
     { concurrency: 2 },
   );
@@ -306,7 +319,8 @@ export const fetchFromFiles = Effect.fn("fetchFromFiles")(function* (
 });
 
 // The series of a wave model at the sea cell the API would take for a point, each at every
-// hour. Null when the model cannot be read, or has no sea within reach.
+// hour. Null when the point has no sea within reach. A file that cannot be read fails, so that
+// a forecast that is kept is not replaced by one that says "no sea" for want of a file.
 const seaSeries = Effect.fn("seaSeries")(function* <Name extends string>(
   files: OpenData,
   model: string,
@@ -317,9 +331,8 @@ const seaSeries = Effect.fn("seaSeries")(function* <Name extends string>(
 ) {
   const names = Object.keys(variables) as Name[];
   const first = variables[names[0]!]![0];
-  const grid = yield* files.grid(model, first, span.from).pipe(Effect.option);
-  if (grid._tag === "None") return null;
-  const nearest = cellOf(grid.value, point);
+  const grid = yield* files.grid(model, first, span.from);
+  const nearest = cellOf(grid, point);
   if (!nearest) return null;
   const readAt = (cell: { row: number; column: number }) =>
     Effect.all(
@@ -338,28 +351,29 @@ const seaSeries = Effect.fn("seaSeries")(function* <Name extends string>(
             (number | null)[]
           >,
       ),
-      Effect.option,
     );
-  const around = yield* files.seaAround(model, nearest, SEA_REACH).pipe(Effect.option);
-  if (around._tag === "Some") {
-    const cell = seaCellOf(grid.value, point, around.value);
-    if (!cell) return null;
-    const read = yield* readAt(cell);
-    return read._tag === "Some" ? read.value : null;
+  // A model without a land mask in the bucket answers 404 for it: its nearest cell with a
+  // value then stands for the sea. Any other failure is one.
+  const around = yield* files.seaAround(model, nearest, SEA_REACH).pipe(
+    Effect.catchIf(
+      (error) => error.message.endsWith(" 404"),
+      () => Effect.succeed(null),
+    ),
+  );
+  if (around) {
+    const cell = seaCellOf(grid, point, around);
+    return cell ? yield* readAt(cell) : null;
   }
-  // A model with no land mask: the nearest cell within reach that has a value is the sea.
   const away = (cell: { row: number; column: number }) => {
-    const at = pointAt(grid.value, cell);
-    return (at.latitude - point.latitude) ** 2 + (at.longitude - point.longitude) ** 2;
+    const at = pointAt(grid, cell);
+    return (at.latitude - point.latitude) ** 2 + eastward(at, point) ** 2;
   };
-  const candidates = cellsAround(grid.value, nearest, SEA_REACH).sort(
+  const candidates = cellsAround(grid, nearest, SEA_REACH).sort(
     (one, other) => away(one) - away(other),
   );
   for (const cell of candidates) {
     const read = yield* readAt(cell);
-    if (read._tag === "Some" && read.value[names[0]!]!.some((value) => value !== null)) {
-      return read.value;
-    }
+    if (read[names[0]!]!.some((value) => value !== null)) return read;
   }
   return null;
 });

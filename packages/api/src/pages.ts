@@ -13,9 +13,11 @@ import {
   standsAlone,
   standsAloneSql,
 } from "@repo/db/listed";
-import { breakContribution, GUIDE_TEXT_LINES } from "@repo/db/schema/community";
+import { breakContribution, GUIDE_LANGUAGES, GUIDE_TEXT_LINES } from "@repo/db/schema/community";
 import { surfBreak } from "@repo/db/schema/spots";
-import { type AnyColumn, and, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { type AnyColumn, and, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+
+import { inBbox } from "./bbox";
 import { Effect, Result } from "effect";
 
 // What the public page of a surf break says, and which breaks a search engine is asked to list:
@@ -27,6 +29,40 @@ export type { Break };
 type Point = { latitude: number; longitude: number };
 
 export { hasPageSql, saidCharacteristics, STANDS_ALONE_AT, standsAlone, standsAloneSql };
+
+export type GuideTextLine = (typeof GUIDE_TEXT_LINES)[number];
+export type GuideLanguage = (typeof GUIDE_LANGUAGES)[number];
+
+/**
+ * The confirmed texts of a break's guide, the latest of each line in each language: what a page
+ * shows of them, since a confirmed text is what lists a break that says little else.
+ */
+export async function confirmedTextsOf(db: Reader, breakId: string) {
+  const rows = await db
+    .select({
+      line: breakContribution.line,
+      language: breakContribution.language,
+      value: breakContribution.value,
+    })
+    .from(breakContribution)
+    .where(
+      and(
+        eq(breakContribution.breakId, breakId),
+        eq(breakContribution.status, "confirmed"),
+        inArray(breakContribution.line, [...GUIDE_TEXT_LINES]),
+      ),
+    )
+    .orderBy(desc(breakContribution.confirmedAt), desc(breakContribution.id));
+  const texts = new Map<string, { line: GuideTextLine; language: GuideLanguage; text: string }>();
+  for (const row of rows) {
+    if (typeof row.value !== "string" || row.language === null) continue;
+    const key = `${row.line}:${row.language}`;
+    if (!texts.has(key)) {
+      texts.set(key, { line: row.line as GuideTextLine, language: row.language, text: row.value });
+    }
+  }
+  return [...texts.values()];
+}
 
 /** Of some breaks, those whose guide has a confirmed text. */
 export async function withGuideText(db: Reader, breakIds: string[]) {
@@ -59,9 +95,28 @@ export function distanceKm(one: Point, other: Point) {
   return 2 * EARTH_KM * Math.asin(Math.sqrt(a));
 }
 
-// How far a break is from a point, near enough to order by: degrees on a flat earth.
+// How far a row's point is from a point, near enough to order by: degrees on a flat earth,
+// the short way round the antimeridian.
 const awayFrom = (point: Point, table: { latitude: AnyColumn; longitude: AnyColumn }) =>
-  sql`power(${table.latitude} - ${point.latitude}, 2) + power((${table.longitude} - ${point.longitude}) * cos(radians(${point.latitude})), 2)`;
+  sql`power(${table.latitude} - ${point.latitude}, 2) + power(
+    (mod((${table.longitude} - ${point.longitude} + 540)::numeric, 360) - 180)
+      * cos(radians(${point.latitude})),
+    2
+  )`;
+
+/**
+ * The box of so many kilometres around a point, as `inBbox` reads one: its longitudes widen
+ * towards the poles, and wrap round the antimeridian.
+ */
+export function boxAround(point: Point, km: number): [number, number, number, number] {
+  const degrees = km / 111;
+  const across = degrees / Math.max(0.1, Math.cos((point.latitude * Math.PI) / 180));
+  const wrap = (longitude: number) => ((((longitude + 180) % 360) + 360) % 360) - 180;
+  const south = Math.max(-90, point.latitude - degrees);
+  const north = Math.min(90, point.latitude + degrees);
+  if (across >= 180) return [-180, south, 180, north];
+  return [wrap(point.longitude - across), south, wrap(point.longitude + across), north];
+}
 
 /** A station that measured lately: within a day. */
 const MEASURED_WITHIN_MS = 24 * 60 * 60 * 1000;
@@ -80,7 +135,6 @@ export async function nearestStation(
   now: Date,
 ) {
   const withinKm = measures === "waves" ? WAVES_WITHIN_KM : WIND_WITHIN_KM;
-  const degrees = withinKm / 111;
   const rows = await db
     .select({ station, reading })
     .from(station)
@@ -95,8 +149,7 @@ export async function nearestStation(
         measures === "waves"
           ? isNotNull(reading.significantHeightM)
           : isNotNull(reading.windSpeedMs),
-        sql`${station.latitude} between ${point.latitude - degrees} and ${point.latitude + degrees}`,
-        sql`${station.longitude} between ${point.longitude - degrees} and ${point.longitude + degrees}`,
+        inBbox(station.latitude, station.longitude, boxAround(point, withinKm)),
       ),
     )
     .orderBy(awayFrom(point, station))
@@ -123,7 +176,6 @@ export const NEARBY_MOST = 8;
  * at most, each with how far it is.
  */
 export async function nearbyBreaks(db: Reader, found: Break) {
-  const degrees = NEARBY_WITHIN_KM / 111;
   const rows = await db
     .select({ row: surfBreak, listed: sql<boolean>`(${standsAloneSql} and ${hasPageSql})` })
     .from(surfBreak)
@@ -131,8 +183,7 @@ export async function nearbyBreaks(db: Reader, found: Break) {
       and(
         ne(surfBreak.id, found.id),
         hasPageSql,
-        sql`${surfBreak.latitude} between ${found.latitude - degrees} and ${found.latitude + degrees}`,
-        sql`${surfBreak.longitude} between ${found.longitude - degrees} and ${found.longitude + degrees}`,
+        inBbox(surfBreak.latitude, surfBreak.longitude, boxAround(found, NEARBY_WITHIN_KM)),
       ),
     )
     .orderBy(awayFrom(found, surfBreak))

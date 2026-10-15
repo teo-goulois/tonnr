@@ -48,6 +48,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept for the listed breaks", 
   });
 
   // Every slice of a day, one after the other.
+  // One cell at a time, so that the share is spent in a known order.
   const day = (forecasts: ReturnType<typeof testForecasts>["forecasts"]) =>
     Promise.all(
       Array.from({ length: SLICES_A_DAY }, (_, slice) =>
@@ -56,6 +57,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the forecasts kept for the listed breaks", 
             database.db,
             forecasts,
             new Date(Date.UTC(2026, 9, 15, slice * (24 / SLICES_A_DAY), 50)),
+            1,
           ),
         ),
       ),

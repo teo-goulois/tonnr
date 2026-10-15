@@ -345,14 +345,18 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       await useSouth();
       const merged = await merge(ids.north, ids.south);
 
-      // The address of the one that went leads to the one that stays: decision 057.
+      // The address of the one that went leads to the one that stays, which took the places
+      // of the one that went and an address with them: decision 057.
       expect(
         await breakAtAddress(database.db, {
           countrySlug: "france",
           regionSlug: "finistere",
           slug: "jetty-north",
         }),
-      ).toMatchObject({ moved: true, row: { id: ids.north } });
+      ).toMatchObject({
+        moved: true,
+        row: { id: ids.north, countrySlug: "france", regionSlug: "finistere" },
+      });
       expect(merged.break).toMatchObject({
         id: ids.north,
         characteristics: { breakTypes: ["jetty"], bottomTypes: ["rock"] },

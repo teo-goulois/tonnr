@@ -17,6 +17,11 @@ import { StoreError } from "./store";
  */
 export const SLICES_A_DAY = 1;
 
+/** How many cells are asked for at once: the files are read by range, a few at a time. */
+export const AT_ONCE = 6;
+/** How many runs the start of the list turns through, so that a stopped run's tail comes first later. */
+export const TURNS = 8;
+
 const cellKey = (cell: Cell) => `${cell.latStep},${cell.lonStep}`;
 
 /** Which slice of the cells a run at a moment takes: the part of the day it falls in. */
@@ -33,6 +38,7 @@ export const keepListedForecasts = Effect.fn("keepListedForecasts")(function* (
   db: Database,
   forecasts: Pick<Forecasts, "get">,
   now = new Date(),
+  atOnce = AT_ONCE,
 ) {
   const points = yield* Effect.tryPromise({
     try: () => listedPoints(db),
@@ -46,26 +52,35 @@ export const keepListedForecasts = Effect.fn("keepListedForecasts")(function* (
   }
   const keys = [...cells.keys()].sort();
   const slice = sliceAt(now);
-  const mine = keys.filter((_, index) => index % SLICES_A_DAY === slice);
+  const owned = keys.filter((_, index) => index % SLICES_A_DAY === slice);
+  // A run that the scheduler stops before its end leaves the cells after the one it was at:
+  // the next run starts further on, so that no cell waits for ever at the end of the list.
+  const turn = Math.floor(now.getTime() / (3 * 60 * 60 * 1000)) % TURNS;
+  const from = Math.floor((owned.length * turn) / TURNS);
+  const mine = [...owned.slice(from), ...owned.slice(0, from)];
 
   let refreshed = 0;
   let failed = 0;
   let budgetSpent = false;
-  for (const key of mine) {
-    const cell = cells.get(key)!;
-    const asked = yield* Effect.result(forecasts.get({ ...pointOf(cell), days: 1 }));
-    if (Result.isSuccess(asked)) {
-      // An answer that is stale came from what was kept: the provider could not be asked.
-      if (asked.success.stale) failed += 1;
-      else refreshed += 1;
-      continue;
-    }
-    failed += 1;
-    if (asked.failure._tag === "BudgetSpent") {
-      budgetSpent = true;
-      break;
-    }
-  }
+  yield* Effect.forEach(
+    mine,
+    (key) =>
+      Effect.gen(function* () {
+        // Once the share is spent, the cells left are not asked for: the next run tries again.
+        if (budgetSpent) return;
+        const cell = cells.get(key)!;
+        const asked = yield* Effect.result(forecasts.get({ ...pointOf(cell), days: 1 }));
+        if (Result.isSuccess(asked)) {
+          // An answer that is stale came from what was kept: the provider could not be asked.
+          if (asked.success.stale) failed += 1;
+          else refreshed += 1;
+          return;
+        }
+        failed += 1;
+        if (asked.failure._tag === "BudgetSpent") budgetSpent = true;
+      }),
+    { concurrency: atOnce, discard: true },
+  );
   return {
     breaks: points.length,
     cells: keys.length,

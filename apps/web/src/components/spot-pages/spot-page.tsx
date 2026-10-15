@@ -10,6 +10,7 @@ import { placeOnMap } from "@/lib/place-links";
 import { spotCrumbs } from "@/lib/spot-pages";
 import { m } from "@/paraglide/messages.js";
 
+import { GuideTexts } from "./guide-texts";
 import { NearbyBreaks } from "./nearby-breaks";
 import { NextTides } from "./next-tides";
 import { SeaNow } from "./sea-now";
@@ -96,6 +97,7 @@ export function SpotPage({ page, now }: { page: SpotPageData; now: number }) {
 
       {/* The places are the path over the title: the list leaves them out. */}
       <CharacteristicsList known={found.characteristics} title={m.break_about()} />
+      <GuideTexts texts={page.texts} />
 
       <SeaNow waves={page.waves} wind={page.wind} now={now} />
       <NextTides tide={page.tide} timezone={found.timezone} />

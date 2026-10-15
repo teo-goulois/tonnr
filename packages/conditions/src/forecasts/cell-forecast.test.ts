@@ -172,3 +172,27 @@ describe("the swell apart laid over a forecast", () => {
     expect(laid.hours.waveHeightMeters.slice(0, 4)).toEqual([1.5, 1.5, 1.5, 1.5]);
   });
 });
+
+describe("a forecast that came with its swell from the files", () => {
+  // MFWAM's swell of 1.2 m at every hour, as the files give it, with ECMWF's peak period.
+  const withSwell: ForecastData = {
+    ...answer(AT),
+    peakModels: [{ id: "ecmwf_wam025", from: start }],
+  };
+
+  it("keeps that swell where the fine model does not answer, and names its models", () => {
+    const laid = layWaves(withSwell, fine([0.8, 0.9], [0.5, 0.6]), null);
+    expect(laid.hours.primarySwellHeightMeters.slice(0, 3)).toEqual([0.5, 0.6, 1.2]);
+    expect(laid.hours.primarySwellDirectionDegrees.slice(0, 3)).toEqual([260, 260, 290]);
+    expect(laid.swellModels).toEqual([
+      { id: "nws_ww3", from: start },
+      { id: "mfwam", from: start + 2 * HOUR },
+    ]);
+    // The peak period is the fine model's in its hours, and ECMWF's after.
+    expect(laid.hours.wavePeakPeriodSeconds.slice(0, 3)).toEqual([12.5, 12.5, 11]);
+    expect(laid.peakModels).toEqual([
+      { id: "nws_ww3", from: start },
+      { id: "ecmwf_wam025", from: start + 2 * HOUR },
+    ]);
+  });
+});

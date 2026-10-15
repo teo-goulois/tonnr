@@ -72,8 +72,20 @@ export function layWaves(
     primarySwellHeightMeters: [...data.hours.primarySwellHeightMeters],
     primarySwellDirectionDegrees: [...data.hours.primarySwellDirectionDegrees],
   };
+  const swellModelAt = (seconds: number) => {
+    let id: WaveModelId | null = null;
+    for (const model of data.swellModels) if (model.from <= seconds) id = model.id;
+    return id;
+  };
+  const peakModelAt = (seconds: number) => {
+    let id: WaveModelId | null = null;
+    for (const model of data.peakModels) if (model.from <= seconds) id = model.id;
+    return id;
+  };
+
   const models: ForecastData["models"] = [];
   const swellModels: ForecastData["swellModels"] = [];
+  const peakModels: ForecastData["peakModels"] = [];
   const listed = (list: ForecastData["models"], id: WaveModelId | null, seconds: number) => {
     if (id !== null && list.at(-1)?.id !== id) list.push({ id, from: seconds });
   };
@@ -96,8 +108,8 @@ export function layWaves(
         seconds,
       );
       isFine = true;
-    } else {
-      const apart = swell ? swellAt(swell, seconds) : null;
+    } else if (swell) {
+      const apart = swellAt(swell, seconds);
       // The swell is another model's than the waves here, and a part is never more than the
       // whole: it is given no higher than the whole sea of its hour.
       const whole = hours.waveHeightMeters[index] ?? null;
@@ -105,8 +117,25 @@ export function layWaves(
         apart && whole !== null ? Math.min(apart.height, whole) : (apart?.height ?? null);
       hours.primarySwellDirectionDegrees[index] = apart?.direction ?? null;
       listed(models, hours.waveHeightMeters[index] === null ? null : modelAt(seconds), seconds);
-      listed(swellModels, apart && swell ? swell.model : null, seconds);
+      listed(swellModels, apart ? swell.model : null, seconds);
+    } else {
+      // No swell laid over: the hour keeps the swell its forecast came with, from the files.
+      listed(models, hours.waveHeightMeters[index] === null ? null : modelAt(seconds), seconds);
+      listed(
+        swellModels,
+        hours.primarySwellHeightMeters[index] === null ? null : swellModelAt(seconds),
+        seconds,
+      );
     }
+    listed(
+      peakModels,
+      hours.wavePeakPeriodSeconds[index] === null
+        ? null
+        : fine && fineAt.get(seconds) !== undefined && height !== null
+          ? fine.model
+          : peakModelAt(seconds),
+      seconds,
+    );
     hasSwell ||= hours.primarySwellHeightMeters[index] !== null;
   }
   if (!isFine && !hasSwell) return data;
@@ -115,7 +144,7 @@ export function layWaves(
     point: isFine && fine ? fine.point : data.point,
     models,
     swellModels,
-    peakModels: data.peakModels,
+    peakModels,
     hours,
   };
 }
