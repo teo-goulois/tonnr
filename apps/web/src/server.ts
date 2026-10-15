@@ -13,16 +13,19 @@ export default {
     const file = searchEngineFile(request, indexed);
     if (file !== undefined) return file;
 
-    const response = permanentWhenSamePage(
+    const answered = permanentWhenSamePage(
       request,
       await paraglideMiddleware(request, () => handler.fetch(request)),
     );
+    const response = new Response(answered.body, answered);
+    // No other site frames a page of the app, where an account allows an assistant or signs in.
+    response.headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+    response.headers.set("X-Frame-Options", "DENY");
     if (indexed) return response;
 
     // A page stays out of search engines unless its stage asks to be listed. The header says
     // so, and `robots.txt` lets them come and read it: decision 021.
-    const unlisted = new Response(response.body, response);
-    unlisted.headers.set("X-Robots-Tag", "noindex");
-    return unlisted;
+    response.headers.set("X-Robots-Tag", "noindex");
+    return response;
   },
 };

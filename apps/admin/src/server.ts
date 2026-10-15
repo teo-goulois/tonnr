@@ -10,6 +10,9 @@ export default {
     // `robots.txt` lets them come and read it: decision 021 says why that pair, for the web app.
     const unlisted = new Response(response.body, response);
     unlisted.headers.set("X-Robots-Tag", "noindex");
+    // No other site frames the admin's pages.
+    unlisted.headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+    unlisted.headers.set("X-Frame-Options", "DENY");
     return unlisted;
   },
 };
