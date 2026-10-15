@@ -1008,6 +1008,7 @@
   "place_picture_alt": "Un spot envoyé par {name}, au-dessus de sa carte de l'Europe de l'Ouest, la mer colorée selon la hauteur des vagues.",
   "list_meta_title": "@{username} partage sa liste « {list} » avec toi",
   "list_meta_title_unsigned": "La liste « {list} », partagée avec toi sur {name}",
+  "list_meta_title_locked": "@{username} partage une liste avec toi",
   "list_picture_title": "Une liste de spots partagée avec toi",
   "list_picture_text": "Ses spots seuls sur la carte, avec la houle, le vent et la marée en direct.",
   "list_picture_alt": "Une liste de spots partagée sur {name}, au-dessus de sa carte de l'Europe de l'Ouest, la mer colorée selon la hauteur des vagues.",

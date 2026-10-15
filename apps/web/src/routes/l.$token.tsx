@@ -15,7 +15,7 @@ import { ENV } from "../env.public";
 //
 // The server renders it, for the sites a link is sent through: they read no script, and show the
 // link by its title, which names the list and whoever shares it, and its picture. A list that asks
-// for a password says neither. A browser goes on to the map at once.
+// for a password says who shares it, and not its name. A browser goes on to the map at once.
 export const Route = createFileRoute("/l/$token")({
   beforeLoad: ({ params }) => {
     if (typeof window !== "undefined") throw redirect(toMap(params.token));
@@ -28,11 +28,7 @@ export const Route = createFileRoute("/l/$token")({
     const site = loaderData?.site ?? "";
     const list = loaderData?.list;
     const locale = getLocale();
-    const title = !list
-      ? m.list_picture_title()
-      : list.owner
-        ? m.list_meta_title({ username: list.owner, list: list.name })
-        : m.list_meta_title_unsigned({ list: list.name, name: APP_NAME });
+    const title = titleOf(list ?? null);
     const description = m.list_picture_text();
     return {
       meta: [
@@ -71,11 +67,21 @@ function Shared() {
   return <AppPending />;
 }
 
+type Sent = { name: string | null; owner: string | null };
+
+function titleOf(list: Sent | null) {
+  if (list?.owner && list.name) return m.list_meta_title({ username: list.owner, list: list.name });
+  if (list?.owner) return m.list_meta_title_locked({ username: list.owner });
+  if (list?.name) return m.list_meta_title_unsigned({ list: list.name, name: APP_NAME });
+  return m.list_picture_title();
+}
+
 /**
- * The list's name and its owner's username, as the API answers whoever has the link. Null for a
- * link that opens nothing, asks for a password, or that the API did not answer.
+ * The list's name and its owner's username, as the API answers whoever has the link: a list that
+ * asks for a password gives no name. Null for a link that opens nothing, or that the API did not
+ * answer.
  */
-async function listOf(token: string): Promise<{ name: string; owner: string | null } | null> {
+async function listOf(token: string): Promise<Sent | null> {
   try {
     const response = await fetch(`${apiOrigin(ENV.VITE_SERVER_URL)}/v1/shared/open`, {
       method: "POST",
@@ -89,11 +95,13 @@ async function listOf(token: string): Promise<{ name: string; owner: string | nu
       owner?: unknown;
       list?: { name?: unknown; isDefault?: unknown };
     };
-    if (opened.locked !== false || typeof opened.list?.name !== "string") return null;
+    const owner = typeof opened.owner === "string" ? opened.owner : null;
+    if (opened.locked !== false || typeof opened.list?.name !== "string")
+      return { name: null, owner };
     return {
       // The favorites are called by a label of their own, in the reader's language.
       name: opened.list.isDefault === true ? m.saved_favorites() : opened.list.name,
-      owner: typeof opened.owner === "string" ? opened.owner : null,
+      owner,
     };
   } catch {
     return null;

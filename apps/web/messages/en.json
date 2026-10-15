@@ -1008,6 +1008,7 @@
   "place_picture_alt": "A surf spot sent through {name}, over its map of western Europe, the sea colored by its wave height.",
   "list_meta_title": "@{username} shared their list “{list}” with you",
   "list_meta_title_unsigned": "The list “{list}”, shared with you on {name}",
+  "list_meta_title_locked": "@{username} shared a list with you",
   "list_picture_title": "A list of spots, shared with you",
   "list_picture_text": "Its spots alone on the map, with live swell, wind and tide.",
   "list_picture_alt": "A list of surf spots shared through {name}, over its map of western Europe, the sea colored by its wave height.",

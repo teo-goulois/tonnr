@@ -181,7 +181,17 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
   it("asks for its password once, then takes what stands for it", async () => {
     const { token } = await shared("offshore");
 
-    expect(await call(v1Router.shared.open, { token }, anyone)).toEqual({ locked: true });
+    expect(await call(v1Router.shared.open, { token }, anyone)).toEqual({
+      locked: true,
+      owner: null,
+    });
+    // It says who shares it, and nothing of itself.
+    await database.db.update(user).set({ username: "ana" }).where(eq(user.id, "ana"));
+    expect(await call(v1Router.shared.open, { token }, anyone)).toEqual({
+      locked: true,
+      owner: "ana",
+    });
+    await database.db.update(user).set({ username: null }).where(eq(user.id, "ana"));
     expect(await code(call(v1Router.shared.open, { token, password: "onshore" }, anyone))).toBe(
       "FORBIDDEN",
     );
@@ -198,7 +208,10 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
       "answered",
     );
     // The pass opens the list for an account that read it before it signed in.
-    expect(await call(v1Router.shared.open, { token }, by("cleo"))).toEqual({ locked: true });
+    expect(await call(v1Router.shared.open, { token }, by("cleo"))).toEqual({
+      locked: true,
+      owner: null,
+    });
     expect(
       await call(v1Router.shared.open, { token, pass: opened.pass! }, by("cleo")),
     ).toMatchObject({ locked: false, list: { access: "link" } });

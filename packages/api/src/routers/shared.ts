@@ -46,14 +46,16 @@ export const sharedRouter = {
         "<token>.<pass>`, or `List <token>` without one, to read the stations, the breaks, " +
         "the forecasts and the tides as an account does. The list's owner and an account " +
         "that kept it are known by their session, and are asked no password. `owner` is the " +
-        "username of whoever shares the list, null for an account that chose none. " +
+        "username of whoever shares the list, null for an account that chose none, and is " +
+        "answered with `locked` too. " +
         "Decision 035.",
       tags: ["Lists"],
     })
     .input(linkInput)
     .output(
       z.union([
-        z.object({ locked: z.literal(true) }),
+        // A list that asks for a password says who shares it, and nothing of itself.
+        z.object({ locked: z.literal(true), owner: z.string().nullable() }),
         z.object({
           locked: z.literal(false),
           // What stands for the password from then on. Null for a link that asks none.
@@ -81,6 +83,14 @@ export const sharedRouter = {
             .from(stationListMember)
             .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)))
         : [];
+      // The username of whoever shares the list, which a link is shown with, locked or not.
+      const ownerOf = async () => {
+        const [owner] = await context.db
+          .select({ username: user.username })
+          .from(user)
+          .where(eq(user.id, list.userId));
+        return owner?.username ?? null;
+      };
       const access = list.userId === userId ? "owner" : kept ? "member" : "link";
       // A request that carries the link with its pass has given the password before, and so
       // has an account that gives the pass it was read with before it signed in.
@@ -89,19 +99,15 @@ export const sharedRouter = {
         (input.pass !== undefined && input.pass === passOf(share));
 
       if (access === "link" && !passed && share.passwordHash !== null) {
-        if (input.password === undefined) return { locked: true as const };
+        if (input.password === undefined) return { locked: true as const, owner: await ownerOf() };
         const tried = await tryPassword(context.db, share, input.password);
         if (tried === "locked") throw locked();
         if (tried === "wrong") throw new ORPCError("FORBIDDEN", { message: "Wrong password." });
       }
-      const [owner] = await context.db
-        .select({ username: user.username })
-        .from(user)
-        .where(eq(user.id, list.userId));
       return {
         locked: false as const,
         pass: passOf(share),
-        owner: owner?.username ?? null,
+        owner: await ownerOf(),
         list: await viewOf(context.db, list, access, userId),
       };
     }),

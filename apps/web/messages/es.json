@@ -1008,6 +1008,7 @@
   "place_picture_alt": "Un spot enviado por {name}, sobre su mapa de Europa occidental, el mar coloreado según la altura de las olas.",
   "list_meta_title": "@{username} comparte contigo su lista «{list}»",
   "list_meta_title_unsigned": "La lista «{list}», compartida contigo en {name}",
+  "list_meta_title_locked": "@{username} comparte contigo una lista",
   "list_picture_title": "Una lista de spots compartida contigo",
   "list_picture_text": "Sus spots solos en el mapa, con el mar de fondo, el viento y la marea en directo.",
   "list_picture_alt": "Una lista de spots compartida en {name}, sobre su mapa de Europa occidental, el mar coloreado según la altura de las olas.",
