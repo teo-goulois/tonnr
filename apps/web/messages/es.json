@@ -996,6 +996,8 @@
   "share_link": "Enlace",
   "share_copy": "Copiar",
   "share_copied": "Enlace copiado.",
+  "place_share_text": "{name} en {app}",
+  "place_link_copy_failed": "No se pudo copiar el enlace.",
   "share_copy_failed": "No se pudo copiar el enlace. Selecciónalo y cópialo a mano.",
   "share_members_none": "Aún no hay ninguna cuenta que guarde esta lista.",
   "share_members_one": "1 cuenta guarda esta lista.",

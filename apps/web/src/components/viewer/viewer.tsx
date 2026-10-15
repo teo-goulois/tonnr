@@ -67,6 +67,7 @@ import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import { CreateSheet } from "./create-sheet";
 import { DirectionsActions } from "./directions-actions";
+import { SharePlace } from "./share-place";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
@@ -978,6 +979,11 @@ export function Viewer({
       ? { stationId: shown.id }
       : ownSpot && { spotId: ownSpot.id };
 
+  // What a link sends to anyone: a break of the catalogue or a station. A spot is its owner's.
+  const sharedPlace = shown.breakId
+    ? shown.found.data && { breakId: shown.breakId }
+    : shown.id && { stationId: shown.id };
+
   // Adding a spot takes an account, which a visitor is asked for first.
   function addSpot() {
     if (signedIn) onPanelChange("add");
@@ -1481,6 +1487,7 @@ export function Viewer({
                   onManageLists={() => onPanelChange("saved")}
                 />
               )}
+              {sharedPlace && shownTitle && <SharePlace place={sharedPlace} name={shownTitle} />}
               {shownPlace && (
                 <DirectionsActions
                   place={{ latitude: shownPlace.latitude, longitude: shownPlace.longitude }}
