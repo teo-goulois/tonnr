@@ -9,7 +9,7 @@ import { googleProvider, type GoogleConfig, signInProviders } from "./google";
 import { invitations, oauthInvitation } from "./invitation";
 import { suspensionHooks } from "./suspension";
 import { keepsUsername, usernameHooks, usernames } from "./username";
-import { type Verification, VERIFICATION_SECONDS } from "./verification";
+import { RESET_SECONDS, type Verification, VERIFICATION_SECONDS } from "./verification";
 
 export type AuthConfig = GoogleConfig & {
   BETTER_AUTH_URL: string;
@@ -40,7 +40,17 @@ export function createAuth(
       ...(env.ADMIN_ORIGIN ? [env.ADMIN_ORIGIN] : []),
       ...desktopOrigins,
     ],
-    emailAndPassword: { enabled: true },
+    emailAndPassword: {
+      enabled: true,
+      // An account that forgot its password asks for a link by mail, which works once, for an
+      // hour, and its sessions everywhere are closed when it chooses another. The answer is the
+      // same whether the address has an account or not. Decision 026.
+      ...(verification?.isOn && {
+        sendResetPassword: verification.onResetAsked,
+        resetPasswordTokenExpiresIn: RESET_SECONDS,
+        revokeSessionsOnPasswordReset: true,
+      }),
+    },
     socialProviders,
     account: {
       accountLinking: { enabled: true, requireLocalEmailVerified: true, trustedProviders: [] },

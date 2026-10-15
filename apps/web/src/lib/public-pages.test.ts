@@ -29,7 +29,16 @@ describe("pageLinks", () => {
 
 describe("PUBLIC_PAGES", () => {
   it("leaves out what a search engine must not list", () => {
-    for (const page of ["/app", "/login", "/connect", "/verified", "/mail-off", "/design-system"]) {
+    for (const page of [
+      "/app",
+      "/login",
+      "/forgot-password",
+      "/reset-password",
+      "/connect",
+      "/verified",
+      "/mail-off",
+      "/design-system",
+    ]) {
       expect(PUBLIC_PAGES).not.toContain(page);
     }
   });

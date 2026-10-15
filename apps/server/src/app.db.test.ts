@@ -952,6 +952,138 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       });
       expect(asked.status).toBe(503);
     });
+
+    describe("and a new password, chosen by a link it is sent", () => {
+      const NEUTRAL = {
+        status: true,
+        message: "If this email exists in our system, check your email for the reset link",
+      };
+      const ask = (to: ReturnType<typeof createApp>, email: string, language?: string) =>
+        send(
+          "POST",
+          "/api/auth/request-password-reset",
+          { origin: APP, body: { email }, language },
+          to,
+        );
+      const choose = (to: ReturnType<typeof createApp>, token: string, newPassword: string) =>
+        send("POST", "/api/auth/reset-password", { origin: APP, body: { token, newPassword } }, to);
+      const signIn = (to: ReturnType<typeof createApp>, password: string) =>
+        send(
+          "POST",
+          "/api/auth/sign-in/email",
+          { origin: APP, body: { email: "ana@example.org", password } },
+          to,
+        );
+      // The mails for a new password, apart from the one that checks the address at sign-up.
+      const resets = (mailing: ReturnType<typeof make>) =>
+        mailing.sent().filter((mail) => !mail.subject.includes("Check your address"));
+      // The mail leaves after the answer: the test waits for it.
+      const sentOne = async (mailing: ReturnType<typeof make>, count = 1) => {
+        await vi.waitFor(() => expect(resets(mailing)).toHaveLength(count));
+        return new URL(mailing.link() ?? "");
+      };
+
+      it("answers the same whether the address has an account, and mails only the one that has", async () => {
+        const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+        await signUpTo(mailing.app, "ana");
+
+        const known = await ask(mailing.app, "ana@example.org", "es-ES,es;q=0.9");
+        const unknown = await ask(mailing.app, "nobody@example.org", "es-ES,es;q=0.9");
+
+        expect([known.status, await known.json()]).toEqual([200, NEUTRAL]);
+        expect([unknown.status, await unknown.json()]).toEqual([200, NEUTRAL]);
+        const link = await sentOne(mailing);
+        expect(resets(mailing)[0]).toMatchObject({ to: "ana@example.org" });
+        expect(resets(mailing)[0]?.subject).toContain("Elige una nueva contraseña");
+        // The link opens the page of the web app in the language of its mail, with its token.
+        expect(`${link.origin}${link.pathname}`).toBe(`${APP}/es/reset-password`);
+        expect(link.searchParams.get("token")).toMatch(/^\w{24}$/);
+      });
+
+      it("writes the mail in the language the account's alerts are sent in, once it is known", async () => {
+        const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+        const { cookie } = await signUpTo(mailing.app, "ana");
+        const { id } = await bodyOf<{ id: string }>(
+          await send("GET", "/v1/account", { cookie }, mailing.app),
+        );
+        await database.db.insert(alertSettings).values({ userId: id, locale: "pt" });
+
+        await ask(mailing.app, "ana@example.org", "fr-FR");
+
+        const link = await sentOne(mailing);
+        expect(resets(mailing)[0]?.subject).toContain("Escolhe uma nova palavra-passe");
+        expect(link.pathname).toBe("/pt/reset-password");
+      });
+
+      it("sets the new password once, closes every session of the account, and works no more", async () => {
+        const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+        const { cookie } = await signUpTo(mailing.app, "ana");
+        await ask(mailing.app, "ana@example.org");
+        const token = (await sentOne(mailing)).searchParams.get("token") ?? "";
+
+        const chosen = await choose(mailing.app, token, "a-new-made-up-password");
+
+        expect(chosen.status).toBe(200);
+        expect((await send("GET", "/v1/account", { cookie }, mailing.app)).status).toBe(401);
+        expect((await signIn(mailing.app, password)).status).toBe(401);
+        expect((await signIn(mailing.app, "a-new-made-up-password")).status).toBe(200);
+        // The link was spent: the password stays the one it chose.
+        const again = await choose(mailing.app, token, "yet-another-made-up-password");
+        expect(again.status).toBe(400);
+        expect(await again.json()).toMatchObject({ code: "INVALID_TOKEN" });
+        expect((await signIn(mailing.app, "a-new-made-up-password")).status).toBe(200);
+      });
+
+      it("refuses a link that is too old", async () => {
+        const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+        await signUpTo(mailing.app, "ana");
+        await ask(mailing.app, "ana@example.org");
+        const token = (await sentOne(mailing)).searchParams.get("token") ?? "";
+        await database.db.$client.query(
+          "update verification set expires_at = now() - interval '1 second' where identifier = $1",
+          [`reset-password:${token}`],
+        );
+
+        const chosen = await choose(mailing.app, token, "a-new-made-up-password");
+
+        expect(chosen.status).toBe(400);
+        expect((await signIn(mailing.app, password)).status).toBe(200);
+      });
+
+      it("mails an account three times an hour, and answers the same after", async () => {
+        // The mails of this test are counted in one hour: it does not start as an hour ends.
+        const { rows } = await database.db.$client.query(
+          "select extract(epoch from date_trunc('hour', now(), 'UTC') + interval '1 hour' - now())::float8 as left",
+        );
+        if (rows[0]?.left < 5) await new Promise((resolve) => setTimeout(resolve, 5500));
+        const mailing = make({ ...env, ADMIN_ORIGIN: ADMIN }, { on: true });
+        await signUpTo(mailing.app, "ana");
+        vi.mocked(console.error).mockClear();
+
+        for (let count = 1; count <= 3; count += 1) {
+          await ask(mailing.app, "ana@example.org");
+          await sentOne(mailing, count);
+        }
+        const fourth = await ask(mailing.app, "ana@example.org");
+
+        expect([fourth.status, await fourth.json()]).toEqual([200, NEUTRAL]);
+        await vi.waitFor(() =>
+          expect(console.error).toHaveBeenCalledWith("mail: no mail for a new password (account)"),
+        );
+        expect(resets(mailing)).toHaveLength(3);
+        // The account's checks of its address are counted apart, and are not spent by these.
+        expect(mailing.sent()).toHaveLength(4);
+      });
+
+      it("is refused by an instance that sends no mail", async () => {
+        await signUpTo(app, "ana");
+
+        const asked = await ask(app, "ana@example.org");
+
+        expect(asked.status).toBe(400);
+        expect(await asked.json()).toMatchObject({ code: "RESET_PASSWORD_DISABLED" });
+      });
+    });
   });
 
   describe("the console of a developer account", () => {

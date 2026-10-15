@@ -428,7 +428,7 @@ Provider setup follows [Better Auth's Google documentation](https://better-auth.
 
 ## Checking addresses by mail
 
-An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. Decision 026 gives the rules.
+An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. An account that forgot its password is mailed a link to choose another, which works once, for an hour: an instance without mail cannot do that, and its web app says so. Decision 026 gives the rules.
 
 Set these in `apps/server/.env`, or in the API's environment on another platform. The worker needs the same to send the mails of the alerts: "Alerts by mail" above says which.
 
@@ -440,9 +440,9 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 | `EMAIL_DAILY_LIMIT` | Optional. How many mails the instance lets out in a day. 200 without it.                                                                 |
 
 - The address in `EMAIL_FROM` must be one your provider lets you send from. Set up SPF and DKIM for its domain as the provider says, or the mails end in the spam folder.
-- The link in the mail opens the API, which sends the browser on to the web app at `/verified`, or under its language's prefix for a mail in another language, such as `/fr/verified`. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two.
-- Your provider learns the address of everyone who signs up, when, and the mail itself, link included. Turn off what it offers to track: opened mails and followed links. A provider that tracks links rewrites them, and keeps them.
-- The instance counts its mails and stops at the day's limit, the alerts' mails with the others. An account is sent three mails that check its address an hour at most, and five a day: its alert mails are counted apart. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
+- The link in the mail opens the API, which sends the browser on to the web app at `/verified`, or under its language's prefix for a mail in another language, such as `/fr/verified`. So `BETTER_AUTH_URL` and `CORS_ORIGIN` must be the public addresses of the two. The link for a new password opens the web app itself, at `/reset-password`, under the same prefix.
+- Your provider learns the address of everyone who signs up or asks for a new password, when, and the mail itself, link included. Turn off what it offers to track: opened mails and followed links. A provider that tracks links rewrites them, and keeps them.
+- The instance counts its mails and stops at the day's limit, the alerts' mails with the others. An account is sent three mails that check its address an hour at most, and five a day, and as many for a new password: its alert mails are counted apart. Someone who signs up again and again with made-up addresses spends the day's mails: the page "Instance" of the admin shows the count.
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
 - The log keeps how a mail failed, never to whom it went.
 - The landing's form sends the ideas of its readers, and `/contact` their messages, to `CONTACT_EMAIL`, in `packages/config/src/app.ts`, through the same mail: put your own address there. 20 a day at most, counted with the day's mails. Without mail, the form gives that address to write to.

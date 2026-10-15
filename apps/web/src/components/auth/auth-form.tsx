@@ -35,7 +35,8 @@ type AuthFormProps = {
   returnTo?: string | undefined;
 };
 
-function Field({
+/** A field of a form of the sign-in, with its label, what is wrong with it, or its hint. */
+export function Field({
   label,
   errors,
   hint,
@@ -253,6 +254,18 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }
         )}
       </form.Subscribe>
 
+      {/* A sign-up says what it accepts, and a sign-in offers a new password in the same place,
+          so that the form keeps about the same height. */}
+      {!isSignUp && (
+        <p className="text-center text-s text-neutral-7">
+          <Link
+            to="/forgot-password"
+            className="focus-ring rounded-xs underline underline-offset-2"
+          >
+            {m.auth_forgot_password()}
+          </Link>
+        </p>
+      )}
       {isSignUp && (
         <p className="text-center text-s text-neutral-7">
           {m.auth_accept_terms()}{" "}

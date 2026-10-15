@@ -73,7 +73,20 @@ export function localeOf(acceptLanguage: string | null | undefined): Locale {
  * nothing that is loaded from elsewhere. `link` is the instance's own, made by the API.
  */
 export function verificationMail(to: string, link: string, locale: Locale): Mail {
-  const words = WORDS[locale];
+  return linkMail(to, link, locale, WORDS[locale]);
+}
+
+/**
+ * A plain mail with one link: what it is about, the link as a button and as text, and what
+ * follows. Nothing in it is loaded from elsewhere. The mails of an account's own address are
+ * written so.
+ */
+export function linkMail(
+  to: string,
+  link: string,
+  locale: Locale,
+  words: { subject: string; intro: string; button: string; after: string },
+): Mail {
   const text = `${words.intro}\n\n${link}\n\n${words.after}\n`;
   const html = [
     `<!doctype html><html lang="${locale}"><body style="font-family: sans-serif; line-height: 1.5;">`,
