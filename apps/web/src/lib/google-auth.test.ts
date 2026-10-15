@@ -26,6 +26,22 @@ describe("Google sign-in returns", () => {
     expect(authReturnTo("/fr/connect#sig=private")).toBe("/fr/connect");
   });
 
+  it("does the same in every language", () => {
+    for (const prefix of ["/es", "/pt"]) {
+      expect(googleReturnURL(`https://tonnr.test${prefix}/login`)).toBe(
+        `https://tonnr.test${prefix}/app`,
+      );
+      const error = new URL(googleErrorURL(`https://tonnr.test${prefix}/app?spot=north`));
+      expect(error.pathname).toBe(`${prefix}/login`);
+      expect(error.searchParams.get("returnTo")).toBe(`${prefix}/app?spot=north`);
+      expect(authReturnTo(`${prefix}/app?spot=north`)).toBe(`${prefix}/app?spot=north`);
+      expect(authReturnTo(`${prefix}/connect#sig=private`)).toBe(`${prefix}/connect`);
+      expect(googleReturnURL(`https://tonnr.test${prefix}/connect#sig=private`)).toBe(
+        `https://tonnr.test${prefix}/connect`,
+      );
+    }
+  });
+
   it("refuses external and unrelated return destinations", () => {
     for (const url of [
       "//evil.test",
@@ -33,6 +49,8 @@ describe("Google sign-in returns", () => {
       "https://evil.test",
       "/login",
       "/app/../login",
+      "/de/app",
+      "/es/login",
       42,
     ]) {
       expect(authReturnTo(url)).toBeUndefined();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readAsked } from "./agent-sign-in";
+import { isConnectPage, readAsked } from "./agent-sign-in";
 
 describe("readAsked", () => {
   const query =
@@ -28,5 +28,14 @@ describe("readAsked", () => {
     expect(readAsked("")).toBeNull();
     expect(readAsked("?client_id=abc")).toBeNull();
     expect(readAsked("?sig=signed")).toBeNull();
+  });
+});
+
+describe("isConnectPage", () => {
+  it("knows the page in every language, and no other", () => {
+    for (const path of ["/connect", "/fr/connect", "/es/connect", "/pt/connect/"])
+      expect(isConnectPage(path)).toBe(true);
+    for (const path of ["/app", "/de/connect", "/es/connect/more", "/connecting"])
+      expect(isConnectPage(path)).toBe(false);
   });
 });

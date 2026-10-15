@@ -1,3 +1,5 @@
+import { LOCALES } from "@repo/config/locales";
+
 import { ENV } from "../env.public";
 
 // What the page where an account signs an agent in is asked: decision 047. An assistant
@@ -39,6 +41,10 @@ export function readAsked(search: string): Asked | null {
   };
 }
 
+/** Whether an address is the page's, in any language. */
+export const isConnectPage = (pathname: string) =>
+  new RegExp(`^(?:/(?:${LOCALES.filter((l) => l !== "en").join("|")}))?/connect/?$`).test(pathname);
+
 /**
  * What the app was opened with, read once as it starts: what follows `#` in the address. It
  * is kept for this tab, so that a sign-in that leaves the page and comes back without it, as
@@ -46,7 +52,7 @@ export function readAsked(search: string): Asked | null {
  */
 function atStart(): Asked | null {
   if (typeof window === "undefined") return null;
-  if (!/^\/(fr\/)?connect\/?$/.test(window.location.pathname)) return null;
+  if (!isConnectPage(window.location.pathname)) return null;
   const asked = readAsked(window.location.hash.replace(/^#/, ""));
   try {
     if (asked) window.sessionStorage.setItem(KEPT, asked.query);
