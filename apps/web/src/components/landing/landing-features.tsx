@@ -204,9 +204,14 @@ function Sea() {
 // A buoy's waves over a day and a half, and the model's over two: the buoy's end where it is now.
 const CHART = { width: 300, height: 104, left: 18, top: 6, bottom: 96, min: 0.8, max: 3.2 };
 const NOW = 0.62;
-const chartX = (share: number) => CHART.left + share * (CHART.width - CHART.left);
+// A coordinate written in the page is rounded: the server and the browser compute its last
+// digits differently, and the page would not match what the server sent.
+const rounded = (value: number) => Math.round(value * 100) / 100;
+const chartX = (share: number) => rounded(CHART.left + share * (CHART.width - CHART.left));
 const chartY = (meters: number) =>
-  CHART.bottom - ((meters - CHART.min) / (CHART.max - CHART.min)) * (CHART.bottom - CHART.top);
+  rounded(
+    CHART.bottom - ((meters - CHART.min) / (CHART.max - CHART.min)) * (CHART.bottom - CHART.top),
+  );
 const modelAt = (share: number) => 2 + 0.6 * Math.cos(3.9 * share) + 0.15 * Math.sin(9 * share);
 // A buoy reads the sea with its noise, the same each time it is drawn.
 const noise = (index: number) => {
@@ -543,9 +548,9 @@ const tideAt = (hours: number) =>
   TIDE.mean + TIDE.range * Math.cos((2 * Math.PI * (hours - TIDE.high)) / TIDE.period);
 const tideRising = (hours: number) =>
   Math.sin((2 * Math.PI * (hours - TIDE.high)) / TIDE.period) < 0;
-const tideX = (hours: number) => (hours / TIDE.hours) * TIDE_BOX.width;
+const tideX = (hours: number) => rounded((hours / TIDE.hours) * TIDE_BOX.width);
 const tideY = (meters: number) =>
-  TIDE_BOX.bottom - (meters / TIDE_BOX.max) * (TIDE_BOX.bottom - TIDE_BOX.top);
+  rounded(TIDE_BOX.bottom - (meters / TIDE_BOX.max) * (TIDE_BOX.bottom - TIDE_BOX.top));
 const TIDE_LINE = Array.from({ length: 97 }, (_, index) => {
   const hours = (index / 96) * TIDE.hours;
   return `${index ? "L" : "M"}${tideX(hours).toFixed(1)} ${tideY(tideAt(hours)).toFixed(1)}`;
