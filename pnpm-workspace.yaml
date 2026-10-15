@@ -33,3 +33,7 @@ catalog:
   "@neaps/tide-database": 0.9.20260907
   "@neaps/tide-predictor": 0.11.0
   effect: 4.0.0
+overrides:
+  # drizzle-orm takes valibot as an optional peer and would otherwise share the 1.2.0 that
+  # alchemy's tooling pins, which GHSA-5qjj-4xww-7phc names. Nothing here imports it.
+  "drizzle-orm>valibot": ^1.4.2
