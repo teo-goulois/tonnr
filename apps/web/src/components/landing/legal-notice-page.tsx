@@ -32,8 +32,12 @@ export function LegalNoticePage() {
               {host.name}
               <br />
               {host.address}
-              <br />
-              {host.phone}
+              {host.phone && (
+                <>
+                  <br />
+                  {host.phone}
+                </>
+              )}
             </p>
           </div>
         ))}

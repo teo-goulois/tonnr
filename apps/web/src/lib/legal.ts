@@ -15,7 +15,7 @@ export const PUBLISHER = {
 /** What each host holds: the web app, or the API with its database and its worker. */
 export type Hosted = "web" | "api";
 
-export const HOSTS: { hosts: Hosted; name: string; address: string; phone: string }[] = [
+export const HOSTS: { hosts: Hosted; name: string; address: string; phone?: string }[] = [
   {
     hosts: "web",
     name: "Cloudflare, Inc.",
@@ -25,8 +25,7 @@ export const HOSTS: { hosts: Hosted; name: string; address: string; phone: strin
   {
     hosts: "api",
     name: "Scaleway SAS",
-    address: "8 rue de la Ville l'Évêque, 75008 Paris, France",
-    phone: "+33 1 84 13 00 00",
+    address: "8 rue de la Ville-l'Évêque, 75008 Paris, France",
   },
 ];
 
@@ -41,7 +40,7 @@ export const RECIPIENTS: {
 }[] = [
   { name: "Cloudflare", does: m.privacy_does_web, where: m.privacy_where_us },
   { name: "Scaleway", does: m.privacy_does_api, where: m.privacy_where_france },
-  { name: "Unosend", does: m.privacy_does_mail },
+  { name: "Unosend", does: m.privacy_does_mail, where: m.privacy_where_us },
   { name: "PostHog", does: m.privacy_does_analytics, where: m.privacy_where_eu },
   { name: "Google", does: m.privacy_does_google, where: m.privacy_where_us },
   { name: "komoot (Photon)", does: m.privacy_does_search, where: m.privacy_where_germany },

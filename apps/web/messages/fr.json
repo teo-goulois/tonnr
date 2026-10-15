@@ -1146,7 +1146,7 @@
   "privacy_where_france": "France",
   "privacy_where_eu": "Union européenne",
   "privacy_where_germany": "Allemagne",
-  "privacy_recipients_transfer": "Cloudflare et Google sont aux États-Unis. Tous deux adhèrent au Data Privacy Framework UE–États-Unis, par lequel la Commission européenne estime que les données qui leur sont envoyées sont protégées de façon adéquate.",
+  "privacy_recipients_transfer": "Cloudflare, Google et Unosend sont aux États-Unis. Cloudflare et Google adhèrent au Data Privacy Framework UE–États-Unis, par lequel la Commission européenne estime que les données qui leur sont envoyées sont protégées de façon adéquate. Unosend les reçoit sous les clauses contractuelles types de la Commission européenne, que contient son accord de traitement des données.",
   "privacy_recipients_none": "Personne d'autre ne reçoit tes données. Elles ne sont jamais vendues, et l'application n'affiche aucune publicité.",
   "privacy_keep_title": "Combien de temps",
   "privacy_keep_account": "Ton compte et ce que tu y enregistres : jusqu'à la suppression du compte.",
