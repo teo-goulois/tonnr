@@ -13,7 +13,9 @@ export class UpstreamError extends Schema.TaggedError<UpstreamError>()("Upstream
   cause: Schema.optional(Schema.Defect()),
 }) {}
 
-// Three more attempts, 0.5 s, 1 s, then 2 s apart, and only for failures worth retrying.
+// Three more attempts, 0.5 s, 1 s, then 2 s apart, and only for failures worth retrying: a
+// network failure or an error of the provider's. A provider that says the instance asks too
+// much, 429, is not asked again: asking again is what it refuses.
 const retrySchedule = Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(3)]).pipe(
   Schedule.setInputType<UpstreamError>(),
   Schedule.while(({ input }) => input.retryable),
@@ -31,7 +33,7 @@ class StatusError extends Error {
  */
 export type RequestHeaders = Readonly<Record<string, string>>;
 
-/** Fetches a document from a provider and reads its body, retrying network failures and 5xx answers. */
+/** Fetches a document from a provider and reads its body, retrying network failures and 5xx answers. A 429 is not retried. */
 const fetchBody = Effect.fn("fetchBody")(function* <Body>(
   url: string,
   read: (response: Response) => Promise<Body>,
@@ -68,7 +70,7 @@ const fetchBody = Effect.fn("fetchBody")(function* <Body>(
         ? new UpstreamError({
             url,
             status: cause.status,
-            retryable: cause.status >= 500 || cause.status === 429,
+            retryable: cause.status >= 500,
           })
         : // A file that is too large stays too large: asking again would only download it again.
           new UpstreamError({ url, retryable: !(cause instanceof TooLargeError), cause }),

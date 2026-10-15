@@ -135,13 +135,16 @@ describe("fetchJsonOnce", () => {
   });
 
   it("does not ask again after a refusal or a failure of the provider", async () => {
-    for (const status of [429, 503]) {
+    for (const [status, retryable] of [
+      [429, false],
+      [503, true],
+    ] as const) {
       const { url, seen } = await provider((_, response) => {
         response.statusCode = status;
         response.end("busy");
       });
 
-      expect(await failure(fetchJsonOnce(url))).toMatchObject({ status, retryable: true });
+      expect(await failure(fetchJsonOnce(url))).toMatchObject({ status, retryable });
       expect(seen.requests).toBe(1);
     }
   });
