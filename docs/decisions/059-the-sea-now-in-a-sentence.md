@@ -24,7 +24,7 @@ The catalogue says of 2,407 breaks what they like: the directions of swell and w
 
 ### The button
 
-- Under the sentence, one button, "Set my alert for this spot", leads to `/app?break=<id>&create=alert`. The map opens on the break. A visitor is asked for an account. An account that has a spot at that break opens the alert's editor there. One that has none is led to make one at the break, with its name, and the editor opens on the spot once it is saved. The address keeps `create=alert` until the editor opens, so that a sign-in or a saved spot takes the reader on.
+- Under the sentence, one button, "Set my alert for this spot", leads to `/app?break=<id>&create=alert`. The map opens on the break. A visitor is asked for an account. An account that has a spot at that break opens the alert's editor there. One that has none gets one made at the break, with its name and its point, and the editor opens on it: the reader goes from the break to the alert's name and conditions with no step between, which Téo asked for on 2026-10-16, after a first version led to the panel that adds a spot, where the place could be chosen again. The address keeps `create=alert` until the editor opens, so that a sign-in or a saved spot takes the reader on.
 - `create` is a parameter of `/app` beside the others, read by the viewer: nothing else changes in the app.
 
 ## Rejected

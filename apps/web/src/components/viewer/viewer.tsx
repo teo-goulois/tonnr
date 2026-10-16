@@ -241,6 +241,8 @@ type ViewerProps = {
   // begun, or is in hand. Decision 059.
   wants?: { breakId?: string; spotId?: string };
   onWanted?: () => void;
+  // Makes the account's spot of a break, named after it, then asks for the alert there.
+  onSpotForAlert?: (breakId: string) => void;
   lists: Loadable<SavedList[]>;
   // The stations and the surf breaks the lists name, by id.
   savedStations: Map<string, Station>;
@@ -496,6 +498,7 @@ export function Viewer({
   signedIn,
   wants,
   onWanted,
+  onSpotForAlert,
   lists,
   savedStations,
   savedBreaks,
@@ -1072,10 +1075,9 @@ export function Viewer({
   }
 
   // An alert asked from the page of a break: a visitor is asked for an account once, an
-  // account with a spot at the break opens the editor there, and one without is led to make
-  // the spot at the break, after which the route asks again with the spot. Decision 059.
+  // account with a spot at the break opens the editor there, and one without has the spot made
+  // at the break, named after it, after which the route asks again with the spot. Decision 059.
   const asked = useRef<string | null>(null);
-  const wantedBreak = wants?.breakId ? shownBreak : undefined;
   useEffect(() => {
     // An alert asked again at the same place, once the first is begun, is asked anew.
     if (!wants || !onWanted) {
@@ -1103,11 +1105,9 @@ export function Viewer({
       onWanted();
       return;
     }
-    const at = wantedBreak?.data;
-    if (!at) return;
+    if (!wants.breakId || !onSpotForAlert) return;
     asked.current = key;
-    onPanelChange("add");
-    adding.onPlace({ latitude: at.latitude, longitude: at.longitude }, at.id, at.name);
+    onSpotForAlert(wants.breakId);
   });
 
   // A phone searches in a sheet, and a wide screen in the command palette, where a spot is
