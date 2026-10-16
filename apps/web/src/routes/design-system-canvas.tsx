@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DesignSystemCanvas } from "@/components/design-system/design-system-canvas";
+import { DesignSystemAgentation } from "@/components/design-system/agentation";
 
 export const Route = createFileRoute("/design-system-canvas")({
   beforeLoad: () => {
@@ -11,5 +12,10 @@ export const Route = createFileRoute("/design-system-canvas")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-  component: DesignSystemCanvas,
+  component: () => (
+    <>
+      <DesignSystemCanvas />
+      <DesignSystemAgentation />
+    </>
+  ),
 });

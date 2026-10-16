@@ -1,11 +1,17 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DesignSystemPage } from "@/components/design-system/design-system-page";
+import { DesignSystemAgentation } from "@/components/design-system/agentation";
 
 export const Route = createFileRoute("/design-system")({
   // The page never ships: a production build answers 404.
   beforeLoad: () => {
     if (!import.meta.env.DEV) throw notFound();
   },
-  component: DesignSystemPage,
+  component: () => (
+    <>
+      <DesignSystemPage />
+      <DesignSystemAgentation />
+    </>
+  ),
 });
