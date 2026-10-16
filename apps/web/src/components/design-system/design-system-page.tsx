@@ -60,6 +60,7 @@ import {
   TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip-popup";
 import { ArrowRightIcon, GoogleIcon, PlusIcon } from "@repo/ui/icon";
+import { DENSITIES, densityName } from "@/lib/density";
 import { m } from "@/paraglide/messages.js";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -93,7 +94,9 @@ import {
   UserDot,
   WindBadge,
 } from "@/components/viewer/map-markers";
+import { Details } from "@/components/viewer/details/details";
 import { NearbyWindStation } from "@/components/viewer/details/parts";
+import { SeaNow } from "@/components/viewer/details/sea-now";
 import { SeaChart } from "@/components/viewer/sea-chart";
 import { TideChart } from "@/components/viewer/tide-chart";
 import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
@@ -365,6 +368,14 @@ const SAMPLE_CHIPS = [
   { id: "landes", name: "Landes", isDefault: false },
 ];
 const SAMPLE_JOINED_CHIPS = [{ id: "trip", name: "Trip to Galicia", isDefault: false }];
+// What the sample spot says of itself, for the sentence of the sea now to be judged by.
+const SAMPLE_WORDS = {
+  bestTides: ["mid", "mid_high"],
+  bestSwellDirections: ["W", "WNW"],
+  bestWindDirections: ["E", "ESE"],
+  offshoreDirectionDegrees: 110,
+  waveSizeMeters: { min: 1, max: 3 },
+};
 const LOADED = { isPending: false, isError: false };
 const LOADING = { data: undefined, isPending: true, isError: false };
 // What a panel is given of the forecast and the tide when none is asked for.
@@ -1081,6 +1092,50 @@ export function DesignSystemPage() {
 
       <Section title="Public page of a surf break">
         <SpotPageSamples />
+      </Section>
+
+      <Section title="Forecast panel at three densities">
+        {/* The same spot at each density, with its words to be judged by: decision 061. */}
+        <div className="grid gap-m lg:grid-cols-3">
+          {DENSITIES.map((density) => (
+            <div key={density} className="edge grid content-start gap-s rounded-(--radius-xs) p-m">
+              <p className="text-s font-medium text-neutral-7">{densityName(density)}</p>
+              <Details
+                density={density}
+                spot={{ latitude: 48.34, longitude: -4.62 }}
+                words={SAMPLE_WORDS}
+                now={SAMPLE_NOW}
+                forecast={{ data: SAMPLE_FORECAST, ...LOADED }}
+                tides={{ data: SAMPLE_TIDES, ...LOADED }}
+                extremes={{ data: SAMPLE_EXTREMES, ...LOADED }}
+                offshoreFrom={SAMPLE_WORDS.offshoreDirectionDegrees}
+                nearbyWind={{ station: SAMPLE_WIND_STATION, distanceKm: 4 }}
+                footer={null}
+              />
+            </div>
+          ))}
+        </div>
+        {/* The sentence alone: at a place without words, as a buoy, and while it loads. */}
+        <div className="grid max-w-96 gap-xs">
+          <SeaNow
+            waves={{ height: 1.6, period: 11, direction: 290 }}
+            wind={{ knots: 9, direction: 250, atShore: null }}
+            tide={{
+              trend: "falling",
+              next: { type: "low", time: new Date(SAMPLE_NOW + 3 * HOUR_MS) },
+            }}
+            verdict={null}
+            isLoading={false}
+          />
+          <SeaNow waves={{}} wind={{ atShore: null }} tide={null} verdict={null} isLoading />
+          <SeaNow
+            waves={{}}
+            wind={{ atShore: null }}
+            tide={null}
+            verdict={null}
+            isLoading={false}
+          />
+        </div>
       </Section>
 
       <Section title="Viewer skeleton">
