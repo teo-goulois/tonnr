@@ -195,14 +195,33 @@ export function DesignSystemCanvas() {
     const wheel = (event: WheelEvent) => {
       const zooming = event.ctrlKey || event.metaKey;
       // Browser zoom belongs to the camera, including over previews, controls and portals.
-      // Ordinary scrolling stays with the preview that received it.
+      // A group's frame and ordinary components do not stop trackpad panning. Only an
+      // actual scrollable viewport keeps the gesture, along the axes it can scroll.
       if (!zooming) {
         if (
           !(event.target instanceof Element) ||
           !host.contains(event.target) ||
-          event.target.closest("[data-canvas-preview], [data-canvas-controls]")
+          event.target.closest(
+            '[data-canvas-controls], select, input[type="number"], input[type="range"]',
+          )
         )
           return;
+        for (
+          let node: Element | null = event.target;
+          node && node !== host;
+          node = node.parentElement
+        ) {
+          const style = getComputedStyle(node);
+          if (
+            (event.deltaY !== 0 &&
+              /^(auto|scroll)$/.test(style.overflowY) &&
+              node.scrollHeight > node.clientHeight) ||
+            (event.deltaX !== 0 &&
+              /^(auto|scroll)$/.test(style.overflowX) &&
+              node.scrollWidth > node.clientWidth)
+          )
+            return;
+        }
       }
       event.preventDefault();
       // Safari may emit wheel events alongside its native gesture events.
@@ -470,10 +489,12 @@ export function DesignSystemCanvas() {
     >
       <p id="canvas-keys" className="sr-only">
         Pan on empty space, or hold Alt or Option and drag over a component. Space and drag also
-        pans, including after focusing a component, except while editing text. Control-scroll zooms
-        around the pointer. On the canvas, use arrows to pan, plus and minus to zoom, and Home to
-        fit all. Control or Command with plus and minus also zooms the canvas, and with zero resets
-        its camera. Preview controls keep their own editing keys. Preview links stay here.
+        pans, including after focusing a component, except while editing text. Trackpad scrolling
+        pans over groups and components; scrollable previews keep their own scrolling.
+        Control-scroll zooms around the pointer. On the canvas, use arrows to pan, plus and minus to
+        zoom, and Home to fit all. Control or Command with plus and minus also zooms the canvas, and
+        with zero resets its camera. Preview controls keep their own editing keys. Preview links
+        stay here.
       </p>
       <div
         data-canvas-space

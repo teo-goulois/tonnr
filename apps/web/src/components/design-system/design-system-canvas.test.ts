@@ -21,6 +21,11 @@ vi.mock("./canvas-samples", () => ({
           { onPointerDown: previewPress.down, onClick: previewPress.click },
           "Preview action",
         ),
+        createElement(
+          "div",
+          { "aria-label": "Scrollable preview", style: { overflowY: "auto", height: 80 } },
+          createElement("span", {}, "Scrollable contents"),
+        ),
       ),
     ),
 }));
@@ -211,7 +216,7 @@ describe("the canvas shell around native preview controls", () => {
     expect(host.dataset.panReady).toBe("false");
   });
 
-  it("coalesces wheel movements and leaves input keys, wheel events and drafts alone", () => {
+  it("keeps trackpad panning continuous across groups and components without changing drafts", () => {
     const { container } = render(createElement(DesignSystemCanvas));
     const host = screen.getByRole("region", { name: "Design system canvas" });
     const world = container.querySelector<HTMLElement>("[data-canvas-world]")!;
@@ -222,8 +227,16 @@ describe("the canvas shell around native preview controls", () => {
     expect(world.style.transform).toBe(before);
     frame();
     expect(world.style.transform).toBe("translate(-68px, 30px) scale(0.65)");
+    expect(fireEvent.wheel(draft, { deltaX: 200 })).toBe(false);
+    expect(
+      fireEvent.wheel(screen.getByRole("button", { name: "Preview action" }), { deltaY: 40 }),
+    ).toBe(false);
+    expect(fireEvent.wheel(container.querySelector("[data-canvas-preview]")!, { deltaX: 20 })).toBe(
+      false,
+    );
+    frame();
+    expect(world.style.transform).toBe("translate(-288px, -10px) scale(0.65)");
     const moved = world.style.transform;
-    expect(fireEvent.wheel(draft, { deltaX: 200 })).toBe(true);
     fireEvent.keyDown(draft, { key: "ArrowRight" });
     frame();
     expect(world.style.transform).toBe(moved);
@@ -237,6 +250,40 @@ describe("the canvas shell around native preview controls", () => {
       version: 1,
       camera: { x: 32, y: 80, zoom: 0.65 },
     });
+  });
+
+  it("preserves real nested scrolling, but pans when the viewport has no overflow on that axis", () => {
+    const { container } = render(createElement(DesignSystemCanvas));
+    const world = container.querySelector<HTMLElement>("[data-canvas-world]")!;
+    const scroll = screen.getByLabelText("Scrollable preview");
+    const target = screen.getByText("Scrollable contents");
+    Object.defineProperties(scroll, {
+      clientHeight: { value: 80 },
+      scrollHeight: { value: 300, configurable: true },
+      clientWidth: { value: 100 },
+      scrollWidth: { value: 100 },
+    });
+    const before = world.style.transform;
+    expect(fireEvent.wheel(target, { deltaY: 40 })).toBe(true);
+    scroll.scrollTop = 220;
+    // Keep the inner gesture at its edge too, rather than abruptly moving the canvas.
+    expect(fireEvent.wheel(target, { deltaY: 40 })).toBe(true);
+    expect(fireEvent.wheel(screen.getByRole("button", { name: "Zoom in" }), { deltaY: 40 })).toBe(
+      true,
+    );
+    frame();
+    expect(world.style.transform).toBe(before);
+    expect(fireEvent.wheel(target, { deltaX: 50 })).toBe(false);
+    frame();
+    expect(world.style.transform).toBe("translate(-18px, 80px) scale(0.65)");
+    Object.defineProperty(scroll, "scrollHeight", { value: 80 });
+    expect(fireEvent.wheel(target, { deltaY: 30 })).toBe(false);
+    frame();
+    expect(world.style.transform).toBe("translate(-18px, 50px) scale(0.65)");
+    // Pinch zoom still belongs to the camera above nested scrolling.
+    expect(fireEvent.wheel(target, { ctrlKey: true, deltaY: -10 })).toBe(false);
+    frame();
+    expect(world.style.transform).not.toContain("scale(0.65)");
   });
 
   it("routes modified wheel and browser zoom keys to the camera over previews and portals", () => {
