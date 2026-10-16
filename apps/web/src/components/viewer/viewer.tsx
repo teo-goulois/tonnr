@@ -153,8 +153,9 @@ export type AddingSpot = {
   isSaving: boolean;
   onQueryChange: (query: string) => void;
   onPick: (found: FoundPlace) => void;
-  // The marker was put somewhere on the map, on a break of the catalogue or not.
-  onPlace: (point: MapPoint, breakId?: string) => void;
+  // The marker was put somewhere on the map, on a break of the catalogue or not. A break the
+  // map has not loaded gives its name with it.
+  onPlace: (point: MapPoint, breakId?: string, name?: string) => void;
   onNameChange: (name: string) => void;
   onSave: () => void;
 };
@@ -226,6 +227,11 @@ type ViewerProps = {
   onOpenBuoy: (stationId: string | undefined) => void;
   panel: ViewerPanel | undefined;
   signedIn: boolean;
+  // What the page of a break asked the map to begin: an alert, at the spot named, or at the
+  // account's spot of the break named, made first when it has none. `onWanted` says it was
+  // begun, or is in hand. Decision 059.
+  wants?: { breakId?: string; spotId?: string };
+  onWanted?: () => void;
   lists: Loadable<SavedList[]>;
   // The stations and the surf breaks the lists name, by id.
   savedStations: Map<string, Station>;
@@ -477,6 +483,8 @@ export function Viewer({
   onOpenBuoy,
   panel,
   signedIn,
+  wants,
+  onWanted,
   lists,
   savedStations,
   savedBreaks,
@@ -1008,6 +1016,41 @@ export function Viewer({
     setAlertAsked((asked) => ({ spotId, isNew: true, count: asked.count + 1 }));
     onSelectSpot(spotId);
   }
+
+  // An alert asked from the page of a break: a visitor is asked for an account once, an
+  // account with a spot at the break opens the editor there, and one without is led to make
+  // the spot at the break, after which the route asks again with the spot. Decision 059.
+  const asked = useRef<string | null>(null);
+  const wantedBreak = wants?.breakId ? shownBreak : undefined;
+  useEffect(() => {
+    if (!wants || !onWanted) return;
+    const key = `${wants.breakId ?? ""}/${wants.spotId ?? ""}/${signedIn}`;
+    if (asked.current === key) return;
+    if (!signedIn) {
+      asked.current = key;
+      requireAccount(m.auth_reason_add_alert());
+      return;
+    }
+    if (wants.spotId) {
+      asked.current = key;
+      createAlert(wants.spotId);
+      onWanted();
+      return;
+    }
+    if (ownSpots === undefined) return;
+    const mine = ownSpots.find((spot) => spot.breakId === wants.breakId);
+    if (mine) {
+      asked.current = key;
+      createAlert(mine.id);
+      onWanted();
+      return;
+    }
+    const at = wantedBreak?.data;
+    if (!at) return;
+    asked.current = key;
+    onPanelChange("add");
+    adding.onPlace({ latitude: at.latitude, longitude: at.longitude }, at.id, at.name);
+  });
 
   // A phone searches in a sheet, and a wide screen in the command palette, where a spot is
   // found by its name too.

@@ -72,6 +72,9 @@ export const Route = createFileRoute("/app/")({
     invite: z.string().max(64).optional(),
     // The tab a break's panel opens on: its forecast when left out.
     tab: z.enum(["guide"]).optional(),
+    // What the page of a break asks the map to begin: an alert at the break, on a spot of the
+    // account's own there, made first when it has none. Decision 059.
+    create: z.enum(["alert"]).optional(),
     // The buoy opened from a surf break, over the break's panel.
     buoy: z.string().optional(),
     // The list the map shows alone: one of the account's or one it kept, by its id, or one that
@@ -951,9 +954,9 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     });
     setQuery("");
   }
-  function place(at: MapPoint, breakId?: string) {
+  function place(at: MapPoint, breakId?: string, named?: string) {
     const on = breakId ? breaks.data?.breaks.find((one) => one.id === breakId) : undefined;
-    const name = nameFor(draft, on?.name);
+    const name = nameFor(draft, on?.name ?? named);
     if (name) setSuggested(name);
     setDraft({ name: name ?? draft.name, point: at, breakId });
   }
@@ -984,8 +987,13 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         setQuery("");
         toast.success(m.spot_saved({ name: made.name }));
         setMadeId(made.id);
-        // The spot opens, unless the user has gone elsewhere meanwhile.
-        if (onScreen.current.panel === "add") void navigate({ search: { spot: made.id } });
+        // The spot opens, unless the user has gone elsewhere meanwhile. A spot made for an
+        // alert asked from a page opens on its editor: the asking stays in the address.
+        if (onScreen.current.panel === "add") {
+          void navigate({
+            search: (previous) => ({ spot: made.id, create: previous.create }),
+          });
+        }
       },
       // The draft stays as it was: the panel is still open on it.
       onError: (error) => toast.error(error.message),
@@ -1254,6 +1262,14 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       panel={panel}
       signedIn={signedIn}
+      wants={
+        search.create === "alert" && (selectedBreakId || selectedSpotId)
+          ? { breakId: selectedBreakId, spotId: selectedSpotId }
+          : undefined
+      }
+      onWanted={() =>
+        void navigate({ search: (previous) => ({ ...previous, create: undefined }), replace: true })
+      }
       lists={loadable(lists)}
       savedStations={savedStations}
       savedBreaks={savedBreaks}
@@ -1346,8 +1362,9 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({
           search: (previous) =>
+            // An alert asked from a page stays asked while the spot it goes on is added.
             next === "add"
-              ? { panel: next }
+              ? { panel: next, create: previous.create }
               : !wide && isTabPanel(next)
                 ? { ...mode, panel: next }
                 : { ...previous, panel: next, settings: undefined },
