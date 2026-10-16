@@ -70,6 +70,7 @@ import { ConnectPage } from "@/components/auth/connect-page";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { LearnSamples } from "@/components/design-system/learn-samples";
+import { ProfileSamples, SAMPLE_PROFILE } from "@/components/design-system/profile-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
 import { SpotPageSamples } from "@/components/design-system/spot-page-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
@@ -1051,6 +1052,8 @@ export function DesignSystemPage() {
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
               onOpenSessions={() => {}}
+              profile={SAMPLE_PROFILE}
+              onOpenProfile={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -1065,6 +1068,8 @@ export function DesignSystemPage() {
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
               onOpenSessions={() => {}}
+              profile={null}
+              onOpenProfile={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -1079,9 +1084,14 @@ export function DesignSystemPage() {
               onOpenContributions={() => {}}
               onOpenFriends={() => {}}
               onOpenSessions={() => {}}
+              onOpenProfile={() => {}}
             />
           </div>
         </div>
+      </Section>
+
+      <Section title="Surfer profile, and the questions a new account is asked">
+        <ProfileSamples />
       </Section>
 
       <Section title="Guide of a break, and contributions">

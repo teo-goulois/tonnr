@@ -289,6 +289,7 @@ const ACCOUNT_TOOLS = [
   ["list_my_sessions", m.agents_tool_list_my_sessions],
   ["get_my_session", m.agents_tool_get_my_session],
   ["get_my_sessions_recap", m.agents_tool_get_my_sessions_recap],
+  ["get_my_surfer_profile", m.agents_tool_get_my_surfer_profile],
 ] as const;
 
 function Tools({

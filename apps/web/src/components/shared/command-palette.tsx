@@ -250,6 +250,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "sessions" } }),
         },
         {
+          value: `${m.profile_title()} profile profil level niveau waves vagues boards planches surfer`,
+          label: m.profile_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "profile" } }),
+        },
+        {
           value: `${m.contributions_title()} contributions guides community rank score points`,
           label: m.contributions_title(),
           run: () =>

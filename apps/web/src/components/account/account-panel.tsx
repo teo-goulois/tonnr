@@ -21,6 +21,8 @@ import { points } from "../guides/contributions-panel";
 import { RANKS } from "../guides/guide-words";
 import { RankBadge } from "../guides/rank";
 import type { ConnectedAgents, Standing } from "../viewer/types";
+import { profileWords } from "../profile/profile-questions";
+import type { SurferProfile } from "../viewer/types";
 import { UsernameForm } from "./username-form";
 
 type AccountPanelProps = {
@@ -51,6 +53,11 @@ type AccountPanelProps = {
   // The assistants the account signed in to read it, and what disconnects one. Left out, or
   // empty, the panel says nothing of them. Decision 047.
   agents?: ConnectedAgents | undefined;
+  // What the account said of itself as a surfer: null when it never did, and undefined while
+  // the API has not said. Decision 063.
+  profile?: SurferProfile | null | undefined;
+  // Opens the account's answers, one step into this panel.
+  onOpenProfile: () => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -91,6 +98,8 @@ export function AccountPanel({
   onOpenFriends,
   onOpenSessions,
   agents,
+  profile,
+  onOpenProfile,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const palette = usePalette();
@@ -153,9 +162,22 @@ export function AccountPanel({
         />
       )}
 
-      {/* What the account surfed, and what the sea did then. */}
+      {/* What the account surfed, and what the sea did then, and what it said of itself. */}
       {account && (
         <Section title={m.sessions_section()}>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenProfile}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.profile_title()}</span>
+              <span className="text-s text-neutral-7">
+                {profileWords(profile) ?? m.profile_hint()}
+              </span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
           <button
             type="button"
             className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"

@@ -56,6 +56,7 @@ import { ShareListDialog } from "@/components/lists/share-dialog";
 import { type SpotEdit, SpotEditor } from "@/components/spots/spot-editor";
 import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
+import { Onboarding, ProfileForm } from "@/components/profile/profile-questions";
 import { closeCreateMenu, useCreateMenu } from "@/lib/create-menu";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import { isTabPanel } from "@/lib/phone-nav";
@@ -106,6 +107,7 @@ import {
   type JoinedList,
   type ListView,
   type Loadable,
+  type Profiling,
   type SavedBreak,
   type SavedItem,
   type SavedList,
@@ -142,7 +144,7 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
 /** The part of the account's panel that is one step into it: how to be told of the alerts. */
-export type SettingsPart = "alerts" | "contributions" | "friends" | "sessions";
+export type SettingsPart = "alerts" | "contributions" | "friends" | "profile" | "sessions";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -216,6 +218,8 @@ type ViewerProps = {
   // The account's log of its sessions, and the search that finds where one was: decision 043.
   sessioning: Sessioning;
   sessionSearch: PlaceSearching;
+  // What the account said of itself as a surfer, and the questions it is asked once: decision 063.
+  profiling: Profiling;
   // The search that finds where a new alert goes, in a sheet of its own.
   alertSearch: PlaceSearching & { isOpen: boolean; onOpenChange: (open: boolean) => void };
   // Begins an alert at a break: at the account's spot there, made first when it has none.
@@ -489,6 +493,7 @@ export function Viewer({
   search,
   sessioning,
   sessionSearch,
+  profiling,
   alertSearch,
   onAlertAtBreak,
   onTideExtend,
@@ -1208,6 +1213,7 @@ export function Viewer({
   const ownContributions = settingsPart === "contributions" && signedIn;
   const ownFriends = settingsPart === "friends" && signedIn;
   const ownSessions = settingsPart === "sessions" && signedIn;
+  const ownProfile = settingsPart === "profile" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -1861,10 +1867,12 @@ export function Viewer({
                 ? m.friends_title()
                 : ownSessions
                   ? m.sessions_title()
-                  : m.account_menu()
+                  : ownProfile
+                    ? m.profile_title()
+                    : m.account_menu()
         }
         onBack={
-          alertSettings || ownContributions || ownFriends || ownSessions
+          alertSettings || ownContributions || ownFriends || ownSessions || ownProfile
             ? () => onSettingsPartChange(undefined)
             : undefined
         }
@@ -1885,6 +1893,13 @@ export function Viewer({
             onUsernameSave={account.onUsernameSave}
             friending={friending}
             onOpenBreak={onOpenGuide}
+          />
+        ) : ownProfile ? (
+          // Drawn again from what the account said each time it opens.
+          <ProfileForm
+            key={profiling.profile?.answeredAt?.toString() ?? "none"}
+            profiling={profiling}
+            onSaved={() => onSettingsPartChange(undefined)}
           />
         ) : ownSessions ? (
           <LogbookPanel
@@ -1909,6 +1924,8 @@ export function Viewer({
             agents={account.agents}
             onOpenFriends={() => onSettingsPartChange("friends")}
             onOpenSessions={() => onSettingsPartChange("sessions")}
+            profile={profiling.profile}
+            onOpenProfile={() => onSettingsPartChange("profile")}
           />
         )}
       </ViewerTab>
@@ -2001,6 +2018,14 @@ export function Viewer({
         username={account.user?.username}
         onUsernameSave={account.onUsernameSave}
       />
+      {/* What the account is asked once, as it comes. */}
+      {signedIn && (
+        <Onboarding
+          profiling={profiling}
+          username={account.user?.username}
+          onUsernameSave={account.onUsernameSave}
+        />
+      )}
       <LeaveDialog />
     </div>
   );

@@ -60,7 +60,7 @@ curl ${api}/v1/stations/${EXAMPLE_STATION} \\
 ## For an agent: the MCP server
 
 - Address: \`${api}/mcp\`, over Streamable HTTP. Nothing is kept between two requests.
-- It takes the same key, in the same header: \`Authorization: Bearer <key>\`. Or an account signs the agent in: add the address alone to an assistant, and it opens a page where the account agrees. The assistant then also reads that account's spots, alerts and sessions, and changes nothing. With neither it answers 401.
+- It takes the same key, in the same header: \`Authorization: Bearer <key>\`. Or an account signs the agent in: add the address alone to an assistant, and it opens a page where the account agrees. The assistant then also reads that account's spots, alerts and sessions, and what it said of its level and the waves it surfs, and changes nothing. With neither it answers 401.
 - Its tools read what the routes above read, under names of their own: \`list_stations\`, \`get_station\`, \`get_station_readings\`, \`get_forecast\`, \`get_tide_extremes\`, \`get_tide_timeline\`, \`list_surf_breaks\`, \`search_surf_breaks\`, \`get_surf_break\` and \`get_surf_break_guide\`. Each one reads, and none writes.
 - A call to a tool is a call to its route: it answers the same JSON, and counts against the same limit.
 - Claude Code: \`claude mcp add --transport http ${APP_NAME.toLowerCase()} ${api}/mcp --header "Authorization: Bearer $${KEY_VARIABLE}"\`

@@ -66,6 +66,28 @@ export type SessionDetail = Answer<V1["sessions"]["get"]>;
 /** What the account's log comes to. */
 export type SessionRecap = Answer<V1["sessions"]["recap"]>;
 
+/** What the account said of itself as a surfer. Decision 063. */
+export type SurferProfile = NonNullable<Answer<V1["profile"]["get"]>>;
+/** The answers the account gives, all at once. */
+export type ProfileAnswers = Pick<
+  SurferProfile,
+  "level" | "smallestWave" | "biggestWave" | "reading" | "boards"
+>;
+/** The account's profile as a surfer, and what the screens do with it. */
+export type Profiling = {
+  // Null for an account that was never asked, and undefined while the API has not said or for
+  // a visitor.
+  profile: SurferProfile | null | undefined;
+  // Whether the questions are put to the account now: it was never asked, and nothing else
+  // stands over the map.
+  isAsking: boolean;
+  isSaving: boolean;
+  // Keeps the answers, and says whether they were kept.
+  onSave: (answers: ProfileAnswers) => Promise<boolean>;
+  // The account leaves the questions without answering: it is not asked them again.
+  onPutOff: () => void;
+};
+
 /** What a screen knows of something the route is loading for it. */
 export type Loadable<Data> = {
   data: Data | undefined;

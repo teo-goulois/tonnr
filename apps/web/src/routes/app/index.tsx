@@ -50,6 +50,7 @@ import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
 import { useRecentViews } from "./-recents";
 import { usePlaceSearch } from "./-search";
+import { useProfile } from "./-profile";
 import { useSessions } from "./-sessions";
 import { useSharedList } from "./-shared";
 
@@ -66,7 +67,7 @@ export const Route = createFileRoute("/app/")({
     // then still leads there, and is taken to it.
     alerts: z.enum(["mine", "settings"]).optional(),
     // The part of the account's panel in view: its first screen when left out.
-    settings: z.enum(["alerts", "contributions", "friends", "sessions"]).optional(),
+    settings: z.enum(["alerts", "contributions", "friends", "profile", "sessions"]).optional(),
     // What the link someone gave the reader ends with: whose it is and what it makes are said
     // over the map. Decision 041.
     invite: z.string().max(64).optional(),
@@ -385,6 +386,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     [navigate],
   );
   const agents = useAgents(session.data?.user.id);
+  // What the account says of itself as a surfer, asked once it comes: not over a link's
+  // dialog, nor over an alert a page asked for. Decision 063.
+  const profiling = useProfile({
+    account: session.data?.user.id,
+    isFree: search.invite === undefined && search.create === undefined,
+  });
   const friended = useFriends({
     account: session.data?.user.id,
     username: own.account ? own.account.username : undefined,
@@ -1369,6 +1376,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }}
       search={{ ...searching, isOpen: isSearchOpen, onOpenChange: setIsSearchOpen }}
       sessioning={sessioning}
+      profiling={profiling}
       sessionSearch={sessionSearch}
       alertSearch={{
         ...alertSearch,
