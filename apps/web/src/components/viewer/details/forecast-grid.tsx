@@ -275,9 +275,13 @@ export function ForecastGrid({
   }
 
   function directionRow(key: "waveDirection" | "swellDirection" | "windDirection") {
+    // The sea's bearing is written in degrees under its arrow: a few degrees tell whether a swell
+    // reaches into a bay. The wind's arrow is enough.
+    const degrees = key !== "windDirection";
+    const height = degrees ? "h-[38px]" : ROW;
     return (
       <tr>
-        <RowLabel quiet className={ROW}>
+        <RowLabel quiet className={height}>
           {m.details_direction()}
         </RowLabel>
         {columns.map((column) => {
@@ -288,11 +292,16 @@ export function ForecastGrid({
           return (
             <td
               key={column.time}
-              className={cn(ROW, "p-0 text-neutral-9", column.newDay && DAY_RULE)}
+              className={cn(height, "p-0 text-neutral-9", column.newDay && DAY_RULE)}
               title={bearing === undefined ? undefined : compassPoint(bearing)}
             >
               {bearing !== undefined && (
                 <DirectionArrow fromDegrees={bearing} className="mx-auto size-3.5" />
+              )}
+              {bearing !== undefined && degrees && (
+                <span className="block text-center text-xxs text-neutral-7 tabular-nums">
+                  {Math.round(((bearing % 360) + 360) % 360) % 360}°
+                </span>
               )}
             </td>
           );
