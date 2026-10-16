@@ -65,14 +65,22 @@ export const keepListedForecasts = Effect.fn("keepListedForecasts")(function* (
   const slice = sliceAt(now);
   const owned = keys.filter((_, index) => index % SLICES_A_DAY === slice);
   // The cells whose forecast is the oldest, or missing, come first: a run that the scheduler
-  // stops before its end leaves the freshest for the next, and no cell waits for ever.
+  // stops before its end leaves the freshest for the next, and no cell waits for ever. Cells
+  // fetched within the same hour are read by latitude, then longitude: neighbours on a row of
+  // a model's grid share the blocks of its files, which the reader keeps a while, and a run in
+  // that order asks the bucket for a third of what one in the order of the breaks does.
   const ages = yield* Effect.tryPromise({
     try: () => keptAges(db),
     catch: (cause) => new StoreError({ provider: "pages", cause }),
   });
-  const mine = [...owned].sort(
-    (one, other) => (ages.get(one) ?? 0) - (ages.get(other) ?? 0) || (one < other ? -1 : 1),
-  );
+  const hourOf = (key: string) => Math.floor((ages.get(key) ?? 0) / (60 * 60 * 1000));
+  const mine = [...owned].sort((one, other) => {
+    const byAge = hourOf(one) - hourOf(other);
+    if (byAge !== 0) return byAge;
+    const a = cells.get(one)!;
+    const b = cells.get(other)!;
+    return a.latStep - b.latStep || a.lonStep - b.lonStep;
+  });
 
   let refreshed = 0;
   let failed = 0;
