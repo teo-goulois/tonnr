@@ -22,6 +22,7 @@ import {
 import { breakSchema, describeBreak } from "./breaks";
 import { forecastSourceSchema } from "./forecasts";
 import { describeReading, describeStation, readingSchema, stationSchema } from "./stations";
+import { JUDGED, verdictOf } from "../sea-now";
 import { tideStationSchema } from "./tides";
 
 // What the public pages of the web app say of the catalogue, each in one call: the page of a
@@ -37,6 +38,22 @@ const slug = z
 const addressSchema = z.object({ country: slug, region: slug, slug });
 
 const measurement = z.number().nullable();
+
+const hourSchema = z.object({
+  time: z.date(),
+  waveHeightMeters: measurement,
+  wavePeriodSeconds: measurement,
+  wavePeakPeriodSeconds: measurement,
+  waveDirectionDegrees: measurement,
+  primarySwellHeightMeters: measurement,
+  primarySwellDirectionDegrees: measurement,
+  windSpeedMetersPerSecond: measurement,
+  windGustMetersPerSecond: measurement,
+  windDirectionDegrees: measurement,
+  cloudCoverPercent: measurement,
+  precipitationMillimeters: measurement,
+  airTemperatureCelsius: measurement,
+});
 
 const dayOfWeekSchema = z.object({
   day: z.string(),
@@ -89,6 +106,8 @@ const pageSchema = z.object({
     .object({
       station: tideStationSchema,
       datum: z.string(),
+      // The height now and the way the tide goes, towards its next extreme: decision 059.
+      now: z.object({ heightMeters: z.number(), trend: z.enum(["rising", "falling"]) }).nullable(),
       extremes: z.array(
         z.object({
           time: z.date(),
@@ -103,6 +122,15 @@ const pageSchema = z.object({
   week: z
     .object({
       days: z.array(dayOfWeekSchema),
+      // The hour the reader's moment falls in, for the sentence of the sea now, with how its
+      // wind meets the shore and what fits the break's own words and what does not: decision 059.
+      now: z
+        .object({
+          hour: hourSchema,
+          atShore: z.enum(SHORE_WINDS).nullable(),
+          verdict: z.object({ fits: z.array(z.enum(JUDGED)), off: z.array(z.enum(JUDGED)) }),
+        })
+        .nullable(),
       fetchedAt: z.date(),
       stale: z.boolean(),
       source: forecastSourceSchema,
@@ -207,6 +235,8 @@ export const pagesRouter = {
         weekAt(context.forecasts, row, now),
       ]);
       const described = describeBreak(row, confirmed.get(row.id));
+      const tide = nextTides(row, now);
+      const hour = week?.now ?? null;
       const places = (row.location ?? []).map((name, index) => ({
         name,
         page:
@@ -236,8 +266,18 @@ export const pagesRouter = {
             described.characteristics.offshoreDirectionDegrees,
           ),
         },
-        tide: nextTides(row, now),
-        week,
+        tide,
+        week: week && {
+          ...week,
+          now: hour && {
+            hour,
+            atShore: windAtShore(
+              hour.windDirectionDegrees,
+              described.characteristics.offshoreDirectionDegrees,
+            ),
+            verdict: verdictOf(described.characteristics, hour, tide),
+          },
+        },
         nearby: nearby.map(({ row: near, listed, distanceKm }) => ({
           id: near.id,
           name: near.name,

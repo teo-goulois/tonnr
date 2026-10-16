@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type ForecastHour, localDayOf, weekOf } from "./week";
+import { type ForecastHour, hourOf, localDayOf, weekOf } from "./week";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -81,5 +81,34 @@ describe("a week of forecast", () => {
 
   it("is empty when every hour is before today", () => {
     expect(weekOf(hoursFrom(new Date("2026-10-13T00:00:00Z"), 24), "UTC", now)).toEqual([]);
+  });
+});
+
+describe("the hour a moment falls in", () => {
+  const hour = (at: number) => ({
+    time: new Date(Date.UTC(2026, 9, 16, at)),
+    waveHeightMeters: at,
+    wavePeriodSeconds: null,
+    wavePeakPeriodSeconds: null,
+    waveDirectionDegrees: null,
+    primarySwellHeightMeters: null,
+    primarySwellDirectionDegrees: null,
+    windSpeedMetersPerSecond: null,
+    windGustMetersPerSecond: null,
+    windDirectionDegrees: null,
+    cloudCoverPercent: null,
+    precipitationMillimeters: null,
+    airTemperatureCelsius: null,
+  });
+  const hours = [hour(8), hour(9), hour(10)];
+
+  it("is the hour that begins at the moment's own hour", () => {
+    expect(hourOf(hours, new Date(Date.UTC(2026, 9, 16, 9, 45)))?.waveHeightMeters).toBe(9);
+    expect(hourOf(hours, new Date(Date.UTC(2026, 9, 16, 8, 0)))?.waveHeightMeters).toBe(8);
+  });
+
+  it("is null when the forecast has no such hour", () => {
+    expect(hourOf(hours, new Date(Date.UTC(2026, 9, 16, 11, 5)))).toBeNull();
+    expect(hourOf([], new Date(Date.UTC(2026, 9, 16, 9)))).toBeNull();
   });
 });

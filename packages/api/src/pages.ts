@@ -1,8 +1,13 @@
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import { forecastSource } from "@repo/conditions/forecasts/wave-models";
-import { type ForecastDay, weekOf } from "@repo/conditions/forecasts/week";
+import {
+  type ForecastDay,
+  type ForecastHour,
+  hourOf,
+  weekOf,
+} from "@repo/conditions/forecasts/week";
 import { shoreWind } from "@repo/conditions/shore-wind";
-import { predictTideExtremes } from "@repo/conditions/tides/tide-prediction";
+import { predictTideExtremes, predictTideTimeline } from "@repo/conditions/tides/tide-prediction";
 import type { Database } from "@repo/db";
 import { reading, station } from "@repo/db/schema/buoys";
 import {
@@ -201,11 +206,34 @@ export async function nearbyBreaks(db: Reader, found: Break) {
 /** The next tides at a point, from now for a day and a half: the highs and the lows to come. */
 export function nextTides(point: Point, now: Date) {
   const end = new Date(now.getTime() + 36 * 60 * 60 * 1000);
-  return predictTideExtremes({ ...point, start: now, end });
+  const next = predictTideExtremes({ ...point, start: now, end });
+  if (!next) return null;
+  // The height now, from the same prediction, and the way the tide goes: towards its next
+  // extreme. Decision 059.
+  const timeline = predictTideTimeline({
+    ...point,
+    start: now,
+    end: new Date(now.getTime() + 60 * 1000),
+    stepMinutes: 1,
+  });
+  const height = timeline?.timeline[0]?.heightMeters;
+  const first = next.extremes[0];
+  return {
+    ...next,
+    now:
+      height === undefined || !first
+        ? null
+        : {
+            heightMeters: height,
+            trend: first.type === "high" ? ("rising" as const) : ("falling" as const),
+          },
+  };
 }
 
 export type Week = {
   days: ForecastDay[];
+  /** The hour the moment falls in, for the sentence of the sea now: decision 059. */
+  now: ForecastHour | null;
   fetchedAt: Date;
   stale: boolean;
   source: ReturnType<typeof forecastSource>;
@@ -228,6 +256,7 @@ export async function weekAt(
   if (days.length === 0) return null;
   return {
     days,
+    now: hourOf(kept.hours, now),
     fetchedAt: kept.fetchedAt,
     stale: kept.stale,
     source: forecastSource(

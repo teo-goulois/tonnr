@@ -47,6 +47,8 @@ export type ForecastDay = {
   precipitationMillimeters: number | null;
 };
 
+const HOUR_MS = 60 * 60 * 1000;
+
 const dayFormats = new Map<string, Intl.DateTimeFormat>();
 
 /** The day and the hour of a moment in a time zone: `YYYY-MM-DD` and 0 to 23. */
@@ -94,6 +96,15 @@ export function weekOf(
     .sort(([one], [other]) => (one < other ? -1 : 1))
     .slice(0, days)
     .map(([day, found]) => summarize(day, found));
+}
+
+/**
+ * The hour of a forecast that a moment falls in: the one that begins at the moment's own hour.
+ * Null when the forecast has no such hour. Decision 059.
+ */
+export function hourOf(hours: readonly ForecastHour[], now: Date): ForecastHour | null {
+  const at = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
+  return hours.find((hour) => hour.time.getTime() === at) ?? null;
 }
 
 function summarize(day: string, found: { hour: number; at: ForecastHour }[]): ForecastDay {
