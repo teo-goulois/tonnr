@@ -1660,5 +1660,10 @@
   "learn_a_alert_narrow": "Intervalo estreito",
   "learn_a_alert_wide": "Intervalo largo",
   "learn_a_alert_least": "Nota mínima",
-  "learn_a_alert_hint": "Sobe a nota mínima: só ficam as melhores sessões, e o alerta aperta-se no que gostas mesmo."
+  "learn_a_alert_hint": "Sobe a nota mínima: só ficam as melhores sessões, e o alerta aperta-se no que gostas mesmo.",
+  "page_week_learn": "Novo nas previsões? Aprende a ler uma, em cinco lições.",
+  "landing_learn_title": "Aprende a ler uma {forecast}.",
+  "landing_learn_word": "previsão",
+  "landing_learn_more": "Três guias, uma demo em cada lição, do primeiro olhar até ao alerta feito das tuas próprias sessões.",
+  "landing_learn_glossary": "explica cada palavra que as páginas usam, e de onde vem a coisa."
 }

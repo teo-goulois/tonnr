@@ -68,6 +68,7 @@ import { AccountPanel } from "@/components/account/account-panel";
 import { ConnectPage } from "@/components/auth/connect-page";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
+import { LearnSamples } from "@/components/design-system/learn-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
 import { SpotPageSamples } from "@/components/design-system/spot-page-samples";
 import { PushSetting } from "@/components/alerts/push-setting";
@@ -1081,6 +1082,10 @@ export function DesignSystemPage() {
 
       <Section title="Public page of a surf break">
         <SpotPageSamples />
+      </Section>
+
+      <Section title="Learn">
+        <LearnSamples />
       </Section>
 
       <Section title="Viewer skeleton">

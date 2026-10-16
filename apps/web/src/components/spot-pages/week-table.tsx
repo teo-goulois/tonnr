@@ -9,7 +9,11 @@ import {
   scaleInk,
 } from "@/lib/sea-scales";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import { guidePath } from "@/lib/learn";
 import { m } from "@/paraglide/messages.js";
+import { localizeHref } from "@/paraglide/runtime.js";
+
+import { linked } from "@/components/landing/legal-page";
 
 import { SpotSection } from "./spot-frame";
 
@@ -120,6 +124,12 @@ export function WeekTable({ week, now }: { week: SpotWeek | null; now: number })
       <p className="text-s text-neutral-7">
         {m.page_week_fetched({ ago: formatAgo(week.fetchedAt, now) })}
         {week.stale && ` ${m.page_week_stale()}`}
+      </p>
+      {/* For whoever reads a table of the week for the first time: decision 060. */}
+      <p className="text-s">
+        <a href={localizeHref(guidePath("beginner"))} className={linked}>
+          {m.page_week_learn()}
+        </a>
       </p>
     </SpotSection>
   );

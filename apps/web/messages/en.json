@@ -1660,5 +1660,10 @@
   "learn_a_alert_narrow": "Narrow range",
   "learn_a_alert_wide": "Wide range",
   "learn_a_alert_least": "Lowest rating",
-  "learn_a_alert_hint": "Raise the lowest rating: only the best sessions remain, and the alert tightens on what you really like."
+  "learn_a_alert_hint": "Raise the lowest rating: only the best sessions remain, and the alert tightens on what you really like.",
+  "page_week_learn": "New to forecasts? Learn to read one, in five lessons.",
+  "landing_learn_title": "Learn to read a {forecast}.",
+  "landing_learn_word": "forecast",
+  "landing_learn_more": "Three guides, a demo in every lesson, from a first look to an alert made of your own sessions.",
+  "landing_learn_glossary": "explains every word the pages use, and where the thing comes from."
 }

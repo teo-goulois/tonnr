@@ -8,6 +8,7 @@ import { TideTrend } from "@/components/alerts/tide-trend";
 import { Bearing } from "@/components/viewer/bearing";
 import { SHORE_WIND_NAMES } from "@/components/viewer/details/parts";
 import { formatClock, formatSeconds, toKnots } from "@/lib/format";
+import { type LessonOf, lessonHref } from "@/lib/learn";
 import type { SpotPage } from "@/lib/pages-api";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
@@ -15,15 +16,32 @@ import { getLocale } from "@/paraglide/runtime.js";
 
 // The sea now in one sentence, on the page of a surf break: the hour of the kept forecast, as
 // the editor of an alert writes its sentence, then what fits the break's own words and what does
-// not, and the way to an alert at the spot. Decision 059.
+// not, and the way to an alert at the spot. Decision 059. Each part leads to the lesson of the
+// beginner's guide that explains it, as a plain link in the reader's language: decision 060.
 
-// How the editor underlines a part its writer sets: `LandingAlert` draws the same.
+// How the editor underlines a part its writer sets: `LandingAlert` draws the same. Here the part
+// is a link, and its line darkens under the pointer.
 const underlined =
-  "underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em]";
+  "underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) hover:decoration-neutral-10";
 
-function Part({ children, className }: { children: ReactNode; className?: string }) {
+type Lesson = LessonOf<"beginner">;
+
+function Part({
+  lesson,
+  children,
+  className,
+}: {
+  lesson: Lesson;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <span className={cn("font-medium text-neutral-10", underlined, className)}>{children}</span>
+    <a
+      href={lessonHref("beginner", lesson)}
+      className={cn("focus-ring rounded-xs font-medium text-neutral-10", underlined, className)}
+    >
+      {children}
+    </a>
   );
 }
 
@@ -36,10 +54,48 @@ const PART_NAMES: Record<Judged, () => string> = {
   tide: m.page_now_part_tide,
 };
 
-/** The names of things, as a list is said in the reader's language. */
-function listOf(things: Judged[]) {
-  return new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(
+// The lesson that explains each thing the verdict names.
+const PART_LESSONS: Record<Judged, Lesson> = {
+  swell: "swell",
+  size: "height",
+  wind: "wind",
+  tide: "tide",
+};
+
+/** A message with the list of things where its mark stands: the words before, the list, the words after. */
+function Said({ say, things }: { say: (marks: { parts: string }) => string; things: Judged[] }) {
+  const [before, after] = say({ parts: "\uE000" }).split("\uE000");
+  return (
+    <>
+      {before}
+      <ListOf things={things} />
+      {after}
+    </>
+  );
+}
+
+/** The names of things, as a list is said in the reader's language, each leading to its lesson. */
+function ListOf({ things }: { things: Judged[] }) {
+  const parts = new Intl.ListFormat(getLocale(), { type: "conjunction" }).formatToParts(
     things.map((thing) => PART_NAMES[thing]()),
+  );
+  let named = 0;
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.type === "literal") {
+          // The literals keep their order: nothing else tells two alike apart.
+          // oxlint-disable-next-line react/no-array-index-key
+          return <Fragment key={index}>{part.value}</Fragment>;
+        }
+        const thing = things[named++]!;
+        return (
+          <Part key={thing} lesson={PART_LESSONS[thing]}>
+            {part.value}
+          </Part>
+        );
+      })}
+    </>
   );
 }
 
@@ -73,27 +129,27 @@ export function SeaSentence({ page }: { page: SpotPage }) {
 
   const waves: ReactNode[] = [];
   if (hour.waveHeightMeters !== null)
-    waves.push(<Part>{formatHeight(hour.waveHeightMeters)}</Part>);
+    waves.push(<Part lesson="height">{formatHeight(hour.waveHeightMeters)}</Part>);
   if (period !== null) {
-    waves.push(<Part>{m.alert_period_of({ range: formatSeconds(period) })}</Part>);
+    waves.push(<Part lesson="period">{m.alert_period_of({ range: formatSeconds(period) })}</Part>);
   }
   if (hour.waveDirectionDegrees !== null) {
     waves.push(
-      <Part className="whitespace-nowrap">
+      <Part lesson="swell" className="whitespace-nowrap">
         {m.alert_from()} <Bearing degrees={hour.waveDirectionDegrees} />
       </Part>,
     );
   }
   const wind: ReactNode[] = [];
-  if (knots !== null) wind.push(<Part>{formatWind(knots)}</Part>);
+  if (knots !== null) wind.push(<Part lesson="wind">{formatWind(knots)}</Part>);
   if (hour.windDirectionDegrees !== null) {
     wind.push(
-      <Part className="whitespace-nowrap">
+      <Part lesson="wind" className="whitespace-nowrap">
         {m.alert_from()} <Bearing degrees={hour.windDirectionDegrees} />
       </Part>,
     );
   }
-  if (atShore) wind.push(<Part>{SHORE_WIND_NAMES[atShore]()}</Part>);
+  if (atShore) wind.push(<Part lesson="wind">{SHORE_WIND_NAMES[atShore]()}</Part>);
   if (waves.length === 0 && wind.length === 0) return null;
 
   const [first, ...waveRest] = waves;
@@ -119,13 +175,13 @@ export function SeaSentence({ page }: { page: SpotPage }) {
         {tide?.now && (
           <>
             , {m.page_now_says_tide()}{" "}
-            <Part>
+            <Part lesson="tide">
               <TideTrend trend={tide.now.trend} />
             </Part>
             {next && (
               <>
                 ,{" "}
-                <Part>
+                <Part lesson="tide">
                   {next.type === "high"
                     ? m.page_now_high_at({ time: formatClock(next.time, zone) })
                     : m.page_now_low_at({ time: formatClock(next.time, zone) })}
@@ -140,11 +196,11 @@ export function SeaSentence({ page }: { page: SpotPage }) {
         <p className="text-neutral-7">
           {verdict.fits.length > 0 && (
             <span className="text-neutral-10">
-              {m.page_now_fits({ parts: listOf(verdict.fits) })}
+              <Said say={m.page_now_fits} things={verdict.fits} />
             </span>
           )}
           {verdict.fits.length > 0 && verdict.off.length > 0 && " "}
-          {verdict.off.length > 0 && m.page_now_off({ parts: listOf(verdict.off) })}
+          {verdict.off.length > 0 && <Said say={m.page_now_off} things={verdict.off} />}
         </p>
       )}
       <div>

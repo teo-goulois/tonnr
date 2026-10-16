@@ -12,6 +12,7 @@ import {
 /** The parts of the landing its header leads to, by the id each one answers to. */
 export const SECTIONS = {
   features: "features",
+  learn: "learn",
   sources: "sources",
   agents: "agents",
   story: "story",
