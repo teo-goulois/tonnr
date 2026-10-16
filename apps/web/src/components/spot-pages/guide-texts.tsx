@@ -15,11 +15,12 @@ const LABELS: Record<Text["line"], () => string> = {
   entry: m.guide_line_entry,
   hazards: m.guide_line_hazards,
   rules: m.guide_line_rules,
+  sizeNotes: m.guide_line_size_notes,
 };
 
 /** One text a line, in the language that fits the reader best. */
 export function textsFor(texts: readonly Text[], locale: string) {
-  const lines = ["access", "entry", "hazards", "rules"] as const;
+  const lines = ["access", "entry", "hazards", "rules", "sizeNotes"] as const;
   return lines.flatMap((line) => {
     const ofLine = texts.filter((text) => text.line === line);
     const chosen =

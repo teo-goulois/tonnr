@@ -166,6 +166,7 @@ const nothing = {
   bestTides: null,
   bestSwellDirections: null,
   bestWindDirections: null,
+  sizeFactors: null,
   offshoreDirectionDegrees: 90,
   waveSizeMeters: null,
 };
@@ -220,6 +221,7 @@ const PAGE: SpotPage = {
       bestTides: ["mid", "mid_high"],
       bestSwellDirections: ["W", "WNW", "NW"],
       bestWindDirections: ["E", "ENE"],
+      sizeFactors: ["double"],
       waveSizeMeters: { min: 1, max: 3 },
     },
     location: ["France", "Bretagne", "Finistère"],

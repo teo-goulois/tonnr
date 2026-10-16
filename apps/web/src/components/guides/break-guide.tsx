@@ -33,7 +33,7 @@ import {
   REASON_MOST,
   TEXT_LEAST,
   TEXT_LINES,
-  TEXT_MOST,
+  textMostOf,
   type TextLineName,
   writtenIn,
 } from "./guide-words";
@@ -389,6 +389,7 @@ function TextEditor({
   onDone: () => void;
 }) {
   const id = useId();
+  const most = textMostOf(line);
   // What was typed here before the panel last closed is here again.
   const [text, setText] = useState(guiding.draftOf(line) ?? saved);
   const said = text.replace(/\s+/g, " ").trim();
@@ -410,9 +411,9 @@ function TextEditor({
       }}
     >
       <Textarea
-        rows={4}
+        rows={most < 200 ? 2 : 4}
         autoFocus
-        maxLength={TEXT_MOST}
+        maxLength={most}
         disabled={guiding.isSending}
         placeholder={TEXT_LINES[line].placeholder()}
         aria-label={TEXT_LINES[line].label()}
@@ -436,7 +437,7 @@ function TextEditor({
           </Button>
         </div>
         <span id={`${id}-count`} className="text-s text-neutral-7 tabular-nums">
-          {text.length} / {TEXT_MOST}
+          {text.length} / {most}
         </span>
       </div>
       <License />

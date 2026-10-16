@@ -7,10 +7,14 @@ import type { Guiding } from "../guides/types";
 import { Details, type DetailsTab } from "./details/details";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { type PointConditionsProps, Sources } from "./point-conditions";
-import type { Guide, GuideOwn, Loadable, SurfBreak } from "./types";
+import { SizeAgainstForecast } from "./size-against-forecast";
+import type { Guide, GuideOwn, Loadable, SizeFactor, SurfBreak } from "./types";
 
 type BreakPanelProps = PointConditionsProps & {
   found: Loadable<SurfBreak>;
+  // How big its waves run against the forecast, from the sessions surfed there, once they
+  // say: decision 062. Undefined while it is on its way, or when the break is not found.
+  sizeFactor?: SizeFactor;
   // What is written of the break, what the reader wrote of it, and what the guide does for
   // them: decision 041.
   guide: Loadable<Guide>;
@@ -31,6 +35,7 @@ type BreakPanelProps = PointConditionsProps & {
 export function BreakPanel({
   now,
   found,
+  sizeFactor,
   guide,
   own,
   guiding,
@@ -80,6 +85,14 @@ export function BreakPanel({
       offshoreFrom={found.data?.characteristics.offshoreDirectionDegrees}
       words={found.data?.characteristics}
       onOpenStation={onOpenBuoy}
+      sizeAgainst={
+        <SizeAgainstForecast
+          learned={sizeFactor}
+          locals={found.data?.characteristics.sizeFactors}
+          hours={forecast.data?.hours}
+          now={now}
+        />
+      }
       guide={
         found.data && <BreakGuide found={found.data} guide={guide} own={own} guiding={guiding} />
       }

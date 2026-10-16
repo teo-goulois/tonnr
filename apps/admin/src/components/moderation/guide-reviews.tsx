@@ -34,10 +34,12 @@ const LINES: Record<Review["line"], () => string> = {
   bestTides: m.moderation_said_tides,
   bestSwellDirections: m.moderation_said_swell,
   bestWindDirections: m.moderation_said_wind,
+  sizeFactors: m.moderation_said_size_factor,
   access: m.reviews_line_access,
   entry: m.reviews_line_entry,
   hazards: m.reviews_line_hazards,
   rules: m.reviews_line_rules,
+  sizeNotes: m.reviews_line_size_notes,
 };
 
 const QUEUE_NAMES: Record<ReviewQueue, () => string> = {

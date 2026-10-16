@@ -13,13 +13,18 @@ export const TEXT_LINES: Record<TextLineName, { label: () => string; placeholder
     entry: { label: m.guide_line_entry, placeholder: m.guide_entry_placeholder },
     hazards: { label: m.guide_line_hazards, placeholder: m.guide_hazards_placeholder },
     rules: { label: m.guide_line_rules, placeholder: m.guide_rules_placeholder },
+    sizeNotes: { label: m.guide_line_size_notes, placeholder: m.guide_size_notes_placeholder },
   };
 
 export const isTextLine = (line: GuideLineName): line is TextLineName => line in TEXT_LINES;
 
-// A text of a guide as the API takes it.
+// A text of a guide as the API takes it. Why the waves run bigger or smaller than the forecast
+// is one sentence: decision 062.
 export const TEXT_LEAST = 3;
 export const TEXT_MOST = 500;
+export const SIZE_NOTES_MOST = 140;
+export const textMostOf = (line: TextLineName) =>
+  line === "sizeNotes" ? SIZE_NOTES_MOST : TEXT_MOST;
 // A reason as the API takes it.
 export const REASON_MOST = 280;
 

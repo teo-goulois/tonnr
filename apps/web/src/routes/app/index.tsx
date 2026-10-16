@@ -516,6 +516,16 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       meta: { quiet: true },
     }),
   );
+  // How big the break's waves run against the forecast, from the sessions surfed there: one
+  // figure and a count, which its panel says under the tiles. Decision 062.
+  const sizeFactor = useQuery(
+    orpc.v1.breaks.sizeFactor.queryOptions({
+      input: { id: selectedBreakId ?? "" },
+      enabled: selectedBreakId !== undefined,
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
   // A spot of the account's own is in its list. A spot of someone else's is read in the list
   // they shared it by. Another is asked for, and answers as missing when it is not the
   // account's.
@@ -1245,6 +1255,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         history: loadable(history),
         historyDays,
         found: loadable(found),
+        sizeFactor: sizeFactor.data,
         guide: guided.guide,
         own: guided.own,
         spot: {

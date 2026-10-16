@@ -119,6 +119,16 @@ export const LINES: { [Line in ListLine]: { label: () => string; words: Readings
   },
   bestSwellDirections: { label: m.moderation_said_swell, words: compass },
   bestWindDirections: { label: m.moderation_said_wind, words: compass },
+  sizeFactors: {
+    label: m.moderation_said_size_factor,
+    words: {
+      half: m.word_half,
+      same: m.word_same,
+      one_and_a_half: m.word_one_and_a_half,
+      double: m.word_double,
+      more: m.word_more,
+    },
+  },
 };
 
 export const LIST_LINES = Object.keys(LINES) as ListLine[];
@@ -147,6 +157,7 @@ export const NOTHING_SAID: BreakCharacteristics = {
   bestTides: null,
   bestSwellDirections: null,
   bestWindDirections: null,
+  sizeFactors: null,
   offshoreDirectionDegrees: null,
   waveSizeMeters: null,
 };

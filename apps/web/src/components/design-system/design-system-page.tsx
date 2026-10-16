@@ -98,6 +98,7 @@ import {
 import { Details } from "@/components/viewer/details/details";
 import { NearbyWindStation } from "@/components/viewer/details/parts";
 import { SeaNow } from "@/components/viewer/details/sea-now";
+import { SizeAgainstForecast } from "@/components/viewer/size-against-forecast";
 import { SeaChart } from "@/components/viewer/sea-chart";
 import { TideChart } from "@/components/viewer/tide-chart";
 import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
@@ -164,6 +165,9 @@ const ACCENTS = ["bg-color-1", "bg-success", "bg-warning", "bg-error"] as const;
 const HOUR_MS = 60 * 60 * 1000;
 // A fixed moment, so the samples below draw the same curves on every visit.
 const SAMPLE_NOW = Date.UTC(2026, 9, 9, 6);
+// The swell of the sample forecast, 290 degrees and 11 s, as the size factor's bins read it.
+const SAMPLE_SWELL_SECTOR = "W";
+const SAMPLE_PERIOD_BAND = "medium";
 // What a search of the map finds, one of each kind: invented places.
 const SAMPLE_FOUND: Found[] = [
   { kind: "spot", id: "s1", name: "My left at the point", latitude: 47.8, longitude: -4.3 },
@@ -374,6 +378,7 @@ const SAMPLE_WORDS = {
   bestTides: ["mid", "mid_high"],
   bestSwellDirections: ["W", "WNW"],
   bestWindDirections: ["E", "ESE"],
+  sizeFactors: ["double"],
   offshoreDirectionDegrees: 110,
   waveSizeMeters: { min: 1, max: 3 },
 };
@@ -1253,6 +1258,54 @@ export function DesignSystemPage() {
           />
           <NearbyWindStation
             nearby={{ station: SAMPLE_WIND_STATION, distanceKm: 27 }}
+            now={SAMPLE_NOW}
+          />
+        </div>
+      </Section>
+
+      <Section title="Size against the forecast">
+        {/* The sentence under a break's tiles, in each of its states: decision 062. */}
+        <div className="grid max-w-96 gap-s">
+          <SizeAgainstForecast
+            learned={{ sessions: 14, factor: 1.8, bySwell: [] }}
+            locals={null}
+            hours={SAMPLE_FORECAST.hours}
+            now={SAMPLE_NOW}
+          />
+          <SizeAgainstForecast
+            learned={{
+              sessions: 14,
+              factor: 1.8,
+              bySwell: [
+                {
+                  sector: SAMPLE_SWELL_SECTOR,
+                  period: SAMPLE_PERIOD_BAND,
+                  factor: 2,
+                  sessions: 6,
+                },
+              ],
+            }}
+            locals={null}
+            hours={SAMPLE_FORECAST.hours}
+            now={SAMPLE_NOW}
+          />
+          <SizeAgainstForecast
+            learned={{ sessions: 3, factor: null, bySwell: [] }}
+            locals={["double"]}
+            hours={SAMPLE_FORECAST.hours}
+            now={SAMPLE_NOW}
+          />
+          <SizeAgainstForecast
+            learned={{ sessions: 14, factor: 1.8, bySwell: [] }}
+            locals={["same", "one_and_a_half"]}
+            hours={SAMPLE_FORECAST.hours}
+            now={SAMPLE_NOW}
+          />
+          {/* Nothing known: nothing drawn. */}
+          <SizeAgainstForecast
+            learned={{ sessions: 3, factor: null, bySwell: [] }}
+            locals={null}
+            hours={SAMPLE_FORECAST.hours}
             now={SAMPLE_NOW}
           />
         </div>

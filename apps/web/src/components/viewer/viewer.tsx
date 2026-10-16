@@ -110,6 +110,7 @@ import {
   type SavedItem,
   type SavedList,
   type Session,
+  type SizeFactor,
   type Spot,
   type Standing,
   type Station,
@@ -194,6 +195,8 @@ type ViewerProps = {
     // How many days of readings the history holds.
     historyDays: number;
     found: Loadable<SurfBreak>;
+    // How big its waves run against the forecast, once its sessions say: decision 062.
+    sizeFactor: SizeFactor | undefined;
     // What is written of the selected break, and what the reader wrote of it.
     guide: Loadable<Guide>;
     own: GuideOwn | undefined;
@@ -765,6 +768,7 @@ export function Viewer({
     breakId: undefined,
     spotId: undefined,
     found: NO_BREAK,
+    sizeFactor: undefined,
     guide: NO_GUIDE,
     own: undefined,
     spot: NO_SPOT,
@@ -884,6 +888,7 @@ export function Viewer({
         key={drawn.breakId}
         now={now}
         found={drawn.found}
+        sizeFactor={drawn.sizeFactor}
         guide={drawn.guide}
         own={drawn.own}
         guiding={guiding}

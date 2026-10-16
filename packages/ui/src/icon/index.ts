@@ -163,6 +163,7 @@ export {
   BreakTypeIcon,
   LevelIcon,
   SeasonIcon,
+  SizeFactorIcon,
   SURF_LOOK,
   SwellWindowIcon,
   TideIcon,

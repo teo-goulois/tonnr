@@ -244,6 +244,8 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
         <div {...SHEET_FOLD}>
           <SeaNow {...seaNowOf(props, words)} />
         </div>
+        {/* Drawn at every density: the one place the faces are set against the model. */}
+        {props.sizeAgainst}
         {forecast.isPending || forecast.data ? (
           <Block title={m.page_week()}>
             <DaysAhead
@@ -283,6 +285,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
             onOpen={props.onOpenStation}
           />
         )}
+        {props.sizeAgainst}
       </div>
 
       {forecast.isPending || forecast.data ? (
@@ -391,6 +394,8 @@ type DetailsOfProps = PointConditionsProps & {
   // At a surf break: the station the wind is read on, and where the wind comes from when it
   // blows off the shore there.
   nearbyWind?: NearbyWind;
+  // At a surf break: how big its waves run against the forecast, or nothing: decision 062.
+  sizeAgainst?: ReactNode;
   offshoreFrom?: number | null;
   onOpenStation?: (stationId: string) => void;
   // What credits the data.

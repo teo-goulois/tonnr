@@ -60,6 +60,9 @@ export type DetailsProps = PointConditionsProps & {
   nearby?: Nearby;
   // At a surf break: the station to read the wind on, which opens as the buoy does.
   nearbyWind?: NearbyWind;
+  // At a surf break: how big its waves run against the forecast, in a sentence under the tiles
+  // and the stations, or nothing. Decision 062.
+  sizeAgainst?: ReactNode;
   // Where the wind comes from when it blows off the shore there, when that is known.
   offshoreFrom?: number | null;
   onOpenStation?: (stationId: string) => void;

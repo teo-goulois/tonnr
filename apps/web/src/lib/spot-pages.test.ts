@@ -25,6 +25,7 @@ const nothing: SpotPage["break"]["characteristics"] = {
   bestTides: null,
   bestSwellDirections: null,
   bestWindDirections: null,
+  sizeFactors: null,
   offshoreDirectionDegrees: 140,
   waveSizeMeters: null,
 };

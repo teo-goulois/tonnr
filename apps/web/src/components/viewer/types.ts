@@ -10,6 +10,8 @@ export type Forecast = Answer<V1["forecasts"]["get"]>;
 export type TideTimeline = Answer<V1["tides"]["timeline"]>;
 export type TideExtremes = Answer<V1["tides"]["extremes"]>;
 export type SurfBreak = Answer<V1["breaks"]["get"]>;
+// How big a break's waves run against the forecast, from the sessions surfed there: decision 062.
+export type SizeFactor = Answer<V1["breaks"]["sizeFactor"]>;
 export type SavedList = Answer<V1["lists"]["list"]>["lists"][number];
 /** What a list holds: a station, a surf break or a spot of the user's own, each named by its id. */
 export type SavedItem = { stationId: string } | { breakId: string } | { spotId: string };

@@ -4,6 +4,7 @@ import {
   BreakTypeIcon,
   LevelIcon,
   SeasonIcon,
+  SizeFactorIcon,
   type SurfLook,
   SwellWindowIcon,
   TideIcon,
@@ -44,6 +45,22 @@ const BREAK_TYPES: Readings<"breakTypes"> = {
   man_made: m.break_type_man_made,
   tidal_bore: m.break_type_tidal_bore,
   standing_wave: m.break_type_standing_wave,
+};
+// How big the waves run against the forecast, in the steps the guide's line takes: decision 062.
+export const SIZE_FACTORS: Readings<"sizeFactors"> = {
+  half: m.break_size_half,
+  same: m.break_size_same,
+  one_and_a_half: m.break_size_one_and_a_half,
+  double: m.break_size_double,
+  more: m.break_size_more,
+};
+// The same steps, short, for a range: "between the forecast and one and a half times".
+const SIZE_STEPS: Readings<"sizeFactors"> = {
+  half: m.size_step_half,
+  same: m.size_step_same,
+  one_and_a_half: m.size_step_one_and_a_half,
+  double: m.size_step_double,
+  more: m.size_step_more,
 };
 const WAVE_DIRECTIONS: Readings<"waveDirections"> = {
   left: m.break_wave_left,
@@ -160,13 +177,32 @@ export const CHARACTERISTIC_FIELDS: CharacteristicField[] = [
   { key: "bestTides", label: m.break_best_tides, words: wordsOf(TIDE_STAGES) },
   { key: "bestSwellDirections", label: m.break_best_swell, words: compassWords },
   { key: "bestWindDirections", label: m.break_best_wind, words: compassWords },
+  { key: "sizeFactors", label: m.break_size_factors, words: wordsOf(SIZE_FACTORS) },
 ];
+
+/** The steps of the size against the forecast, in their order, that a list of words holds. */
+export function sizeStepsOf(given: readonly string[]) {
+  return (Object.keys(SIZE_FACTORS) as WordOf<"sizeFactors">[]).filter((step) =>
+    given.includes(step),
+  );
+}
+
+/** How a line of size steps reads: one step, or a range from the first to the last. */
+export function readSizeFactors(given: readonly string[]) {
+  const steps = sizeStepsOf(given);
+  const first = steps[0];
+  const last = steps.at(-1);
+  if (!first || !last) return "";
+  if (first === last) return SIZE_FACTORS[first]();
+  return m.break_size_between({ from: SIZE_STEPS[first](), to: SIZE_STEPS[last]() });
+}
 
 /** The words of one characteristic as they read: its points with their arrows, or its words. */
 export function readCharacteristic(key: ListedField, given: readonly string[]): ReactNode {
   if (key === "bestSwellDirections" || key === "bestWindDirections") {
     return points(COMPASS.filter((point) => given.includes(point)));
   }
+  if (key === "sizeFactors") return readSizeFactors(given);
   const field = CHARACTERISTIC_FIELDS.find((one) => one.key === key);
   return field?.words
     .filter(({ word }) => given.includes(word))
@@ -252,6 +288,16 @@ export function CharacteristicIcon({
       return <SwellWindowIcon className={glyph} look={look} bearings={bearingsOf(given)} />;
     case "bestWindDirections":
       return <WindWindowIcon className={glyph} look={look} bearings={bearingsOf(given)} />;
+    case "sizeFactors": {
+      const order = Object.keys(SIZE_FACTORS);
+      return (
+        <SizeFactorIcon
+          className={glyph}
+          look={look}
+          steps={given.map((word) => order.indexOf(word)).filter((at) => at >= 0)}
+        />
+      );
+    }
   }
 }
 

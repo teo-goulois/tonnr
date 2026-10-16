@@ -673,6 +673,36 @@ export function WaveSizeIcon({
   );
 }
 
+// How many times the forecast's wave the seen wave is drawn at, for each step of the guide's
+// line, from "about half" to "more than double".
+const FACTOR_TIMES = [0.5, 1, 1.5, 2, 2.6] as const;
+const FACTOR_WATER = 29;
+const FORECAST_WAVE = 5.5;
+
+/**
+ * How big the waves run against the forecast, as the guide's line says it: the forecast's wave,
+ * faint at the left, and the wave that is seen beside it, as many times as tall. Nothing pressed
+ * draws the two the same.
+ */
+export function SizeFactorIcon({
+  steps,
+  look = SURF_LOOK,
+  ...props
+}: GlyphProps & { steps: readonly number[] }) {
+  const times = steps.length > 0 ? Math.max(...steps.map((step) => FACTOR_TIMES[step] ?? 1)) : 1;
+  const seen = Math.min(FORECAST_WAVE * times, 16);
+  // A wave from the water up to a crest and back, as high as it says.
+  const wave = (x: number, wide: number, high: number) =>
+    `M${x} ${FACTOR_WATER}q${wide / 2} ${-2 * high} ${wide} 0`;
+  return (
+    <Glyph look={look} {...props}>
+      <path d={`M-1 ${FACTOR_WATER}H41`} {...faint} />
+      <path d={wave(4, 11, FORECAST_WAVE)} {...faint} />
+      <path d={wave(17, 19, seen)} />
+    </Glyph>
+  );
+}
+
 export type Season = "winter" | "spring" | "summer" | "autumn";
 
 // Each season is a quarter of the year round the glyph, winter at its top.

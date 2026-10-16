@@ -35,6 +35,7 @@ const SAID: { key: keyof Publication["spot"]["characteristics"]; label: () => st
   { key: "bestTides", label: m.moderation_said_tides },
   { key: "bestSwellDirections", label: m.moderation_said_swell },
   { key: "bestWindDirections", label: m.moderation_said_wind },
+  { key: "sizeFactors", label: m.moderation_said_size_factor },
   { key: "offshoreDirectionDegrees", label: m.moderation_said_offshore },
   { key: "waveSizeMeters", label: m.catalogue_size },
 ];
