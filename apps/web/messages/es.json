@@ -1342,5 +1342,19 @@
   "page_not_found_text": "Puede haberse unido a otro spot, o no haber estado nunca aquí.",
   "page_closed_title": "El mapa está cerrado a los visitantes por ahora",
   "page_closed_text": "Esta página lee lo que lee el mapa. Vuelve dentro de un rato, o inicia sesión.",
-  "page_all_spots": "Todos los spots de surf"
+  "page_all_spots": "Todos los spots de surf",
+  "page_now_title": "Ahora mismo",
+  "page_now_for": "Previsión para las {time}.",
+  "page_now_says_waves": "Ahora mismo las olas miden",
+  "page_now_says_wind": "el viento sopla a",
+  "page_now_says_tide": "y la marea está",
+  "page_now_high_at": "pleamar a las {time}",
+  "page_now_low_at": "bajamar a las {time}",
+  "page_now_fits": "Lo que le va a este spot: {parts}.",
+  "page_now_off": "Lo que no: {parts}.",
+  "page_now_part_swell": "la dirección del mar de fondo",
+  "page_now_part_size": "el tamaño",
+  "page_now_part_wind": "el viento",
+  "page_now_part_tide": "la marea",
+  "page_now_alert": "Crear mi alerta en este spot"
 }

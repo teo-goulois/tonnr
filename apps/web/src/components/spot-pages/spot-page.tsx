@@ -14,11 +14,13 @@ import { GuideTexts } from "./guide-texts";
 import { NearbyBreaks } from "./nearby-breaks";
 import { NextTides } from "./next-tides";
 import { SeaNow } from "./sea-now";
+import { SeaSentence } from "./sea-sentence";
 import { Crumbs, SpotFrame, SpotSection } from "./spot-frame";
 import { WeekTable } from "./week-table";
 
-// The public page of a surf break: what it is like, the sea now, the next tides, the week and the
-// breaks nearby, then the way to the map and who the figures come from. Decision 057.
+// The public page of a surf break: the sea now in a sentence (decision 059), what it is like, the
+// sea as the stations measure it, the next tides, the week and the breaks nearby, then the way to
+// the map and who the figures come from. Decision 057.
 
 function Credit({ children }: { children: ReactNode }) {
   return <li className="text-s text-neutral-7">{children}</li>;
@@ -102,6 +104,8 @@ export function SpotPage({ page, now }: { page: SpotPageData; now: number }) {
         <h1 className="text-xl font-bold text-balance sm:text-xxl">{found.name}</h1>
         <BreakDescription description={found.description} />
       </header>
+
+      <SeaSentence page={page} />
 
       {/* The places are the path over the title: the list leaves them out. */}
       <CharacteristicsList known={found.characteristics} title={m.break_about()} />

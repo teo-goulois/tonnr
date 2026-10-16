@@ -3,11 +3,19 @@ import { forecastSource } from "@repo/conditions/forecasts/wave-models";
 import { NearbyBreaks } from "@/components/spot-pages/nearby-breaks";
 import { NextTides } from "@/components/spot-pages/next-tides";
 import { SeaNow } from "@/components/spot-pages/sea-now";
+import { SeaSentence } from "@/components/spot-pages/sea-sentence";
 import { WeekTable } from "@/components/spot-pages/week-table";
-import type { NearStation, NearWind, NearbyBreak, SpotTide, SpotWeek } from "@/lib/pages-api";
+import type {
+  NearStation,
+  NearWind,
+  NearbyBreak,
+  SpotPage,
+  SpotTide,
+  SpotWeek,
+} from "@/lib/pages-api";
 
-// The pieces of the public page of a surf break, over invented figures: the sea now, the next
-// tides, the week and the breaks nearby. Decision 057.
+// The pieces of the public page of a surf break, over invented figures: the sea now in a sentence
+// (decision 059), the sea now, the next tides, the week and the breaks nearby. Decision 057.
 
 const NOW = Date.UTC(2026, 9, 9, 9, 30);
 const HOUR_MS = 60 * 60 * 1000;
@@ -84,6 +92,7 @@ const TIDE: SpotTide = {
     license: { type: "MIT", url: "https://opensource.org/license/mit", commercialUse: true },
   },
   datum: "MSL",
+  now: { heightMeters: 1.9, trend: "rising" },
   extremes: [
     { time: at(2.3), type: "high", heightMeters: 2.9 },
     { time: at(8.5), type: "low", heightMeters: -2.6 },
@@ -95,9 +104,31 @@ const TIDE: SpotTide = {
 
 const WAVES = [1.2, 1.8, 2.6, 3.4, 2.1, 1.1, 0.7];
 const WINDS = [3.2, 4.1, 7.8, 12.5, 9.1, 5.2, 2.4];
+// The hour the sample's moment falls in: a clean north-westerly swell on a light offshore wind.
+const HOUR: NonNullable<SpotWeek["now"]>["hour"] = {
+  time: new Date(Date.UTC(2026, 9, 9, 9)),
+  waveHeightMeters: 1.6,
+  wavePeriodSeconds: 9,
+  wavePeakPeriodSeconds: 12,
+  waveDirectionDegrees: 300,
+  primarySwellHeightMeters: 1.2,
+  primarySwellDirectionDegrees: 305,
+  windSpeedMetersPerSecond: 4,
+  windGustMetersPerSecond: 6,
+  windDirectionDegrees: 80,
+  cloudCoverPercent: 40,
+  precipitationMillimeters: 0,
+  airTemperatureCelsius: 16,
+};
+
 const WEEK: SpotWeek = {
   fetchedAt: at(-5),
   stale: true,
+  now: {
+    hour: HOUR,
+    atShore: "offshore",
+    verdict: { fits: ["swell", "size", "wind"], off: ["tide"] },
+  },
   source: forecastSource(["ecmwf_wam", "mfwam"]),
   days: WAVES.map((height, index) => {
     const day = new Date(Date.UTC(2026, 9, 9 + index, 12));
@@ -166,9 +197,50 @@ const NEARBY: NearbyBreak[] = [
   },
 ];
 
+// A page of an invented break that says what it likes, and one that says nothing but its shore.
+const PAGE: SpotPage = {
+  moved: false,
+  listed: true,
+  texts: [],
+  places: [{ name: "France", page: "/spots/france" }],
+  waves: BUOY,
+  wind: WIND,
+  tide: TIDE,
+  week: WEEK,
+  nearby: NEARBY,
+  break: {
+    id: "00000000-0000-4000-8000-000000000001",
+    name: "La Torche",
+    latitude: 47.84,
+    longitude: -4.35,
+    characteristics: {
+      ...nothing,
+      breakTypes: ["beach"],
+      bottomTypes: ["sand"],
+      bestTides: ["mid", "mid_high"],
+      bestSwellDirections: ["W", "WNW", "NW"],
+      bestWindDirections: ["E", "ENE"],
+      waveSizeMeters: { min: 1, max: 3 },
+    },
+    location: ["France", "Bretagne", "Finistère"],
+    timezone: "Europe/Paris",
+    page: "/spots/france/bretagne/la-torche",
+    description: null,
+    source: { provider: null, url: null, attribution: null, license: null },
+  },
+};
+
 export function SpotPageSamples() {
   return (
     <div className="grid gap-xl">
+      <SeaSentence page={PAGE} />
+      {/* A break that says nothing of what it likes: the facts alone. */}
+      <SeaSentence
+        page={{
+          ...PAGE,
+          week: { ...WEEK, now: { hour: HOUR, atShore: null, verdict: { fits: [], off: [] } } },
+        }}
+      />
       <SeaNow waves={BUOY} wind={WIND} now={NOW} />
       {/* Far from every station: each says so in its place. */}
       <SeaNow waves={null} wind={null} now={NOW} />

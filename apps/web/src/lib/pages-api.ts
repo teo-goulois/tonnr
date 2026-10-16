@@ -121,6 +121,10 @@ export async function fetchSpotPage(address: SpotAddress, site: string): Promise
     week: raw.week && {
       ...raw.week,
       fetchedAt: date(raw.week.fetchedAt),
+      now: raw.week.now && {
+        ...raw.week.now,
+        hour: { ...raw.week.now.hour, time: date(raw.week.now.hour.time) },
+      },
       days: raw.week.days.map((day) => ({
         ...day,
         wave: day.wave && { ...day.wave, time: date(day.wave.time) },
