@@ -55,7 +55,14 @@ type ForecastGridProps = {
   // Told how to bring the grid back to now while it is scrolled away from it, and that there is
   // nothing to bring back once it is there.
   onAway?: (back: (() => void) | undefined) => void;
+  // The rows beyond the waves, their period, the wind and the weather: the energy, the swell
+  // apart, the gusts, and the model's figure under the buoy's. The density of the panel says
+  // which are drawn. Decision 061.
+  rows?: GridRow[];
 };
+
+export type GridRow = "energy" | "swell" | "gusts" | "model";
+export const GRID_ROWS: GridRow[] = ["energy", "swell", "gusts", "model"];
 
 const COLUMN = 34;
 const LABELS = 68;
@@ -128,6 +135,7 @@ export function ForecastGrid({
   named = true,
   onNamedChange,
   onAway,
+  rows = GRID_ROWS,
 }: ForecastGridProps) {
   const labels = named ? LABELS : LETTERS;
   // Drawn again when the reader changes units: the wind's row is written in them.
@@ -137,7 +145,7 @@ export function ForecastGrid({
   const weather = weatherMetrics();
   const swell = swellMetric();
   // A point where no model gives a swell apart has no row for it.
-  const hasSwell = model.some((sample) => sample.swell !== null);
+  const hasSwell = rows.includes("swell") && model.some((sample) => sample.swell !== null);
   const step = stepHours * HOUR_MS;
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; left: number } | null>(null);
@@ -218,7 +226,7 @@ export function ForecastGrid({
     label: ReactNode = metric.label,
     numeric: NumericKey = metric.key,
   ) {
-    const compares = buoy.some((sample) => sample[numeric] !== null);
+    const compares = rows.includes("model") && buoy.some((sample) => sample[numeric] !== null);
     const colored = inPalette(metric, palette);
     // An hour without rain leaves its cell empty, as a clear sky does.
     const shown = (value: number | undefined) =>
@@ -451,14 +459,14 @@ export function ForecastGrid({
             {measuredColumns > 0 && spacer}
             {valueRows(all.height)}
             {valueRows(all.period)}
-            {valueRows(all.energy)}
+            {rows.includes("energy") && valueRows(all.energy)}
             {directionRow("waveDirection")}
             {/* The swell apart from the wind sea, under the whole sea it is a part of. */}
             {hasSwell && valueRows(swell)}
             {hasSwell && directionRow("swellDirection")}
             {spacer}
             {valueRows(all.wind)}
-            {valueRows(all.wind, m.details_gusts(), "gust")}
+            {rows.includes("gusts") && valueRows(all.wind, m.details_gusts(), "gust")}
             {directionRow("windDirection")}
             {spacer}
             {valueRows(weather.cloud)}

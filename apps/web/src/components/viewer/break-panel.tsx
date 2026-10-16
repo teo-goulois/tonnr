@@ -78,6 +78,7 @@ export function BreakPanel({
       nearby={nearby}
       nearbyWind={nearbyWind}
       offshoreFrom={found.data?.characteristics.offshoreDirectionDegrees}
+      words={found.data?.characteristics}
       onOpenStation={onOpenBuoy}
       guide={
         found.data && <BreakGuide found={found.data} guide={guide} own={own} guiding={guiding} />

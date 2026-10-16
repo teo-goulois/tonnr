@@ -1,3 +1,4 @@
+import { type SeaWords, tideNowOf, verdictOf, windAtShoreOf } from "@repo/conditions/sea-now";
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
@@ -12,6 +13,8 @@ import {
   useState,
 } from "react";
 
+import { useSaveDensity } from "@/components/shared/density-account";
+import { type Density, useDensity } from "@/lib/density";
 import { formatDayAndClock } from "@/lib/format";
 import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
@@ -19,11 +22,16 @@ import { m } from "@/paraglide/messages.js";
 import { type PointConditionsProps, TideChart } from "../point-conditions";
 import type { Reading, Station } from "../types";
 import { SHEET_FOLD } from "../viewer-drawer";
-import { ForecastGrid } from "./forecast-grid";
+import { DaysAhead } from "./days-ahead";
+import { DensitySwitch } from "./density-switch";
+import { GRID_ROWS, type GridRow, ForecastGrid } from "./forecast-grid";
 import {
   DAY_MS,
   HOUR_MS,
+  METRIC_KEYS,
+  type MetricKey,
   measuredSamples,
+  metrics,
   modelSamples,
   nightsBetween,
   periodKindOf,
@@ -38,7 +46,9 @@ import {
   NearbyWindStation,
   NowTiles,
   ReadingMore,
+  nowOf,
 } from "./parts";
+import { SeaNow, type SeaNowProps } from "./sea-now";
 
 /*
  * The panel of a buoy or of a surf break: the swell, its period, its energy and the wind read
@@ -56,6 +66,10 @@ import {
  *   explains, and the moment under the pointer is written over its line.
  * - What a reader learns once is not said again: how a finger reads the curves, until it has, and
  *   the names of the grid's rows, which an arrow over them folds to their first letter.
+ *
+ * And on 2026-10-16, decision 061: one panel that shows less or more, by a density the account
+ * keeps. The essentials say the sea in words, the details are the panel as it was without the
+ * expert's figures, and everything is the whole of it.
  */
 
 // How far the lanes reach on each side of now, in hours. The week keeps a day of the past and
@@ -63,6 +77,11 @@ import {
 const SPANS = { "12h": 12, "24h": 24, "48h": 48 } as const;
 type Range = keyof typeof SPANS | "week";
 const RANGES = [...Object.keys(SPANS), "week"] as Range[];
+
+// What each density draws of the tiles, the lanes and the week's table. The essentials draw
+// none of them.
+const DETAILED_KEYS: MetricKey[] = ["height", "period", "wind"];
+const DETAILED_ROWS: GridRow[] = [];
 
 // The lanes draw with the chart library, which is heavy: they load apart from the map, as the
 // other charts do. The viewer asks for them as soon as the map is up.
@@ -78,12 +97,53 @@ function MetricLanes(props: ComponentProps<typeof LazyMetricLanes>) {
   );
 }
 
+type ConditionsProps = DetailsProps & {
+  density: Density;
+  onDensityChange: (next: Density) => void;
+  // What the place says of itself, for the sentence of the sea now to be judged by. None at a
+  // buoy, or at a place whose words are not known yet.
+  words?: SeaWords | null;
+};
+
+/**
+ * The sea now as the sentence says it: what the tiles read, a measurement where there is a live
+ * one and the model otherwise, the wind named by the shore, the tide from its timeline, and the
+ * place's words laid against them.
+ */
+function seaNowOf(props: DetailsProps, words: SeaWords | null | undefined): SeaNowProps {
+  const all = metrics();
+  const height = nowOf(all.height, props);
+  const period = nowOf(all.period, props);
+  const wind = nowOf(all.wind, props);
+  const tideNow = tideNowOf(props.tides.data?.timeline ?? [], props.now);
+  // The next low and high water, which the stage of the tide is read between.
+  const ahead = (props.extremes.data?.extremes ?? []).filter(
+    (extreme) => extreme.time.getTime() >= props.now,
+  );
+  const offshore = { offshoreDirectionDegrees: props.offshoreFrom ?? null };
+  const hour = {
+    waveHeightMeters: height.shown ?? null,
+    waveDirectionDegrees: height.bearing ?? null,
+    windDirectionDegrees: wind.bearing ?? null,
+  };
+  return {
+    waves: { height: height.shown, period: period.shown, direction: height.bearing },
+    wind: { knots: wind.shown, direction: wind.bearing, atShore: windAtShoreOf(hour, offshore) },
+    tide: tideNow && { trend: tideNow.trend, next: ahead[0] },
+    verdict: words
+      ? verdictOf(words, hour, tideNow ? { now: tideNow, extremes: ahead } : null)
+      : null,
+    isLoading: props.hasBuoy ? props.historyPending && !props.latest : props.forecast.isPending,
+  };
+}
+
 /**
  * Four tiles for now. At a buoy, the swell, its period, its energy and the wind as four lanes on
- * one span of time, the buoy drawn over the model. Then the week as a grid, and the tide.
+ * one span of time, the buoy drawn over the model. Then the week as a grid, and the tide. Or, at
+ * the least density, the sea now in a sentence and the days ahead in words.
  */
-const Conditions = memo(function Conditions(props: DetailsProps) {
-  const { now, model, measured, place, hasBuoy, forecast, tides, extremes } = props;
+const Conditions = memo(function Conditions(props: ConditionsProps) {
+  const { now, model, measured, place, hasBuoy, forecast, tides, extremes, density, words } = props;
   const [range, setRange] = useState<Range>("24h");
   // How to bring the grid back to now, while it is scrolled away from it.
   const [backToNow, setBackToNow] = useState<{ go: () => void }>();
@@ -108,13 +168,68 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
     [place, Math.floor(start / HOUR_MS), end],
   );
 
+  const everything = density === "everything";
+  const keys = everything ? METRIC_KEYS : DETAILED_KEYS;
+  const rows = everything ? GRID_ROWS : DETAILED_ROWS;
+
+  const tide = (
+    <Block title={m.tide_title()}>
+      {tides.isPending || tides.data ? (
+        <TideChart
+          label={m.tide_title()}
+          now={new Date(now)}
+          onExtend={props.onTideExtend}
+          isLoading={tides.isPending}
+          extremes={extremes.data?.extremes ?? []}
+          points={(tides.data?.timeline ?? []).map((entry) => ({
+            time: entry.time,
+            value: entry.heightMeters,
+          }))}
+        />
+      ) : (
+        <p className="text-s text-neutral-7">
+          {tides.isUnavailable ? m.tide_unavailable() : m.tide_none()}
+        </p>
+      )}
+    </Block>
+  );
+  const more = <DensitySwitch density={density} onChange={props.onDensityChange} />;
+
+  if (density === "essentials") {
+    return (
+      <div className="grid gap-m">
+        {/* What a phone's sheet shows before it is raised: the sentence alone. */}
+        <div {...SHEET_FOLD}>
+          <SeaNow {...seaNowOf(props, words)} />
+        </div>
+        {forecast.isPending || forecast.data ? (
+          <Block title={m.page_week()}>
+            <DaysAhead
+              hours={forecast.data?.hours}
+              now={now}
+              offshoreFrom={props.offshoreFrom}
+              isLoading={forecast.isPending}
+            />
+          </Block>
+        ) : (
+          <p className="text-s text-neutral-7">
+            {forecast.isUnavailable ? m.forecast_unavailable() : m.forecast_none()}
+          </p>
+        )}
+        {tide}
+        {more}
+        {props.footer}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-m">
       {/* What a phone's sheet shows before it is raised. */}
       <div className="grid gap-xs" {...SHEET_FOLD}>
-        <NowTiles {...props} />
-        <ReadingMore latest={props.latest} />
-        {props.nearby && (
+        <NowTiles {...props} keys={keys} withModel={everything} />
+        {everything && <ReadingMore latest={props.latest} />}
+        {everything && props.nearby && (
           <NearbyBuoy nearby={props.nearby} now={now} onOpen={props.onOpenStation} />
         )}
         {props.nearbyWind && (
@@ -158,6 +273,7 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
               }
             >
               <MetricLanes
+                keys={keys}
                 measured={measured}
                 model={model}
                 start={start}
@@ -184,6 +300,7 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
               named={named}
               onNamedChange={setNamed}
               onAway={onGridAway}
+              rows={rows}
               model={model}
               measured={hasBuoy ? measured : undefined}
               start={hasBuoy ? Math.max(first, now - 2 * DAY_MS) : now - 1.5 * HOUR_MS}
@@ -201,26 +318,8 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
         </p>
       )}
 
-      <Block title={m.tide_title()}>
-        {tides.isPending || tides.data ? (
-          <TideChart
-            label={m.tide_title()}
-            now={new Date(now)}
-            onExtend={props.onTideExtend}
-            isLoading={tides.isPending}
-            extremes={extremes.data?.extremes ?? []}
-            points={(tides.data?.timeline ?? []).map((entry) => ({
-              time: entry.time,
-              value: entry.heightMeters,
-            }))}
-          />
-        ) : (
-          <p className="text-s text-neutral-7">
-            {tides.isUnavailable ? m.tide_unavailable() : m.tide_none()}
-          </p>
-        )}
-      </Block>
-
+      {tide}
+      {more}
       {props.footer}
     </div>
   );
@@ -236,6 +335,11 @@ type DetailsOfProps = PointConditionsProps & {
   historyPending?: boolean;
   // The surf break the panel is of. Undefined at a buoy.
   spot?: { latitude: number; longitude: number };
+  // What the break, or the spot, says of itself: the sentence of the sea now is judged by it.
+  words?: SeaWords | null;
+  // How much of the forecast to show. Without it, the panel reads what the reader chose:
+  // decision 061. A sample gives one.
+  density?: Density;
   // What is known of the surf break, for the tab beside its forecast.
   guide?: ReactNode;
   // The alert of a spot of the user's own, for a third tab. A break has none.
@@ -264,6 +368,8 @@ export function Details({
   latest,
   historyPending = false,
   spot,
+  words,
+  density: asked,
   guide,
   alert,
   sessions,
@@ -271,6 +377,8 @@ export function Details({
   onTabChange,
   ...conditions
 }: DetailsOfProps) {
+  const chosen = useDensity();
+  const saveDensity = useSaveDensity();
   const measured = useMemo(() => measuredSamples(readings ?? []), [readings]);
   const hours = conditions.forecast.data?.hours;
   // Beside a buoy, the model's period is of the kind the buoy gives.
@@ -278,7 +386,7 @@ export function Details({
   const model = useMemo(() => modelSamples(hours ?? [], periodKind), [hours, periodKind]);
   const point = conditions.forecast.data?.point;
 
-  const props: DetailsProps = {
+  const props: ConditionsProps = {
     ...conditions,
     station,
     latest,
@@ -291,6 +399,9 @@ export function Details({
     hasBuoy: station !== undefined || historyPending,
     measuresWind: station?.measures.includes("wind") ?? false,
     historyPending,
+    words,
+    density: asked ?? chosen,
+    onDensityChange: saveDensity,
   };
 
   if (!spot) return <Conditions {...props} />;

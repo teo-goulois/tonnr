@@ -28,6 +28,7 @@ import {
   HOUR_MS,
   METRIC_KEYS,
   type Metric,
+  type MetricKey,
   type Sample,
   bias,
   directionAt,
@@ -114,15 +115,27 @@ export function Block({
  * The four values now, each on its tile. Beside a buoy's figure, the dashed line of the model
  * and what the model says. A value the buoy does not measure is the model's, and says so.
  */
-export function NowTiles(props: DetailsProps) {
+export function NowTiles({
+  keys = METRIC_KEYS,
+  withModel = true,
+  ...props
+}: DetailsProps & {
+  // Which values get a tile, and whether the model's figure is written under the buoy's: the
+  // density of the panel says. Decision 061.
+  keys?: MetricKey[];
+  withModel?: boolean;
+}) {
   // Drawn again when the reader changes units: the wind's tile is written in them.
   useUnits();
   const all = metrics();
   const loading = props.hasBuoy ? props.historyPending && !props.latest : props.forecast.isPending;
 
   return (
-    <div className="grid grid-cols-4 gap-xs">
-      {METRIC_KEYS.map((key) => {
+    <div
+      className="grid gap-xs"
+      style={{ gridTemplateColumns: `repeat(${keys.length}, minmax(0, 1fr))` }}
+    >
+      {keys.map((key) => {
         const metric = all[key];
         const read = nowOf(metric, props);
         return (
@@ -165,7 +178,7 @@ export function NowTiles(props: DetailsProps) {
               )}
             </div>
             {/* A surf break has the model alone: nothing to tell apart, so nothing is written. */}
-            {props.hasBuoy && (
+            {props.hasBuoy && withModel && (
               <div className="flex h-(--line-xs) items-center gap-xxs text-xs text-neutral-7 tabular-nums">
                 {!loading && read.model !== undefined && (
                   <>

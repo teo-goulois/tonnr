@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { type SeaHour, nearPoints, tideStageOf, verdictOf, windAtShoreOf } from "./sea-now";
+import {
+  type SeaHour,
+  nearPoints,
+  tideNowOf,
+  tideStageOf,
+  verdictOf,
+  windAtShoreOf,
+} from "./sea-now";
 
 // The hour laid against a break's own words: decision 059.
 
@@ -116,5 +123,29 @@ describe("the verdict", () => {
     expect(
       verdictOf(MUNDAKA, { ...HOUR, waveHeightMeters: null, waveDirectionDegrees: null }, null),
     ).toEqual({ fits: ["wind"], off: [] });
+  });
+});
+
+describe("the tide now, from its timeline", () => {
+  const at = (hour: number, heightMeters: number) => ({
+    time: new Date(Date.UTC(2026, 9, 16, hour)),
+    heightMeters,
+  });
+  const timeline = [at(8, 2), at(9, 3), at(10, 3.5), at(11, 3)];
+
+  it("is read between the two heights around the moment, and says which way it goes", () => {
+    const now = Date.UTC(2026, 9, 16, 9, 30);
+    expect(tideNowOf(timeline, now)).toEqual({ heightMeters: 3.25, trend: "rising" });
+    expect(tideNowOf(timeline, Date.UTC(2026, 9, 16, 10, 15))).toEqual({
+      heightMeters: 3.375,
+      trend: "falling",
+    });
+  });
+
+  it("is unknown where the timeline does not reach", () => {
+    expect(tideNowOf(timeline, Date.UTC(2026, 9, 16, 7))).toBeNull();
+    expect(tideNowOf(timeline, Date.UTC(2026, 9, 16, 12))).toBeNull();
+    expect(tideNowOf([at(6, 1), at(12, 4)], Date.UTC(2026, 9, 16, 9))).toBeNull();
+    expect(tideNowOf([], Date.UTC(2026, 9, 16, 9))).toBeNull();
   });
 });

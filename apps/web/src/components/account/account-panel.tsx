@@ -7,9 +7,11 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { AnalyticsSetting } from "@/components/shared/analytics";
+import { useSaveDensity } from "@/components/shared/density-account";
 import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { UnitsSettings } from "@/components/shared/units-settings";
 import { AccountPrompt } from "@/components/viewer/saved-panel";
+import { DENSITIES, type Density, densityName, useDensity } from "@/lib/density";
 import { LANGUAGES } from "@/lib/languages";
 import { setPalette, usePalette } from "@/lib/palette";
 import { m } from "@/paraglide/messages.js";
@@ -92,6 +94,8 @@ export function AccountPanel({
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const palette = usePalette();
+  const density = useDensity();
+  const saveDensity = useSaveDensity();
   const [isNaming, setNaming] = useState(false);
 
   return (
@@ -244,6 +248,18 @@ export function AccountPanel({
             <TabsList variant="segment" aria-label={m.account_palette()}>
               <TabsTab value="tonnr">{APP_NAME}</TabsTab>
               <TabsTab value="windguru">Windguru</TabsTab>
+            </TabsList>
+          </Tabs>
+        </Line>
+        {/* How much of the forecast a panel shows: in words, the details, or everything. Decision 061. */}
+        <Line label={m.account_density()}>
+          <Tabs value={density} onValueChange={(next) => saveDensity(next as Density)}>
+            <TabsList variant="segment" aria-label={m.account_density()}>
+              {DENSITIES.map((one) => (
+                <TabsTab key={one} value={one}>
+                  {densityName(one)}
+                </TabsTab>
+              ))}
             </TabsList>
           </Tabs>
         </Line>

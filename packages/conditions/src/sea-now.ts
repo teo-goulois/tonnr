@@ -101,3 +101,35 @@ export function verdictOf(
   }
   return verdict;
 }
+
+// A height further than this from the moment says nothing of the tide now.
+const TIDE_REACH_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * The tide now, from a timeline of its heights: the height between the two around the moment,
+ * and whether it rises or falls between them. Null when the timeline does not reach the moment.
+ */
+export function tideNowOf(
+  timeline: readonly { time: Date; heightMeters: number }[],
+  now: number,
+): TideNow | null {
+  let before: { time: Date; heightMeters: number } | undefined;
+  let after: { time: Date; heightMeters: number } | undefined;
+  for (const point of timeline) {
+    if (point.time.getTime() <= now) before = point;
+    else {
+      after = point;
+      break;
+    }
+  }
+  if (!before || !after) return null;
+  if (now - before.time.getTime() > TIDE_REACH_MS || after.time.getTime() - now > TIDE_REACH_MS) {
+    return null;
+  }
+  const span = after.time.getTime() - before.time.getTime();
+  const part = span === 0 ? 0 : (now - before.time.getTime()) / span;
+  return {
+    heightMeters: before.heightMeters + (after.heightMeters - before.heightMeters) * part,
+    trend: after.heightMeters >= before.heightMeters ? "rising" : "falling",
+  };
+}

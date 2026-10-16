@@ -218,6 +218,7 @@ export function SpotPanel({
         nearby={nearby}
         nearbyWind={nearbyWind}
         offshoreFrom={found?.characteristics?.offshoreDirectionDegrees}
+        words={found?.characteristics}
         onOpenStation={onOpenBuoy}
         tab={tab}
         onTabChange={setTab}

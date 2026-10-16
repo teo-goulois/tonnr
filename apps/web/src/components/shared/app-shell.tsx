@@ -6,6 +6,7 @@ import { AuthPromptProvider } from "@/components/auth/auth-prompt";
 import Header from "@/components/header";
 
 import { BottomNav } from "./bottom-nav";
+import { DisplayFromAccount } from "./density-account";
 import { UnitsFromAccount } from "./units-account";
 
 type AppShellProps = {
@@ -34,6 +35,7 @@ export function AppShell({ nav = true, children }: AppShellProps) {
       }}
     >
       <UnitsFromAccount />
+      <DisplayFromAccount />
       <div
         data-bottom-nav={nav ? "" : undefined}
         // What the browser shows of the page, and no more: a browser that draws its own bar over
