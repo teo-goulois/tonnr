@@ -301,6 +301,8 @@ export function ForecastGrid({
   }
 
   const width = columns.length * COLUMN;
+  // Every other day has a shade under what has no color of its own, as its name has above.
+  const shade = (column: Column) => column.day % 2 === 1 && "bg-neutral-2";
   // Where a moment stands on the sheet: a column is drawn around its hour.
   const xOf = (time: number) => labels + ((time - columns[0]!.time) / step + 0.5) * COLUMN;
   const nowX =
@@ -347,6 +349,7 @@ export function ForecastGrid({
                 className={cn(
                   ROW,
                   "p-0 text-center text-xs tabular-nums",
+                  shade(column),
                   (measuredValue !== undefined ||
                     (value !== undefined && colored.strong?.(value))) &&
                     "font-semibold",
@@ -376,7 +379,10 @@ export function ForecastGrid({
               return (
                 <td
                   key={column.time}
-                  className="h-5 p-0 text-center text-xs text-neutral-7 tabular-nums"
+                  className={cn(
+                    "h-5 p-0 text-center text-xs text-neutral-7 tabular-nums",
+                    shade(column),
+                  )}
                 >
                   {modelled === undefined ? "" : formatMetric(metric, modelled, false)}
                 </td>
@@ -406,7 +412,7 @@ export function ForecastGrid({
           return (
             <td
               key={column.time}
-              className={cn(height, "p-0 text-neutral-9")}
+              className={cn(height, "p-0 text-neutral-9", shade(column))}
               title={bearing === undefined ? undefined : compassPoint(bearing)}
             >
               {bearing !== undefined && (
@@ -426,7 +432,11 @@ export function ForecastGrid({
 
   const spacer = (
     <tr aria-hidden>
-      <td colSpan={columns.length + 1} className="h-xs p-0" />
+      {/* The names' cell keeps the lines of the hours under the names, as their rows do. */}
+      <th data-names="" className="sticky left-0 z-10 h-xs bg-neutral-1 p-0" />
+      {columns.map((column) => (
+        <td key={column.time} className={cn("h-xs p-0", shade(column))} />
+      ))}
     </tr>
   );
   // The name of a band follows the grid while any of its columns is in view.
@@ -600,7 +610,7 @@ export function ForecastGrid({
           {nowX !== undefined && (
             <div
               aria-hidden
-              className="pointer-events-none absolute bottom-0 z-[5] w-px bg-neutral-10/60"
+              className="pointer-events-none absolute bottom-0 z-[5] w-px bg-neutral-5"
               style={{ left: nowX, top: headHeight }}
             />
           )}
