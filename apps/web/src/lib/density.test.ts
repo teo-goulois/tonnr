@@ -15,8 +15,8 @@ afterEach(() => {
 });
 
 describe("how much of the forecast a panel shows", () => {
-  it("is the details until the reader chooses, and goes one step at a time", () => {
-    expect(getDensity()).toBe("details");
+  it("is everything until the reader chooses, and goes one step at a time", () => {
+    expect(getDensity()).toBe("everything");
     expect(lessDense("details")).toBe("essentials");
     expect(moreDense("details")).toBe("everything");
     expect(lessDense("essentials")).toBeUndefined();

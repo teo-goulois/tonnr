@@ -55,8 +55,8 @@ const unitColumns = {
 
 // How the caller asks the apps to draw: how much of the forecast a panel shows. Decision 061.
 const displaySchema = z.object({ density: z.enum(DENSITIES) });
-// What an account that has chosen nothing reads: the details, which is the panel as it was.
-const STARTING_DISPLAY: z.infer<typeof displaySchema> = { density: "details" };
+// What an account that has chosen nothing reads: everything, as Téo chose on 2026-10-16.
+const STARTING_DISPLAY: z.infer<typeof displaySchema> = { density: "everything" };
 const displayColumns = { density: displayPreferences.density };
 
 // What the caller looked at last: a station, a surf break or a spot of its own, with what a list

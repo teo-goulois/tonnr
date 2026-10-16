@@ -5,8 +5,9 @@ import { m } from "@/paraglide/messages.js";
 
 /**
  * How much of the forecast a panel shows: the essentials, in words; the details, which is the
- * panel as it was and what the app starts with; or everything, the energy, the swell apart, the
- * gusts and the model beside the buoy. It is kept in the account, so that it is the same on
+ * panel as it was without the expert's figures; or everything, the energy, the swell apart, the
+ * gusts and the model beside the buoy, which is what the app starts with, as Téo chose on
+ * 2026-10-16. It is kept in the account, so that it is the same on
  * every device, and in the browser, so that a page opens in it. Decision 061.
  */
 export type Density = NonNullable<
@@ -19,7 +20,7 @@ export const DENSITIES = [
   "details",
   "everything",
 ] as const satisfies readonly Density[];
-export const DEFAULT_DENSITY: Density = "details";
+export const DEFAULT_DENSITY: Density = "everything";
 
 const STORED_KEY = "tonnr:density";
 
@@ -64,7 +65,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** The density in force, for a panel: it is drawn again when it changes. The server draws the details. */
+/** The density in force, for a panel: it is drawn again when it changes. The server draws everything. */
 export function useDensity() {
   return useSyncExternalStore(subscribe, getDensity, () => DEFAULT_DENSITY);
 }
