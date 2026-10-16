@@ -1,6 +1,6 @@
 # 061. One panel of the forecast, which shows less or more
 
-Status: proposed on 2026-10-16. Téo asked for "three different views in the app, by your level and the details you want". What he kept instead of three screens is one panel that shows more or less, by a setting. Nothing here is built on `main`: the prototype lives on `prototype/forecast-density`, and this record is proposed until he says. [Decision 060](060-learn.md) is the other thread's, for `/learn`.
+Status: proposed on 2026-10-16. Téo asked for "three different views in the app, by your level and the details you want". What he kept instead of three screens is one panel that shows more or less, by a setting. The same day he agreed to the table in the account and to the tide's curve among the essentials ("la courbe est mieux et reste simple"), and asked for other names than "Essentials, Details, Everything": the names below are the prototype's, and his to replace. Built that afternoon on `prototype/forecast-density`, API, database and web app, and tried in a browser at a phone's width through a tunnel, at La Torche, as a visitor and with an invented account. Nothing of it is on `main`, and this record is proposed until he says. [Decision 060](060-learn.md) is the other thread's, for `/learn`.
 
 ## Context
 
@@ -52,4 +52,5 @@ A new preference is a table and its migration, which both containers apply at th
 - The API is deployed before the web app: a web app that asks an older API for the display gets an error and reads the details, as it reads in knots for the units.
 - The messages of the three names, of the sentence's words that the page does not have and of the two buttons are written in the four languages.
 - Not built: the mobile app of decision 014 reads the same two routes.
-- Not seen on a phone yet, and not deployed: it is a prototype on its branch, and `main` does not have it.
+- Seen in a desktop browser at a phone's width, not on a phone, and not deployed: it is a prototype on its branch, and `main` does not have it. Checked there: the three densities at a break with words, the switch in place, the line of the account's panel, and that an account keeps the choice and gets it back on a browser that kept nothing.
+- The sentence's parts and the chips of the days ahead are drawn again in the viewer, beside the page's own in `spot-pages/`: a change of one is a change of the other until the two share them.
