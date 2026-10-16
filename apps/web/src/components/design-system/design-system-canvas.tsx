@@ -40,6 +40,9 @@ export function DesignSystemCanvas() {
     let previous: { x: number; y: number; distance: number } | null = null;
     let nativeGestureScale = 1;
     let nativeGestureActive = false;
+    let spaceHeld = false;
+    let suppressPanClick = false;
+    const forcedPointers = new Set<number>();
     const storage = () => window.localStorage;
     try {
       const kept = readCamera(storage());
@@ -108,9 +111,13 @@ export function DesignSystemCanvas() {
       }
       captures.clear();
       pointers.clear();
+      forcedPointers.clear();
       previous = null;
       nativeGestureScale = 1;
       nativeGestureActive = false;
+      spaceHeld = false;
+      suppressPanClick = false;
+      host.dataset.panReady = "false";
       host.dataset.panning = "false";
     };
     const metrics = () => {
@@ -121,22 +128,31 @@ export function DesignSystemCanvas() {
       return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, distance: Math.hypot(a.x - b.x, a.y - b.y) };
     };
     const down = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof HTMLElement) ||
-        !event.target.closest("[data-canvas-space]") ||
-        event.button !== 0
-      )
-        return;
+      if (!(event.target instanceof Element) || event.button !== 0) return;
+      suppressPanClick = false;
+      const empty = event.target.closest("[data-canvas-space]");
+      const forced = spaceHeld || (event.altKey && content.contains(event.target));
+      if (!empty && !forced) return;
+      if (event.target.closest("[data-canvas-controls]")) return;
+      if (forced) {
+        // Consume only this explicit pan gesture before the preview receives its press.
+        event.preventDefault();
+        event.stopPropagation();
+        forcedPointers.add(event.pointerId);
+        suppressPanClick = true;
+      }
       host.focus({ preventScroll: true });
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      event.target.setPointerCapture(event.pointerId);
-      captures.set(event.pointerId, event.target);
+      const owner = forced ? host : event.target;
+      owner.setPointerCapture(event.pointerId);
+      captures.set(event.pointerId, owner);
       previous = metrics();
       host.dataset.panning = "true";
       autoFit = false;
     };
     const pointerMove = (event: PointerEvent) => {
       if (!pointers.has(event.pointerId)) return;
+      if (forcedPointers.has(event.pointerId)) event.stopPropagation();
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       const next = metrics();
       if (next && previous) {
@@ -158,6 +174,11 @@ export function DesignSystemCanvas() {
       previous = next;
     };
     const up = (event: PointerEvent) => {
+      if (forcedPointers.delete(event.pointerId)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (event.type === "pointercancel") suppressPanClick = false;
       const element = captures.get(event.pointerId);
       captures.delete(event.pointerId);
       pointers.delete(event.pointerId);
@@ -247,6 +268,20 @@ export function DesignSystemCanvas() {
       nativeGestureActive = false;
       nativeGestureScale = 1;
     };
+    const panKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== " " || event.ctrlKey || event.metaKey || event.altKey) return;
+      // Space remains the preview's own key when a control or a portal has focus.
+      if (event.target !== host && event.target !== document.body) return;
+      event.preventDefault();
+      spaceHeld = true;
+      host.dataset.panReady = "true";
+    };
+    const panKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== " " || !spaceHeld) return;
+      event.preventDefault();
+      spaceHeld = false;
+      host.dataset.panReady = "false";
+    };
     const key = (event: KeyboardEvent) => {
       if (event.target !== host || event.ctrlKey || event.metaKey || event.altKey) return;
       const directions: Record<string, [number, number]> = {
@@ -281,7 +316,7 @@ export function DesignSystemCanvas() {
         fit.current();
       }
       if (event.key === "Escape") clear();
-      // Space, undo and all editing shortcuts remain native.
+      // Undo and all preview editing shortcuts remain native.
     };
     const reveal = (event: FocusEvent) => {
       if (!(event.target instanceof HTMLElement) || !content.contains(event.target)) return;
@@ -306,6 +341,14 @@ export function DesignSystemCanvas() {
       host.scrollLeft = 0;
     };
     const navigate = (event: MouseEvent) => {
+      if (suppressPanClick) {
+        suppressPanClick = false;
+        if (event.detail > 0) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+      }
       const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!link) return;
       event.preventDefault();
@@ -333,13 +376,15 @@ export function DesignSystemCanvas() {
     const visibility = () => {
       if (document.hidden) clear();
     };
-    host.addEventListener("pointerdown", down);
-    host.addEventListener("pointermove", pointerMove);
-    host.addEventListener("pointerup", up);
-    host.addEventListener("pointercancel", up);
+    host.addEventListener("pointerdown", down, true);
+    host.addEventListener("pointermove", pointerMove, true);
+    host.addEventListener("pointerup", up, true);
+    host.addEventListener("pointercancel", up, true);
     host.addEventListener("lostpointercapture", up);
     document.addEventListener("wheel", wheel, { passive: false, capture: true });
     document.addEventListener("keydown", browserZoomKey, true);
+    document.addEventListener("keydown", panKeyDown, true);
+    document.addEventListener("keyup", panKeyUp, true);
     document.addEventListener("gesturestart", gestureStart, { passive: false });
     document.addEventListener("gesturechange", gestureChange, { passive: false });
     document.addEventListener("gestureend", gestureEnd, { passive: false });
@@ -360,13 +405,15 @@ export function DesignSystemCanvas() {
       } catch {
         /* Storage is optional. */
       }
-      host.removeEventListener("pointerdown", down);
-      host.removeEventListener("pointermove", pointerMove);
-      host.removeEventListener("pointerup", up);
-      host.removeEventListener("pointercancel", up);
+      host.removeEventListener("pointerdown", down, true);
+      host.removeEventListener("pointermove", pointerMove, true);
+      host.removeEventListener("pointerup", up, true);
+      host.removeEventListener("pointercancel", up, true);
       host.removeEventListener("lostpointercapture", up);
       document.removeEventListener("wheel", wheel, true);
       document.removeEventListener("keydown", browserZoomKey, true);
+      document.removeEventListener("keydown", panKeyDown, true);
+      document.removeEventListener("keyup", panKeyUp, true);
       document.removeEventListener("gesturestart", gestureStart);
       document.removeEventListener("gesturechange", gestureChange);
       document.removeEventListener("gestureend", gestureEnd);
@@ -394,14 +441,15 @@ export function DesignSystemCanvas() {
       className="fixed inset-0 overflow-hidden overscroll-none bg-background text-foreground [touch-action:pan-x_pan-y] focus-visible:outline-(--focus-ring-outline) focus-visible:-outline-offset-2"
     >
       <p id="canvas-keys" className="sr-only">
-        Pan on empty space, or scroll there. Control-scroll zooms around the pointer. On the canvas,
-        use arrows to pan, plus and minus to zoom, and Home to fit all. Control or Command with plus
-        and minus also zooms the canvas, and with zero resets its camera. Preview controls keep
-        their own editing keys. Preview links stay here.
+        Pan on empty space, or hold Alt and drag over a component. When the canvas has focus, hold
+        Space and drag to pan over components. Control-scroll zooms around the pointer. On the
+        canvas, use arrows to pan, plus and minus to zoom, and Home to fit all. Control or Command
+        with plus and minus also zooms the canvas, and with zero resets its camera. Preview controls
+        keep their own editing keys. Preview links stay here.
       </p>
       <div
         data-canvas-space
-        className="absolute inset-0 cursor-grab touch-none in-data-[panning=true]:cursor-grabbing"
+        className="absolute inset-0 cursor-grab touch-none in-data-[pan-ready=true]:z-40 in-data-[panning=true]:z-40 in-data-[panning=true]:cursor-grabbing"
       />
       <div
         data-canvas-controls
