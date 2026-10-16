@@ -203,6 +203,16 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/learn/beginner" }),
         },
         {
+          value: `${m.learn_intermediate_title()} learn intermediate guide week window`,
+          label: m.learn_intermediate_title(),
+          run: () => void navigate({ to: "/learn/intermediate" }),
+        },
+        {
+          value: `${m.learn_advanced_title()} learn advanced guide models buoys`,
+          label: m.learn_advanced_title(),
+          run: () => void navigate({ to: "/learn/advanced" }),
+        },
+        {
           value: `${m.learn_glossary_title()} learn glossary words`,
           label: m.learn_glossary_title(),
           run: () => void navigate({ to: "/learn/glossary" }),

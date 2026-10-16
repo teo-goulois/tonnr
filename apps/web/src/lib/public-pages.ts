@@ -23,6 +23,8 @@ export const PUBLIC_PAGES = [
   "/spots",
   "/learn",
   "/learn/beginner",
+  "/learn/intermediate",
+  "/learn/advanced",
   "/learn/glossary",
 ] as const satisfies readonly (keyof FileRoutesByTo)[];
 

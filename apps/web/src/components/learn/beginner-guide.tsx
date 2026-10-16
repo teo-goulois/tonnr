@@ -64,6 +64,7 @@ export function BeginnerGuide() {
   return (
     <GuidePage
       level="beginner"
+      next="intermediate"
       before={<SentenceExample />}
       lessons={[
         {
