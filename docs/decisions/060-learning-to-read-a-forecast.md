@@ -1,6 +1,6 @@
 # 060. Learning to read a surf forecast, in three guides beside the landing
 
-Status: proposed on 2026-10-16, at Téo's request for a part of the landing that teaches how to read a surf forecast, in three levels, "le plus simple et ludique, avec des vraies démos interactives". Nothing is built. The French texts are his to correct before they are translated: they are his voice.
+Status: proposed on 2026-10-16, at Téo's request for a part of the landing that teaches how to read a surf forecast, in three levels, "le plus simple et ludique, avec des vraies démos interactives". He read the first draft of the beginner's guide the same day and asked for three things more: the period as a lesson of its own, a page that leads to the three guides, and, for every technical word, a link that opens a glossary, which says what the word means and where the thing comes from, "pour en apprendre toujours un peu plus"; and that a figure be read in the unit the reader picks beside it, knots or kilometres an hour, metres or feet. Nothing is built. The French texts are his to correct before they are translated: they are his voice.
 
 ## Context
 
@@ -16,7 +16,7 @@ Thousands of pages of breaks are listed. A link from each of them to a few guide
 
 ### Three guides, and a page that leads to them
 
-- Three guides, one for each level, each at an address of its own under `/learn`, beside `/sources` and `/agents`, in each language under its prefix: `/learn/beginner`, `/learn/intermediate`, `/learn/advanced`, and `/fr/learn/beginner`. The paths are in English, as every path of the site is. `/learn` presents the three in a few lines, each with its lessons listed, so that a reader picks their level and a search engine has a page for the general question.
+- Three guides, one for each level, each at an address of its own under `/learn`, beside `/sources` and `/agents`, in each language under its prefix: `/learn/beginner`, `/learn/intermediate`, `/learn/advanced`, and `/fr/learn/beginner`. The paths are in English, as every path of the site is. `/learn` presents the three in a few lines, each with its lessons listed, and the glossary, so that a reader picks their level and a search engine has a page for the general question.
 - A guide is one page of five lessons. Each lesson is a section with an id of its own, so that a link may lead to one lesson: `/learn/beginner#period`. A lesson says in a few short paragraphs what the figure is, what it changes in the water and what to look for, shows it in one interactive demo, and ends on one line to remember.
 - The reader is addressed as the app addresses them, and the texts say what the app shows: a lesson names the words of the sentence, of the week's table and of a break's guide, so that the reader finds them on the next page.
 
@@ -53,16 +53,28 @@ The advanced guide is for a reader who wants to know what the figures are made o
 - The server renders every demo at its starting value: a reader without a script, and a search engine, read the whole lesson. A reader who asked for no motion sees the demos still and changes them all the same, since turning a dial is theirs, not the page's: what moves by itself, a figure that morphs or a wave that rolls, follows `prefers-reduced-motion` as the landing's cards do.
 - A demo is a component of the guides, in `apps/web/src/components/learn/`, and a primitive the demos share, such as a dial for a direction, is shown in `/design-system`.
 
+### The glossary
+
+- A fifth page, `/learn/glossary`, holds every technical word the guides use, in the reader's language, each with an id of its own: what the word means in two or three sentences, and where the thing comes from, how a swell is born of the wind, why the tide turns twice a day, what a buoy measures. An entry says the word as the app writes it, so that a reader meets the same word on the page of a break.
+- In a lesson, every technical word is a `Term`: a link to its entry, drawn as the sentence underlines a part, which a search engine and a reader without a script follow to the glossary. With a script, a press opens the entry's first sentences in a popover over the lesson, with the way to the entry, so that the reader learns the word without leaving the demo. On a phone the popover is a small sheet at the bottom.
+- The first entries, from the beginner's guide: swell, wind sea, period, set, chop, buoy, model, window, sector, offshore, onshore, side-shore, knot, tide, high and low water, rising and falling, spring and neap tides, reef, beach break, point break, take-off. The intermediate and the advanced guides add theirs: fetch, energy, resolution, run, secondary swell, shadowing, refraction, exposure.
+- The words of a break's page may become `Term`s later, once the glossary is read: this decision keeps them to the guides and the landing's part.
+
+### Units
+
+- A demo that writes a wind speed or a height writes it as everywhere, through `formatWind` and `formatHeight`, and has beside its figure the choice of its unit: the same segmented control as a row of `UnitsSettings`, knots, kilometres an hour, metres a second or miles an hour, metres or feet. The choice goes through `useSaveUnits`: the browser keeps it, and the account too when one is signed in, so that the app opens in it (decision 033). A reader who picks feet in a lesson reads feet on the map.
+- The lessons' prose names figures in the reader's unit too, where a threshold is given, "under 10 knots", through the same functions: a message holds the sentence with its figure as a parameter.
+
 ### Where the guides are linked from
 
 - The sentence of a break's page (decision 059): each underlined part leads to the lesson that explains it, the height to `#height`, the period to `#period`, the waves' direction to `#swell`, the wind's speed, direction and name to `#wind`, the tide to `#tide`, and the names in "What fits this spot" the same way. The links are plain anchors in the reader's language, as the pages link one another, since a page is served from the Worker's cache. A line under the week's table leads to the beginner's guide for whoever reads a table for the first time.
 - Each guide ends on the way to the spots, `/spots`, and to the map, and the advanced guide on the log of sessions and an alert. Each lesson that names a thing the app shows links to it where a page shows it.
-- The landing gains a part, `LandingLearn`, after what the product does and before who makes it: the three levels as cards, each with its lessons' names, and a sentence that says what the guides are for. The header's links and the footer's "Product" column gain the guides, and the command palette the four pages.
+- The landing gains a part, `LandingLearn`, after what the product does and before who makes it: the three levels as cards, each with its lessons' names, and a sentence that says what the guides are for. The header's links and the footer's "Product" column gain the guides, and the command palette the five pages.
 - `/llms.txt` names the guides: a program that reads the site is told how the figures are read.
 
 ### Head, sitemap and pictures
 
-- The four pages are in `PUBLIC_PAGES`, so that the sitemap of decision 021 names them in each language and the Worker sends no `noindex`. Each route gives `pageMeta` and `pageLinks` to its head: a title written for a search, "How to read a surf forecast: height, period, swell, wind and tide", with the product's name after it, and a description of a sentence. A guide's head carries an `Article` and a `BreadcrumbList` in JSON-LD, as a break's page carries its `Place`.
+- The five pages are in `PUBLIC_PAGES`, so that the sitemap of decision 021 names them in each language and the Worker sends no `noindex`. Each route gives `pageMeta` and `pageLinks` to its head: a title written for a search, "How to read a surf forecast: height, period, swell, wind and tide", with the product's name after it, and a description of a sentence. A guide's head carries an `Article` and a `BreadcrumbList` in JSON-LD, as a break's page carries its `Place`.
 - The pages are sent with the landing's shared picture. A picture of their own, taken by `landing-shots.mjs` from a development route, is for a later change, once the guides have readers.
 - The Worker keeps a guide an hour in Cloudflare's cache, as it keeps a hub, since nothing on it is anyone's and it is rendered the same for everyone.
 
@@ -73,7 +85,7 @@ The advanced guide is for a reader who wants to know what the figures are made o
 
 ### Docs in the same change
 
-`AGENTS.md`, the landing bullet; `docs/decisions/README.md`; a note in `changes/`; `/llms.txt`; `/design-system` for the primitives the demos share; the line of decision 059 that this one amends, the sentence's parts leading to the lessons.
+`AGENTS.md`, the landing bullet; `docs/decisions/README.md`; a note in `changes/`; `/llms.txt`; `/design-system` for the primitives the demos share, `Term` and the unit picker among them; the lines of decisions 033 and 059 that this one amends, the units chosen on a public page and the sentence's parts leading to the lessons.
 
 ## Rejected
 
@@ -85,10 +97,12 @@ The advanced guide is for a reader who wants to know what the figures are made o
 - **Real figures in the demos**, from the forecast kept for a break. A lesson needs an example that shows what it says whatever the sea does, and a demo that asks the API is counted to its caller (decision 053).
 - **A quiz with a score kept in the account.** Nothing of the guides is kept: a first version has no account in it, and a lesson that ends on a question does what a quiz would.
 - **A link only in the footer.** The sentence is where a reader meets the figures; the guide is for that moment.
+- **A definition in a tooltip alone**, with no page behind it. A search engine reads no tooltip, and a reader who wants the whole entry would have nowhere to go. The popover shows the entry's start, and the page holds it.
+- **A unit picker of the guides' own**, kept apart from the account's. Two choices would disagree, and the reader who picked feet on a lesson would find metres on the map.
 
 ## Consequences
 
-- About a hundred and fifty messages in each of four languages, which the instance's size takes without notice, and three pages that say how the product reads the sea: a change to the week's table or the sentence is a change to a lesson.
+- About two hundred messages in each of four languages, the glossary's among them, which the instance's size takes without notice, and three pages that say how the product reads the sea: a change to the week's table or the sentence is a change to a lesson.
 - The header of the landing gains a sixth link on a wide screen.
 - The breaks' pages gain links out, towards three pages of the same site: a reader who leaves the sentence for a lesson comes back by the guide's way to the spots.
 - The demos are the first interactive parts of a public page: a page of a break stays as it is, and a guide is drawn by the server with its demos at rest.
