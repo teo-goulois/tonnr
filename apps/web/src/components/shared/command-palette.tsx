@@ -193,6 +193,21 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/spots" }),
         },
         {
+          value: `${m.learn_footer()} learn guide forecast read lire apprendre`,
+          label: m.learn_footer(),
+          run: () => void navigate({ to: "/learn" }),
+        },
+        {
+          value: `${m.learn_beginner_title()} learn beginner guide basics`,
+          label: m.learn_beginner_title(),
+          run: () => void navigate({ to: "/learn/beginner" }),
+        },
+        {
+          value: `${m.learn_glossary_title()} learn glossary words`,
+          label: m.learn_glossary_title(),
+          run: () => void navigate({ to: "/learn/glossary" }),
+        },
+        {
           value: `${m.saved_title()} saved favorites lists`,
           label: m.saved_title(),
           run: () => void navigate({ to: "/app", search: { panel: "saved" } }),

@@ -22,6 +22,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - [What ${APP_NAME} does](${site}/): every feature, in a page.
 - [Where the data comes from](${site}/sources): every network and model the instance reads, with its coverage, how often it is read, and its licence.
 - [A page for each surf spot](${site}/spots): by country and region, each with what the spot is like, the sea now, the next tides and the week's forecast. The same words as the map, for a reader who comes from a search engine.
+- [How to read a surf forecast](${site}/learn): three guides, from a first session to the models, each lesson with a demo, and a glossary of every word the pages use.
 
 ## The API
 

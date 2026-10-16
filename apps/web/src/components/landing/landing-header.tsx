@@ -8,13 +8,19 @@ import { m } from "@/paraglide/messages.js";
 
 import { SECTIONS, column } from "./landing-parts";
 
-const LINKS = [
+// Where the bar leads: a part of the landing, by its id, or a page beside it.
+type NavLink = { label: () => string } & (
+  | { hash: string; to?: undefined }
+  | { to: "/learn"; hash?: undefined }
+);
+const LINKS: readonly NavLink[] = [
   { hash: SECTIONS.features, label: m.landing_nav_features },
+  { to: "/learn", label: m.learn_nav },
   { hash: SECTIONS.story, label: m.landing_nav_story },
   { hash: SECTIONS.next, label: m.landing_nav_next },
   { hash: SECTIONS.sources, label: m.landing_nav_sources },
   { hash: SECTIONS.agents, label: m.landing_nav_agents },
-] as const;
+];
 
 // Past this many pixels the page has left its top, and the bar gathers into a pill.
 const GATHERED_AFTER = 24;
@@ -51,8 +57,8 @@ function Links() {
       />
       {LINKS.map((link) => (
         <Link
-          key={link.hash}
-          to="/"
+          key={link.hash ?? link.to}
+          to={link.hash === undefined ? link.to : "/"}
           hash={link.hash}
           onPointerEnter={point}
           onFocus={(event) =>

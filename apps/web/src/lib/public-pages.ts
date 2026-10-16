@@ -21,6 +21,9 @@ export const PUBLIC_PAGES = [
   "/privacy",
   "/legal",
   "/spots",
+  "/learn",
+  "/learn/beginner",
+  "/learn/glossary",
 ] as const satisfies readonly (keyof FileRoutesByTo)[];
 
 export type PublicPage = (typeof PUBLIC_PAGES)[number];

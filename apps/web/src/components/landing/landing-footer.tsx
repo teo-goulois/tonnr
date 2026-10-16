@@ -221,6 +221,9 @@ export function LandingFooter() {
           <Link to="/spots" className={quiet}>
             {m.page_spots()}
           </Link>
+          <Link to="/learn" className={quiet}>
+            {m.learn_footer()}
+          </Link>
           <Link to="/" hash={SECTIONS.features} className={quiet}>
             {m.landing_nav_features()}
           </Link>
