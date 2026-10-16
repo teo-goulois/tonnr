@@ -146,6 +146,71 @@ describe("the canvas shell around native preview controls", () => {
     expect(previewPress.down).toHaveBeenCalledOnce();
   });
 
+  it("starts Space-drag after a preview button has focus without requiring a background click", () => {
+    const { container } = render(createElement(DesignSystemCanvas));
+    const host = screen.getByRole("region", { name: "Design system canvas" });
+    const world = container.querySelector<HTMLElement>("[data-canvas-world]")!;
+    const button = screen.getByRole("button", { name: "Preview action" });
+    captureOn(host);
+    vi.spyOn(host, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1440, 900));
+    vi.spyOn(button, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 100, 100, 40));
+    button.focus();
+    expect(fireEvent.keyDown(button, { key: " " })).toBe(true);
+    expect(host.dataset.panReady).not.toBe("true");
+    expect(pointer("pointerdown", button, 100, 100)).toBe(false);
+    expect(document.activeElement).toBe(host);
+    pointer("pointermove", host, 150, 130);
+    frame();
+    expect(world.style.transform).toBe("translate(82px, 110px) scale(0.65)");
+    pointer("pointerup", host, 150, 130);
+    expect(fireEvent.keyUp(host, { key: " " })).toBe(false);
+    fireEvent.click(button, { detail: 1 });
+    expect(previewPress.down).not.toHaveBeenCalled();
+    expect(previewPress.click).not.toHaveBeenCalled();
+
+    button.focus();
+    // A keyboard-only Space press still belongs to the preview button.
+    expect(fireEvent.keyDown(button, { key: " " })).toBe(true);
+    expect(fireEvent.keyUp(button, { key: " " })).toBe(true);
+    fireEvent.click(button, { detail: 0 });
+    expect(previewPress.click).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Space in text editors and portals, but arms Option-drag even from an input", () => {
+    render(createElement(DesignSystemCanvas));
+    const host = screen.getByRole("region", { name: "Design system canvas" });
+    const draft = screen.getByRole("textbox", { name: "Demo draft" });
+    const { captured } = captureOn(host);
+    draft.focus();
+    expect(fireEvent.keyDown(draft, { key: " " })).toBe(true);
+    expect(pointer("pointerdown", draft, 100, 100)).toBe(true);
+    expect(captured.size).toBe(0);
+    expect(fireEvent.keyUp(draft, { key: " " })).toBe(true);
+
+    const portal = document.createElement("button");
+    document.body.append(portal);
+    try {
+      expect(fireEvent.keyDown(portal, { key: " " })).toBe(true);
+      expect(host.dataset.panReady).not.toBe("true");
+      expect(fireEvent.keyUp(portal, { key: " " })).toBe(true);
+      expect(fireEvent.keyDown(portal, { key: "Alt", altKey: true })).toBe(true);
+      expect(host.dataset.panReady).not.toBe("true");
+      fireEvent.keyUp(portal, { key: "Alt" });
+    } finally {
+      portal.remove();
+    }
+
+    expect(fireEvent.keyDown(draft, { key: "Alt", altKey: true })).toBe(true);
+    expect(host.dataset.panReady).toBe("true");
+    const backdrop = host.querySelector<HTMLElement>("[data-canvas-space]")!;
+    expect(pointer("pointerdown", backdrop, 100, 100)).toBe(false);
+    expect(captured.has(1)).toBe(true);
+    pointer("pointercancel", host, 100, 100);
+    fireEvent.keyUp(host, { key: "Alt" });
+    expect(captured.size).toBe(0);
+    expect(host.dataset.panReady).toBe("false");
+  });
+
   it("coalesces wheel movements and leaves input keys, wheel events and drafts alone", () => {
     const { container } = render(createElement(DesignSystemCanvas));
     const host = screen.getByRole("region", { name: "Design system canvas" });

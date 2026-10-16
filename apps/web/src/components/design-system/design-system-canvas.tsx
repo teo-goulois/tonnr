@@ -41,6 +41,8 @@ export function DesignSystemCanvas() {
     let nativeGestureScale = 1;
     let nativeGestureActive = false;
     let spaceHeld = false;
+    let spaceOwned = false;
+    let altHeld = false;
     let suppressPanClick = false;
     const forcedPointers = new Set<number>();
     const storage = () => window.localStorage;
@@ -116,6 +118,8 @@ export function DesignSystemCanvas() {
       nativeGestureScale = 1;
       nativeGestureActive = false;
       spaceHeld = false;
+      spaceOwned = false;
+      altHeld = false;
       suppressPanClick = false;
       host.dataset.panReady = "false";
       host.dataset.panning = "false";
@@ -131,7 +135,7 @@ export function DesignSystemCanvas() {
       if (!(event.target instanceof Element) || event.button !== 0) return;
       suppressPanClick = false;
       const empty = event.target.closest("[data-canvas-space]");
-      const forced = spaceHeld || (event.altKey && content.contains(event.target));
+      const forced = spaceHeld || altHeld || (event.altKey && content.contains(event.target));
       if (!empty && !forced) return;
       if (event.target.closest("[data-canvas-controls]")) return;
       if (forced) {
@@ -140,6 +144,7 @@ export function DesignSystemCanvas() {
         event.stopPropagation();
         forcedPointers.add(event.pointerId);
         suppressPanClick = true;
+        if (spaceHeld) spaceOwned = true;
       }
       host.focus({ preventScroll: true });
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -269,18 +274,41 @@ export function DesignSystemCanvas() {
       nativeGestureScale = 1;
     };
     const panKeyDown = (event: KeyboardEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target !== document.body && !host.contains(event.target)) return;
+      if (event.key === "Alt" && !event.ctrlKey && !event.metaKey) {
+        altHeld = true;
+        host.dataset.panReady = "true";
+        return;
+      }
       if (event.key !== " " || event.ctrlKey || event.metaKey || event.altKey) return;
-      // Space remains the preview's own key when a control or a portal has focus.
-      if (event.target !== host && event.target !== document.body) return;
-      event.preventDefault();
+      // Observe Space over previews without consuming their keyboard activation. Only an
+      // explicit pointer press turns it into a canvas gesture. Text editors keep Space alone.
+      if (
+        event.target.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="searchbox"]',
+        ) ||
+        event.isComposing
+      )
+        return;
       spaceHeld = true;
-      host.dataset.panReady = "true";
+      if (event.target === host || event.target === document.body) {
+        event.preventDefault();
+        spaceOwned = true;
+        host.dataset.panReady = "true";
+      }
     };
     const panKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Alt") {
+        altHeld = false;
+        host.dataset.panReady = String(spaceOwned);
+        return;
+      }
       if (event.key !== " " || !spaceHeld) return;
-      event.preventDefault();
+      if (spaceOwned) event.preventDefault();
       spaceHeld = false;
-      host.dataset.panReady = "false";
+      spaceOwned = false;
+      host.dataset.panReady = String(altHeld);
     };
     const key = (event: KeyboardEvent) => {
       if (event.target !== host || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -441,11 +469,11 @@ export function DesignSystemCanvas() {
       className="fixed inset-0 overflow-hidden overscroll-none bg-background text-foreground [touch-action:pan-x_pan-y] focus-visible:outline-(--focus-ring-outline) focus-visible:-outline-offset-2"
     >
       <p id="canvas-keys" className="sr-only">
-        Pan on empty space, or hold Alt and drag over a component. When the canvas has focus, hold
-        Space and drag to pan over components. Control-scroll zooms around the pointer. On the
-        canvas, use arrows to pan, plus and minus to zoom, and Home to fit all. Control or Command
-        with plus and minus also zooms the canvas, and with zero resets its camera. Preview controls
-        keep their own editing keys. Preview links stay here.
+        Pan on empty space, or hold Alt or Option and drag over a component. Space and drag also
+        pans, including after focusing a component, except while editing text. Control-scroll zooms
+        around the pointer. On the canvas, use arrows to pan, plus and minus to zoom, and Home to
+        fit all. Control or Command with plus and minus also zooms the canvas, and with zero resets
+        its camera. Preview controls keep their own editing keys. Preview links stay here.
       </p>
       <div
         data-canvas-space
