@@ -1,6 +1,6 @@
 import { cn } from "@repo/ui/lib/utils";
 
-import { compassPoint, formatNumber } from "@/lib/format";
+import { compassName, compassPoint, formatNumber } from "@/lib/format";
 
 import { DirectionArrow } from "./map-markers";
 
@@ -12,18 +12,21 @@ import { DirectionArrow } from "./map-markers";
 export function Bearing({
   degrees,
   withDegrees = false,
+  named = false,
   className,
 }: {
   // Clockwise from north, where it comes from.
   degrees: number;
   // Writes the figure after the name, as "S 190°".
   withDegrees?: boolean;
+  // Writes the point by its full name, "west-northwest", where there is room for words.
+  named?: boolean;
   className?: string;
 }) {
   return (
     <span className={cn("inline-flex items-center gap-xxs whitespace-nowrap", className)}>
       <DirectionArrow fromDegrees={degrees} className="size-[0.85em]" />
-      {compassPoint(degrees)}
+      {named ? compassName(degrees) : compassPoint(degrees)}
       {withDegrees && ` ${formatNumber(degrees, 0)}°`}
     </span>
   );

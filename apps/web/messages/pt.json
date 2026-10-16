@@ -304,6 +304,7 @@
   "units_precipitation": "Chuva",
   "units_error": "Não foi possível guardar as tuas unidades.",
   "compass_points": "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+  "compass_names": "norte,nor-nordeste,nordeste,és-nordeste,este,és-sueste,sueste,sul-sueste,sul,sul-sudoeste,sudoeste,oés-sudoeste,oeste,oés-noroeste,noroeste,nor-noroeste",
   "action_close": "Fechar",
   "action_cancel": "Cancelar",
   "action_delete": "Eliminar",

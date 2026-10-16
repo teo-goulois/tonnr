@@ -1,8 +1,9 @@
 import { weekOf } from "@repo/conditions/forecasts/week";
+import { type SeaWords, type Verdict, verdictOf } from "@repo/conditions/sea-now";
 import { shoreWind } from "@repo/conditions/shore-wind";
-import { Badge } from "@repo/ui/components/ui/badge";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { useMemo } from "react";
+import { cn } from "@repo/ui/lib/utils";
+import { type ReactNode, useMemo } from "react";
 
 import { formatDay, formatSeconds, toKnots } from "@/lib/format";
 import {
@@ -21,7 +22,9 @@ import { SHORE_WIND_NAMES } from "./parts";
 
 // The days ahead in words, for the essentials of a panel: one line a day, the biggest wave on
 // the color of its height and the wind at noon named by how it meets the shore, as the page of a
-// break writes its week. Decision 061.
+// break writes its week. Where the place has words, the swell's direction and the wind are laid
+// against them day by day, on a green ground where they fit and a light red one where they do
+// not: Téo asked that the week be as visual as it can on 2026-10-16. Decision 061.
 
 /** A figure on the color its scale gives it, as the map colors the sea and the wind. */
 function SeaChip({
@@ -53,16 +56,45 @@ function dayLabel(day: string) {
  * The days as a table: the day, the biggest wave, the wind at noon. The days are the reader's
  * own, as the hours of the week's table are.
  */
+// A pill on the ground its judgement gives it, around what the day says of a thing.
+function Judged({
+  verdict,
+  thing,
+  children,
+}: {
+  verdict: Verdict | null;
+  thing: Verdict["fits"][number];
+  children: ReactNode;
+}) {
+  const fits = verdict?.fits.includes(thing);
+  const off = verdict?.off.includes(thing);
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center gap-xxs rounded-(--radius-xs) px-xs whitespace-nowrap",
+        fits && "bg-success-transparent",
+        off && "bg-error-transparent",
+        !fits && !off && "text-neutral-7",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function DaysAhead({
   hours,
   now,
   offshoreFrom,
+  words,
   isLoading,
 }: {
   hours: Forecast["hours"] | undefined;
   now: number;
   // Where the wind comes from when it blows off the shore there, when that is known.
   offshoreFrom?: number | null;
+  // What the place says of itself, for each day to be judged by. None at a buoy.
+  words?: SeaWords | null;
   isLoading: boolean;
 }) {
   useUnits();
@@ -97,6 +129,18 @@ export function DaysAhead({
             day.wind?.directionDegrees != null && offshoreFrom != null
               ? shoreWind(day.wind.directionDegrees, offshoreFrom)
               : null;
+          // The day laid against the place's words: the tide is not, since it turns twice a day.
+          const verdict = words
+            ? verdictOf(
+                words,
+                {
+                  waveHeightMeters: day.wave?.heightMeters ?? null,
+                  waveDirectionDegrees: day.wave?.directionDegrees ?? null,
+                  windDirectionDegrees: day.wind?.directionDegrees ?? null,
+                },
+                null,
+              )
+            : null;
           return (
             <tr key={day.day} className="shadow-[inset_0_var(--border-s)_0_var(--neutral-3)]">
               <th scope="row" className="py-xs pr-s text-left font-medium whitespace-nowrap">
@@ -114,7 +158,9 @@ export function DaysAhead({
                       </span>
                     )}
                     {day.wave.directionDegrees !== null && (
-                      <Bearing degrees={day.wave.directionDegrees} className="text-neutral-7" />
+                      <Judged verdict={verdict} thing="swell">
+                        <Bearing degrees={day.wave.directionDegrees} />
+                      </Judged>
                     )}
                   </span>
                 ) : (
@@ -127,13 +173,14 @@ export function DaysAhead({
                     <SeaChip scale={WIND_SPEED_SCALE} value={wind}>
                       {formatWind(wind)}
                     </SeaChip>
-                    {/* Named by the shore where the place knows it, by its point otherwise. */}
-                    {atShore ? (
-                      <Badge>{SHORE_WIND_NAMES[atShore]()}</Badge>
-                    ) : (
-                      day.wind.directionDegrees !== null && (
-                        <Bearing degrees={day.wind.directionDegrees} className="text-neutral-7" />
-                      )
+                    {day.wind.directionDegrees !== null && (
+                      <Bearing degrees={day.wind.directionDegrees} className="text-neutral-7" />
+                    )}
+                    {/* Named by the shore where the place knows it. */}
+                    {atShore && (
+                      <Judged verdict={verdict} thing="wind">
+                        {SHORE_WIND_NAMES[atShore]()}
+                      </Judged>
                     )}
                   </span>
                 ) : (

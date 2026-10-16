@@ -304,6 +304,7 @@
   "units_precipitation": "Pluie",
   "units_error": "Tes unités n'ont pas pu être enregistrées.",
   "compass_points": "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+  "compass_names": "nord,nord-nord-est,nord-est,est-nord-est,est,est-sud-est,sud-est,sud-sud-est,sud,sud-sud-ouest,sud-ouest,ouest-sud-ouest,ouest,ouest-nord-ouest,nord-ouest,nord-nord-ouest",
   "action_close": "Fermer",
   "action_cancel": "Annuler",
   "action_delete": "Supprimer",

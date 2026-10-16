@@ -304,6 +304,7 @@
   "units_precipitation": "Rain",
   "units_error": "Your units could not be saved.",
   "compass_points": "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSW,SW,WSW,W,WNW,NW,NNW",
+  "compass_names": "north,north-northeast,northeast,east-northeast,east,east-southeast,southeast,south-southeast,south,south-southwest,southwest,west-southwest,west,west-northwest,northwest,north-northwest",
   "action_close": "Close",
   "action_cancel": "Cancel",
   "action_delete": "Delete",

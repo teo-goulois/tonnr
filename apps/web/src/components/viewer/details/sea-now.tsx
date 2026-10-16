@@ -33,13 +33,42 @@ export type SeaNowProps = {
 const underlined =
   "underline decoration-neutral-5 decoration-dotted decoration-1 underline-offset-[0.25em]";
 
-function Part({ children, className }: { children: ReactNode; className?: string }) {
+type Judged = Verdict["fits"][number];
+// How a part is drawn once the place's words have judged it: on a green ground where it fits,
+// on a light red one where it does not, and bare where nothing judged it.
+type Judgement = "fits" | "off" | undefined;
+
+function Part({
+  children,
+  judged,
+  className,
+}: {
+  children: ReactNode;
+  judged?: Judgement;
+  className?: string;
+}) {
   return (
-    <span className={cn("font-medium text-neutral-10", underlined, className)}>{children}</span>
+    <span
+      className={cn(
+        "font-medium text-neutral-10",
+        judged === undefined ? underlined : "rounded-[0.35em] px-[0.3em]",
+        judged === "fits" && "bg-success-transparent",
+        judged === "off" && "bg-error-transparent",
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
-const PART_NAMES: Record<Verdict["fits"][number], () => string> = {
+/** What the verdict says of one thing, for the part that writes it. */
+function judgementOf(verdict: Verdict | null, thing: Judged): Judgement {
+  if (!verdict) return undefined;
+  return verdict.fits.includes(thing) ? "fits" : verdict.off.includes(thing) ? "off" : undefined;
+}
+
+const PART_NAMES: Record<Judged, () => string> = {
   swell: m.page_now_part_swell,
   size: m.page_now_part_size,
   wind: m.page_now_part_wind,
@@ -47,7 +76,7 @@ const PART_NAMES: Record<Verdict["fits"][number], () => string> = {
 };
 
 /** The names of things, as a list is said in the reader's language. */
-function listOf(things: Verdict["fits"]) {
+function listOf(things: Judged[]) {
   return new Intl.ListFormat(getLocale(), { type: "conjunction" }).format(
     things.map((thing) => PART_NAMES[thing]()),
   );
@@ -74,14 +103,17 @@ export function SeaNow({ waves, wind, tide, verdict, isLoading }: SeaNowProps) {
   useUnits();
 
   const waveParts: ReactNode[] = [];
-  if (waves.height !== undefined) waveParts.push(<Part>{formatHeight(waves.height)}</Part>);
+  const judged = (thing: Judged) => judgementOf(verdict, thing);
+  if (waves.height !== undefined) {
+    waveParts.push(<Part judged={judged("size")}>{formatHeight(waves.height)}</Part>);
+  }
   if (waves.period !== undefined) {
     waveParts.push(<Part>{m.alert_period_of({ range: formatSeconds(waves.period) })}</Part>);
   }
   if (waves.direction !== undefined) {
     waveParts.push(
-      <Part className="whitespace-nowrap">
-        {m.alert_from()} <Bearing degrees={waves.direction} />
+      <Part judged={judged("swell")} className="whitespace-nowrap">
+        {m.alert_from()} <Bearing degrees={waves.direction} named />
       </Part>,
     );
   }
@@ -89,15 +121,18 @@ export function SeaNow({ waves, wind, tide, verdict, isLoading }: SeaNowProps) {
   if (wind.knots !== undefined) windParts.push(<Part>{formatWind(wind.knots)}</Part>);
   if (wind.direction !== undefined) {
     windParts.push(
-      <Part className="whitespace-nowrap">
-        {m.alert_from()} <Bearing degrees={wind.direction} />
+      // Judged by its name where the place knows no shore: the shore's word takes it otherwise.
+      <Part judged={wind.atShore ? undefined : judged("wind")} className="whitespace-nowrap">
+        {m.alert_from()} <Bearing degrees={wind.direction} named />
       </Part>,
     );
   }
-  if (wind.atShore) windParts.push(<Part>{SHORE_WIND_NAMES[wind.atShore]()}</Part>);
+  if (wind.atShore) {
+    windParts.push(<Part judged={judged("wind")}>{SHORE_WIND_NAMES[wind.atShore]()}</Part>);
+  }
   const [first, ...waveRest] = waveParts;
   const [windFirst, ...windRest] = windParts;
-  const judged = verdict && (verdict.fits.length > 0 || verdict.off.length > 0);
+  const isJudged = verdict && (verdict.fits.length > 0 || verdict.off.length > 0);
 
   return (
     <section className="grid gap-xs rounded-(--radius-xs) bg-neutral-2 px-s py-s">
@@ -127,7 +162,7 @@ export function SeaNow({ waves, wind, tide, verdict, isLoading }: SeaNowProps) {
           {tide && (
             <>
               , {m.page_now_says_tide()}{" "}
-              <Part>
+              <Part judged={judged("tide")}>
                 <TideTrend trend={tide.trend} />
               </Part>
               {tide.next && (
@@ -145,7 +180,7 @@ export function SeaNow({ waves, wind, tide, verdict, isLoading }: SeaNowProps) {
           .
         </p>
       )}
-      {!isLoading && judged && (
+      {!isLoading && isJudged && (
         <p className="text-s text-neutral-7">
           {verdict.fits.length > 0 && (
             <span className="text-neutral-10">

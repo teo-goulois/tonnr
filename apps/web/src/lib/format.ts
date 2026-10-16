@@ -46,8 +46,16 @@ export function formatSeconds(value: number) {
 
 /** The compass point a bearing is nearest to, such as "WNW". */
 export function compassPoint(degrees: number) {
-  const points = m.compass_points().split(",");
-  return points[Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16] ?? "";
+  return pointOf(degrees, m.compass_points());
+}
+
+/** The compass point a bearing is nearest to, by its full name, such as "west-northwest". */
+export function compassName(degrees: number) {
+  return pointOf(degrees, m.compass_names());
+}
+
+function pointOf(degrees: number, points: string) {
+  return points.split(",")[Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16] ?? "";
 }
 
 /** "14:30" */

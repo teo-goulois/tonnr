@@ -304,6 +304,7 @@
   "units_precipitation": "Lluvia",
   "units_error": "No se pudieron guardar tus unidades.",
   "compass_points": "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+  "compass_names": "norte,nornordeste,nordeste,estenordeste,este,estesudeste,sudeste,sudsudeste,sur,sursudoeste,sudoeste,oestesudoeste,oeste,oestenoroeste,noroeste,nornoroeste",
   "action_close": "Cerrar",
   "action_cancel": "Cancelar",
   "action_delete": "Eliminar",

@@ -208,6 +208,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
               hours={forecast.data?.hours}
               now={now}
               offshoreFrom={props.offshoreFrom}
+              words={words}
               isLoading={forecast.isPending}
             />
           </Block>
