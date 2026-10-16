@@ -38,6 +38,8 @@ export function DesignSystemCanvas() {
     const pointers = new Map<number, { x: number; y: number }>();
     const captures = new Map<number, Element>();
     let previous: { x: number; y: number; distance: number } | null = null;
+    let nativeGestureScale = 1;
+    let nativeGestureActive = false;
     const storage = () => window.localStorage;
     try {
       const kept = readCamera(storage());
@@ -107,6 +109,8 @@ export function DesignSystemCanvas() {
       captures.clear();
       pointers.clear();
       previous = null;
+      nativeGestureScale = 1;
+      nativeGestureActive = false;
       host.dataset.panning = "false";
     };
     const metrics = () => {
@@ -163,15 +167,23 @@ export function DesignSystemCanvas() {
       if (!pointers.size) host.dataset.panning = "false";
     };
     const wheel = (event: WheelEvent) => {
-      if (
-        !(event.target instanceof Element) ||
-        event.target.closest("[data-canvas-preview], [data-canvas-controls]")
-      )
-        return;
+      const zooming = event.ctrlKey || event.metaKey;
+      // Browser zoom belongs to the camera, including over previews, controls and portals.
+      // Ordinary scrolling stays with the preview that received it.
+      if (!zooming) {
+        if (
+          !(event.target instanceof Element) ||
+          !host.contains(event.target) ||
+          event.target.closest("[data-canvas-preview], [data-canvas-controls]")
+        )
+          return;
+      }
       event.preventDefault();
+      // Safari may emit wheel events alongside its native gesture events.
+      if (zooming && nativeGestureActive) return;
       const rect = host.getBoundingClientRect();
       const delta = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? host.clientHeight : 1;
-      if (event.ctrlKey || event.metaKey)
+      if (zooming)
         userMove(
           zoomAt(
             camera.current,
@@ -186,6 +198,54 @@ export function DesignSystemCanvas() {
           x: camera.current.x - event.deltaX * delta,
           y: camera.current.y - event.deltaY * delta,
         });
+    };
+    const browserZoomKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (!["+", "=", "-", "_", "0"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "0") userMove({ ...DEFAULT_CAMERA });
+      else
+        userMove(
+          zoomAt(
+            camera.current,
+            host.clientWidth / 2,
+            host.clientHeight / 2,
+            event.key === "-" || event.key === "_" ? 1 / 1.2 : 1.2,
+          ),
+        );
+    };
+    // Safari's trackpad uses gesture events. Touch pointers on empty space already implement
+    // the camera pinch, so that case must not apply the same scale twice.
+    const gestureStart = (event: Event) => {
+      event.preventDefault();
+      nativeGestureActive = true;
+      nativeGestureScale = 1;
+    };
+    const gestureChange = (event: Event) => {
+      event.preventDefault();
+      const { scale, clientX, clientY } = event as Event & {
+        scale?: number;
+        clientX?: number;
+        clientY?: number;
+      };
+      if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0) return;
+      if (pointers.size < 2) {
+        const rect = host.getBoundingClientRect();
+        userMove(
+          zoomAt(
+            camera.current,
+            typeof clientX === "number" ? clientX - rect.left : host.clientWidth / 2,
+            typeof clientY === "number" ? clientY - rect.top : host.clientHeight / 2,
+            scale / nativeGestureScale,
+          ),
+        );
+      }
+      nativeGestureScale = scale;
+    };
+    const gestureEnd = (event: Event) => {
+      event.preventDefault();
+      nativeGestureActive = false;
+      nativeGestureScale = 1;
     };
     const key = (event: KeyboardEvent) => {
       if (event.target !== host || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -278,7 +338,11 @@ export function DesignSystemCanvas() {
     host.addEventListener("pointerup", up);
     host.addEventListener("pointercancel", up);
     host.addEventListener("lostpointercapture", up);
-    host.addEventListener("wheel", wheel, { passive: false });
+    document.addEventListener("wheel", wheel, { passive: false, capture: true });
+    document.addEventListener("keydown", browserZoomKey, true);
+    document.addEventListener("gesturestart", gestureStart, { passive: false });
+    document.addEventListener("gesturechange", gestureChange, { passive: false });
+    document.addEventListener("gestureend", gestureEnd, { passive: false });
     host.addEventListener("keydown", key);
     document.addEventListener("focusin", reveal);
     document.addEventListener("click", navigate, true);
@@ -301,7 +365,11 @@ export function DesignSystemCanvas() {
       host.removeEventListener("pointerup", up);
       host.removeEventListener("pointercancel", up);
       host.removeEventListener("lostpointercapture", up);
-      host.removeEventListener("wheel", wheel);
+      document.removeEventListener("wheel", wheel, true);
+      document.removeEventListener("keydown", browserZoomKey, true);
+      document.removeEventListener("gesturestart", gestureStart);
+      document.removeEventListener("gesturechange", gestureChange);
+      document.removeEventListener("gestureend", gestureEnd);
       host.removeEventListener("keydown", key);
       document.removeEventListener("focusin", reveal);
       document.removeEventListener("click", navigate, true);
@@ -323,12 +391,13 @@ export function DesignSystemCanvas() {
       aria-label="Design system canvas"
       aria-describedby="canvas-keys"
       tabIndex={0}
-      className="fixed inset-0 overflow-hidden overscroll-none bg-background text-foreground focus-visible:outline-(--focus-ring-outline) focus-visible:-outline-offset-2"
+      className="fixed inset-0 overflow-hidden overscroll-none bg-background text-foreground [touch-action:pan-x_pan-y] focus-visible:outline-(--focus-ring-outline) focus-visible:-outline-offset-2"
     >
       <p id="canvas-keys" className="sr-only">
         Pan on empty space, or scroll there. Control-scroll zooms around the pointer. On the canvas,
-        use arrows to pan, plus and minus to zoom, and Home to fit all. Preview controls keep their
-        own keys. Preview links stay here.
+        use arrows to pan, plus and minus to zoom, and Home to fit all. Control or Command with plus
+        and minus also zooms the canvas, and with zero resets its camera. Preview controls keep
+        their own editing keys. Preview links stay here.
       </p>
       <div
         data-canvas-space
