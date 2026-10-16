@@ -82,6 +82,104 @@ export const PRECIPITATION_SCALE: ScaleStop[] = [
   { value: 10, color: "#1f49b8" },
 ];
 
+/**
+ * The scales of Windguru's tables, for a reader who chose to read the week's table in them: each
+ * row from white, on a color of its own. They are read on a capture of its table of 2026-10-16,
+ * where the figures met: the wind from 4 to 29 kn, the waves from 0.5 to 3.4 m, the period from
+ * 8 to 19 s, the air from 10 to 16 °C, the rain to 1 mm. Above and below, they go on as its hues
+ * do, and the energy, which it does not show, takes a hue it leaves free.
+ */
+export const WINDGURU_SCALES = {
+  height: [
+    { value: 0, color: "#ffffff" },
+    { value: 0.5, color: "#f4f5ff" },
+    { value: 1, color: "#e0e2ff" },
+    { value: 1.5, color: "#c3c7ff" },
+    { value: 2, color: "#aab0ff" },
+    { value: 3, color: "#7c84fe" },
+    { value: 3.5, color: "#857af4" },
+    { value: 4.5, color: "#a05ae8" },
+    { value: 6, color: "#c43fd4" },
+    { value: 8, color: "#e62a9e" },
+    { value: 10, color: "#f0255a" },
+  ],
+  period: [
+    { value: 8, color: "#ffffff" },
+    { value: 10, color: "#fff5f5" },
+    { value: 11, color: "#ffe8e8" },
+    { value: 12, color: "#fedcdc" },
+    { value: 13, color: "#fed0d0" },
+    { value: 14, color: "#fec0c0" },
+    { value: 15, color: "#fea8a8" },
+    { value: 16, color: "#fd9494" },
+    { value: 17, color: "#fd8a8a" },
+    { value: 18, color: "#fd7878" },
+    { value: 19, color: "#fc6464" },
+    { value: 22, color: "#f03c3c" },
+    { value: 25, color: "#d82020" },
+  ],
+  energy: [
+    { value: 0, color: "#ffffff" },
+    { value: 400, color: "#fff0c8" },
+    { value: 1000, color: "#ffd890" },
+    { value: 2000, color: "#ffb860" },
+    { value: 4000, color: "#ff8c40" },
+    { value: 8000, color: "#f06028" },
+    { value: 16000, color: "#d03818" },
+  ],
+  wind: [
+    { value: 4, color: "#ffffff" },
+    { value: 5, color: "#e4fefd" },
+    { value: 6, color: "#c8fcfa" },
+    { value: 7, color: "#a6faf7" },
+    { value: 8, color: "#8bf9f4" },
+    { value: 9, color: "#6ff7f2" },
+    { value: 10, color: "#4bf9b3" },
+    { value: 11, color: "#30fb6b" },
+    { value: 12, color: "#16fd30" },
+    { value: 13, color: "#02ff07" },
+    { value: 14, color: "#23fd04" },
+    { value: 16, color: "#7cf803" },
+    { value: 18, color: "#c9f300" },
+    { value: 19, color: "#f4f102" },
+    { value: 20, color: "#ffd008" },
+    { value: 21, color: "#ffb30f" },
+    { value: 22, color: "#ff7d1c" },
+    { value: 24, color: "#ff4c26" },
+    { value: 26, color: "#ff294d" },
+    { value: 28, color: "#ff1e78" },
+    { value: 30, color: "#ff13a4" },
+    { value: 34, color: "#ff00ff" },
+    { value: 40, color: "#c000ff" },
+    { value: 50, color: "#8000ff" },
+  ],
+  cloud: [
+    { value: 0, color: "#ffffff" },
+    { value: 100, color: "#787878" },
+  ],
+  rain: [
+    { value: 0, color: "#ffffff" },
+    { value: 1, color: "#cdcdfe" },
+    { value: 3, color: "#9a9aff" },
+    { value: 10, color: "#5a5af0" },
+  ],
+  air: [
+    { value: -10, color: "#a0c8ff" },
+    { value: 0, color: "#c8f0ff" },
+    { value: 5, color: "#e8ffa0" },
+    { value: 10, color: "#fffd61" },
+    { value: 11, color: "#fff65a" },
+    { value: 13, color: "#ffe94a" },
+    { value: 14, color: "#ffdc3c" },
+    { value: 15, color: "#ffd330" },
+    { value: 16, color: "#ffcf2b" },
+    { value: 20, color: "#ffa820" },
+    { value: 25, color: "#ff7818" },
+    { value: 30, color: "#ff4810" },
+    { value: 35, color: "#e02008" },
+  ],
+} satisfies Record<string, ScaleStop[]>;
+
 /** A station without a recent reading. */
 export const NO_READING_COLOR = "#8a8a8a";
 

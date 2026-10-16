@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { compassPoint, formatClock, formatDay } from "@/lib/format";
+import { usePalette } from "@/lib/palette";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
@@ -23,6 +24,7 @@ import {
   type NumericKey,
   type Sample,
   cellColors,
+  inPalette,
   directionAt,
   formatMetric,
   isNight,
@@ -130,6 +132,7 @@ export function ForecastGrid({
   const labels = named ? LABELS : LETTERS;
   // Drawn again when the reader changes units: the wind's row is written in them.
   useUnits();
+  const palette = usePalette();
   const all = metrics();
   const weather = weatherMetrics();
   const swell = swellMetric();
@@ -216,6 +219,7 @@ export function ForecastGrid({
     numeric: NumericKey = metric.key,
   ) {
     const compares = buoy.some((sample) => sample[numeric] !== null);
+    const colored = inPalette(metric, palette);
     // An hour without rain leaves its cell empty, as a clear sky does.
     const shown = (value: number | undefined) =>
       value !== undefined && metric.hideZero && Number(value.toFixed(metric.digits)) === 0
@@ -239,7 +243,9 @@ export function ForecastGrid({
                   measuredValue !== undefined && "font-semibold",
                   column.newDay && DAY_RULE,
                 )}
-                style={value === undefined || metric.plain ? undefined : cellColors(metric, value)}
+                style={
+                  value === undefined || colored.plain ? undefined : cellColors(colored, value)
+                }
               >
                 {value === undefined ? "" : formatMetric(metric, value, false)}
               </td>

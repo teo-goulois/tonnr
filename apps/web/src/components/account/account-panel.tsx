@@ -1,3 +1,4 @@
+import { APP_NAME } from "@repo/config/app";
 import { Button } from "@repo/ui/components/ui/button";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
 import { ChevronRightIcon, LogOutIcon } from "@repo/ui/icon";
@@ -10,6 +11,7 @@ import { openShortcutSettings } from "@/components/shared/shortcut-settings";
 import { UnitsSettings } from "@/components/shared/units-settings";
 import { AccountPrompt } from "@/components/viewer/saved-panel";
 import { LANGUAGES } from "@/lib/languages";
+import { setPalette, usePalette } from "@/lib/palette";
 import { m } from "@/paraglide/messages.js";
 import { getLocale, locales, setLocale } from "@/paraglide/runtime.js";
 
@@ -89,6 +91,7 @@ export function AccountPanel({
   agents,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
+  const palette = usePalette();
   const [isNaming, setNaming] = useState(false);
 
   return (
@@ -232,6 +235,15 @@ export function AccountPanel({
               <TabsTab value="system">{m.account_theme_system()}</TabsTab>
               <TabsTab value="light">{m.account_theme_light()}</TabsTab>
               <TabsTab value="dark">{m.account_theme_dark()}</TabsTab>
+            </TabsList>
+          </Tabs>
+        </Line>
+        {/* The colors of the week's table in a panel: the app's own, or Windguru's. */}
+        <Line label={m.account_palette()}>
+          <Tabs value={palette} onValueChange={(next) => setPalette(next as typeof palette)}>
+            <TabsList variant="segment" aria-label={m.account_palette()}>
+              <TabsTab value="tonnr">{APP_NAME}</TabsTab>
+              <TabsTab value="windguru">Windguru</TabsTab>
             </TabsList>
           </Tabs>
         </Line>

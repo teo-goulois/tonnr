@@ -8,10 +8,12 @@ import {
   WAVE_ENERGY_SCALE,
   WAVE_HEIGHT_SCALE,
   WAVE_PERIOD_SCALE,
+  WINDGURU_SCALES,
   WIND_SPEED_SCALE,
   scaleColor,
   scaleInk,
 } from "@/lib/sea-scales";
+import type { Palette } from "@/lib/palette";
 import {
   heightIn,
   heightUnit,
@@ -332,6 +334,16 @@ export function bias(measured: Sample[], model: Sample[], key: MetricKey, since:
     count++;
   }
   return count < 6 ? undefined : sum / count;
+}
+
+/**
+ * A metric as the week's table colors it in a palette. Windguru's fills every cell, the air's
+ * too, and writes on it in the ink that reads there. The swell takes the waves' scale.
+ */
+export function inPalette(metric: Metric, palette: Palette): Metric {
+  if (palette === "tonnr") return metric;
+  const key = metric.key === "swell" ? "height" : metric.key === "gust" ? "wind" : metric.key;
+  return { ...metric, scale: WINDGURU_SCALES[key], tinted: false, plain: false };
 }
 
 /** The color of a value, and the ink to write on it. A tinted scale lets the theme show through. */
