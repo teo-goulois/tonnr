@@ -40,31 +40,42 @@ function nameOf<Measure extends keyof Units>(measure: Measure, unit: Units[Measu
 }
 
 /**
- * Where the reader chooses the unit each measurement is written in: a line for each, in the
- * account's settings. A press changes every screen at once, and the account keeps the choice.
+ * The choice of one measurement's unit, as a segmented control: a press changes every screen at
+ * once, and the browser keeps the choice, with the account when one is signed in. The settings
+ * draw one for each measurement, and a demo of the guides one beside its figure (decision 060).
  */
-export function UnitsSettings() {
+export function UnitTabs({ measure }: { measure: keyof Units }) {
   const units = useUnits();
   const saveUnits = useSaveUnits();
+  const label = MEASURES.find((one) => one.measure === measure)!.label();
+  return (
+    <Tabs
+      value={units[measure]}
+      onValueChange={(value) => saveUnits({ [measure]: value } as Partial<Units>)}
+    >
+      <TabsList variant="segment" aria-label={label}>
+        {UNIT_CHOICES[measure].map((unit) => (
+          <TabsTab key={unit} value={unit}>
+            {nameOf(measure, unit)}
+          </TabsTab>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
+}
 
+/**
+ * Where the reader chooses the unit each measurement is written in: a line for each, in the
+ * account's settings.
+ */
+export function UnitsSettings() {
   return (
     <ul className="grid gap-s">
       {MEASURES.map(({ measure, label }) => (
         // A phone that is too narrow for a line puts the choices under their name.
         <li key={measure} className="flex flex-wrap items-center justify-between gap-x-s gap-y-xxs">
           <span>{label()}</span>
-          <Tabs
-            value={units[measure]}
-            onValueChange={(value) => saveUnits({ [measure]: value } as Partial<Units>)}
-          >
-            <TabsList variant="segment" aria-label={label()}>
-              {UNIT_CHOICES[measure].map((unit) => (
-                <TabsTab key={unit} value={unit}>
-                  {nameOf(measure, unit)}
-                </TabsTab>
-              ))}
-            </TabsList>
-          </Tabs>
+          <UnitTabs measure={measure} />
         </li>
       ))}
     </ul>

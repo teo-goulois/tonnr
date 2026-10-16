@@ -1,5 +1,6 @@
 import handler from "@tanstack/react-start/server-entry";
 
+import { LEARN_ROOT } from "./lib/learn";
 import { fetchHubs, fetchListed } from "./lib/pages-api";
 import {
   CLOSED_HEADER,
@@ -82,16 +83,19 @@ function movedHost(request: Request, bindings?: Bindings): Response | undefined 
 
 /**
  * How long the cache keeps an answer at this address, in seconds: a day for a sitemap, an hour
- * for a page of a surf break or a hub, in any language, and nothing for every other address.
+ * for a page of a surf break or a hub, or a guide (decision 060), in any language, and nothing for
+ * every other address.
  * Nothing of an account is read on these pages, so nothing personal is kept: decision 057.
  */
 export function cacheSeconds(pathname: string) {
   if (isSitemapPath(pathname)) return DAY;
-  const spots = locales.some((locale) => {
-    const root = localizeHref(SPOTS_ROOT, { locale });
-    return pathname === root || pathname.startsWith(`${root}/`);
-  });
-  return spots ? HOUR : 0;
+  const kept = locales.some((locale) =>
+    [SPOTS_ROOT, LEARN_ROOT].some((path) => {
+      const root = localizeHref(path, { locale });
+      return pathname === root || pathname.startsWith(`${root}/`);
+    }),
+  );
+  return kept ? HOUR : 0;
 }
 
 // Cloudflare's cache of the data center. Development has none.

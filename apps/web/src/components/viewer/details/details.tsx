@@ -8,9 +8,9 @@ import {
   Suspense,
   lazy,
   memo,
-  useCallback,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { useSaveDensity } from "@/components/shared/density-account";
@@ -142,12 +142,44 @@ function seaNowOf(props: DetailsProps, words: SeaWords | null | undefined): SeaN
  * one span of time, the buoy drawn over the model. Then the week as a grid, and the tide. Or, at
  * the least density, the sea now in a sentence and the days ahead in words.
  */
+/**
+ * How the week's table goes back to now while it is scrolled away from it. Only the button reads
+ * it: the panel, with its charts, is not drawn again as the button comes and goes.
+ */
+function wayBack() {
+  let go: (() => void) | undefined;
+  const listeners = new Set<() => void>();
+  return {
+    set: (next: (() => void) | undefined) => {
+      go = next;
+      for (const listener of listeners) listener();
+    },
+    get: () => go,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+// Only while the grid is scrolled away from now.
+function BackToNow({ way }: { way: ReturnType<typeof wayBack> }) {
+  const go = useSyncExternalStore(way.subscribe, way.get, way.get);
+  if (!go) return null;
+  return (
+    <Button variant="secondary" size="xs" onClick={go}>
+      {m.details_back_to_now()}
+    </Button>
+  );
+}
+
 const Conditions = memo(function Conditions(props: ConditionsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes, density, words } = props;
   const [range, setRange] = useState<Range>("24h");
   // How to bring the grid back to now, while it is scrolled away from it.
-  const [backToNow, setBackToNow] = useState<{ go: () => void }>();
-  const onGridAway = useCallback((go: (() => void) | undefined) => setBackToNow(go && { go }), []);
+  const [backToNow] = useState(wayBack);
   // The names of the grid's rows, which a reader who knows them folds to a letter: kept in the
   // browser.
   const [named, setNamed] = useStoredState("tonnr:grid-names", true, (stored) =>
@@ -156,6 +188,16 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
 
   const first = model[0]?.time ?? now;
   const last = model.at(-1)?.time ?? now;
+  // The week's table opens on now, or on two days before it beside a buoy, and a pull past its
+  // start shows one day more of what the model holds before, from its midnight.
+  const [daysBack, setDaysBack] = useState(0);
+  const gridOpens = hasBuoy ? now - 2 * DAY_MS : now - 1.5 * HOUR_MS;
+  const midnight = new Date(gridOpens);
+  midnight.setHours(0, 0, 0, 0);
+  const gridStart = Math.max(
+    first,
+    daysBack === 0 ? gridOpens : midnight.getTime() - daysBack * DAY_MS,
+  );
   // Around a buoy, as much of the past as of the days ahead. Elsewhere, the days ahead alone.
   const span = range === "week" ? undefined : SPANS[range] * HOUR_MS;
   const back = hasBuoy ? (span ?? DAY_MS) : 3 * HOUR_MS;
@@ -286,25 +328,18 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
             </Block>
           )}
 
-          <Block
-            title={m.details_week()}
-            control={
-              // Only while the grid is scrolled away from now.
-              backToNow && (
-                <Button variant="secondary" size="xs" onClick={backToNow.go}>
-                  {m.details_back_to_now()}
-                </Button>
-              )
-            }
-          >
+          <Block title={m.details_week()} control={<BackToNow way={backToNow} />}>
             <ForecastGrid
               named={named}
               onNamedChange={setNamed}
-              onAway={onGridAway}
+              onAway={backToNow.set}
               rows={rows}
               model={model}
               measured={hasBuoy ? measured : undefined}
-              start={hasBuoy ? Math.max(first, now - 2 * DAY_MS) : now - 1.5 * HOUR_MS}
+              start={gridStart}
+              onEarlier={
+                gridStart > first + HOUR_MS ? () => setDaysBack((days) => days + 1) : undefined
+              }
               end={last}
               now={now}
               place={place}

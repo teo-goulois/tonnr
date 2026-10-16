@@ -1,12 +1,13 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The colors the reader reads the week's table of a panel in: the app's own, or those of
- * Windguru's tables, which a surfer may know by heart. Only that table follows the choice: the
+ * The colors the reader reads the week's table of a panel in: those of Windguru's tables, which
+ * a surfer coming from it knows by heart and the app starts with, or the app's own. Only that table follows the choice: the
  * map, its legend and the curves keep the app's, which `sea-scales.ts` holds with Windguru's.
  * The browser keeps it, as it keeps the theme.
  */
-export const PALETTES = ["tonnr", "windguru"] as const;
+export const PALETTES = ["windguru", "tonnr"] as const;
+const STARTING: Palette = "windguru";
 export type Palette = (typeof PALETTES)[number];
 
 const STORED_KEY = "tonnr:palette";
@@ -15,9 +16,9 @@ const listeners = new Set<() => void>();
 function stored(): Palette {
   try {
     const kept = localStorage.getItem(STORED_KEY);
-    return (PALETTES as readonly (string | null)[]).includes(kept) ? (kept as Palette) : "tonnr";
+    return (PALETTES as readonly (string | null)[]).includes(kept) ? (kept as Palette) : STARTING;
   } catch {
-    return "tonnr";
+    return STARTING;
   }
 }
 
@@ -47,7 +48,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** The palette in force. The server draws in the app's own. */
+/** The palette in force. The server draws in the one the app starts with. */
 export function usePalette() {
-  return useSyncExternalStore(subscribe, getPalette, () => "tonnr" as const);
+  return useSyncExternalStore(subscribe, getPalette, () => STARTING);
 }

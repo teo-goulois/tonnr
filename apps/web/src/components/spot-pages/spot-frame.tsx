@@ -76,9 +76,9 @@ export function SpotSection({
  * The path over a page, from the widest place to the nearest: each a link to its hub where one
  * exists, and a name alone where none does.
  */
-export function Crumbs({ crumbs }: { crumbs: Crumb[] }) {
+export function Crumbs({ crumbs, label }: { crumbs: Crumb[]; label?: string }) {
   return (
-    <nav aria-label={m.page_places_label()}>
+    <nav aria-label={label ?? m.page_places_label()}>
       <ol className="flex flex-wrap items-center gap-x-xxs gap-y-xxs text-s text-neutral-7">
         {crumbs.map((crumb, index) => (
           <li key={`${crumb.name}-${index}`} className="flex items-center gap-xxs">
