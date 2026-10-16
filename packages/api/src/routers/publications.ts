@@ -237,6 +237,7 @@ export const publicationsRouter = {
           bestTides: said.bestTides ?? null,
           bestSwellDirections: said.bestSwellDirections ?? null,
           bestWindDirections: said.bestWindDirections ?? null,
+          sizeFactors: said.sizeFactors ?? null,
           offshoreDirectionDegrees: said.offshoreDirectionDegrees ?? null,
           waveSizeMeters: said.waveSizeMeters ?? null,
           ...COMMUNITY,

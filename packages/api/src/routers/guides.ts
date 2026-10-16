@@ -117,9 +117,11 @@ export const guidesRouter = {
         title: "What surfers wrote of a surf break",
         description:
           "The guide of a surf break, line by line: its lists of words, as the break's " +
-          "`characteristics` give them, and four short texts, on the access (`access`), on " +
-          "where to enter the water (`entry`), on the hazards (`hazards`) and on the rules " +
-          "of the place (`rules`). A line's `value` is what the guide says: it comes from " +
+          "`characteristics` give them, and five short texts, on the access (`access`), on " +
+          "where to enter the water (`entry`), on the hazards (`hazards`), on the rules " +
+          "of the place (`rules`) and on why its waves run bigger or smaller than the " +
+          "forecast says (`sizeNotes`), beside the line `sizeFactors` that says how much. " +
+          "A line's `value` is what the guide says: it comes from " +
           "the list the break was added from, or from a contribution that was confirmed, " +
           "whose author `by.username` names. `proposed` holds what an account wrote and " +
           "nobody confirmed yet: say that it is not confirmed when you repeat it. `answers` " +
@@ -137,8 +139,9 @@ export const guidesRouter = {
       summary: "What is written of a surf break, line by line",
       description:
         "The guide of a break of the catalogue: its lists of words, as `GET /breaks/{id}` gives " +
-        "them in `characteristics`, and four short texts, on the access, on where to enter the " +
-        "water, on the hazards and on the rules of the place. Each line says where its value " +
+        "them in `characteristics`, and five short texts, on the access, on where to enter the " +
+        "water, on the hazards, on the rules of the place and on why its waves run bigger or " +
+        "smaller than the forecast says (decision 062). Each line says where its value " +
         "comes from: the list the break was added from, or a contribution of an account, which " +
         "an operator or the accounts that keep the break confirmed. A contribution names its " +
         "author by a username and a rank. A text is given in the language asked for when " +

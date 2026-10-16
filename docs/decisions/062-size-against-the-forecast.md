@@ -1,6 +1,6 @@
 # 062. How big the waves get at a break, against what the forecast says
 
-Status: proposed on 2026-10-16. Téo asked for it that day, from two breaks a kilometre apart near Brest, Le Petit Minou and Dalbosc, which read the same forecast, the same cell of the model and the same buoy 25 km out, while Dalbosc is nearly always twice as big. He wants to know it at those two, and ideally at every break. He said yes to the two things below, learning it from the sessions and asking the people who surf the break, and no to a model of the coast for now. The thresholds, the steps of the guide's line and where the sentence stands are proposed here, for him to confirm or change.
+Status: proposed on 2026-10-16, and built the same day at Téo's word, as proposed. Téo asked for it that day, from two breaks a kilometre apart near Brest, Le Petit Minou and Dalbosc, which read the same forecast, the same cell of the model and the same buoy 25 km out, while Dalbosc is nearly always twice as big. He wants to know it at those two, and ideally at every break. He said yes to the two things below, learning it from the sessions and asking the people who surf the break, and no to a model of the coast for now. The thresholds, the steps of the guide's line and where the sentence stands are proposed here, for him to confirm or change.
 
 ## Context
 
@@ -60,4 +60,6 @@ The verdict of the sea now compares the catalogue's faces with the model's heigh
 - A session at a break with no size says nothing: the form may ask for the size a little more plainly later.
 - The guide's tool, `get_surf_break_guide`, answers a fifth text and a ninth line of words: its description, `docs/mcp.md` and `/llms.txt` say so.
 - The migration adds a nullable column and runs as the API starts. The API is deployed before the web app.
+- The text "why" is a text of the guide as the four others are: the public page of the break shows it with them, and a break whose only confirmed text is that sentence stands on its own for a search engine, as decision 057 has it. The line of words does not count among the eleven characteristics that decision counts.
+- The sentence of the panel is drawn at every density of decision 061: under the sentence of the sea now at the least, under the tiles and the stations otherwise.
 - Not built: the sentence on the public page of the break and in its verdict, the factor at a spot of an account's own that stands on a break, a tool of the MCP server, and a figure in feet of face in the tiles.

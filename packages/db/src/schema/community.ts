@@ -27,10 +27,13 @@ export const GUIDE_WORD_LINES = [
   "bestTides",
   "bestSwellDirections",
   "bestWindDirections",
+  // How big the waves run against the forecast: decision 062.
+  "sizeFactors",
 ] as const;
 // The lines that are a short text: how to get there, where to enter the water, what to watch
-// for, and what the place asks of whoever surfs it.
-export const GUIDE_TEXT_LINES = ["access", "entry", "hazards", "rules"] as const;
+// for, what the place asks of whoever surfs it, and why its waves run bigger or smaller than
+// the forecast says, which is shorter than the others (decision 062).
+export const GUIDE_TEXT_LINES = ["access", "entry", "hazards", "rules", "sizeNotes"] as const;
 // The break itself, its name and its point: written when an operator accepts a spot into the
 // catalogue (decision 034), and never proposed.
 export const GUIDE_PLACE_LINE = "place";

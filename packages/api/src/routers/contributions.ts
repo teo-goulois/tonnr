@@ -27,8 +27,10 @@ import {
   nextRank,
   PROPOSALS_A_DAY,
   sameValue,
+  SIZE_NOTES_MOST,
   TEXT_LEAST,
   TEXT_MOST,
+  textMostOf,
   WAITING_MOST,
 } from "../community";
 import {
@@ -126,8 +128,9 @@ export const contributionsRouter = {
       description:
         "Takes a signed-in session of an account that has a username: the line is read under " +
         "it. `line` is one of the guide's lists of words, with `value` a list of the " +
-        "catalogue's words for it, or one of its four texts (`access`, `entry`, `hazards`, " +
-        `\`rules\`), with \`value\` a text of ${TEXT_LEAST} to ${TEXT_MOST} characters and ` +
+        "catalogue's words for it, or one of its five texts (`access`, `entry`, `hazards`, " +
+        `\`rules\`, \`sizeNotes\`), with \`value\` a text of ${TEXT_LEAST} to ${TEXT_MOST} ` +
+        `characters, ${SIZE_NOTES_MOST} for \`sizeNotes\`, and ` +
         "`language` the language it is written in. `agreed` says that the account gives it " +
         "under the Open Database License, and a text under the Database Contents License: " +
         "the row keeps which. A contribution waits for an operator of the instance to read " +
@@ -169,9 +172,10 @@ export const contributionsRouter = {
         value = kept;
       } else {
         const text = typeof input.value === "string" ? keptText(input.value) : "";
-        if (text.length < TEXT_LEAST || text.length > TEXT_MOST || hasControlCharacter(text)) {
+        const most = textMostOf(line);
+        if (text.length < TEXT_LEAST || text.length > most || hasControlCharacter(text)) {
           throw new ORPCError("BAD_REQUEST", {
-            message: `"${line}" takes a text of ${TEXT_LEAST} to ${TEXT_MOST} characters.`,
+            message: `"${line}" takes a text of ${TEXT_LEAST} to ${most} characters.`,
           });
         }
         if (!input.language) {

@@ -18,18 +18,18 @@ A request with neither gets 401, the list of the tools too, and the refusal says
 
 Every tool reads, and none writes. With a key, an agent reads what a key reads at `/v1`: nothing of an account.
 
-| Tool                   | What it answers                                                             |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `list_stations`        | Buoys and wind stations in an area, each with what it measured last         |
-| `get_station`          | One station with what it measured last                                      |
-| `get_station_readings` | What a station measured over a period, the newest first                     |
-| `get_forecast`         | The hourly forecast of waves, wind and weather at a point, 7 days at most   |
-| `get_tide_extremes`    | The high and the low tides near a point                                     |
-| `get_tide_timeline`    | The tide's height at regular steps near a point                             |
-| `list_surf_breaks`     | The surf breaks of the catalogue in an area, with what is known of each     |
-| `search_surf_breaks`   | Surf breaks by their name or their town's, the likeliest first              |
-| `get_surf_break`       | One surf break of the catalogue                                             |
-| `get_surf_break_guide` | What the people who surf a break wrote of it: access, entry, hazards, rules |
+| Tool                   | What it answers                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_stations`        | Buoys and wind stations in an area, each with what it measured last                                                                    |
+| `get_station`          | One station with what it measured last                                                                                                 |
+| `get_station_readings` | What a station measured over a period, the newest first                                                                                |
+| `get_forecast`         | The hourly forecast of waves, wind and weather at a point, 7 days at most                                                              |
+| `get_tide_extremes`    | The high and the low tides near a point                                                                                                |
+| `get_tide_timeline`    | The tide's height at regular steps near a point                                                                                        |
+| `list_surf_breaks`     | The surf breaks of the catalogue in an area, with what is known of each                                                                |
+| `search_surf_breaks`   | Surf breaks by their name or their town's, the likeliest first                                                                         |
+| `get_surf_break`       | One surf break of the catalogue                                                                                                        |
+| `get_surf_break_guide` | What the people who surf a break wrote of it: access, entry, hazards, rules, and why its waves run bigger or smaller than the forecast |
 
 An agent that an account signed in is listed six more, which read what that account keeps:
 

@@ -88,6 +88,11 @@ export const BOARD_TYPES = [
   "tow",
 ] as const;
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
+// How big the waves of a place run against the height of the forecast, in the steps a surfer
+// tells another: about half of it, about the same, about one and a half times, about double,
+// more than double. Two neighbouring steps say a range. No list gives it: the people who surf
+// the place write it, in its guide. Decision 062.
+export const SIZE_FACTORS = ["half", "same", "one_and_a_half", "double", "more"] as const;
 // The stages of the tide and the points of the compass live in @repo/config, for the web app
 // too: decision 061.
 import { COMPASS_POINTS, TIDE_STAGES } from "@repo/config/sea-words";
@@ -123,6 +128,7 @@ export type SpotCharacteristics = {
   bestTides?: (typeof TIDE_STAGES)[number][];
   bestSwellDirections?: CompassPoint[];
   bestWindDirections?: CompassPoint[];
+  sizeFactors?: (typeof SIZE_FACTORS)[number][];
   offshoreDirectionDegrees?: number;
   waveSizeMeters?: WaveSize;
 };
@@ -153,6 +159,8 @@ export const surfBreak = pgTable(
     // Where the swell and the wind come from when the break works.
     bestSwellDirections: text("best_swell_directions").$type<CompassPoint>().array(),
     bestWindDirections: text("best_wind_directions").$type<CompassPoint>().array(),
+    // How big its waves run against the forecast, as its guide says: decision 062.
+    sizeFactors: text("size_factors").$type<(typeof SIZE_FACTORS)[number]>().array(),
     // Where the wind blows from when it blows off the shore, clockwise from north.
     offshoreDirectionDegrees: integer("offshore_direction_degrees"),
     // The height of the faces of the waves it works at, from the smallest to the largest.

@@ -30,6 +30,7 @@ const bare = {
   bestTides: null,
   bestSwellDirections: null,
   bestWindDirections: null,
+  sizeFactors: null,
   offshoreDirectionDegrees: null,
   waveSizeMeters: null,
   location: null,

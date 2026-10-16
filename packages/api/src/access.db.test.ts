@@ -79,6 +79,9 @@ const ANSWERS_A_KEY = [
   "v1.breaks.get",
   "v1.breaks.list",
   "v1.breaks.search",
+  // How big a break's waves run against the forecast, from the sessions surfed there, as one
+  // figure and a count: decision 062.
+  "v1.breaks.sizeFactor",
   "v1.forecasts.get",
   // A guide is what everyone reads of a break, with the usernames of who wrote it: decision 041.
   "v1.guides.get",
@@ -1036,6 +1039,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
       bestTides: null,
       bestSwellDirections: null,
       bestWindDirections: null,
+      sizeFactors: null,
       offshoreDirectionDegrees: null,
       waveSizeMeters: null,
     };

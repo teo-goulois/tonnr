@@ -26,6 +26,7 @@ describe.skipIf(!TEST_DATABASE_URL)("what is said of a spot", () => {
     bestTides: null,
     bestSwellDirections: null,
     bestWindDirections: null,
+    sizeFactors: null,
     offshoreDirectionDegrees: null,
     waveSizeMeters: null,
   };

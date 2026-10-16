@@ -1,8 +1,16 @@
 import { ORPCError } from "@orpc/server";
 import { FOLDING, fold } from "@repo/config/names";
+import { sessionFigures } from "@repo/conditions/sessions/figures";
+import {
+  PERIOD_BANDS,
+  sizeFactor,
+  SWELL_SECTORS,
+  type SizedSession,
+} from "@repo/conditions/sessions/size-factor";
 import { pathOf } from "@repo/db/addresses";
-import { BREAK_DESCRIPTION_LANGUAGES, surfBreak } from "@repo/db/schema/spots";
-import { and, asc, eq, gt, or, sql } from "drizzle-orm";
+import { type SessionConditions, surfSession } from "@repo/db/schema/sessions";
+import { BREAK_DESCRIPTION_LANGUAGES, spot, surfBreak } from "@repo/db/schema/spots";
+import { and, asc, desc, eq, gt, isNotNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { bboxSchema, inBbox } from "../bbox";
@@ -63,6 +71,7 @@ export function describeBreak(
       bestTides: row.bestTides,
       bestSwellDirections: row.bestSwellDirections,
       bestWindDirections: row.bestWindDirections,
+      sizeFactors: row.sizeFactors,
       offshoreDirectionDegrees: row.offshoreDirectionDegrees,
       waveSizeMeters: row.waveSizeMeters,
       // The words of a contribution are the catalogue's: they were checked when it was
@@ -85,6 +94,29 @@ export function describeBreak(
     },
   };
 }
+
+// How many of the latest sessions at a break are read for its size factor: enough for a break
+// that is surfed every day, and one query of a bounded size.
+const FACTOR_SESSIONS_READ = 500;
+
+/** What the sessions surfed at a break say of how big its waves run against the forecast. */
+export const sizeFactorSchema = z.object({
+  // The sessions that gave a ratio: a size said, and a model's height worth reading.
+  sessions: z.number().int(),
+  // How many times the height of the forecast the waves run, to the tenth. Null while fewer
+  // sessions, or sessions of fewer accounts, gave one than the rule asks.
+  factor: z.number().nullable(),
+  // The same for the swells that have enough sessions of their own: the sector the swell comes
+  // from, 45 degrees each, and the band of its period, under 9 s, 9 to 13 s, 13 s and over.
+  bySwell: z.array(
+    z.object({
+      sector: z.enum(SWELL_SECTORS),
+      period: z.enum(PERIOD_BANDS),
+      factor: z.number(),
+      sessions: z.number().int(),
+    }),
+  ),
+});
 
 // In a LIKE pattern these three characters have a meaning of their own.
 function literal(text: string) {
@@ -117,8 +149,10 @@ export const breaksRouter = {
           "The surf breaks of the catalogue in an area (`bbox`), or whose name holds `q`, " +
           "each with its place and what is known of it: the type of break, the bottom, the " +
           "way the wave goes, the level and the boards it suits, the seasons, the tides, " +
-          "and the swell and wind directions it likes, as points of the compass a swell or " +
-          "a wind comes from. `offshoreDirectionDegrees` is where the wind comes from when " +
+          "the swell and wind directions it likes, as points of the compass a swell or " +
+          "a wind comes from, and `sizeFactors`, how big its waves run against the height " +
+          "of the forecast as the people who surf it say, from `half` to `more` than " +
+          "double. `offshoreDirectionDegrees` is where the wind comes from when " +
           "it blows straight off that shore. `waveSizeMeters` is the height of the faces of " +
           "the waves it works at, in meters, from `min` to `max`, a bound that is null not " +
           "given. A characteristic that is null is not known, " +
@@ -305,6 +339,70 @@ export const breaksRouter = {
       const [row] = await context.db.select().from(surfBreak).where(eq(surfBreak.id, input.id));
       if (!row) throw new ORPCError("NOT_FOUND", { message: `No break "${input.id}".` });
       return describeBreak(row, (await confirmedWordsOf(context.db, [row.id])).get(row.id));
+    }),
+
+  // Not a tool of the MCP server, and not a field of `get`: a panel asks for it when it opens,
+  // the map never does. Decision 062.
+  sizeFactor: callerProcedure
+    .route({
+      method: "GET",
+      path: "/breaks/{id}/size-factor",
+      summary: "How big the waves of a surf break run against the forecast",
+      description:
+        "How many times the height of the forecast the waves of a break run, read from the " +
+        "sessions surfed there, of every account: the median of the face each size said stands " +
+        "for over the model's height at the session's middle, to the tenth, with the number of " +
+        "sessions it comes from. It is said once 5 sessions from 2 accounts gave a ratio, and " +
+        "`factor` is null before: read nothing into the count alone. `bySwell` gives the same " +
+        "for each sector of 45 degrees and band of period that holds as many of its own. The " +
+        "forecast's height is the sea off the coast, and a face on the sand is another thing: " +
+        "this is an estimate from a few eyes, never a measurement, and nothing names a session " +
+        "or an account. Decision 062.",
+      tags: ["Breaks"],
+    })
+    .input(
+      z.object({
+        id: z.uuid().describe("A break's `id`, as a list or a search of breaks gives it."),
+      }),
+    )
+    .output(sizeFactorSchema)
+    .handler(async ({ input, context }) => {
+      const [found] = await context.db
+        .select({ id: surfBreak.id })
+        .from(surfBreak)
+        .where(eq(surfBreak.id, input.id));
+      if (!found) throw new ORPCError("NOT_FOUND", { message: `No break "${input.id}".` });
+      // A session is at the break when its row names it, or names a spot that stands on it. Of
+      // each, what the rule needs and no more: who, to count the accounts and never answer them,
+      // the size, the times, and the model's hours, never the readings of the stations.
+      const rows = await context.db
+        .select({
+          account: surfSession.userId,
+          waveSize: surfSession.waveSize,
+          startedAt: surfSession.startedAt,
+          durationMinutes: surfSession.durationMinutes,
+          model: sql<SessionConditions["model"] | null>`${surfSession.conditions} -> 'model'`,
+        })
+        .from(surfSession)
+        .leftJoin(spot, eq(spot.id, surfSession.spotId))
+        .where(
+          and(
+            isNotNull(surfSession.waveSize),
+            or(eq(surfSession.breakId, input.id), eq(spot.breakId, input.id)),
+          ),
+        )
+        .orderBy(desc(surfSession.startedAt))
+        .limit(FACTOR_SESSIONS_READ);
+      const sessions: SizedSession[] = rows.map((row) => ({
+        account: row.account,
+        waveSize: row.waveSize,
+        figures: sessionFigures(
+          row.model ? ({ model: row.model } as SessionConditions) : null,
+          row.startedAt,
+          row.durationMinutes,
+        ),
+      }));
+      return sizeFactor(sessions);
     }),
 
   named: linkProcedure

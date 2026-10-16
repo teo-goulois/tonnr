@@ -5,6 +5,7 @@ import {
   BREAK_TYPES,
   COMPASS_POINTS,
   SEASONS,
+  SIZE_FACTORS,
   type SpotCharacteristics,
   TIDE_STAGES,
   WAVE_DIRECTIONS,
@@ -25,6 +26,8 @@ const VOCABULARY = {
   // Where the swell and the wind come from when the place works, as points of the compass.
   bestSwellDirections: COMPASS_POINTS,
   bestWindDirections: COMPASS_POINTS,
+  // How big the waves run against the height of the forecast: decision 062.
+  sizeFactors: SIZE_FACTORS,
 } as const;
 
 type Listed = keyof typeof VOCABULARY;
@@ -60,6 +63,10 @@ export const characteristicsSchema = z.object({
   // Where the swell and the wind come from when the place works, as points of the compass.
   bestSwellDirections: z.array(z.enum(COMPASS_POINTS)).nullable(),
   bestWindDirections: z.array(z.enum(COMPASS_POINTS)).nullable(),
+  // How big the waves run against the height of the forecast, as the people who surf the place
+  // say it: about half, about the same, about one and a half times, about double, more than
+  // double. Two neighbouring steps say a range. Decision 062.
+  sizeFactors: z.array(z.enum(SIZE_FACTORS)).nullable(),
   // Where the wind blows from when it blows off the shore, clockwise from north.
   offshoreDirectionDegrees: z.number().nullable(),
   waveSizeMeters: waveSizeSchema.nullable(),
@@ -86,6 +93,7 @@ export const characteristicsInput = z.object({
   bestTides: said(TIDE_STAGES),
   bestSwellDirections: said(COMPASS_POINTS),
   bestWindDirections: said(COMPASS_POINTS),
+  sizeFactors: said(SIZE_FACTORS),
   offshoreDirectionDegrees: z.number().int().min(0).max(359).nullish(),
   waveSizeMeters: waveSizeInput,
 });
@@ -130,6 +138,7 @@ export function describeCharacteristics(
     bestTides: kept?.bestTides ?? null,
     bestSwellDirections: kept?.bestSwellDirections ?? null,
     bestWindDirections: kept?.bestWindDirections ?? null,
+    sizeFactors: kept?.sizeFactors ?? null,
     offshoreDirectionDegrees: kept?.offshoreDirectionDegrees ?? null,
     waveSizeMeters: kept?.waveSizeMeters ?? null,
   };

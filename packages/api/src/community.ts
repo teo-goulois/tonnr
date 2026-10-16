@@ -10,6 +10,7 @@ import {
   BREAK_TYPES,
   COMPASS_POINTS,
   SEASONS,
+  SIZE_FACTORS,
   TIDE_STAGES,
   WAVE_DIRECTIONS,
 } from "@repo/db/schema/spots";
@@ -34,6 +35,7 @@ export const LINE_WORDS = {
   bestTides: TIDE_STAGES,
   bestSwellDirections: COMPASS_POINTS,
   bestWindDirections: COMPASS_POINTS,
+  sizeFactors: SIZE_FACTORS,
 } as const satisfies Record<WordLine, readonly string[]>;
 
 export const isWordLine = (line: string): line is WordLine =>
@@ -41,9 +43,14 @@ export const isWordLine = (line: string): line is WordLine =>
 export const isTextLine = (line: string): line is TextLine =>
   (GUIDE_TEXT_LINES as readonly string[]).includes(line);
 
-// A text of a guide is short: a few sentences that a reader takes in at the car park.
+// A text of a guide is short: a few sentences that a reader takes in at the car park. Why the
+// waves run bigger or smaller than the forecast is one sentence: decision 062.
 export const TEXT_LEAST = 3;
 export const TEXT_MOST = 500;
+export const SIZE_NOTES_MOST = 140;
+
+/** The most characters a text of a line takes. */
+export const textMostOf = (line: TextLine) => (line === "sizeNotes" ? SIZE_NOTES_MOST : TEXT_MOST);
 
 /**
  * A list of words as it is kept: each word once, in the order of its vocabulary, whatever order
@@ -82,8 +89,8 @@ export function pointsOf(line: ContributionLine) {
   return isTextLine(line) ? POINTS.text : POINTS.words;
 }
 
-// The score each rank is reached at. A break described whole, its eight lines of words and its
-// four texts, is 80 points: the first rank is a few lines, the last several breaks.
+// The score each rank is reached at. A break described whole, its nine lines of words and its
+// five texts, is 95 points: the first rank is a few lines, the last several breaks.
 export const RANK_FROM: Record<Rank, number> = { qs: 20, cs: 150, ct: 600 };
 
 /** The ranks a score has reached, from the first. */
