@@ -29,6 +29,7 @@ Successful oRPC actions:
 - `contribution_contested`
 - `contribution_proposed`
 - `contribution_withdrawn`
+- `density_updated`
 - `friend_added`
 - `friend_removed`
 - `guide_question_answered`

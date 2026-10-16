@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { station } from "@repo/db/schema/buoys";
 import {
+  DENSITIES,
   DISTANCE_UNITS,
   HEIGHT_UNITS,
   PRECIPITATION_UNITS,
@@ -9,6 +10,7 @@ import {
   type RecentKind,
   TEMPERATURE_UNITS,
   WIND_SPEED_UNITS,
+  displayPreferences,
   recentView,
   savedShortcuts,
   unitPreferences,
@@ -50,6 +52,12 @@ const unitColumns = {
   distance: unitPreferences.distance,
   precipitation: unitPreferences.precipitation,
 };
+
+// How the caller asks the apps to draw: how much of the forecast a panel shows. Decision 061.
+const displaySchema = z.object({ density: z.enum(DENSITIES) });
+// What an account that has chosen nothing reads: the details, which is the panel as it was.
+const STARTING_DISPLAY: z.infer<typeof displaySchema> = { density: "details" };
+const displayColumns = { density: displayPreferences.density };
 
 // What the caller looked at last: a station, a surf break or a spot of its own, with what a list
 // writes of it and where the map finds it. Decision 042.
@@ -168,6 +176,32 @@ export const preferencesRouter = {
         .values({ userId: context.session.user.id, ...STARTING_UNITS, ...input, savedAt })
         .onConflictDoUpdate({ target: unitPreferences.userId, set: { ...input, savedAt } })
         .returning(unitColumns);
+      return saved!;
+    }),
+
+  getDisplay: protectedProcedure
+    // Null until the caller chooses how the apps draw: an app then draws as it starts.
+    .output(displaySchema.nullable())
+    .handler(async ({ context }) => {
+      const [saved] = await context.db
+        .select(displayColumns)
+        .from(displayPreferences)
+        .where(eq(displayPreferences.userId, context.session.user.id));
+      return saved ?? null;
+    }),
+
+  saveDisplay: protectedProcedure
+    .meta({ analytics: "density_updated" })
+    // What the caller changes. The rest stays as it is, as the units do.
+    .input(displaySchema.partial())
+    .output(displaySchema)
+    .handler(async ({ input, context }) => {
+      const savedAt = new Date();
+      const [saved] = await context.db
+        .insert(displayPreferences)
+        .values({ userId: context.session.user.id, ...STARTING_DISPLAY, ...input, savedAt })
+        .onConflictDoUpdate({ target: displayPreferences.userId, set: { ...input, savedAt } })
+        .returning(displayColumns);
       return saved!;
     }),
 

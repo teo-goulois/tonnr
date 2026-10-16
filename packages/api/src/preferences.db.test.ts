@@ -100,6 +100,20 @@ describe.skipIf(!TEST_DATABASE_URL)("an account's units", () => {
     expect(await call(preferencesRouter.getUnits, undefined, by("ben"))).toBeNull();
   });
 
+  it("answers nothing of the display for an account that has chosen none, then keeps it", async () => {
+    expect(await call(preferencesRouter.getDisplay, undefined, by("ana"))).toBeNull();
+    expect(await call(preferencesRouter.saveDisplay, { density: "essentials" }, by("ana"))).toEqual(
+      { density: "essentials" },
+    );
+    expect(await call(preferencesRouter.getDisplay, undefined, by("ana"))).toEqual({
+      density: "essentials",
+    });
+    expect(await call(preferencesRouter.getDisplay, undefined, by("ben"))).toBeNull();
+    await expect(
+      call(preferencesRouter.saveDisplay, { density: "expert" } as never, by("ana")),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("refuses a unit it does not know", async () => {
     await expect(
       call(preferencesRouter.saveUnits, { windSpeed: "bft" } as never, by("ana")),

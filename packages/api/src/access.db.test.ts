@@ -107,9 +107,11 @@ const takesASession = everyProcedure.filter(
 const ANSWERS_AN_ACCOUNT = [
   // What an account looked at last is its own to read and to clear: decision 042.
   "preferences.clearRecents",
+  "preferences.getDisplay",
   "preferences.getRecents",
   "preferences.getShortcuts",
   "preferences.getUnits",
+  "preferences.saveDisplay",
   "preferences.saveRecent",
   "preferences.saveShortcuts",
   "preferences.saveUnits",

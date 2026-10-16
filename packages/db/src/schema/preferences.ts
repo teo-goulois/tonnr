@@ -48,6 +48,23 @@ export const unitPreferences = pgTable("unit_preferences", {
   savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
 });
 
+// How much of the forecast a reader asks a panel to show: the essentials, in words; the
+// details, which is what the apps start with; or everything. Decision 061.
+export const DENSITIES = ["essentials", "details", "everything"] as const;
+export type Density = (typeof DENSITIES)[number];
+
+/**
+ * What a user chose of how the apps draw, on every device: how much of the forecast a panel
+ * shows. A user without a row has chosen nothing, and reads the details. Decision 061.
+ */
+export const displayPreferences = pgTable("display_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  density: text("density").$type<Density>().notNull().default("details"),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+});
+
 // What an account can have looked at: a station, a surf break of the catalogue, or a spot of
 // its own.
 export const RECENT_KINDS = ["station", "break", "spot"] as const;
