@@ -1,12 +1,5 @@
-import { Button, buttonVariants } from "@repo/ui/components/ui/button";
-import {
-  Menu,
-  MenuGroup,
-  MenuGroupLabel,
-  MenuLinkItem,
-  MenuPopup,
-  MenuTrigger,
-} from "@repo/ui/components/ui/menu";
+import { buttonVariants } from "@repo/ui/components/ui/button";
+import { MenuGroup, MenuGroupLabel, MenuLinkItem } from "@repo/ui/components/ui/menu";
 import { MapPinIcon } from "@repo/ui/icon";
 
 import {
@@ -25,56 +18,31 @@ const APP_NAMES: Record<DirectionsApp, () => string> = {
   waze: () => "Waze",
 };
 
-/**
- * Opens a surf break or a spot in a map app. A wide screen gets one link, to Google Maps on the
- * web. A phone, which is under `lg`, chooses the app that leads there, as AppShell chooses its bar
- * with CSS, since the server knows no width.
- */
+/** Opens a surf break or a spot on a wide screen: one link, to Google Maps on the web. */
 export function DirectionsActions({ place }: { place: Destination }) {
   return (
-    <>
-      <a
-        href={mapUrl(place)}
-        target="_blank"
-        rel="noreferrer"
-        aria-label={m.directions_open_map()}
-        className={buttonVariants({
-          variant: "ghost",
-          size: "icon",
-          className: "max-lg:hidden",
-        })}
-      >
-        <MapPinIcon data-slot="icon" aria-hidden />
-      </a>
-      <Menu>
-        <MenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              aria-label={m.directions_get()}
-            />
-          }
-        >
-          <MapPinIcon data-slot="icon" aria-hidden />
-        </MenuTrigger>
-        <MenuPopup align="end" className="min-w-48">
-          <MenuGroup>
-            <MenuGroupLabel>{m.directions_choose()}</MenuGroupLabel>
-            {DIRECTIONS_APPS.map((app) => (
-              <MenuLinkItem
-                key={app}
-                href={directionsUrl(app, place)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {APP_NAMES[app]()}
-              </MenuLinkItem>
-            ))}
-          </MenuGroup>
-        </MenuPopup>
-      </Menu>
-    </>
+    <a
+      href={mapUrl(place)}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={m.directions_open_map()}
+      className={buttonVariants({ variant: "ghost", size: "icon" })}
+    >
+      <MapPinIcon data-slot="icon" aria-hidden />
+    </a>
+  );
+}
+
+/** The map apps a phone chooses from to go to a surf break or a spot, as a group of its menu. */
+export function DirectionsItems({ place }: { place: Destination }) {
+  return (
+    <MenuGroup>
+      <MenuGroupLabel>{m.directions_choose()}</MenuGroupLabel>
+      {DIRECTIONS_APPS.map((app) => (
+        <MenuLinkItem key={app} href={directionsUrl(app, place)} target="_blank" rel="noreferrer">
+          {APP_NAMES[app]()}
+        </MenuLinkItem>
+      ))}
+    </MenuGroup>
   );
 }

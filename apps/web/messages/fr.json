@@ -998,6 +998,7 @@
   "shared_home": "Aller à l'accueil",
   "share_action": "Partager cette liste",
   "share_action_of": "Partager {name}",
+  "place_share": "Partager",
   "share_action_on": "{name} est partagée : son lien et son mot de passe",
   "share_title": "Partager {name}",
   "share_what": "Qui a le lien voit la carte avec cette liste seule. Il la lit, ne change rien, et n'a pas besoin de compte.",

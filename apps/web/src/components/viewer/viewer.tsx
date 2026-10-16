@@ -1,9 +1,11 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { MenuItem } from "@repo/ui/components/ui/menu";
 import { LeaveDialog } from "@/components/alerts/leave-dialog";
 import { hasUnsaved } from "@/lib/unsaved";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import {
+  BellIcon,
   ListsIcon,
   LocateIcon,
   LockIcon,
@@ -68,7 +70,8 @@ import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import { CreateSheet } from "./create-sheet";
-import { DirectionsActions } from "./directions-actions";
+import { DirectionsActions, DirectionsItems } from "./directions-actions";
+import { PlaceMenu } from "./place-menu";
 import { SharePlace } from "./share-place";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
@@ -1009,6 +1012,19 @@ export function Viewer({
     ? shown.found.data && { breakId: shown.breakId }
     : shown.id && { stationId: shown.id };
 
+  // An alert begun from the panel: at the account's own spot, in its editor, and at a break as its
+  // page begins one, a visitor asked for an account first. A station takes none.
+  const alertBreak = shownBreak?.data;
+  const alertHere = ownSpot
+    ? () => createAlert(ownSpot.id)
+    : alertBreak
+      ? () => {
+          const at = () => onAlertAtBreak(alertBreak.id);
+          if (signedIn) at();
+          else requireAccount(m.auth_reason_add_alert(), at);
+        }
+      : undefined;
+
   // Adding a spot takes an account, which a visitor is asked for first.
   function addSpot() {
     if (signedIn) onPanelChange("add");
@@ -1061,7 +1077,11 @@ export function Viewer({
   const asked = useRef<string | null>(null);
   const wantedBreak = wants?.breakId ? shownBreak : undefined;
   useEffect(() => {
-    if (!wants || !onWanted) return;
+    // An alert asked again at the same place, once the first is begun, is asked anew.
+    if (!wants || !onWanted) {
+      asked.current = null;
+      return;
+    }
     const key = `${wants.breakId ?? ""}/${wants.spotId ?? ""}/${signedIn}`;
     if (asked.current === key) return;
     if (!signedIn) {
@@ -1578,11 +1598,34 @@ export function Viewer({
                   onManageLists={() => onPanelChange("saved")}
                 />
               )}
-              {sharedPlace && shownTitle && <SharePlace place={sharedPlace} name={shownTitle} />}
-              {shownPlace && (
-                <DirectionsActions
-                  place={{ latitude: shownPlace.latitude, longitude: shownPlace.longitude }}
-                />
+              {/* A phone does these in one menu, a spot's own when it is the account's. */}
+              {wide ? (
+                <>
+                  {alertHere && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={m.alert_create()}
+                      onClick={alertHere}
+                    >
+                      <BellIcon data-slot="icon" aria-hidden />
+                    </Button>
+                  )}
+                  {sharedPlace && shownTitle && (
+                    <SharePlace place={sharedPlace} name={shownTitle} />
+                  )}
+                  {shownPlace && <DirectionsActions place={shownPlace} />}
+                </>
+              ) : (
+                !ownSpot &&
+                shownTitle && (
+                  <PlaceMenu
+                    name={shownTitle}
+                    onAlert={alertHere}
+                    share={sharedPlace || undefined}
+                    directions={shownPlace}
+                  />
+                )
               )}
               {sharedSpot && (
                 <Button
@@ -1611,7 +1654,16 @@ export function Viewer({
                   isAsking={isAskingPublication}
                   isDeleting={isDeletingSpot}
                   onDelete={() => onDeleteSpot(ownSpot)}
-                />
+                >
+                  {!wide && (
+                    <>
+                      <MenuItem onClick={() => createAlert(ownSpot.id)}>
+                        {m.alert_create()}
+                      </MenuItem>
+                      <DirectionsItems place={ownSpot} />
+                    </>
+                  )}
+                </SpotActions>
               )}
             </>
           )

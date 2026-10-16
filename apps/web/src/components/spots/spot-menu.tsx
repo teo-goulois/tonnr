@@ -5,7 +5,7 @@ import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@repo/ui/
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { MoreHorizontalIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -25,6 +25,8 @@ type SpotActionsProps = {
   isAsking: boolean;
   isDeleting: boolean;
   onDelete: () => void;
+  // What a phone does there too, which a wide screen has buttons for: the menu shows it first.
+  children?: ReactNode;
 };
 
 /**
@@ -39,6 +41,7 @@ export function SpotActions({
   isAsking,
   isDeleting,
   onDelete,
+  children,
 }: SpotActionsProps) {
   const [dialog, setDialog] = useState<"publish" | "delete" | null>(null);
   const [note, setNote] = useState("");
@@ -62,6 +65,12 @@ export function SpotActions({
           <MoreHorizontalIcon data-slot="icon" aria-hidden />
         </MenuTrigger>
         <MenuPopup align="end" className="min-w-56">
+          {children && (
+            <>
+              {children}
+              <MenuSeparator />
+            </>
+          )}
           <MenuItem onClick={onEdit}>{m.spot_edit()}</MenuItem>
           {status === "pending" ? (
             <MenuItem disabled={isAsking} onClick={onCancelPublication}>

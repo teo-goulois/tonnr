@@ -19,30 +19,31 @@ export function placeLink(place: SharedPlace) {
  * Sends a surf break or a station to someone: a phone hands its short address to its own sheet,
  * and a browser that has none copies it.
  */
-export function SharePlace({ place, name }: { place: SharedPlace; name: string }) {
-  async function share() {
-    const url = placeLink(place);
-    if (typeof navigator.share === "function") {
-      // Whoever closes the sheet without sending has done nothing wrong.
-      await navigator
-        .share({ title: name, text: m.place_share_text({ name, app: APP_NAME }), url })
-        .catch(() => {});
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(m.share_copied());
-    } catch {
-      toast.error(m.place_link_copy_failed());
-    }
+export async function sharePlace(place: SharedPlace, name: string) {
+  const url = placeLink(place);
+  if (typeof navigator.share === "function") {
+    // Whoever closes the sheet without sending has done nothing wrong.
+    await navigator
+      .share({ title: name, text: m.place_share_text({ name, app: APP_NAME }), url })
+      .catch(() => {});
+    return;
   }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(m.share_copied());
+  } catch {
+    toast.error(m.place_link_copy_failed());
+  }
+}
 
+/** The button of a wide screen that shares a place. A phone shares it from `PlaceMenu`. */
+export function SharePlace({ place, name }: { place: SharedPlace; name: string }) {
   return (
     <Button
       variant="ghost"
       size="icon"
       aria-label={m.share_action_of({ name })}
-      onClick={() => void share()}
+      onClick={() => void sharePlace(place, name)}
     >
       <ShareIcon data-slot="icon" aria-hidden />
     </Button>

@@ -998,6 +998,7 @@
   "shared_home": "Go to the home page",
   "share_action": "Share this list",
   "share_action_of": "Share {name}",
+  "place_share": "Share",
   "share_action_on": "{name} is shared: its link and its password",
   "share_title": "Share {name}",
   "share_what": "Whoever has the link sees the map with this list alone. They read it, change nothing, and need no account.",
