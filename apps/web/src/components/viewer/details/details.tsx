@@ -7,9 +7,9 @@ import {
   Suspense,
   lazy,
   memo,
-  useCallback,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { formatDayAndClock } from "@/lib/format";
@@ -82,12 +82,44 @@ function MetricLanes(props: ComponentProps<typeof LazyMetricLanes>) {
  * Four tiles for now. At a buoy, the swell, its period, its energy and the wind as four lanes on
  * one span of time, the buoy drawn over the model. Then the week as a grid, and the tide.
  */
+/**
+ * How the week's table goes back to now while it is scrolled away from it. Only the button reads
+ * it: the panel, with its charts, is not drawn again as the button comes and goes.
+ */
+function wayBack() {
+  let go: (() => void) | undefined;
+  const listeners = new Set<() => void>();
+  return {
+    set: (next: (() => void) | undefined) => {
+      go = next;
+      for (const listener of listeners) listener();
+    },
+    get: () => go,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+// Only while the grid is scrolled away from now.
+function BackToNow({ way }: { way: ReturnType<typeof wayBack> }) {
+  const go = useSyncExternalStore(way.subscribe, way.get, way.get);
+  if (!go) return null;
+  return (
+    <Button variant="secondary" size="xs" onClick={go}>
+      {m.details_back_to_now()}
+    </Button>
+  );
+}
+
 const Conditions = memo(function Conditions(props: DetailsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes } = props;
   const [range, setRange] = useState<Range>("24h");
   // How to bring the grid back to now, while it is scrolled away from it.
-  const [backToNow, setBackToNow] = useState<{ go: () => void }>();
-  const onGridAway = useCallback((go: (() => void) | undefined) => setBackToNow(go && { go }), []);
+  const [backToNow] = useState(wayBack);
   // The names of the grid's rows, which a reader who knows them folds to a letter: kept in the
   // browser.
   const [named, setNamed] = useStoredState("tonnr:grid-names", true, (stored) =>
@@ -179,21 +211,11 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
             </Block>
           )}
 
-          <Block
-            title={m.details_week()}
-            control={
-              // Only while the grid is scrolled away from now.
-              backToNow && (
-                <Button variant="secondary" size="xs" onClick={backToNow.go}>
-                  {m.details_back_to_now()}
-                </Button>
-              )
-            }
-          >
+          <Block title={m.details_week()} control={<BackToNow way={backToNow} />}>
             <ForecastGrid
               named={named}
               onNamedChange={setNamed}
-              onAway={onGridAway}
+              onAway={backToNow.set}
               model={model}
               measured={hasBuoy ? measured : undefined}
               start={gridStart}

@@ -101,7 +101,9 @@ export function Block({
 }) {
   return (
     <section className="grid gap-s">
-      <div className="flex min-h-7 items-center justify-between gap-s">
+      {/* As tall as the small button a control is, on a phone too: one that comes and goes moves
+          nothing under it. */}
+      <div className="flex min-h-7 items-center justify-between gap-s max-lg:min-h-9">
         <h3 className="text-m font-medium">{title}</h3>
         {control && <div className="flex items-center gap-xxs">{control}</div>}
       </div>

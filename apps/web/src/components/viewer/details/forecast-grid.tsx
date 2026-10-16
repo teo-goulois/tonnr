@@ -162,7 +162,9 @@ export function ForecastGrid({
   const readingRef = useRef(false);
   // Where the pressed hour stood in the view, to keep it there once the step changes.
   const anchor = useRef<{ time: number; offset: number } | null>(null);
-  const [away, setAway] = useState(false);
+  // Whether the grid is away from now, said to `onAway` when it changes: kept out of the state,
+  // since the grid has nothing to draw again for it.
+  const away = useRef(false);
   // The day before, once a pull offered it, and the hold that takes it while it lasts. A hold
   // comes from the pull itself or from a press on what it offers.
   const [offered, setOffered] = useState(false);
@@ -529,8 +531,8 @@ export function ForecastGrid({
           if (event.currentTarget.scrollLeft > COLUMN * 2) setOffered(false);
           const next =
             nowIndex >= 0 && Math.abs(event.currentTarget.scrollLeft - home) > COLUMN * 2;
-          if (next === away) return;
-          setAway(next);
+          if (next === away.current) return;
+          away.current = next;
           onAway?.(
             next ? () => scroller.current?.scrollTo({ left: home, behavior: "smooth" }) : undefined,
           );
