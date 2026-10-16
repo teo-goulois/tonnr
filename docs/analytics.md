@@ -4,7 +4,7 @@ Provider: PostHog EU. The operated instance uses the Tonnr project; configure a 
 
 Audience counts: Umami, on every page of the web app, with no query string and no fragment, and no consent asked. Decision 055. Its pageviews are the only figures for the landing; PostHog's events below stay the product's.
 
-Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too.
+Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too. `surfer_profile_saved` and `surfer_profile_put_off` say how many answer the questions a new account is asked, decision 063.
 
 ## Events
 
@@ -64,6 +64,8 @@ Successful oRPC actions:
 - `spot_updated`
 - `station_saved`
 - `station_unsaved`
+- `surfer_profile_put_off`
+- `surfer_profile_saved`
 - `units_updated`
 - `verification_requested`
 

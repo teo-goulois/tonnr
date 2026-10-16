@@ -172,6 +172,10 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.notifications.list",
   "v1.notifications.markRead",
   "v1.places.search",
+  // What an account said of itself as a surfer is its own: decision 063.
+  "v1.profile.get",
+  "v1.profile.putOff",
+  "v1.profile.save",
   // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
   "v1.push.devices",
   "v1.push.forget",

@@ -27,6 +27,7 @@ import { notificationsRouter } from "./notifications";
 import { pagesRouter } from "./pages";
 import { placesRouter } from "./places";
 import { preferencesRouter } from "./preferences";
+import { profileRouter } from "./profile";
 import { publicationsRouter } from "./publications";
 import { reviewsRouter } from "./reviews";
 import { pushRouter } from "./push";
@@ -43,7 +44,8 @@ import { visitorsRouter } from "./visitors";
 // decision 020 which take the admin's site as well, decision 027 which take a member of a
 // developer account, and decision 039 which answer a visitor of the web app. Decisions 045 and
 // 047 say which an agent calls as a tool of the MCP server, decision 049 how an operator
-// keeps the catalogue of breaks, and decision 057 what the public pages of the web app read.
+// keeps the catalogue of breaks, and decision 057 what the public pages of the web app read, and
+// decision 063 what an account says of itself as a surfer.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -69,6 +71,7 @@ export const v1Router = {
   notifications: notificationsRouter,
   pages: pagesRouter,
   places: placesRouter,
+  profile: profileRouter,
   publications: publicationsRouter,
   push: pushRouter,
   reviews: reviewsRouter,

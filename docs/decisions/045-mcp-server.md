@@ -1,6 +1,6 @@
 # 045. An MCP server, for an agent that reads the sea
 
-Status: asked for by Téo on 2026-10-13, as "hyper important", and built the same day. It adds a third transport to the two of [decision 020](020-admin-and-developer-accounts.md): a call that came by it is counted as the others are, and a count now says which way its calls came. Amended the same day at Téo's word: a break's guide is a tool, and the calls by MCP are counted apart, with whose they are. [Decision 047](047-agents-sign-in.md) added the sign-in of an account for its assistant, and the tools that read an account. Not built: a tool that writes, and a package that runs on the agent's machine.
+Status: asked for by Téo on 2026-10-13, as "hyper important", and built the same day. It adds a third transport to the two of [decision 020](020-admin-and-developer-accounts.md): a call that came by it is counted as the others are, and a count now says which way its calls came. Amended the same day at Téo's word: a break's guide is a tool, and the calls by MCP are counted apart, with whose they are. [Decision 047](047-agents-sign-in.md) added the sign-in of an account for its assistant, and the tools that read an account. [Decision 063](063-a-surfer-profile.md) added one that reads what the account said of itself as a surfer. Not built: a tool that writes, and a package that runs on the agent's machine.
 
 ## Context
 

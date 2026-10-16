@@ -84,9 +84,11 @@ const INSTRUCTIONS =
 // Said as well to an agent that an account signed in.
 const ACCOUNT_INSTRUCTIONS =
   " You act for an account that signed you in: the tools whose name holds `my` read what that " +
-  "account keeps, its spots, its alerts, what they told and its log of sessions. They change " +
-  "nothing. A spot of the account's is private: do not give its name or its place to anyone " +
-  "but the person you act for.";
+  "account keeps, its spots, its alerts, what they told, its log of sessions and what the " +
+  "person said of themselves as a surfer. They change nothing. Before you advise the person " +
+  "where or when to surf, read get_my_surfer_profile and fit what you say to their level and " +
+  "the waves they surf. A spot of the account's is private: do not give its name or its place " +
+  "to anyone but the person you act for.";
 
 // The procedure checks what an agent sends, as it does on the API's other transports, and
 // refuses in its own words. The tool's schema is what is said of the input, not a second judge.

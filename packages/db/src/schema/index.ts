@@ -10,3 +10,4 @@ export * from "./forecasts";
 export * from "./community";
 export * from "./sessions";
 export * from "./catalogue";
+export * from "./profile";

@@ -66,3 +66,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [060. Learning to read a surf forecast, in three guides beside the landing](060-learning-to-read-a-forecast.md)
 - [061. One panel of the forecast, which shows less or more](061-a-panel-that-shows-less-or-more.md)
 - [062. How big the waves get at a break, against what the forecast says](062-size-against-the-forecast.md)
+- [063. What an account says of itself as a surfer, asked once as it comes](063-a-surfer-profile.md)

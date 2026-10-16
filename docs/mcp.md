@@ -31,16 +31,17 @@ Every tool reads, and none writes. With a key, an agent reads what a key reads a
 | `get_surf_break`       | One surf break of the catalogue                                                                                                        |
 | `get_surf_break_guide` | What the people who surf a break wrote of it: access, entry, hazards, rules, and why its waves run bigger or smaller than the forecast |
 
-An agent that an account signed in is listed six more, which read what that account keeps:
+An agent that an account signed in is listed seven more, which read what that account keeps:
 
-| Tool                          | What it answers                                           |
-| ----------------------------- | --------------------------------------------------------- |
-| `list_my_spots`               | The account's own spots, with what it says of them        |
-| `list_my_alerts`              | Its alerts, with the conditions each one waits for        |
-| `list_my_alert_notifications` | What its alerts told it, the newest first                 |
-| `list_my_sessions`            | Its log of surf sessions, the latest first                |
-| `get_my_session`              | One session, with the conditions kept with it             |
-| `get_my_sessions_recap`       | What the log comes to: totals, and the places surfed most |
+| Tool                          | What it answers                                             |
+| ----------------------------- | ----------------------------------------------------------- |
+| `list_my_spots`               | The account's own spots, with what it says of them          |
+| `list_my_alerts`              | Its alerts, with the conditions each one waits for          |
+| `list_my_alert_notifications` | What its alerts told it, the newest first                   |
+| `list_my_sessions`            | Its log of surf sessions, the latest first                  |
+| `get_my_session`              | One session, with the conditions kept with it               |
+| `get_my_sessions_recap`       | What the log comes to: totals, and the places surfed most   |
+| `get_my_surfer_profile`       | What the person said of their level and the waves they surf |
 
 - A tool is a route of the API, and answers the same JSON: [the reference](https://api.example.org/v1/docs) says what each field is.
 - Heights are in metres, periods in seconds, speeds in metres per second, and directions in degrees clockwise from north that the sea or the wind comes from. Times are in UTC.

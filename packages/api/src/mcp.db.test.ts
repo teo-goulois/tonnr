@@ -43,6 +43,7 @@ const TOOLS: Record<string, string> = {
 const ACCOUNT_TOOLS: Record<string, string> = {
   get_my_session: "v1.sessions.get",
   get_my_sessions_recap: "v1.sessions.recap",
+  get_my_surfer_profile: "v1.profile.get",
   list_my_alert_notifications: "v1.notifications.list",
   list_my_alerts: "v1.alerts.list",
   list_my_sessions: "v1.sessions.list",

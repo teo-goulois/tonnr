@@ -45,7 +45,7 @@ Read on 2026-10-13, in the packages as they install, and tried in a test that ru
 ### What an assistant reads
 
 - What a key reads, by the same tools.
-- What its account keeps, by six tools that a key is not listed: `list_my_spots`, `list_my_alerts`, `list_my_alert_notifications`, `list_my_sessions`, `get_my_session` and `get_my_sessions_recap`. Each is a procedure of the account's, marked `account` beside its tool.
+- What its account keeps, by seven tools that a key is not listed: `list_my_spots`, `list_my_alerts`, `list_my_alert_notifications`, `list_my_sessions`, `get_my_session`, `get_my_sessions_recap` and, since [decision 063](063-a-surfer-profile.md), `get_my_surfer_profile`. Each is a procedure of the account's, marked `account` beside its tool.
 - Nothing is written. No tool creates, changes or deletes, and reading what the alerts told marks nothing as read.
 - The MCP server gives a procedure the account, as a session it makes from the token, and no key. The procedure asks who calls and finds an account, as it does with a cookie.
 - An account's lists are not read: a shared list comes with its link, which opens the list to whoever holds it, and a model's context is no place for it.
