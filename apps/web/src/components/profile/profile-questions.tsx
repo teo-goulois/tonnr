@@ -11,7 +11,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import { BellIcon, LogbookIcon, SparkleIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { UsernameForm } from "@/components/account/username-form";
@@ -111,7 +111,7 @@ function Choices<Value extends string>({
               "focus-ring edge grid min-h-11 cursor-pointer gap-xxs rounded-(--radius-xs) px-s py-xs text-left outline-none",
               "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
               isChosen
-                ? "bg-neutral-3 [--edge-color:var(--neutral-12)] [--edge-width:var(--border-m)]"
+                ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
                 : "[--edge-color:var(--neutral-4)]",
             )}
           >
@@ -234,9 +234,9 @@ export function WaveRange({
                 "focus-ring edge grid cursor-pointer gap-xxs rounded-(--radius-xs) p-xs text-center outline-none",
                 "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
                 isEnd
-                  ? "bg-neutral-3 [--edge-color:var(--neutral-12)] [--edge-width:var(--border-m)]"
+                  ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
                   : isBetween
-                    ? "bg-neutral-3-transparent [--edge-color:var(--neutral-6)]"
+                    ? "bg-neutral-3 [--edge-color:var(--neutral-4)]"
                     : "[--edge-color:var(--neutral-4)]",
                 isBelow && "opacity-35",
               )}
@@ -342,6 +342,8 @@ export function Onboarding({
   onUsernameSave: (username: string) => Promise<string | undefined>;
 }) {
   const [step, setStep] = useState<Step>("welcome");
+  // The dialog opens on what begins, not on what leaves.
+  const start = useRef<HTMLButtonElement>(null);
   const [answers, setAnswers] = useState<ProfileAnswers>(NO_ANSWERS);
   // Asked for a username from the start, and still once it is chosen, so that the steps hold.
   const [asksName] = useState(() => username === null);
@@ -376,7 +378,7 @@ export function Onboarding({
       // A press beside it would lose the answers: only its button and Escape leave.
       disablePointerDismissal
     >
-      <DialogPopup className="w-[min(28rem,calc(100vw-2rem))] gap-m p-l">
+      <DialogPopup className="w-[min(28rem,calc(100vw-2rem))] gap-m p-l" initialFocus={start}>
         <div className="flex items-start justify-between gap-s">
           <div className="grid gap-xxs">
             {step !== "welcome" && (
@@ -426,7 +428,9 @@ export function Onboarding({
               ))}
             </ul>
             <div className="flex flex-wrap gap-xs">
-              <Button onClick={() => setStep(steps[0]!)}>{m.onboarding_start()}</Button>
+              <Button ref={start} onClick={() => setStep(steps[0]!)}>
+                {m.onboarding_start()}
+              </Button>
               <Button variant="ghost" onClick={profiling.onPutOff}>
                 {m.onboarding_later()}
               </Button>

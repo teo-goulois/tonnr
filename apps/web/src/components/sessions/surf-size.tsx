@@ -127,7 +127,7 @@ export function SurfSizePicture({
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       aria-hidden
-      className={cn("block h-auto w-full overflow-hidden text-neutral-12", className)}
+      className={cn("block h-auto w-full overflow-hidden text-neutral-10", className)}
     >
       {back > face && (
         <Wave
@@ -186,7 +186,7 @@ function SizeChoices({
               "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
               "disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent",
               isChosen
-                ? "bg-neutral-3 [--edge-color:var(--neutral-12)] [--edge-width:var(--border-m)]"
+                ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
                 : "[--edge-color:var(--neutral-4)]",
             )}
           >
