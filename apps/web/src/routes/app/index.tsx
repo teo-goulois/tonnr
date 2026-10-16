@@ -941,6 +941,14 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     spots: spots.data,
     withPlaces: false,
   });
+  // Where a new alert goes is searched among them too, in a sheet of its own.
+  const [isAlertSearchOpen, setIsAlertSearchOpen] = useState(false);
+  const alertSearch = usePlaceSearch({
+    isOn: isAlertSearchOpen,
+    near: middle,
+    spots: spots.data,
+    withPlaces: false,
+  });
   // The name follows what the marker is put on, until the user writes one.
   const nameFor = (current: SpotDraft, name: string | undefined) =>
     name && (!current.name.trim() || current.name === suggested) ? name.slice(0, 80) : undefined;
@@ -1336,6 +1344,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       search={{ ...searching, isOpen: isSearchOpen, onOpenChange: setIsSearchOpen }}
       sessioning={sessioning}
       sessionSearch={sessionSearch}
+      alertSearch={{
+        ...alertSearch,
+        isOpen: isAlertSearchOpen,
+        onOpenChange: setIsAlertSearchOpen,
+      }}
+      onAlertAtBreak={(id) => void navigate({ search: { ...mode, break: id, create: "alert" } })}
       onSelect={(station) => void navigate({ search: { ...mode, station } })}
       onSelectBreak={(id) => void navigate({ search: { ...mode, break: id } })}
       onSelectSpot={(id) => void navigate({ search: { ...mode, spot: id } })}

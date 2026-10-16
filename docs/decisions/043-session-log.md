@@ -45,4 +45,4 @@ The instance keeps a forecast two days ([decision 023](023-forecasts-kept.md)). 
 - A session written more than two days after it was surfed costs two requests of the people's share, and has no swell apart.
 - `SessionConditions` is the shape of what is kept. Changing it means reading both shapes, or migrating the rows.
 - Sessions go with their account, by the database's own cascade.
-- Not built: a session's photos and its board, sessions shown to friends, a recap of the year sent by mail, a session read from a watch, and an alert begun at a break of the catalogue, which first needs a spot made of it.
+- Not built: a session's photos and its board, sessions shown to friends, a recap of the year sent by mail, and a session read from a watch. An alert begun at a break of the catalogue was built since, by [decision 059](059-the-sea-now-in-a-sentence.md).

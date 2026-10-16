@@ -90,8 +90,16 @@ export function SessionSheet({
           ? (place?.name ?? (signedIn ? m.session_where() : undefined))
           : session && sessionWhen(session, now)
       }
-      // A place that was chosen in the sheet may be chosen again.
-      onBack={isNew && picked && !open?.place ? () => setPicked(null) : undefined}
+      // The place may be chosen again, whether it was chosen in the sheet or the session was begun
+      // at it.
+      onBack={
+        isNew && place
+          ? () => {
+              setPicked(null);
+              if (open?.place) sessioning.onBegin();
+            }
+          : undefined
+      }
       // While it asks where, the sheet is as tall as a sheet goes: what the search finds comes
       // and goes without moving it.
       fill={signedIn && isNew && !place}

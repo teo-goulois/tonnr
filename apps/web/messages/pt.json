@@ -1100,7 +1100,7 @@
   "create_spot": "Um spot",
   "create_alert": "Um alerta",
   "create_alert_spot": "Para que spot é?",
-  "create_alert_no_spot": "Um alerta é criado num spot teu. Adiciona um primeiro.",
+  "create_alert_hint": "Escreve o nome de um spot de surf, ou adiciona um spot teu.",
   "auth_reason_add_alert": "Inicia sessão para criares um alerta.",
   "lists_showing": "Listas: {name} é mostrada sozinha",
   "search_open": "Procurar um spot",

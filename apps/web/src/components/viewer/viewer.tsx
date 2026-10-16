@@ -28,6 +28,7 @@ import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { AlertPlaceSheet } from "@/components/alerts/alert-place-sheet";
 import { AlertSettingsForm } from "@/components/alerts/alert-settings";
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
 import {
@@ -54,7 +55,7 @@ import { ShareListDialog } from "@/components/lists/share-dialog";
 import { type SpotEdit, SpotEditor } from "@/components/spots/spot-editor";
 import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
-import { closeCreateMenu, openCreateMenu, useCreateMenu } from "@/lib/create-menu";
+import { closeCreateMenu, useCreateMenu } from "@/lib/create-menu";
 import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import { isTabPanel } from "@/lib/phone-nav";
 import type { Recent } from "@/lib/recents";
@@ -211,6 +212,10 @@ type ViewerProps = {
   // The account's log of its sessions, and the search that finds where one was: decision 043.
   sessioning: Sessioning;
   sessionSearch: PlaceSearching;
+  // The search that finds where a new alert goes, in a sheet of its own.
+  alertSearch: PlaceSearching & { isOpen: boolean; onOpenChange: (open: boolean) => void };
+  // Begins an alert at a break: at the account's spot there, made first when it has none.
+  onAlertAtBreak: (breakId: string) => void;
   // Asks for one more day of tide, before the days loaded or after them.
   onTideExtend: (direction: -1 | 1) => void;
   // Asks for a week of the selected station's readings.
@@ -478,6 +483,8 @@ export function Viewer({
   search,
   sessioning,
   sessionSearch,
+  alertSearch,
+  onAlertAtBreak,
   onTideExtend,
   onHistoryExtend,
   buoy,
@@ -1019,12 +1026,33 @@ export function Viewer({
     closeCreateMenu();
     // An alert is an account's: a visitor is asked for one, then for the spot it goes on.
     if (!signedIn) {
-      requireAccount(m.auth_reason_add_alert(), openCreateMenu);
+      requireAccount(m.auth_reason_add_alert(), openAlertPlace);
       return;
     }
-    if (!spotId) return;
+    if (!spotId) {
+      openAlertPlace();
+      return;
+    }
+    alertSearch.onOpenChange(false);
     setAlertAsked((asked) => ({ spotId, isNew: true, count: asked.count + 1 }));
     onSelectSpot(spotId);
+  }
+
+  // The sheet that asks where an alert goes opens with its field focused, in the same turn as the
+  // press, so that a phone opens its keyboard: as the search of the map does.
+  const alertInput = useRef<HTMLInputElement>(null);
+  function openAlertPlace() {
+    flushSync(() => alertSearch.onOpenChange(true));
+    alertInput.current?.focus({ preventScroll: true });
+  }
+  function alertAtBreak(breakId: string) {
+    const mine = ownSpots?.find((spot) => spot.breakId === breakId);
+    if (mine) {
+      createAlert(mine.id);
+      return;
+    }
+    alertSearch.onOpenChange(false);
+    onAlertAtBreak(breakId);
   }
 
   // An alert asked from the page of a break: a visitor is asked for an account once, an
@@ -1088,9 +1116,14 @@ export function Viewer({
   }
 
   // A session begun from the "+" is at the place in view when it is one a session can be at:
-  // a break, or a spot of the account's own. Otherwise its sheet asks where.
+  // a break, or a spot of the account's own. Otherwise its sheet asks where. What the panel last
+  // showed stays drawn while it leaves, and is no place in view.
   function createSession() {
     closeCreateMenu();
+    if (selection === undefined) {
+      beginSession();
+      return;
+    }
     const at = shown.breakId ? shown.found.data : undefined;
     beginSession(
       at
@@ -1902,11 +1935,24 @@ export function Viewer({
         open={isCreating}
         onClose={closeCreateMenu}
         wide={wide}
-        signedIn={signedIn}
-        spots={signedIn ? spots.data : []}
         onAddSpot={createSpot}
-        onAddAlert={createAlert}
+        onAddAlert={() => createAlert()}
         onAddSession={createSession}
+      />
+      <AlertPlaceSheet
+        open={alertSearch.isOpen}
+        onClose={() => alertSearch.onOpenChange(false)}
+        wide={wide}
+        search={alertSearch}
+        inputRef={alertInput}
+        spots={spots.data}
+        recents={recents}
+        onSpot={(spotId) => createAlert(spotId)}
+        onBreak={alertAtBreak}
+        onAddSpot={() => {
+          alertSearch.onOpenChange(false);
+          addSpot();
+        }}
       />
       <SessionSheet
         wide={wide}

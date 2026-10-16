@@ -1100,7 +1100,7 @@
   "create_spot": "Un spot",
   "create_alert": "Une alerte",
   "create_alert_spot": "Sur quel spot ?",
-  "create_alert_no_spot": "Une alerte se pose sur un de tes spots. Ajoutes-en un d'abord.",
+  "create_alert_hint": "Écris le nom d'un spot de surf, ou ajoute un spot à toi.",
   "auth_reason_add_alert": "Connecte-toi pour poser une alerte.",
   "lists_showing": "Listes : {name} est affichée seule",
   "search_open": "Rechercher un spot",
