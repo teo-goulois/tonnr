@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { MenuItem } from "@repo/ui/components/ui/menu";
 import { LeaveDialog } from "@/components/alerts/leave-dialog";
-import { hasUnsaved } from "@/lib/unsaved";
+import { hasUnsaved, leaveWith } from "@/lib/unsaved";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import {
@@ -30,6 +30,9 @@ import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
 import { AlertPlaceSheet } from "@/components/alerts/alert-place-sheet";
+import { AlertSheet, type AlertWriting } from "@/components/alerts/alert-sheet";
+import { type Written, isOpenAlert } from "@/components/alerts/alert-words";
+import { tideAhead } from "@/components/alerts/tide-band";
 import { AlertSettingsForm } from "@/components/alerts/alert-settings";
 import { useAuthPrompt } from "@/components/auth/auth-prompt";
 import {
@@ -468,7 +471,6 @@ function useShown(isOpen: boolean, current: Selection) {
 
 /** The map of the buoys, the wind stations and the sea, with the panels that open from it. */
 // No alert was asked for at the spot that is drawn: the same value at every render.
-const NO_ALERT_ASKED = { count: 0 };
 
 // A panel that holds something written and not saved stays open while that is asked about.
 const mayDismissSelection = () => !hasUnsaved();
@@ -805,19 +807,43 @@ export function Viewer({
       spotDescriber.current(spot, said, done),
     [],
   );
-  // The alert that was last asked for from elsewhere, the spot it is opened at, and how many
-  // times one was: one of the list of alerts, or a new one, which the "+" of a phone's bar
-  // begins. A new one is begun once: its panel says when it has.
-  const [alertAsked, setAlertAsked] = useState<{
-    spotId?: string;
-    alertId?: string;
-    isNew?: boolean;
-    count: number;
-  }>({ count: 0 });
-  const beginAlert = useCallback(
-    () => setAlertAsked((asked) => (asked.isNew ? { ...asked, isNew: false } : asked)),
-    [],
-  );
+  // The spot whose alerts were last asked for from elsewhere, and how many times they were: its
+  // panel then shows them.
+  const [alertAsked, setAlertAsked] = useState<{ spotId?: string; count: number }>({ count: 0 });
+  // The alert that is written, in a sheet of its own over whatever is open: decision 031.
+  const [alertWriting, setAlertWriting] = useState<AlertWriting | null>(null);
+  const alertKey = useRef(0);
+  const alertState = useRef({
+    writing: alertWriting,
+    alerts: alerting.alerts.data,
+    spots: spots.data,
+  });
+  alertState.current = { writing: alertWriting, alerts: alerting.alerts.data, spots: spots.data };
+  // Opens an alert at a spot, or a new one: at once when nothing written would be lost, and once
+  // its user has said so otherwise. The first new alert of a spot is named after it by its
+  // editor, and another after the spot and its rank among the spot's alerts.
+  const writeAlert = useCallback((spotId: string, asked: Written) => {
+    const { writing, alerts, spots: own } = alertState.current;
+    if (writing?.spotId === spotId && isOpenAlert(writing, asked)) return;
+    const count = alerts?.filter((one) => one.spotIds.includes(spotId)).length ?? 0;
+    const name = own?.find((one) => one.id === spotId)?.name;
+    const named: Written =
+      asked.alertId || asked.initial || count === 0 || !name
+        ? asked
+        : {
+            initial: {
+              name: m.alert_name_another({ spot: name, count: count + 1 }),
+              criteria: {},
+              enabled: true,
+              shortestMinutes: 120,
+              spotIds: [spotId],
+            },
+          };
+    leaveWith(() => {
+      alertKey.current += 1;
+      setAlertWriting({ ...named, spotId, key: alertKey.current });
+    });
+  }, []);
   // What the tab of the sessions asks for, the same from one render to the next: the panel that
   // holds it is not drawn again each time the map moves.
   const sessions = useRef(sessioning);
@@ -841,6 +867,20 @@ export function Viewer({
   const createAccount = useCallback(() => prompt.current({ mode: "sign-up" }), []);
   const sessionsHere = sessioning.here;
   const ownSpots = spots.data;
+  // The tide over the two days ahead at the spot an alert is written at, when its panel is open,
+  // for the editor to draw beside what is asked of it.
+  const alertTimeline =
+    drawn?.spotId !== undefined && drawn.spotId === alertWriting?.spotId
+      ? drawn.tides.data?.timeline
+      : undefined;
+  const alertTide = useMemo(
+    () =>
+      tideAhead(
+        (alertTimeline ?? []).map((entry) => ({ time: entry.time, value: entry.heightMeters })),
+        now,
+      ),
+    [alertTimeline, now],
+  );
   const spotList = useMemo(() => ownSpots ?? [], [ownSpots]);
   // What only a spot's panel reads, so that a buoy's or a break's is not drawn again for it.
   const isNewSpot = drawn?.spotId !== undefined && drawn.spotId === newSpotId;
@@ -866,8 +906,8 @@ export function Viewer({
           onDescribe={describeSpot}
           spots={spotList}
           alerting={alerting}
-          alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked : NO_ALERT_ASKED}
-          onAlertBegun={beginAlert}
+          alertAsked={drawn.spotId === alertAsked.spotId ? alertAsked.count : 0}
+          onWriteAlert={(written) => drawn.spotId && writeAlert(drawn.spotId, written)}
           sessions={(onAlert) => {
             const spot = drawn.spot.data;
             return (
@@ -955,7 +995,7 @@ export function Viewer({
     spotList,
     alerting,
     alertAsked,
-    beginAlert,
+    writeAlert,
     guiding,
     guideAsked,
     askGuide,
@@ -1061,8 +1101,9 @@ export function Viewer({
       return;
     }
     alertSearch.onOpenChange(false);
-    setAlertAsked((asked) => ({ spotId, isNew: true, count: asked.count + 1 }));
+    setAlertAsked((asked) => ({ spotId, count: asked.count + 1 }));
     onSelectSpot(spotId);
+    writeAlert(spotId, {});
   }
 
   // The sheet that asks where an alert goes opens with its field focused, in the same turn as the
@@ -1840,12 +1881,9 @@ export function Viewer({
                 ? selectedSpotId
                 : alert.spotIds[0];
             if (!first) return;
-            setAlertAsked((asked) => ({
-              spotId: first,
-              alertId: alert.id,
-              count: asked.count + 1,
-            }));
+            setAlertAsked((asked) => ({ spotId: first, count: asked.count + 1 }));
             onSelectSpot(first);
+            writeAlert(first, { alertId: alert.id });
           }}
           switching={alerting.switching}
           onSwitchAlert={alerting.onSwitch}
@@ -1999,6 +2037,16 @@ export function Viewer({
           alertSearch.onOpenChange(false);
           addSpot();
         }}
+      />
+      <AlertSheet
+        writing={alertWriting}
+        wide={wide}
+        now={now}
+        spots={ownSpots}
+        alerting={alerting}
+        tide={alertTide}
+        onWrite={(written) => alertWriting && writeAlert(alertWriting.spotId, written)}
+        onDone={() => setAlertWriting(null)}
       />
       <SessionSheet
         wide={wide}
