@@ -96,6 +96,16 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
 
   const first = model[0]?.time ?? now;
   const last = model.at(-1)?.time ?? now;
+  // The week's table opens on now, or on two days before it beside a buoy, and a pull past its
+  // start shows one day more of what the model holds before, from its midnight.
+  const [daysBack, setDaysBack] = useState(0);
+  const gridOpens = hasBuoy ? now - 2 * DAY_MS : now - 1.5 * HOUR_MS;
+  const midnight = new Date(gridOpens);
+  midnight.setHours(0, 0, 0, 0);
+  const gridStart = Math.max(
+    first,
+    daysBack === 0 ? gridOpens : midnight.getTime() - daysBack * DAY_MS,
+  );
   // Around a buoy, as much of the past as of the days ahead. Elsewhere, the days ahead alone.
   const span = range === "week" ? undefined : SPANS[range] * HOUR_MS;
   const back = hasBuoy ? (span ?? DAY_MS) : 3 * HOUR_MS;
@@ -186,7 +196,10 @@ const Conditions = memo(function Conditions(props: DetailsProps) {
               onAway={onGridAway}
               model={model}
               measured={hasBuoy ? measured : undefined}
-              start={hasBuoy ? Math.max(first, now - 2 * DAY_MS) : now - 1.5 * HOUR_MS}
+              start={gridStart}
+              onEarlier={
+                gridStart > first + HOUR_MS ? () => setDaysBack((days) => days + 1) : undefined
+              }
               end={last}
               now={now}
               place={place}

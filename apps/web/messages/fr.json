@@ -583,6 +583,7 @@
   "details_row_names_show": "Afficher les noms",
   "details_every_hour": "Voir chaque heure",
   "details_every_step": "Voir toutes les {hours} h",
+  "details_earlier_hold": "Maintenir pour voir la veille",
   "details_more": "Plus",
   "details_max_height": "Hauteur max",
   "details_water": "Eau",

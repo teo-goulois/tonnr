@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 
-import { ChevronRightIcon } from "@repo/ui/icon";
+import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 
 import { compassPoint, formatClock, formatDay } from "@/lib/format";
 import { usePalette } from "@/lib/palette";
@@ -57,6 +57,9 @@ type ForecastGridProps = {
   // Told how to bring the grid back to now while it is scrolled away from it, and that there is
   // nothing to bring back once it is there.
   onAway?: (back: (() => void) | undefined) => void;
+  // Shows a day more of the past, while the model holds one: a pull past the grid's start offers
+  // it, and the pull held, or a press held on what it offers, takes it.
+  onEarlier?: () => void;
 };
 
 const COLUMN = 34;
@@ -67,6 +70,10 @@ const MEASURED_REACH = 1.5 * HOUR_MS;
 const HOLD_MS = 350;
 // How far a press may move and still be a press, in pixels.
 const SLOP = 6;
+// How far a pull goes past the grid's start before it offers the day before, in pixels, and how
+// long it holds there, or a press holds on what it offers, before that day comes.
+const OVERPULL = 48;
+const EARLIER_MS = 1500;
 
 // `day` counts the days from the first one.
 type Column = { time: number; night: boolean; isNow: boolean; day: number };
@@ -120,6 +127,7 @@ export function ForecastGrid({
   named = true,
   onNamedChange,
   onAway,
+  onEarlier,
 }: ForecastGridProps) {
   const labels = named ? LABELS : 0;
   // Drawn again when the reader changes units: the wind's row is written in them.
@@ -155,6 +163,12 @@ export function ForecastGrid({
   // Where the pressed hour stood in the view, to keep it there once the step changes.
   const anchor = useRef<{ time: number; offset: number } | null>(null);
   const [away, setAway] = useState(false);
+  // The day before, once a pull offered it, and the hold that takes it while it lasts. A hold
+  // comes from the pull itself or from a press on what it offers.
+  const [offered, setOffered] = useState(false);
+  const [holding, setHolding] = useState<"pull" | "press">();
+  const holdTimer = useRef<number | undefined>(undefined);
+  const holdBy = useRef<"pull" | "press">(undefined);
 
   const columns = useMemo(() => {
     const first = new Date(start);
@@ -214,17 +228,74 @@ export function ForecastGrid({
     if (row) setHeadHeight(row.offsetTop + row.offsetHeight);
   });
 
+  function earlier() {
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = undefined;
+    holdBy.current = undefined;
+    setHolding(undefined);
+    setOffered(false);
+    if (!onEarlier || columns.length === 0) return;
+    // What was the first hour stays where it stood: the day before comes in on its left.
+    anchor.current = { time: columns[0]!.time, offset: 0 };
+    // A drag that took it ends there: the grid under it has moved.
+    press.current = null;
+    onEarlier();
+  }
+  function startHold(by: "pull" | "press") {
+    if (!onEarlier || holdTimer.current !== undefined) return;
+    setOffered(true);
+    setHolding(by);
+    holdBy.current = by;
+    holdTimer.current = window.setTimeout(earlier, EARLIER_MS);
+  }
+  function stopHold(by: "pull" | "press") {
+    if (holdBy.current !== by) return;
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = undefined;
+    holdBy.current = undefined;
+    setHolding(undefined);
+  }
+  // A listener of the page reads these as they are when it is called.
+  const pull = useRef({ startHold, stopHold, offer: () => setOffered(true) });
+  pull.current = { startHold, stopHold, offer: () => setOffered(true) };
+  const canPull = useRef(false);
+  canPull.current = Boolean(onEarlier);
+
   // A finger that holds still reads the hours: the page no longer scrolls under it. Only a
-  // listener that is not passive can say so, which React does not give.
+  // listener that is not passive can say so, which React does not give. A finger that pulls the
+  // grid past its start, which the grid does not follow, offers the day before.
   useEffect(() => {
     const element = scroller.current;
     if (!element) return;
-    const hold = (event: TouchEvent) => {
-      if (readingRef.current && event.cancelable) event.preventDefault();
+    let from: number | undefined;
+    const begin = (event: TouchEvent) => {
+      from = element.scrollLeft <= 0 ? event.touches[0]?.clientX : undefined;
     };
-    element.addEventListener("touchmove", hold, { passive: false });
-    return () => element.removeEventListener("touchmove", hold);
+    const move = (event: TouchEvent) => {
+      if (readingRef.current && event.cancelable) event.preventDefault();
+      const x = event.touches[0]?.clientX;
+      if (from === undefined || x === undefined || !canPull.current) return;
+      if (element.scrollLeft > 0) from = undefined;
+      else if (x - from > OVERPULL) pull.current.startHold("pull");
+      else pull.current.stopHold("pull");
+    };
+    const end = () => {
+      from = undefined;
+      pull.current.stopHold("pull");
+    };
+    element.addEventListener("touchstart", begin, { passive: true });
+    element.addEventListener("touchmove", move, { passive: false });
+    element.addEventListener("touchend", end);
+    element.addEventListener("touchcancel", end);
+    return () => {
+      element.removeEventListener("touchstart", begin);
+      element.removeEventListener("touchmove", move);
+      element.removeEventListener("touchend", end);
+      element.removeEventListener("touchcancel", end);
+    };
   }, [isLoading]);
+
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
 
   if (isLoading) return <Skeleton className="h-64 w-full rounded-(--radius-xs)" />;
   if (columns.length === 0) return null;
@@ -279,9 +350,14 @@ export function ForecastGrid({
       dragged.current = true;
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-    event.currentTarget.scrollLeft = current.left - (event.clientX - current.x);
+    const wanted = current.left - (event.clientX - current.x);
+    event.currentTarget.scrollLeft = wanted;
+    // Pulled past the start and held there, the grid takes the day before.
+    if (wanted < -OVERPULL) startHold("pull");
+    else stopHold("pull");
   }
   function onPointerEnd() {
+    stopHold("pull");
     if (press.current) window.clearTimeout(press.current.timer);
     press.current = null;
     if (readingRef.current) {
@@ -450,6 +526,7 @@ export function ForecastGrid({
         className="cursor-grab overflow-x-auto overscroll-x-contain [scrollbar-width:none] active:cursor-grabbing"
         style={{ maskImage: "linear-gradient(to right, black calc(100% - 28px), transparent)" }}
         onScroll={(event) => {
+          if (event.currentTarget.scrollLeft > COLUMN * 2) setOffered(false);
           const next =
             nowIndex >= 0 && Math.abs(event.currentTarget.scrollLeft - home) > COLUMN * 2;
           if (next === away) return;
@@ -457,6 +534,12 @@ export function ForecastGrid({
           onAway?.(
             next ? () => scroller.current?.scrollTo({ left: home, behavior: "smooth" }) : undefined,
           );
+        }}
+        // A trackpad that goes on past the start offers the day before: it has no way to hold.
+        onWheel={(event) => {
+          if (!onEarlier || event.currentTarget.scrollLeft > 0) return;
+          if (event.deltaX < -2 && Math.abs(event.deltaX) > Math.abs(event.deltaY))
+            setOffered(true);
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -628,6 +711,35 @@ export function ForecastGrid({
           )}
         </div>
       </div>
+      {offered && onEarlier && (
+        <button
+          type="button"
+          className="absolute z-20 flex -translate-y-1/2 items-center gap-xxs overflow-hidden rounded-full bg-neutral-10 py-xxs pr-s pl-xs text-xs font-medium whitespace-nowrap text-neutral-1 select-none [-webkit-touch-callout:none]"
+          style={{ left: labels + 8, top: `calc(${headHeight}px + (100% - ${headHeight}px) / 2)` }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            startHold("press");
+          }}
+          onPointerUp={() => stopHold("press")}
+          onPointerCancel={() => stopHold("press")}
+          onContextMenu={(event) => event.preventDefault()}
+          // A key has no hold: it takes the day at once.
+          onClick={(event) => event.detail === 0 && earlier()}
+        >
+          {/* Fills while the hold lasts, and empties at once when it stops. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 bg-neutral-1/25 ease-linear"
+            style={{
+              width: holding ? "100%" : "0%",
+              transition: `width ${holding ? EARLIER_MS : 150}ms`,
+            }}
+          />
+          <ChevronLeftIcon data-slot="icon" aria-hidden className="relative size-3" />
+          <span className="relative">{m.details_earlier_hold()}</span>
+        </button>
+      )}
       {/* Folded, the names take no room: the edge of the grid says, once pointed at, that it
           unfolds them. */}
       {!named && onNamedChange && (
