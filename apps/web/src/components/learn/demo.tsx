@@ -184,7 +184,7 @@ export function Coast({ landWord }: { landWord: string }) {
         className="stroke-neutral-6"
         fill="none"
       />
-      <text x={275} y={90} fontSize={10} textAnchor="middle" className="fill-neutral-7">
+      <text x={300} y={90} fontSize={10} textAnchor="middle" className="fill-neutral-7">
         {landWord}
       </text>
       <text x={10} y={14} fontSize={10} className="fill-neutral-7">

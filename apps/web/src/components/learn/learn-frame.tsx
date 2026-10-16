@@ -32,7 +32,7 @@ export function LearnFrame({
       <UnitsFromAccount />
       <main className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-xl px-m py-xl">
         <header className="grid gap-s">
-          <Crumbs crumbs={crumbs} />
+          <Crumbs crumbs={crumbs} label={m.learn_path_label()} />
           <h1 className="text-xl font-bold text-balance sm:text-xxl">{title}</h1>
           <p className="max-w-2xl text-l text-neutral-7 text-pretty">{lead}</p>
         </header>
