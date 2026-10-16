@@ -178,7 +178,7 @@ A first comparison for 2026-10-08, against the SHOM predictions shown on maree.i
 | Brest    | 0 to 5 minutes  | 0.33 to 0.44 m lower. The tidal range matches within 9 cm. |
 | Arcachon | 3 to 10 minutes | Within 7 cm                                                |
 
-Two ports on one day is a first signal, not a validation. Before shipping, compare more ports across spring and neap tides. The tide coefficient is a SHOM figure that Neaps does not return.
+Two ports on one day is a first signal, not a validation. Before shipping, compare more ports across spring and neap tides. Neaps returns no tide coefficient: decision 002 says how the API computes it.
 
 The Brest gap is consistent with a datum difference. The database measures heights from the lowest astronomical tide it computes, which it places 0.42 m above the station zero at Brest. Adding that value brings the four heights within 9 cm of SHOM. SHOM publishes each port's reference levels as open data in its "Références Altimétriques Maritimes" (Licence Ouverte 2.0), which is the source to use for this correction.
 

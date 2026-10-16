@@ -61,7 +61,9 @@ export const tidesRouter = {
           "says which, how far it is (`distanceKm`), its source and its licence. NOT_FOUND " +
           "when no station is that near. This is the tool for when the tide is high or " +
           "low, and for the range of a tide: get_tide_timeline is for the height at a " +
-          "given moment.",
+          "given moment. On the Atlantic and Channel coasts of France and Spain a high " +
+          "water also has its `coefficient`, from 20 at neap tides to 120 at the strongest " +
+          "spring tides.",
       },
     })
     .route({
@@ -80,6 +82,15 @@ export const tidesRouter = {
             time: z.date(),
             type: z.enum(["high", "low"]),
             heightMeters: z.number(),
+            coefficient: z
+              .number()
+              .int()
+              .nullable()
+              .describe(
+                "The tide's coefficient, from 20 to 120, as the tables of France and Spain " +
+                  "print it, at a high water on their Atlantic and Channel coasts. Null elsewhere " +
+                  "and at a low water.",
+              ),
           }),
         ),
       }),

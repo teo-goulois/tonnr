@@ -441,6 +441,8 @@
   "tide_none": "No hay estación de marea a menos de 100 km.",
   "tide_unavailable": "No se pudo cargar la marea. Inténtalo de nuevo en un momento.",
   "tide_today": "Hoy",
+  "tide_coefficient": "Coef. {values}",
+  "tide_coefficient_title": "El coeficiente de cada pleamar: 20 en las mareas muertas más débiles, 120 en las mareas vivas más fuertes",
   "source_measurements": "Mediciones: {attribution}. Licencia:",
   "source_forecast": "Previsión:",
   "source_forecast_changes": "Estos valores están redondeados y escritos en tus unidades, y la energía se calcula a partir de ellos.",

@@ -441,6 +441,8 @@
   "tide_none": "Aucune station de marée à moins de 100 km.",
   "tide_unavailable": "La marée n’a pas pu être chargée. Réessaie dans un instant.",
   "tide_today": "Aujourd’hui",
+  "tide_coefficient": "Coef. {values}",
+  "tide_coefficient_title": "Le coefficient de chaque pleine mer : 20 aux plus faibles mortes-eaux, 120 aux plus fortes vives-eaux",
   "source_measurements": "Mesures : {attribution}. Licence :",
   "source_forecast": "Prévision :",
   "source_forecast_changes": "Ces valeurs sont arrondies et écrites dans tes unités, et l'énergie en est calculée.",

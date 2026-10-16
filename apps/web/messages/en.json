@@ -441,6 +441,8 @@
   "tide_none": "No tide station within 100 km.",
   "tide_unavailable": "The tide could not be loaded. Try again in a moment.",
   "tide_today": "Today",
+  "tide_coefficient": "Coef. {values}",
+  "tide_coefficient_title": "The tide's coefficient at each high water: 20 at the weakest neap tides, 120 at the strongest spring tides",
   "source_measurements": "Measurements: {attribution}. License:",
   "source_forecast": "Forecast:",
   "source_forecast_changes": "These values are rounded and written in your units, and the energy is computed from them.",

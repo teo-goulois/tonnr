@@ -1,6 +1,8 @@
 import { near, type Station } from "@neaps/tide-database";
 import { useStation } from "@neaps/tide-predictor";
 
+import { coefficientsOf, usesCoefficients } from "./coefficient";
+
 // Beyond this distance the nearest gauge says little about the tide at the point.
 export const MAX_STATION_DISTANCE_KM = 100;
 
@@ -64,16 +66,21 @@ export function predictTideExtremes(query: TideQuery) {
     units: "meters",
   });
 
+  const extremes = prediction.extremes.filter((extreme) => isWithin(query, extreme.time));
+  // A high water carries its coefficient where the tables print one, and a low water none.
+  const coefficients = usesCoefficients(found.station)
+    ? coefficientsOf(extremes.filter((extreme) => extreme.high).map((extreme) => extreme.time))
+    : [];
+  let high = 0;
   return {
     station: describeStation(found.station, found.distanceKm),
     datum: prediction.datum ?? found.station.chart_datum,
-    extremes: prediction.extremes
-      .filter((extreme) => isWithin(query, extreme.time))
-      .map((extreme) => ({
-        time: extreme.time,
-        type: extreme.high ? ("high" as const) : ("low" as const),
-        heightMeters: roundToCentimeter(extreme.level),
-      })),
+    extremes: extremes.map((extreme) => ({
+      time: extreme.time,
+      type: extreme.high ? ("high" as const) : ("low" as const),
+      heightMeters: roundToCentimeter(extreme.level),
+      coefficient: extreme.high ? (coefficients[high++] ?? null) : null,
+    })),
   };
 }
 

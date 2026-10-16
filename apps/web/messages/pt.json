@@ -441,6 +441,8 @@
   "tide_none": "Nenhuma estação de maré num raio de 100 km.",
   "tide_unavailable": "Não foi possível carregar a maré. Tenta daqui a pouco.",
   "tide_today": "Hoje",
+  "tide_coefficient": "Coef. {values}",
+  "tide_coefficient_title": "O coeficiente de cada preia-mar: 20 nas marés mortas mais fracas, 120 nas marés vivas mais fortes",
   "source_measurements": "Medições: {attribution}. Licença:",
   "source_forecast": "Previsão:",
   "source_forecast_changes": "Estes valores são arredondados e escritos nas tuas unidades, e a energia é calculada a partir deles.",

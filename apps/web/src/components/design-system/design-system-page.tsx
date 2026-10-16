@@ -355,6 +355,7 @@ const SAMPLE_EXTREMES: TideExtremes = {
     time: new Date(SAMPLE_DAY - 24 * HOUR_MS + (18.625 + index * 37.25) * (HOUR_MS / 6)),
     type: index % 2 === 0 ? ("high" as const) : ("low" as const),
     heightMeters: index % 2 === 0 ? 6.4 : 0.8,
+    coefficient: index % 2 === 0 ? 92 - index : null,
   })),
 };
 // The lists of an invented account, and one of someone else's that it kept.

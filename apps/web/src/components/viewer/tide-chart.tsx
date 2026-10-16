@@ -449,6 +449,11 @@ export function TideChart({
   const shown = Math.min(days - 1, scrolledTo ?? today ?? 0);
   const shownDay = new Date(start);
   shownDay.setDate(shownDay.getDate() + shown);
+  // The coefficients of the day's high waters, as a tide table prints them, where there are any.
+  const coefficients = extremes.flatMap((extreme) => {
+    const day = Math.floor((extreme.time.getTime() - start) / DAY_MS);
+    return day === shown && extreme.coefficient !== null ? [extreme.coefficient] : [];
+  });
 
   function scrollToDay(day: number, behavior: ScrollBehavior) {
     strip?.scrollTo({ left: day * strip.clientWidth, behavior });
@@ -512,12 +517,22 @@ export function TideChart({
   return (
     <div className="grid gap-xxs">
       <div className="flex h-8 items-center justify-between gap-xs">
-        <span className="text-s tabular-nums" aria-live="polite">
-          {inspection.point
-            ? `${formatClock(new Date(inspection.point.time))} · ${formatHeight(inspection.point.value)}`
-            : shown === today
-              ? m.tide_today()
-              : formatDay(shownDay)}
+        <span className="flex items-baseline gap-xs">
+          <span className="text-s tabular-nums" aria-live="polite">
+            {inspection.point
+              ? `${formatClock(new Date(inspection.point.time))} · ${formatHeight(inspection.point.value)}`
+              : shown === today
+                ? m.tide_today()
+                : formatDay(shownDay)}
+          </span>
+          {!inspection.point && coefficients.length > 0 && (
+            <span
+              className="text-xs text-neutral-7 tabular-nums"
+              title={m.tide_coefficient_title()}
+            >
+              {m.tide_coefficient({ values: coefficients.join(" · ") })}
+            </span>
+          )}
         </span>
         {today !== undefined && shown !== today && (
           <Button variant="secondary" size="xs" onClick={() => scrollToDay(today, "smooth")}>
