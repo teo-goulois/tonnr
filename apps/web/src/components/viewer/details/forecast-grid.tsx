@@ -1,6 +1,4 @@
-import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
   type PointerEvent,
@@ -47,9 +45,9 @@ type ForecastGridProps = {
   // How many columns of the past stay in view before the one of now, when the grid opens.
   lead?: number;
   isLoading?: boolean;
-  // Whether the rows say their names in full. Folded, a row keeps the first letter of its name,
-  // for a reader who knows the rows by their order and their colors, and the hours get the room.
-  // An arrow over the names folds them and unfolds them.
+  // Whether the rows say their names in full, as Windguru's table does. Folded, a row keeps the
+  // first letter of its name, for a reader who knows the rows by their order and their colors,
+  // and the hours get the room. A press on the column of the names folds and unfolds them.
   named?: boolean;
   onNamedChange?: (named: boolean) => void;
   // Told how to bring the grid back to now while it is scrolled away from it, and that there is
@@ -77,7 +75,8 @@ function RowLabel({
   className,
 }: {
   children?: ReactNode;
-  // What stands for the name once the names are folded. A name that is a word gives its letter.
+  // What stands for the name once the names are folded. A name that is a word gives its letter,
+  // and a row whose arrows say what it is gives none.
   short?: ReactNode;
   unit?: string;
   quiet?: boolean;
@@ -87,6 +86,7 @@ function RowLabel({
   return (
     <th
       scope="row"
+      data-names=""
       className={cn(
         "sticky left-0 z-10 bg-neutral-1 py-0 pr-xs pl-0 text-left text-xs font-normal whitespace-nowrap",
         "group-data-unnamed/grid:pr-0 group-data-unnamed/grid:text-center",
@@ -194,6 +194,8 @@ export function ForecastGrid({
   // A mouse has no way to scroll sideways, so it drags the grid.
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "mouse" || event.button !== 0) return;
+    // A press on the names is a press, not a drag: holding the pointer would take its click.
+    if ((event.target as Element).closest("[data-names]")) return;
     drag.current = { x: event.clientX, left: event.currentTarget.scrollLeft };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -287,7 +289,7 @@ export function ForecastGrid({
     const height = degrees ? "h-[38px]" : ROW;
     return (
       <tr>
-        <RowLabel quiet className={height}>
+        <RowLabel quiet short="" className={height}>
           {m.details_direction()}
         </RowLabel>
         {columns.map((column) => {
@@ -346,9 +348,18 @@ export function ForecastGrid({
         onPointerCancel={() => (drag.current = null)}
       >
         <table
-          className="group/grid table-fixed border-separate border-spacing-0 select-none"
           data-unnamed={named ? undefined : ""}
           style={{ width: labels + width }}
+          // The whole column of the names folds them and unfolds them, lit while it is pointed at.
+          className={cn(
+            "group/grid table-fixed border-separate border-spacing-0 select-none",
+            onNamedChange &&
+              "[&_[data-names]]:cursor-pointer [&:has([data-names]:hover)_[data-names]]:bg-neutral-2",
+          )}
+          onClick={(event) => {
+            if (!onNamedChange || !(event.target as Element).closest("[data-names]")) return;
+            onNamedChange(!named);
+          }}
         >
           <colgroup>
             <col style={{ width: labels }} />
@@ -361,24 +372,19 @@ export function ForecastGrid({
               {/* In the corner the names leave empty, over the days and the hours. */}
               <th
                 rowSpan={2}
+                data-names=""
                 className="sticky left-0 z-10 bg-neutral-1 p-0 text-left align-middle"
               >
+                {/* The keyboard's way to the names: the pointer presses their column. Its click
+                    reaches the table, which does the folding. */}
                 {onNamedChange && (
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="text-neutral-7"
+                  <button
+                    type="button"
+                    className="sr-only focus-visible:not-sr-only focus-visible:text-xs"
                     aria-expanded={named}
-                    aria-label={m.details_row_names()}
-                    title={m.details_row_names()}
-                    onClick={() => onNamedChange(!named)}
                   >
-                    {named ? (
-                      <ChevronLeftIcon data-slot="icon" aria-hidden />
-                    ) : (
-                      <ChevronRightIcon data-slot="icon" aria-hidden />
-                    )}
-                  </Button>
+                    {m.details_row_names()}
+                  </button>
                 )}
               </th>
               {days.map((day, index) => (
@@ -423,7 +429,7 @@ export function ForecastGrid({
             {measuredColumns > 0 && (
               // Which hours are the buoy's and which the model's, said once above the figures.
               <tr>
-                <th className="sticky left-0 z-10 bg-neutral-1 p-0" />
+                <th data-names="" className="sticky left-0 z-10 bg-neutral-1 p-0" />
                 <th
                   colSpan={lastMeasured + 1}
                   className="h-5 p-0 text-left text-xs font-medium shadow-[inset_0_calc(-1*var(--border-l))_0_var(--neutral-10)]"
