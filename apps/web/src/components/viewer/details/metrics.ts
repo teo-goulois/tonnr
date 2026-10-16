@@ -8,10 +8,12 @@ import {
   WAVE_ENERGY_SCALE,
   WAVE_HEIGHT_SCALE,
   WAVE_PERIOD_SCALE,
+  WINDGURU_INK,
   WINDGURU_SCALES,
   WIND_SPEED_SCALE,
   scaleColor,
   scaleInk,
+  windguruWindInk,
 } from "@/lib/sea-scales";
 import type { Palette } from "@/lib/palette";
 import {
@@ -91,6 +93,8 @@ export type Metric = {
   // kept in knots and written in the reader's unit. `kept` is the way back.
   shown?: (value: number) => number;
   kept?: (shown: number) => number;
+  // The ink a cell is written in, when its palette says. Otherwise the one that reads best.
+  ink?: (value: number) => string;
 };
 
 export function metrics(): Record<MetricKey, Metric> {
@@ -338,18 +342,21 @@ export function bias(measured: Sample[], model: Sample[], key: MetricKey, since:
 
 /**
  * A metric as the week's table colors it in a palette. Windguru's fills every cell, the air's
- * too, and writes on it in the ink that reads there. The swell takes the waves' scale.
+ * too, and writes on it in its own ink. The swell takes the waves' scale, the gusts the wind's.
  */
 export function inPalette(metric: Metric, palette: Palette): Metric {
   if (palette === "tonnr") return metric;
   const key = metric.key === "swell" ? "height" : metric.key === "gust" ? "wind" : metric.key;
-  return { ...metric, scale: WINDGURU_SCALES[key], tinted: false, plain: false };
+  const ink = key === "wind" ? windguruWindInk : () => WINDGURU_INK;
+  return { ...metric, scale: WINDGURU_SCALES[key], tinted: false, plain: false, ink };
 }
 
 /** The color of a value, and the ink to write on it. A tinted scale lets the theme show through. */
 export function cellColors(metric: Metric, value: number) {
   const color = scaleColor(metric.scale, value);
-  if (!metric.tinted) return { background: color, color: scaleInk(metric.scale, value) };
+  if (!metric.tinted) {
+    return { background: color, color: metric.ink?.(value) ?? scaleInk(metric.scale, value) };
+  }
   const first = metric.scale[0]!.value;
   const last = metric.scale.at(-1)!.value;
   const position = Math.min(1, Math.max(0, (value - first) / (last - first)));

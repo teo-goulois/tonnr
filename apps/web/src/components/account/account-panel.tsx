@@ -238,12 +238,12 @@ export function AccountPanel({
             </TabsList>
           </Tabs>
         </Line>
-        {/* The colors of the week's table in a panel: the app's own, or Windguru's. */}
+        {/* The colors of the week's table in a panel: Windguru's, which the app starts with, or its own. */}
         <Line label={m.account_palette()}>
           <Tabs value={palette} onValueChange={(next) => setPalette(next as typeof palette)}>
             <TabsList variant="segment" aria-label={m.account_palette()}>
-              <TabsTab value="tonnr">{APP_NAME}</TabsTab>
               <TabsTab value="windguru">Windguru</TabsTab>
+              <TabsTab value="tonnr">{APP_NAME}</TabsTab>
             </TabsList>
           </Tabs>
         </Line>

@@ -37,7 +37,13 @@ import {
 } from "@/components/viewer/break-characteristics";
 import { Bearing } from "@/components/viewer/bearing";
 import { LineGlyph } from "@/components/viewer/details/line-glyph";
-import { cellColors, formatGap, formatMetric, metrics } from "@/components/viewer/details/metrics";
+import {
+  cellColors,
+  formatGap,
+  formatMetric,
+  inPalette,
+  metrics,
+} from "@/components/viewer/details/metrics";
 import { BuoyPill, DirectionArrow } from "@/components/viewer/map-markers";
 import type { AlertCriteria } from "@/components/viewer/types";
 import { formatClock, formatDay } from "@/lib/format";
@@ -48,6 +54,7 @@ import {
   scaleColor,
   scaleInk,
 } from "@/lib/sea-scales";
+import { usePalette } from "@/lib/palette";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
@@ -478,6 +485,8 @@ function GridRow({ label, unit }: { label: string; unit?: string }) {
 
 function Forecasts() {
   useUnits();
+  // In the colors the app's table is read in, which are Windguru's until the reader chooses.
+  const palette = usePalette();
   const all = metrics();
   const rows = [
     { metric: all.height, value: (column: (typeof COLUMNS)[number]) => column.meters },
@@ -521,7 +530,7 @@ function Forecasts() {
                 <span
                   key={column.hour}
                   className={cn(cell, newDay(column.hour) && DAY_RULE)}
-                  style={cellColors(metric, value(column))}
+                  style={cellColors(inPalette(metric, palette), value(column))}
                 >
                   {formatMetric(metric, value(column), false)}
                 </span>
