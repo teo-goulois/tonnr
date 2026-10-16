@@ -9,8 +9,8 @@ import { DirectionsItems } from "./directions-actions";
 import { type SharedPlace, sharePlace } from "./share-place";
 
 /**
- * What a phone does with the place of a panel, in one menu, since it is seldom done: begin an
- * alert there, share it, and go there with a map app. A wide screen has a button for each.
+ * What is done with the place of a panel, in one menu, since it is seldom done: begin an alert
+ * there, share it, and go there with a map app.
  */
 export function PlaceMenu({
   name,

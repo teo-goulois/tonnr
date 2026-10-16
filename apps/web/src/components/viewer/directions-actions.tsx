@@ -1,13 +1,10 @@
-import { buttonVariants } from "@repo/ui/components/ui/button";
 import { MenuGroup, MenuGroupLabel, MenuLinkItem } from "@repo/ui/components/ui/menu";
-import { MapPinIcon } from "@repo/ui/icon";
 
 import {
   DIRECTIONS_APPS,
   type Destination,
   type DirectionsApp,
   directionsUrl,
-  mapUrl,
 } from "@/lib/directions";
 import { m } from "@/paraglide/messages.js";
 
@@ -18,22 +15,7 @@ const APP_NAMES: Record<DirectionsApp, () => string> = {
   waze: () => "Waze",
 };
 
-/** Opens a surf break or a spot on a wide screen: one link, to Google Maps on the web. */
-export function DirectionsActions({ place }: { place: Destination }) {
-  return (
-    <a
-      href={mapUrl(place)}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={m.directions_open_map()}
-      className={buttonVariants({ variant: "ghost", size: "icon" })}
-    >
-      <MapPinIcon data-slot="icon" aria-hidden />
-    </a>
-  );
-}
-
-/** The map apps a phone chooses from to go to a surf break or a spot, as a group of its menu. */
+/** The map apps one chooses from to go to a surf break or a spot, as a group of its menu. */
 export function DirectionsItems({ place }: { place: Destination }) {
   return (
     <MenuGroup>

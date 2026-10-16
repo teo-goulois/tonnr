@@ -1,6 +1,4 @@
 import { APP_NAME } from "@repo/config/app";
-import { Button } from "@repo/ui/components/ui/button";
-import { ShareIcon } from "@repo/ui/icon";
 import { toast } from "sonner";
 
 import { m } from "@/paraglide/messages.js";
@@ -16,8 +14,8 @@ export function placeLink(place: SharedPlace) {
 }
 
 /**
- * Sends a surf break or a station to someone: a phone hands its short address to its own sheet,
- * and a browser that has none copies it.
+ * Sends a surf break or a station to someone, from `PlaceMenu`: a device hands its short address
+ * to its own sheet, and a browser that has none copies it.
  */
 export async function sharePlace(place: SharedPlace, name: string) {
   const url = placeLink(place);
@@ -34,18 +32,4 @@ export async function sharePlace(place: SharedPlace, name: string) {
   } catch {
     toast.error(m.place_link_copy_failed());
   }
-}
-
-/** The button of a wide screen that shares a place. A phone shares it from `PlaceMenu`. */
-export function SharePlace({ place, name }: { place: SharedPlace; name: string }) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={m.share_action_of({ name })}
-      onClick={() => void sharePlace(place, name)}
-    >
-      <ShareIcon data-slot="icon" aria-hidden />
-    </Button>
-  );
 }

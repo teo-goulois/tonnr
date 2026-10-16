@@ -25,7 +25,7 @@ type SpotActionsProps = {
   isAsking: boolean;
   isDeleting: boolean;
   onDelete: () => void;
-  // What a phone does there too, which a wide screen has buttons for: the menu shows it first.
+  // What is done with any place, which `PlaceMenu` holds elsewhere: the menu shows it first.
   children?: ReactNode;
 };
 

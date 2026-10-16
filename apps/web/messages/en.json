@@ -492,7 +492,6 @@
   "directions_apple": "Apple Maps",
   "directions_get": "Get directions",
   "directions_choose": "Get there with",
-  "directions_open_map": "Open in Google Maps",
   "break_from_catalogue": "Surf break, see its source",
   "break_not_found": "This break could not be found.",
   "source_break": "Surf break: {attribution}. License:",

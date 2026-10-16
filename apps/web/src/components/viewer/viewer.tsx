@@ -5,7 +5,6 @@ import { hasUnsaved } from "@/lib/unsaved";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Spinner } from "@repo/ui/components/ui/spinner";
 import {
-  BellIcon,
   ListsIcon,
   LocateIcon,
   LockIcon,
@@ -70,9 +69,8 @@ import { AlertsPanel, type AlertsTab } from "./alerts-panel";
 import { BreakPanel } from "./break-panel";
 import { ChartsAtRest, useDrawerRest } from "./chart-turns";
 import { CreateSheet } from "./create-sheet";
-import { DirectionsActions, DirectionsItems } from "./directions-actions";
+import { DirectionsItems } from "./directions-actions";
 import { PlaceMenu } from "./place-menu";
-import { SharePlace } from "./share-place";
 import type { Nearby, NearbyWind } from "./details/parts";
 import { HISTORY_DAYS } from "./details/wind";
 import { MapLegend } from "./map-legend";
@@ -1598,34 +1596,14 @@ export function Viewer({
                   onManageLists={() => onPanelChange("saved")}
                 />
               )}
-              {/* A phone does these in one menu, a spot's own when it is the account's. */}
-              {wide ? (
-                <>
-                  {alertHere && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={m.alert_create()}
-                      onClick={alertHere}
-                    >
-                      <BellIcon data-slot="icon" aria-hidden />
-                    </Button>
-                  )}
-                  {sharedPlace && shownTitle && (
-                    <SharePlace place={sharedPlace} name={shownTitle} />
-                  )}
-                  {shownPlace && <DirectionsActions place={shownPlace} />}
-                </>
-              ) : (
-                !ownSpot &&
-                shownTitle && (
-                  <PlaceMenu
-                    name={shownTitle}
-                    onAlert={alertHere}
-                    share={sharedPlace || undefined}
-                    directions={shownPlace}
-                  />
-                )
+              {/* What is seldom done with a place is in one menu, a spot's own when it is the account's. */}
+              {!ownSpot && shownTitle && (
+                <PlaceMenu
+                  name={shownTitle}
+                  onAlert={alertHere}
+                  share={sharedPlace || undefined}
+                  directions={shownPlace}
+                />
               )}
               {sharedSpot && (
                 <Button
@@ -1655,14 +1633,8 @@ export function Viewer({
                   isDeleting={isDeletingSpot}
                   onDelete={() => onDeleteSpot(ownSpot)}
                 >
-                  {!wide && (
-                    <>
-                      <MenuItem onClick={() => createAlert(ownSpot.id)}>
-                        {m.alert_create()}
-                      </MenuItem>
-                      <DirectionsItems place={ownSpot} />
-                    </>
-                  )}
+                  <MenuItem onClick={() => createAlert(ownSpot.id)}>{m.alert_create()}</MenuItem>
+                  <DirectionsItems place={ownSpot} />
                 </SpotActions>
               )}
             </>
