@@ -7,7 +7,7 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
-import { formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
+import { formatAgo, formatNumber, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
 import {
   formatDistance,
   formatHeight,
@@ -146,16 +146,24 @@ export function NowTiles(props: DetailsProps) {
                 )}
               </div>
             )}
-            <span
-              aria-hidden
-              className="h-1 w-6 rounded-full"
-              style={{
-                background:
-                  loading || read.shown === undefined
-                    ? "var(--neutral-4)"
-                    : metricColor(metric, read.shown),
-              }}
-            />
+            <div className="flex h-(--line-xs) items-center justify-between gap-xxs">
+              <span
+                aria-hidden
+                className="h-1 w-6 rounded-full"
+                style={{
+                  background:
+                    loading || read.shown === undefined
+                      ? "var(--neutral-4)"
+                      : metricColor(metric, read.shown),
+                }}
+              />
+              {/* The sea's bearing in degrees, as the grid writes it: the wind's arrow is enough. */}
+              {!loading && metric.direction === "waveDirection" && read.bearing !== undefined && (
+                <span className="text-xs text-neutral-7 tabular-nums">
+                  {formatNumber(read.bearing, 0)}°
+                </span>
+              )}
+            </div>
             {/* A surf break has the model alone: nothing to tell apart, so nothing is written. */}
             {props.hasBuoy && (
               <div className="flex h-(--line-xs) items-center gap-xxs text-xs text-neutral-7 tabular-nums">
@@ -345,6 +353,12 @@ export function NearbyBuoy({
             {formatHeight(reading.significantHeightMeters)}
             {period !== null && (
               <span className="font-normal text-neutral-7"> {formatSeconds(period)}</span>
+            )}
+            {reading.peakDirectionDegrees !== null && (
+              <span className="font-normal text-neutral-7">
+                {" "}
+                {formatNumber(reading.peakDirectionDegrees, 0)}°
+              </span>
             )}
           </span>
           <span className="text-xs text-neutral-7">{formatAgo(reading.observedAt, now)}</span>
