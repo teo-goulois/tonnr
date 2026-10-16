@@ -94,21 +94,24 @@ export function HeightDemo() {
 }
 
 const PERIOD_SCENE = { width: 320, height: 110, base: 64, amplitude: 14 };
-// How many pixels a wavelength of one metre takes, so that a short period still shows its waves.
-const PIXELS_PER_METER = 18 / 1.56;
+// How far apart two crests are drawn, in pixels, for a period in seconds: wider as the period
+// grows, from seven waves across the scene at 5 s to three at 18 s. A swell's true length grows
+// with the square of its period, which no scene this wide could show at both ends.
+const spacing = (seconds: number) => rounded(16 + seconds * 5.5);
+// Where the first crest stands, so that the ruler reads from one crest to the next.
+const FIRST_CREST = 40;
 
 /** The waves of a swell drawn to its period, at one height, with the energy they carry. */
 export function PeriodDemo() {
   useUnits();
   const [seconds, setSeconds] = useState(10);
   const { width, height, base, amplitude } = PERIOD_SCENE;
-  // The length of a wave in deep water grows with the square of its period: 1.56 T² metres.
-  const wavelength = (1.56 * seconds * seconds * PIXELS_PER_METER) / seconds;
+  const wavelength = spacing(seconds);
   const points: string[] = [];
   for (let x = 0; x <= width; x += 3) {
     const ripple = seconds < 8 ? 1 - 0.25 * Math.sin(x * 1.3) : 1;
     points.push(
-      `${x} ${rounded(base - Math.sin((x / wavelength) * Math.PI * 2) * amplitude * ripple)}`,
+      `${x} ${rounded(base - Math.cos(((x - FIRST_CREST) / wavelength) * Math.PI * 2) * amplitude * ripple)}`,
     );
   }
   const energy = waveEnergy(1, seconds) ?? 0;
@@ -119,7 +122,7 @@ export function PeriodDemo() {
       : seconds <= 11
         ? m.learn_b_period_surfable()
         : m.learn_b_period_real();
-  const ruler = { from: 20, to: rounded(20 + wavelength) };
+  const ruler = { from: FIRST_CREST, to: rounded(FIRST_CREST + wavelength) };
   return (
     <Demo>
       <Scene viewBox={`0 0 ${width} ${height}`}>
@@ -128,13 +131,29 @@ export function PeriodDemo() {
           fill={color}
           opacity={0.8}
         />
-        <g className="stroke-neutral-7 fill-neutral-7">
-          <line x1={ruler.from} y1={26} x2={ruler.to} y2={26} />
-          <line x1={ruler.from} y1={21} x2={ruler.from} y2={31} />
-          <line x1={ruler.to} y1={21} x2={ruler.to} y2={31} />
+        <g className="fill-neutral-7 stroke-neutral-7">
+          <line x1={ruler.from} y1={32} x2={ruler.to} y2={32} />
+          <line x1={ruler.from} y1={27} x2={ruler.from} y2={37} />
+          <line x1={ruler.to} y1={27} x2={ruler.to} y2={37} />
+          <line
+            x1={ruler.from}
+            y1={37}
+            x2={ruler.from}
+            y2={base - amplitude}
+            strokeDasharray="2 3"
+            opacity={0.5}
+          />
+          <line
+            x1={ruler.to}
+            y1={37}
+            x2={ruler.to}
+            y2={base - amplitude}
+            strokeDasharray="2 3"
+            opacity={0.5}
+          />
           <text
             x={rounded((ruler.from + ruler.to) / 2)}
-            y={18}
+            y={24}
             fontSize={10}
             textAnchor="middle"
             stroke="none"
