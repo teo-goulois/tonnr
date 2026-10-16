@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,6 +9,7 @@ import {
   fileUrl,
   gridOf,
   isGlobal,
+  makeOpenData,
   metaOf,
   OpenDataError,
   pointAt,
@@ -101,5 +103,35 @@ describe("a grid", () => {
   it("says whether a box covers a point", () => {
     expect(covers(europe, { latitude: 43.4, longitude: -2.7 })).toBe(true);
     expect(covers(europe, { latitude: 20, longitude: -2.7 })).toBe(false);
+  });
+});
+
+describe("a series past the model's last hour", () => {
+  it("asks the bucket for no chunk there, and answers nothing", async () => {
+    const asked: string[] = [];
+    const files = makeOpenData({
+      json: () => Effect.succeed(META),
+      range: (url) => {
+        asked.push(url);
+        return Effect.die(new Error("the bucket was asked"));
+      },
+    });
+    // The model ends at 2026-10-16T10:00Z, in chunk 2579: two days in chunk 2580 hold nothing.
+    const from = 2580 * META.chunk_time_length * META.temporal_resolution_seconds;
+    expect(from).toBeGreaterThan(META.data_end_time);
+    const series = await Effect.runPromise(
+      files.series(
+        "dwd_icon_eu",
+        "wind_u_component_10m",
+        { row: 1, column: 1 },
+        {
+          from,
+          until: from + 2 * 24 * 3600,
+        },
+      ),
+    );
+    expect(asked).toEqual([]);
+    expect(series.time).toHaveLength(48);
+    expect(series.values.every((value) => value === null)).toBe(true);
   });
 });

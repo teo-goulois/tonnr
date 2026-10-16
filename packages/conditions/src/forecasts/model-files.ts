@@ -214,26 +214,26 @@ export const fetchFromFiles = Effect.fn("fetchFromFiles")(function* (
         if (grid._tag === "None") return null;
         const at = cellOf(grid.value, point);
         if (!at) return null;
-        const read = yield* Effect.all(
-          (Object.keys(WEATHER) as WeatherVariable[]).map((variable) =>
-            (model.without as readonly WeatherVariable[]).includes(variable)
-              ? Effect.succeed(empty())
-              : files
-                  .series(model.id, WEATHER[variable], at, span)
-                  .pipe(Effect.map((series) => hourly(series, hours, "value"))),
-          ),
-          { concurrency: "unbounded" },
-        ).pipe(Effect.option);
-        if (read._tag === "None") return null;
-        const own = Object.fromEntries(
-          (Object.keys(WEATHER) as WeatherVariable[]).map((variable, index) => [
-            variable,
-            read.value[index],
-          ]),
-        ) as Weather;
-        // A model whose grid reaches the point and whose values do not: the box of ICON-D2
-        // is larger than its domain.
-        if (own.u.every((value) => value === null)) return null;
+        const read = (variable: WeatherVariable) =>
+          (model.without as readonly WeatherVariable[]).includes(variable)
+            ? Effect.succeed(empty())
+            : files
+                .series(model.id, WEATHER[variable], at, span)
+                .pipe(Effect.map((series) => hourly(series, hours, "value")));
+        // The wind's first component is read alone first: a model whose grid reaches the point
+        // and whose values do not, as ICON-D2's box is larger than its domain, costs one read
+        // and not six.
+        const u = yield* read("u").pipe(Effect.option);
+        if (u._tag === "None" || u.value.every((value) => value === null)) return null;
+        const others = (Object.keys(WEATHER) as WeatherVariable[]).filter((v) => v !== "u");
+        const rest = yield* Effect.all(others.map(read), { concurrency: "unbounded" }).pipe(
+          Effect.option,
+        );
+        if (rest._tag === "None") return null;
+        const own = {
+          u: u.value,
+          ...Object.fromEntries(others.map((variable, index) => [variable, rest.value[index]])),
+        } as Weather;
         return { model, own, point: pointAt(grid.value, at) };
       }),
     ),

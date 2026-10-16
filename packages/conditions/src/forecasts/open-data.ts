@@ -121,9 +121,11 @@ export function covers(box: Meta["box"], point: Point) {
 
 // The reader asks for bytes by their offset. They are fetched in blocks and kept, so that the
 // trailer and the index of a file are read once, and a chunk read for one cell answers its
-// neighbours on the same row of the grid. A block is 64 KB, and 512 are kept: 32 MB.
-export const BLOCK_BYTES = 64 * 1024;
-const KEPT_BLOCKS = 512;
+// neighbours on the same row of the grid. A block is 8 KB, a few chunks of a kilobyte or two,
+// and 4,096 are kept: 32 MB. Measured over a run of every listed cell, blocks of 64 KB took
+// seven times the bytes for the same number of requests.
+export const BLOCK_BYTES = 8 * 1024;
+const KEPT_BLOCKS = 4096;
 
 // What the bucket is asked at most for one block: a block, which a server that ignored the
 // range would have to exceed to be refused.
@@ -330,29 +332,30 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
     const first = chunkAt(found, span.from);
     const last = chunkAt(found, span.until - 1);
     const chunks = Array.from({ length: last - first + 1 }, (_, index) => first + index);
-    // The chunks of a span are read together: a span of eight days often straddles two.
+    // The chunks of a span are read together: a span of eight days often straddles two. One
+    // that starts after the model's last hour is not asked for: the bucket has nothing there yet.
     const reads = yield* Effect.all(
       chunks.map((chunk) =>
-        withFile(fileUrl.chunk(model, variable, chunk), async (file) => {
-          const [, , nt] = file.getDimensions();
-          const floats = await file.read({
-            type: OmDataType.FloatArray,
-            ranges: [
-              { start: cell.row, end: cell.row + 1 },
-              { start: cell.column, end: cell.column + 1 },
-              { start: 0, end: nt ?? 0 },
-            ],
-          });
-          return Array.from(floats);
-        }).pipe(
-          // A chunk the bucket lacks beyond the model's last hour holds nothing yet. One it
-          // lacks within its coverage is a file gone missing, which fails the read.
-          Effect.catchIf(isMissing, () =>
-            chunkStart(found, chunk) <= found.dataEndAt
-              ? Effect.fail(fault(`${fileUrl.chunk(model, variable, chunk)} is missing`))
-              : Effect.succeed(null),
-          ),
-        ),
+        chunkStart(found, chunk) > found.dataEndAt
+          ? Effect.succeed(null)
+          : withFile(fileUrl.chunk(model, variable, chunk), async (file) => {
+              const [, , nt] = file.getDimensions();
+              const floats = await file.read({
+                type: OmDataType.FloatArray,
+                ranges: [
+                  { start: cell.row, end: cell.row + 1 },
+                  { start: cell.column, end: cell.column + 1 },
+                  { start: 0, end: nt ?? 0 },
+                ],
+              });
+              return Array.from(floats);
+            }).pipe(
+              // A chunk the bucket lacks within the model's coverage is a file gone missing, which
+              // fails the read.
+              Effect.catchIf(isMissing, () =>
+                Effect.fail(fault(`${fileUrl.chunk(model, variable, chunk)} is missing`)),
+              ),
+            ),
       ),
       { concurrency: "unbounded" },
     );
@@ -372,6 +375,9 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
     return { time, values };
   });
 
+  // When a model's land mask was last found missing, by model.
+  const masksLacked = new Map<string, number>();
+
   const seaAround = Effect.fn("seaAround")(function* (
     model: string,
     cell: { row: number; column: number },
@@ -379,6 +385,12 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
   ) {
     const url = fileUrl.landMask(model);
     const found = yield* meta(model);
+    // A model with no mask in the bucket, as ECMWF's, is remembered as long as its description
+    // is: every cell would otherwise ask for the file and be told the same.
+    const lacked = masksLacked.get(model);
+    if (lacked !== undefined && Date.now() - lacked < META_MS) {
+      return yield* fault(`${url}: 404`);
+    }
     return yield* withFile(url, async (file) => {
       const [ny, nx] = file.getDimensions();
       if (!ny || !nx) throw fault(`${url} is not a grid`);
@@ -411,7 +423,13 @@ export function makeOpenData(io: Io = { json: fetchJson, range: fetchRange }): O
         }
       }
       return cells;
-    });
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          if (isMissing(error)) masksLacked.set(model, Date.now());
+        }),
+      ),
+    );
   });
 
   return { meta, grid, series, seaAround };
