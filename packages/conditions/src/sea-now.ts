@@ -1,14 +1,21 @@
-import type { ForecastHour } from "@repo/conditions/forecasts/week";
-import { type ShoreWind, shoreWind } from "@repo/conditions/shore-wind";
-import { COMPASS_POINTS, TIDE_STAGES } from "@repo/db/schema/spots";
-import type { z } from "zod";
+import { COMPASS_POINTS, TIDE_STAGES, type TideStage } from "@repo/config/sea-words";
 
-import type { characteristicsSchema } from "./characteristics";
+import type { ForecastHour } from "./forecasts/week";
+import { type ShoreWind, shoreWind } from "./shore-wind";
 
 // What the hour's forecast is, laid against what a break says of itself, for the sentence of
-// the sea now on its page: functions that read no clock and no database. Decision 059.
+// the sea now on its page and in its panel: functions that read no clock and no database. The
+// API and the web app both read them, so that the page and the app judge an hour the same way.
+// Decisions 059 and 061.
 
-type Characteristics = z.infer<typeof characteristicsSchema>;
+/** What a break, or a spot of an account's own, says of itself that an hour is judged by. */
+export type SeaWords = {
+  bestTides: readonly string[] | null;
+  bestSwellDirections: readonly string[] | null;
+  bestWindDirections: readonly string[] | null;
+  offshoreDirectionDegrees: number | null;
+  waveSizeMeters: { min: number | null; max: number | null } | null;
+};
 export type SeaHour = ForecastHour;
 export type TideNow = { heightMeters: number; trend: "rising" | "falling" };
 type Extreme = { type: "high" | "low"; heightMeters: number };
@@ -20,9 +27,6 @@ export type Judged = (typeof JUDGED)[number];
 /** What fits the break at this hour, and what does not, among the things it says. */
 export type Verdict = { fits: Judged[]; off: Judged[] };
 
-type CompassPoint = (typeof COMPASS_POINTS)[number];
-type TideStage = (typeof TIDE_STAGES)[number];
-
 /** The point of the compass a bearing is nearest to, as an index of the sixteen. */
 function pointIndex(degrees: number) {
   return Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16;
@@ -32,7 +36,7 @@ function pointIndex(degrees: number) {
 export function nearPoints(degrees: number, points: readonly string[]) {
   const at = pointIndex(degrees);
   return points.some((name) => {
-    const index = COMPASS_POINTS.indexOf(name as CompassPoint);
+    const index = (COMPASS_POINTS as readonly string[]).indexOf(name);
     if (index < 0) return false;
     const apart = Math.abs(at - index);
     return Math.min(apart, 16 - apart) <= 1;
@@ -55,7 +59,10 @@ export function tideStageOf(
 }
 
 /** How the hour's wind meets the shore, where the break knows its offshore direction. */
-export function windAtShoreOf(hour: SeaHour, known: Characteristics): ShoreWind | null {
+export function windAtShoreOf(
+  hour: Pick<SeaHour, "windDirectionDegrees">,
+  known: Pick<SeaWords, "offshoreDirectionDegrees">,
+): ShoreWind | null {
   if (hour.windDirectionDegrees === null || known.offshoreDirectionDegrees === null) return null;
   return shoreWind(hour.windDirectionDegrees, known.offshoreDirectionDegrees);
 }
@@ -65,8 +72,8 @@ export function windAtShoreOf(hour: SeaHour, known: Characteristics): ShoreWind 
  * nothing of, or the hour has no figure for, is not judged.
  */
 export function verdictOf(
-  known: Characteristics,
-  hour: SeaHour,
+  known: SeaWords,
+  hour: Pick<SeaHour, "waveHeightMeters" | "waveDirectionDegrees" | "windDirectionDegrees">,
   tide: { now: TideNow | null; extremes: readonly Pick<Extreme, "type" | "heightMeters">[] } | null,
 ): Verdict {
   const verdict: Verdict = { fits: [], off: [] };

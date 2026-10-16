@@ -22,7 +22,7 @@ import {
 import { breakSchema, describeBreak } from "./breaks";
 import { forecastSourceSchema } from "./forecasts";
 import { describeReading, describeStation, readingSchema, stationSchema } from "./stations";
-import { JUDGED, verdictOf } from "../sea-now";
+import { JUDGED, verdictOf } from "@repo/conditions/sea-now";
 import { tideStationSchema } from "./tides";
 
 // What the public pages of the web app say of the catalogue, each in one call: the page of a

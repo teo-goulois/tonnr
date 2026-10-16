@@ -88,26 +88,11 @@ export const BOARD_TYPES = [
   "tow",
 ] as const;
 export const SEASONS = ["spring", "summer", "autumn", "winter"] as const;
-export const TIDE_STAGES = ["low", "mid_low", "mid", "mid_high", "high"] as const;
-// The sixteen points of the compass, clockwise from north.
-export const COMPASS_POINTS = [
-  "N",
-  "NNE",
-  "NE",
-  "ENE",
-  "E",
-  "ESE",
-  "SE",
-  "SSE",
-  "S",
-  "SSW",
-  "SW",
-  "WSW",
-  "W",
-  "WNW",
-  "NW",
-  "NNW",
-] as const;
+// The stages of the tide and the points of the compass live in @repo/config, for the web app
+// too: decision 061.
+import { COMPASS_POINTS, TIDE_STAGES } from "@repo/config/sea-words";
+
+export { COMPASS_POINTS, TIDE_STAGES };
 
 type CompassPoint = (typeof COMPASS_POINTS)[number];
 

@@ -8,6 +8,7 @@
     "./errors": "./src/errors.ts",
     "./locales": "./src/locales.ts",
     "./names": "./src/names.ts",
+    "./sea-words": "./src/sea-words.ts",
     "./username": "./src/username.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"
   }
