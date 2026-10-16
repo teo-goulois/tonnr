@@ -8,9 +8,10 @@ import {
   DrawerPanel,
   DrawerTitle,
 } from "@repo/ui/components/ui/drawer";
-import { ChevronLeftIcon, XIcon } from "@repo/ui/icon";
+import { ChevronLeftIcon, MaximizeIcon, MinimizeIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import {
+  type CSSProperties,
   type ReactNode,
   type RefObject,
   useEffect,
@@ -54,6 +55,15 @@ function onResize(told: () => void) {
   return () => window.removeEventListener("resize", told);
 }
 
+/** The width of the screen, in pixels, and none on the server. */
+export function useScreenWidth() {
+  return useSyncExternalStore(
+    onResize,
+    () => window.innerWidth,
+    () => undefined,
+  );
+}
+
 // Where what a sheet shows first ends under the sheet's top, in pixels, wherever the panel is
 // scrolled to. Undefined until something is marked, and what it was when the mark is taken away.
 function useFold(popup: HTMLElement | null) {
@@ -94,6 +104,21 @@ function useFold(popup: HTMLElement | null) {
 }
 /** The width of a panel on the side of a wide screen, with its margin, in pixels. */
 export const SIDE_PANEL_WIDTH = 448;
+// The margin the drawer keeps around a panel on the side, in pixels: SIDE_PANEL_WIDTH holds it.
+const SIDE_MARGIN = 16;
+// A panel that is widened leaves this much of the map on its left, where the header has its
+// search, and grows no wider than the last figure, in pixels: the week's table then shows three
+// days or more where the narrow panel shows one.
+const WIDENED = { mapKept: 352, most: 1600 };
+
+/**
+ * What a panel on the side takes of a wide screen, with its margin, in pixels: widened, all of it
+ * but the map's left part, and never less than the narrow panel.
+ */
+export function sidePanelWidth(widened: boolean, screen: number | undefined) {
+  if (!widened || screen === undefined) return SIDE_PANEL_WIDTH;
+  return Math.max(SIDE_PANEL_WIDTH, Math.min(screen - WIDENED.mapKept, WIDENED.most));
+}
 
 export type ViewerDrawerProps = {
   open: boolean;
@@ -120,6 +145,10 @@ export type ViewerDrawerProps = {
   // Told what a phone's sheet beside the map takes of the screen: as it opens, as it is raised
   // or lowered, and as it begins to leave.
   onSheetChange?: (sheet: Sheet) => void;
+  // On a wide screen, a panel that may be widened, and whether it is: a button beside the one
+  // that closes it widens it and narrows it again.
+  widened?: boolean;
+  onWidenedChange?: (widened: boolean) => void;
   // A sheet that is as tall as a phone lets it be whatever it holds, and leaves what scrolls to
   // its content: a search, whose field stays in place while what it found comes and goes.
   fill?: boolean;
@@ -146,6 +175,8 @@ export function ViewerDrawer({
   opensRaised = false,
   onSheetChange,
   fill = false,
+  widened = false,
+  onWidenedChange,
   initialFocus,
   finalFocus,
   children,
@@ -167,6 +198,9 @@ export function ViewerDrawer({
     () => window.innerHeight,
     () => undefined,
   );
+  const screenWidth = useScreenWidth();
+  const widens = wide && onWidenedChange !== undefined;
+  const sideWidth = sidePanelWidth(widens && widened, screenWidth);
   const low =
     screen === undefined
       ? undefined
@@ -211,6 +245,9 @@ export function ViewerDrawer({
         variant={wide ? "inset" : "edge"}
         {...(initialFocus && { initialFocus })}
         {...(finalFocus && { finalFocus })}
+        {...(sideWidth !== SIDE_PANEL_WIDTH && {
+          style: { "--drawer-content-width": `${sideWidth - SIDE_MARGIN}px` } as CSSProperties,
+        })}
         {...(snaps && {
           ref: setPopup,
           onPointerDown: (event) => {
@@ -232,6 +269,8 @@ export function ViewerDrawer({
           fill && "data-[swipe-axis=y]:[--drawer-height:calc(100dvh-6rem)]",
           // The side panel starts under the app's header, and is a little wider than the registry's.
           "data-[swipe-axis=x]:top-14 data-[swipe-axis=x]:sm:[--drawer-content-width:27rem]",
+          // A panel on the side moves its edge as it is widened or narrowed.
+          widens && "data-[swipe-axis=x]:transition-[transform,width,opacity,filter]",
           // How far a partly raised sheet is pushed down. The drawer's own variable does not reach
           // its children, so the panel reads this copy.
           "[--sheet-offset:var(--drawer-snap-point-offset,0px)]",
@@ -267,6 +306,21 @@ export function ViewerDrawer({
             </div>
             <div className="-mr-xs flex shrink-0 items-center gap-xxs max-lg:-mt-1">
               {actions}
+              {widens && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={widened ? m.action_narrow() : m.action_widen()}
+                  aria-pressed={widened}
+                  onClick={() => onWidenedChange(!widened)}
+                >
+                  {widened ? (
+                    <MinimizeIcon data-slot="icon" aria-hidden />
+                  ) : (
+                    <MaximizeIcon data-slot="icon" aria-hidden />
+                  )}
+                </Button>
+              )}
               <DrawerClose
                 aria-label={m.action_close()}
                 render={<Button variant="ghost" size="icon" />}

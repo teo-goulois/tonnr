@@ -1077,6 +1077,8 @@
   "nav_label": "Secciones de la app",
   "nav_map": "Mapa",
   "action_back": "Volver",
+  "action_widen": "Ampliar el panel",
+  "action_narrow": "Reducir el panel",
   "account_settings": "Ajustes",
   "account_sign_in_prompt": "Inicia sesión para guardar spots, ponerles alertas y tener tus ajustes en todos tus dispositivos.",
   "account_alerts_hint": "Cuándo avisarte, a qué horas y por qué vía.",

@@ -60,6 +60,7 @@ import { isTabPanel } from "@/lib/phone-nav";
 import type { Recent } from "@/lib/recents";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import type { Pushing } from "@/lib/use-push";
+import { useStoredState } from "@/lib/use-stored-state";
 import { m } from "@/paraglide/messages.js";
 
 import { AlertsPanel, type AlertsTab } from "./alerts-panel";
@@ -116,7 +117,7 @@ import {
   type TideTimeline,
   periodOf,
 } from "./types";
-import { NO_SHEET, SIDE_PANEL_WIDTH, ViewerDrawer } from "./viewer-drawer";
+import { NO_SHEET, ViewerDrawer, sidePanelWidth, useScreenWidth } from "./viewer-drawer";
 import { ViewerTab } from "./viewer-screen";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -724,12 +725,21 @@ export function Viewer({
   const loadedSpot = selected.spot.data;
   const selectedSpot = loadedSpot?.id === selectedSpotId ? loadedSpot : undefined;
 
+  // Whether the panel of what is selected, or of a buoy, is widened on a wide screen, for its
+  // week's table: kept in the browser.
+  const [widened, setWidened] = useStoredState("tonnr:panel-widened", false, (stored) =>
+    typeof stored === "boolean" ? stored : null,
+  );
+  const screenWidth = useScreenWidth();
+
   // What a drawer covers of the map, so that a station is shown beside it and not under it.
   const padding = useMemo(() => {
     const none = { top: 0, right: 0, bottom: 0, left: 0 };
     if ((!selection && !isAdding) || typeof window === "undefined") return none;
-    return wide ? { ...none, right: SIDE_PANEL_WIDTH } : { ...none, bottom: sheet.height };
-  }, [selection, isAdding, wide, sheet.height]);
+    if (!wide) return { ...none, bottom: sheet.height };
+    // The panel that adds a spot is never widened.
+    return { ...none, right: sidePanelWidth(widened && !isAdding, screenWidth) };
+  }, [selection, isAdding, wide, sheet.height, widened, screenWidth]);
 
   const { shown, drawn } = useShown(selection !== undefined, {
     id: selectedId,
@@ -1460,6 +1470,8 @@ export function Viewer({
         alongside
         opensRaised={identity !== pressed}
         onSheetChange={setSelectionSheet}
+        widened={widened}
+        onWidenedChange={setWidened}
         onRest={rest.onRest}
         // An alert that is written and not saved keeps its panel open until it is answered for.
         mayDismiss={mayDismissSelection}
@@ -1599,6 +1611,8 @@ export function Viewer({
           if (!open) onOpenBuoy(undefined);
         }}
         wide={wide}
+        widened={widened}
+        onWidenedChange={setWidened}
         onRest={buoyRest.onRest}
         title={
           shownBuoy.shown.history.data?.station.name ??

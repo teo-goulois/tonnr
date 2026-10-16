@@ -1077,6 +1077,8 @@
   "nav_label": "Secções da app",
   "nav_map": "Mapa",
   "action_back": "Voltar",
+  "action_widen": "Alargar o painel",
+  "action_narrow": "Estreitar o painel",
   "account_settings": "Definições",
   "account_sign_in_prompt": "Inicia sessão para guardares spots, criares alertas para eles, e teres as tuas definições em todos os teus dispositivos.",
   "account_alerts_hint": "Quando te avisar, a que horas, e de que forma.",

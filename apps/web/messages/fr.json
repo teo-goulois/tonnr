@@ -1077,6 +1077,8 @@
   "nav_label": "Sections de l'app",
   "nav_map": "Carte",
   "action_back": "Retour",
+  "action_widen": "Agrandir le panneau",
+  "action_narrow": "Réduire le panneau",
   "account_settings": "Réglages",
   "account_sign_in_prompt": "Connecte-toi pour enregistrer des spots, y poser des alertes, et retrouver tes réglages sur tous tes appareils.",
   "account_alerts_hint": "Quand te prévenir, à quelles heures, et par quel moyen.",

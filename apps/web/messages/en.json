@@ -1077,6 +1077,8 @@
   "nav_label": "Sections of the app",
   "nav_map": "Map",
   "action_back": "Back",
+  "action_widen": "Widen the panel",
+  "action_narrow": "Narrow the panel",
   "account_settings": "Settings",
   "account_sign_in_prompt": "Sign in to save spots, set alerts on them, and find your settings on all your devices.",
   "account_alerts_hint": "When to tell you, at what hours, and by what way.",
