@@ -147,7 +147,7 @@ export function SeaSentence({ page }: { page: SpotPage }) {
           {verdict.off.length > 0 && m.page_now_off({ parts: listOf(verdict.off) })}
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-x-m gap-y-xs">
+      <div>
         <Link
           to="/app"
           search={{ break: page.break.id, create: "alert" }}
@@ -156,9 +156,6 @@ export function SeaSentence({ page }: { page: SpotPage }) {
           <BellIcon data-slot="icon" aria-hidden />
           {m.page_now_alert()}
         </Link>
-        <span className="text-s text-neutral-7">
-          {m.page_now_for({ time: formatClock(hour.time, zone) })}
-        </span>
       </div>
     </section>
   );

@@ -18,7 +18,7 @@ The catalogue says of 2,407 breaks what they like: the directions of swell and w
 - It is written as the editor writes an alert, `apps/web/src/components/alerts/`: grey prose, each figure in the darker type with the dotted line under it, a direction as an arrow then its name with `Bearing`, the tide's way with `TideTrend`. The words are messages of their own, in the four languages, and they borrow the editor's where the editor has them.
 - A second line judges the hour by what the break itself says, and by nothing else: the swell within a point of the compass of a best swell direction; the height within the size at which the break works; the wind off the shore or across it off the shore, or within a point of a best wind direction; the stage of the tide, read from the height now between the next low and the next high water, among the best tides. What fits is named, then what does not. A thing the break says nothing of is not judged, and a break that says nothing is given the facts alone. There is no grade and no adjective: the words are the break's own, laid against the hour.
 - The rules read no clock and no database: `packages/api/src/sea-now.ts`, with its tests, since the words of the catalogue live beside the schema. The API gives the page the hour, how its wind meets the shore and the verdict, as `week.now`, and the tide's height and way, as `tide.now`: `hourOf` in `packages/conditions/src/forecasts/week.ts` picks the hour from the kept forecast, and `nextTides` in `packages/api/src/pages.ts` reads the height now from the same prediction as the extremes. The web app writes them and judges nothing.
-- The card says the hour the forecast is written for, so that a page served from the Worker's cache, up to an hour old, and a forecast refreshed every three hours are read for what they are.
+- The card names no hour: Téo chose, on reading it, that the week's table, which says when the forecast was fetched, is enough, and that a line beside the button read as the button's own.
 - With no forecast kept for the cell, the card is not drawn: the week already says that the forecast is on the map. A break that is not listed has no forecast kept, and so no sentence.
 
 ### The button
@@ -37,6 +37,6 @@ The catalogue says of 2,407 breaks what they like: the directions of swell and w
 ## Consequences
 
 - The page of every listed break gains a sentence that changes every three hours and a button to the product's own feature. The sitemap and the head do not change.
-- A reader on a cached page reads a sentence up to an hour older than the hour it names; the card says the hour.
+- A reader on a cached page reads a sentence up to an hour old, and a forecast refreshed every three hours: "right now" is within a few hours.
 - An alert begun from a page makes a spot of the break in the account, named after it, as the "+" of the map would: the account then has a spot it did not name itself, which it may rename.
 - The design system shows the card, with and without the break's words, and with the button.
