@@ -1,0 +1,55 @@
+# 061. One panel of the forecast, which shows less or more
+
+Status: proposed on 2026-10-16. Téo asked for "three different views in the app, by your level and the details you want". What he kept instead of three screens is one panel that shows more or less, by a setting. Nothing here is built on `main`: the prototype lives on `prototype/forecast-density`, and this record is proposed until he says. [Decision 060](060-learn.md) is the other thread's, for `/learn`.
+
+## Context
+
+The panel of a surf break, of a spot or of a buoy ([decision 040](040-phone-navigation.md), `apps/web/src/components/viewer/details/`) shows one thing to everyone: four tiles for now, with the energy, the buoy's figure beside the model's, the nearest buoy and the nearest wind station, the lanes of a buoy, the week as a table of twelve rows, the swell apart and the gusts among them, and the tide. It was settled with Téo on 2026-10-09 for a reader who reads a table: "as little text as the panel can do with".
+
+A surfer who begins reads none of that. The sea's energy in kilojoules, a peak period and a second swell say nothing to them, and on a phone the four tiles are the whole of what the sheet shows before it is raised. What such a reader asks is what the page of a break answers since [decision 059](059-the-sea-now-in-a-sentence.md): what the sea does now, in a sentence, and whether it is what the break likes. The app does not say it: the page does, from the forecast the worker keeps, and the app, which has the forecast, the tide and the break's own words in hand, judges nothing.
+
+Three screens, one for each kind of reader, would be three trees of components to keep alike at each change, and would name the reader by a level. Windguru and Surfline each offer one table and a paid one; neither lets a reader take figures away.
+
+## Decision
+
+### Three densities of one panel
+
+- The panel of the forecast is one tree of components with one prop, `density`. It shows the essentials, the details, or everything. The three are named by what they show, never by the surfer's level: "Essentials", "Details" and "Everything" in English, "L'essentiel", "Le détail" and "Tout" in French. Téo's first names were "Essentiel, Détaillé, Expert": the third names a surfer, and is not kept. The names are his to change.
+- **Essentials** says the sea in words. Before the sheet is raised: the sea now in one sentence, as the page of a break writes it (decision 059), with what fits the place's own words and what does not. Then the days ahead, one line a day with the biggest wave on the color of its height and the wind at noon named by how it meets the shore, as the page's week is written; the tide's curve; and the credits. No tile, no table, no lane, no energy.
+- **Details** is the panel as it was, without what Téo named as the expert's: three tiles for now, the waves, their period and the wind, with the nearest wind station and how its wind meets the shore; the lanes of a buoy for the same three; the week's table with the waves, their period and their direction, the wind and its direction, the clouds, the rain and the air; the tide; the credits.
+- **Everything** is the panel as it was, whole: the energy as a fourth tile, a lane and a row; the swell apart from the wind sea, and where it comes from; the gusts; the buoy's figure beside the model's, and the model's beside the buoy's in the week's table; the buoy's other readings behind "More"; the nearest buoy; the note on how far the model stands from the buoy.
+- The credits stay in every density, since the licences of decision 036 ask for them, and so does the line that says which model answered: it says of a period whether it is the peak's or the mean one.
+- The sentence in the app reads what the tiles read: a measurement where there is a live one, the buoy's waves and the station's wind, and the model otherwise. The page reads the kept forecast alone, since it has nothing else. The verdict reads the break's words from `breaks.get`, or a spot's own from `spots.get`, the forecast's hour from `forecasts.get`, and the tide's height now from its timeline, with the next low and high water from its extremes: nothing is asked of the API that the panel did not ask already. At a buoy, which has no words, the sentence is drawn and nothing is judged.
+- The rules of decision 059 move from `packages/api/src/sea-now.ts` to `packages/conditions/src/sea-now.ts`, with their tests, so that the API and the web app judge an hour the same way, and the API re-exports nothing: `pages.ts` imports them there. The two lists they read, the points of the compass and the stages of the tide, move from `packages/db/src/schema/spots.ts` to `packages/config/src/sea-words.ts`, which the schema reads them from: the web app imports no module of the database, and `packages/conditions` keeps knowing nothing of it. Chosen here, for one implementation of the rules.
+
+### Where the setting lives
+
+- The density is kept as the units are ([decision 033](033-units.md)): in the account, so that it is the same on every device, and in the browser, so that a page opens in it before the account has answered, and for a visitor. The account's answer wins.
+- It is a row of a new table, `display_preferences`, one an account, with `density` and `savedAt`, read and written by `preferences.getDisplay` and `preferences.saveDisplay`, which take a session and no key, as the units do, and are not part of the versioned API. An account without a row has chosen nothing and reads the details. The palette of the week's table, which the browser alone keeps today, may join that row later: it is the same kind of choice. The table is not `unit_preferences`: a density is not a unit, and a column there would make the table's name lie.
+- Nothing is asked at sign-up. A new account, and every account that exists, reads the details, which is the panel as it was.
+- The setting is a line of the account's panel, under "Display", beside the theme and the palette: three segments. It is also changed in place, at the end of the panel, by "Show less" and "Show more", two quiet buttons that go one step down or up, so that a reader who finds the panel bare or crowded fixes it where they are. A change is seen at once and saved after; when the account does not take it, the panel goes back and says so, as the units do.
+- Phone first: the sheet of a phone shows what the density marks with `SHEET_FOLD`. The essentials mark their sentence, the two others their tiles. A wide screen shows the same panel in its drawer.
+
+### What a preference of the account costs
+
+A new preference is a table and its migration, which both containers apply at their start; two procedures, counted by the hour like every call and named in the list of `access.db.test.ts`; an event, `density_updated`, declared on the procedure that writes and inventoried in `docs/analytics.md`; one more query when the app opens with an account, beside the one of the units; and in the web app a store and a hook, as `units.ts` and `units-account.tsx` are. The units of decision 033 paid the same. A column of `unit_preferences` would cost no procedure and no query, and was rejected above.
+
+## Rejected
+
+- **Three screens**, one a reader. Each would be designed whole. But three trees to keep alike at each change, and a reader who grows out of one screen would find another product in the next.
+- **A density by the level a surfer says at sign-up.** Nothing to choose later. But a level names the surfer, nobody says theirs truly, and the product does not ask at sign-up what it can learn from a press.
+- **A density of the browser alone**, as the palette is. No table and no procedures. But a reader who chose the essentials on their phone would get a table of twelve rows on their laptop, which is the reader the essentials are for.
+- **Folding the parts one by one**, each behind its own "More". No setting at all. But a reader would press four times at each spot, and the sheet of a phone would still open on the tiles.
+- **A grade in the essentials.** Decision 059 rejected it for the page, and the app says the same words as the page.
+- **Judging in the web app with rules of its own.** No change to the API. But two implementations of decision 059 would drift, and the page and the app would disagree at the same hour.
+
+## Consequences
+
+- The panel's props gain `density`, and every part of it that is not drawn at a density says so where it is drawn, in `details.tsx`: `NowTiles` takes which keys, `ForecastGrid` which rows, `MetricLanes` which lanes. A new part of the panel says which densities draw it.
+- The sentence of the sea now is a component of the viewer, `SeaNow` in `details/sea-now.tsx`, which the page's `SeaSentence` does not share yet: the page reads the API's `week.now`, and the app reads what it has in hand. Writing one from the other is a change of the pages, which this prototype leaves alone.
+- The days ahead in the essentials come from `packages/conditions/src/forecasts/week.ts`, which summarizes a day as the page's week does and reads no clock: the web app imports it.
+- The design system shows the panel's sentence at a break with words, at one without, and at a buoy, and the account's line.
+- The API is deployed before the web app: a web app that asks an older API for the display gets an error and reads the details, as it reads in knots for the units.
+- The messages of the three names, of the sentence's words that the page does not have and of the two buttons are written in the four languages.
+- Not built: the mobile app of decision 014 reads the same two routes.
+- Not seen on a phone yet, and not deployed: it is a prototype on its branch, and `main` does not have it.

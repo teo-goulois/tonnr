@@ -63,3 +63,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [057. A public page for each surf break](057-public-pages-of-breaks.md)
 - [058. Forecasts read from the models' open files](058-forecasts-from-model-files.md)
 - [059. The sea now, in a sentence, on the page of a surf break](059-the-sea-now-in-a-sentence.md)
+- [061. One panel of the forecast, which shows less or more](061-a-panel-that-shows-less-or-more.md)
