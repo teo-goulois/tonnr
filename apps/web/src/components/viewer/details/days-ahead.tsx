@@ -5,7 +5,7 @@ import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useMemo } from "react";
 
-import { formatDay, formatSeconds, toKnots } from "@/lib/format";
+import { formatDay, toKnots } from "@/lib/format";
 import {
   type ScaleStop,
   WAVE_HEIGHT_SCALE,
@@ -17,12 +17,14 @@ import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../bearing";
+import { DirectionArrow } from "../map-markers";
 import type { Forecast } from "../types";
 import { SHORE_WIND_NAMES } from "./parts";
 
 // The days ahead in words, for the essentials of a panel: one line a day, the biggest wave on
-// the color of its height and the wind at noon named by how it meets the shore, as the page of a
-// break writes its week. Where the place has words, the swell's direction and the wind are laid
+// the color of its height and where it comes from, and the wind at noon named by how it meets the
+// shore, as the page of a break writes its week, without the period: the line is to be read at
+// a glance, and the sentence above says today's. Where the place has words, the swell's direction and the wind are laid
 // against them day by day, on a green ground where they fit and a light red one where they do
 // not: Téo asked that the week be as visual as it can on 2026-10-16. Decision 061.
 
@@ -152,11 +154,6 @@ export function DaysAhead({
                     <SeaChip scale={WAVE_HEIGHT_SCALE} value={day.wave.heightMeters}>
                       {formatHeight(day.wave.heightMeters)}
                     </SeaChip>
-                    {day.wave.peakPeriodSeconds !== null && (
-                      <span className="text-neutral-7 tabular-nums">
-                        {formatSeconds(day.wave.peakPeriodSeconds)}
-                      </span>
-                    )}
                     {day.wave.directionDegrees !== null && (
                       <Judged verdict={verdict} thing="swell">
                         <Bearing degrees={day.wave.directionDegrees} />
@@ -173,14 +170,22 @@ export function DaysAhead({
                     <SeaChip scale={WIND_SPEED_SCALE} value={wind}>
                       {formatWind(wind)}
                     </SeaChip>
-                    {day.wind.directionDegrees !== null && (
-                      <Bearing degrees={day.wind.directionDegrees} className="text-neutral-7" />
-                    )}
-                    {/* Named by the shore where the place knows it. */}
-                    {atShore && (
+                    {/* Named by the shore where the place knows it, with the way it blows; by
+                        its point alone otherwise. */}
+                    {atShore && day.wind.directionDegrees !== null ? (
                       <Judged verdict={verdict} thing="wind">
+                        <DirectionArrow
+                          fromDegrees={day.wind.directionDegrees}
+                          className="size-[0.85em]"
+                        />
                         {SHORE_WIND_NAMES[atShore]()}
                       </Judged>
+                    ) : (
+                      day.wind.directionDegrees !== null && (
+                        <Judged verdict={verdict} thing="wind">
+                          <Bearing degrees={day.wind.directionDegrees} />
+                        </Judged>
+                      )
                     )}
                   </span>
                 ) : (
