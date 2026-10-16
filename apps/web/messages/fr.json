@@ -1670,8 +1670,6 @@
   "learn_a_alert_least": "Note minimale",
   "learn_a_alert_hint": "Monte la note minimale : seules les meilleures sessions restent, et l’alerte se resserre sur ce que tu aimes vraiment.",
   "page_week_learn": "Nouveau dans les prévisions ? Apprends à en lire une, en cinq leçons.",
-  "landing_learn_title": "Apprends à lire une {forecast}.",
-  "landing_learn_word": "prévision",
-  "landing_learn_more": "Trois guides, une démo à chaque leçon, du premier regard à l’alerte faite de tes propres sessions.",
-  "landing_learn_glossary": "explique chaque mot que les pages emploient, et d’où vient la chose."
+  "landing_alert_learn": "Ces chiffres te parlent peu ?",
+  "landing_alert_learn_link": "Cinq leçons, dix minutes."
 }

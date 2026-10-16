@@ -7,15 +7,13 @@ import { LandingFeatures } from "./landing-features";
 import { LandingFooter } from "./landing-footer";
 import { LandingHeader } from "./landing-header";
 import { LandingHero } from "./landing-hero";
-import { LandingLearn } from "./landing-learn";
 import { LandingNext } from "./landing-next";
 import { LandingSources } from "./landing-sources";
 import { LandingStory } from "./landing-story";
 
 /**
- * The page a visitor lands on: what the product is, what it does, how to read a forecast, who
- * makes it and what he thinks of next, then where its figures come from and that a program
- * reads it too.
+ * The page a visitor lands on: what the product is, what it does, who makes it and what he
+ * thinks of next, then where its figures come from and that a program reads it too.
  */
 export function LandingPage() {
   const api = apiOrigin(ENV.VITE_SERVER_URL);
@@ -29,7 +27,6 @@ export function LandingPage() {
 
         <LandingAlert />
         <LandingFeatures />
-        <LandingLearn />
         <LandingStory />
         <LandingNext />
         <LandingSources />

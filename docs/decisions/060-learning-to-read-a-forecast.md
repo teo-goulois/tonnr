@@ -70,7 +70,7 @@ The advanced guide is for a reader who wants to know what the figures are made o
 
 - The sentence of a break's page (decision 059): each underlined part leads to the lesson that explains it, the height to `#height`, the period to `#period`, the waves' direction to `#swell`, the wind's speed, direction and name to `#wind`, the tide to `#tide`, and the names in "What fits this spot" the same way. The links are plain anchors in the reader's language, as the pages link one another, since a page is served from the Worker's cache. A line under the week's table leads to the beginner's guide for whoever reads a table for the first time.
 - Each guide ends on the way to the spots, `/spots`, and to the map, and the advanced guide on the log of sessions and an alert. Each lesson that names a thing the app shows links to it where a page shows it.
-- The landing gains a part, `LandingLearn`, after what the product does and before who makes it: the three levels as cards, each with its lessons' names, and a sentence that says what the guides are for. The header's links and the footer's "Product" column gain the guides, and the command palette the five pages.
+- The landing gains one line, under the alert's sentence, whose figures are the beginner's lessons: a question and the way to the guide. The header's links and the footer's "Product" column gain the guides, and the command palette the five pages.
 - `/llms.txt` names the guides: a program that reads the site is told how the figures are read.
 
 ### Head, sitemap and pictures
@@ -98,6 +98,7 @@ The advanced guide is for a reader who wants to know what the figures are made o
 - **Real figures in the demos**, from the forecast kept for a break. A lesson needs an example that shows what it says whatever the sea does, and a demo that asks the API is counted to its caller (decision 053).
 - **A quiz with a score kept in the account.** Nothing of the guides is kept: a first version has no account in it, and a lesson that ends on a question does what a quiz would.
 - **A link only in the footer.** The sentence is where a reader meets the figures; the guide is for that moment.
+- **A part of the landing**, the three levels as cards with their lessons named. Built first, and taken out at Téo's word the same evening: the landing was long already, the cards said what the hub says one link away, and the guides are not a thing the product does, as decision 057 said of the pages of the breaks, which have no card either. A search engine gains nothing from it that the header's link, on every page, does not give.
 - **A definition in a tooltip alone**, with no page behind it. A search engine reads no tooltip, and a reader who wants the whole entry would have nowhere to go. The popover shows the entry's start, and the page holds it.
 - **A unit picker of the guides' own**, kept apart from the account's. Two choices would disagree, and the reader who picked feet on a lesson would find metres on the map.
 

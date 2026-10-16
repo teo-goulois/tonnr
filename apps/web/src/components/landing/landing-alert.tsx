@@ -18,7 +18,9 @@ import {
   WIND_SPEED_SCALE,
   scaleColor,
 } from "@/lib/sea-scales";
+import { guidePath } from "@/lib/learn";
 import { m } from "@/paraglide/messages.js";
+import { localizeHref } from "@/paraglide/runtime.js";
 
 import {
   Card,
@@ -209,6 +211,16 @@ export function LandingAlert() {
               <TideTrend trend={EXAMPLE.tideTrend} className={underlined} />
             </Part>
             , {m.alert_says_for()} <Part at={7}>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
+          </p>
+          {/* The figures of the sentence are the lessons of the beginner's guide: decision 060. */}
+          <p className="mt-m text-s text-neutral-7">
+            {m.landing_alert_learn()}{" "}
+            <a
+              href={localizeHref(guidePath("beginner"))}
+              className="focus-ring rounded-xs font-medium text-neutral-10 underline decoration-neutral-5 underline-offset-4 transition-[text-decoration-color] duration-(--motion-duration) hover:decoration-neutral-10"
+            >
+              {m.landing_alert_learn_link()}
+            </a>
           </p>
         </Card>
         <ul
