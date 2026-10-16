@@ -1,10 +1,17 @@
 import { APP_NAME } from "@repo/config/app";
 
 import { formatSeconds } from "@/lib/format";
-import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import { formatDistance, formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
-import { EnergyDemo, FetchDemo, NeighboursDemo, WeekDemo, WindSeaDemo } from "./demos-intermediate";
+import {
+  EnergyDemo,
+  FetchDemo,
+  LIGHT_WIND_KNOTS,
+  NeighboursDemo,
+  WeekDemo,
+  WindSeaDemo,
+} from "./demos-intermediate";
 import { GuidePage } from "./guide-page";
 
 // The intermediate guide: for a reader who surfs and wants to choose their day. Decision 060.
@@ -19,7 +26,11 @@ export function IntermediateGuide() {
           id: "swell-and-wind-sea",
           paragraphs: [
             m.learn_i_windsea_p1(),
-            m.learn_i_windsea_p2({ name: APP_NAME }),
+            m.learn_i_windsea_p2({
+              name: APP_NAME,
+              total: formatHeight(2),
+              swell: formatHeight(1),
+            }),
             m.learn_i_windsea_p3(),
           ],
           demo: <WindSeaDemo />,
@@ -42,7 +53,11 @@ export function IntermediateGuide() {
         },
         {
           id: "fetch",
-          paragraphs: [m.learn_i_fetch_p1(), m.learn_i_fetch_p2(), m.learn_i_fetch_p3()],
+          paragraphs: [
+            m.learn_i_fetch_p1(),
+            m.learn_i_fetch_p2({ period: formatSeconds(15), distance: formatDistance(1000) }),
+            m.learn_i_fetch_p3(),
+          ],
           demo: <FetchDemo />,
           keep: m.learn_i_fetch_keep(),
         },
@@ -50,7 +65,7 @@ export function IntermediateGuide() {
           id: "week",
           paragraphs: [
             m.learn_i_week_p1(),
-            m.learn_i_week_p2({ wind: formatWind(10) }),
+            m.learn_i_week_p2({ wind: formatWind(LIGHT_WIND_KNOTS) }),
             m.learn_i_week_p3({ name: APP_NAME }),
           ],
           demo: <WeekDemo />,
@@ -59,7 +74,7 @@ export function IntermediateGuide() {
         {
           id: "neighbours",
           paragraphs: [
-            m.learn_i_neighbours_p1(),
+            m.learn_i_neighbours_p1({ distance: formatDistance(5) }),
             m.learn_i_neighbours_p2(),
             m.learn_i_neighbours_p3(),
           ],

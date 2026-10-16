@@ -1,9 +1,10 @@
 import { SIZES, SURF_FACES } from "@repo/conditions/sessions/sizes";
 import { shoreWind } from "@repo/conditions/shore-wind";
 import { SwellWindowIcon } from "@repo/ui/icon";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { TideTrend } from "@/components/alerts/tide-trend";
+import { useArrivalOf } from "@/components/landing/landing-parts";
 import { SurfSizePicture, sizeName } from "@/components/sessions/surf-size";
 import { UnitTabs } from "@/components/shared/units-settings";
 import { Bearing } from "@/components/viewer/bearing";
@@ -38,6 +39,26 @@ import {
 // The demos of the beginner's guide, one for each lesson, over invented figures: what the sea's
 // sentence writes, under the reader's hand. Every figure is written in the reader's units, and
 // the colors are those the map gives the same figure. Decision 060.
+//
+// While a demo's scene is in view, it moves a little, as the landing's cards do: the swell's
+// fronts drift to the shore, the wind gusts, the waves of a period roll, the tide's water
+// breathes. That motion is drawn with SVG animation elements, rendered only while `moving` is
+// true, so the server draws every scene still, a reader who asked for no motion sees it still,
+// and the slider stays the only thing that changes a figure.
+
+/** A scene's element, and whether its own motion may play: in view, and motion allowed. */
+function useSceneMotion() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { moving } = useArrivalOf(ref);
+  return { ref, moving };
+}
+
+// The easing of what goes and comes back, as the theme's motion eases.
+const BACK_AND_FORTH = {
+  calcMode: "spline",
+  keyTimes: "0;0.5;1",
+  keySplines: "0.4 0 0.6 1;0.4 0 0.6 1",
+};
 
 /** The surfer every size is drawn against, in metres. */
 const SURFER_METERS = 1.75;
@@ -104,16 +125,20 @@ const FIRST_CREST = 40;
 /** The waves of a swell drawn to its period, at one height, with the energy they carry. */
 export function PeriodDemo() {
   useUnits();
+  const { ref, moving } = useSceneMotion();
   const [seconds, setSeconds] = useState(10);
   const { width, height, base, amplitude } = PERIOD_SCENE;
   const wavelength = spacing(seconds);
+  // The sea is drawn from one wavelength before the scene, so that it rolls by a wavelength and
+  // starts again where it was. A chop's ripples repeat with each wave for the same reason.
+  const surface = (x: number) => {
+    const phase = ((x - FIRST_CREST) / wavelength) * Math.PI * 2;
+    const chop = seconds < 8 ? Math.sin(phase * 5) * 3 : 0;
+    return rounded(base - Math.cos(phase) * amplitude - chop);
+  };
   const points: string[] = [];
-  for (let x = 0; x <= width; x += 3) {
-    const ripple = seconds < 8 ? 1 - 0.25 * Math.sin(x * 1.3) : 1;
-    points.push(
-      `${x} ${rounded(base - Math.cos(((x - FIRST_CREST) / wavelength) * Math.PI * 2) * amplitude * ripple)}`,
-    );
-  }
+  for (let x = -wavelength; x < width; x += 3) points.push(`${x} ${surface(x)}`);
+  points.push(`${width} ${surface(width)}`);
   const energy = waveEnergy(1, seconds) ?? 0;
   const color = scaleColor(WAVE_PERIOD_SCALE, seconds);
   const verdict =
@@ -125,43 +150,57 @@ export function PeriodDemo() {
   const ruler = { from: FIRST_CREST, to: rounded(FIRST_CREST + wavelength) };
   return (
     <Demo>
-      <Scene viewBox={`0 0 ${width} ${height}`}>
-        <path
-          d={`M${points.join("L")}L${width} ${height}L0 ${height}Z`}
-          fill={color}
-          opacity={0.8}
-        />
-        <g className="fill-neutral-7 stroke-neutral-7">
-          <line x1={ruler.from} y1={32} x2={ruler.to} y2={32} />
-          <line x1={ruler.from} y1={27} x2={ruler.from} y2={37} />
-          <line x1={ruler.to} y1={27} x2={ruler.to} y2={37} />
-          <line
-            x1={ruler.from}
-            y1={37}
-            x2={ruler.from}
-            y2={base - amplitude}
-            strokeDasharray="2 3"
-            opacity={0.5}
-          />
-          <line
-            x1={ruler.to}
-            y1={37}
-            x2={ruler.to}
-            y2={base - amplitude}
-            strokeDasharray="2 3"
-            opacity={0.5}
-          />
-          <text
-            x={rounded((ruler.from + ruler.to) / 2)}
-            y={24}
-            fontSize={10}
-            textAnchor="middle"
-            stroke="none"
+      <div ref={ref}>
+        <Scene viewBox={`0 0 ${width} ${height}`}>
+          <path
+            d={`M${points.join("L")}L${width} ${height}L${-wavelength} ${height}Z`}
+            fill={color}
+            opacity={0.8}
           >
-            {formatSeconds(seconds)}
-          </text>
-        </g>
-      </Scene>
+            {/* A wave goes one wavelength in one period: here in half its time, to the right. */}
+            {moving && (
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                from="0 0"
+                to={`${wavelength} 0`}
+                dur={`${seconds / 2}s`}
+                repeatCount="indefinite"
+              />
+            )}
+          </path>
+          <g className="fill-neutral-7 stroke-neutral-7">
+            <line x1={ruler.from} y1={32} x2={ruler.to} y2={32} />
+            <line x1={ruler.from} y1={27} x2={ruler.from} y2={37} />
+            <line x1={ruler.to} y1={27} x2={ruler.to} y2={37} />
+            <line
+              x1={ruler.from}
+              y1={37}
+              x2={ruler.from}
+              y2={base - amplitude}
+              strokeDasharray="2 3"
+              opacity={0.5}
+            />
+            <line
+              x1={ruler.to}
+              y1={37}
+              x2={ruler.to}
+              y2={base - amplitude}
+              strokeDasharray="2 3"
+              opacity={0.5}
+            />
+            <text
+              x={rounded((ruler.from + ruler.to) / 2)}
+              y={24}
+              fontSize={10}
+              textAnchor="middle"
+              stroke="none"
+            >
+              {formatSeconds(seconds)}
+            </text>
+          </g>
+        </Scene>
+      </div>
       <Readout
         figure={
           <Moving>
@@ -172,10 +211,13 @@ export function PeriodDemo() {
       />
       <div className="flex items-baseline justify-between gap-s text-s">
         <span className="text-neutral-7">{m.learn_energy()}</span>
-        <span
-          className="font-medium tabular-nums"
-          style={{ color: scaleColor(WAVE_ENERGY_SCALE, energy * 3) }}
-        >
+        {/* The scale's color on a dot: its lightest steps are too pale for a figure. */}
+        <span className="inline-flex items-center gap-xs font-medium text-neutral-10 tabular-nums">
+          <span
+            aria-hidden
+            className="size-2 rounded-full"
+            style={{ backgroundColor: scaleColor(WAVE_ENERGY_SCALE, energy * 3) }}
+          />
           <Moving>{`${formatNumber(energy, 0)} kJ/m`}</Moving>
         </span>
       </div>
@@ -198,46 +240,82 @@ const WINDOW_BEARINGS = [225, 247.5, 270, 292.5, 315];
 const OFFSHORE_FROM = 90;
 const SCENE = { width: 320, height: 170 };
 const SHORE = { x: 225, y: 85 };
+// The fronts of a swell: four lines across its way, which come in from the open sea, cross the
+// center of the scene and fade before the shore.
+const FRONTS = [0, 1, 2, 3];
+const FRONT_GAP = 35;
+const FRONT_TRIP_SECONDS = 8;
 
 /** A swell to turn in front of a beach that faces west: it enters the window, or passes offshore. */
 export function SwellDemo() {
+  const { ref, moving } = useSceneMotion();
   const [degrees, setDegrees] = useState(270);
   const enters = within(degrees, WINDOW.from, WINDOW.to);
   const color = enters ? scaleColor(WAVE_HEIGHT_SCALE, 0.5) : "var(--neutral-6)";
   return (
     <Demo>
-      <Scene viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}>
-        <Coast landWord={m.learn_land()} />
-        <circle
-          cx={SHORE.x}
-          cy={SHORE.y}
-          r={60}
-          fill="none"
-          strokeWidth={6}
-          className="stroke-neutral-4"
-        />
-        <path
-          d={arcPath(SHORE.x, SHORE.y, 60, WINDOW.from, WINDOW.to)}
-          fill="none"
-          stroke={scaleColor(WAVE_HEIGHT_SCALE, 0.5)}
-          strokeWidth={6}
-          strokeLinecap="round"
-        />
-        {[0, 1, 2, 3].map((index) => {
-          const x = 40 + index * 35;
-          return (
-            <path
-              key={index}
-              d={`M${x} 30Q${x + 15} 85 ${x} 140`}
-              stroke={color}
-              strokeWidth={2}
-              fill="none"
-              opacity={enters ? 0.55 - index * 0.1 : 0.15}
-            />
-          );
-        })}
-        <Arrow cx={110} cy={85} fromDegrees={degrees} length={34} color={color} />
-      </Scene>
+      <div ref={ref}>
+        <Scene viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}>
+          <Coast landWord={m.learn_land()} />
+          <circle
+            cx={SHORE.x}
+            cy={SHORE.y}
+            r={60}
+            fill="none"
+            strokeWidth={6}
+            className="stroke-neutral-4"
+          />
+          <path
+            d={arcPath(SHORE.x, SHORE.y, 60, WINDOW.from, WINDOW.to)}
+            fill="none"
+            stroke={scaleColor(WAVE_HEIGHT_SCALE, 0.5)}
+            strokeWidth={6}
+            strokeLinecap="round"
+          />
+          {/* The fronts are drawn for a swell from the west, then turned to where it comes from. */}
+          <g transform={`rotate(${degrees - 270} 110 85)`}>
+            {FRONTS.map((index) => {
+              const x = 40 + (moving ? 0 : index * FRONT_GAP);
+              const strongest = enters ? 0.55 : 0.15;
+              return (
+                <path
+                  key={index}
+                  d={`M${x} 30Q${x + 15} 85 ${x} 140`}
+                  stroke={color}
+                  strokeWidth={2}
+                  fill="none"
+                  opacity={enters ? 0.55 - index * 0.1 : 0.15}
+                >
+                  {/* Each front travels the four gaps in turn, a quarter of a trip behind the one
+                    before it, so that the four stand where the still scene draws them. */}
+                  {moving && (
+                    <>
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        from="0 0"
+                        to={`${FRONTS.length * FRONT_GAP} 0`}
+                        dur={`${FRONT_TRIP_SECONDS}s`}
+                        begin={`${(-index * FRONT_TRIP_SECONDS) / FRONTS.length}s`}
+                        repeatCount="indefinite"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values={`0;${strongest};${rounded(strongest * 0.45)};0`}
+                        keyTimes="0;0.15;0.8;1"
+                        dur={`${FRONT_TRIP_SECONDS}s`}
+                        begin={`${(-index * FRONT_TRIP_SECONDS) / FRONTS.length}s`}
+                        repeatCount="indefinite"
+                      />
+                    </>
+                  )}
+                </path>
+              );
+            })}
+          </g>
+          <Arrow cx={110} cy={85} fromDegrees={degrees} length={34} color={color} />
+        </Scene>
+      </div>
       <Readout
         figure={
           <span className="inline-flex items-center gap-xxs">
@@ -270,10 +348,17 @@ const MESS = {
   onshore: 1,
 } as const;
 const TOO_STRONG_KNOTS = 20;
+// The gusts drawn beside the arrow, across the wind's way, from where they start.
+const GUSTS = [
+  { across: -20, start: 0 },
+  { across: 6, start: 0.45 },
+  { across: 22, start: 0.75 },
+];
 
 /** A wind to turn and to strengthen in front of the same beach: it is named from the shore. */
 export function WindDemo() {
   useUnits();
+  const { ref, moving } = useSceneMotion();
   const [degrees, setDegrees] = useState(OFFSHORE_FROM);
   const [knots, setKnots] = useState(8);
   const name = shoreWind(degrees, OFFSHORE_FROM);
@@ -288,8 +373,15 @@ export function WindDemo() {
     const chop = mess ? Math.sin(x * 2.1) * 7 * mess + Math.sin(x * 0.7) * 5 * mess : 0;
     points.push(`${x} ${rounded(120 - swell - chop)}`);
   }
+  // Where the wind goes, as a step of the scene, for the arrow's push.
+  const goes = ((degrees + 180) * Math.PI) / 180;
+  const push = Math.min(4, 1 + knots / 10);
+  const pushed = `${rounded(Math.sin(goes) * push)} ${rounded(-Math.cos(goes) * push)}`;
+  // A stronger wind gusts faster.
+  const gust = rounded(Math.max(1.2, 3.2 - knots * 0.06));
   const verdict = [
-    SHORE_WIND_NAMES[name](),
+    // A wind of nothing comes from nowhere: it is calm, and no more.
+    knots === 0 ? null : SHORE_WIND_NAMES[name](),
     knots > TOO_STRONG_KNOTS
       ? m.learn_b_wind_too_strong()
       : knots < 4
@@ -300,27 +392,80 @@ export function WindDemo() {
     .join(" · ");
   return (
     <Demo>
-      <Scene viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}>
-        <Coast landWord={m.learn_land()} />
-        <path
-          d={`M${points.join("L")}`}
-          stroke={color}
-          strokeWidth={2.5}
-          fill="none"
-          strokeLinejoin="round"
-        />
-        <Arrow
-          cx={110}
-          cy={60}
-          fromDegrees={degrees}
-          length={rounded(22 + knots * 0.6)}
-          color={color}
-        />
-      </Scene>
+      <div ref={ref}>
+        <Scene viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}>
+          <Coast landWord={m.learn_land()} />
+          <path
+            d={`M${points.join("L")}`}
+            stroke={color}
+            strokeWidth={2.5}
+            fill="none"
+            strokeLinejoin="round"
+          />
+          {/* Streaks of wind pass beside the arrow, drawn across the scene from the west, then
+            turned to the way the wind goes. */}
+          {moving && knots >= 4 && (
+            <g transform={`rotate(${degrees + 90} 110 60)`}>
+              {GUSTS.map((one) => (
+                <line
+                  key={one.across}
+                  x1={70}
+                  y1={60 + one.across}
+                  x2={84}
+                  y2={60 + one.across}
+                  stroke={color}
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  opacity={0}
+                >
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    from="0 0"
+                    to="70 0"
+                    dur={`${gust}s`}
+                    begin={`${rounded(-one.start * gust)}s`}
+                    repeatCount="indefinite"
+                  />
+                  <animate
+                    attributeName="opacity"
+                    values="0;0.5;0"
+                    dur={`${gust}s`}
+                    begin={`${rounded(-one.start * gust)}s`}
+                    repeatCount="indefinite"
+                  />
+                </line>
+              ))}
+            </g>
+          )}
+          <g>
+            {/* The arrow is pushed a little the way the wind goes, and comes back. */}
+            {moving && knots > 0 && (
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values={`0 0;${pushed};0 0`}
+                dur={`${gust}s`}
+                repeatCount="indefinite"
+                {...BACK_AND_FORTH}
+              />
+            )}
+            <Arrow
+              cx={110}
+              cy={60}
+              fromDegrees={degrees}
+              length={rounded(22 + knots * 0.6)}
+              color={color}
+            />
+          </g>
+        </Scene>
+      </div>
       <Readout
         figure={
-          <span className="inline-flex flex-wrap items-center gap-xxs">
-            {m.learn_b_wind_from()} <Bearing degrees={degrees} withDegrees />
+          <span>
+            <span className="inline-flex items-center gap-xxs">
+              {m.learn_b_wind_from()} <Bearing degrees={degrees} withDegrees />
+            </span>
             {", "}
             <Moving>{formatWind(knots)}</Moving>
           </span>
@@ -363,6 +508,7 @@ const tideAt = (hour: number) =>
 /** The tide over a day, rising over the bottom of a spot, with the hour under the reader's hand. */
 export function TideDemo() {
   useUnits();
+  const { ref, moving } = useSceneMotion();
   const [hour, setHour] = useState(3);
   const { width, floor, perMeter } = TIDE_SCENE;
   const meters = tideAt(hour);
@@ -373,35 +519,60 @@ export function TideDemo() {
     curve.push(`${x} ${rounded(floor - tideAt((x / width) * TIDE.hours) * perMeter)}`);
   }
   const cursorX = rounded((hour / TIDE.hours) * width);
+  // The dot stays whole at the two ends of the day.
+  const dotX = Math.min(width - 4, Math.max(4, cursorX));
   const stage =
     meters < 1.2 ? m.learn_b_tide_low() : meters > 3 ? m.learn_b_tide_high() : m.learn_b_tide_mid();
   const clock = formatClock(new Date(DAY + hour * HOUR_MS), "UTC");
   return (
     <Demo>
-      <Scene viewBox={`0 0 ${width} ${TIDE_SCENE.height}`}>
-        <path d={`M${curve.join("L")}`} stroke={TIDE_COLOR} strokeWidth={2} fill="none" />
-        <rect
-          x={0}
-          y={level}
-          width={width}
-          height={rounded(floor - level)}
-          fill={TIDE_COLOR}
-          opacity={0.18}
-        />
-        <path
-          d={`M180 ${floor}Q200 ${rounded(floor - 1.4 * perMeter)} 260 ${rounded(floor - 1.9 * perMeter)}T${width} ${rounded(floor - 2.4 * perMeter)}L${width} ${floor}Z`}
-          className="fill-neutral-5"
-        />
-        <line
-          x1={cursorX}
-          y1={20}
-          x2={cursorX}
-          y2={floor}
-          strokeDasharray="3 3"
-          className="stroke-neutral-7"
-        />
-        <circle cx={cursorX} cy={level} r={4} fill={TIDE_COLOR} />
-      </Scene>
+      <div ref={ref}>
+        <Scene viewBox={`0 0 ${width} ${TIDE_SCENE.height}`}>
+          <path d={`M${curve.join("L")}`} stroke={TIDE_COLOR} strokeWidth={2} fill="none" />
+          <rect
+            x={0}
+            y={level}
+            width={width}
+            height={rounded(floor - level)}
+            fill={TIDE_COLOR}
+            opacity={0.18}
+          >
+            {/* The water breathes: its surface rises by two and falls back, at the level of the
+              hour, which the slider alone changes. */}
+            {moving && (
+              <>
+                <animate
+                  attributeName="y"
+                  values={`${level};${level - 2};${level}`}
+                  dur="4s"
+                  repeatCount="indefinite"
+                  {...BACK_AND_FORTH}
+                />
+                <animate
+                  attributeName="height"
+                  values={`${rounded(floor - level)};${rounded(floor - level + 2)};${rounded(floor - level)}`}
+                  dur="4s"
+                  repeatCount="indefinite"
+                  {...BACK_AND_FORTH}
+                />
+              </>
+            )}
+          </rect>
+          <path
+            d={`M180 ${floor}Q200 ${rounded(floor - 1.4 * perMeter)} 260 ${rounded(floor - 1.9 * perMeter)}T${width} ${rounded(floor - 2.4 * perMeter)}L${width} ${floor}Z`}
+            className="fill-neutral-5"
+          />
+          <line
+            x1={cursorX}
+            y1={20}
+            x2={cursorX}
+            y2={floor}
+            strokeDasharray="3 3"
+            className="stroke-neutral-7"
+          />
+          <circle cx={dotX} cy={level} r={4} fill={TIDE_COLOR} />
+        </Scene>
+      </div>
       <Readout
         figure={<Moving>{`${clock} · ${formatHeight(meters)}`}</Moving>}
         verdict={

@@ -3,7 +3,7 @@ import { ArrowRightIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
-import { type Term as TermId, termHref } from "@/lib/learn";
+import { type Term as TermId, parseProse, termHref } from "@/lib/learn";
 import { m } from "@/paraglide/messages.js";
 
 import { GLOSSARY } from "./glossary";
@@ -11,6 +11,12 @@ import { GLOSSARY } from "./glossary";
 /** How a technical word is underlined in a lesson: as the sentence of a break's page underlines a part. */
 export const termUnderline =
   "underline decoration-color-1 decoration-dotted decoration-1 underline-offset-[0.25em] transition-[text-decoration-color] duration-(--motion-duration) hover:decoration-neutral-10";
+
+/** A paragraph of the glossary as plain words: its marks are dropped, since a popover holds no link to another entry. */
+export const plainProse = (text: string) =>
+  parseProse(text)
+    .map((piece) => piece.text)
+    .join("");
 
 /**
  * A technical word in a lesson: a link to its entry of the glossary, which a reader without a
@@ -43,9 +49,14 @@ export function Term({
       >
         {children}
       </PopoverTrigger>
-      <PopoverPopup side="bottom" align="start" className="max-w-[22rem] gap-xs text-s">
+      {/* On a phone the popover keeps the page's margin from the edge of the screen. */}
+      <PopoverPopup
+        side="bottom"
+        align="start"
+        className="max-w-[22rem] gap-xs text-s max-sm:mx-[calc(var(--space-m)-5px)]"
+      >
         <p className="font-medium">{entry.word()}</p>
-        <p className="text-neutral-7">{entry.what()}</p>
+        <p className="text-neutral-7">{plainProse(entry.what())}</p>
         <a
           href={termHref(id)}
           className="focus-ring group/more inline-flex items-center gap-xxs self-start rounded-xs font-medium"

@@ -1,4 +1,8 @@
+import { Link } from "@tanstack/react-router";
 import { APP_NAME } from "@repo/config/app";
+import { buttonVariants } from "@repo/ui/components/ui/button";
+import { BookmarkIcon } from "@repo/ui/icon";
+import { cn } from "@repo/ui/lib/utils";
 
 import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
@@ -14,6 +18,16 @@ export function AdvancedGuide() {
   return (
     <GuidePage
       level="advanced"
+      also={
+        <Link
+          to="/app"
+          search={{ panel: "account", settings: "sessions" }}
+          className={cn(buttonVariants({ variant: "secondary" }), "group/open")}
+        >
+          <BookmarkIcon data-slot="icon" aria-hidden />
+          {m.sessions_title()}
+        </Link>
+      }
       lessons={[
         {
           id: "models",

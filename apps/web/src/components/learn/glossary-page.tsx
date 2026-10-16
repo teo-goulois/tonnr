@@ -1,3 +1,6 @@
+import { cn } from "@repo/ui/lib/utils";
+
+import { arrive, order, ruled, useArriving } from "@/components/landing/landing-parts";
 import { TERMS, type Term } from "@/lib/learn";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
@@ -9,7 +12,35 @@ import { Prose } from "./prose";
 // The glossary: every technical word the guides use, in the reader's language, each with what it
 // means and where the thing comes from, in the order of the reader's alphabet. Decision 060.
 
-const ruled = "shadow-[inset_0_var(--border-s)_0_var(--neutral-4)]";
+/**
+ * One entry, which arrives as the landing's parts do once it is reached: the word, then what it
+ * says. An entry the page opens on, through its anchor, is in view and shows at once.
+ */
+function Entry({ term, first }: { term: Term; first: boolean }) {
+  const arriving = useArriving<HTMLDivElement>();
+  const entry = GLOSSARY[term];
+  return (
+    <div
+      {...arriving}
+      id={term}
+      className={cn(
+        !first && ruled,
+        "group/arrival grid scroll-mt-[calc(var(--space-xxl)*2)] gap-s py-l lg:grid-cols-12 lg:gap-x-xl",
+      )}
+    >
+      <dt className={cn(arrive, "text-l font-medium lg:col-span-4")} style={order(0)}>
+        {entry.word()}
+      </dt>
+      <dd className={cn(arrive, "grid gap-s lg:col-span-8")} style={order(1)}>
+        <Prose text={entry.what()} className="text-neutral-10" />
+        <div className="grid gap-xxs">
+          <span className="text-xs text-neutral-7">{m.learn_glossary_from()}</span>
+          <Prose text={entry.from()} />
+        </div>
+      </dd>
+    </div>
+  );
+}
 
 export function GlossaryPage() {
   const sorted = [...TERMS].sort((a, b) =>
@@ -22,25 +53,9 @@ export function GlossaryPage() {
       lead={m.learn_glossary_lead()}
     >
       <dl>
-        {sorted.map((term: Term, index) => {
-          const entry = GLOSSARY[term];
-          return (
-            <div
-              key={term}
-              id={term}
-              className={`${index > 0 ? ruled : ""} grid scroll-mt-[calc(var(--space-xxl)*2)] gap-s py-l lg:grid-cols-12 lg:gap-x-xl`}
-            >
-              <dt className="text-l font-medium lg:col-span-4">{entry.word()}</dt>
-              <dd className="grid gap-s lg:col-span-8">
-                <Prose text={entry.what()} className="text-neutral-10" />
-                <div className="grid gap-xxs">
-                  <span className="text-xs text-neutral-7">{m.learn_glossary_from()}</span>
-                  <Prose text={entry.from()} />
-                </div>
-              </dd>
-            </div>
-          );
-        })}
+        {sorted.map((term, index) => (
+          <Entry key={term} term={term} first={index === 0} />
+        ))}
       </dl>
     </LearnFrame>
   );

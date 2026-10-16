@@ -7,8 +7,9 @@ import { MorphText } from "@/components/shared/morph-text";
 
 // The pieces every demo of a guide is made of: a card, a line that reads the figure and judges
 // it, a slider the reader moves, and a line that says what to do with it. A demo is drawn by the
-// server at its starting value and changes under the reader's hand: nothing of it moves by
-// itself, so a reader who asked for no motion loses nothing. Decision 060.
+// server at its starting value and changes under the reader's hand. While it is in view it has a
+// small motion of its own, as the landing's cards have, which `useArrivalOf` allows: it stops for
+// a reader who asked for no motion, and never touches what the slider set. Decision 060.
 
 /** The card of a demo, on the page's second color. */
 export function Demo({ className, children }: { className?: string; children: ReactNode }) {

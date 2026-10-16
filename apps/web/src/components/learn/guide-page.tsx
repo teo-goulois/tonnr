@@ -6,7 +6,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
 
 import { OpenTheMap } from "@/components/landing/landing-footer";
-import { Tile } from "@/components/landing/landing-parts";
+import { Tile, arrive, order, useArriving } from "@/components/landing/landing-parts";
 import { type LessonOf, type Level, guidePath } from "@/lib/learn";
 import { m } from "@/paraglide/messages.js";
 import { localizeHref } from "@/paraglide/runtime.js";
@@ -16,7 +16,9 @@ import { LearnFrame, learnRoot } from "./learn-frame";
 import { Prose } from "./prose";
 
 // A guide: five lessons, each with its paragraphs, its demo and one line to remember, then the
-// way to the spots and to the map, and the next guide. Decision 060.
+// way to the spots and to the map, and the next guide. Each lesson arrives as the landing's parts
+// do once it is reached, its title first: a demo arrives at rest, and moves under the reader's
+// hand alone. Decision 060.
 
 export type LessonSpec<L extends Level> = {
   id: LessonOf<L>;
@@ -37,28 +39,36 @@ function Lesson<L extends Level>({
   number: number;
 }) {
   const head = LESSON_HEADS[level][lesson.id];
+  const arriving = useArriving<HTMLElement>();
   return (
     <section
+      {...arriving}
       id={lesson.id}
       aria-labelledby={`${lesson.id}-title`}
-      className={cn("grid gap-m", anchored)}
+      className={cn("group/arrival grid gap-m", anchored)}
     >
       <h2
         id={`${lesson.id}-title`}
-        className="group/lively flex items-center gap-s text-l font-medium"
+        className={cn(arrive, "group/lively flex items-center gap-s text-l font-medium")}
+        style={order(0)}
       >
         <Tile color={head.color} className="mr-0 rounded-[0.5rem] text-s [--tile:--spacing(7)]">
           <span className="text-xs font-bold">{number}</span>
         </Tile>
         {head.title()}
       </h2>
-      <div className="grid gap-s">
+      <div className={cn(arrive, "grid gap-s")} style={order(1)}>
         {lesson.paragraphs.map((text) => (
           <Prose key={text} text={text} />
         ))}
       </div>
-      {lesson.demo}
-      <p className="rounded-(--radius-xs) bg-neutral-2 px-m py-s text-neutral-10">
+      <div className={arrive} style={order(2)}>
+        {lesson.demo}
+      </div>
+      <p
+        className={cn(arrive, "rounded-(--radius-xs) bg-neutral-2 px-m py-s text-neutral-10")}
+        style={order(3)}
+      >
         <span className="font-medium">{m.learn_takeaway()}</span>{" "}
         <Prose inline text={lesson.keep} />
       </p>
@@ -66,16 +76,70 @@ function Lesson<L extends Level>({
   );
 }
 
+/** The end of a guide: the way to the spots and to the map, and what a guide adds beside them. */
+function Closing({ also }: { also?: ReactNode }) {
+  const arriving = useArriving<HTMLElement>();
+  return (
+    <section
+      {...arriving}
+      className="group/arrival grid gap-m rounded-(--radius-s) bg-neutral-2 p-m sm:p-l"
+    >
+      <h2 className={cn(arrive, "text-l font-medium")} style={order(0)}>
+        {m.learn_closing_title()}
+      </h2>
+      <p className={cn(arrive, "text-neutral-7")} style={order(1)}>
+        {m.learn_closing_text({ name: APP_NAME })}
+      </p>
+      <div className={cn(arrive, "flex flex-wrap gap-s")} style={order(2)}>
+        <Link to="/spots" className={cn(buttonVariants({ variant: "secondary" }), "group/open")}>
+          {m.learn_find_spot()}
+          <ArrowRightIcon
+            data-slot="icon"
+            aria-hidden
+            className="transition-[translate] duration-(--motion-duration) ease-theme group-hover/open:translate-x-0.5 motion-reduce:transition-none"
+          />
+        </Link>
+        <OpenTheMap />
+        {also}
+      </div>
+    </section>
+  );
+}
+
+/** The way to the next guide: its level over its title, the whole a link. */
+function NextGuide({ level }: { level: Level }) {
+  return (
+    <a
+      href={localizeHref(guidePath(level))}
+      className="group/open focus-ring grid gap-xxs justify-self-start rounded-xs"
+    >
+      <span className="text-s text-neutral-7">
+        {m.learn_next()} {LEVEL_NAMES[level]()}
+      </span>
+      <span className="font-medium text-balance text-neutral-10">
+        {GUIDE_TITLES[level]()}
+        <ArrowRightIcon
+          aria-hidden
+          className="ml-xxs inline size-4 align-[-0.15em] transition-[translate] duration-(--motion-duration) ease-theme group-hover/open:translate-x-0.5 motion-reduce:transition-none"
+        />
+      </span>
+    </a>
+  );
+}
+
 export function GuidePage<L extends Level>({
   level,
   before,
   lessons,
+  also,
   next,
 }: {
   level: L;
   // What stands between the lead and the lessons, such as an example of the sentence.
   before?: ReactNode;
   lessons: LessonSpec<L>[];
+  // What stands beside the two ways out of the closing, such as the way to the log of sessions.
+  also?: ReactNode;
   next?: Level;
 }) {
   return (
@@ -91,7 +155,7 @@ export function GuidePage<L extends Level>({
             <li key={lesson.id}>
               <a
                 href={`#${lesson.id}`}
-                className="focus-ring edge flex items-center gap-s rounded-(--radius-xs) bg-neutral-1 px-s py-xs transition-[translate] duration-(--motion-duration) ease-theme hover:-translate-y-0.5 motion-reduce:transition-none"
+                className="group/lively focus-ring edge flex items-center gap-s rounded-(--radius-xs) bg-neutral-1 px-s py-xs transition-[translate] duration-(--motion-duration) ease-theme hover:-translate-y-0.5 motion-reduce:transition-none"
               >
                 <Tile
                   color={LESSON_HEADS[level][lesson.id].color}
@@ -109,32 +173,8 @@ export function GuidePage<L extends Level>({
       {lessons.map((lesson, index) => (
         <Lesson key={lesson.id} level={level} lesson={lesson} number={index + 1} />
       ))}
-      <section className="grid gap-m rounded-(--radius-s) bg-neutral-2 p-m sm:p-l">
-        <h2 className="text-l font-medium">{m.learn_closing_title()}</h2>
-        <p className="text-neutral-7">{m.learn_closing_text({ name: APP_NAME })}</p>
-        <div className="flex flex-wrap gap-s">
-          <Link to="/spots" className={cn(buttonVariants({ variant: "secondary" }), "group/open")}>
-            {m.learn_find_spot()}
-            <ArrowRightIcon
-              data-slot="icon"
-              aria-hidden
-              className="transition-[translate] duration-(--motion-duration) ease-theme group-hover/open:translate-x-0.5 motion-reduce:transition-none"
-            />
-          </Link>
-          <OpenTheMap />
-        </div>
-      </section>
-      {next && (
-        <p className="text-neutral-7">
-          {m.learn_next()}{" "}
-          <a
-            href={localizeHref(guidePath(next))}
-            className="focus-ring rounded-xs font-medium text-neutral-10 underline decoration-neutral-5 underline-offset-4 hover:decoration-neutral-10"
-          >
-            {LEVEL_NAMES[next]()} · {GUIDE_TITLES[next]()}
-          </a>
-        </p>
-      )}
+      <Closing also={also} />
+      {next && <NextGuide level={next} />}
     </LearnFrame>
   );
 }
