@@ -676,12 +676,17 @@ export function Onboarding({
         </Arrive>
 
         {step === "welcome" ? (
-          <Arrive place={3} from={from} className="flex flex-wrap gap-xs">
-            <Button ref={start} onClick={() => setStep(steps[0]!)}>
-              {m.onboarding_start()}
-            </Button>
+          // Leaving at the start, going on at the end, as the steps' own buttons stand.
+          <Arrive
+            place={3}
+            from={from}
+            className="flex flex-wrap items-center justify-between gap-xs"
+          >
             <Button variant="ghost" onClick={profiling.onPutOff}>
               {m.onboarding_later()}
+            </Button>
+            <Button ref={start} onClick={() => setStep(steps[0]!)}>
+              {m.onboarding_start()}
             </Button>
           </Arrive>
         ) : (
