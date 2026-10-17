@@ -13,7 +13,6 @@ import {
   BellOnFillDuoIcon,
   BookBookmarkFillDuoIcon,
   SparklesFillDuoIcon,
-  SurferFillIcon,
   XIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
@@ -380,7 +379,7 @@ function Arrive({
 /** Where the questions are: one mark for each, filled up to the one in view. */
 function Progress({ at, count }: { at: number; count: number }) {
   return (
-    <div className="flex items-center gap-s">
+    <div className="flex flex-1 items-center">
       <div aria-hidden className="flex flex-1 gap-xxs">
         {Array.from({ length: count }, (_, place) => (
           <span
@@ -399,44 +398,22 @@ function Progress({ at, count }: { at: number; count: number }) {
 }
 
 /**
- * The picture the questions open on: a surfer who rides a swell that runs under them, in the
- * colors of the sea's scale, with the sun over it. It is still for a reader who asked for no
- * motion.
+ * The picture the questions open on, a surfer on a wave in black and white, with the title over
+ * it: a shade at its foot keeps the words read on the white of the foam.
  */
-function WelcomeSea() {
+function WelcomePicture({ children }: { children: ReactNode }) {
   return (
-    <div aria-hidden className="relative h-24 overflow-hidden rounded-(--radius-s) bg-neutral-2">
-      <span
-        className="absolute top-s right-l size-5 rounded-full"
-        style={{ backgroundColor: scaleColor(WAVE_HEIGHT_SCALE, 2.5) }}
+    <div className="relative overflow-hidden rounded-(--radius-s) outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10">
+      <img
+        src="/onboarding/welcome.webp"
+        alt=""
+        width={750}
+        height={460}
+        className="aspect-[3/1] w-full object-cover object-[50%_35%]"
       />
-      <Swell
-        color={scaleColor(WAVE_HEIGHT_SCALE, 0.5)}
-        className="h-16 opacity-45 motion-safe:animate-onboarding-swell-slow"
-      />
-      <div className="absolute bottom-6 left-[38%] grid justify-items-center motion-safe:animate-onboarding-ride">
-        <SurferFillIcon className="size-7 text-neutral-10" />
-        <span className="-mt-0.5 h-1 w-9 rounded-full bg-neutral-10" />
-      </div>
-      <Swell
-        color={scaleColor(WAVE_HEIGHT_SCALE, 1)}
-        className="h-10 motion-safe:animate-onboarding-swell"
-      />
+      <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
+      <div className="absolute inset-x-m bottom-s text-white">{children}</div>
     </div>
-  );
-}
-
-/** Two lengths of a swell side by side: moved by one, it is as it was, and so runs on. */
-function Swell({ color, className }: { color: string; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 200 40"
-      preserveAspectRatio="none"
-      style={{ fill: color }}
-      className={cn("absolute bottom-0 left-0 w-[200%]", className)}
-    >
-      <path d="M0 20Q25 4 50 20T100 20T150 20T200 20V40H0Z" />
-    </svg>
   );
 }
 
@@ -517,46 +494,50 @@ export function Onboarding({
       <DialogPopup className="w-[min(28rem,calc(100vw-2rem))] gap-m p-l" initialFocus={start}>
         {step === "welcome" && (
           <Arrive place={0} from={from}>
-            <WelcomeSea />
+            <WelcomePicture>
+              <DialogTitle>{m.onboarding_title({ name: APP_NAME })}</DialogTitle>
+            </WelcomePicture>
           </Arrive>
         )}
-        <div className="flex items-start justify-between gap-s">
-          <div className="grid min-w-0 flex-1 gap-xs">
-            {step !== "welcome" && <Progress at={at} count={steps.length} />}
-            <Arrive
-              key={step}
-              place={step === "welcome" ? 1 : 0}
-              from={from}
-              className="grid gap-xxs"
-            >
-              <DialogTitle>
-                {step === "welcome"
-                  ? m.onboarding_title({ name: APP_NAME })
-                  : step === "username"
-                    ? m.profile_username_title()
-                    : step === "level"
-                      ? m.profile_level_title()
-                      : step === "waves"
-                        ? m.profile_waves_title()
-                        : step === "reading"
-                          ? m.profile_reading_title()
-                          : m.profile_boards_title()}
-              </DialogTitle>
-              {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
-              {step === "reading" && (
-                <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
-              )}
-              {step === "boards" && (
-                <DialogDescription>{m.profile_boards_hint()}</DialogDescription>
-              )}
-            </Arrive>
-          </div>
-          <DialogClose
-            aria-label={m.action_close()}
-            render={<Button variant="ghost" size="icon" className="-mt-xs -mr-xs" />}
+        <div className="grid gap-xs">
+          {/* Where the questions are, on the line of the button that leaves them. The welcome is
+              left by its own "Later", and by Escape. */}
+          {step !== "welcome" && (
+            <div className="flex items-center gap-s">
+              <Progress at={at} count={steps.length} />
+              <DialogClose
+                aria-label={m.action_close()}
+                render={<Button variant="ghost" size="icon" className="-my-xs -mr-xs" />}
+              >
+                <XIcon data-slot="icon" aria-hidden />
+              </DialogClose>
+            </div>
+          )}
+          <Arrive
+            key={step}
+            place={step === "welcome" ? 1 : 0}
+            from={from}
+            className="grid gap-xxs"
           >
-            <XIcon data-slot="icon" aria-hidden />
-          </DialogClose>
+            {step !== "welcome" && (
+              <DialogTitle>
+                {step === "username"
+                  ? m.profile_username_title()
+                  : step === "level"
+                    ? m.profile_level_title()
+                    : step === "waves"
+                      ? m.profile_waves_title()
+                      : step === "reading"
+                        ? m.profile_reading_title()
+                        : m.profile_boards_title()}
+              </DialogTitle>
+            )}
+            {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
+            {step === "reading" && (
+              <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
+            )}
+            {step === "boards" && <DialogDescription>{m.profile_boards_hint()}</DialogDescription>}
+          </Arrive>
         </div>
 
         <Arrive key={step} place={step === "welcome" ? 2 : 1} from={from}>
