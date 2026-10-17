@@ -3,7 +3,7 @@ import { accountSuspension } from "@repo/db/schema/access";
 import { alert, alertSettings, alertSpot, alertWindow, notification } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { job } from "@repo/db/schema/instance";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { Effect } from "effect";
@@ -120,6 +120,28 @@ describe.skipIf(!TEST_DATABASE_URL)("the looks at the alerts", () => {
     );
     expect(told.clean).toMatchObject({ primarySwellHeightMeters: 1.2 });
     expect(told.bay).not.toHaveProperty("primarySwellHeightMeters");
+  });
+
+  // Decision 064: a surf break of the catalogue is looked at as a spot is, at its own point.
+  it("look at a surf break of the catalogue, and name it in what they tell", async () => {
+    await database.db.delete(surfBreak);
+    await database.db
+      .insert(surfBreak)
+      .values({ id: "reef", slug: "reef", name: "The reef", latitude: 43.62, longitude: -1.46 });
+    await database.db.delete(alertSpot).where(eq(alertSpot.alertId, "bay"));
+    await database.db.insert(alertSpot).values({ breakId: "reef", alertId: "bay", position: 0 });
+    await run();
+    await next();
+
+    expect(await windows()).toEqual([
+      { spot: null, start: saturday(8, 12).start, end: saturday(8, 12).end, seen: 2 },
+    ]);
+    const [found] = await notifications();
+    expect(found?.payload.lines).toMatchObject([
+      { spotId: "reef", breakId: "reef", spotName: "The reef", open: [saturday(8, 12)] },
+    ]);
+    const [link] = await database.db.select().from(alertSpot).where(eq(alertSpot.alertId, "bay"));
+    expect(link?.told).toHaveLength(1);
   });
 
   describe("of a spot that is in two alerts", () => {

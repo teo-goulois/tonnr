@@ -157,7 +157,10 @@ async function alertsOf(
     .where("userId" in where ? eq(alert.userId, where.userId) : eq(alertSpot.spotId, where.spotId))
     .orderBy(asc(alert.createdAt), asc(alert.id));
   const bySpot = new Map<string, string[]>();
-  for (const row of rows) bySpot.set(row.spotId, [...(bySpot.get(row.spotId) ?? []), row.alertId]);
+  // An alert's breaks of the catalogue are no spots of the account's: decision 064.
+  for (const { spotId, alertId } of rows) {
+    if (spotId) bySpot.set(spotId, [...(bySpot.get(spotId) ?? []), alertId]);
+  }
   return bySpot;
 }
 

@@ -4,14 +4,14 @@ import { ChevronRightIcon, PlusIcon } from "@repo/ui/icon";
 
 import { m } from "@/paraglide/messages.js";
 
-import type { Alert, Spot } from "../viewer/types";
+import type { Alert } from "../viewer/types";
 import { AlertSummary } from "./alert-summary";
 
 type SpotAlertsProps = {
-  // The spot whose panel this is, and the user's spots, to name those an alert shares.
-  spot: Spot;
-  spots: Spot[];
-  // The alerts the spot is in, the oldest first.
+  // The place whose panel this is, a spot of the user's or a surf break: the others an alert
+  // is set on are named after it.
+  placeId: string;
+  // The alerts the place is in, the oldest first.
   alerts: Alert[];
   // Opens an alert to change it, and starts a new one.
   onOpen: (alert: Alert) => void;
@@ -22,12 +22,12 @@ type SpotAlertsProps = {
 };
 
 /**
- * The alerts of a spot: each with its name, what it asks, and its switch. A spot may have
- * several, one for each kind of sea that makes it work. Decision 031.
+ * The alerts of a place, a spot of the user's or a surf break: each with its name, what it asks,
+ * and its switch. A place may have several, one for each kind of sea that makes it work.
+ * Decisions 031 and 064.
  */
 export function SpotAlerts({
-  spot,
-  spots,
+  placeId,
   alerts,
   onOpen,
   onNew,
@@ -45,13 +45,12 @@ export function SpotAlerts({
     );
   }
 
-  const nameOf = (spotId: string) => spots.find((one) => one.id === spotId)?.name;
   return (
     <div className="grid justify-items-start gap-m">
       <ul className="-mx-xs grid gap-xxs justify-self-stretch">
         {alerts.map((alert) => {
-          const others = alert.spotIds.flatMap((spotId) =>
-            spotId === spot.id ? [] : (nameOf(spotId) ?? []),
+          const others = alert.places.flatMap((place) =>
+            (place.spotId ?? place.breakId) === placeId ? [] : place.name,
           );
           return (
             <li key={alert.id} className="flex items-center gap-s">

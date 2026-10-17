@@ -18,12 +18,23 @@ import {
   notification,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, eq, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import { queueDeliveries } from "./deliveries";
-import { figuresOf, named, seaHour, stretch, toldPiece, toldStretch } from "./kept";
+import {
+  breakOfLink,
+  figuresOf,
+  named,
+  placeColumns,
+  placeRef,
+  seaHour,
+  spotOfLink,
+  stretch,
+  toldPiece,
+  toldStretch,
+} from "./kept";
 import { StoreError } from "./store";
 
 // Decision 031. The worker looks at each alert every three hours, at each of its spots, and
@@ -66,14 +77,10 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
   const spots = yield* Effect.tryPromise({
     try: () =>
       db
-        .select({
-          id: spot.id,
-          name: spot.name,
-          latitude: spot.latitude,
-          longitude: spot.longitude,
-        })
+        .select(placeColumns)
         .from(alertSpot)
-        .innerJoin(spot, eq(spot.id, alertSpot.spotId))
+        .leftJoin(spot, spotOfLink)
+        .leftJoin(surfBreak, breakOfLink)
         .where(eq(alertSpot.alertId, row.id))
         .orderBy(asc(alertSpot.position)),
     catch: (cause) => new StoreError({ provider: "alerts", cause }),
@@ -161,10 +168,10 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
         for (const { place, found, hours, fetchedAt } of seen) {
           // The spot may have left the alert since the forecasts were asked: the alert's
           // revision says so, and this is for the type alone.
-          const kept = knownSpots.find((known) => known.spotId === place.id);
+          const kept = knownSpots.find((known) => known.placeId === place.id);
           if (!kept) continue;
           const windows: SeaWindow[] = knownWindows
-            .filter((window) => window.spotId === place.id)
+            .filter((window) => window.placeId === place.id)
             .map((window) => ({
               sea: { start: window.seaStart, end: window.seaEnd },
               seen: window.seen,
@@ -214,12 +221,12 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
           // What the look saw takes the place of what was known of the spot.
           await tx
             .delete(alertWindow)
-            .where(and(eq(alertWindow.alertId, row.id), eq(alertWindow.spotId, place.id)));
+            .where(and(eq(alertWindow.alertId, row.id), eq(alertWindow.placeId, place.id)));
           if (plan.windows.length > 0) {
             await tx.insert(alertWindow).values(
               plan.windows.map((window) => ({
                 alertId: row.id,
-                spotId: place.id,
+                ...placeRef(place),
                 seaStart: window.sea.start,
                 seaEnd: window.sea.end,
                 seen: window.seen,
@@ -245,7 +252,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
               ...(mailed === kept.mailed ? {} : { mailed }),
               ...(pushed === kept.pushed ? {} : { pushed }),
             })
-            .where(and(eq(alertSpot.alertId, row.id), eq(alertSpot.spotId, place.id)));
+            .where(and(eq(alertSpot.alertId, row.id), eq(alertSpot.placeId, place.id)));
 
           for (const told of plan.tell) {
             lines[told.moment].push(lineOf(told, place, hours, fetchedAt, asksSwell(row.criteria)));
@@ -292,7 +299,7 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
 // for the first of them, and when that forecast was fetched.
 function lineOf(
   told: Told,
-  place: { id: string; name: string },
+  place: { id: string; name: string; breakId: string | null },
   hours: Hours,
   fetchedAt: Date,
   withSwell: boolean,
@@ -303,6 +310,7 @@ function lineOf(
   return {
     spotId: place.id,
     spotName: place.name,
+    ...(place.breakId ? { breakId: place.breakId } : {}),
     forecastFetchedAt: fetchedAt.toISOString(),
     open: open.map(stretch),
     ...("before" in told ? { before: told.before.map(stretch) } : {}),

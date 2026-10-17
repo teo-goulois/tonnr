@@ -9,7 +9,7 @@ import {
   notificationDelivery,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,6 +52,11 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       { id: "far", userId: "ana", name: "Far", latitude: 47.84, longitude: -4.35 },
       { id: "bens", userId: "ben", name: "Ben's", latitude: 43.63, longitude: -1.46 },
     ]);
+    await db.delete(surfBreak);
+    await db.insert(surfBreak).values([
+      { id: "reef", slug: "reef", name: "The reef", latitude: 43.62, longitude: -1.46 },
+      { id: "point", slug: "point", name: "The point", latitude: 43.61, longitude: -1.47 },
+    ]);
   });
 
   const by = (id: string) => {
@@ -79,6 +84,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
     input: {
       name?: string;
       spotIds?: string[];
+      breakIds?: string[];
       criteria?: Record<string, unknown>;
       enabled?: boolean;
       shortestMinutes?: number;
@@ -96,9 +102,11 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
   const BEGUN = { start: "2026-10-10T08:00:00.000Z", end: "2026-10-10T11:00:00.000Z" };
   const TOLD = { ...BEGUN, missed: 0 };
   const see = async (alertId: string, spotId: string) => {
+    // A place is a spot of the tests, or one of their breaks.
+    const place = ["reef", "point"].includes(spotId) ? { breakId: spotId } : { spotId };
     await database.db
       .insert(alertWindow)
-      .values({ alertId, spotId, seaStart: new Date(TOLD.start), seaEnd: new Date(TOLD.end) })
+      .values({ alertId, ...place, seaStart: new Date(TOLD.start), seaEnd: new Date(TOLD.end) })
       .onConflictDoNothing();
     await database.db
       .update(alertSpot)
@@ -112,7 +120,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         begun: [BEGUN],
         lookedAt: AT,
       })
-      .where(and(eq(alertSpot.alertId, alertId), eq(alertSpot.spotId, spotId)));
+      .where(and(eq(alertSpot.alertId, alertId), eq(alertSpot.placeId, spotId)));
     await database.db.update(alert).set({ lookedAt: AT }).where(eq(alert.id, alertId));
   };
   const windowsOf = async (alertId: string) =>
@@ -592,6 +600,68 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect([await revisionOf(small.id), await revisionOf(big.id)]).toEqual([1, 1]);
       expect([await windowsOf(small.id), await windowsOf(big.id)]).toEqual([["south"], []]);
       expect([await toldAt(small.id), await toldAt(big.id)]).toEqual([["south"], []]);
+    });
+  });
+
+  // Decision 064: a surf break of the catalogue takes an alert as a spot does.
+  describe("set on surf breaks of the catalogue", () => {
+    it("names each place, spots first, and reads them as it reads spots", async () => {
+      const made = await make({ spotIds: ["north"], breakIds: ["reef"] });
+
+      expect(made).toMatchObject({
+        spotIds: ["north"],
+        breakIds: ["reef"],
+        places: [
+          { spotId: "north", breakId: null, name: "North" },
+          { spotId: null, breakId: "reef", name: "The reef" },
+        ],
+      });
+      const alone = await make({ spotIds: [], breakIds: ["point"] });
+      const [listed] = (await call(v1Router.alerts.list, undefined, by("ana"))).alerts.filter(
+        (one) => one.id === alone.id,
+      );
+      expect(listed?.places).toEqual([{ spotId: null, breakId: "point", name: "The point" }]);
+      // Anyone may set an alert on a break: another account's alert there is its own.
+      const bens = await make({ spotIds: [], breakIds: ["reef"] }, "ben");
+      expect(bens.breakIds).toEqual(["reef"]);
+    });
+
+    it("needs a place, a break that is there, and twelve places at most", async () => {
+      await expect(make({ spotIds: [], breakIds: [] })).rejects.toEqual(refusal("BAD_REQUEST"));
+      await expect(make({ spotIds: [], breakIds: ["gone"] })).rejects.toEqual(refusal("NOT_FOUND"));
+      const many = Array.from({ length: 12 }, (_, index) => `b${index}`);
+      await expect(make({ spotIds: ["north"], breakIds: many })).rejects.toEqual(
+        refusal("BAD_REQUEST"),
+      );
+    });
+
+    it("takes its breaks as they are given, and keeps one place at least", async () => {
+      const made = await make({ spotIds: ["north"], breakIds: ["reef"] });
+      await see(made.id, "reef");
+
+      const moved = await call(
+        v1Router.alerts.update,
+        { id: made.id, breakIds: ["point"] },
+        by("ana"),
+      );
+      expect(moved.places.map((one) => one.name)).toEqual(["North", "The point"]);
+      // What was seen at the break that left is forgotten with it.
+      expect(await windowsOf(made.id)).toEqual([]);
+      await expect(
+        call(v1Router.alerts.update, { id: made.id, spotIds: [], breakIds: [] }, by("ana")),
+      ).rejects.toEqual(refusal("BAD_REQUEST"));
+    });
+
+    it("is tried at its breaks before it is saved, each under its id", async () => {
+      const tried = await call(
+        v1Router.alerts.preview,
+        { spotIds: ["north"], breakIds: ["reef"], criteria: swell, days: 2 },
+        by("ana"),
+      );
+      expect(tried.spots.map((one) => [one.spotId, one.breakId, one.hasSea])).toEqual([
+        ["north", null, true],
+        ["reef", "reef", true],
+      ]);
     });
   });
 

@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { addressOf, keepAddressOf } from "@repo/db/addresses";
 import { reopenCandidatesOf } from "@repo/db/catalogue";
+import { alert, alertSpot, alertWindow } from "@repo/db/schema/alerts";
 import { breakCandidate } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
 import { stationList, stationListBreak } from "@repo/db/schema/lists";
@@ -27,6 +28,7 @@ import {
 } from "./characteristics";
 import { confirmedWordsOf } from "./guides";
 import { boxAround, metersBetween, type Point } from "./points";
+import { forgetSeen } from "./routers/alerts";
 import { hasControlCharacter } from "./text";
 
 // What an operator does to the catalogue of breaks from the admin, for the procedures that look
@@ -216,9 +218,10 @@ export async function holdListsOf(tx: Transaction, breakIds: string[]) {
     .for("update");
 }
 
-/** What uses a break: the accounts' spots, lists, sessions, guide and its requests. */
+/** What uses a break: the accounts' spots, alerts, lists, sessions, guide and its requests. */
 export const usesSchema = z.object({
   spots: z.number(),
+  alerts: z.number(),
   lists: z.number(),
   sessions: z.number(),
   contributions: z.number(),
@@ -230,6 +233,9 @@ export async function usesOf(db: Pick<Database, "select">, id: string) {
   const counted = async (query: Promise<{ total: number }[]>) => (await query)[0]?.total ?? 0;
   return {
     spots: await counted(db.select({ total: count() }).from(spot).where(eq(spot.breakId, id))),
+    alerts: await counted(
+      db.select({ total: count() }).from(alertSpot).where(eq(alertSpot.breakId, id)),
+    ),
     lists: await counted(
       db.select({ total: count() }).from(stationListBreak).where(eq(stationListBreak.breakId, id)),
     ),
@@ -343,6 +349,27 @@ export async function mergeBreaks(
     .update(surfSession)
     .set({ breakId: keep.id, updatedAt: sql`${surfSession.updatedAt}` })
     .where(eq(surfSession.breakId, merge.id));
+  // An alert that held both holds one, and one that held the break that goes holds the other:
+  // what its looks saw there is forgotten, since the other may stand elsewhere. Decision 064.
+  const alerted = await tx
+    .select({ alertId: alertSpot.alertId })
+    .from(alertSpot)
+    .where(eq(alertSpot.breakId, merge.id));
+  await tx.execute(sql`
+    delete from ${alertSpot} gone
+    where gone.break_id = ${merge.id}
+      and exists (
+        select 1 from ${alertSpot} kept
+        where kept.alert_id = gone.alert_id and kept.break_id = ${keep.id}
+      )
+  `);
+  await tx.delete(alertWindow).where(eq(alertWindow.breakId, merge.id));
+  await tx.update(alertSpot).set({ breakId: keep.id }).where(eq(alertSpot.breakId, merge.id));
+  await forgetAlertsAt(
+    tx,
+    keep.id,
+    alerted.map((one) => one.alertId),
+  );
   // A list that held both holds one.
   await tx.execute(sql`
     delete from ${stationListBreak} gone
@@ -426,7 +453,32 @@ export async function mergeBreaks(
     .where(eq(surfBreak.id, keep.id))
     .returning();
   if (!merged) throw noBreak(keep.id);
+  // The alerts set on the break that stays read the sea where it stands now.
+  if (merged.latitude !== keep.latitude || merged.longitude !== keep.longitude) {
+    await forgetAlertsAt(tx, keep.id);
+  }
   return { merged, fields: changedFields(keep, columns) };
+}
+
+/**
+ * Forgets what the looks of alerts saw and told at a break, which stands elsewhere now: the
+ * alerts set on it, or those named, are read anew, as an alert whose spot moved is. Decision 064.
+ */
+export async function forgetAlertsAt(tx: Transaction, breakId: string, named?: string[]) {
+  const alertIds =
+    named ??
+    (
+      await tx
+        .select({ alertId: alertSpot.alertId })
+        .from(alertSpot)
+        .where(eq(alertSpot.breakId, breakId))
+    ).map((one) => one.alertId);
+  if (alertIds.length === 0) return;
+  for (const alertId of alertIds) await forgetSeen(tx, alertId, breakId);
+  await tx
+    .update(alert)
+    .set({ revision: sql`${alert.revision} + 1` })
+    .where(inArray(alert.id, alertIds));
 }
 
 /**

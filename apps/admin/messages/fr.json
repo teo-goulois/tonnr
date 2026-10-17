@@ -481,6 +481,7 @@
   "catalogue_used_by": "Utilisé par {uses}",
   "catalogue_unused": "Aucun compte ne l’utilise.",
   "catalogue_uses_spots": "{count} spots",
+  "catalogue_uses_alerts": "{count} alertes",
   "catalogue_uses_lists": "{count} listes",
   "catalogue_uses_sessions": "{count} sessions",
   "catalogue_uses_contributions": "{count} lignes de son guide",

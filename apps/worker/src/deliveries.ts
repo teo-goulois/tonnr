@@ -237,14 +237,15 @@ export async function queueDeliveries(
     .values(channels.map((channel) => ({ notificationId: made.id, channel, dueAt, expiresAt })));
 }
 
-// What a message says: its lines, with the spot of each and the names of the windows it speaks
+// What a message says: its lines, with the place of each and the names of the windows it speaks
 // of there, and what it tells once it has left: by spot, the hours its way out has told then
 // and those it has said to begin, and the deliveries it says in the place of.
 type Said = {
   moment: AlertMoment;
   alertName: string | null;
   lines: AlertLine[];
-  spotIds: string[];
+  // The place of each line: a spot, or a break of the catalogue. Decision 064.
+  places: { id: string; breakId: string | null }[];
   windows: string[][];
   // Whether deciding it wrote something to a spot it says nothing of: what its way out told
   // there, brought in line.
@@ -259,7 +260,7 @@ const saying = (moment: Said["moment"], alertName: string | null): Said => ({
   moment,
   alertName,
   lines: [],
-  spotIds: [],
+  places: [],
   windows: [],
   aligned: false,
   claim: { told: {}, begun: {}, merged: [] },
@@ -305,9 +306,10 @@ const finish = (tx: Transaction, channel: Channel, ids: string[], now: Date) =>
       ),
     );
 
-// A spot of an alert: a spot may be in several, and each keeps what it was told there.
-const linkOf = (alertId: string, spotId: string) =>
-  and(eq(alertSpot.alertId, alertId), eq(alertSpot.spotId, spotId));
+// A place of an alert, a spot or a break: a place may be in several, and each keeps what it was
+// told there.
+const linkOf = (alertId: string, placeId: string) =>
+  and(eq(alertSpot.alertId, alertId), eq(alertSpot.placeId, placeId));
 
 // Writes what a message told to the spots of its alert, as what its way out told there, and
 // settles what it said in the place of. An evening's message tells nothing to a spot: it has no
@@ -443,7 +445,7 @@ async function newsOf(
     // The sea at the first of the hours that are there.
     const [begins] = [...line.open, ...(line.moved?.open ?? [])].sort(byStart);
     said.lines.push({ ...line, ...seaOf(one, begins?.start, now) });
-    said.spotIds.push(one.place.id);
+    said.places.push(one.place);
     // The windows it speaks of: those that are there as they are named now, and those that
     // went as they were named.
     said.windows.push([
@@ -534,7 +536,7 @@ async function beginsOf(
       forecastFetchedAt: link.link.forecastFetchedAt,
       ...(station ? { station: { ...station, observedAt: new Date(station.observedAt) } } : {}),
     });
-    said.spotIds.push(link.place.id);
+    said.places.push(link.place);
     // A window that begins is the one this way out told, when it told it.
     said.windows.push(left.map((piece) => nameAt(toldBy(channel, link.link), piece)));
     said.claim.begun[link.place.id] = [
@@ -600,7 +602,7 @@ function eveningOf(
       ...seaOf(one, begins.start, now),
       forecastFetchedAt: fetchedAt,
     });
-    said.spotIds.push(one.place.id);
+    said.places.push(one.place);
     // An evening is of its day, and names no window.
     said.windows.push([]);
   }
@@ -873,7 +875,14 @@ async function takeBy(
       .from(unitPreferences)
       .where(eq(unitPreferences.userId, made.userId));
     const page = `${out.webOrigin}${localePrefix(locale)}`;
-    const spotIds = said.spotIds;
+    const { places } = said;
+    // A line leads to the panel of its place: a spot of the account's, or a break.
+    const placeQuery = (index: number) => {
+      const place = places[index];
+      return place?.breakId
+        ? `break=${encodeURIComponent(place.breakId)}`
+        : `spot=${encodeURIComponent(place?.id ?? "")}`;
+    };
     // What the two ways out say alike: the moment, in the account's language, zone and units.
     const saidAs = {
       locale,
@@ -905,7 +914,8 @@ async function takeBy(
           alertId: made.alertId,
           lines: said.lines.map((line, index) => ({
             ...line,
-            spotId: spotIds[index] ?? "",
+            spotId: places[index]?.id ?? "",
+            placeQuery: placeQuery(index),
             windows: said.windows[index] ?? [],
           })),
           page,
@@ -923,7 +933,7 @@ async function takeBy(
         namesInSubject: settings.namesInSubject,
         lines: said.lines.map((line, index) => ({
           ...line,
-          spotUrl: `${page}/app?spot=${encodeURIComponent(spotIds[index] ?? "")}`,
+          spotUrl: `${page}/app?${placeQuery(index)}`,
         })),
         forecastCredit: FORECAST_SOURCE.attribution,
         settingsUrl: `${page}/app?panel=alerts&alerts=settings`,

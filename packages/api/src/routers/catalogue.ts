@@ -9,12 +9,13 @@ import { z } from "zod";
 import { recordAction } from "../actions";
 import {
   ADMIN_ONLY,
-  breakValuesInput,
   breaksNear,
+  breakValuesInput,
   changedFields,
   columnsOf,
   deleteBreak,
   describeAllForOperator,
+  forgetAlertsAt,
   holdBreak,
   holdListsOf,
   listingsOf,
@@ -178,6 +179,10 @@ export const catalogueRouter = {
           .where(eq(surfBreak.id, row.id))
           .returning();
         if (!changed) throw noBreak(row.id);
+        // The alerts set on a break that moved read the sea where it stands now.
+        if (changed.latitude !== row.latitude || changed.longitude !== row.longitude) {
+          await forgetAlertsAt(tx, row.id);
+        }
         await recordAction(tx, {
           operatorId,
           action: "break.update",

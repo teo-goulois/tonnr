@@ -67,3 +67,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [061. One panel of the forecast, which shows less or more](061-a-panel-that-shows-less-or-more.md)
 - [062. How big the waves get at a break, against what the forecast says](062-size-against-the-forecast.md)
 - [063. What an account says of itself as a surfer, asked once as it comes](063-a-surfer-profile.md)
+- [064. An alert set on a surf break of the catalogue](064-alerts-on-surf-breaks.md)

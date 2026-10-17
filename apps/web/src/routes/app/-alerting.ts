@@ -84,11 +84,13 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
     return () => clearTimeout(timer);
   }, [trial]);
   const canTry = signedIn && tried !== null && Object.keys(tried.criteria).length > 0;
-  const triedSpots = tried?.spotIds ?? [];
+  // The places tried, spots and breaks, by their ids: the preview answers each under its id.
+  const triedSpots = [...(tried?.spotIds ?? []), ...(tried?.breakIds ?? [])];
   const preview = useQuery(
     orpc.v1.alerts.preview.queryOptions({
       input: {
-        spotIds: triedSpots,
+        spotIds: tried?.spotIds ?? [],
+        breakIds: tried?.breakIds ?? [],
         criteria: tried?.criteria ?? {},
         shortestMinutes: tried?.shortestMinutes ?? 120,
         days: 7,

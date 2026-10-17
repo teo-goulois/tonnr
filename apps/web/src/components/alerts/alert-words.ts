@@ -304,11 +304,16 @@ export type AlertDraft = {
   criteria: AlertCriteria;
   enabled: boolean;
   shortestMinutes: number;
+  // Its places: spots of the account's own, and surf breaks of the catalogue. Decision 064.
   spotIds: string[];
+  breakIds: string[];
 };
 
 /** What of a draft the preview is asked for. Null when no editor is open. */
-export type AlertTrial = Pick<AlertDraft, "criteria" | "shortestMinutes" | "spotIds"> | null;
+export type AlertTrial = Pick<
+  AlertDraft,
+  "criteria" | "shortestMinutes" | "spotIds" | "breakIds"
+> | null;
 
 /** Whether two values of a part of a draft say the same. */
 export function samePart<Key extends keyof AlertDraft>(
@@ -320,7 +325,7 @@ export function samePart<Key extends keyof AlertDraft>(
   if (key === "criteria") {
     return conditionsKey(one as AlertCriteria) === conditionsKey(other as AlertCriteria);
   }
-  if (key === "spotIds") {
+  if (key === "spotIds" || key === "breakIds") {
     return [...(one as string[])].sort().join() === [...(other as string[])].sort().join();
   }
   return one === other;

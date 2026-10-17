@@ -26,9 +26,10 @@ type AlertPlaceSheetProps = {
   // What is offered before a name is typed: the account's spots, and the breaks looked at last.
   spots: Spot[] | undefined;
   recents: Recent[];
-  onSpot: (spotId: string) => void;
-  // A break: the alert goes on the account's spot there, made first when it has none.
-  onBreak: (breakId: string) => void;
+  // A place the alert goes on: a spot of the account's, or a surf break of the catalogue, which
+  // takes an alert of its own as a spot does (decision 064).
+  onSpot: (spot: { id: string; name: string }) => void;
+  onBreak: (found: { id: string; name: string }) => void;
   onAddSpot: () => void;
 };
 
@@ -51,8 +52,8 @@ export function AlertPlaceSheet({
   const looked = recents.filter((recent) => recent.kind === "break");
   const pick = (found: Found) => {
     if (!found.id) return;
-    if (found.kind === "spot") onSpot(found.id);
-    else if (found.kind === "break") onBreak(found.id);
+    if (found.kind === "spot") onSpot({ id: found.id, name: found.name });
+    else if (found.kind === "break") onBreak({ id: found.id, name: found.name });
   };
 
   return (
@@ -87,7 +88,7 @@ export function AlertPlaceSheet({
             <h3 className="font-medium">{m.spots_title()}</h3>
             <ul className="-mx-xs grid gap-xxs">
               {spots?.map((spot) => (
-                <SpotRow key={spot.id} spot={spot} onSelect={() => onSpot(spot.id)} />
+                <SpotRow key={spot.id} spot={spot} onSelect={() => onSpot(spot)} />
               ))}
             </ul>
           </section>
@@ -97,7 +98,11 @@ export function AlertPlaceSheet({
             <h3 className="font-medium">{m.recents_title()}</h3>
             <ul className="-mx-xs grid gap-xxs">
               {looked.map((recent) => (
-                <BreakRow key={recent.id} found={recent} onSelect={() => onBreak(recent.id)} />
+                <BreakRow
+                  key={recent.id}
+                  found={recent}
+                  onSelect={() => onBreak({ id: recent.id, name: recent.name })}
+                />
               ))}
             </ul>
           </section>

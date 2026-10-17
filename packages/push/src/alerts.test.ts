@@ -57,6 +57,13 @@ describe("the push of an alert", () => {
     expect(push.url).toBe("https://app.example.org/app?spot=s1");
   });
 
+  it("opens the panel of a surf break of the catalogue for a line at one: decision 064", () => {
+    const push = alertPush(
+      content({ lines: [{ ...spot, placeQuery: "break=reef", open: morning, sea }] }),
+    );
+    expect(push.url).toBe("https://app.example.org/fr/app?break=reef");
+  });
+
   it("says what a window was when it moved, and what it was when it went", () => {
     const later = [{ start: at("12T09:00"), end: at("12T13:00") }];
     const moved = alertPush(

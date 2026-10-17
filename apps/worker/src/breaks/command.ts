@@ -18,6 +18,7 @@ import { addBreaks, breakSources, countBreaks, removeBreaks } from "./import";
 
 const breaks = (count: number) => `${count} ${count === 1 ? "break" : "breaks"}`;
 const spots = (count: number) => `${count} ${count === 1 ? "spot" : "spots"}`;
+const alerts = (count: number) => `${count} ${count === 1 ? "alert" : "alerts"}`;
 
 type Added = Effect.Success<ReturnType<typeof addBreaks>>;
 
@@ -142,13 +143,20 @@ export async function removeBreaksOf(db: Database, args: string[]): Promise<Outc
           `${spots(found.spots)} made from them ${read.write ? "kept" : "would keep"} their name and their point, without the link.`,
         ]
       : [];
+  const alerted =
+    found.alerts > 0
+      ? [
+          `${alerts(found.alerts)} set on them ${read.write ? "lost" : "would lose"} them: one set on nothing else ${read.write ? "went" : "would go"} too.`,
+        ]
+      : [];
   return {
     ok: true,
     lines: read.write
-      ? [`breaks: deleted ${what}.`, ...linked, ...forgotten]
+      ? [`breaks: deleted ${what}.`, ...linked, ...alerted, ...forgotten]
       : [
           `breaks: ${what} would be deleted.`,
           ...linked,
+          ...alerted,
           ...forgotten,
           "Nothing was deleted. Run it again with --write to delete them.",
         ],

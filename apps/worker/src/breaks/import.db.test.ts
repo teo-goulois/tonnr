@@ -1,3 +1,4 @@
+import { alert, alertSpot } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { breakCandidate } from "@repo/db/schema/catalogue";
 import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
@@ -188,11 +189,35 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
       latitude: 48.1,
       longitude: -4.4,
     });
+    // An alert set on the break alone goes with it, and one that keeps a spot is read anew:
+    // decision 064.
+    const asked = { waveHeightMeters: { min: 1 } };
+    await database.db.insert(alert).values([
+      { id: "alone", userId: "owner", name: "Alone", criteria: asked },
+      { id: "kept", userId: "owner", name: "Kept", criteria: asked },
+    ]);
+    await database.db.insert(alertSpot).values([
+      { alertId: "alone", breakId: origin?.id, position: 0 },
+      { alertId: "kept", spotId: "spot-1", position: 0 },
+      { alertId: "kept", breakId: origin?.id, position: 1 },
+    ]);
 
-    expect(await remove("first", false)).toEqual({ removed: 1, spots: 1, forgotten: 0 });
+    expect(await remove("first", false)).toEqual({
+      removed: 1,
+      spots: 1,
+      alerts: 2,
+      forgotten: 0,
+    });
     expect(await rows()).toHaveLength(2);
+    expect(await database.db.select().from(alert)).toHaveLength(2);
 
-    expect(await remove("first")).toEqual({ removed: 1, spots: 1, forgotten: 0 });
+    expect(await remove("first")).toEqual({ removed: 1, spots: 1, alerts: 2, forgotten: 0 });
+    expect(
+      await database.db.select({ id: alert.id, revision: alert.revision }).from(alert),
+    ).toEqual([{ id: "kept", revision: 1 }]);
+    expect(await database.db.select({ spotId: alertSpot.spotId }).from(alertSpot)).toEqual([
+      { spotId: "spot-1" },
+    ]);
     expect((await rows()).map((row) => row.provider)).toEqual(["second"]);
     expect(await records()).toEqual([]);
     expect((await listings()).map((row) => row.list)).toEqual(["second"]);
@@ -204,7 +229,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
   it("deletes nothing of a list the catalogue does not hold", async () => {
     await add(list("first", [listed("a1")]));
 
-    expect(await remove("second")).toEqual({ removed: 0, spots: 0, forgotten: 0 });
+    expect(await remove("second")).toEqual({ removed: 0, spots: 0, alerts: 0, forgotten: 0 });
     expect(await rows()).toHaveLength(1);
   });
 
@@ -230,7 +255,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
     await add(list("example", [listed("a1"), listed("a2")]));
     await database.db.delete(surfBreak).where(eq(surfBreak.providerRef, "a2"));
 
-    expect(await remove("example")).toEqual({ removed: 1, spots: 0, forgotten: 1 });
+    expect(await remove("example")).toEqual({ removed: 1, spots: 0, alerts: 0, forgotten: 1 });
     expect(await listings()).toEqual([]);
     expect(await add(list("example", [listed("a1"), listed("a2")]))).toMatchObject({ added: 2 });
   });

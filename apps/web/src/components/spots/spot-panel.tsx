@@ -25,8 +25,7 @@ type SpotPanelProps = PointConditionsProps & {
   // The owner says what the spot is like. `done` is called once it is saved.
   isDescribing: boolean;
   onDescribe: (spot: Spot, said: SpotDescription, done: () => void) => void;
-  // The user's spots, for the neighbours an alert may hold, and their alerts.
-  spots: Spot[];
+  // The user's alerts.
   alerting: Alerting;
   // Counts the times an alert of the spot was asked for from elsewhere: the tab of the alerts
   // then comes in view, on a panel that is already open as on one that opens.
@@ -53,7 +52,6 @@ export function SpotPanel({
   onOfferSeen,
   isDescribing,
   onDescribe,
-  spots,
   alerting,
   alertAsked,
   onWriteAlert,
@@ -165,8 +163,7 @@ export function SpotPanel({
           // written in, as a new one does.
           (alerting.alerts.data ? (
             <SpotAlerts
-              spot={found}
-              spots={spots}
+              placeId={found.id}
               alerts={own}
               onOpen={(one) => onWriteAlert({ alertId: one.id })}
               onNew={() => onWriteAlert({})}
@@ -203,6 +200,7 @@ export function SpotPanel({
                 enabled: true,
                 shortestMinutes: 120,
                 spotIds: [found.id],
+                breakIds: [],
               },
             }),
           )

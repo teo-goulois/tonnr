@@ -208,6 +208,7 @@ describe("what of a draft differs from the alert that is saved", () => {
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north", "south"],
+    breakIds: [],
   };
 
   it("is nothing for the same alert, written otherwise", () => {
@@ -269,6 +270,7 @@ describe("what an editor holds of an alert between two saves", () => {
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north"],
+    breakIds: [],
   };
   const sending = (drafting: typeof NOTHING_DRAFTED, sent: Partial<AlertDraft>) => ({
     ...drafting,
@@ -403,6 +405,7 @@ describe("what was changed, once a neighbour is gone", () => {
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north", "south"],
+    breakIds: [],
   };
 
   it("no longer asks for a spot that is no longer the user's", () => {
@@ -443,6 +446,7 @@ describe("the spots that were written, once the user's spots are read again", ()
     enabled: true,
     shortestMinutes: 120,
     spotIds: ["north"],
+    breakIds: [],
   };
 
   it("follow the alert again when what is left of them is what the alert has", () => {

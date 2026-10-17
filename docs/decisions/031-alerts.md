@@ -24,7 +24,7 @@ The first version also had faults that no rule of it named. It announced a windo
 ### The alert
 
 - An alert belongs to one account, and only that account reads it. It has a name, the conditions that make its spots work, and a switch. The conditions are the criteria of decision 006, unchanged: swell height, period and direction, wind speed and direction, tide height and trend.
-- An alert is set on one spot or on several, all of its account, and a spot may be in several alerts. The conditions are checked at each of an alert's spots, with that spot's own forecast and tide: spots that share an alert share what is asked of the sea, not the sea. Two alerts on one spot are looked at, told and sent apart: each keeps what it saw and what it told there, and hours that both find are told by both, each under its name.
+- An alert is set on one spot or on several, all of its account, and a spot may be in several alerts. Since [decision 064](064-alerts-on-surf-breaks.md) it may be set on surf breaks of the catalogue too, which count among its twelve places. The conditions are checked at each of an alert's spots, with that spot's own forecast and tide: spots that share an alert share what is asked of the sea, not the sea. Two alerts on one spot are looked at, told and sent apart: each keeps what it saw and what it told there, and hours that both find are told by both, each under its name.
 - An alert keeps the shortest window worth telling, two hours unless its owner says otherwise. Chosen here, and kept on the alert: a spot that works an hour around low tide is a matter of the spot, not of the person.
 - An alert whose last spot is deleted, or taken out of it, is deleted with it.
 - An account holds at most 100 alerts, and an alert at most 12 spots. Chosen here.

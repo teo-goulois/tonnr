@@ -15,7 +15,7 @@ import {
   notificationDelivery,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { LOCALES, isLocale, localePrefix } from "@repo/config/locales";
 import type { Locale } from "@repo/config/locales";
 import { and, asc, count, eq, inArray, max, sql } from "drizzle-orm";
@@ -28,7 +28,8 @@ import { admitForecastQuestion } from "../forecast-callers";
 import { forecastSourceSchema, forecastUnavailable } from "./forecasts";
 
 // Decision 031. An alert and an account's settings are their owner's alone: every procedure here
-// takes a session, and reads and writes nothing of another account.
+// takes a session, and reads and writes nothing of another account. Decision 064: an alert's
+// places are the account's own spots and surf breaks of the catalogue, which anyone may name.
 
 const MAX_ALERTS_PER_USER = 100;
 const MAX_SPOTS_PER_ALERT = 12;
@@ -70,11 +71,21 @@ const shortestSchema = z
   .multipleOf(60)
   .describe("The shortest window worth telling, in minutes: whole hours, one at least.");
 
-const spotIdsSchema = z
-  .array(z.string())
-  .min(1)
-  .max(MAX_SPOTS_PER_ALERT)
-  .refine((ids) => new Set(ids).size === ids.length, "a spot is named once");
+const idsSchema = (what: string) =>
+  z
+    .array(z.string())
+    .max(MAX_SPOTS_PER_ALERT)
+    .refine((ids) => new Set(ids).size === ids.length, `a ${what} is named once`);
+const spotIdsSchema = idsSchema("spot").describe("The caller's spots, as `GET /spots` names them.");
+const breakIdsSchema = idsSchema("break").describe(
+  "Surf breaks of the catalogue, as `GET /breaks` names them.",
+);
+// An alert has one place at least, spots and breaks together, and twelve at most.
+const placesHeld = (places: { spotIds?: string[]; breakIds?: string[] }) => {
+  const total = (places.spotIds?.length ?? 0) + (places.breakIds?.length ?? 0);
+  return total >= 1 && total <= MAX_SPOTS_PER_ALERT;
+};
+const placesMessage = `an alert is set on one place at least, and ${MAX_SPOTS_PER_ALERT} at most`;
 
 const alertSchema = z.object({
   id: z.string(),
@@ -83,20 +94,29 @@ const alertSchema = z.object({
   criteria: criteriaSchema,
   enabled: z.boolean(),
   shortestMinutes: z.number(),
-  // The spots it is set on, in the order they were added.
+  // The spots of the account it is set on, and the breaks of the catalogue.
   spotIds: z.array(z.string()),
+  breakIds: z.array(z.string()),
+  // Its places, spots and breaks, with their names, in the order they were added.
+  places: z.array(
+    z.object({ spotId: z.string().nullable(), breakId: z.string().nullable(), name: z.string() }),
+  ),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-function describeAlert(row: typeof alert.$inferSelect, spotIds: string[]) {
+type Place = { spotId: string | null; breakId: string | null; name: string };
+
+function describeAlert(row: typeof alert.$inferSelect, places: Place[]) {
   return {
     id: row.id,
     name: row.name,
     criteria: row.criteria,
     enabled: row.enabled,
     shortestMinutes: row.shortestMinutes,
-    spotIds,
+    spotIds: places.flatMap((place) => place.spotId ?? []),
+    breakIds: places.flatMap((place) => place.breakId ?? []),
+    places,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -106,16 +126,23 @@ function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No alert "${id}".` });
 }
 
-// The spots of an alert, in the order they were added.
-async function spotIdsOf(db: Database | Transaction, alertIds: string[]) {
-  const byAlert = new Map<string, string[]>(alertIds.map((id) => [id, []]));
+// The places of each alert, spots and breaks, in the order they were added.
+async function placesOf(db: Database | Transaction, alertIds: string[]) {
+  const byAlert = new Map<string, Place[]>(alertIds.map((id) => [id, []]));
   if (alertIds.length === 0) return byAlert;
   const rows = await db
-    .select({ alertId: alertSpot.alertId, spotId: alertSpot.spotId })
+    .select({
+      alertId: alertSpot.alertId,
+      spotId: alertSpot.spotId,
+      breakId: alertSpot.breakId,
+      name: sql<string>`coalesce(${spot.name}, ${surfBreak.name})`,
+    })
     .from(alertSpot)
+    .leftJoin(spot, eq(spot.id, alertSpot.spotId))
+    .leftJoin(surfBreak, eq(surfBreak.id, alertSpot.breakId))
     .where(inArray(alertSpot.alertId, alertIds))
-    .orderBy(asc(alertSpot.position), asc(alertSpot.spotId));
-  for (const row of rows) byAlert.get(row.alertId)?.push(row.spotId);
+    .orderBy(asc(alertSpot.position), asc(alertSpot.placeId));
+  for (const { alertId, ...place } of rows) byAlert.get(alertId)?.push(place);
   return byAlert;
 }
 
@@ -137,15 +164,31 @@ async function claimSpots(tx: Transaction, userId: string, spotIds: string[]) {
 }
 
 /**
- * Forgets what the looks saw and told at an alert's spots, or at one of them: the sea is
- * another under new conditions, and at another place. Nothing is told of what is forgotten,
- * and the next look starts as the first did.
+ * Checks that breaks of the catalogue may join an alert: each is there. Anyone may name one. The
+ * rows are held until the transaction ends, so that a break cannot be merged or deleted meanwhile.
  */
-export async function forgetSeen(tx: Transaction, alertId: string, spotId?: string) {
+async function claimBreaks(tx: Transaction, breakIds: string[]) {
+  if (breakIds.length === 0) return;
+  const found = await tx
+    .select({ id: surfBreak.id })
+    .from(surfBreak)
+    .where(inArray(surfBreak.id, breakIds))
+    .for("share");
+  const known = new Set(found.map((row) => row.id));
+  const missing = breakIds.find((id) => !known.has(id));
+  if (missing) throw new ORPCError("NOT_FOUND", { message: `No surf break "${missing}".` });
+}
+
+/**
+ * Forgets what the looks saw and told at an alert's places, or at one of them, a spot or a break:
+ * the sea is another under new conditions, and at another place. Nothing is told of what is
+ * forgotten, and the next look starts as the first did.
+ */
+export async function forgetSeen(tx: Transaction, alertId: string, placeId?: string) {
   await tx
     .delete(alertWindow)
     .where(
-      and(eq(alertWindow.alertId, alertId), spotId ? eq(alertWindow.spotId, spotId) : undefined),
+      and(eq(alertWindow.alertId, alertId), placeId ? eq(alertWindow.placeId, placeId) : undefined),
     );
   await tx
     .update(alertSpot)
@@ -159,7 +202,9 @@ export async function forgetSeen(tx: Transaction, alertId: string, spotId?: stri
       begun: [],
       lookedAt: null,
     })
-    .where(and(eq(alertSpot.alertId, alertId), spotId ? eq(alertSpot.spotId, spotId) : undefined));
+    .where(
+      and(eq(alertSpot.alertId, alertId), placeId ? eq(alertSpot.placeId, placeId) : undefined),
+    );
 }
 
 // A time zone, kept as the runtime spells it, whatever case it came in.
@@ -310,33 +355,38 @@ export const alertsRouter = {
       method: "POST",
       path: "/alerts",
       successStatus: 201,
-      summary: "Set an alert on one spot, or on several that work in the same conditions",
+      summary: "Set an alert on one place, or on several that work in the same conditions",
       description:
-        "The conditions are checked at each of the spots, with that spot's own forecast and " +
-        "tide. A spot may be in several alerts, each with its name and its conditions.",
+        "Its places are spots of the caller's own, in `spotIds`, and surf breaks of the " +
+        "catalogue, in `breakIds`: one at least, and twelve together at most. The conditions " +
+        "are checked at each place, with its own forecast and tide. A place may be in several " +
+        "alerts, each with its name and its conditions.",
       tags: ["Alerts"],
     })
     .input(
-      z.object({
-        name: nameSchema,
-        spotIds: spotIdsSchema,
-        criteria: conditionsSchema,
-        enabled: z.boolean().default(true),
-        shortestMinutes: shortestSchema.default(120),
-        ...deviceFields,
-        byMailIfNone: z
-          .boolean()
-          .optional()
-          .describe(
-            "Whether the account wants its alerts by mail, if it never said. It keeps the " +
-              "answer it gave. Mail leaves once its address is checked.",
-          ),
-      }),
+      z
+        .object({
+          name: nameSchema,
+          spotIds: spotIdsSchema.default([]),
+          breakIds: breakIdsSchema.default([]),
+          criteria: conditionsSchema,
+          enabled: z.boolean().default(true),
+          shortestMinutes: shortestSchema.default(120),
+          ...deviceFields,
+          byMailIfNone: z
+            .boolean()
+            .optional()
+            .describe(
+              "Whether the account wants its alerts by mail, if it never said. It keeps the " +
+                "answer it gave. Mail leaves once its address is checked.",
+            ),
+        })
+        .refine(placesHeld, placesMessage),
     )
     .output(alertSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { spotIds, zoneIfNone, localeIfNone, byMailIfNone, ...fields } = input;
+      const { spotIds, breakIds, zoneIfNone, localeIfNone, byMailIfNone, ...fields } = input;
 
       const created = await context.db.transaction(async (tx) => {
         // Locking the account row makes its creations run one after the other, so two requests
@@ -349,14 +399,21 @@ export const alertsRouter = {
         if ((owned?.total ?? 0) >= MAX_ALERTS_PER_USER) return null;
 
         await claimSpots(tx, userId, spotIds);
+        await claimBreaks(tx, breakIds);
         const [row] = await tx
           .insert(alert)
           .values({ ...fields, id: crypto.randomUUID(), userId })
           .returning();
         if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR");
-        await tx
-          .insert(alertSpot)
-          .values(spotIds.map((spotId, position) => ({ spotId, alertId: row.id, position })));
+        // The spots first, then the breaks.
+        await tx.insert(alertSpot).values([
+          ...spotIds.map((spotId, position) => ({ spotId, alertId: row.id, position })),
+          ...breakIds.map((breakId, index) => ({
+            breakId,
+            alertId: row.id,
+            position: spotIds.length + index,
+          })),
+        ]);
         // An account's days and hours are read in the time zone of its first alert's device.
         await settleDevice(tx, userId, { zoneIfNone, localeIfNone });
         // And what it answers about mail is saved with the alert, or not at all.
@@ -368,7 +425,10 @@ export const alertsRouter = {
           message: `An account holds at most ${MAX_ALERTS_PER_USER} alerts.`,
         });
       }
-      return describeAlert(created, spotIds);
+      return describeAlert(
+        created,
+        (await placesOf(context.db, [created.id])).get(created.id) ?? [],
+      );
     }),
 
   list: protectedProcedure
@@ -382,8 +442,9 @@ export const alertsRouter = {
           "some of its spots work, in `criteria`: bounds on the wave height, its peak " +
           "period and the direction it comes from, on the first swell, on the wind's speed " +
           "and direction, on the tide's height, and whether the tide rises or falls. A " +
-          "condition left out asks nothing. It is set on the spots of `spotIds`, which list_my_spots " +
-          "names, and tells its owner when the forecast holds them for `shortestMinutes` at " +
+          "condition left out asks nothing. It is set on the places of `places`, in order, each " +
+          "with its name: a spot of the account's, whose id list_my_spots names in `spotIds`, or " +
+          "a surf break of the catalogue, whose id search_surf_breaks names in `breakIds`. It tells its owner when the forecast holds them for `shortestMinutes` at " +
           "least. `enabled: false` is an alert that is paused. Use `criteria` to say " +
           "whether a forecast you read is what the person waits for. This tool changes no " +
           "alert. Next: list_my_alert_notifications for what the alerts told lately.",
@@ -397,11 +458,11 @@ export const alertsRouter = {
         .from(alert)
         .where(eq(alert.userId, context.session.user.id))
         .orderBy(asc(alert.createdAt), asc(alert.id));
-      const spots = await spotIdsOf(
+      const places = await placesOf(
         context.db,
         rows.map((row) => row.id),
       );
-      return { alerts: rows.map((row) => describeAlert(row, spots.get(row.id) ?? [])) };
+      return { alerts: rows.map((row) => describeAlert(row, places.get(row.id) ?? [])) };
     }),
 
   get: protectedProcedure
@@ -419,8 +480,8 @@ export const alertsRouter = {
         .from(alert)
         .where(and(eq(alert.id, input.id), eq(alert.userId, context.session.user.id)));
       if (!row) throw notFound(input.id);
-      const spots = await spotIdsOf(context.db, [row.id]);
-      return describeAlert(row, spots.get(row.id) ?? []);
+      const places = await placesOf(context.db, [row.id]);
+      return describeAlert(row, places.get(row.id) ?? []);
     }),
 
   update: protectedProcedure
@@ -431,7 +492,7 @@ export const alertsRouter = {
       summary: "Change one of the caller's alerts",
       description:
         "What is left out stays as it is. `spotIds`, when given, are all the spots of the " +
-        "alert from then on. New conditions start the alert over, and so does switching it " +
+        "alert from then on, and `breakIds` all its breaks. New conditions start the alert over, and so does switching it " +
         "off: what it saw of the sea and what it told are forgotten, and nothing is called off.",
       tags: ["Alerts"],
     })
@@ -440,6 +501,7 @@ export const alertsRouter = {
         id: z.string(),
         name: nameSchema.optional(),
         spotIds: spotIdsSchema.optional(),
+        breakIds: breakIdsSchema.optional(),
         criteria: conditionsSchema.optional(),
         enabled: z.boolean().optional(),
         shortestMinutes: shortestSchema.optional(),
@@ -448,7 +510,7 @@ export const alertsRouter = {
     .output(alertSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const { id, spotIds, ...changes } = input;
+      const { id, spotIds, breakIds, ...changes } = input;
 
       return context.db.transaction(async (tx) => {
         const [current] = await tx
@@ -458,11 +520,24 @@ export const alertsRouter = {
           .for("update");
         if (!current) throw notFound(id);
 
-        const before = (await spotIdsOf(tx, [id])).get(id) ?? [];
-        const after = spotIds ?? before;
-        const added = after.filter((spotId) => !before.includes(spotId));
-        const removed = before.filter((spotId) => !after.includes(spotId));
-        await claimSpots(tx, userId, added);
+        const held = (await placesOf(tx, [id])).get(id) ?? [];
+        const spotsBefore = held.flatMap((place) => place.spotId ?? []);
+        const breaksBefore = held.flatMap((place) => place.breakId ?? []);
+        const spotsAfter = spotIds ?? spotsBefore;
+        const breaksAfter = breakIds ?? breaksBefore;
+        if (!placesHeld({ spotIds: spotsAfter, breakIds: breaksAfter })) {
+          throw new ORPCError("BAD_REQUEST", { message: placesMessage });
+        }
+        const addedSpots = spotsAfter.filter((spotId) => !spotsBefore.includes(spotId));
+        const addedBreaks = breaksAfter.filter((breakId) => !breaksBefore.includes(breakId));
+        // A place is named by its id, a spot's or a break's: both are UUIDs.
+        const removed = [
+          ...spotsBefore.filter((spotId) => !spotsAfter.includes(spotId)),
+          ...breaksBefore.filter((breakId) => !breaksAfter.includes(breakId)),
+        ];
+        const added = [...addedSpots, ...addedBreaks];
+        await claimSpots(tx, userId, addedSpots);
+        await claimBreaks(tx, addedBreaks);
 
         // What a look reads has changed: one that is under way writes nothing.
         const asksOtherwise =
@@ -484,25 +559,28 @@ export const alertsRouter = {
         } else if (removed.length > 0) {
           await tx
             .delete(alertWindow)
-            .where(and(eq(alertWindow.alertId, id), inArray(alertWindow.spotId, removed)));
+            .where(and(eq(alertWindow.alertId, id), inArray(alertWindow.placeId, removed)));
         }
         if (removed.length > 0) {
           await tx
             .delete(alertSpot)
-            .where(and(eq(alertSpot.alertId, id), inArray(alertSpot.spotId, removed)));
+            .where(and(eq(alertSpot.alertId, id), inArray(alertSpot.placeId, removed)));
         }
         if (added.length > 0) {
-          // After the spots that stay, whatever place those that left had.
+          // After the places that stay, whatever place those that left had.
           const [last] = await tx
             .select({ position: max(alertSpot.position) })
             .from(alertSpot)
             .where(eq(alertSpot.alertId, id));
           const from = (last?.position ?? -1) + 1;
-          await tx
-            .insert(alertSpot)
-            .values(
-              added.map((spotId, index) => ({ spotId, alertId: id, position: from + index })),
-            );
+          await tx.insert(alertSpot).values([
+            ...addedSpots.map((spotId, index) => ({ spotId, alertId: id, position: from + index })),
+            ...addedBreaks.map((breakId, index) => ({
+              breakId,
+              alertId: id,
+              position: from + addedSpots.length + index,
+            })),
+          ]);
         }
 
         const [updated] = await tx
@@ -517,11 +595,8 @@ export const alertsRouter = {
           .where(eq(alert.id, id))
           .returning();
         if (!updated) throw notFound(id);
-        // The spots that stay keep their place, and the new ones come after them.
-        return describeAlert(updated, [
-          ...before.filter((spotId) => after.includes(spotId)),
-          ...added,
-        ]);
+        // The places that stay keep their place, and the new ones come after them.
+        return describeAlert(updated, (await placesOf(tx, [id])).get(id) ?? []);
       });
     }),
 
@@ -531,7 +606,7 @@ export const alertsRouter = {
       method: "DELETE",
       path: "/alerts/{id}",
       summary: "Delete one of the caller's alerts",
-      description: "Its spots stay. What it told stays in the caller's notifications.",
+      description: "Its places stay. What it told stays in the caller's notifications.",
       tags: ["Alerts"],
     })
     .input(z.object({ id: z.string() }))
@@ -550,26 +625,32 @@ export const alertsRouter = {
     .route({
       method: "POST",
       path: "/alerts/preview",
-      summary: "What conditions would give at some of the caller's spots, before they are saved",
+      summary: "What conditions would give at some places, before they are saved",
       description:
-        "For each spot: the forecast and the tide hour by hour, the conditions each hour does " +
+        "The places are spots of the caller's own and surf breaks of the catalogue, as an " +
+        "alert's are. For each place, under `spotId`, its id, with `breakId` for a break: the forecast and the tide hour by hour, the conditions each hour does " +
         "not meet, the windows in which all are met, and the hours of those windows the caller " +
         "can use, by the settings of their account. Nothing is saved and nothing is told.",
       tags: ["Alerts"],
     })
     .input(
-      z.object({
-        spotIds: spotIdsSchema,
-        criteria: askedSchema,
-        shortestMinutes: shortestSchema.default(120),
-        days: z.number().int().min(1).max(MAX_FORECAST_DAYS).default(7),
-      }),
+      z
+        .object({
+          spotIds: spotIdsSchema.default([]),
+          breakIds: breakIdsSchema.default([]),
+          criteria: askedSchema,
+          shortestMinutes: shortestSchema.default(120),
+          days: z.number().int().min(1).max(MAX_FORECAST_DAYS).default(7),
+        })
+        .refine(placesHeld, placesMessage),
     )
     .output(
       z.object({
         spots: z.array(
           z.object({
+            // The place's id, a spot's or a break's, and the break's when it is one.
             spotId: z.string(),
+            breakId: z.string().nullable(),
             // False for a spot with no sea forecast: there is nothing else then.
             hasSea: z.boolean(),
             // Null when no tide station is close enough. Tide conditions are then never met.
@@ -607,25 +688,38 @@ export const alertsRouter = {
     )
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
-      const spots = await context.db
-        .select()
-        .from(spot)
-        .where(and(inArray(spot.id, input.spotIds), eq(spot.userId, userId)));
-      const missing = input.spotIds.find((id) => !spots.some((row) => row.id === id));
+      const owned =
+        input.spotIds.length === 0
+          ? []
+          : await context.db
+              .select()
+              .from(spot)
+              .where(and(inArray(spot.id, input.spotIds), eq(spot.userId, userId)));
+      const missing = input.spotIds.find((id) => !owned.some((row) => row.id === id));
       if (missing) throw new ORPCError("NOT_FOUND", { message: `No spot "${missing}".` });
+      const breaks =
+        input.breakIds.length === 0
+          ? []
+          : await context.db.select().from(surfBreak).where(inArray(surfBreak.id, input.breakIds));
+      const absent = input.breakIds.find((id) => !breaks.some((row) => row.id === id));
+      if (absent) throw new ORPCError("NOT_FOUND", { message: `No surf break "${absent}".` });
+      // The spots first, then the breaks, as an alert holds them.
+      const places = [
+        ...input.spotIds.map((id) => ({ ...owned.find((row) => row.id === id)!, breakId: null })),
+        ...input.breakIds.map((id) => ({ ...breaks.find((row) => row.id === id)!, breakId: id })),
+      ];
       const [row] = await context.db
         .select()
         .from(alertSettings)
         .where(eq(alertSettings.userId, userId));
       const availability = availabilityOf(settingsOf(row));
 
-      // One question of the account's hour, whatever the number of spots.
+      // One question of the account's hour, whatever the number of places.
       await admitForecastQuestion(context);
-      // One spot after the other: neighbours share a cell of the forecast, which the first of
+      // One place after the other: neighbours share a cell of the forecast, which the first of
       // them fetches for all.
       const assessed = [];
-      for (const spotId of input.spotIds) {
-        const place = spots.find((candidate) => candidate.id === spotId)!;
+      for (const place of places) {
         const result = await Effect.runPromise(
           Effect.result(
             assessSpot(context.forecasts, { ...place, criteria: input.criteria }, input.days),
@@ -642,6 +736,7 @@ export const alertsRouter = {
       return {
         spots: assessed.map(({ place, found }) => ({
           spotId: place.id,
+          breakId: place.breakId,
           forecastFetchedAt: found.forecastFetchedAt,
           forecastStale: found.forecastStale,
           ...(found.hasSea

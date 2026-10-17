@@ -3,6 +3,7 @@ import type { Session } from "@repo/auth";
 import { breakAtAddress } from "@repo/db/addresses";
 import { catchUpListings } from "@repo/db/catalogue";
 import { operator, operatorAction } from "@repo/db/schema/access";
+import { alert, alertSpot, alertWindow } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { breakCandidate, breakCandidateImage } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
@@ -151,6 +152,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       });
       expect(read.uses).toEqual({
         spots: 0,
+        alerts: 0,
         lists: 0,
         sessions: 0,
         contributions: 0,
@@ -281,6 +283,23 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         longitude: -4.5,
         updatedAt: new Date("2026-10-01T00:00:00Z"),
       });
+      // An alert set on the break that goes, and one set on both: decision 064.
+      const asked = { waveHeightMeters: { min: 1 } };
+      await db.insert(alert).values([
+        { id: "alert-south", userId: "ana", name: "South", criteria: asked },
+        { id: "alert-both", userId: "ana", name: "Both", criteria: asked },
+      ]);
+      await db.insert(alertSpot).values([
+        { alertId: "alert-south", breakId: ids.south, position: 0 },
+        { alertId: "alert-both", breakId: ids.north, position: 0 },
+        { alertId: "alert-both", breakId: ids.south, position: 1 },
+      ]);
+      await db.insert(alertWindow).values({
+        alertId: "alert-south",
+        breakId: ids.south,
+        seaStart: new Date("2026-10-02T08:00:00Z"),
+        seaEnd: new Date("2026-10-02T12:00:00Z"),
+      });
       await db.insert(stationList).values([
         { id: "list-1", userId: "ana", name: "Both" },
         { id: "list-2", userId: "ana", name: "South" },
@@ -366,6 +385,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
       });
       expect(merged.uses).toEqual({
         spots: 1,
+        alerts: 2,
         lists: 2,
         sessions: 1,
         contributions: 0,
@@ -385,6 +405,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         { listId: "list-2", breakId: ids.north },
       ]);
       expect(await db.select().from(surfSession)).toMatchObject([{ breakId: ids.north }]);
+      // An alert set on both holds the one that stays once, and what was seen at the one that
+      // went is forgotten.
+      expect(
+        await db
+          .select({ alertId: alertSpot.alertId, breakId: alertSpot.breakId })
+          .from(alertSpot)
+          .orderBy(asc(alertSpot.alertId)),
+      ).toEqual([
+        { alertId: "alert-both", breakId: ids.north },
+        { alertId: "alert-south", breakId: ids.north },
+      ]);
+      expect(await db.select().from(alertWindow)).toEqual([]);
+      expect(
+        await db.select({ revision: alert.revision }).from(alert).orderBy(asc(alert.id)),
+      ).toEqual([{ revision: 1 }, { revision: 1 }]);
       // The answer given to the one that stays is kept.
       expect(await db.select().from(breakAnswer).orderBy(asc(breakAnswer.question))).toMatchObject([
         { breakId: ids.north, question: "crowd", answer: "busy" },

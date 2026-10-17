@@ -27,6 +27,7 @@ function Part({ title, children }: { title: string; children: ReactNode }) {
 export function usesOf(uses: BreakUses) {
   const said = [
     uses.spots > 0 && m.catalogue_uses_spots({ count: formatCount(uses.spots) }),
+    uses.alerts > 0 && m.catalogue_uses_alerts({ count: formatCount(uses.alerts) }),
     uses.lists > 0 && m.catalogue_uses_lists({ count: formatCount(uses.lists) }),
     uses.sessions > 0 && m.catalogue_uses_sessions({ count: formatCount(uses.sessions) }),
     uses.contributions > 0 &&

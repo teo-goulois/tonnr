@@ -59,7 +59,14 @@ const draftOf = (alert: Alert): AlertDraft => ({
   enabled: alert.enabled,
   shortestMinutes: alert.shortestMinutes,
   spotIds: alert.spotIds,
+  breakIds: alert.breakIds,
 });
+
+/**
+ * Where an alert is written from: a spot of the account's own, or a surf break of the catalogue.
+ * Decision 064.
+ */
+export type AlertPlace = { kind: "spot" | "break"; id: string; name: string };
 
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.
@@ -73,14 +80,14 @@ export const SPOTS_MOST = 12;
 
 type AlertEditorProps = {
   now: number;
-  // The spot whose panel this is, and the user's spots, for the neighbours an alert may hold.
-  spot: Spot;
+  // The place the alert is written from, and the user's spots, for the neighbours it may hold.
+  place: AlertPlace;
   spots: Spot[];
   // The alert that is written. Undefined for one that is not saved yet.
   alert: Alert | undefined;
   // What a new alert starts from, when it is the copy of another.
   initial?: AlertDraft;
-  // The tide at the spot over the two days ahead, drawn beside what is asked of it. Empty
+  // The tide at the place over the two days ahead, drawn beside what is asked of it. Empty
   // where no tide station is near.
   tide: TidePoint[];
   // The time zone the account's days are read in. Undefined until it has set one: the browser's.
@@ -160,7 +167,7 @@ function Slot({
  */
 export function AlertEditor({
   now,
-  spot,
+  place,
   spots,
   alert,
   initial,
@@ -184,13 +191,14 @@ export function AlertEditor({
       alert
         ? draftOf(alert)
         : (initial ?? {
-            name: spot.name,
+            name: place.name,
             criteria: {},
             enabled: true,
             shortestMinutes: 120,
-            spotIds: [spot.id],
+            spotIds: place.kind === "spot" ? [place.id] : [],
+            breakIds: place.kind === "break" ? [place.id] : [],
           }),
-    [alert, initial, spot.id, spot.name],
+    [alert, initial, place.kind, place.id, place.name],
   );
   // What was changed here, part by part, and what the save that is on its way sent. The rest is
   // the alert as it is saved, now: a part left alone follows the alert if it changes elsewhere
@@ -198,12 +206,15 @@ export function AlertEditor({
   // tests: what is written while a save is on its way is still here when the answer comes.
   const [drafting, setDrafting] = useState(NOTHING_DRAFTED);
   const { changed } = drafting;
-  // Whether a spot is still the user's. A list that does not hold the panel's own spot is not
-  // read yet, and says nothing of what is gone.
+  // Whether a spot is still the user's. A list that does not hold the spot the alert is written
+  // from is not read yet, and says nothing of what is gone. At a break, the list is read before
+  // the editor opens.
   const isKnown = useMemo(() => {
     const known = new Set(spots.map((one) => one.id));
-    return known.has(spot.id) ? (spotId: string) => known.has(spotId) : () => true;
-  }, [spots, spot.id]);
+    return place.kind === "break" || known.has(place.id)
+      ? (spotId: string) => known.has(spotId)
+      : () => true;
+  }, [spots, place.kind, place.id]);
   // The alert as it is written. A neighbour that was deleted meanwhile is not shown, tried or
   // sent, whether the alert's spots were changed here or not.
   const draft = useMemo(() => {
@@ -240,18 +251,23 @@ export function AlertEditor({
 
   // The preview follows the draft while the editor is open, and is let go of when it closes.
   useEffect(() => {
-    onTry({ criteria: sent, shortestMinutes: draft.shortestMinutes, spotIds: draft.spotIds });
-  }, [sent, draft.shortestMinutes, draft.spotIds, onTry]);
+    onTry({
+      criteria: sent,
+      shortestMinutes: draft.shortestMinutes,
+      spotIds: draft.spotIds,
+      breakIds: draft.breakIds,
+    });
+  }, [sent, draft.shortestMinutes, draft.spotIds, draft.breakIds, onTry]);
   useEffect(() => () => onTry(null), [onTry]);
 
   const setCriteria = (next: AlertCriteria) => set("criteria", next);
-  // What was tried at the spots of the draft, in their order. An answer may still be of the
-  // draft as it was a moment ago.
-  const tried = draft.spotIds.flatMap(
-    (spotId) => preview.data?.spots.find((one) => one.spotId === spotId) ?? [],
+  // What was tried at the places of the draft, in their order: the preview names a place by its
+  // id, a spot's or a break's. An answer may still be of the draft as it was a moment ago.
+  const tried = [...draft.spotIds, ...draft.breakIds].flatMap(
+    (placeId) => preview.data?.spots.find((one) => one.spotId === placeId) ?? [],
   );
   const ahead = hoursAhead(
-    tried.find((one) => one.spotId === spot.id),
+    tried.find((one) => one.spotId === place.id),
     now,
   );
   const current = ahead[0];
@@ -264,12 +280,12 @@ export function AlertEditor({
   const tideChart = tide.length > 1 && (
     <div className="grid gap-xxs">
       <AlertTideChart
-        label={m.alert_tide_chart({ spot: spot.name })}
+        label={m.alert_tide_chart({ spot: place.name })}
         points={tide}
         range={criteria.tideHeightMeters}
         trend={criteria.tideTrend}
       />
-      <span className="text-xs text-neutral-7">{m.alert_tide_caption({ spot: spot.name })}</span>
+      <span className="text-xs text-neutral-7">{m.alert_tide_caption({ spot: place.name })}</span>
     </div>
   );
 
@@ -388,13 +404,19 @@ export function AlertEditor({
 
   const pieces = openPieces(tried, now);
   const held = heldBack(ahead).slice(0, 2);
-  const nameOf = (spotId: string) => spots.find((one) => one.id === spotId)?.name ?? "";
+  // A place is named among the user's spots, the alert's places, or as the one written from.
+  const nameOf = (placeId: string) =>
+    placeId === place.id
+      ? place.name
+      : (spots.find((one) => one.id === placeId)?.name ??
+        alert?.places.find((one) => (one.spotId ?? one.breakId) === placeId)?.name ??
+        "");
   const asksTide = sent.tideHeightMeters !== undefined || sent.tideTrend !== undefined;
   const asksSwell =
     sent.primarySwellHeightMeters !== undefined || sent.primarySwellDirectionDegrees !== undefined;
   // The spots that may share the alert: the user's others, whatever alerts they are in.
-  const neighbours = spots.filter((one) => one.id !== spot.id);
-  const isFull = draft.spotIds.length >= SPOTS_MOST;
+  const neighbours = spots.filter((one) => one.id !== place.id);
+  const isFull = draft.spotIds.length + draft.breakIds.length >= SPOTS_MOST;
   const parts = partsToSave(drafting, saved);
   const isDirty = !alert || Object.keys(parts).length > 0;
   // Saving and deleting take turns: neither is asked while the other is on its way.
@@ -696,8 +718,10 @@ export function AlertEditor({
               variant="outline"
               size="sm"
               aria-labelledby={`${id}-also`}
-              value={draft.spotIds.filter((spotId) => spotId !== spot.id)}
-              onValueChange={(pressed) => set("spotIds", [spot.id, ...pressed])}
+              value={draft.spotIds.filter((spotId) => spotId !== place.id)}
+              onValueChange={(pressed) =>
+                set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed)
+              }
             >
               {neighbours.map((one) => (
                 <ToggleGroupItem

@@ -1,6 +1,8 @@
 import { LOCALES } from "@repo/config/locales";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -11,9 +13,10 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { session, user } from "./auth";
-import { type SpotCriteria, spot } from "./spots";
+import { type SpotCriteria, spot, surfBreak } from "./spots";
 
-// Decision 031: an alert is an object of its own, set on one spot or on neighbours.
+// Decision 031: an alert is an object of its own, set on one spot or on neighbours. Decision 064:
+// a place of an alert is a spot of the account's own or a surf break of the catalogue.
 
 /** A stretch of time as JSON keeps it: two moments, in ISO 8601. */
 export type Stretch = { start: string; end: string };
@@ -114,15 +117,19 @@ export const alert = pgTable(
 );
 
 /**
- * A spot an alert is set on. A spot may be in several alerts, each with its own conditions: the
- * spot and the alert are the key, and whatever reads or writes a row names both.
+ * A place an alert is set on: a spot of the account's own, or a surf break of the catalogue
+ * (decision 064). A place may be in several alerts, each with its own conditions: the place and
+ * the alert are the key, and whatever reads or writes a row names both. `placeId` is the id of
+ * whichever of the two it is, which the database writes: a spot's and a break's ids are UUIDs.
  */
 export const alertSpot = pgTable(
   "alert_spot",
   {
-    spotId: text("spot_id")
-      .notNull()
-      .references(() => spot.id, { onDelete: "cascade" }),
+    spotId: text("spot_id").references(() => spot.id, { onDelete: "cascade" }),
+    breakId: text("break_id").references(() => surfBreak.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .generatedAlwaysAs(sql`coalesce(spot_id, break_id)`)
+      .notNull(),
     alertId: text("alert_id")
       .notNull()
       .references(() => alert.id, { onDelete: "cascade" }),
@@ -154,8 +161,10 @@ export const alertSpot = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.spotId, table.alertId] }),
+    primaryKey({ columns: [table.placeId, table.alertId] }),
     index("alert_spot_alertId_idx").on(table.alertId),
+    index("alert_spot_breakId_idx").on(table.breakId),
+    check("alert_spot_one_place", sql`(${table.spotId} is null) <> (${table.breakId} is null)`),
   ],
 );
 
@@ -215,8 +224,9 @@ export const alertSettings = pgTable("alert_settings", {
 
 /**
  * What the worker remembers of a sea window from one look to the next: a run of hours in which
- * an alert's conditions are met at one of its spots. A look replaces those of the spots it
- * read a fresh forecast for. No procedure of the API writes it.
+ * an alert's conditions are met at one of its places. A look replaces those of the places it
+ * read a fresh forecast for. No procedure of the API writes it. Its place is named as
+ * `alert_spot` names one.
  */
 export const alertWindow = pgTable(
   "alert_window",
@@ -224,9 +234,11 @@ export const alertWindow = pgTable(
     alertId: text("alert_id")
       .notNull()
       .references(() => alert.id, { onDelete: "cascade" }),
-    spotId: text("spot_id")
-      .notNull()
-      .references(() => spot.id, { onDelete: "cascade" }),
+    spotId: text("spot_id").references(() => spot.id, { onDelete: "cascade" }),
+    breakId: text("break_id").references(() => surfBreak.id, { onDelete: "cascade" }),
+    placeId: text("place_id")
+      .generatedAlwaysAs(sql`coalesce(spot_id, break_id)`)
+      .notNull(),
     // The sea window as the last look saw it.
     seaStart: timestamp("sea_start", { withTimezone: true }).notNull(),
     seaEnd: timestamp("sea_end", { withTimezone: true }).notNull(),
@@ -237,8 +249,9 @@ export const alertWindow = pgTable(
     hours: jsonb("hours").$type<SeaHour[]>().default([]).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.spotId, table.alertId, table.seaStart] }),
+    primaryKey({ columns: [table.placeId, table.alertId, table.seaStart] }),
     index("alert_window_alertId_idx").on(table.alertId),
+    check("alert_window_one_place", sql`(${table.spotId} is null) <> (${table.breakId} is null)`),
   ],
 );
 
@@ -251,8 +264,11 @@ export type NotificationPayload = {
   // For the evening before: the day it lists.
   day?: string;
   lines: {
+    // The id of the line's place, and its name: a spot of the account's, or the break of the
+    // catalogue `breakId` names, whose id it then is. Decision 064.
     spotId: string;
     spotName: string;
+    breakId?: string;
     // When the forecast the spot was read on was fetched.
     forecastFetchedAt?: string;
     // For the evening before: the alert the spot is in, and its name then.

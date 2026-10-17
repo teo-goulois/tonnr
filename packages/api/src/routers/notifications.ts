@@ -18,8 +18,11 @@ const payloadSchema = z.object({
   day: z.string().optional(),
   lines: z.array(
     z.object({
+      // The id of the line's place and its name: a spot of the account's, or the surf break
+      // of the catalogue `breakId` names, whose id it then is. Decision 064.
       spotId: z.string(),
       spotName: z.string(),
+      breakId: z.string().optional(),
       // When the forecast the spot was read on was fetched.
       forecastFetchedAt: z.string().optional(),
       // For the evening before: the alert the spot is in, and its name then.

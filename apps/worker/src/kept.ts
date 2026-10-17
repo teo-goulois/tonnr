@@ -11,8 +11,8 @@ import {
   alertSpot,
   alertWindow,
 } from "@repo/db/schema/alerts";
-import { spot } from "@repo/db/schema/spots";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { spot, surfBreak } from "@repo/db/schema/spots";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 // What the worker keeps of an alert from one pass to the next, as the passes read it. Much of
 // it is JSON: these turn it into the moments that the rules of `packages/conditions` work
@@ -157,7 +157,26 @@ export const fromNow = (moment: Date, now: Date) =>
 export const running = (begun: Stretch[], now: Date) =>
   begun.filter((piece) => new Date(piece.end).getTime() > now.getTime());
 
-/** The spots of alerts that are on, of one alert or of an account, with what the last look kept. */
+/**
+ * The place of an alert's link as the worker reads it, from the spot or from the break of the
+ * catalogue it is, joined by `placeJoins`: its id, the break's when it is one, its name and its
+ * point. Decision 064.
+ */
+export const placeColumns = {
+  id: alertSpot.placeId,
+  breakId: alertSpot.breakId,
+  name: sql<string>`coalesce(${spot.name}, ${surfBreak.name})`,
+  latitude: sql<number>`coalesce(${spot.latitude}, ${surfBreak.latitude})`.mapWith(Number),
+  longitude: sql<number>`coalesce(${spot.longitude}, ${surfBreak.longitude})`.mapWith(Number),
+};
+export const spotOfLink = eq(spot.id, alertSpot.spotId);
+export const breakOfLink = eq(surfBreak.id, alertSpot.breakId);
+
+/** The columns that name a place where a row of `alert_window` is written. */
+export const placeRef = (place: { id: string; breakId: string | null }) =>
+  place.breakId ? { spotId: null, breakId: place.breakId } : { spotId: place.id, breakId: null };
+
+/** The places of alerts that are on, of one alert or of an account, with what the last look kept. */
 export async function watchedOf(
   tx: Database | Transaction,
   where: { alertId: string } | { userId: string },
@@ -166,11 +185,12 @@ export async function watchedOf(
     .select({
       alert,
       link: alertSpot,
-      place: { id: spot.id, name: spot.name, latitude: spot.latitude, longitude: spot.longitude },
+      place: placeColumns,
     })
     .from(alertSpot)
     .innerJoin(alert, eq(alert.id, alertSpot.alertId))
-    .innerJoin(spot, eq(spot.id, alertSpot.spotId))
+    .leftJoin(spot, spotOfLink)
+    .leftJoin(surfBreak, breakOfLink)
     .where(
       and(
         eq(alert.enabled, true),
@@ -184,7 +204,7 @@ export async function watchedOf(
       ? []
       : await tx.select().from(alertWindow).where(inArray(alertWindow.alertId, alertIds));
   // A spot may be in several alerts: its windows are those of the alert the link is of.
-  const byLink = Map.groupBy(windows, (window) => linkKey(window.alertId, window.spotId));
+  const byLink = Map.groupBy(windows, (window) => linkKey(window.alertId, window.placeId));
   return links.map((one) => ({
     ...one,
     windows: byLink.get(linkKey(one.alert.id, one.place.id)) ?? [],

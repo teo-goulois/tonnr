@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -29,6 +29,10 @@ type BreakPanelProps = PointConditionsProps & {
   onOpenBuoy?: (stationId: string) => void;
   // The sessions the reader surfed there, for the tab beside the guide: decision 043.
   sessions?: ReactNode;
+  // The reader's alerts at the break, for a tab of their own, and how many times they were asked
+  // for from elsewhere: the tab then comes in view. Decision 064.
+  alerts?: ReactNode;
+  alertAsked?: number;
 };
 
 /** The week and the tide at a surf break of the catalogue, and what is written of the break. */
@@ -49,10 +53,18 @@ export function BreakPanel({
   nearbyWind,
   onOpenBuoy,
   sessions,
+  alerts,
+  alertAsked = 0,
 }: BreakPanelProps) {
-  // The address says whether the guide is in view. The sessions are a tab the panel keeps to
-  // itself: nothing leads to it from elsewhere.
-  const [isLog, setIsLog] = useState(false);
+  // The address says whether the guide is in view. The alerts and the sessions are tabs the
+  // panel keeps to itself: only an alert asked for from elsewhere leads to one.
+  const [kept, setKept] = useState<"alert" | "sessions" | null>(alertAsked > 0 ? "alert" : null);
+  const asked = useRef(alertAsked);
+  useEffect(() => {
+    if (alertAsked === asked.current) return;
+    asked.current = alertAsked;
+    setKept("alert");
+  }, [alertAsked]);
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
@@ -69,11 +81,12 @@ export function BreakPanel({
   return (
     <Details
       spot={found.data}
-      tab={isLog ? "sessions" : guideAsked ? "guide" : "forecast"}
+      tab={kept ?? (guideAsked ? "guide" : "forecast")}
       onTabChange={(next: DetailsTab) => {
-        setIsLog(next === "sessions");
+        setKept(next === "sessions" || next === "alert" ? next : null);
         onGuideAsked(next === "guide");
       }}
+      alert={alerts}
       sessions={sessions}
       now={now}
       forecast={forecast}

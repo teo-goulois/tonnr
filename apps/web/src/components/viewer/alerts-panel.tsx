@@ -19,7 +19,7 @@ import { m } from "@/paraglide/messages.js";
 import { MyAlerts } from "../alerts/my-alerts";
 import { Bearing } from "./bearing";
 import { AccountPrompt } from "./saved-panel";
-import type { Alert, AlertNotification, Loadable, Spot } from "./types";
+import type { Alert, AlertNotification, Loadable } from "./types";
 
 /**
  * The parts of the alerts panel: what was told, and the alerts. How to be told is a setting of
@@ -91,7 +91,6 @@ type AlertsPanelProps = {
   onTabChange: (tab: AlertsTab) => void;
   notifications: Loadable<AlertNotification[]>;
   alerts: Loadable<Alert[]>;
-  spots: Spot[];
   onSignIn: () => void;
   onCreateAccount: () => void;
   onRead: (notification: AlertNotification) => void;
@@ -106,7 +105,6 @@ export function AlertsPanel({
   tab,
   onTabChange,
   alerts,
-  spots,
   onSignIn,
   onCreateAccount,
   onOpenAlert,
@@ -136,7 +134,6 @@ export function AlertsPanel({
       <TabsPanel value="mine">
         <MyAlerts
           alerts={alerts}
-          spots={spots}
           onOpen={onOpenAlert}
           switching={switching}
           onSwitch={onSwitchAlert}

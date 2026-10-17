@@ -1001,8 +1001,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   // The spot that was just added: its panel offers to describe it, until the offer is answered.
   const [madeId, setMadeId] = useState<string>();
   // What is on the screen when an answer comes, which may be long after it was asked for.
-  const onScreen = useRef({ panel, selectedSpotId, selectedBreakId });
-  onScreen.current = { panel, selectedSpotId, selectedBreakId };
+  const onScreen = useRef({ panel, selectedSpotId });
+  onScreen.current = { panel, selectedSpotId };
   const createSpot = useMutation(
     orpc.v1.spots.create.mutationOptions({
       onSuccess: (made) => {
@@ -1012,29 +1012,10 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         setQuery("");
         toast.success(m.spot_saved({ name: made.name }));
         setMadeId(made.id);
-        // The spot opens, unless the user has gone elsewhere meanwhile. A spot made for an
-        // alert asked from a page opens on its editor: the asking stays in the address.
-        if (onScreen.current.panel === "add") {
-          void navigate({
-            search: (previous) => ({ spot: made.id, create: previous.create }),
-          });
-        }
+        // The spot opens, unless the user has gone elsewhere meanwhile.
+        if (onScreen.current.panel === "add") void navigate({ search: { spot: made.id } });
       },
       // The draft stays as it was: the panel is still open on it.
-      onError: (error) => toast.error(error.message),
-    }),
-  );
-  // An alert asked at a break where the account has no spot: the spot is made there, with the
-  // break's name and point, and opens on a new alert, unless the user has gone elsewhere meanwhile.
-  const spotForAlert = useMutation(
-    orpc.v1.spots.create.mutationOptions({
-      onSuccess: (made) => {
-        void setSpots((all) => [...all.filter((one) => one.id !== made.id), made]);
-        toast.success(m.spot_saved({ name: made.name }));
-        if (made.breakId && onScreen.current.selectedBreakId === made.breakId) {
-          void navigate({ search: { ...mode, spot: made.id, create: "alert" }, replace: true });
-        }
-      },
       onError: (error) => toast.error(error.message),
     }),
   );
@@ -1307,7 +1288,6 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
           ? { breakId: selectedBreakId, spotId: selectedSpotId }
           : undefined
       }
-      onSpotForAlert={(breakId) => spotForAlert.mutate({ breakId })}
       onWanted={() =>
         void navigate({ search: (previous) => ({ ...previous, create: undefined }), replace: true })
       }
@@ -1383,7 +1363,6 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         isOpen: isAlertSearchOpen,
         onOpenChange: setIsAlertSearchOpen,
       }}
-      onAlertAtBreak={(id) => void navigate({ search: { ...mode, break: id, create: "alert" } })}
       onSelect={(station) => void navigate({ search: { ...mode, station } })}
       onSelectBreak={(id) => void navigate({ search: { ...mode, break: id } })}
       onSelectSpot={(id) => void navigate({ search: { ...mode, spot: id } })}
@@ -1410,9 +1389,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       onPanelChange={(next: ViewerPanel | undefined) =>
         void navigate({
           search: (previous) =>
-            // An alert asked from a page stays asked while the spot it goes on is added.
             next === "add"
-              ? { panel: next, create: previous.create }
+              ? { panel: next }
               : !wide && isTabPanel(next)
                 ? { ...mode, panel: next }
                 : { ...previous, panel: next, settings: undefined },

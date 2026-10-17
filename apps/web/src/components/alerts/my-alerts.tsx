@@ -3,21 +3,20 @@ import { Switch } from "@repo/ui/components/ui/switch";
 
 import { m } from "@/paraglide/messages.js";
 
-import type { Alert, Loadable, Spot } from "../viewer/types";
+import type { Alert, Loadable } from "../viewer/types";
 import { AlertSummary } from "./alert-summary";
 
 type MyAlertsProps = {
   alerts: Loadable<Alert[]>;
-  spots: Spot[];
-  // Opens the alert, at the first of its spots.
+  // Opens the alert, at the first of its places.
   onOpen: (alert: Alert) => void;
   // The alerts whose switch is being saved: a switch waits for its answer before it moves again.
   switching: string[];
   onSwitch: (alert: Alert, enabled: boolean) => void;
 };
 
-/** The user's alerts, each with the spots it is set on, what it asks, and its switch. */
-export function MyAlerts({ alerts, spots, onOpen, switching, onSwitch }: MyAlertsProps) {
+/** The user's alerts, each with the places it is set on, what it asks, and its switch. */
+export function MyAlerts({ alerts, onOpen, switching, onSwitch }: MyAlertsProps) {
   if (alerts.isPending) {
     return (
       <div className="grid gap-s">
@@ -29,7 +28,6 @@ export function MyAlerts({ alerts, spots, onOpen, switching, onSwitch }: MyAlert
   if (alerts.isError) return <p className="text-s text-neutral-7">{m.alerts_mine_load_failed()}</p>;
   if (!alerts.data?.length) return <p className="text-neutral-7">{m.alerts_mine_empty()}</p>;
 
-  const nameOf = (spotId: string) => spots.find((spot) => spot.id === spotId)?.name;
   return (
     <ul className="-mx-xs grid gap-xxs">
       {alerts.data.map((alert) => (
@@ -41,7 +39,7 @@ export function MyAlerts({ alerts, spots, onOpen, switching, onSwitch }: MyAlert
           >
             <span className="truncate font-medium">{alert.name}</span>
             <span className="truncate text-s text-neutral-7">
-              {alert.spotIds.flatMap((spotId) => nameOf(spotId) ?? []).join(" · ")}
+              {alert.places.map((place) => place.name).join(" · ")}
             </span>
             {/* Two alerts of one spot are told apart by what they ask. */}
             <span className="line-clamp-2 text-s text-neutral-7">

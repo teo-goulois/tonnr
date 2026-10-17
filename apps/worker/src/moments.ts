@@ -13,19 +13,22 @@ import {
   notification,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
-import { spot } from "@repo/db/schema/spots";
+import { spot, surfBreak } from "@repo/db/schema/spots";
 import { and, asc, eq, inArray, notExists, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import { type MailOut, type PushOut, queueDeliveries, sendDeliveries } from "./deliveries";
 import {
+  breakOfLink,
   byAlert,
   fromNow,
   interval,
   linkKey,
   openOf,
+  placeColumns,
   running,
   seaAt,
+  spotOfLink,
   stretch,
   toldPiece,
   watched,
@@ -95,7 +98,7 @@ async function tellBeginning(db: Database, alertId: string) {
       await tx
         .update(alertSpot)
         .set({ begun: piece ? [...kept, stretch(piece)] : kept })
-        .where(and(eq(alertSpot.alertId, alertId), eq(alertSpot.spotId, one.place.id)));
+        .where(and(eq(alertSpot.alertId, alertId), eq(alertSpot.placeId, one.place.id)));
     }
     if (due.length === 0) return 0;
 
@@ -106,6 +109,7 @@ async function tellBeginning(db: Database, alertId: string) {
       lines.push({
         spotId: one.place.id,
         spotName: one.place.name,
+        ...(one.place.breakId ? { breakId: one.place.breakId } : {}),
         open: [stretch(piece)],
         // What the last look read of the sea for the hour it begins, or for this one.
         ...seaOf(one.windows, fromNow(piece.start, now)),
@@ -177,6 +181,7 @@ async function tellEvening(db: Database, userId: string) {
           {
             spotId,
             spotName: one.place.name,
+            ...(one.place.breakId ? { breakId: one.place.breakId } : {}),
             alertId: one.alert.id,
             alertName: one.alert.name,
             open: pieces.map(stretch),
@@ -258,11 +263,12 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
         userId: alert.userId,
         shortestMinutes: alert.shortestMinutes,
         link: alertSpot,
-        place: { id: spot.id, name: spot.name, latitude: spot.latitude, longitude: spot.longitude },
+        place: placeColumns,
       })
       .from(alertSpot)
       .innerJoin(alert, eq(alert.id, alertSpot.alertId))
-      .innerJoin(spot, eq(spot.id, alertSpot.spotId))
+      .leftJoin(spot, spotOfLink)
+      .leftJoin(surfBreak, breakOfLink)
       .where(
         and(
           eq(alert.enabled, true),
@@ -315,7 +321,7 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
   const settingsRows = yield* store(() =>
     db.select().from(alertSettings).where(inArray(alertSettings.userId, userIds)),
   );
-  const windowsAt = Map.groupBy(windows, (window) => linkKey(window.alertId, window.spotId));
+  const windowsAt = Map.groupBy(windows, (window) => linkKey(window.alertId, window.placeId));
   const settingsOfUser = new Map(settingsRows.map((row) => [row.userId, row]));
   const linksOfAlert = Map.groupBy(links, (one) => one.alertId);
 

@@ -11,6 +11,7 @@ const hour = (time: string, unmet: Tried["hours"][number]["unmet"] = []) =>
   ({ time: at(time), unmet }) as Tried["hours"][number];
 const tried = (spotId: string, more: Partial<Tried>): Tried => ({
   spotId,
+  breakId: null,
   hasSea: true,
   hasTide: true,
   hours: [],

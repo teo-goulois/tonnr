@@ -1,8 +1,9 @@
 import type { Database } from "@repo/db";
 import { addressOf } from "@repo/db/addresses";
 import { holdCatalogue, knownRefs, reopenCandidatesOf } from "@repo/db/catalogue";
+import { alert, alertSpot } from "@repo/db/schema/alerts";
 import { spot, surfBreak, surfBreakListing } from "@repo/db/schema/spots";
-import { count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, notExists, sql } from "drizzle-orm";
 import { Effect } from "effect";
 
 import { StoreError } from "../store";
@@ -181,6 +182,18 @@ export const removeBreaks = Effect.fn("removeBreaks")(function* (
           .from(spot)
           .where(inArray(spot.breakId, ofList));
         const going = await ofList;
+        // The alerts set on a break that goes lose it: one set on nothing else goes with it, and
+        // one that keeps other places is read anew. Decision 064.
+        const alerted = [
+          ...new Set(
+            (
+              await tx
+                .select({ alertId: alertSpot.alertId })
+                .from(alertSpot)
+                .where(inArray(alertSpot.breakId, ofList))
+            ).map((one) => one.alertId),
+          ),
+        ];
         await reopenCandidatesOf(
           tx,
           going.map(({ id }) => id),
@@ -193,10 +206,34 @@ export const removeBreaks = Effect.fn("removeBreaks")(function* (
           .delete(surfBreak)
           .where(eq(surfBreak.provider, provider))
           .returning({ id: surfBreak.id });
+        const alertsGone =
+          alerted.length === 0
+            ? []
+            : await tx
+                .delete(alert)
+                .where(
+                  and(
+                    inArray(alert.id, alerted),
+                    notExists(
+                      tx
+                        .select({ placeId: alertSpot.placeId })
+                        .from(alertSpot)
+                        .where(eq(alertSpot.alertId, alert.id)),
+                    ),
+                  ),
+                )
+                .returning({ id: alert.id });
+        if (alerted.length > alertsGone.length) {
+          await tx
+            .update(alert)
+            .set({ revision: sql`${alert.revision} + 1` })
+            .where(inArray(alert.id, alerted));
+        }
 
         const report = {
           removed: removed.length,
           spots: linked?.total ?? 0,
+          alerts: alerted.length,
           // What the list said of breaks it no longer has: merged into another, or deleted.
           forgotten: Math.max(0, forgotten.length - removed.length),
         };

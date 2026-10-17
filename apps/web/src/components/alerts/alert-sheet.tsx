@@ -7,14 +7,15 @@ import { m } from "@/paraglide/messages.js";
 
 import type { Spot } from "../viewer/types";
 import { ViewerDrawer } from "../viewer/viewer-drawer";
-import { AlertEditor } from "./alert-editor";
+import { AlertEditor, type AlertPlace } from "./alert-editor";
 import type { Written } from "./alert-words";
 import type { TidePoint } from "./tide-band";
 import type { Alerting } from "./types";
 
-// The alert that is written, at the spot it is written from. `key` changes with each alert that
-// is opened, and starts its editor over.
-export type AlertWriting = Written & { spotId: string; key: number };
+// The alert that is written, at the place it is written from: a spot of the account's own or a
+// surf break of the catalogue (decision 064). `key` changes with each alert that is opened, and
+// starts its editor over.
+export type AlertWriting = Written & { place: AlertPlace; key: number };
 
 type AlertSheetProps = {
   writing: AlertWriting | null;
@@ -23,7 +24,7 @@ type AlertSheetProps = {
   // The account's spots. Undefined until they are known.
   spots: Spot[] | undefined;
   alerting: Alerting;
-  // The tide at the spot over the two days ahead, drawn beside what is asked of it.
+  // The tide at the place over the two days ahead, drawn beside what is asked of it.
   tide: TidePoint[];
   // Opens another alert in the sheet: a copy of the one that is written.
   onWrite: (written: Written) => void;
@@ -53,13 +54,13 @@ export function AlertSheet({
   if (writing && writing !== kept) setKept(writing);
   const shown = writing ?? kept;
 
-  const spot = shown ? spots?.find((one) => one.id === shown.spotId) : undefined;
+  const place = shown?.place;
   const alerts = alerting.alerts.data;
   const alert = shown?.alertId ? alerts?.find((one) => one.id === shown.alertId) : undefined;
   // An alert that was deleted, here or elsewhere, or a spot that was, is no longer written.
   const isGone =
     (shown?.alertId !== undefined && alerts !== undefined && !alert) ||
-    (spots !== undefined && !spot);
+    (place?.kind === "spot" && spots !== undefined && !spots.some((one) => one.id === place.id));
   const done = useRef(onDone);
   done.current = onDone;
   useEffect(() => {
@@ -68,7 +69,7 @@ export function AlertSheet({
 
   // A new alert is written once the account's settings are known: they say whether it is asked
   // about mail, with that alert.
-  const isReady = spot && alerts && (alert || alerting.settings.data);
+  const isReady = place && spots && alerts && (alert || alerting.settings.data);
   return (
     <ViewerDrawer
       open={writing !== null}
@@ -82,7 +83,7 @@ export function AlertSheet({
       }}
       wide={wide}
       title={alert?.name ?? m.alert_new()}
-      description={spot?.name}
+      description={place?.name}
       // As tall as a sheet goes: the editor's buttons stay at its bottom.
       fill
       opensRaised
@@ -91,8 +92,8 @@ export function AlertSheet({
         <AlertEditor
           key={shown.key}
           now={now}
-          spot={spot}
-          spots={spots ?? []}
+          place={place}
+          spots={spots}
           alert={alert}
           initial={shown.initial}
           tide={tide}

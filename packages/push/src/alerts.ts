@@ -13,6 +13,9 @@ export type AlertPushContent = Omit<AlertSaid, "lines"> & {
   alertId: string | null;
   lines: (AlertLine & {
     spotId: string;
+    // What the address of the line's place says after `/app?`: `spot=<id>`, or `break=<id>` for
+    // a break of the catalogue (decision 064). The spot's, when it is not said.
+    placeQuery?: string;
     // What names the windows it speaks of at the spot, from one push to the next: a window
     // keeps its name when it moves, so that what is said of it is shown in one place.
     windows: string[];
@@ -122,13 +125,13 @@ export function alertPush(content: AlertPushContent): Push {
   }
   if (spots.length > SPOTS) rows.push(MORE[content.locale](spots.length - SPOTS));
 
-  const [spotId] = lines.map((one) => one.spotId);
+  const [place] = lines;
   return {
     title: line(headline, TITLE_CHARACTERS),
     body: rows.join("\n"),
     url:
-      spotId !== undefined && spots.length === 1
-        ? `${content.page}/app?spot=${encodeURIComponent(spotId)}`
+      place !== undefined && spots.length === 1
+        ? `${content.page}/app?${place.placeQuery ?? `spot=${encodeURIComponent(place.spotId)}`}`
         : `${content.page}/app?panel=alerts`,
     tag: tagOf(content),
   };
