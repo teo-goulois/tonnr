@@ -1,5 +1,5 @@
 import { APP_NAME } from "@repo/config/app";
-import { SIZES, sizeRank } from "@repo/conditions/sessions/sizes";
+import { SIZES, SURF_FACES, sizeRank } from "@repo/conditions/sessions/sizes";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Dialog,
@@ -9,12 +9,25 @@ import {
   DialogTitle,
 } from "@repo/ui/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { BellIcon, LogbookIcon, SparkleIcon, XIcon } from "@repo/ui/icon";
+import {
+  BellOnFillDuoIcon,
+  BoardIcon,
+  BookBookmarkFillDuoIcon,
+  ChartAreaFillDuoIcon,
+  LevelIcon,
+  PersonFillIcon,
+  SparklesFillDuoIcon,
+  SurferFillIcon,
+  WaveSizeIcon,
+  XIcon,
+} from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { UsernameForm } from "@/components/account/username-form";
+import { Tile } from "@/components/landing/landing-parts";
+import { scaleColor, WAVE_HEIGHT_SCALE } from "@/lib/sea-scales";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
@@ -85,6 +98,10 @@ function answersOf(profile: SurferProfile | null | undefined): ProfileAnswers {
   return { level, smallestWave, biggestWave, reading, boards };
 }
 
+// A choice gives way under a press as a button does, and takes its color on the theme's motion.
+const pressable =
+  "transition-[background-color,translate] duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent active:translate-y-(--motion-press-distance)";
+
 /** One choice among a few, each a line that says its name and, under it, what it means. */
 function Choices<Value extends string>({
   label,
@@ -109,7 +126,7 @@ function Choices<Value extends string>({
             onClick={() => onPick(option.value)}
             className={cn(
               "focus-ring edge grid min-h-11 cursor-pointer justify-items-center gap-xxs rounded-(--radius-xs) px-s py-xs text-center outline-none",
-              "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
+              pressable,
               isChosen
                 ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
                 : "[--edge-color:var(--neutral-4)]",
@@ -230,9 +247,16 @@ export function WaveRange({
               type="button"
               aria-pressed={isEnd || isBetween}
               onClick={() => pick(size)}
+              // Once the biggest is said, the sizes up to it fill one after the other, from the
+              // smallest: the range is drawn as it is read.
+              style={
+                smallest !== null && biggest !== null && (isBetween || size === biggest)
+                  ? { transitionDelay: `${(rank - sizeRank(smallest)) * 40}ms` }
+                  : undefined
+              }
               className={cn(
                 "focus-ring edge grid cursor-pointer gap-xxs rounded-(--radius-xs) p-xs text-center outline-none",
-                "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
+                pressable,
                 isEnd
                   ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
                   : isBetween
@@ -325,6 +349,167 @@ export function ProfileForm({ profiling, onSaved }: { profiling: Profiling; onSa
 
 type Step = "welcome" | "username" | "level" | "waves" | "reading" | "boards";
 
+// How long a choice that leads on stays in view, chosen, before the next question comes.
+const SEEN_CHOSEN = 220;
+
+// The color of each question's tile: the sea's scale, a little bigger at each step, so that the
+// questions build as a swell does.
+const STEP_COLOR: Record<Exclude<Step, "welcome">, string> = {
+  username: scaleColor(WAVE_HEIGHT_SCALE, 0.5),
+  level: scaleColor(WAVE_HEIGHT_SCALE, 1),
+  waves: scaleColor(WAVE_HEIGHT_SCALE, 1.5),
+  reading: scaleColor(WAVE_HEIGHT_SCALE, 2),
+  boards: scaleColor(WAVE_HEIGHT_SCALE, 3),
+};
+
+/**
+ * A part of a step as it comes: a fade, with a blur that clears and a slide from the side the
+ * step comes from, on the theme's large easing, a tenth of a second after the part before it. A
+ * reader who asked for no motion gets the fade alone.
+ */
+function Arrive({
+  place,
+  from,
+  className,
+  children,
+}: {
+  place: number;
+  from: "start" | "end";
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      style={{ animationDelay: `${place * 100}ms` } as CSSProperties}
+      className={cn(
+        "animate-in fade-in fill-mode-backwards duration-(--motion-large-duration) ease-theme-large motion-safe:blur-in-[4px]",
+        from === "end" ? "motion-safe:slide-in-from-right-3" : "motion-safe:slide-in-from-left-3",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** What stands before a question's title: its tile, drawn from what was answered so far. */
+function StepTile({ step, answers }: { step: Exclude<Step, "welcome">; answers: ProfileAnswers }) {
+  const biggest = answers.biggestWave ?? answers.smallestWave;
+  // The drawing changes with the answer: it comes in again, from small and blurred.
+  const [key, glyph] =
+    step === "username"
+      ? ["username", <PersonFillIcon />]
+      : step === "level"
+        ? [
+            answers.level ?? "none",
+            <LevelIcon
+              levels={answers.level ? [Object.keys(LEVELS).indexOf(answers.level)] : [0, 1, 2, 3]}
+              className="size-[0.8em]!"
+            />,
+          ]
+        : step === "waves"
+          ? [
+              biggest ?? "none",
+              <WaveSizeIcon
+                largest={biggest ? SURF_FACES[biggest].drawn : 1.2}
+                className="size-[0.8em]!"
+              />,
+            ]
+          : step === "reading"
+            ? ["reading", <ChartAreaFillDuoIcon />]
+            : ["boards", <BoardIcon className="size-[0.8em]!" />];
+  return (
+    <Tile
+      color={STEP_COLOR[step]}
+      className="mr-0 shrink-0 text-xl [animation-delay:150ms] motion-safe:animate-landing-pop"
+    >
+      <span
+        key={key}
+        className="flex animate-in fade-in duration-300 ease-out motion-safe:blur-in-[4px] motion-safe:zoom-in-25"
+      >
+        {glyph}
+      </span>
+    </Tile>
+  );
+}
+
+/** Where the questions are: one mark for each, filled up to the one in view, and the count. */
+function Progress({ at, count }: { at: number; count: number }) {
+  return (
+    <div className="flex items-center gap-s">
+      <div aria-hidden className="flex flex-1 gap-xxs">
+        {Array.from({ length: count }, (_, place) => (
+          <span
+            key={place}
+            className={cn(
+              "h-1 flex-1 rounded-full transition-colors duration-(--motion-large-duration) ease-theme-large",
+              place <= at ? "bg-neutral-10" : "bg-neutral-4",
+            )}
+          />
+        ))}
+      </div>
+      <p className="text-s text-neutral-7 tabular-nums">
+        {m.onboarding_step({ step: at + 1, count })}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The picture the questions open on: a surfer who rides a swell that runs under them, in the
+ * colors of the sea's scale, with the sun over it. It is still for a reader who asked for no
+ * motion.
+ */
+function WelcomeSea() {
+  return (
+    <div aria-hidden className="relative h-24 overflow-hidden rounded-(--radius-s) bg-neutral-2">
+      <span
+        className="absolute top-s right-l size-5 rounded-full"
+        style={{ backgroundColor: scaleColor(WAVE_HEIGHT_SCALE, 2.5) }}
+      />
+      <Swell
+        color={scaleColor(WAVE_HEIGHT_SCALE, 0.5)}
+        className="h-16 opacity-45 motion-safe:animate-onboarding-swell-slow"
+      />
+      <div className="absolute bottom-6 left-[38%] grid justify-items-center motion-safe:animate-onboarding-ride">
+        <SurferFillIcon className="size-7 text-neutral-10" />
+        <span className="-mt-0.5 h-1 w-9 rounded-full bg-neutral-10" />
+      </div>
+      <Swell
+        color={scaleColor(WAVE_HEIGHT_SCALE, 1)}
+        className="h-10 motion-safe:animate-onboarding-swell"
+      />
+    </div>
+  );
+}
+
+/** Two lengths of a swell side by side: moved by one, it is as it was, and so runs on. */
+function Swell({ color, className }: { color: string; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 200 40"
+      preserveAspectRatio="none"
+      style={{ fill: color }}
+      className={cn("absolute bottom-0 left-0 w-[200%]", className)}
+    >
+      <path d="M0 20Q25 4 50 20T100 20T150 20T200 20V40H0Z" />
+    </svg>
+  );
+}
+
+// When each line's tile says it is there: once the lines have come, one after the other.
+const POP_AFTER = ["[animation-delay:500ms]", "[animation-delay:600ms]", "[animation-delay:700ms]"];
+
+const WELCOME = [
+  { icon: BellOnFillDuoIcon, text: m.onboarding_alerts, color: scaleColor(WAVE_HEIGHT_SCALE, 4) },
+  {
+    icon: BookBookmarkFillDuoIcon,
+    text: m.onboarding_logbook,
+    color: scaleColor(WAVE_HEIGHT_SCALE, 1.5),
+  },
+  { icon: SparklesFillDuoIcon, text: m.onboarding_agents, color: scaleColor(WAVE_HEIGHT_SCALE, 8) },
+];
+
 /**
  * What an account is asked once, as it comes, existing accounts as new ones: what the app does
  * best, in three lines, then a few questions, one at a time, each of which may be skipped. The
@@ -342,6 +527,8 @@ export function Onboarding({
   onUsernameSave: (username: string) => Promise<string | undefined>;
 }) {
   const [step, setStep] = useState<Step>("welcome");
+  // The side a step comes from: the next from the end, the one before from the start.
+  const [from, setFrom] = useState<"start" | "end">("end");
   // The dialog opens on what begins, not on what leaves.
   const start = useRef<HTMLButtonElement>(null);
   const [answers, setAnswers] = useState<ProfileAnswers>(NO_ANSWERS);
@@ -359,9 +546,15 @@ export function Onboarding({
     setAnswers((current) => ({ ...current, ...part }));
   const next = () => {
     const following = steps[at + 1];
+    setFrom("end");
     if (following) setStep(following);
   };
-  const back = () => setStep(at > 0 ? steps[at - 1]! : "welcome");
+  const back = () => {
+    setFrom("start");
+    setStep(at > 0 ? steps[at - 1]! : "welcome");
+  };
+  // A choice that leads on is seen chosen first.
+  const nextSoon = () => setTimeout(next, SEEN_CHOSEN);
 
   function finish() {
     void profiling.onSave(answers).then((kept) => {
@@ -379,31 +572,44 @@ export function Onboarding({
       disablePointerDismissal
     >
       <DialogPopup className="w-[min(28rem,calc(100vw-2rem))] gap-m p-l" initialFocus={start}>
+        {step === "welcome" && (
+          <Arrive place={0} from={from}>
+            <WelcomeSea />
+          </Arrive>
+        )}
         <div className="flex items-start justify-between gap-s">
-          <div className="grid gap-xxs">
-            {step !== "welcome" && (
-              <p className="text-s text-neutral-7 tabular-nums">
-                {m.onboarding_step({ step: at + 1, count: steps.length })}
-              </p>
-            )}
-            <DialogTitle>
-              {step === "welcome"
-                ? m.onboarding_title({ name: APP_NAME })
-                : step === "username"
-                  ? m.profile_username_title()
-                  : step === "level"
-                    ? m.profile_level_title()
-                    : step === "waves"
-                      ? m.profile_waves_title()
-                      : step === "reading"
-                        ? m.profile_reading_title()
-                        : m.profile_boards_title()}
-            </DialogTitle>
-            {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
-            {step === "reading" && (
-              <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
-            )}
-            {step === "boards" && <DialogDescription>{m.profile_boards_hint()}</DialogDescription>}
+          <div className="grid min-w-0 flex-1 gap-xs">
+            {step !== "welcome" && <Progress at={at} count={steps.length} />}
+            <Arrive
+              key={step}
+              place={step === "welcome" ? 1 : 0}
+              from={from}
+              className="flex items-center gap-s"
+            >
+              {step !== "welcome" && <StepTile step={step} answers={answers} />}
+              <div className="grid min-w-0 gap-xxs">
+                <DialogTitle>
+                  {step === "welcome"
+                    ? m.onboarding_title({ name: APP_NAME })
+                    : step === "username"
+                      ? m.profile_username_title()
+                      : step === "level"
+                        ? m.profile_level_title()
+                        : step === "waves"
+                          ? m.profile_waves_title()
+                          : step === "reading"
+                            ? m.profile_reading_title()
+                            : m.profile_boards_title()}
+                </DialogTitle>
+                {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
+                {step === "reading" && (
+                  <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
+                )}
+                {step === "boards" && (
+                  <DialogDescription>{m.profile_boards_hint()}</DialogDescription>
+                )}
+              </div>
+            </Arrive>
           </div>
           <DialogClose
             aria-label={m.action_close()}
@@ -413,67 +619,72 @@ export function Onboarding({
           </DialogClose>
         </div>
 
-        {step === "welcome" && (
-          <>
+        <Arrive key={step} place={step === "welcome" ? 2 : 1} from={from}>
+          {step === "welcome" && (
             <ul className="grid gap-s">
-              {[
-                { icon: BellIcon, text: m.onboarding_alerts() },
-                { icon: LogbookIcon, text: m.onboarding_logbook() },
-                { icon: SparkleIcon, text: m.onboarding_agents() },
-              ].map(({ icon: Icon, text }) => (
-                <li key={text} className="flex items-start gap-s">
-                  <Icon data-slot="icon" aria-hidden className="mt-xxs shrink-0 text-neutral-7" />
-                  <span className="text-pretty">{text}</span>
+              {WELCOME.map(({ icon: Icon, text, color }, place) => (
+                <li key={place} className="flex items-start gap-s">
+                  {/* Each tile says it is there once, after its line has come. */}
+                  <Tile
+                    color={color}
+                    className={cn(
+                      "mt-0.5 mr-0 shrink-0 text-xl motion-safe:animate-landing-pop",
+                      POP_AFTER[place],
+                    )}
+                  >
+                    <Icon />
+                  </Tile>
+                  <span className="text-pretty">{text()}</span>
                 </li>
               ))}
             </ul>
-            <div className="flex flex-wrap gap-xs">
-              <Button ref={start} onClick={() => setStep(steps[0]!)}>
-                {m.onboarding_start()}
-              </Button>
-              <Button variant="ghost" onClick={profiling.onPutOff}>
-                {m.onboarding_later()}
-              </Button>
+          )}
+          {step === "username" && (
+            <div className="grid gap-s">
+              <p className="text-s text-neutral-7">{m.username_none()}</p>
+              <UsernameForm current={username ?? null} onSave={onUsernameSave} onSaved={next} />
             </div>
-          </>
-        )}
+          )}
+          {step === "level" && (
+            <LevelChoice
+              value={answers.level}
+              onPick={(level) => {
+                change({ level });
+                nextSoon();
+              }}
+            />
+          )}
+          {step === "waves" && (
+            <WaveRange
+              smallest={answers.smallestWave}
+              biggest={answers.biggestWave}
+              onChange={(smallestWave, biggestWave) => change({ smallestWave, biggestWave })}
+            />
+          )}
+          {step === "reading" && (
+            <ReadingChoice
+              value={answers.reading}
+              onPick={(reading) => {
+                change({ reading });
+                nextSoon();
+              }}
+            />
+          )}
+          {step === "boards" && (
+            <BoardChoice value={answers.boards} onChange={(boards) => change({ boards })} />
+          )}
+        </Arrive>
 
-        {step === "username" && (
-          <div className="grid gap-s">
-            <p className="text-s text-neutral-7">{m.username_none()}</p>
-            <UsernameForm current={username ?? null} onSave={onUsernameSave} onSaved={next} />
-          </div>
-        )}
-        {step === "level" && (
-          <LevelChoice
-            value={answers.level}
-            onPick={(level) => {
-              change({ level });
-              next();
-            }}
-          />
-        )}
-        {step === "waves" && (
-          <WaveRange
-            smallest={answers.smallestWave}
-            biggest={answers.biggestWave}
-            onChange={(smallestWave, biggestWave) => change({ smallestWave, biggestWave })}
-          />
-        )}
-        {step === "reading" && (
-          <ReadingChoice
-            value={answers.reading}
-            onPick={(reading) => {
-              change({ reading });
-              next();
-            }}
-          />
-        )}
-        {step === "boards" && (
-          <BoardChoice value={answers.boards} onChange={(boards) => change({ boards })} />
-        )}
-
-        {step !== "welcome" && (
+        {step === "welcome" ? (
+          <Arrive place={3} from={from} className="flex flex-wrap gap-xs">
+            <Button ref={start} onClick={() => setStep(steps[0]!)}>
+              {m.onboarding_start()}
+            </Button>
+            <Button variant="ghost" onClick={profiling.onPutOff}>
+              {m.onboarding_later()}
+            </Button>
+          </Arrive>
+        ) : (
           <div className="flex flex-wrap items-center justify-between gap-xs">
             <Button variant="ghost" onClick={back}>
               {m.action_back()}

@@ -136,6 +136,30 @@
   }
 }
 
+/* The picture the questions of a new account open on: a swell that runs under a surfer, who rides
+   it. Decision 063. */
+@theme {
+  --animate-onboarding-swell: onboarding-swell 7s linear infinite;
+  --animate-onboarding-swell-slow: onboarding-swell 12s linear infinite;
+  --animate-onboarding-ride: onboarding-ride 2.6s ease-in-out infinite alternate;
+
+  @keyframes onboarding-swell {
+    to {
+      translate: -50% 0;
+    }
+  }
+  @keyframes onboarding-ride {
+    from {
+      translate: 0 2px;
+      rotate: -4deg;
+    }
+    to {
+      translate: 0 -3px;
+      rotate: 5deg;
+    }
+  }
+}
+
 /* The top of the landing as the page is scrolled past it: the map sinks behind the words, slower
    than the page goes, and the words and the alerts rise away faster, fading. Tied to the scroll
    where the browser can, and still elsewhere and for a reader who asked for no motion. */
