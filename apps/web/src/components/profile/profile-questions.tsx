@@ -108,7 +108,7 @@ function Choices<Value extends string>({
             aria-pressed={isChosen}
             onClick={() => onPick(option.value)}
             className={cn(
-              "focus-ring edge grid min-h-11 cursor-pointer gap-xxs rounded-(--radius-xs) px-s py-xs text-left outline-none",
+              "focus-ring edge grid min-h-11 cursor-pointer justify-items-center gap-xxs rounded-(--radius-xs) px-s py-xs text-center outline-none",
               "transition-colors duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent",
               isChosen
                 ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
