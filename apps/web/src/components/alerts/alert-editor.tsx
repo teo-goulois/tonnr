@@ -66,7 +66,13 @@ const draftOf = (alert: Alert): AlertDraft => ({
  * Where an alert is written from: a spot of the account's own, or a surf break of the catalogue.
  * Decision 064.
  */
-export type AlertPlace = { kind: "spot" | "break"; id: string; name: string };
+export type AlertPlace = {
+  kind: "spot" | "break";
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+};
 
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.

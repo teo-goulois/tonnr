@@ -97,15 +97,27 @@ const alertSchema = z.object({
   // The spots of the account it is set on, and the breaks of the catalogue.
   spotIds: z.array(z.string()),
   breakIds: z.array(z.string()),
-  // Its places, spots and breaks, with their names, in the order they were added.
+  // Its places, spots and breaks, with their names and points, in the order they were added.
   places: z.array(
-    z.object({ spotId: z.string().nullable(), breakId: z.string().nullable(), name: z.string() }),
+    z.object({
+      spotId: z.string().nullable(),
+      breakId: z.string().nullable(),
+      name: z.string(),
+      latitude: z.number(),
+      longitude: z.number(),
+    }),
   ),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
-type Place = { spotId: string | null; breakId: string | null; name: string };
+type Place = {
+  spotId: string | null;
+  breakId: string | null;
+  name: string;
+  latitude: number;
+  longitude: number;
+};
 
 function describeAlert(row: typeof alert.$inferSelect, places: Place[]) {
   return {
@@ -136,6 +148,8 @@ async function placesOf(db: Database | Transaction, alertIds: string[]) {
       spotId: alertSpot.spotId,
       breakId: alertSpot.breakId,
       name: sql<string>`coalesce(${spot.name}, ${surfBreak.name})`,
+      latitude: sql<number>`coalesce(${spot.latitude}, ${surfBreak.latitude})`.mapWith(Number),
+      longitude: sql<number>`coalesce(${spot.longitude}, ${surfBreak.longitude})`.mapWith(Number),
     })
     .from(alertSpot)
     .leftJoin(spot, eq(spot.id, alertSpot.spotId))

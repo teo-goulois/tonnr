@@ -632,6 +632,26 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       ...keepAtPoint,
     }),
   );
+  // The tide at the place an alert is written at, over today and the two days after, for its
+  // editor to draw: the alert's sheet opens over whatever is open, which may be no panel.
+  const [alertPoint, setAlertPoint] = useState<{ latitude: number; longitude: number }>();
+  const alertSpan = useMemo(() => {
+    const start = new Date(hour);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 3);
+    return { start, end };
+    // The hour changes the span only when it passes midnight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [new Date(hour).toDateString()]);
+  const alertTides = useQuery(
+    orpc.v1.tides.timeline.queryOptions({
+      input: { latitude: 0, longitude: 0, ...alertPoint, ...alertSpan, stepMinutes: 10 },
+      enabled: alertPoint !== undefined,
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
   const forecast = useQuery(
     orpc.v1.forecasts.get.queryOptions({
       // The week ahead, and the model's last two days to set beside what a buoy measured.
@@ -1288,6 +1308,8 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
           ? { breakId: selectedBreakId, spotId: selectedSpotId }
           : undefined
       }
+      onAlertPoint={setAlertPoint}
+      alertTides={alertTides.data}
       onWanted={() =>
         void navigate({ search: (previous) => ({ ...previous, create: undefined }), replace: true })
       }

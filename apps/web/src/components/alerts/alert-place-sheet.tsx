@@ -15,6 +15,8 @@ import { BreakRow, SpotRow } from "../viewer/saved-panel";
 import type { Spot } from "../viewer/types";
 import { ViewerDrawer } from "../viewer/viewer-drawer";
 
+type Place = { id: string; name: string; latitude: number; longitude: number };
+
 type AlertPlaceSheetProps = {
   open: boolean;
   onClose: () => void;
@@ -28,8 +30,8 @@ type AlertPlaceSheetProps = {
   recents: Recent[];
   // A place the alert goes on: a spot of the account's, or a surf break of the catalogue, which
   // takes an alert of its own as a spot does (decision 064).
-  onSpot: (spot: { id: string; name: string }) => void;
-  onBreak: (found: { id: string; name: string }) => void;
+  onSpot: (spot: Place) => void;
+  onBreak: (found: Place) => void;
   onAddSpot: () => void;
 };
 
@@ -52,8 +54,9 @@ export function AlertPlaceSheet({
   const looked = recents.filter((recent) => recent.kind === "break");
   const pick = (found: Found) => {
     if (!found.id) return;
-    if (found.kind === "spot") onSpot({ id: found.id, name: found.name });
-    else if (found.kind === "break") onBreak({ id: found.id, name: found.name });
+    const place = { ...found, id: found.id };
+    if (found.kind === "spot") onSpot(place);
+    else if (found.kind === "break") onBreak(place);
   };
 
   return (
@@ -98,11 +101,7 @@ export function AlertPlaceSheet({
             <h3 className="font-medium">{m.recents_title()}</h3>
             <ul className="-mx-xs grid gap-xxs">
               {looked.map((recent) => (
-                <BreakRow
-                  key={recent.id}
-                  found={recent}
-                  onSelect={() => onBreak({ id: recent.id, name: recent.name })}
-                />
+                <BreakRow key={recent.id} found={recent} onSelect={() => onBreak(recent)} />
               ))}
             </ul>
           </section>

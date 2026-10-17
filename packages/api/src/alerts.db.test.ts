@@ -612,15 +612,17 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         spotIds: ["north"],
         breakIds: ["reef"],
         places: [
-          { spotId: "north", breakId: null, name: "North" },
-          { spotId: null, breakId: "reef", name: "The reef" },
+          { spotId: "north", breakId: null, name: "North", latitude: 43.63, longitude: -1.46 },
+          { spotId: null, breakId: "reef", name: "The reef", latitude: 43.62, longitude: -1.46 },
         ],
       });
       const alone = await make({ spotIds: [], breakIds: ["point"] });
       const [listed] = (await call(v1Router.alerts.list, undefined, by("ana"))).alerts.filter(
         (one) => one.id === alone.id,
       );
-      expect(listed?.places).toEqual([{ spotId: null, breakId: "point", name: "The point" }]);
+      expect(listed?.places).toEqual([
+        { spotId: null, breakId: "point", name: "The point", latitude: 43.61, longitude: -1.47 },
+      ]);
       // Anyone may set an alert on a break: another account's alert there is its own.
       const bens = await make({ spotIds: [], breakIds: ["reef"] }, "ben");
       expect(bens.breakIds).toEqual(["reef"]);

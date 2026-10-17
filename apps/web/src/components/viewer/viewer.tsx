@@ -244,6 +244,9 @@ type ViewerProps = {
   onOpenBuoy: (stationId: string | undefined) => void;
   panel: ViewerPanel | undefined;
   signedIn: boolean;
+  // The point of the place an alert is written at, and the tide the route read there.
+  onAlertPoint: (point: { latitude: number; longitude: number } | undefined) => void;
+  alertTides: TideTimeline | undefined;
   // What the page of a break asked the map to begin: an alert, at the break or the spot named.
   // `onWanted` says it was begun. Decisions 059 and 064.
   wants?: { breakId?: string; spotId?: string };
@@ -472,6 +475,14 @@ function useShown(isOpen: boolean, current: Selection) {
 // A panel that holds something written and not saved stays open while that is asked about.
 const mayDismissSelection = () => !hasUnsaved();
 
+// What an alert's sheet needs of a place: its id, its name, and its point, where its tide is read.
+const pointOf = (place: { id: string; name: string; latitude: number; longitude: number }) => ({
+  id: place.id,
+  name: place.name,
+  latitude: place.latitude,
+  longitude: place.longitude,
+});
+
 export function Viewer({
   now,
   theme,
@@ -500,6 +511,8 @@ export function Viewer({
   onOpenBuoy,
   panel,
   signedIn,
+  onAlertPoint,
+  alertTides,
   wants,
   onWanted,
   lists,
@@ -868,9 +881,19 @@ export function Viewer({
   const createAccount = useCallback(() => prompt.current({ mode: "sign-up" }), []);
   const sessionsHere = sessioning.here;
   const ownSpots = spots.data;
-  // The tide over the two days ahead at the place an alert is written at, when its panel is
-  // open, for the editor to draw beside what is asked of it.
-  const drawnPlace = drawn?.spotId ?? drawn?.breakId;
+  // The tide over the two days ahead at the place an alert is written at, which the route reads
+  // at its point, for the editor to draw beside what is asked of it.
+  const alertLatitude = alertWriting?.place.latitude;
+  const alertLongitude = alertWriting?.place.longitude;
+  const pointer = useRef(onAlertPoint);
+  pointer.current = onAlertPoint;
+  useEffect(() => {
+    pointer.current(
+      alertLatitude === undefined || alertLongitude === undefined
+        ? undefined
+        : { latitude: alertLatitude, longitude: alertLongitude },
+    );
+  }, [alertLatitude, alertLongitude]);
   // The account's alerts at the break whose panel is drawn, once they are known.
   const allAlerts = alerting.alerts.data;
   const breakAlerts = useMemo(
@@ -880,10 +903,7 @@ export function Viewer({
         : undefined,
     [allAlerts, drawn?.breakId],
   );
-  const alertTimeline =
-    drawnPlace !== undefined && drawnPlace === alertWriting?.place.id
-      ? drawn?.tides.data?.timeline
-      : undefined;
+  const alertTimeline = alertWriting ? alertTides?.timeline : undefined;
   const alertTide = useMemo(
     () =>
       tideAhead(
@@ -919,7 +939,7 @@ export function Viewer({
           alertAsked={drawn.spotId === alertAsked.placeId ? alertAsked.count : 0}
           onWriteAlert={(written) => {
             const spot = drawn.spot.data;
-            if (spot) writeAlert({ kind: "spot", id: spot.id, name: spot.name }, written);
+            if (spot) writeAlert({ kind: "spot", ...pointOf(spot) }, written);
           }}
           sessions={(onAlert) => {
             const spot = drawn.spot.data;
@@ -929,7 +949,7 @@ export function Viewer({
                   now={now}
                   signedIn={signedIn}
                   sessions={sessionsHere}
-                  onAdd={() => beginSession({ kind: "spot", id: spot.id, name: spot.name })}
+                  onAdd={() => beginSession({ kind: "spot", ...pointOf(spot) })}
                   onOpen={openSession}
                   onSignIn={signIn}
                   onCreateAccount={createAccount}
@@ -970,17 +990,10 @@ export function Viewer({
               alerts={breakAlerts}
               onOpen={(one) =>
                 drawn.found.data &&
-                writeAlert(
-                  { kind: "break", id: drawn.found.data.id, name: drawn.found.data.name },
-                  { alertId: one.id },
-                )
+                writeAlert({ kind: "break", ...pointOf(drawn.found.data) }, { alertId: one.id })
               }
               onNew={() =>
-                drawn.found.data &&
-                writeAlert(
-                  { kind: "break", id: drawn.found.data.id, name: drawn.found.data.name },
-                  {},
-                )
+                drawn.found.data && writeAlert({ kind: "break", ...pointOf(drawn.found.data) }, {})
               }
               switching={alerting.switching}
               onSwitch={alerting.onSwitch}
@@ -1009,7 +1022,7 @@ export function Viewer({
               onAlert={(criteria) =>
                 drawn.found.data &&
                 writeAlert(
-                  { kind: "break", id: drawn.found.data.id, name: drawn.found.data.name },
+                  { kind: "break", ...pointOf(drawn.found.data) },
                   {
                     initial: {
                       name: m.sessions_liked_alert_name({ spot: drawn.found.data.name }),
@@ -1127,9 +1140,9 @@ export function Viewer({
   // account first. A station takes none.
   const alertBreak = shownBreak?.data;
   const alertHere = ownSpot
-    ? () => createAlert({ kind: "spot", id: ownSpot.id, name: ownSpot.name })
+    ? () => createAlert({ kind: "spot", ...pointOf(ownSpot) })
     : alertBreak
-      ? () => createAlert({ kind: "break", id: alertBreak.id, name: alertBreak.name })
+      ? () => createAlert({ kind: "break", ...pointOf(alertBreak) })
       : undefined;
 
   // Adding a spot takes an account, which a visitor is asked for first.
@@ -1145,8 +1158,8 @@ export function Viewer({
     closeCreateMenu();
     addSpot();
   }
-  // An alert begins at a place, a spot of the account's or a break, or asks where. Its sheet
-  // opens over the place's panel, which shows the place's alerts once it is closed.
+  // An alert begins at a place, a spot of the account's or a break, or asks where: its sheet opens
+  // over whatever is open, and the place's panel shows its alerts when it is the one open.
   function createAlert(place?: AlertPlace) {
     closeCreateMenu();
     const begin = () => (place ? alertAt(place) : openAlertPlace());
@@ -1157,8 +1170,6 @@ export function Viewer({
   function alertAt(place: AlertPlace) {
     alertSearch.onOpenChange(false);
     setAlertAsked((asked) => ({ placeId: place.id, count: asked.count + 1 }));
-    if (place.kind === "spot") onSelectSpot(place.id);
-    else onSelectBreak(place.id);
     writeAlert(place, {});
   }
 
@@ -1188,8 +1199,8 @@ export function Viewer({
     const spot = wants.spotId ? ownSpots?.find((one) => one.id === wants.spotId) : undefined;
     const at = wants.breakId ? shownBreak?.data : undefined;
     const place: AlertPlace | undefined = spot
-      ? { kind: "spot", id: spot.id, name: spot.name }
-      : at && { kind: "break", id: at.id, name: at.name };
+      ? { kind: "spot", ...pointOf(spot) }
+      : at && { kind: "break", ...pointOf(at) };
     if (!place) return;
     asked.current = key;
     createAlert(place);
@@ -1233,9 +1244,9 @@ export function Viewer({
     const at = shown.breakId ? shown.found.data : undefined;
     beginSession(
       at
-        ? { kind: "break", id: at.id, name: at.name }
+        ? { kind: "break", ...pointOf(at) }
         : ownSpot
-          ? { kind: "spot", id: ownSpot.id, name: ownSpot.name }
+          ? { kind: "spot", ...pointOf(ownSpot) }
           : undefined,
     );
   }
@@ -1722,11 +1733,7 @@ export function Viewer({
                   isDeleting={isDeletingSpot}
                   onDelete={() => onDeleteSpot(ownSpot)}
                 >
-                  <MenuItem
-                    onClick={() =>
-                      createAlert({ kind: "spot", id: ownSpot.id, name: ownSpot.name })
-                    }
-                  >
+                  <MenuItem onClick={() => createAlert({ kind: "spot", ...pointOf(ownSpot) })}>
                     {m.alert_create()}
                   </MenuItem>
                   <DirectionsItems place={ownSpot} />
@@ -1923,11 +1930,8 @@ export function Viewer({
               alert.places.find((one) => (one.spotId ?? one.breakId) === open) ?? alert.places[0];
             if (!at) return;
             const place: AlertPlace = at.spotId
-              ? { kind: "spot", id: at.spotId, name: at.name }
-              : { kind: "break", id: at.breakId ?? "", name: at.name };
-            setAlertAsked((asked) => ({ placeId: place.id, count: asked.count + 1 }));
-            if (place.kind === "spot") onSelectSpot(place.id);
-            else onSelectBreak(place.id);
+              ? { ...at, kind: "spot", id: at.spotId }
+              : { ...at, kind: "break", id: at.breakId ?? "" };
             writeAlert(place, { alertId: alert.id });
           }}
           switching={alerting.switching}
@@ -2076,8 +2080,8 @@ export function Viewer({
         inputRef={alertInput}
         spots={spots.data}
         recents={recents}
-        onSpot={(spot) => createAlert({ kind: "spot", id: spot.id, name: spot.name })}
-        onBreak={(found) => createAlert({ kind: "break", ...found })}
+        onSpot={(spot) => createAlert({ kind: "spot", ...pointOf(spot) })}
+        onBreak={(found) => createAlert({ kind: "break", ...pointOf(found) })}
         onAddSpot={() => {
           alertSearch.onOpenChange(false);
           addSpot();
