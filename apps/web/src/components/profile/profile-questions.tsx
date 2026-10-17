@@ -1,5 +1,5 @@
 import { APP_NAME } from "@repo/config/app";
-import { SIZES, SURF_FACES, sizeRank } from "@repo/conditions/sessions/sizes";
+import { SIZES, sizeRank } from "@repo/conditions/sessions/sizes";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Dialog,
@@ -11,14 +11,9 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import {
   BellOnFillDuoIcon,
-  BoardIcon,
   BookBookmarkFillDuoIcon,
-  ChartAreaFillDuoIcon,
-  LevelIcon,
-  PersonFillIcon,
   SparklesFillDuoIcon,
   SurferFillIcon,
-  WaveSizeIcon,
   XIcon,
 } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
@@ -125,7 +120,7 @@ function Choices<Value extends string>({
             aria-pressed={isChosen}
             onClick={() => onPick(option.value)}
             className={cn(
-              "focus-ring edge grid min-h-11 cursor-pointer justify-items-center gap-xxs rounded-(--radius-xs) px-s py-xs text-center outline-none",
+              "focus-ring edge grid min-h-11 cursor-pointer gap-xxs rounded-(--radius-xs) px-s py-xs text-left outline-none",
               pressable,
               isChosen
                 ? "bg-neutral-3 [--edge-color:var(--neutral-10)] [--edge-width:var(--border-m)]"
@@ -352,16 +347,6 @@ type Step = "welcome" | "username" | "level" | "waves" | "reading" | "boards";
 // How long a choice that leads on stays in view, chosen, before the next question comes.
 const SEEN_CHOSEN = 220;
 
-// The color of each question's tile: the sea's scale, a little bigger at each step, so that the
-// questions build as a swell does.
-const STEP_COLOR: Record<Exclude<Step, "welcome">, string> = {
-  username: scaleColor(WAVE_HEIGHT_SCALE, 0.5),
-  level: scaleColor(WAVE_HEIGHT_SCALE, 1),
-  waves: scaleColor(WAVE_HEIGHT_SCALE, 1.5),
-  reading: scaleColor(WAVE_HEIGHT_SCALE, 2),
-  boards: scaleColor(WAVE_HEIGHT_SCALE, 3),
-};
-
 /**
  * A part of a step as it comes: a fade, with a blur that clears and a slide from the side the
  * step comes from, on the theme's large easing, a tenth of a second after the part before it. A
@@ -392,48 +377,7 @@ function Arrive({
   );
 }
 
-/** What stands before a question's title: its tile, drawn from what was answered so far. */
-function StepTile({ step, answers }: { step: Exclude<Step, "welcome">; answers: ProfileAnswers }) {
-  const biggest = answers.biggestWave ?? answers.smallestWave;
-  // The drawing changes with the answer: it comes in again, from small and blurred.
-  const [key, glyph] =
-    step === "username"
-      ? ["username", <PersonFillIcon />]
-      : step === "level"
-        ? [
-            answers.level ?? "none",
-            <LevelIcon
-              levels={answers.level ? [Object.keys(LEVELS).indexOf(answers.level)] : [0, 1, 2, 3]}
-              className="size-[0.8em]!"
-            />,
-          ]
-        : step === "waves"
-          ? [
-              biggest ?? "none",
-              <WaveSizeIcon
-                largest={biggest ? SURF_FACES[biggest].drawn : 1.2}
-                className="size-[0.8em]!"
-              />,
-            ]
-          : step === "reading"
-            ? ["reading", <ChartAreaFillDuoIcon />]
-            : ["boards", <BoardIcon className="size-[0.8em]!" />];
-  return (
-    <Tile
-      color={STEP_COLOR[step]}
-      className="mr-0 shrink-0 text-xl [animation-delay:150ms] motion-safe:animate-landing-pop"
-    >
-      <span
-        key={key}
-        className="flex animate-in fade-in duration-300 ease-out motion-safe:blur-in-[4px] motion-safe:zoom-in-25"
-      >
-        {glyph}
-      </span>
-    </Tile>
-  );
-}
-
-/** Where the questions are: one mark for each, filled up to the one in view, and the count. */
+/** Where the questions are: one mark for each, filled up to the one in view. */
 function Progress({ at, count }: { at: number; count: number }) {
   return (
     <div className="flex items-center gap-s">
@@ -448,9 +392,8 @@ function Progress({ at, count }: { at: number; count: number }) {
           />
         ))}
       </div>
-      <p className="text-s text-neutral-7 tabular-nums">
-        {m.onboarding_step({ step: at + 1, count })}
-      </p>
+      {/* The marks say it to the eye: the count is said to a screen reader alone. */}
+      <p className="sr-only">{m.onboarding_step({ step: at + 1, count })}</p>
     </div>
   );
 }
@@ -584,31 +527,28 @@ export function Onboarding({
               key={step}
               place={step === "welcome" ? 1 : 0}
               from={from}
-              className="flex items-center gap-s"
+              className="grid gap-xxs"
             >
-              {step !== "welcome" && <StepTile step={step} answers={answers} />}
-              <div className="grid min-w-0 gap-xxs">
-                <DialogTitle>
-                  {step === "welcome"
-                    ? m.onboarding_title({ name: APP_NAME })
-                    : step === "username"
-                      ? m.profile_username_title()
-                      : step === "level"
-                        ? m.profile_level_title()
-                        : step === "waves"
-                          ? m.profile_waves_title()
-                          : step === "reading"
-                            ? m.profile_reading_title()
-                            : m.profile_boards_title()}
-                </DialogTitle>
-                {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
-                {step === "reading" && (
-                  <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
-                )}
-                {step === "boards" && (
-                  <DialogDescription>{m.profile_boards_hint()}</DialogDescription>
-                )}
-              </div>
+              <DialogTitle>
+                {step === "welcome"
+                  ? m.onboarding_title({ name: APP_NAME })
+                  : step === "username"
+                    ? m.profile_username_title()
+                    : step === "level"
+                      ? m.profile_level_title()
+                      : step === "waves"
+                        ? m.profile_waves_title()
+                        : step === "reading"
+                          ? m.profile_reading_title()
+                          : m.profile_boards_title()}
+              </DialogTitle>
+              {step === "welcome" && <DialogDescription>{m.onboarding_text()}</DialogDescription>}
+              {step === "reading" && (
+                <DialogDescription>{m.profile_reading_hint()}</DialogDescription>
+              )}
+              {step === "boards" && (
+                <DialogDescription>{m.profile_boards_hint()}</DialogDescription>
+              )}
             </Arrive>
           </div>
           <DialogClose
