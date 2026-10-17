@@ -358,9 +358,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   // How to be told of the alerts is a part of the account's panel.
   const isSettingAlerts = panel === "account" && search.settings === "alerts";
   // The settings are read where they show: there, and in the panel of a spot.
+  // The point of the place an alert is written at, while its sheet is open: decision 064.
+  const [alertPoint, setAlertPoint] = useState<{ latitude: number; longitude: number }>();
   const alerting = useAlerting({
     signedIn,
-    isShown: isSettingAlerts || selectedSpotId !== undefined,
+    // The settings say whether a new alert asks about mail: its sheet waits for them.
+    isShown: isSettingAlerts || selectedSpotId !== undefined || alertPoint !== undefined,
   });
   // What is written of the break in view, and what its reader does there.
   const guided = useGuiding({ breakId: selectedBreakId, account: session.data?.user.id });
@@ -634,7 +637,6 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   );
   // The tide at the place an alert is written at, over today and the two days after, for its
   // editor to draw: the alert's sheet opens over whatever is open, which may be no panel.
-  const [alertPoint, setAlertPoint] = useState<{ latitude: number; longitude: number }>();
   const alertSpan = useMemo(() => {
     const start = new Date(hour);
     start.setHours(0, 0, 0, 0);
