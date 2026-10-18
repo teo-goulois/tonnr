@@ -42,9 +42,9 @@ import {
 
 import { MorphText } from "@/components/shared/morph-text";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
+import { formatDay, formatNumber } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
-import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 import { orpc } from "@/utils/orpc";
 
@@ -52,7 +52,6 @@ import { Bearing } from "../../viewer/bearing";
 import { SeaChart } from "../../viewer/sea-chart";
 import type { Alert, AlertCriteria, Spot } from "../../viewer/types";
 import type { AlertPlace } from "../alert-editor";
-import { stretchWords } from "../alert-trial";
 import {
   type Arc,
   type ArcKey,
@@ -67,7 +66,6 @@ import {
   thumbsOf,
 } from "../alert-words";
 import { CompassDial } from "../compass-dial";
-import { HourStrip } from "../hour-strip";
 import type { TidePoint } from "../tide-band";
 import { TideTrend } from "../tide-trend";
 import { CycleDial } from "./cycle-dial";
@@ -94,13 +92,13 @@ import {
   tideMeets,
 } from "./rules";
 import { useProto } from "./state";
+import { type Asked, LiveCount, Week, WeekPreview, type WeekState, weekDays } from "./week-preview";
 
 const WIDE = "(min-width: 1024px)";
 // The coefficients as figures, where a word alone says too little.
 const COEF_FIGURES: Record<CoefBucket, string> = { small: "< 70", medium: "70–90", big: "> 90" };
 const underlined = "underline decoration-dotted underline-offset-4";
 const SHORTEST_HOURS = [1, 2, 3, 4, 6];
-const LISTED = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CASE_COLORS = ["bg-color-1", "bg-neutral-8", "bg-neutral-6", "bg-neutral-5"];
 
@@ -168,8 +166,12 @@ function Slot({
   const after = useContext(After);
   const guide = useContext(Guide);
   const [isOpen, setOpen] = useState(open);
+  // The count as the part opened: what is chosen there is said against it.
+  const week = useContext(Week);
+  const [since, setSince] = useState<number | null>(open ? week.count : null);
   const change = (next: boolean, byButton = false) => {
     setOpen(next);
+    setSince(next ? week.count : null);
     if (!next) guide?.onClosed(byButton);
   };
   // The sentence says what is chosen as it is chosen, so its words move: a popover holds to
@@ -244,7 +246,10 @@ function Slot({
               <DrawerTitle className="text-s font-normal text-neutral-7">{label}</DrawerTitle>
               {valueLine}
             </DrawerHeader>
-            <DrawerPanel className="grid gap-s text-s">{children}</DrawerPanel>
+            <DrawerPanel className="grid gap-s text-s">
+              {children}
+              <LiveCount since={since} />
+            </DrawerPanel>
             <DrawerFooter>{buttons}</DrawerFooter>
           </DrawerContent>
         </Drawer>
@@ -269,6 +274,7 @@ function Slot({
           {valueLine}
         </div>
         {children}
+        <LiveCount since={since} />
         <div className="flex gap-xs">{buttons}</div>
       </PopoverPopup>
     </Popover>
@@ -649,6 +655,29 @@ export function PrototypeAlertEditor({
     .reverse()
     .find((hours) => tideLasts !== null && hours * 60 <= tideLasts);
   const asksAny = judgedCases.some((one) => asksSomething(variant, one));
+  const asked: Asked = {
+    waves: judgedCases.some((one) => isSetRange(one.criteria.waveHeightMeters)),
+    period: judgedCases.some((one) => isSetRange(one.criteria.wavePeakPeriodSeconds)),
+    wind: judgedCases.some((one) => isSetRange(one.criteria.windSpeedMetersPerSecond)),
+    tide: judgedCases.some((one) => (one.tide.cycle?.length ?? 0) > 0),
+    coef: judgedCases.some((one) => (one.tide.coefs?.length ?? 0) > 0),
+  };
+  const weekState: WeekState = !asksAny
+    ? "nothing"
+    : preview.isError
+      ? "failed"
+      : !tried
+        ? "pending"
+        : !tried.hasSea
+          ? "noSea"
+          : "ready";
+  const week = useMemo(
+    () => ({
+      count: weekState === "ready" ? judged.pieces.length : null,
+      days: weekDays(judged.pieces, now, zone).map((day) => day.pieces.length > 0),
+    }),
+    [weekState, judged.pieces, now, zone],
+  );
   const tides = [
     ...judged.hours.flatMap((hour) => hour.tide.height ?? []),
     ...tide.map((point) => point.value),
@@ -1195,249 +1224,182 @@ export function PrototypeAlertEditor({
     );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain pb-m">
-        <div className="grid gap-xs">
-          <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
-          <Input
-            id={`${id}-name`}
-            value={name}
-            maxLength={80}
-            onChange={(event) => setName(event.currentTarget.value)}
-          />
-        </div>
-
-        {proto.or === "3" ? (
-          // Variant 3: one sentence, said a part at a time, whose parts each take other values
-          // with "+".
-          <div className="grid gap-s">
-            <p className="text-l text-pretty">
-              {m.alert_says_waves()} {guided("waveHeightMeters", 0, shows(1))}
-              {shows(1) && guided("wavePeakPeriodSeconds", 1, shows(2))}
-              {shows(2) && guided("waveDirectionDegrees", 2, shows(3))}
-              {shows(3) && (
-                <>
-                  {m.alert_says_wind()} {guided("windSpeedMetersPerSecond", 3, shows(4))}
-                </>
-              )}
-              {shows(4) && guided("windDirectionDegrees", 4, shows(5))}
-              {shows(5) && (
-                <>
-                  {m.alert_says_tide()} {guided("tide", 5, shows(6))}
-                </>
-              )}
-              {shows(6) && (
-                <>
-                  et que ça dure au moins{" "}
-                  <Guide.Provider value={guideOf(6)}>{shortestOf(autoOpen === 6)}</Guide.Provider>.
-                </>
-              )}
-            </p>
-            {tooShort && shows(5) && shortWarning}
+    <Week.Provider value={week}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain pb-m">
+          <div className="grid gap-xs">
+            <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
+            <Input
+              id={`${id}-name`}
+              value={name}
+              maxLength={80}
+              onChange={(event) => setName(event.currentTarget.value)}
+            />
           </div>
-        ) : proto.or === "1" ? (
-          // Variant 1: the cases follow one another in the sentence, each a whole sentence.
-          <div className="grid gap-s">
-            {cases.map((one, index) => (
-              <div key={one.id} className="grid gap-xxs">
+
+          {proto.or === "3" ? (
+            // Variant 3: one sentence, said a part at a time, whose parts each take other values
+            // with "+".
+            <div className="grid gap-s">
+              <p className="text-l text-pretty">
+                {m.alert_says_waves()} {guided("waveHeightMeters", 0, shows(1))}
+                {shows(1) && guided("wavePeakPeriodSeconds", 1, shows(2))}
+                {shows(2) && guided("waveDirectionDegrees", 2, shows(3))}
+                {shows(3) && (
+                  <>
+                    {m.alert_says_wind()} {guided("windSpeedMetersPerSecond", 3, shows(4))}
+                  </>
+                )}
+                {shows(4) && guided("windDirectionDegrees", 4, shows(5))}
+                {shows(5) && (
+                  <>
+                    {m.alert_says_tide()} {guided("tide", 5, shows(6))}
+                  </>
+                )}
+                {shows(6) && (
+                  <>
+                    et que ça dure au moins{" "}
+                    <Guide.Provider value={guideOf(6)}>{shortestOf(autoOpen === 6)}</Guide.Provider>
+                    .
+                  </>
+                )}
+              </p>
+              {tooShort && shows(5) && shortWarning}
+            </div>
+          ) : proto.or === "1" ? (
+            // Variant 1: the cases follow one another in the sentence, each a whole sentence.
+            <div className="grid gap-s">
+              {cases.map((one, index) => (
+                <div key={one.id} className="grid gap-xxs">
+                  <p className="text-l text-pretty">
+                    {caseDot(index)}{" "}
+                    {sentence(
+                      one,
+                      index,
+                      index === 0 ? m.alert_says_waves() : "Ou quand les vagues",
+                      ",",
+                    )}
+                  </p>
+                  {cases.length > 1 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="w-fit"
+                      onClick={() => removeCase(index)}
+                    >
+                      <XIcon data-slot="icon" aria-hidden />
+                      Retirer ce cas
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <p className="text-l text-pretty">
+                <button
+                  type="button"
+                  onClick={addCase}
+                  className={cn(
+                    "focus-ring rounded-(--radius-xs) text-neutral-7 outline-none",
+                    underlined,
+                  )}
+                >
+                  + ou quand…
+                </button>{" "}
+                {m.alert_says_for()} {shortestSlot}.
+              </p>
+            </div>
+          ) : (
+            // Variant 2: one case at a time, behind a row of tabs, the others in a line each.
+            <div className="grid gap-s">
+              <div className="flex flex-wrap items-center gap-xs">
+                <ToggleGroup
+                  variant="outline"
+                  size="sm"
+                  aria-label="Cas"
+                  value={[String(active)]}
+                  onValueChange={([pressed]) => pressed !== undefined && setActive(Number(pressed))}
+                >
+                  {cases.map((one, index) => (
+                    <ToggleGroupItem key={one.id} value={String(index)}>
+                      {caseDot(index)} {index === 0 ? "Quand" : "Ou quand"}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                <Button type="button" size="sm" variant="ghost" onClick={addCase}>
+                  <PlusIcon data-slot="icon" aria-hidden />
+                  Ou…
+                </Button>
+              </div>
+              {cases[active] && (
                 <p className="text-l text-pretty">
-                  {caseDot(index)}{" "}
                   {sentence(
-                    one,
-                    index,
-                    index === 0 ? m.alert_says_waves() : "Ou quand les vagues",
-                    ",",
+                    cases[active],
+                    active,
+                    active === 0 ? m.alert_says_waves() : "Ou quand les vagues",
+                    <>
+                      , {m.alert_says_for()} {shortestSlot}.
+                    </>,
                   )}
                 </p>
-                {cases.length > 1 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="w-fit"
-                    onClick={() => removeCase(index)}
-                  >
-                    <XIcon data-slot="icon" aria-hidden />
-                    Retirer ce cas
-                  </Button>
-                )}
-              </div>
-            ))}
-            <p className="text-l text-pretty">
-              <button
-                type="button"
-                onClick={addCase}
-                className={cn(
-                  "focus-ring rounded-(--radius-xs) text-neutral-7 outline-none",
-                  underlined,
-                )}
-              >
-                + ou quand…
-              </button>{" "}
-              {m.alert_says_for()} {shortestSlot}.
-            </p>
-          </div>
-        ) : (
-          // Variant 2: one case at a time, behind a row of tabs, the others in a line each.
-          <div className="grid gap-s">
-            <div className="flex flex-wrap items-center gap-xs">
-              <ToggleGroup
-                variant="outline"
-                size="sm"
-                aria-label="Cas"
-                value={[String(active)]}
-                onValueChange={([pressed]) => pressed !== undefined && setActive(Number(pressed))}
-              >
-                {cases.map((one, index) => (
-                  <ToggleGroupItem key={one.id} value={String(index)}>
-                    {caseDot(index)} {index === 0 ? "Quand" : "Ou quand"}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <Button type="button" size="sm" variant="ghost" onClick={addCase}>
-                <PlusIcon data-slot="icon" aria-hidden />
-                Ou…
-              </Button>
-            </div>
-            {cases[active] && (
-              <p className="text-l text-pretty">
-                {sentence(
-                  cases[active],
-                  active,
-                  active === 0 ? m.alert_says_waves() : "Ou quand les vagues",
-                  <>
-                    , {m.alert_says_for()} {shortestSlot}.
-                  </>,
-                )}
-              </p>
-            )}
-            {cases.length > 1 && (
-              <ul className="grid gap-xxs text-s">
-                {cases.map((one, index) =>
-                  index === active ? null : (
-                    <li key={one.id} className="flex items-center justify-between gap-s">
-                      <button
-                        type="button"
-                        className="text-start text-neutral-8"
-                        onClick={() => setActive(index)}
-                      >
-                        {caseDot(index)} {index === 0 ? "Quand" : "Ou quand"}{" "}
-                        {caseLine(variant, one)}
-                      </button>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="Retirer ce cas"
-                        onClick={() => removeCase(index)}
-                      >
-                        <XIcon data-slot="icon" aria-hidden />
-                      </Button>
-                    </li>
-                  ),
-                )}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* What the cases give over the week: the prototype judges the hours itself. */}
-        <div
-          className="edge grid gap-s rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]"
-          aria-live="polite"
-        >
-          {!asksAny ? (
-            <p className="text-s text-neutral-7">{m.alert_preview_no_condition()}</p>
-          ) : preview.isError ? (
-            <p className="text-s text-neutral-7">{m.alert_preview_failed()}</p>
-          ) : !tried ? (
-            <p className="text-s text-neutral-7">{m.alert_preview_pending()}</p>
-          ) : !tried.hasSea ? (
-            <p className="text-s text-neutral-7">{m.alert_preview_no_sea()}</p>
-          ) : (
-            <>
-              <p className="font-medium">
-                {judged.pieces.length === 0
-                  ? m.alert_preview_none()
-                  : judged.pieces.length === 1
-                    ? m.alert_preview_one()
-                    : m.alert_preview_many({ count: judged.pieces.length })}
-              </p>
-              <HourStrip
-                hours={judged.hours.map((hour) => ({
-                  time: hour.time,
-                  unmet: hour.cases.length > 0 ? [] : ["no"],
-                }))}
-                open={judged.pieces}
-                zone={zone}
-                label={
-                  judged.pieces.map((piece) => stretchWords(piece, zone)).join(", ") ||
-                  m.alert_preview_none()
-                }
-              />
-              {judged.pieces.length > 0 && (
+              )}
+              {cases.length > 1 && (
                 <ul className="grid gap-xxs text-s">
-                  {judged.pieces.slice(0, LISTED).map((piece) => {
-                    const first = piece.first;
-                    const stage = first.tide.stage;
-                    return (
-                      <li key={piece.start.getTime()} className="grid gap-0">
-                        <span className="flex items-center gap-xs tabular-nums">
-                          {cases.length > 1 && (
-                            <span className="inline-flex gap-[2px]">
-                              {piece.cases.map((at) => (
-                                <span key={at}>{caseDot(at)}</span>
-                              ))}
-                            </span>
-                          )}
-                          {stretchWords(piece, zone)}
-                        </span>
-                        <span className="text-xs text-neutral-7 tabular-nums">
-                          {[
-                            first.waveHeightMeters !== null && formatHeight(first.waveHeightMeters),
-                            first.wavePeakPeriodSeconds !== null &&
-                              formatSeconds(first.wavePeakPeriodSeconds),
-                            first.windSpeedMetersPerSecond !== null &&
-                              formatWind(toKnots(first.windSpeedMetersPerSecond)),
-                            first.tide.height !== null &&
-                              `marée ${formatHeight(first.tide.height)}`,
-                            stage &&
-                              `${STAGE_WORDS[stage]}${first.tide.trend && stage !== "low" && stage !== "high" ? (first.tide.trend === "rising" ? " ↑" : " ↓") : ""}`,
-                            first.tide.coefficient !== null && `coef ${first.tide.coefficient}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
+                  {cases.map((one, index) =>
+                    index === active ? null : (
+                      <li key={one.id} className="flex items-center justify-between gap-s">
+                        <button
+                          type="button"
+                          className="text-start text-neutral-8"
+                          onClick={() => setActive(index)}
+                        >
+                          {caseDot(index)} {index === 0 ? "Quand" : "Ou quand"}{" "}
+                          {caseLine(variant, one)}
+                        </button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Retirer ce cas"
+                          onClick={() => removeCase(index)}
+                        >
+                          <XIcon data-slot="icon" aria-hidden />
+                        </Button>
                       </li>
-                    );
-                  })}
-                  {judged.pieces.length > LISTED && (
-                    <li className="text-neutral-7">
-                      {m.alert_preview_more({ count: judged.pieces.length - LISTED })}
-                    </li>
+                    ),
                   )}
                 </ul>
               )}
-              {!tried.hasTide && cases.some((one) => asksTide(variant, one.tide)) && (
-                <p className="text-s text-neutral-7">{m.alert_no_tide({ spot: place.name })}</p>
-              )}
-            </>
+            </div>
           )}
-        </div>
-      </div>
 
-      <div className="grid gap-xs pt-s">
-        <p className="text-xs text-neutral-7">Prototype : rien n'est enregistré.</p>
-        <div className="flex gap-xs">
-          <Button type="button" className="flex-1" disabled>
-            {m.alert_save()}
-          </Button>
-          <Button type="button" variant="outline" onClick={onDone}>
-            {m.action_close()}
-          </Button>
+          <WeekPreview
+            state={weekState}
+            pieces={judged.pieces}
+            hours={judged.hours}
+            asked={asked}
+            now={now}
+            zone={zone}
+            noTide={
+              tried && !tried.hasTide && asked.tide
+                ? m.alert_no_tide({ spot: place.name })
+                : undefined
+            }
+          />
+        </div>
+
+        <div className="grid gap-xs pt-s">
+          <p className="text-xs text-neutral-7">Prototype : rien n'est enregistré.</p>
+          <div className="flex gap-xs">
+            <Button type="button" className="flex-1" disabled>
+              {m.alert_save()}
+            </Button>
+            <Button type="button" variant="outline" onClick={onDone}>
+              {m.action_close()}
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </Week.Provider>
   );
 }
 
