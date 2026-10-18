@@ -176,10 +176,7 @@ export function WeekPreview({
   const ringing = days.filter((one) => one.pieces.length > 0).length;
   const nowHour = hourIn(new Date(now), zone);
   return (
-    <div
-      className="edge grid rounded-(--radius-s) [--edge-color:var(--neutral-4)]"
-      aria-live="polite"
-    >
+    <div className="grid rounded-(--radius-s) border border-neutral-4" aria-live="polite">
       <button
         type="button"
         aria-expanded={isOpen}
