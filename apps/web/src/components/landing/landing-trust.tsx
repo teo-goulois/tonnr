@@ -66,7 +66,6 @@ export function LandingTrust() {
             }}
           />
         }
-        more={m.landing_trust_more()}
         className={cn(arrive, "max-w-4xl scroll-mt-[calc(var(--space-xxl)*2)]")}
       />
       <div className="grid gap-m">
