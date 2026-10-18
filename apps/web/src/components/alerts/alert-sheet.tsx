@@ -11,6 +11,10 @@ import { AlertEditor, type AlertPlace } from "./alert-editor";
 import type { Written } from "./alert-words";
 import type { TidePoint } from "./tide-band";
 import type { Alerting } from "./types";
+// PROTOTYPE: the variants of branch prototype/alert-conditions.
+import { ProtoBar } from "./prototype/proto-bar";
+import { PrototypeAlertEditor } from "./prototype/proto-editor";
+import { useProto } from "./prototype/state";
 
 // The alert that is written, at the place it is written from: a spot of the account's own or a
 // surf break of the catalogue (decision 064). `key` changes with each alert that is opened, and
@@ -70,6 +74,7 @@ export function AlertSheet({
   // A new alert is written once the account's settings are known: they say whether it is asked
   // about mail, with that alert.
   const isReady = place && spots && alerts && (alert || alerting.settings.data);
+  const proto = useProto(); // PROTOTYPE
   return (
     <ViewerDrawer
       open={writing !== null}
@@ -88,7 +93,20 @@ export function AlertSheet({
       fill
       opensRaised
     >
-      {shown && isReady ? (
+      {/* PROTOTYPE */}
+      {shown && isReady && <ProtoBar />}
+      {shown && isReady && proto.on && proto.editor === "proto" ? (
+        <PrototypeAlertEditor
+          key={shown.key}
+          now={now}
+          place={place}
+          spots={spots}
+          alert={alert}
+          tide={tide}
+          zone={alerting.settings.data?.zone ?? undefined}
+          onDone={onDone}
+        />
+      ) : shown && isReady ? (
         <AlertEditor
           key={shown.key}
           now={now}
