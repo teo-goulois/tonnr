@@ -7,12 +7,6 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
-import {
-  Popover,
-  PopoverPopup,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@repo/ui/components/ui/popover";
 import { Slider } from "@repo/ui/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
 import { CirclePlusIcon, CircleXIcon, PlusIcon, XIcon } from "@repo/ui/icon";
@@ -33,7 +27,6 @@ import {
 import { createPortal } from "react-dom";
 
 import { MorphText } from "@/components/shared/morph-text";
-import { useMediaQuery } from "@/lib/use-media-query";
 import { formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
@@ -87,7 +80,6 @@ import {
 } from "./rules";
 import { useProto } from "./state";
 
-const WIDE = "(min-width: 1024px)";
 // The coefficients as figures, where a word alone says too little.
 const COEF_FIGURES: Record<CoefBucket, string> = { small: "< 70", medium: "70–90", big: "> 90" };
 const underlined = "underline decoration-dotted underline-offset-4";
@@ -135,14 +127,12 @@ const apart = {
   onPointerDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
 };
 
-/** A part of the sentence that opens what changes it: a popover on a wide screen, the dock at
- * the bottom of the editor on a phone. */
+/** A part of the sentence that opens what changes it, in the dock at the bottom of the editor. */
 function Slot({
   label,
   words,
   shown = words,
   isSet,
-  isWide = false,
   open = false,
   onAny,
   value,
@@ -152,7 +142,6 @@ function Slot({
   words: string;
   shown?: ReactNode;
   isSet: boolean;
-  isWide?: boolean;
   // Opens as it comes: a value just added with "+".
   open?: boolean;
   // Leaves the part asking nothing: what "Peu importe" does. A part that always asks has none.
@@ -162,35 +151,26 @@ function Slot({
   value?: { said: string; long?: boolean };
   children: ReactNode;
 }) {
-  const wide = useMediaQuery(WIDE);
+  // A part opens in the dock at the bottom of the editor, on every screen: a popover holds to
+  // its words, so the sentence would have to stand still under it and would not say what is
+  // chosen. The dock holds to nothing, and the sentence follows.
   const unsaid = useContext(Unsaid);
   const after = useContext(After);
   const guide = useContext(Guide);
   const dock = useContext(Dock);
   const slotId = useId();
   const triggerRef = useRef<HTMLSpanElement>(null);
-  const [popoverOpen, setPopoverOpen] = useState(open && wide);
-  const isOpen = wide ? popoverOpen : dock.open === slotId;
-  const setOpen = (next: boolean) => {
-    if (wide) setPopoverOpen(next);
-    else dock.setOpen(next ? slotId : null);
-  };
-  // A part that comes open, on a phone, takes the dock as it mounts.
+  const isOpen = dock.open === slotId;
+  // A part that comes open takes the dock as it mounts.
   useEffect(() => {
-    if (open && !wide) dock.setOpen(slotId);
+    if (open) dock.setOpen(slotId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (isOpen && !wide) triggerRef.current?.scrollIntoView({ block: "nearest" });
-  }, [isOpen, wide]);
-  // While a popover is open, the sentence keeps the words it had: what is chosen there would
-  // move the words, and the popover with them. A drawer holds to no word: the sentence follows.
-  const [kept, setKept] = useState<{ shown: ReactNode; after: ReactNode } | null>(
-    open ? { shown, after } : null,
-  );
+    if (isOpen) triggerRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isOpen]);
   const change = (next: boolean, byButton = false) => {
-    setOpen(next);
-    setKept(next ? { shown, after } : null);
+    dock.setOpen(next ? slotId : null);
     if (!next) guide?.onClosed(byButton);
   };
   const current = guide?.current ?? false;
@@ -228,62 +208,39 @@ function Slot({
     </>
   );
 
-  if (!wide) {
-    return (
-      <>
-        {!unsaid && (
-          <span
-            ref={triggerRef}
-            role="button"
-            tabIndex={0}
-            aria-label={`${label} : ${words}`}
-            className={cn(triggerClass, isOpen && "bg-neutral-3 px-xxs")}
-            onClick={() => change(!isOpen)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" && event.key !== " ") return;
-              event.preventDefault();
-              change(true);
-            }}
-          >
-            {withAfter(shown, after)}
-          </span>
-        )}
-        {isOpen &&
-          dock.at &&
-          createPortal(
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-s text-s">
-              <div className="grid gap-xxs">
-                <span className="text-s text-neutral-7">{label}</span>
-                {valueLine}
-              </div>
-              {children}
-              <div className="flex gap-xs">{buttons}</div>
-            </div>,
-            dock.at,
-          )}
-      </>
-    );
-  }
-
   return (
-    <Popover open={isOpen} onOpenChange={(next) => change(next)}>
-      <PopoverTrigger
-        nativeButton={false}
-        render={<span aria-label={`${label} : ${words}`} className={triggerClass} />}
-      >
-        {withAfter(kept?.shown ?? shown, kept ? kept.after : after)}
-      </PopoverTrigger>
-      <PopoverPopup
-        className={cn("grid grid-cols-[minmax(0,1fr)] gap-s text-s", isWide ? "w-80" : "w-72")}
-      >
-        <div className="grid gap-xxs">
-          <PopoverTitle className="text-s text-neutral-7">{label}</PopoverTitle>
-          {valueLine}
-        </div>
-        {children}
-        <div className="flex gap-xs">{buttons}</div>
-      </PopoverPopup>
-    </Popover>
+    <>
+      {!unsaid && (
+        <span
+          ref={triggerRef}
+          role="button"
+          tabIndex={0}
+          aria-label={`${label} : ${words}`}
+          className={cn(triggerClass, isOpen && "bg-neutral-3 px-xxs")}
+          onClick={() => change(!isOpen)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            change(true);
+          }}
+        >
+          {withAfter(shown, after)}
+        </span>
+      )}
+      {isOpen &&
+        dock.at &&
+        createPortal(
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-s text-s">
+            <div className="grid gap-xxs">
+              <span className="text-s text-neutral-7">{label}</span>
+              {valueLine}
+            </div>
+            {children}
+            <div className="flex gap-xs">{buttons}</div>
+          </div>,
+          dock.at,
+        )}
+    </>
   );
 }
 
@@ -467,7 +424,6 @@ export function PrototypeAlertEditor({
   const id = useId();
   useUnits();
   const proto = useProto();
-  const wide = useMediaQuery(WIDE);
   const [dockAt, setDockAt] = useState<HTMLElement | null>(null);
   const [docked, setDocked] = useState<string | null>(null);
   const dock = useMemo(() => ({ at: dockAt, open: docked, setOpen: setDocked }), [dockAt, docked]);
@@ -930,7 +886,7 @@ export function PrototypeAlertEditor({
       <Slot
         label="Marée"
         isSet={isSet}
-        isWide
+
         open={open}
         words={isSet ? words : any}
         onAny={() => setAsk({})}
@@ -1051,9 +1007,8 @@ export function PrototypeAlertEditor({
   const guided = (key: Part, step: number, comma: boolean) => {
     const base = cases[0]!;
     const lines = alts[key] ?? [];
-    // On a phone, a value still to choose says nothing: the sentence gives it no room until it
-    // is chosen. A popover needs a word to hold to, so a wide screen says "à choisir".
-    const unsaid = (alt: Alt) => !wide && !isSetPart(key, alt.one);
+    // A value still to choose says nothing: the sentence gives it no room until it is chosen.
+    const unsaid = (alt: Alt) => !isSetPart(key, alt.one);
     const lastSaid = lines.filter((alt) => !unsaid(alt)).at(-1);
     const plus = isSetPart(key, lastSaid ? lastSaid.one : base) && plusOf(key);
     // The "+" and the comma follow the last value the sentence says.
