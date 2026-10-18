@@ -88,6 +88,8 @@ import {
 import { useProto } from "./state";
 
 const WIDE = "(min-width: 1024px)";
+// The coefficients as figures, where a word alone says too little.
+const COEF_FIGURES: Record<CoefBucket, string> = { small: "< 70", medium: "70–90", big: "> 90" };
 const underlined = "underline decoration-dotted underline-offset-4";
 const SHORTEST_HOURS = [1, 2, 3, 4, 6];
 const LISTED = 8;
@@ -198,11 +200,12 @@ function Slot({
     isSet ? "font-medium" : "text-neutral-7",
     current && "bg-neutral-3 px-xxs text-neutral-10 decoration-solid",
   );
-  const valueLine = value?.long ? (
-    <span className="text-m font-medium text-pretty">{value.said}</span>
-  ) : (
-    <MorphText className="max-w-full text-l font-medium">{value?.said ?? words}</MorphText>
-  );
+  const valueLine =
+    value?.said === "" ? null : value?.long ? (
+      <span className="text-m font-medium text-pretty">{value.said}</span>
+    ) : (
+      <MorphText className="max-w-full text-l font-medium">{value?.said ?? words}</MorphText>
+    );
   const buttons = (
     <>
       {any && (
@@ -785,10 +788,14 @@ export function PrototypeAlertEditor({
       >
         {COEF_KEYS.map((key) => (
           <ToggleGroupItem key={key} value={key}>
-            <span className="grid text-start leading-tight">
-              <span>{COEF_BUCKETS[key].word}</span>
-              <span className="text-xxs text-neutral-7">{COEF_BUCKETS[key].hint}</span>
-            </span>
+            {variant === "d" ? (
+              <span className="tabular-nums">{COEF_FIGURES[key]}</span>
+            ) : (
+              <span className="grid text-start leading-tight">
+                <span>{COEF_BUCKETS[key].word}</span>
+                <span className="text-xxs text-neutral-7">{COEF_BUCKETS[key].hint}</span>
+              </span>
+            )}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -889,12 +896,11 @@ export function PrototypeAlertEditor({
       body = (
         <>
           <CycleDial value={ask.cycle ?? []} onChange={(cycle) => setAsk({ ...ask, cycle })} />
-          {chart}
           {hasCoefs && (
-            <>
+            <div className="grid gap-xxs">
+              <span className="text-xs text-neutral-7">Coefficient</span>
               {coefToggle}
-              {coefLine}
-            </>
+            </div>
           )}
         </>
       );
@@ -907,7 +913,8 @@ export function PrototypeAlertEditor({
         open={open}
         words={isSet ? words : any}
         onAny={() => setAsk({})}
-        value={{ said: isSet ? words : "Peu importe", long: true }}
+        // The cycle's dial says the value itself: the words would say it twice.
+        value={variant === "d" ? { said: "" } : { said: isSet ? words : "Peu importe", long: true }}
       >
         {body}
       </Slot>
