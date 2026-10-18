@@ -10,10 +10,12 @@ import { LandingHero } from "./landing-hero";
 import { LandingNext } from "./landing-next";
 import { LandingSources } from "./landing-sources";
 import { LandingStory } from "./landing-story";
+import { LandingTrust } from "./landing-trust";
 
 /**
- * The page a visitor lands on: what the product is, what it does, who makes it and what he
- * thinks of next, then where its figures come from and that a program reads it too.
+ * The page a visitor lands on: what the product is, what it does, what it keeps of a spot and who
+ * reads it, who makes it and what he thinks of next, then where its figures come from and that a
+ * program reads it too.
  */
 export function LandingPage() {
   const api = apiOrigin(ENV.VITE_SERVER_URL);
@@ -27,6 +29,7 @@ export function LandingPage() {
 
         <LandingAlert />
         <LandingFeatures />
+        <LandingTrust />
         <LandingStory />
         <LandingNext />
         <LandingSources />

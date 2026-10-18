@@ -9,9 +9,10 @@ import {
   useState,
 } from "react";
 
-/** The parts of the landing its header leads to, by the id each one answers to. */
+/** The parts of the landing a link leads to, by the id each one answers to: the header's, or `/#trust`. */
 export const SECTIONS = {
   features: "features",
+  trust: "trust",
   sources: "sources",
   agents: "agents",
   story: "story",
