@@ -19,7 +19,15 @@ import { CirclePlusIcon, CircleXIcon, PlusIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { TIDE_STAGES, type TideStage } from "@repo/config/sea-words";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 
 import { formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
@@ -90,6 +98,16 @@ type ProtoEditorProps = {
   onDone: () => void;
 };
 
+// What follows a part's last word and keeps to it: its "+", its comma. A part reads it here, so
+// that its words wrap as they like and its last word takes it along to the next line.
+const After = createContext<ReactNode>(null);
+
+/** Stops a press on what stands inside a part from opening the part. */
+const apart = {
+  onClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+  onPointerDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
+};
+
 /** A part of the sentence that opens what changes it: the editor's own, copied. */
 function Slot({
   label,
@@ -112,6 +130,7 @@ function Slot({
   // While its part is open, the sentence keeps the words it had: what is chosen there would
   // move the words, and the part with them, under the finger.
   const [kept, setKept] = useState<ReactNode | null>(open ? shown : null);
+  const after = useContext(After);
   return (
     <Popover defaultOpen={open} onOpenChange={(isOpen) => setKept(isOpen ? shown : null)}>
       <PopoverTrigger
@@ -126,13 +145,37 @@ function Slot({
           />
         }
       >
-        {kept ?? shown}
+        {withAfter(kept ?? shown, after)}
       </PopoverTrigger>
       <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
         <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
         {children}
       </PopoverPopup>
     </Popover>
+  );
+}
+
+/** The last word of a part held with what follows it, which the underline does not reach. */
+function withAfter(content: ReactNode, after: ReactNode) {
+  if (!after) return content;
+  const tail = <span className="inline-block no-underline">{after}</span>;
+  if (typeof content !== "string") {
+    return (
+      <span className="whitespace-nowrap">
+        {content}
+        {tail}
+      </span>
+    );
+  }
+  const at = content.lastIndexOf(" ");
+  return (
+    <>
+      {content.slice(0, at + 1)}
+      <span className="whitespace-nowrap">
+        {content.slice(at + 1)}
+        {tail}
+      </span>
+    </>
   );
 }
 
@@ -792,51 +835,59 @@ export function PrototypeAlertEditor({
       <button
         type="button"
         aria-label="Ajouter une autre valeur"
-        onClick={() => addAlt(key)}
+        onPointerDown={apart.onPointerDown}
+        onClick={(event) => {
+          apart.onClick(event);
+          addAlt(key);
+        }}
         className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
       >
         <CirclePlusIcon data-slot="icon" aria-hidden className="size-4.5" />
       </button>
     );
+  const remove = (key: Part, altId: number) => (
+    <button
+      type="button"
+      aria-label="Retirer cette valeur"
+      onPointerDown={apart.onPointerDown}
+      onClick={(event) => {
+        apart.onClick(event);
+        removeAlt(key, altId);
+      }}
+      className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
+    >
+      <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />
+    </button>
+  );
   const altLines = (key: Part) =>
     withAlts &&
     (alts[key] ?? []).map((alt) => (
       <span key={alt.id} className="block ps-l">
         <span className="text-neutral-7">ou</span>{" "}
-        {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
-        <button
-          type="button"
-          aria-label="Retirer cette valeur"
-          onClick={() => removeAlt(key, alt.id)}
-          className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
-        >
-          <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />
-        </button>
+        <After.Provider value={remove(key, alt.id)}>
+          {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
+        </After.Provider>
       </span>
     ));
-  // A part, its "+" and its other values. The "+" keeps to the comma after it, and a part whose
-  // other values stand on lines of their own takes no comma: what follows starts the next line.
-  const said = (key: Part, one: Case, index: number, comma = true) => (
-    <>
-      {part(key, one, index)}
-      {index === 0 && hasAlts(key) ? (
-        <>
-          {plus(key)}
-          {altLines(key)}
-        </>
-      ) : (
-        <>
-          {/* A word joiner: the "+" and the comma never start a line of their own. */}
-          {"\u2060"}
-          <span className="whitespace-nowrap">
-            {index === 0 && plus(key)}
-            {comma && ","}
-          </span>
-        </>
-      )}
-      {comma && " "}
-    </>
-  );
+  // A part, its "+" and its other values. The "+" and the comma keep to the part's last word,
+  // and a part whose other values stand on lines of their own takes no comma: what follows
+  // starts the next line.
+  const said = (key: Part, one: Case, index: number, comma = true) => {
+    const others = index === 0 && hasAlts(key);
+    const tail = (
+      <>
+        {index === 0 && plus(key)}
+        {comma && !others && ","}
+      </>
+    );
+    return (
+      <>
+        <After.Provider value={tail}>{part(key, one, index)}</After.Provider>
+        {others && altLines(key)}
+        {comma && " "}
+      </>
+    );
+  };
 
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
