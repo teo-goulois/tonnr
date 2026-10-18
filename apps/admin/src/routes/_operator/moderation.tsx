@@ -51,9 +51,9 @@ function ModerationRoute() {
   );
   const reports = useInfiniteQuery(
     orpc.v1.reports.review.infiniteOptions({
-      input: (before: Date | undefined) => ({
+      input: (before: { at: Date; id: string } | undefined) => ({
         state: state === "all" ? undefined : state,
-        before,
+        ...(before && { before: before.at, beforeId: before.id }),
       }),
       initialPageParam: undefined,
       getNextPageParam: (page) => page.next ?? undefined,

@@ -70,13 +70,14 @@ type Asked = {
 export function useReports({ signedIn, breakId, status }: Asked): Reporting {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<{ breakId: string; name: string } | null>(null);
+  // From the press to the answer, the phone's position asked for first: the form waits.
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const uploads = useUploads();
 
   const here = useQuery(
     orpc.v1.reports.list.queryOptions({
       input: { breakId: breakId ?? "" },
       enabled: breakId !== undefined,
-      select: (answer) => answer.reports,
       refetchInterval: (query) =>
         isChecking(query.state.data?.reports) ? CHECKING_EVERY_MS : false,
       retry: false,
@@ -89,13 +90,15 @@ export function useReports({ signedIn, breakId, status }: Asked): Reporting {
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.v1.reports.key() });
 
   const { data, isLoading, isError } = here;
+  const reports = data?.reports;
   const loadable = useMemo(
-    () => ({ data, isPending: isLoading, isError }),
-    [data, isLoading, isError],
+    () => ({ data: reports, isPending: isLoading, isError }),
+    [reports, isLoading, isError],
   );
 
   return {
     here: loadable,
+    offered: data?.offered,
     status: signedIn ? status : undefined,
     open,
     onBegin: (place) => setOpen(place),
@@ -114,17 +117,18 @@ export function useReports({ signedIn, breakId, status }: Asked): Reporting {
     },
     onRetry: retryUpload,
     onDrop: dropReportUpload,
-    isSending: create.isPending,
+    isSending: isSubmitting || create.isPending,
     onSend: async (draft) => {
-      if (!open) return false;
+      if (!open || isSubmitting) return false;
       const mediaIds = draft.uploads.flatMap((key) => {
         const upload = uploads.get(key);
         return upload?.state === "sent" && upload.id ? [upload.id] : [];
       });
       if (mediaIds.length === 0) return false;
-      // Where the phone stands places a photo whose file says nothing of where it was taken.
-      const device = await whereThePhoneIs();
+      setIsSubmitting(true);
       try {
+        // Where the phone stands places a photo whose file says nothing of where it was taken.
+        const device = await whereThePhoneIs();
         await create.mutateAsync({
           breakId: open.breakId,
           mediaIds,
@@ -144,6 +148,8 @@ export function useReports({ signedIn, breakId, status }: Asked): Reporting {
       } catch (error) {
         toast.error(refusalOf(error));
         return false;
+      } finally {
+        setIsSubmitting(false);
       }
     },
     onDelete: async (report) => {

@@ -6,7 +6,7 @@ import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST, REPORT_TERMS } from "@repo/config/
 import { holdAccounts } from "@repo/db/accounts";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
-import { REPORT_STATES, surfReport, surfReportFlag } from "@repo/db/schema/reports";
+import { REPORT_STATES, reportSent, surfReport, surfReportFlag } from "@repo/db/schema/reports";
 import type { SessionHour } from "@repo/db/schema/sessions";
 import { SURF_SIZES } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
@@ -165,13 +165,14 @@ export const reportsRouter = {
           .from(user)
           .where(eq(user.id, userId));
         if (!account?.username) return "username" as const;
+        // Counted from what was sent, which deleting a report does not give back.
         const [sent] = await tx
           .select({
-            day: sql<number>`(count(*) filter (where ${surfReport.createdAt} >= ${new Date(now - DAY_MS)}))::int`,
-            here: sql<number>`(count(*) filter (where ${surfReport.createdAt} >= ${new Date(now - HOUR_MS)} and ${surfReport.breakId} = ${input.breakId}))::int`,
+            day: sql<number>`(count(*) filter (where ${reportSent.at} >= ${new Date(now - DAY_MS)}))::int`,
+            here: sql<number>`(count(*) filter (where ${reportSent.at} >= ${new Date(now - HOUR_MS)} and ${reportSent.breakId} = ${input.breakId}))::int`,
           })
-          .from(surfReport)
-          .where(eq(surfReport.userId, userId));
+          .from(reportSent)
+          .where(eq(reportSent.userId, userId));
         if ((sent?.day ?? 0) >= REPORTS_A_DAY) return "day" as const;
         if ((sent?.here ?? 0) >= REPORTS_AN_HOUR_HERE) return "here" as const;
         // The break is held until the report is written, so that it cannot go meanwhile.
@@ -221,6 +222,7 @@ export const reportsRouter = {
         for (const [position, mediaId] of input.mediaIds.entries()) {
           await tx.update(media).set({ reportId: id, position }).where(eq(media.id, mediaId));
         }
+        await tx.insert(reportSent).values({ userId, breakId: input.breakId, at: new Date(now) });
         return null;
       });
       if (refusal === "username") {
@@ -271,7 +273,8 @@ export const reportsRouter = {
       tags: ["Reports"],
     })
     .input(z.object({ breakId: z.string() }))
-    .output(z.object({ reports: z.array(reportSchema) }))
+    // `offered` is false on an instance that keeps no photos, which takes no report.
+    .output(z.object({ reports: z.array(reportSchema), offered: z.boolean() }))
     .handler(async ({ input, context }) => {
       const now = Date.now();
       const callerId = context.caller.via === "session" ? context.caller.userId : null;
@@ -294,6 +297,7 @@ export const reportsRouter = {
         .limit(50);
       return {
         reports: await describeReports(context.db, context.storage, rows, { callerId, now }),
+        offered: Boolean(context.storage),
       };
     }),
 
@@ -413,18 +417,27 @@ export const reportsRouter = {
       path: "/reports/review",
       summary: "Every report, with what was checked of each photo and who flagged it",
       description:
-        `${ADMIN_ONLY} The latest first, a page at a time through \`before\`. \`state\` keeps ` +
+        `${ADMIN_ONLY} The latest first, a page at a time: \`before\` and \`beforeId\` are the ` +
+        "`next` of the page before. `state` keeps " +
         "one state; `flagged` keeps those that accounts flagged.",
       tags: ["Reports"],
     })
     .input(
       z.object({
         state: z.enum([...REPORT_STATES, "flagged"]).optional(),
+        // The moment and the id of the last report of the page before: reports sent at the same
+        // moment are told apart by their ids.
         before: z.coerce.date().optional(),
+        beforeId: z.string().optional(),
         limit: z.coerce.number().int().min(1).max(100).default(30),
       }),
     )
-    .output(z.object({ reports: z.array(reviewedSchema), next: z.date().nullable() }))
+    .output(
+      z.object({
+        reports: z.array(reviewedSchema),
+        next: z.object({ at: z.date(), id: z.string() }).nullable(),
+      }),
+    )
     .handler(async ({ input, context }) => {
       const now = Date.now();
       const flaggedIds =
@@ -445,7 +458,14 @@ export const reportsRouter = {
             flaggedIds
               ? inArray(surfReport.id, flaggedIds.length > 0 ? flaggedIds : [""])
               : undefined,
-            input.before ? lt(surfReport.createdAt, input.before) : undefined,
+            input.before
+              ? or(
+                  lt(surfReport.createdAt, input.before),
+                  input.beforeId
+                    ? and(eq(surfReport.createdAt, input.before), lt(surfReport.id, input.beforeId))
+                    : undefined,
+                )
+              : undefined,
           ),
         )
         .orderBy(desc(surfReport.createdAt), desc(surfReport.id))
@@ -505,7 +525,10 @@ export const reportsRouter = {
             })),
           };
         }),
-        next: rows.length > input.limit ? (page.at(-1)?.report.createdAt ?? null) : null,
+        next:
+          rows.length > input.limit && page.at(-1)
+            ? { at: page.at(-1)!.report.createdAt, id: page.at(-1)!.report.id }
+            : null,
       };
     }),
 

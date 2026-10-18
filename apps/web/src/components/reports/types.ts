@@ -29,7 +29,10 @@ export type ReportDraft = {
 export type Reporting = {
   // The reports of the last week at the break whose panel is open, the latest first.
   here: Loadable<Report[]>;
-  // Whether the instance takes photos, for an account. Undefined for a visitor.
+  // Whether the instance takes reports: one that keeps no photo takes none. Undefined while it is
+  // asked.
+  offered: boolean | undefined;
+  // Whether the instance takes photos now, for an account. Undefined for a visitor.
   status: MediaStatus | undefined;
   // The break the form is open at, or null while it is closed.
   open: { breakId: string; name: string } | null;

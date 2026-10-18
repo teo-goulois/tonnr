@@ -12,7 +12,7 @@ A photo says where and when it was taken in its EXIF, and a video in its contain
 
 ### What a report is
 
-- An account with a username sends a report at a break of the catalogue: one to four photos and videos of half a minute at most, how big the waves and the sets look, as a session says it, and a note of 280 characters with no address in it. Ten a day, and one an hour at a break. Chosen here, but for what Téo answered.
+- An account with a username sends a report at a break of the catalogue: one to four photos and videos of half a minute at most, how big the waves and the sets look, as a session says it, and a note of 280 characters with no address in it. Ten a day, and one an hour at a break, counted in `report_sent`, which deleting a report gives nothing back of: Codex's review found that deleting and sending again passed both. Chosen here, but for what Téo answered.
 - Its media are sent as a session's are, `POST /media` for `report`, then given to it by `reports.create`, which takes the version of the terms they are sent under. The worker makes nothing of a medium of a report before the report is written: the checks need its break and the moment it was sent.
 - The report keeps the hour of the forecast kept for its break's cell, a copy that nothing asks the provider for, to set it beside the forecast later. Decision 062's figure reads no report yet: Codex said that frequent reports of one person or one swell would weigh it more than sessions do, and that each report would need its swell's direction and period.
 
@@ -24,7 +24,8 @@ A photo says where and when it was taken in its EXIF, and a video in its contain
 - The numbers, chosen here from 48 photos of Wikimedia Commons on 2026-10-18: a medium passes at 60 % of sea and refuses under 30 %, and is refused at 85 % of nudity. Between, an operator decides: Codex said that a classifier refuses ordinary beaches and misses what matters, and that its doubt should go to a person rather than to a refusal. Waves and surf scored 91 % to 100 %; food, streets, rooms, pools and screens under 10 %; screenshots of a map under 15 %.
 - The models are downloaded as the worker's image is built, at a revision and with a SHA-256 for each file, `packages/media/src/models.ts`, and the worker never downloads one as it runs. A worker that has none leaves every report to an operator.
 - A report is shown when each of its media passed, left to an operator when one is unsure, and refused when one is refused or could not be made. Its author reads why, in a sentence for each reason.
-- The position of the phone is kept only when it placed a medium within the radius, and the point of a file only within it: further away, only the distance is kept, to the kilometre. Codex said that a refused report should not keep where someone was.
+- The position of the phone is kept only when it placed a medium within the radius, and the point of a file only within it: further away, only the distance is kept, to the kilometre. Codex said that a refused report should not keep where someone was, and, in its review, that an operator's decision before the checks ended kept it: the position is forgotten whatever the report became.
+- A report is decided once each of its media is made or refused, apart from making them: a report that could not be decided then loses nothing, and the next run decides it. Codex's review found that a failure there deleted what was made.
 - A video of a report loses its sound: it would carry what people said beside the camera.
 
 ### Who reads it, and how it goes

@@ -183,6 +183,27 @@ describe.skipIf(!TEST_DATABASE_URL)("the reports of the waves at a break", () =>
     await expect(report("ana", "reef")).rejects.toEqual(refusal("TOO_MANY_REQUESTS"));
   });
 
+  it("gives nothing back of the limits for a report that is deleted", async () => {
+    const made = await report("ana");
+    await call(v1Router.reports.delete, { id: made.id }, by("ana"));
+    await expect(report("ana")).rejects.toEqual(refusal("TOO_MANY_REQUESTS"));
+  });
+
+  it("pages the operator's list by moment and id, so that reports of one moment are all read", async () => {
+    await database.db.insert(operator).values({ userId: "dee" });
+    const one = await report("ana");
+    const two = await report("ben");
+    const first = await call(v1Router.reports.review, { limit: 1 }, by("dee", ADMIN));
+    expect(first.next).not.toBeNull();
+    const second = await call(
+      v1Router.reports.review,
+      { limit: 1, before: first.next!.at, beforeId: first.next!.id },
+      by("dee", ADMIN),
+    );
+    expect([first.reports[0]?.id, second.reports[0]?.id].sort()).toEqual([one.id, two.id].sort());
+    expect(second.next).toBeNull();
+  });
+
   it("shows everyone what is shown, and its author what became of the rest", async () => {
     const shown = await report("ana");
     const checking = await report("ben");
@@ -213,6 +234,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the reports of the waves at a break", () =>
       .where(eq(media.reportId, refused.id));
 
     const asVisitor = await call(v1Router.reports.list, { breakId: "point" }, by(null));
+    expect(asVisitor.offered).toBe(true);
     expect(asVisitor.reports.map((one) => one.id)).toEqual([shown.id]);
     expect(asVisitor.reports[0]).toMatchObject({ mine: false, reasons: [], author: "ana" });
 

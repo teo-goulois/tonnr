@@ -1014,7 +1014,7 @@ export function Viewer({
               now={now}
               signedIn={signedIn}
               reports={reporting.here}
-              offered={reporting.status?.offered !== false}
+              offered={reporting.offered !== false && reporting.status?.paused !== true}
               onSend={() =>
                 drawn.found.data &&
                 reporting.onBegin({ breakId: drawn.found.data.id, name: drawn.found.data.name })

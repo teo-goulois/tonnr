@@ -16,7 +16,7 @@ import {
   mediaSentHour,
   mediaTrash,
 } from "@repo/db/schema/media";
-import { surfReport } from "@repo/db/schema/reports";
+import { reportSent, surfReport } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
 import type { Analyser } from "@repo/media/analysis";
 import { readPhoto, readVideo, type Taken } from "@repo/media/metadata";
@@ -195,6 +195,35 @@ async function render(
 }
 
 /**
+ * Decides a report and says nothing when it cannot: what was made is kept, and the next run
+ * decides the reports still being checked whose media are all done.
+ */
+async function settleLater(db: Database, reportId: string) {
+  try {
+    await settleReport(db, reportId);
+  } catch (error) {
+    console.error(`media: a report could not be decided (${(error as Error).name})`);
+  }
+}
+
+/** Decides the reports still being checked whose media are all made or refused. */
+async function settleWaiting(db: Database) {
+  const waiting = await db
+    .select({ id: surfReport.id })
+    .from(surfReport)
+    .where(
+      and(
+        eq(surfReport.state, "checking"),
+        sql`not exists (select 1 from ${media} where ${media.reportId} = ${surfReport.id}
+          and ${media.state} in ('awaiting_upload', 'uploaded'))`,
+      ),
+    )
+    .limit(50);
+  for (const report of waiting) await settleLater(db, report.id);
+  return waiting.length;
+}
+
+/**
  * Deletes files the worker wrote for a medium that keeps none of them. When the bucket does not
  * answer, their keys go to the trash, which tries again: no file is left that nothing names.
  */
@@ -273,13 +302,17 @@ export async function settleReport(db: Database, reportId: string) {
   const placed = rows.some(
     (row) => row.checks?.position.source === "device" && row.checks.position.reason === null,
   );
+  // Where the phone stood is forgotten whatever became of the report, an operator's decision
+  // taken before the checks ended too.
+  if (!placed) {
+    await db
+      .update(surfReport)
+      .set({ deviceLatitude: null, deviceLongitude: null, deviceAccuracyM: null })
+      .where(eq(surfReport.id, reportId));
+  }
   const [settled] = await db
     .update(surfReport)
-    .set({
-      state: verdict,
-      checkedAt: new Date(),
-      ...(!placed && { deviceLatitude: null, deviceLongitude: null, deviceAccuracyM: null }),
-    })
+    .set({ state: verdict, checkedAt: new Date() })
     .where(and(eq(surfReport.id, reportId), eq(surfReport.state, "checking")))
     .returning({ id: surfReport.id });
   return settled ? verdict : null;
@@ -301,6 +334,8 @@ async function processOne(
   const mine = and(eq(media.id, row.id), eq(media.claim, claim), eq(media.state, "uploaded"));
   const folder = await mkdtemp(join(tmpdir(), "tonnr-media-"));
   const written: string[] = [];
+  // Whether the medium was made or refused for good, which decides its report.
+  let decided = false;
   try {
     const made = await render(storage, row, folder, tools, written, signal);
     const checks = await checksOf(db, row, made.taken, made.samples, analyser);
@@ -325,7 +360,7 @@ async function processOne(
       return "retried";
     }
     await storage.remove([row.uploadKey]).catch(() => {});
-    if (row.reportId) await settleReport(db, row.reportId);
+    decided = true;
     return "ready";
   } catch (error) {
     await forget(db, storage, written);
@@ -351,10 +386,13 @@ async function processOne(
       .set({ state: "failed", failure: refused, claim: null, claimedUntil: null })
       .where(mine);
     await storage.remove([row.uploadKey]).catch(() => {});
-    if (row.reportId) await settleReport(db, row.reportId);
+    decided = true;
     return "failed";
   } finally {
     await rm(folder, { recursive: true, force: true });
+    // Decided once what was made is kept, apart from it: a report that cannot be decided now
+    // loses nothing of its media.
+    if (decided && row.reportId) await settleLater(db, row.reportId);
   }
 }
 
@@ -373,7 +411,7 @@ async function giveUp(db: Database, storage: Storage) {
     .returning({ uploadKey: media.uploadKey, reportId: media.reportId });
   if (gone.length > 0) await storage.remove(gone.map((row) => row.uploadKey)).catch(() => {});
   for (const reportId of new Set(gone.flatMap((row) => (row.reportId ? [row.reportId] : [])))) {
-    await settleReport(db, reportId);
+    await settleLater(db, reportId);
   }
   return gone.length;
 }
@@ -404,6 +442,7 @@ async function abandonUnused(db: Database, now: number) {
 /** Deletes the counts of what was sent once no limit reads them: two days of hours, a week of days. */
 async function pruneCounts(db: Database, now: number) {
   await db.delete(mediaSentHour).where(lt(mediaSentHour.hour, new Date(now - 2 * DAY_MS)));
+  await db.delete(reportSent).where(lt(reportSent.at, new Date(now - 2 * DAY_MS)));
   await db
     .delete(mediaSentDay)
     .where(lt(mediaSentDay.day, new Date(now - 7 * DAY_MS).toISOString().slice(0, 10)));
@@ -483,6 +522,7 @@ export async function runMedia(
     if (!row) break;
     run[await processOne(db, storage, row, claim, tools, options.analyser, options.signal)] += 1;
   }
+  await settleWaiting(db);
   run.abandoned = await abandonUnused(db, now());
   await pruneCounts(db, now());
   if (options.keepReportDays !== undefined) {

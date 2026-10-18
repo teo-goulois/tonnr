@@ -1,4 +1,5 @@
 import {
+  bigserial,
   doublePrecision,
   index,
   jsonb,
@@ -165,4 +166,23 @@ export const surfReportFlag = pgTable(
     primaryKey({ columns: [table.reportId, table.userId] }),
     index("surf_report_flag_userId_idx").on(table.userId),
   ],
+);
+
+/**
+ * When an account sent a report, and at which break: what its limits of an hour and of a day
+ * count. A report deleted since still counts, so that deleting gives back nothing. The worker
+ * deletes what is two days old.
+ */
+export const reportSent = pgTable(
+  "report_sent",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The break's id as it was: the count outlives a break that goes.
+    breakId: text("break_id").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("report_sent_userId_at_idx").on(table.userId, table.at)],
 );

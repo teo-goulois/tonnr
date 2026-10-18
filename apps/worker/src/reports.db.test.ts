@@ -182,6 +182,50 @@ describe.skipIf(!TEST_DATABASE_URL)("the checks of a report", () => {
     expect(await stateOf("blind")).toMatchObject({ state: "review" });
   });
 
+  it("forgets where the phone stood though an operator decided the report before its checks", async () => {
+    const town = { latitude: 43.4929, longitude: -1.4748 };
+    await report("early", [await photo({ at: town, utc: "2026-10-18T09:50:00Z" })], {
+      ...town,
+      accuracyM: 10,
+    });
+    await database.db
+      .update(surfReport)
+      .set({ state: "published" })
+      .where(eq(surfReport.id, "early"));
+    await runMedia(database.db, storage, { analyser: testAnalyser() });
+    expect(await stateOf("early")).toMatchObject({
+      state: "published",
+      deviceLatitude: null,
+      deviceLongitude: null,
+    });
+  });
+
+  it("decides a report whose media were all made while it could not be decided", async () => {
+    await report("stuck", [await photo({ at: BEACH, utc: "2026-10-18T09:55:00Z" })]);
+    // Made, and left as the run that made it could not decide it.
+    await database.db
+      .update(media)
+      .set({
+        state: "ready",
+        checks: {
+          position: {
+            source: "file",
+            distanceKm: 0.2,
+            accuracyM: null,
+            point: BEACH,
+            reason: null,
+          },
+          time: { source: "gps", takenAt: SENT.toISOString(), ageMinutes: 5, reason: null },
+          analysis: { sea: 0.9, nudity: 0, frames: 1, top: [] },
+          verdict: "passed",
+          reasons: [],
+        },
+      })
+      .where(eq(media.reportId, "stuck"));
+    await runMedia(database.db, storage, { analyser: testAnalyser() });
+    expect(await stateOf("stuck")).toMatchObject({ state: "published" });
+  });
+
   it("makes no photo sent for a report before the report is written", async () => {
     storage.put("up/early", await photo(), "image/jpeg");
     await database.db.insert(media).values({
