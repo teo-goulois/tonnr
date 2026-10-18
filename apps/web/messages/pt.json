@@ -74,7 +74,6 @@
   "landing_trust_check_name": "Verifica tu mesmo",
   "landing_trust_check_text": "Código aberto sob AGPL, política de privacidade sem jargão.",
   "landing_trust_code": "Ler o código",
-  "landing_trust_host": "Só {publisher}, que aloja o servidor, pode ler a sua base de dados.",
   "landing_sources_title": "Boias e vento em {live}, da fonte.",
   "sources_page_title": "De onde vem cada {figure}.",
   "landing_sources_word": "direto",

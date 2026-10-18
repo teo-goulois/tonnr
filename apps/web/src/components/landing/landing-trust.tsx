@@ -4,7 +4,6 @@ import { buttonVariants } from "@repo/ui/components/ui/button";
 import { PinLockFillDuoIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
-import { PUBLISHER } from "@/lib/legal";
 import { WAVE_HEIGHT_SCALE, scaleColor } from "@/lib/sea-scales";
 import { m } from "@/paraglide/messages.js";
 
@@ -38,8 +37,7 @@ const PROMISES = [
 
 /**
  * What the app keeps of a spot and who reads it, for a reader who wonders whether a secret spot
- * stays one: four rules the code holds, where to check them, and the one person who can read the
- * database.
+ * stays one: four rules the code holds, and where to check them.
  */
 export function LandingTrust() {
   const arriving = useArriving<HTMLElement>();
@@ -93,13 +91,6 @@ export function LandingTrust() {
             {m.privacy_title()}
           </Link>
         </div>
-        {/* The one limit, said here as the policy says it: whoever runs the server reads its base. */}
-        <p
-          style={order(2 + PROMISES.length)}
-          className={cn(arrive, "max-w-2xl text-s text-neutral-7")}
-        >
-          {m.landing_trust_host({ publisher: PUBLISHER.name })}
-        </p>
       </div>
     </section>
   );

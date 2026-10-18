@@ -74,7 +74,6 @@
   "landing_trust_check_name": "Check for yourself",
   "landing_trust_check_text": "Open code under the AGPL, a privacy policy in plain words.",
   "landing_trust_code": "Read the code",
-  "landing_trust_host": "Only {publisher}, who runs the server, can read its database.",
   "landing_sources_title": "{live} buoys and wind, from the source.",
   "sources_page_title": "Where every {figure} comes from.",
   "landing_sources_word": "Live",
