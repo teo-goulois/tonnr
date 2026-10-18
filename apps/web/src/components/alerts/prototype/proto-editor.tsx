@@ -331,6 +331,13 @@ function stagesWords(stages: TideStage[] | undefined) {
   );
 }
 
+/** A length in minutes, by the quarter hour: "2 h 30". */
+function durationWords(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
+}
+
 /** The parts of the cycle in runs, each said by its ends: "de mi-marée montante à haute". */
 function cycleRuns(cycle: readonly string[] | undefined) {
   if (!cycle?.length || cycle.length >= CYCLE.length) return undefined;
@@ -614,6 +621,33 @@ export function PrototypeAlertEditor({
     () => judge(tried, judgedCases, variant, extremes, shortestMinutes, now),
     [tried, judgedCases, variant, extremes, shortestMinutes, now],
   );
+  // How long the tide that variant D asks lasts, at its longest over the days the curve
+  // shows: a window cannot be longer, so a shortest window above it is never told.
+  const tideLasts = useMemo(() => {
+    if (variant !== "d") return null;
+    const asks = [cases[0]!.tide, ...(alts.tide ?? []).map((alt) => alt.one.tide)].filter(
+      (ask) => ask.cycle?.length && ask.cycle.length < CYCLE.length,
+    );
+    if (asks.length === 0 || tide.length < 2) return null;
+    let longest = 0;
+    let start: number | null = null;
+    for (const point of tide) {
+      const { segment } = tideContextAt(point.time, point.value, extremes);
+      const meets = segment !== null && asks.some((ask) => ask.cycle?.includes(segment));
+      const at = point.time.getTime();
+      if (meets && start === null) start = at;
+      if (!meets && start !== null) {
+        longest = Math.max(longest, at - start);
+        start = null;
+      }
+    }
+    return longest > 0 ? Math.round(longest / (15 * 60 * 1000)) * 15 : null;
+  }, [variant, cases, alts, tide, extremes]);
+  const tooShort = tideLasts !== null && tideLasts < shortestMinutes;
+  // The longest of the shortest windows offered that the tide leaves room for.
+  const fits = [...SHORTEST_HOURS]
+    .reverse()
+    .find((hours) => tideLasts !== null && hours * 60 <= tideLasts);
   const asksAny = judgedCases.some((one) => asksSomething(variant, one));
   const tides = [
     ...judged.hours.flatMap((hour) => hour.tide.height ?? []),
@@ -1127,9 +1161,28 @@ export function PrototypeAlertEditor({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
+      {tideLasts !== null && (
+        <span className={cn("text-xs", tooShort ? "text-neutral-9" : "text-neutral-7")}>
+          Ta marée dure environ {durationWords(tideLasts)}.
+        </span>
+      )}
     </Slot>
   );
   const shortestSlot = shortestOf();
+  // Said under the sentence, and where the shortest window is chosen.
+  const shortWarning = tooShort && tideLasts !== null && (
+    <p className="flex flex-wrap items-center gap-xs text-s text-neutral-8">
+      <span>
+        Ta marée ne dure qu'environ {durationWords(tideLasts)} : un créneau d'au moins{" "}
+        {durationWords(shortestMinutes)} n'arrivera jamais.
+      </span>
+      {fits !== undefined && (
+        <Button type="button" size="sm" variant="outline" onClick={() => setShortest(fits * 60)}>
+          Passer à {m.alert_hours({ count: fits })}
+        </Button>
+      )}
+    </p>
+  );
   const caseDot = (index: number) =>
     cases.length > 1 && (
       <span
@@ -1157,28 +1210,31 @@ export function PrototypeAlertEditor({
         {proto.or === "3" ? (
           // Variant 3: one sentence, said a part at a time, whose parts each take other values
           // with "+".
-          <p className="text-l text-pretty">
-            {m.alert_says_waves()} {guided("waveHeightMeters", 0, shows(1))}
-            {shows(1) && guided("wavePeakPeriodSeconds", 1, shows(2))}
-            {shows(2) && guided("waveDirectionDegrees", 2, shows(3))}
-            {shows(3) && (
-              <>
-                {m.alert_says_wind()} {guided("windSpeedMetersPerSecond", 3, shows(4))}
-              </>
-            )}
-            {shows(4) && guided("windDirectionDegrees", 4, shows(5))}
-            {shows(5) && (
-              <>
-                {m.alert_says_tide()} {guided("tide", 5, shows(6))}
-              </>
-            )}
-            {shows(6) && (
-              <>
-                {m.alert_says_for()}{" "}
-                <Guide.Provider value={guideOf(6)}>{shortestOf(autoOpen === 6)}</Guide.Provider>.
-              </>
-            )}
-          </p>
+          <div className="grid gap-s">
+            <p className="text-l text-pretty">
+              {m.alert_says_waves()} {guided("waveHeightMeters", 0, shows(1))}
+              {shows(1) && guided("wavePeakPeriodSeconds", 1, shows(2))}
+              {shows(2) && guided("waveDirectionDegrees", 2, shows(3))}
+              {shows(3) && (
+                <>
+                  {m.alert_says_wind()} {guided("windSpeedMetersPerSecond", 3, shows(4))}
+                </>
+              )}
+              {shows(4) && guided("windDirectionDegrees", 4, shows(5))}
+              {shows(5) && (
+                <>
+                  {m.alert_says_tide()} {guided("tide", 5, shows(6))}
+                </>
+              )}
+              {shows(6) && (
+                <>
+                  et que ça dure au moins{" "}
+                  <Guide.Provider value={guideOf(6)}>{shortestOf(autoOpen === 6)}</Guide.Provider>.
+                </>
+              )}
+            </p>
+            {tooShort && shows(5) && shortWarning}
+          </div>
         ) : proto.or === "1" ? (
           // Variant 1: the cases follow one another in the sentence, each a whole sentence.
           <div className="grid gap-s">
