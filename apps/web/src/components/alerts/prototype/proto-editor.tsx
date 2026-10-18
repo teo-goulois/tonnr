@@ -820,23 +820,39 @@ export function PrototypeAlertEditor({
     ));
   // A part, its "+" and its other values. The "+" keeps to the comma after it, and a part whose
   // other values stand on lines of their own takes no comma: what follows starts the next line.
-  const said = (key: Part, one: Case, index: number, comma = true) => (
-    <>
-      {part(key, one, index)}
-      {index === 0 && hasAlts(key) ? (
-        <>
-          {plus(key)}
-          {altLines(key)}
-        </>
-      ) : (
-        <span className="whitespace-nowrap">
-          {index === 0 && plus(key)}
-          {comma && ","}
-        </span>
-      )}
-      {comma && " "}
-    </>
-  );
+  const said = (key: Part, one: Case, index: number, comma = true) => {
+    const value = part(key, one, index);
+    const tail = (
+      <>
+        {index === 0 && plus(key)}
+        {comma && ","}
+      </>
+    );
+    return (
+      <>
+        {index === 0 && hasAlts(key) ? (
+          <>
+            {value}
+            {plus(key)}
+            {altLines(key)}
+          </>
+        ) : key === "tide" ? (
+          // A long value: its last words go to the next line with the "+".
+          <>
+            {value}
+            <span className="whitespace-nowrap">{tail}</span>
+          </>
+        ) : (
+          // A short value goes to the next line with its "+", never apart from it.
+          <span className="whitespace-nowrap">
+            {value}
+            {tail}
+          </span>
+        )}
+        {comma && " "}
+      </>
+    );
+  };
 
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
