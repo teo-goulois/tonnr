@@ -125,6 +125,7 @@ export function PrivacyPage() {
           items={[
             m.privacy_keep_account(),
             m.privacy_keep_reports(),
+            m.privacy_keep_sent(),
             m.privacy_keep_counts(),
             m.privacy_keep_mails(),
             m.privacy_keep_consent(),

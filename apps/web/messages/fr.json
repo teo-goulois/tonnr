@@ -1411,6 +1411,7 @@
   "privacy_keep_title": "Combien de temps",
   "privacy_keep_account": "Ton compte et ce que tu y enregistres : jusqu'à la suppression du compte.",
   "privacy_keep_reports": "Tes reports, avec ce qui a été vérifié de leurs photos : jusqu'à ce que tu les supprimes ou que ton compte le soit.",
+  "privacy_keep_sent": "Ce que tu as envoyé, tel que les limites le comptent (tes fichiers par heure, et l'heure et le spot de chaque report) : 2 jours, même si tu as supprimé ce qu'il compte.",
   "privacy_keep_counts": "Les comptes d'appels et la trace de ce qu'ont fait les opérateurs : 13 mois.",
   "privacy_keep_mails": "Le compte des mails envoyés à un compte, qui les limite : 2 jours.",
   "privacy_keep_consent": "Ton choix sur les statistiques et les rapports d'erreurs : 6 mois, dans ton navigateur.",

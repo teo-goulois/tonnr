@@ -1411,6 +1411,7 @@
   "privacy_keep_title": "Cuánto tiempo se guarda",
   "privacy_keep_account": "Tu cuenta y lo que guardas en ella: hasta que se elimine la cuenta.",
   "privacy_keep_reports": "Tus reportes, con lo que se comprobó de sus fotos: hasta que los borres o se borre tu cuenta.",
+  "privacy_keep_sent": "Lo que enviaste, tal como lo cuentan los límites (tus archivos por hora, y la hora y el spot de cada reporte): 2 días, aunque hayas borrado lo que cuenta.",
   "privacy_keep_counts": "Los recuentos de llamadas y el registro de lo que hicieron los operadores: 13 meses.",
   "privacy_keep_mails": "El recuento de correos enviados a una cuenta, que los limita: 2 días.",
   "privacy_keep_consent": "Tu elección sobre estadísticas e informes de errores: 6 meses, en tu navegador.",

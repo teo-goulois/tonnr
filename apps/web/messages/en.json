@@ -1411,6 +1411,7 @@
   "privacy_keep_title": "How long it is kept",
   "privacy_keep_account": "Your account and what you save in it: until the account is deleted.",
   "privacy_keep_reports": "Your reports, with what was checked of their photos: until you delete them or your account.",
+  "privacy_keep_sent": "What you sent, as the limits count it (your files by the hour, and the time and spot of each report): 2 days, even when you deleted what it counts.",
   "privacy_keep_counts": "Call counts and the record of what operators did: 13 months.",
   "privacy_keep_mails": "The count of mails sent to an account, which limits them: 2 days.",
   "privacy_keep_consent": "Your choice about analytics and error reports: 6 months, in your browser.",

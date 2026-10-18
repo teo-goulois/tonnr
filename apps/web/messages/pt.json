@@ -1411,6 +1411,7 @@
   "privacy_keep_title": "Durante quanto tempo são guardados",
   "privacy_keep_account": "A tua conta e o que guardas nela: até a conta ser eliminada.",
   "privacy_keep_reports": "Os teus reports, com o que foi verificado das fotos: até os apagares ou a tua conta ser apagada.",
+  "privacy_keep_sent": "O que enviaste, tal como os limites o contam (os teus ficheiros por hora, e a hora e o spot de cada report): 2 dias, mesmo que tenhas apagado o que conta.",
   "privacy_keep_counts": "Contagens de chamadas e o registo do que os operadores fizeram: 13 meses.",
   "privacy_keep_mails": "A contagem de emails enviados a uma conta, que os limita: 2 dias.",
   "privacy_keep_consent": "A tua escolha sobre estatísticas e relatórios de erros: 6 meses, no teu browser.",
