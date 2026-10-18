@@ -8,6 +8,8 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale, locales } from "@/paraglide/runtime.js";
 
 export const Route = createFileRoute("/")({
+  // PROTOTYPE: which proposal for the section on spots is drawn.
+  validateSearch: (search: Record<string, unknown>) => ({ trust: Number(search.trust) || 0 }),
   // The site's own address, which the page names in full where a relative one would not do.
   loader: () => ({ site: siteOrigin() }),
   head: ({ loaderData }) => {

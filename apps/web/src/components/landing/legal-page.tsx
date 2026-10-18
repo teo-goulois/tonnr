@@ -49,9 +49,17 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
   );
 }
 
-export function LegalSection({ title, children }: { title: string; children: ReactNode }) {
+export function LegalSection({
+  id,
+  title,
+  children,
+}: {
+  id?: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <section className="grid gap-s">
+    <section id={id} className="grid scroll-mt-xxl gap-s">
       <h2 className="text-l font-medium">{title}</h2>
       <div className="grid gap-s text-neutral-7">{children}</div>
     </section>

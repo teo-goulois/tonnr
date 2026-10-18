@@ -47,7 +47,7 @@ export function PrivacyPage() {
         <p>{m.privacy_account_sessions()}</p>
       </LegalSection>
 
-      <LegalSection title={m.privacy_content_title()}>
+      <LegalSection id="content" title={m.privacy_content_title()}>
         <p>{m.privacy_content_text()}</p>
         <List
           items={[

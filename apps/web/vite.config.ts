@@ -27,7 +27,7 @@ function release(): Plugin {
 export default defineConfig({
   server: {
     port: 3001,
-    allowedHosts: ["tonnr.localify"],
+    allowedHosts: ["tonnr.localify", ".trycloudflare.com"], // PROTOTYPE: a demo through a tunnel
   },
   resolve: {
     tsconfigPaths: true,
