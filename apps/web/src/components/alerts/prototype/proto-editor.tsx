@@ -689,7 +689,9 @@ export function PrototypeAlertEditor({
         label={label}
         open={open}
         onAny={() => setArc(undefined)}
-        value={{ said: value ? arcWords(value) : "Peu importe" }}
+        value={{
+          said: value ? `${arcWords(value)} · ${value.from}°–${value.to}°` : "Peu importe",
+        }}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
         shown={
@@ -702,6 +704,7 @@ export function PrototypeAlertEditor({
         }
       >
         <CompassDial arc={value ?? around} now={at} label={label} onChange={setArc} />
+        <DegreesFields arc={value ?? around} label={label} onChange={setArc} />
       </Slot>
     );
   }
@@ -1376,6 +1379,85 @@ export function PrototypeAlertEditor({
         </div>
       </div>
     </Dock.Provider>
+  );
+}
+
+/** The two ends of a sector in degrees, typed, for what the dial's steps are too coarse for. */
+function DegreesFields({
+  arc,
+  label,
+  onChange,
+}: {
+  arc: Arc;
+  label: string;
+  onChange: (arc: Arc) => void;
+}) {
+  return (
+    <div className="flex gap-xs">
+      <DegreeField
+        word="De"
+        label={label}
+        degrees={arc.from}
+        onChange={(from) => onChange({ ...arc, from })}
+      />
+      <DegreeField
+        word="À"
+        label={label}
+        degrees={arc.to}
+        onChange={(to) => onChange({ ...arc, to })}
+      />
+    </div>
+  );
+}
+
+function DegreeField({
+  word,
+  label,
+  degrees,
+  onChange,
+}: {
+  word: string;
+  label: string;
+  degrees: number;
+  onChange: (degrees: number) => void;
+}) {
+  // What is typed, which may be empty for a moment; the dial's moves write over it.
+  const [typed, setTyped] = useState(String(degrees));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setTyped(String(degrees));
+  }, [degrees, editing]);
+  return (
+    <label className="grid flex-1 gap-xxs">
+      <span className="text-xs text-neutral-7">{word}</span>
+      <span className="relative">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={359}
+          step={1}
+          aria-label={`${label}, ${word.toLowerCase()} (degrés)`}
+          value={typed}
+          onFocus={() => setEditing(true)}
+          onBlur={() => {
+            setEditing(false);
+            setTyped(String(degrees));
+          }}
+          onChange={(event) => {
+            const text = event.currentTarget.value;
+            setTyped(text);
+            const number = Number(text);
+            if (text === "" || !Number.isFinite(number)) return;
+            onChange(((Math.round(number) % 360) + 360) % 360);
+          }}
+          className="pe-l tabular-nums"
+        />
+        <span className="pointer-events-none absolute inset-y-0 end-s flex items-center text-neutral-7">
+          °
+        </span>
+      </span>
+    </label>
   );
 }
 
