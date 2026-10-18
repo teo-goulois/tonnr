@@ -11,6 +11,7 @@ import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
 import { keepListedForecasts, pagesDone } from "./pages";
+import { listenForUploads, mediaDone, processMedia } from "./media";
 import { readRevision } from "./revision";
 import {
   announceWorker,
@@ -25,6 +26,8 @@ import {
   stoppable,
 } from "./runs";
 import { pruneReadings } from "./store";
+import { MEDIA_CHANNEL } from "@repo/db/schema/media";
+import { createStorage } from "@repo/media/storage";
 
 // What the jobs read and write, and where the worker says what it does: decision 022.
 const db = jobDatabase(ENV);
@@ -50,6 +53,10 @@ const EXPOSURE_QUEUE = "classify-exposure";
 const ALERTS_QUEUE = "evaluate-alerts";
 const MOMENTS_QUEUE = "tell-alert-moments";
 const PAGES_QUEUE = "keep-listed-forecasts";
+const MEDIA_QUEUE = "process-media";
+// The bucket of the photos and the videos. Null on an instance that keeps none: the job that
+// makes them is then not run, and not listed. Decision 066.
+const storage = createStorage(ENV);
 // What alert mails leave with. Null on an instance whose worker was given no way out, or not the
 // addresses a mail links to: what an alert tells then stays in the web app's list.
 const mailOut = mailOutOf(ENV);
@@ -70,6 +77,8 @@ const jobs: Scheduled[] = [
   // The forecasts of the listed breaks, every three hours, from the models' files, which cost
   // no quota: decisions 057 and 058.
   { name: PAGES_QUEUE, schedule: "50 */3 * * *" },
+  // Every minute, and as soon as the API says a file waits: decision 066.
+  ...(storage ? [{ name: MEDIA_QUEUE, schedule: "* * * * *" }] : []),
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -236,6 +245,24 @@ await boss.work(
   attemptOf(PAGES_QUEUE, (db) => keepListedForecasts(db, pageForecasts), pagesDone),
 );
 
+// The photos and the videos, one at a time, in runs of a few minutes. The API's word starts a run
+// at once; a run already queued takes it in.
+let uploads: ReturnType<typeof listenForUploads> | null = null;
+if (storage) {
+  await boss.createQueue(MEDIA_QUEUE, { policy: "stately", ...once });
+  await boss.updateQueue(MEDIA_QUEUE, once);
+  await boss.schedule(MEDIA_QUEUE, scheduled(MEDIA_QUEUE).schedule);
+  await boss.work(
+    MEDIA_QUEUE,
+    withStart,
+    attemptOf(MEDIA_QUEUE, (db) => processMedia(db, storage), mediaDone),
+  );
+  uploads = listenForUploads(ENV.DATABASE_URL, MEDIA_CHANNEL, () => {
+    boss.send(MEDIA_QUEUE).catch(() => {});
+  });
+  await boss.send(MEDIA_QUEUE);
+}
+
 // A queue that stayed would keep queueing runs that nothing works.
 for (const queue of retiredBreakQueues) {
   try {
@@ -258,6 +285,7 @@ async function shutdown() {
   isStopping = true;
   // A connection that does not close does not hold the process.
   setTimeout(() => process.exit(1), STOP_MS);
+  await uploads?.stop();
   await boss.stop({ timeout: DRAIN_MS });
   await worker.stop();
   await Promise.allSettled([db.$client.end(), state.$client.end()]);

@@ -42,6 +42,8 @@ type Services = {
   ideas?: Context["ideas"];
   // The separate private catalogue, read only by the admin's operators.
   privateCatalogue?: Context["privateCatalogue"];
+  // The bucket the photos and the videos are kept in. Without it, the instance keeps none.
+  storage?: Context["storage"];
   // The public key of the pair the instance sends push with, as `pushKeyOf` checked it. Without
   // it the instance sends none, and takes no subscription.
   pushKey?: string | undefined;
@@ -102,6 +104,7 @@ export function createApp({
   verification,
   ideas,
   privateCatalogue,
+  storage,
   pushKey,
   startedAt = new Date(),
   revision = null,
@@ -267,6 +270,7 @@ export function createApp({
       verification,
       ideas,
       privateCatalogue,
+      storage,
       reply: {} as Context["reply"],
       server: { startedAt, webOrigin, revision, pushKey },
     };

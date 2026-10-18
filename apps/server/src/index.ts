@@ -12,6 +12,7 @@ import {
   ideas,
   places,
   privateCatalogue,
+  storage,
   usage,
   verification,
 } from "./services";
@@ -34,6 +35,7 @@ const app = createApp({
   verification,
   ideas,
   privateCatalogue,
+  storage,
   pushKey,
   startedAt,
   revision,

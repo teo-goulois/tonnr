@@ -69,3 +69,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [063. What an account says of itself as a surfer, asked once as it comes](063-a-surfer-profile.md)
 - [064. An alert set on a surf break of the catalogue](064-alerts-on-surf-breaks.md)
 - [065. Read the private research catalogue from the admin](065-private-catalogue-in-the-admin.md)
+- [066. Photos and videos of a session, kept in a bucket](066-photos-and-videos-of-a-session.md)

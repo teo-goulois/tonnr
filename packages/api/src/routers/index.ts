@@ -23,6 +23,7 @@ import { instanceRouter } from "./instance";
 import { keysRouter } from "./keys";
 import { listsRouter } from "./lists";
 import { mapsRouter } from "./maps";
+import { mediaRouter } from "./media";
 import { notificationsRouter } from "./notifications";
 import { pagesRouter } from "./pages";
 import { placesRouter } from "./places";
@@ -46,7 +47,8 @@ import { visitorsRouter } from "./visitors";
 // developer account, and decision 039 which answer a visitor of the web app. Decisions 045 and
 // 047 say which an agent calls as a tool of the MCP server, decision 049 how an operator
 // keeps the catalogue of breaks, and decision 057 what the public pages of the web app read, and
-// decision 063 what an account says of itself as a surfer.
+// decision 063 what an account says of itself as a surfer, and decision 066 the photos and the
+// videos of its sessions.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -69,6 +71,7 @@ export const v1Router = {
   keys: keysRouter,
   lists: listsRouter,
   maps: mapsRouter,
+  media: mediaRouter,
   notifications: notificationsRouter,
   pages: pagesRouter,
   places: placesRouter,

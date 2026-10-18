@@ -20,6 +20,7 @@
     "@repo/conditions": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/mail": "workspace:*",
+    "@repo/media": "workspace:*",
     "@repo/push": "workspace:*",
     "@repo/upstream": "workspace:*",
     "drizzle-orm": "catalog:",

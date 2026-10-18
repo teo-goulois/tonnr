@@ -16,11 +16,13 @@ import { createForecasts } from "./forecasts";
 import { ingest, providersOf } from "./ingest";
 import { tellMoments } from "./moments";
 import { keepListedForecasts } from "./pages";
+import { mediaDone, processMedia } from "./media";
+import { createStorage } from "@repo/media/storage";
 import { grantOperator, removeOperator } from "./operators";
 import { pushKeys } from "./push-keys";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
-// `... job moments`, `... job exposure`, or `... job pages`. Seven more take a value and write only with `--write`:
+// `... job moments`, `... job exposure`, `... job pages`, or `... job media`. Seven more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
 // `... job candidates <folder>`, `... job candidates-remove <list>`,
 // `... job operator <account id>` and `... job operator-remove <account id>`. One reads and
@@ -40,7 +42,15 @@ const commands = {
   "operator-remove": removeOperator,
 };
 const command = Object.entries(commands).find(([name]) => name === job)?.[1];
-const others = ["alerts", "moments", "exposure", "pages", "push-keys", ...Object.keys(commands)];
+const others = [
+  "alerts",
+  "moments",
+  "exposure",
+  "pages",
+  "media",
+  "push-keys",
+  ...Object.keys(commands),
+];
 
 if (!provider && !others.includes(job ?? "")) {
   const names = [...providers.map((candidate) => candidate.id), ...others];
@@ -55,6 +65,11 @@ try {
   else if (job === "exposure") console.log(await Effect.runPromise(updateExposure(db)));
   else if (job === "pages") {
     console.log(await Effect.runPromise(keepListedForecasts(db, createForecasts(db, "pages"))));
+  } else if (job === "media") {
+    // The photos and the videos that wait, on an instance that keeps some: decision 066.
+    const storage = createStorage(ENV);
+    if (!storage) throw new Error("This instance keeps no media: MEDIA_BUCKET is not set");
+    mediaDone(await Effect.runPromise(processMedia(db, storage)));
   } else if (job === "moments") {
     await Effect.runPromise(tellMoments(db, mailOutOf(ENV), pushOutOf(ENV)));
   } else if (job === "push-keys") {

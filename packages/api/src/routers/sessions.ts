@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../index";
 import { admitForecastQuestion } from "../forecast-callers";
+import { giveSessionMedia, mediaIdsSchema } from "../media";
 import { takeConditions } from "../sessions";
 import { hasControlCharacter } from "../text";
 
@@ -248,7 +249,8 @@ export const sessionsRouter = {
         "big most of the waves and the sets looked, against a surfer standing beside them: " +
         "the sets are never smaller than the waves. The models answer for the last 90 " +
         "days: a session further back keeps the tide and the stations alone. A part that could " +
-        "not be had is null, and the session is written all the same.",
+        "not be had is null, and the session is written all the same. `mediaIds` gives it " +
+        "photos and videos sent beforehand with `POST /media`.",
       tags: ["Sessions"],
     })
     .input(
@@ -262,6 +264,8 @@ export const sessionsRouter = {
           note: noteSchema.optional(),
           waveSize: sizeSchema.optional(),
           setSize: sizeSchema.optional(),
+          // Photos and videos sent beforehand for the session, in their order: decision 066.
+          mediaIds: mediaIdsSchema.optional(),
         })
         .refine(
           (input) => (input.breakId === undefined) !== (input.spotId === undefined),
@@ -354,6 +358,7 @@ export const sessionsRouter = {
             conditionsTakenAt: new Date(),
           })
           .returning();
+        if (row && input.mediaIds) await giveSessionMedia(tx, userId, row.id, input.mediaIds);
         return row;
       });
       if (created === null) {
@@ -588,7 +593,8 @@ export const sessionsRouter = {
       summary: "Change a session: when it was, how long, its rating, its note, its sizes",
       description:
         "What is left out stays, and `rating`, `note`, `waveSize` or `setSize` given as null " +
-        "is taken away. The sets are never smaller than the waves, as the session stands " +
+        "is taken away. `mediaIds` is all the photos and videos it keeps, in their order: one " +
+        "it had and that is left out is deleted. The sets are never smaller than the waves, as the session stands " +
         "once it is changed. The " +
         "conditions are read again when the session moves in time, and when the models could " +
         "not be asked the time before: a request that changes nothing asks them once more.",
@@ -603,6 +609,9 @@ export const sessionsRouter = {
         note: noteSchema.nullable().optional(),
         waveSize: sizeSchema.nullable().optional(),
         setSize: sizeSchema.nullable().optional(),
+        // All the photos and videos the session keeps, in their order: those it had and that
+        // are left out are deleted. Decision 066.
+        mediaIds: mediaIdsSchema.optional(),
       }),
     )
     .output(detailSchema)
@@ -641,19 +650,29 @@ export const sessionsRouter = {
           })
         : undefined;
 
-      const [row] = await context.db
-        .update(surfSession)
-        .set({
-          startedAt,
-          durationMinutes,
-          ...(input.rating !== undefined && { rating: input.rating }),
-          ...(input.note !== undefined && { note: input.note || null }),
-          waveSize,
-          setSize,
-          ...(conditions && { conditions, conditionsTakenAt: new Date() }),
-        })
-        .where(mine)
-        .returning();
+      const [row] = await context.db.transaction(async (tx) => {
+        // The account, then the session, then its media: the order every change of them holds.
+        if (input.mediaIds) {
+          await tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).for("update");
+        }
+        const changed = await tx
+          .update(surfSession)
+          .set({
+            startedAt,
+            durationMinutes,
+            ...(input.rating !== undefined && { rating: input.rating }),
+            ...(input.note !== undefined && { note: input.note || null }),
+            waveSize,
+            setSize,
+            ...(conditions && { conditions, conditionsTakenAt: new Date() }),
+          })
+          .where(mine)
+          .returning();
+        if (changed[0] && input.mediaIds) {
+          await giveSessionMedia(tx, userId, changed[0].id, input.mediaIds);
+        }
+        return changed;
+      });
       // Deleted while the conditions were read.
       if (!row) throw notFound(input.id);
       return describeDetail(row);

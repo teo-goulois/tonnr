@@ -2,6 +2,7 @@ import type { Session } from "@repo/auth";
 import type { Verification } from "@repo/auth/verification";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
+import type { Storage } from "@repo/media/storage";
 
 import type { Analytics, AnalyticsRequest } from "./analytics";
 import type { Ideas } from "./ideas";
@@ -45,6 +46,9 @@ export type Context = {
   forecasts: Forecasts;
   // The search of places by name, which asks the service the instance names. Decision 030.
   places: Places;
+  // The bucket the photos and the videos are kept in. Left out on an instance that keeps none,
+  // which then takes none. Decision 066.
+  storage?: Storage | null | undefined;
   // Optional separate reader of private provider research. Only admin RPC procedures use it.
   privateCatalogue?: PrivateCatalogue | undefined;
   // The process that answers, as the state of the instance shows it: when it started, and the

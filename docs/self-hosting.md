@@ -309,6 +309,45 @@ docker compose up --detach --build
 
 The version before deletes a spot without holding its alert first. Next to the new worker, the two can wait for one another, and Postgres then refuses one of them.
 
+## Photos and videos
+
+An account adds photos and videos to the sessions of its log, which it alone reads. The browser sends each file to a bucket of Cloudflare R2, the worker makes of it what is shown, smaller, and deletes the file that was sent. An instance keeps media once it has a bucket: without one, the web app offers none. Decision 066 gives the rules.
+
+1. In Cloudflare's dashboard, under R2, create a bucket, such as `tonnr-media`. Leave it private: no public address and no custom domain.
+2. Under "Manage API tokens" of R2, create an API token with the permission "Object Read & Write", limited to that bucket. Keep its access key id and its secret: Cloudflare shows the secret once.
+3. In the bucket's settings, add this CORS rule, with your web app's address. A browser sends a file there with PUT, and reads what is shown with GET:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://app.example.org"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["content-type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+4. In the same settings, add an object lifecycle rule that deletes the objects whose prefix is `up/` one day after they were written. A file goes there as it is sent, and nothing shows it: the worker deletes it once made, and the rule deletes what a browser sent and never said it had.
+5. Set the four values in `apps/server/.env`, then run `docker compose up --detach` again.
+
+| Variable               | Who reads it        | What it is for                                                                                                |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `MEDIA_BUCKET`         | The API, the worker | The bucket's name.                                                                                            |
+| `R2_ACCOUNT_ID`        | The API, the worker | Your Cloudflare account's id, which names R2's address for it.                                                |
+| `R2_ACCESS_KEY_ID`     | The API, the worker | The token's id. It is in every address the bucket signs, so it is no secret.                                  |
+| `R2_SECRET_ACCESS_KEY` | The API, the worker | The token's secret, which signs every request to the bucket. Keep it as you keep the API's secret.            |
+| `MEDIA_ENDPOINT`       | The API, the worker | Optional. Another store with R2's API, such as RustFS run for development: the account's id is then not read. |
+
+- Set all four, or none: a container given some of them stops at its start and says so.
+- The worker's image installs ffmpeg, which makes the videos. On another platform, give the worker an ffmpeg of its own, Debian's or one built with `libzimg`: without that filter a phone's HDR video is made with washed colors.
+- The worker makes one medium at a time, every minute and as soon as one is sent: a photo in a second or two, a minute of a phone's 4K in a few minutes of two threads. It runs ffmpeg at a lower priority than itself.
+- A photo is at most 40 MB and a video 1 GB and a minute long. An account keeps 2 GB once its files are made smaller, and every account together sends 20 GB a day: these are written in the code, and are no setting.
+- Signed in to the admin app as an operator, the page "Instance" stops every upload and starts them again. What is kept is still shown and deleted meanwhile.
+- The API answers addresses of the bucket signed for two hours at most. An account that deletes a photo, or signs out, leaves the addresses it was given working until they expire.
+- What a file said of where and when it was taken is kept nowhere: the worker writes no metadata into what it makes.
+- For development, a store with R2's API runs in Docker: `docker run -d -p 9100:9000 -e RUSTFS_ACCESS_KEY=devkey -e RUSTFS_SECRET_KEY=devsecret123 rustfs/rustfs`, a bucket made in it, and `MEDIA_ENDPOINT=http://localhost:9100` with that key and secret.
+
 ## Accounts, the operator, and API keys
 
 The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. It also answers your web app for a visitor who has no account, until you close the instance to them: see "Visitors of the web app" below. Anyone else gets 401, the health check and the reference aside. Decisions 019, 020 and 039 give the rules.

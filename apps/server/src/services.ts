@@ -7,6 +7,7 @@ import { createAuth } from "@repo/auth";
 import { createVerification } from "@repo/auth/verification";
 import { createDb } from "@repo/db";
 import { createMailer } from "@repo/mail";
+import { createStorage } from "@repo/media/storage";
 
 import { ENV } from "./env.server";
 
@@ -27,3 +28,6 @@ export const places = createPlaces(ENV);
 export const privateCatalogue = ENV.CATALOGUE_DATABASE_URL
   ? createPrivateCatalogue({ DATABASE_URL: ENV.CATALOGUE_DATABASE_URL })
   : undefined;
+// The bucket the photos and the videos are kept in. None without its settings: the instance then
+// keeps no media, and the web app offers none. Decision 066.
+export const storage = createStorage(ENV);

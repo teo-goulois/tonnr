@@ -22,6 +22,11 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts --filter worker
 # The image that runs starts from a clean base: no pnpm, and nothing the build stage installed.
 FROM node:26-slim AS runner
 ENV NODE_ENV=production
+# ffmpeg makes the videos accounts send: decision 066. Debian's has the filter that turns a
+# phone's HDR into the colors every screen shows.
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=production --chown=node:node /app /app
 COPY --from=builder --chown=node:node /app/apps/worker/dist /app/apps/worker/dist
 USER node

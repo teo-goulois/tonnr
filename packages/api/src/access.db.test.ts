@@ -176,6 +176,11 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.profile.get",
   "v1.profile.putOff",
   "v1.profile.save",
+  // The photos and the videos of an account's sessions are its own: decision 066.
+  "v1.media.discard",
+  "v1.media.prepare",
+  "v1.media.sessions",
+  "v1.media.uploaded",
   // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
   "v1.push.devices",
   "v1.push.forget",
