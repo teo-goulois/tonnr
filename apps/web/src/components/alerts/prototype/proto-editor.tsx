@@ -730,6 +730,8 @@ export function PrototypeAlertEditor({
   }
 
   function part(key: Part, one: Case, index: number, set?: Setter, open?: boolean) {
+    // An other value says its value alone: the verb stands on the line above.
+    const bare = (said: (range: string) => string) => (set ? (range: string) => range : said);
     switch (key) {
       case "waveHeightMeters":
         return range(
@@ -737,7 +739,7 @@ export function PrototypeAlertEditor({
           index,
           key,
           m.alert_any_height(),
-          (said) => m.alert_height_of({ range: said }),
+          bare((said) => m.alert_height_of({ range: said })),
           set,
           open,
         );
@@ -747,7 +749,7 @@ export function PrototypeAlertEditor({
           index,
           key,
           m.alert_any_period(),
-          (said) => m.alert_period_of({ range: said }),
+          bare((said) => m.alert_period_of({ range: said })),
           set,
           open,
         );
@@ -767,7 +769,7 @@ export function PrototypeAlertEditor({
           index,
           key,
           m.alert_any_wind(),
-          (said) => m.alert_wind_at({ range: said }),
+          bare((said) => m.alert_wind_at({ range: said })),
           set,
           open,
         );
@@ -816,31 +818,35 @@ export function PrototypeAlertEditor({
         </button>
       </span>
     ));
-  // A part, its "+" and its other values. A part whose other values stand on lines of their own
-  // takes no comma after it: what follows starts the next line.
-  const said = (key: Part, one: Case, index: number) => (
+  // A part, its "+" and its other values. The "+" keeps to the comma after it, and a part whose
+  // other values stand on lines of their own takes no comma: what follows starts the next line.
+  const said = (key: Part, one: Case, index: number, comma = true) => (
     <>
       {part(key, one, index)}
-      {index === 0 && plus(key)}
-      {index === 0 && altLines(key)}
+      {index === 0 && hasAlts(key) ? (
+        <>
+          {plus(key)}
+          {altLines(key)}
+        </>
+      ) : (
+        <span className="whitespace-nowrap">
+          {index === 0 && plus(key)}
+          {comma && ","}
+        </span>
+      )}
+      {comma && " "}
     </>
   );
-  const after = (key: Part) => (hasAlts(key) ? " " : ", ");
 
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
       <>
         {lead} {said("waveHeightMeters", one, index)}
-        {after("waveHeightMeters")}
         {said("wavePeakPeriodSeconds", one, index)}
-        {after("wavePeakPeriodSeconds")}
         {said("waveDirectionDegrees", one, index)}
-        {after("waveDirectionDegrees")}
         {m.alert_says_wind()} {said("windSpeedMetersPerSecond", one, index)}
-        {after("windSpeedMetersPerSecond")}
         {said("windDirectionDegrees", one, index)}
-        {after("windDirectionDegrees")}
-        {m.alert_says_tide()} {said("tide", one, index)}
+        {m.alert_says_tide()} {said("tide", one, index, false)}
         {ending}
       </>
     );
@@ -899,7 +905,7 @@ export function PrototypeAlertEditor({
               0,
               m.alert_says_waves(),
               <>
-                {hasAlts("tide") ? " " : ", "}
+                {hasAlts("tide") ? "" : ", "}
                 {m.alert_says_for()} {shortestSlot}.
               </>,
             )}
