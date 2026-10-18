@@ -1,8 +1,8 @@
 # 065. Read the private research catalogue from the admin
 
 Status: accepted on 2026-10-18, when Téo asked to see the private database's records,
-sources and history in the admin. The research and this implementation stay private
-until he decides otherwise.
+sources and history in the admin. He confirmed that the generic integration code
+may be public while the research catalogue, source data and credentials stay private.
 
 ## Decision
 
