@@ -29,6 +29,7 @@ import {
   useState,
 } from "react";
 
+import { MorphText } from "@/components/shared/morph-text";
 import { formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
@@ -168,7 +169,11 @@ function Slot({
         {withAfter(kept?.shown ?? shown, kept ? kept.after : after)}
       </PopoverTrigger>
       <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
-        <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
+        <div className="grid gap-xxs">
+          <PopoverTitle className="text-s text-neutral-7">{label}</PopoverTitle>
+          {/* The sentence keeps its words while the part is open: the value moves here. */}
+          <MorphText className="text-l font-medium text-pretty">{words}</MorphText>
+        </div>
         {children}
         {guide && (
           <Button
@@ -551,6 +556,10 @@ export function PrototypeAlertEditor({
             })
           }
         />
+        <span className="-mt-xs flex justify-between text-xs text-neutral-7 tabular-nums">
+          <span>{scale.unit(formatNumber(ends[0], scale.digits))}</span>
+          <span>{scale.unit(formatNumber(ends[1], scale.digits))}</span>
+        </span>
         <span className="text-xs text-neutral-7">{m.alert_slider_hint()}</span>
       </Slot>
     );
