@@ -109,6 +109,9 @@ type GuideOf = {
   current: boolean;
   last: boolean;
   onClosed: (byButton: boolean) => void;
+  // An other value's popover offers to take it away, where a part offers "any".
+  onAny?: () => void;
+  anyLabel?: string;
 };
 const Guide = createContext<GuideOf | null>(null);
 
@@ -126,6 +129,7 @@ function Slot({
   isSet,
   isWide = false,
   open = false,
+  onAny,
   children,
 }: {
   label: string;
@@ -135,6 +139,8 @@ function Slot({
   isWide?: boolean;
   // Opens as it comes: a value just added with "+".
   open?: boolean;
+  // Leaves the part asking nothing: what "Peu importe" does. A part that always asks has none.
+  onAny?: () => void;
   children: ReactNode;
 }) {
   // While its part is open, the sentence keeps the words it had: what is chosen there would
@@ -175,16 +181,25 @@ function Slot({
           <MorphText className="text-l font-medium text-pretty">{words}</MorphText>
         </div>
         {children}
-        {guide && (
-          <Button
-            type="button"
-            size="sm"
-            variant={current && !isSet ? "outline" : "default"}
-            onClick={() => change(false, true)}
-          >
-            {current ? (guide.last ? "Terminer" : isSet ? "Suivant" : "Passer") : "OK"}
+        <div className="flex gap-xs">
+          {(guide?.onAny ?? onAny) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                (guide?.onAny ?? onAny)?.();
+                change(false, true);
+              }}
+            >
+              {guide?.anyLabel ?? "Peu importe"}
+            </Button>
+          )}
+          <Button type="button" size="sm" className="flex-1" onClick={() => change(false, true)}>
+            Valider
           </Button>
-        )}
+        </div>
       </PopoverPopup>
     </Popover>
   );
@@ -537,6 +552,7 @@ export function PrototypeAlertEditor({
         isSet={isSet}
         open={open}
         words={isSet ? said(rangeWords(key, value)) : any}
+        onAny={() => apply({ criteria: { ...one.criteria, [key]: undefined } })}
       >
         <Slider
           value={thumbs}
@@ -560,7 +576,6 @@ export function PrototypeAlertEditor({
           <span>{scale.unit(formatNumber(ends[0], scale.digits))}</span>
           <span>{scale.unit(formatNumber(ends[1], scale.digits))}</span>
         </span>
-        <span className="text-xs text-neutral-7">{m.alert_slider_hint()}</span>
       </Slot>
     );
   }
@@ -589,6 +604,7 @@ export function PrototypeAlertEditor({
       <Slot
         label={label}
         open={open}
+        onAny={() => setArc(undefined)}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
         shown={
@@ -601,16 +617,6 @@ export function PrototypeAlertEditor({
         }
       >
         <CompassDial arc={value ?? around} now={at} label={label} onChange={setArc} />
-        {value ? (
-          <Button type="button" size="sm" variant="outline" onClick={() => setArc(undefined)}>
-            {m.alert_sector_any()}
-          </Button>
-        ) : (
-          <span className="text-xs text-neutral-7">
-            Tournez le secteur{at == null ? "" : ", posé autour de maintenant"} : il compte dès
-            qu'il bouge.
-          </span>
-        )}
       </Slot>
     );
   }
@@ -629,9 +635,6 @@ export function PrototypeAlertEditor({
           : "à n'importe quel moment";
     const chart = tide.length > 1 && (
       <ProtoTideChart points={tide} extremes={extremes} variant={variant} ask={ask} />
-    );
-    const note = index === 0 && prefilled && !touched && (
-      <span className="text-xs text-neutral-7">Rempli d'après le spot : {prefilled}.</span>
     );
     const coefLine = hasCoefs && coefDays.length > 0 && (
       <span className="text-xs text-neutral-7 tabular-nums">
@@ -805,21 +808,19 @@ export function PrototypeAlertEditor({
               {coefLine}
             </>
           )}
-          <span className="text-xs text-neutral-7">
-            Touchez les parties de la marée qui marchent.
-          </span>
         </>
       );
     }
     return (
-      <Slot label="Marée" isSet={isSet} isWide open={open} words={isSet ? words : any}>
-        {note}
+      <Slot
+        label="Marée"
+        isSet={isSet}
+        isWide
+        open={open}
+        words={isSet ? words : any}
+        onAny={() => setAsk({})}
+      >
         {body}
-        {isSet && (
-          <Button type="button" size="sm" variant="ghost" onClick={() => setAsk({})}>
-            Toute marée
-          </Button>
-        )}
       </Slot>
     );
   }
@@ -923,6 +924,8 @@ export function PrototypeAlertEditor({
   const altGuide = (key: Part, alt: Alt): GuideOf => ({
     current: false,
     last: false,
+    onAny: () => removeAlt(key, alt.id),
+    anyLabel: "Retirer",
     onClosed: () => {
       if (!isSetPart(key, alt.one)) removeAlt(key, alt.id);
     },
