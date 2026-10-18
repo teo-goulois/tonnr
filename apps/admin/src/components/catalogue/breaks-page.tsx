@@ -179,7 +179,7 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
         )}
       </div>
 
-      <div className="grid content-start gap-l lg:overflow-y-auto lg:pr-xs">
+      <div className="grid content-start gap-l lg:-mx-xs lg:-mt-xs lg:overflow-y-auto lg:px-xs lg:pt-xs">
         <div className="grid gap-s">
           <Input
             type="search"

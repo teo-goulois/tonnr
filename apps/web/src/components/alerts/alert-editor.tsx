@@ -457,7 +457,7 @@ export function AlertEditor({
         );
       }}
     >
-      <div className="grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain pb-m">
+      <div className="-mx-xs -mt-xs grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain px-xs pt-xs pb-m">
         <div className="grid gap-xs">
           <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
           <Input

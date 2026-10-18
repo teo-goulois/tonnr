@@ -51,7 +51,7 @@ export type PlaceSearching = {
  */
 export const SEARCH_HEAD = "shrink-0";
 export const SEARCH_BODY =
-  "grid min-h-0 flex-1 content-start gap-m overflow-y-auto overscroll-contain pt-m pb-[var(--drawer-keyboard-inset,0px)]";
+  "-mx-xs grid min-h-0 flex-1 content-start gap-m overflow-y-auto overscroll-contain px-xs pt-m pb-[var(--drawer-keyboard-inset,0px)]";
 
 type Group = { value: Found["kind"]; label: string; items: Found[] };
 

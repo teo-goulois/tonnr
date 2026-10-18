@@ -110,7 +110,7 @@ function Choosing({
         </div>
       </div>
 
-      <div className="max-h-[50svh] overflow-y-auto pr-xs">
+      <div className="-mx-xs max-h-[50svh] overflow-y-auto px-xs py-xs">
         <MergeChoices
           kept={kept}
           other={gone}

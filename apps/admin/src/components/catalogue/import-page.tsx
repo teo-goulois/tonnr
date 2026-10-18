@@ -160,7 +160,7 @@ export function ImportPage({
         <nav
           aria-label={m.catalogue_queue()}
           className={cn(
-            "grid content-start gap-xxs lg:max-h-[calc(100svh-14rem)] lg:overflow-y-auto lg:pr-xs",
+            "grid content-start gap-xxs lg:-mx-xs lg:-mt-xs lg:max-h-[calc(100svh-14rem)] lg:overflow-y-auto lg:px-xs lg:pt-xs",
             !isQueueShown && candidateId && "max-lg:hidden",
           )}
         >
