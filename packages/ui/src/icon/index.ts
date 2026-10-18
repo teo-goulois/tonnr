@@ -135,6 +135,10 @@ export { IconHeartFillDuo18 as HeartFillDuoIcon } from "nucleo-ui-fill-duo-18/co
 export { IconLiveFillDuo18 as LiveFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconLiveFillDuo18";
 export { IconPeople2FillDuo18 as PeopleFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconPeople2FillDuo18";
 export { IconPinLockFillDuo18 as PinLockFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconPinLockFillDuo18";
+export { IconEyeSlashFillDuo18 as EyeSlashFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconEyeSlashFillDuo18";
+export { IconShakaHandFillDuo18 as ShakaHandFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconShakaHandFillDuo18";
+export { IconTagSlashFillDuo18 as TagSlashFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconTagSlashFillDuo18";
+export { IconBracketsCurlyFillDuo18 as BracketsCurlyFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconBracketsCurlyFillDuo18";
 export { IconBellOnFillDuo18 as BellOnFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconBellOnFillDuo18";
 export { IconCalendarFillDuo18 as CalendarFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconCalendarFillDuo18";
 export { IconChatBubbleContentFillDuo18 as ChatFillDuoIcon } from "nucleo-ui-fill-duo-18/components/IconChatBubbleContentFillDuo18";
