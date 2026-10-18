@@ -97,8 +97,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos the worker makes"
     expect(row).toMatchObject({ state: "ready", width: 1200, height: 900, claim: null });
     expect(Object.keys(row?.files ?? {}).sort()).toEqual(["display", "thumb"]);
     expect(row?.bytes).toBe((row?.files.display?.bytes ?? 0) + (row?.files.thumb?.bytes ?? 0));
-    expect(storage.keys().sort()).toEqual(["m/p1/display.avif", "m/p1/thumb.webp"]);
-    const display = await new Response(await storage.read("m/p1/display.avif")).arrayBuffer();
+    expect(storage.keys().sort()).toEqual(["m/p1/1/display.avif", "m/p1/1/thumb.webp"]);
+    const display = await new Response(await storage.read("m/p1/1/display.avif")).arrayBuffer();
     expect(await exifr.gps(Buffer.from(display)).catch(() => undefined)).toBeUndefined();
     expect(mediaDone(run).counts.ready).toBe(1);
   });
@@ -194,6 +194,32 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos the worker makes"
     expect(storage.keys()).toEqual([]);
   });
 
+  it("keeps what a later try wrote, whatever the trash holds of a try that failed", async () => {
+    const photo = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: "#123" },
+    })
+      .jpeg()
+      .toBuffer();
+    await sent("again", photo, "image/jpeg");
+    // The bucket takes the first file, refuses the second, and deletes nothing: what the first
+    // try wrote goes to the trash.
+    const failing: TestStorage = {
+      ...storage,
+      write: async (key, body, type) => {
+        if (key.endsWith("thumb.webp")) throw new Error("The bucket did not answer");
+        await storage.write(key, body, type);
+      },
+      remove: () => Promise.reject(new Error("The bucket did not answer")),
+    };
+    expect(await runMedia(database.db, failing)).toMatchObject({ retried: 1 });
+    await database.db.update(media).set({ claimedUntil: null }).where(eq(media.id, "again"));
+    // The key of the file it was writing when the bucket failed goes to the trash too.
+    expect(await runMedia(database.db, storage)).toMatchObject({ ready: 1, trashed: 2 });
+    const row = await rowOf("again");
+    expect(storage.keys().sort()).toEqual([row?.files.display?.key, row?.files.thumb?.key].sort());
+    expect(row?.files.display?.key).toBe("m/again/2/display.avif");
+  });
+
   it("deletes what it wrote of a photo that failed half way", async () => {
     const photo = await sharp({
       create: { width: 40, height: 30, channels: 3, background: "#123" },
@@ -239,9 +265,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos the worker makes"
         expect(row).toMatchObject({ state: "ready", width: 320, height: 240, durationMs: 2000 });
         expect(Object.keys(row?.files ?? {}).sort()).toEqual(["poster", "thumb", "video"]);
         expect(storage.keys().sort()).toEqual([
-          "m/v1/poster.webp",
-          "m/v1/thumb.webp",
-          "m/v1/video.mp4",
+          "m/v1/1/poster.webp",
+          "m/v1/1/thumb.webp",
+          "m/v1/1/video.mp4",
         ]);
       } finally {
         await rm(folder, { recursive: true, force: true });

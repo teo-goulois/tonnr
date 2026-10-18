@@ -120,7 +120,9 @@ async function render(
     contentType: string,
     size: { width: number; height: number },
   ) => {
-    const key = `m/${row.id}/${name}`;
+    // Each try writes under its own number: the files of a try that failed, which the trash may
+    // delete later, are never those of one that worked.
+    const key = `m/${row.id}/${row.attempts}/${name}`;
     written.push(key);
     await storage.write(key, body, contentType);
     return { key, contentType, bytes: body.byteLength, ...size } satisfies MediaFile;
