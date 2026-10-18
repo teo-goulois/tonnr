@@ -12,6 +12,7 @@
     "job": "tsx src/cli.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "@neaps/tide-database": "catalog:",
     "@opencoredev/email-sdk": "2.0.0",
     "@openmeteo/file-format-wasm": "0.0.20",

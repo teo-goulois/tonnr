@@ -2,6 +2,8 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { LogbookPanel } from "@/components/sessions/logbook-panel";
+import { ReportsPanel } from "@/components/reports/reports-panel";
+import type { Report } from "@/components/reports/types";
 import { MediaViewer } from "@/components/sessions/media-viewer";
 import { PlaceSessions } from "@/components/sessions/place-sessions";
 import { RatingInput, RatingStars } from "@/components/sessions/rating";
@@ -44,6 +46,7 @@ const SENDING: Upload[] = [
   {
     key: "going",
     name: "IMG_2041.HEIC",
+    purpose: "session",
     kind: "photo",
     type: "image/jpeg",
     preview: PICTURE,
@@ -55,6 +58,7 @@ const SENDING: Upload[] = [
   {
     key: "lost",
     name: "IMG_2042.MOV",
+    purpose: "session",
     kind: "photo",
     type: "image/jpeg",
     preview: PICTURE,
@@ -324,6 +328,7 @@ export function SessionSamples() {
       </Sample>
 
       <MediaSamples />
+      <ReportSamples />
 
       <Sample title="What was kept of the sea with a session">
         <SessionConditions session={DETAIL} />
@@ -407,6 +412,71 @@ function MediaSamples() {
         />
       </div>
       <MediaViewer items={KEPT} shown={shown} onShow={setShown} />
+    </Sample>
+  );
+}
+
+// Invented reports at an invented break: one shown, and two of the reader's, one being checked
+// and one refused. Decision 067.
+function report(id: string, minutesAgo: number, change: Partial<Report>): Report {
+  return {
+    id,
+    breakId: "break",
+    createdAt: new Date(NOW - minutesAgo * 60 * 1000),
+    author: "maelle",
+    waveSize: null,
+    setSize: null,
+    note: null,
+    distanceKm: 0.4,
+    media: [medium(`${id}-photo`, {})],
+    mine: false,
+    state: "published",
+    reasons: [],
+    flagged: false,
+    ...change,
+  };
+}
+const REPORTS: Report[] = [
+  report("shown", 40, {
+    waveSize: "chest",
+    setSize: "head",
+    note: "Clean sets on the outside, a bit of wind from noon.",
+    media: [
+      medium("shown-photo", {}),
+      medium("shown-video", { kind: "video", durationMs: 18_000 }),
+    ],
+  }),
+  report("checking", 2, {
+    author: "you",
+    mine: true,
+    state: "checking",
+    distanceKm: null,
+    media: [medium("checking-photo", { state: "processing", thumb: null, display: null })],
+  }),
+  report("refused", 9 * 60, {
+    author: "you",
+    mine: true,
+    state: "refused",
+    distanceKm: 7,
+    reasons: ["too_far", "too_old"],
+  }),
+];
+
+/** What accounts showed of the waves at a break, as its tab draws it. */
+function ReportSamples() {
+  return (
+    <Sample title="The reports of a break">
+      <ReportsPanel
+        now={NOW}
+        signedIn
+        reports={{ data: REPORTS, isPending: false, isError: false }}
+        offered
+        onSend={() => toast("Send a report")}
+        onSignIn={() => {}}
+        onCreateAccount={() => {}}
+        onDelete={async () => true}
+        onFlag={async () => true}
+      />
     </Sample>
   );
 }

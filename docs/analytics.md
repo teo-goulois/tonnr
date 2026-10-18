@@ -50,6 +50,9 @@ Successful oRPC actions:
 - `push_disabled`
 - `push_subscribed`
 - `recent_places_cleared`
+- `report_deleted`
+- `report_flagged`
+- `report_sent`
 - `session_deleted`
 - `session_logged`
 - `session_updated`

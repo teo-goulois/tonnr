@@ -13,6 +13,9 @@ FROM base AS builder
 # repository would add the web app's and the infrastructure's dependencies, two gigabytes of them.
 RUN pnpm install --frozen-lockfile --filter "worker..."
 RUN pnpm --filter worker run build
+# The two models that analyse the photos of a report, at the revisions and with the checksums
+# the code names: the worker never downloads one as it runs. Decision 067.
+RUN pnpm --filter worker exec tsx scripts/fetch-models.ts /app/apps/worker/models
 
 FROM base AS production
 # Only what the built app imports when it runs: its workspace packages are bundled into it.
@@ -29,6 +32,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=production --chown=node:node /app /app
 COPY --from=builder --chown=node:node /app/apps/worker/dist /app/apps/worker/dist
+COPY --from=builder --chown=node:node /app/apps/worker/models /app/apps/worker/models
 USER node
 
 WORKDIR /app/apps/worker

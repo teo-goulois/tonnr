@@ -364,7 +364,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
   );
 });
 
-export type DetailsTab = "forecast" | "guide" | "alert" | "sessions";
+export type DetailsTab = "forecast" | "reports" | "guide" | "alert" | "sessions";
 
 type DetailsOfProps = PointConditionsProps & {
   // The buoy the panel is of. Undefined at a surf break.
@@ -385,6 +385,9 @@ type DetailsOfProps = PointConditionsProps & {
   alert?: ReactNode;
   // The sessions the account surfed there, for the last tab: decision 043.
   sessions?: ReactNode;
+  // What accounts showed of the waves there lately, at a surf break of the catalogue, for the
+  // tab after the forecast: decision 067.
+  reports?: ReactNode;
   // The tab in view, for a panel that opens one itself. Without it the panel opens on the
   // forecast and keeps its own count.
   tab?: DetailsTab;
@@ -414,6 +417,7 @@ export function Details({
   guide,
   alert,
   sessions,
+  reports,
   tab,
   onTabChange,
   ...conditions
@@ -457,6 +461,7 @@ export function Details({
     >
       <TabsList>
         <TabsTab value="forecast">{m.details_forecast_tab()}</TabsTab>
+        {reports && <TabsTab value="reports">{m.details_reports_tab()}</TabsTab>}
         <TabsTab value="guide">{m.details_guide_tab()}</TabsTab>
         {alert && <TabsTab value="alert">{m.details_alert_tab()}</TabsTab>}
         {sessions && <TabsTab value="sessions">{m.details_sessions_tab()}</TabsTab>}
@@ -464,6 +469,7 @@ export function Details({
       <TabsPanel value="forecast">
         <Conditions {...props} />
       </TabsPanel>
+      {reports && <TabsPanel value="reports">{reports}</TabsPanel>}
       {/* Kept while the forecast is in view: what a panel lets its reader write there is not lost
           to a look at the other tab. */}
       <TabsPanel value="guide" keepMounted>

@@ -1,4 +1,4 @@
-import type { MediaKind } from "@repo/config/media";
+import type { MediaKind, MediaPurpose } from "@repo/config/media";
 
 import type {
   Loadable,
@@ -80,6 +80,8 @@ export type SessionMedia = {
 export type Upload = {
   key: string;
   name: string;
+  // What it was sent for: a session, or a report at a break.
+  purpose: MediaPurpose;
   kind: MediaKind;
   type: string;
   // An address of the browser that draws the file while it goes, which a form shows.

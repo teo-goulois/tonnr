@@ -82,6 +82,37 @@ export function formatBytes(bytes: number) {
   }).format(value);
 }
 
+/** A span of time given in minutes, such as "40 min", "3 hr" or "2 days". */
+export function formatMinutes(minutes: number) {
+  const span = Math.abs(minutes);
+  const [value, unit] =
+    span < 90
+      ? [span, "minute"]
+      : span < 48 * 60
+        ? [Math.round(span / 60), "hour"]
+        : [Math.round(span / (24 * 60)), "day"];
+  return new Intl.NumberFormat(getLocale(), { style: "unit", unit, unitDisplay: "short" }).format(
+    value,
+  );
+}
+
+/** A share from 0 to 1, as "82%". */
+export function formatShare(share: number) {
+  return new Intl.NumberFormat(getLocale(), {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(share);
+}
+
+/** A distance in kilometres, to a hundred metres: "0.4 km". */
+export function formatKilometres(kilometres: number) {
+  return new Intl.NumberFormat(getLocale(), {
+    style: "unit",
+    unit: "kilometer",
+    maximumFractionDigits: 1,
+  }).format(kilometres);
+}
+
 /** How long something lasted, such as "42 s" or "3 min". */
 export function formatDuration(milliseconds: number) {
   const seconds = Math.max(0, Math.round(milliseconds / 1000));

@@ -1,0 +1,553 @@
+import { ORPCError } from "@orpc/server";
+import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
+import { hourOf } from "@repo/conditions/forecasts/week";
+import { setsFit } from "@repo/conditions/sessions/sizes";
+import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST, REPORT_TERMS } from "@repo/config/media";
+import { holdAccounts } from "@repo/db/accounts";
+import { user } from "@repo/db/schema/auth";
+import { media } from "@repo/db/schema/media";
+import { REPORT_STATES, surfReport, surfReportFlag } from "@repo/db/schema/reports";
+import type { SessionHour } from "@repo/db/schema/sessions";
+import { SURF_SIZES } from "@repo/db/schema/sessions";
+import { surfBreak } from "@repo/db/schema/spots";
+import { and, asc, count, desc, eq, gte, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { Effect, Result } from "effect";
+import { z } from "zod";
+
+import { recordAction } from "../actions";
+import { adminProcedure, callerProcedure, protectedProcedure } from "../index";
+import { describeMedia, storageOf, wakeWorker } from "../media";
+import {
+  describeReports,
+  FLAGS_HIDE,
+  flagsOf,
+  hasAddress,
+  reasonsOf,
+  reportSchema,
+  shownSince,
+} from "../reports";
+import { hasControlCharacter } from "../text";
+
+// What accounts show of the waves at a break as they are now: decision 067.
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+// How many reports an account sends in a day, and at one break in an hour.
+const REPORTS_A_DAY = 10;
+const REPORTS_AN_HOUR_HERE = 1;
+// How many reports an account flags in a day, and how old it must be to flag one.
+const FLAGS_A_DAY = 20;
+const FLAGGER_AGE_MS = DAY_MS;
+
+const ADMIN_ONLY =
+  "Takes the signed-in session of an operator of the instance, in a request that names the " +
+  "admin's site in `Origin`. No key calls this: decision 020.";
+
+function notFound(id: string) {
+  return new ORPCError("NOT_FOUND", { message: `No report "${id}".` });
+}
+
+const sizeSchema = z.enum(SURF_SIZES);
+const noteSchema = z
+  .string()
+  .trim()
+  .max(REPORT_NOTE_MOST)
+  .refine((note) => !hasControlCharacter(note), "must not contain control characters")
+  // What everyone reads holds no address to go elsewhere.
+  .refine((note) => !hasAddress(note), "must not contain an address");
+
+/** The hour of the forecast kept for a break's cell, when one is kept: nothing is asked for it. */
+async function keptHour(
+  forecasts: Pick<Forecasts, "kept">,
+  point: { latitude: number; longitude: number },
+  now: Date,
+): Promise<SessionHour | null> {
+  const result = await Effect.runPromise(Effect.result(forecasts.kept(point)));
+  if (Result.isFailure(result)) return null;
+  const hour = result.success?.hours ? hourOf(result.success.hours, now) : null;
+  return hour ? { ...hour, time: hour.time.toISOString() } : null;
+}
+
+/** A report as an operator reads it: everything that was checked, and who flagged it. */
+const reviewedSchema = reportSchema.extend({
+  authorId: z.string(),
+  breakName: z.string(),
+  // Where the phone said it stood, kept only where it placed a photo near the break.
+  device: z
+    .object({ latitude: z.number(), longitude: z.number(), accuracyM: z.number().nullable() })
+    .nullable(),
+  checkedAt: z.date().nullable(),
+  decidedAt: z.date().nullable(),
+  flags: z.object({
+    count: z.number().int(),
+    reasons: z.array(z.string()),
+  }),
+  // Every medium, with what was checked of it.
+  checked: z.array(
+    z.object({
+      id: z.string(),
+      state: z.string(),
+      failure: z.string().nullable(),
+      checks: z.unknown().nullable(),
+    }),
+  ),
+});
+
+export const reportsRouter = {
+  create: protectedProcedure
+    .meta({ analytics: "report_sent" })
+    .route({
+      method: "POST",
+      path: "/reports",
+      successStatus: 201,
+      summary: "Show the waves at a break as they are now",
+      description:
+        "One to four photos and videos sent beforehand with `POST /media` for `report`, with " +
+        "how big the waves looked and a few words. Takes an account that has a username, and " +
+        "the version of the terms its photos are sent under. `device` is where the phone stands, " +
+        "which places a photo whose file says nothing of where it was taken: an iPhone's " +
+        "browser takes it out. `offsetMinutes` is the browser's own, which reads a camera's " +
+        "time that says no offset. The report is shown once each photo was found taken within " +
+        "2 km of the break in the last two hours, and of the sea: `state` follows. An account " +
+        "sends ten a day, and one an hour at a break.",
+      tags: ["Reports"],
+    })
+    .input(
+      z
+        .object({
+          breakId: z.string(),
+          mediaIds: z
+            .array(z.string())
+            .min(1)
+            .max(REPORT_MOST_MEDIA)
+            .refine((ids) => new Set(ids).size === ids.length, "each photo or video once"),
+          waveSize: sizeSchema.optional(),
+          setSize: sizeSchema.optional(),
+          note: noteSchema.optional(),
+          device: z
+            .object({
+              latitude: z.number().min(-90).max(90),
+              longitude: z.number().min(-180).max(180),
+              accuracyM: z.number().min(0).max(1_000_000).nullable(),
+            })
+            .optional(),
+          offsetMinutes: z
+            .number()
+            .int()
+            .min(-14 * 60)
+            .max(14 * 60)
+            .optional(),
+          terms: z.literal(REPORT_TERMS),
+        })
+        .refine(
+          (input) => setsFit(input.waveSize ?? null, input.setSize ?? null),
+          "The sets are never smaller than the waves.",
+        ),
+    )
+    .output(reportSchema)
+    .handler(async ({ input, context }) => {
+      storageOf(context.storage);
+      const userId = context.session.user.id;
+      const now = Date.now();
+      const [place] = await context.db
+        .select({ latitude: surfBreak.latitude, longitude: surfBreak.longitude })
+        .from(surfBreak)
+        .where(eq(surfBreak.id, input.breakId));
+      if (!place) throw new ORPCError("NOT_FOUND", { message: `No break "${input.breakId}".` });
+      // What the models said of the sea there this hour, from what is kept: nothing is asked.
+      const forecast = await keptHour(context.forecasts, place, new Date(now));
+
+      const id = crypto.randomUUID();
+      const refusal = await context.db.transaction(async (tx) => {
+        await holdAccounts(tx, [userId]);
+        const [account] = await tx
+          .select({ username: user.username })
+          .from(user)
+          .where(eq(user.id, userId));
+        if (!account?.username) return "username" as const;
+        const [sent] = await tx
+          .select({
+            day: sql<number>`(count(*) filter (where ${surfReport.createdAt} >= ${new Date(now - DAY_MS)}))::int`,
+            here: sql<number>`(count(*) filter (where ${surfReport.createdAt} >= ${new Date(now - HOUR_MS)} and ${surfReport.breakId} = ${input.breakId}))::int`,
+          })
+          .from(surfReport)
+          .where(eq(surfReport.userId, userId));
+        if ((sent?.day ?? 0) >= REPORTS_A_DAY) return "day" as const;
+        if ((sent?.here ?? 0) >= REPORTS_AN_HOUR_HERE) return "here" as const;
+        // The break is held until the report is written, so that it cannot go meanwhile.
+        const [still] = await tx
+          .select({ id: surfBreak.id })
+          .from(surfBreak)
+          .where(eq(surfBreak.id, input.breakId))
+          .for("share");
+        if (!still) return "gone" as const;
+        // The media, in the order of their ids: each the account's own, sent for a report, in
+        // the bucket, and given to none yet.
+        const rows = await tx
+          .select({
+            id: media.id,
+            purpose: media.purpose,
+            state: media.state,
+            reportId: media.reportId,
+          })
+          .from(media)
+          .where(and(inArray(media.id, input.mediaIds), eq(media.userId, userId)))
+          .orderBy(asc(media.id))
+          .for("update");
+        if (rows.length !== input.mediaIds.length) return "media" as const;
+        if (
+          rows.some(
+            (row) => row.purpose !== "report" || row.reportId !== null || row.state !== "uploaded",
+          )
+        ) {
+          return "taken" as const;
+        }
+        await tx.insert(surfReport).values({
+          id,
+          userId,
+          breakId: input.breakId,
+          waveSize: input.waveSize ?? null,
+          setSize: input.setSize ?? null,
+          note: input.note || null,
+          deviceLatitude: input.device?.latitude ?? null,
+          deviceLongitude: input.device?.longitude ?? null,
+          deviceAccuracyM: input.device?.accuracyM ?? null,
+          offsetMinutes: input.offsetMinutes ?? null,
+          forecast,
+          terms: input.terms,
+          // By the API's clock, which the checks read the age of a photo against.
+          createdAt: new Date(now),
+        });
+        for (const [position, mediaId] of input.mediaIds.entries()) {
+          await tx.update(media).set({ reportId: id, position }).where(eq(media.id, mediaId));
+        }
+        return null;
+      });
+      if (refusal === "username") {
+        throw new ORPCError("FORBIDDEN", {
+          message: "Choose a username first: a report is read under it.",
+          data: { username: "missing" },
+        });
+      }
+      if (refusal === "day" || refusal === "here") {
+        context.reply.retryAfterSeconds = refusal === "day" ? 24 * 60 * 60 : 60 * 60;
+        throw new ORPCError("TOO_MANY_REQUESTS", {
+          message:
+            refusal === "day"
+              ? `An account sends ${REPORTS_A_DAY} reports a day at most.`
+              : "An account sends one report an hour at a break.",
+          data: { reports: refusal },
+        });
+      }
+      if (refusal === "gone") throw new ORPCError("NOT_FOUND", { message: "The break is gone." });
+      if (refusal === "media") {
+        throw new ORPCError("NOT_FOUND", { message: "A photo or a video is not there." });
+      }
+      if (refusal === "taken") {
+        throw new ORPCError("CONFLICT", {
+          message: "Each photo or video is sent for a report, in full, and goes with one only.",
+        });
+      }
+      await wakeWorker(context.db);
+      const [row] = await context.db.select().from(surfReport).where(eq(surfReport.id, id));
+      if (!row) throw notFound(id);
+      const [report] = await describeReports(context.db, context.storage, [row], {
+        callerId: userId,
+        now,
+      });
+      return report!;
+    }),
+
+  list: callerProcedure
+    .route({
+      method: "GET",
+      path: "/reports",
+      summary: "The reports of the last week at a break, the latest first",
+      description:
+        "Each is the waves at the break as an account saw them, in photos and videos found taken " +
+        "there and of the sea, with how big they looked. A report is the sea of now for six " +
+        "hours, and shown for a week. The caller's own come with where they stand and why one " +
+        "is not shown. Addresses of photos are good for an hour at least.",
+      tags: ["Reports"],
+    })
+    .input(z.object({ breakId: z.string() }))
+    .output(z.object({ reports: z.array(reportSchema) }))
+    .handler(async ({ input, context }) => {
+      const now = Date.now();
+      const callerId = context.caller.via === "session" ? context.caller.userId : null;
+      const rows = await context.db
+        .select()
+        .from(surfReport)
+        .where(
+          and(
+            eq(surfReport.breakId, input.breakId),
+            gte(surfReport.createdAt, shownSince(now)),
+            callerId
+              ? or(
+                  eq(surfReport.state, "published"),
+                  and(eq(surfReport.userId, callerId), ne(surfReport.state, "removed")),
+                )
+              : eq(surfReport.state, "published"),
+          ),
+        )
+        .orderBy(desc(surfReport.createdAt), desc(surfReport.id))
+        .limit(50);
+      return {
+        reports: await describeReports(context.db, context.storage, rows, { callerId, now }),
+      };
+    }),
+
+  delete: protectedProcedure
+    .meta({ analytics: "report_deleted" })
+    .route({
+      method: "DELETE",
+      path: "/reports/{id}",
+      summary: "Delete one of the caller's reports",
+      description: "With its photos and videos, whose files go from the bucket within minutes.",
+      tags: ["Reports"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ id: z.string() }))
+    .handler(async ({ input, context }) => {
+      const [deleted] = await context.db
+        .delete(surfReport)
+        .where(and(eq(surfReport.id, input.id), eq(surfReport.userId, context.session.user.id)))
+        .returning({ id: surfReport.id });
+      if (!deleted) throw notFound(input.id);
+      return deleted;
+    }),
+
+  flag: protectedProcedure
+    .meta({ analytics: "report_flagged" })
+    .route({
+      method: "POST",
+      path: "/reports/{id}/flag",
+      summary: "Say that a report should not be shown",
+      description:
+        "Once for each account, which has a username and is a day old. Three accounts hide it " +
+        "until an operator decides. An account flags twenty reports a day.",
+      tags: ["Reports"],
+    })
+    .input(
+      z.object({
+        id: z.string(),
+        reason: z.enum(["not_here", "not_now", "not_sea", "offensive", "other"]),
+      }),
+    )
+    .output(z.object({ hidden: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      const now = Date.now();
+      const refusal = await context.db.transaction(async (tx) => {
+        await holdAccounts(tx, [userId]);
+        const [account] = await tx
+          .select({ username: user.username, createdAt: user.createdAt })
+          .from(user)
+          .where(eq(user.id, userId));
+        if (!account?.username || account.createdAt.getTime() > now - FLAGGER_AGE_MS) {
+          return { refused: "young" as const, hidden: false };
+        }
+        const [flagged] = await tx
+          .select({ count: count() })
+          .from(surfReportFlag)
+          .where(
+            and(
+              eq(surfReportFlag.userId, userId),
+              gte(surfReportFlag.createdAt, new Date(now - DAY_MS)),
+            ),
+          );
+        if ((flagged?.count ?? 0) >= FLAGS_A_DAY)
+          return { refused: "many" as const, hidden: false };
+        // The report is held while its flags are counted, so that two at once count each other.
+        const [report] = await tx
+          .select()
+          .from(surfReport)
+          .where(eq(surfReport.id, input.id))
+          .for("update");
+        if (!report || report.state !== "published" || report.userId === userId) {
+          return { refused: "none" as const, hidden: false };
+        }
+        await tx
+          .insert(surfReportFlag)
+          .values({ reportId: report.id, userId, reason: input.reason, createdAt: new Date(now) })
+          .onConflictDoNothing();
+        if ((await flagsOf(tx, report)) < FLAGS_HIDE) return { refused: null, hidden: false };
+        await tx.update(surfReport).set({ state: "hidden" }).where(eq(surfReport.id, report.id));
+        return { refused: null, hidden: true };
+      });
+      if (refusal.refused === null) return { hidden: refusal.hidden };
+      if (refusal.refused === "none") throw notFound(input.id);
+      if (refusal.refused === "many") {
+        throw new ORPCError("TOO_MANY_REQUESTS", {
+          message: `An account flags ${FLAGS_A_DAY} reports a day at most.`,
+        });
+      }
+      throw new ORPCError("FORBIDDEN", {
+        message: "A report is flagged by an account that has a username and is a day old.",
+      });
+    }),
+
+  waiting: adminProcedure
+    .route({
+      method: "GET",
+      path: "/reports/waiting",
+      summary: "How many reports wait for an operator",
+      description: `${ADMIN_ONLY} Those the checks left to an operator, and those the flags of accounts hid.`,
+      tags: ["Reports"],
+    })
+    .output(z.object({ review: z.number().int(), hidden: z.number().int() }))
+    .handler(async ({ context }) => {
+      const [counted] = await context.db
+        .select({
+          review: sql<number>`(count(*) filter (where ${surfReport.state} = 'review'))::int`,
+          hidden: sql<number>`(count(*) filter (where ${surfReport.state} = 'hidden'))::int`,
+        })
+        .from(surfReport)
+        .where(inArray(surfReport.state, ["review", "hidden"]));
+      return { review: counted?.review ?? 0, hidden: counted?.hidden ?? 0 };
+    }),
+
+  review: adminProcedure
+    .route({
+      method: "GET",
+      path: "/reports/review",
+      summary: "Every report, with what was checked of each photo and who flagged it",
+      description:
+        `${ADMIN_ONLY} The latest first, a page at a time through \`before\`. \`state\` keeps ` +
+        "one state; `flagged` keeps those that accounts flagged.",
+      tags: ["Reports"],
+    })
+    .input(
+      z.object({
+        state: z.enum([...REPORT_STATES, "flagged"]).optional(),
+        before: z.coerce.date().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+      }),
+    )
+    .output(z.object({ reports: z.array(reviewedSchema), next: z.date().nullable() }))
+    .handler(async ({ input, context }) => {
+      const now = Date.now();
+      const flaggedIds =
+        input.state === "flagged"
+          ? (
+              await context.db.selectDistinct({ id: surfReportFlag.reportId }).from(surfReportFlag)
+            ).map((row) => row.id)
+          : null;
+      const rows = await context.db
+        .select({ report: surfReport, breakName: surfBreak.name })
+        .from(surfReport)
+        .innerJoin(surfBreak, eq(surfBreak.id, surfReport.breakId))
+        .where(
+          and(
+            input.state && input.state !== "flagged"
+              ? eq(surfReport.state, input.state)
+              : undefined,
+            flaggedIds
+              ? inArray(surfReport.id, flaggedIds.length > 0 ? flaggedIds : [""])
+              : undefined,
+            input.before ? lt(surfReport.createdAt, input.before) : undefined,
+          ),
+        )
+        .orderBy(desc(surfReport.createdAt), desc(surfReport.id))
+        .limit(input.limit + 1);
+      const page = rows.slice(0, input.limit);
+      const reports = page.map((row) => row.report);
+      const ids = reports.map((row) => row.id);
+      const [described, mediaRows, flags] = await Promise.all([
+        describeReports(context.db, context.storage, reports, { callerId: null, now }),
+        ids.length > 0
+          ? context.db
+              .select()
+              .from(media)
+              .where(inArray(media.reportId, ids))
+              .orderBy(asc(media.position))
+          : Promise.resolve([]),
+        ids.length > 0
+          ? context.db
+              .select({ reportId: surfReportFlag.reportId, reason: surfReportFlag.reason })
+              .from(surfReportFlag)
+              .where(inArray(surfReportFlag.reportId, ids))
+          : Promise.resolve([]),
+      ]);
+      // An operator sees every medium, whatever became of it.
+      const allMedia = await describeMedia(context.storage, mediaRows, now);
+      return {
+        reports: page.map((row, index) => {
+          const mine = mediaRows.filter((one) => one.reportId === row.report.id);
+          const report = described[index]!;
+          return {
+            ...report,
+            media: allMedia.filter((_, at) => mediaRows[at]!.reportId === row.report.id),
+            reasons: reasonsOf(mine),
+            authorId: row.report.userId,
+            breakName: row.breakName,
+            device:
+              row.report.deviceLatitude !== null && row.report.deviceLongitude !== null
+                ? {
+                    latitude: row.report.deviceLatitude,
+                    longitude: row.report.deviceLongitude,
+                    accuracyM: row.report.deviceAccuracyM,
+                  }
+                : null,
+            checkedAt: row.report.checkedAt,
+            decidedAt: row.report.decidedAt,
+            flags: {
+              count: flags.filter((flag) => flag.reportId === row.report.id).length,
+              reasons: flags
+                .filter((flag) => flag.reportId === row.report.id)
+                .flatMap((flag) => (flag.reason ? [flag.reason] : [])),
+            },
+            checked: mine.map((one) => ({
+              id: one.id,
+              state: one.state,
+              failure: one.failure,
+              checks: one.checks,
+            })),
+          };
+        }),
+        next: rows.length > input.limit ? (page.at(-1)?.report.createdAt ?? null) : null,
+      };
+    }),
+
+  decide: adminProcedure
+    .route({
+      method: "POST",
+      path: "/reports/{id}/decision",
+      summary: "Show a report, or remove it",
+      description:
+        `${ADMIN_ONLY} \`publish\` shows it, whatever its checks or its flags said: the flags ` +
+        "before count no more. `remove` hides it from everyone but the operators, for good. " +
+        "Neither deletes it.",
+      tags: ["Reports"],
+    })
+    .input(z.object({ id: z.string(), decision: z.enum(["publish", "remove"]) }))
+    .output(z.object({ state: z.enum(REPORT_STATES) }))
+    .handler(async ({ input, context }) => {
+      const operatorId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        const [report] = await tx
+          .select({ id: surfReport.id, userId: surfReport.userId, state: surfReport.state })
+          .from(surfReport)
+          .where(eq(surfReport.id, input.id))
+          .for("update");
+        if (!report) throw notFound(input.id);
+        const now = new Date();
+        const state = input.decision === "publish" ? ("published" as const) : ("removed" as const);
+        await tx
+          .update(surfReport)
+          .set({
+            state,
+            decidedAt: now,
+            ...(input.decision === "publish" && { restoredAt: now }),
+          })
+          .where(eq(surfReport.id, report.id));
+        await recordAction(tx, {
+          operatorId,
+          action: input.decision === "publish" ? "report.publish" : "report.remove",
+          developer: null,
+          account: { id: report.userId },
+        });
+        return { state };
+      });
+    }),
+};

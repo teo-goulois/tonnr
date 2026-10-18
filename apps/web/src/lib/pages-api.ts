@@ -118,6 +118,11 @@ export async function fetchSpotPage(address: SpotAddress, site: string): Promise
       ...raw.tide,
       extremes: raw.tide.extremes.map((extreme) => ({ ...extreme, time: date(extreme.time) })),
     },
+    // An API of before decision 067 says none.
+    reports: (raw.reports ?? []).map((report) => ({
+      ...report,
+      createdAt: date(report.createdAt),
+    })),
     week: raw.week && {
       ...raw.week,
       fetchedAt: date(raw.week.fetchedAt),

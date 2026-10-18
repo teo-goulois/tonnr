@@ -32,6 +32,7 @@ const nothing: SpotPage["break"]["characteristics"] = {
 
 const page = (characteristics: SpotPage["break"]["characteristics"]): SpotPage => ({
   moved: false,
+  reports: [],
   break: {
     id: "6e0d6c0a-0000-4000-8000-000000000002",
     name: "Anse du Phare",

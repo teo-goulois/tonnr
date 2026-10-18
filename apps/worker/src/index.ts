@@ -27,7 +27,9 @@ import {
 } from "./runs";
 import { pruneReadings } from "./store";
 import { MEDIA_CHANNEL } from "@repo/db/schema/media";
+import { createAnalyser } from "@repo/media/analysis";
 import { createStorage } from "@repo/media/storage";
+import { join } from "node:path";
 
 // What the jobs read and write, and where the worker says what it does: decision 022.
 const db = jobDatabase(ENV);
@@ -57,6 +59,9 @@ const MEDIA_QUEUE = "process-media";
 // The bucket of the photos and the videos. Null on an instance that keeps none: the job that
 // makes them is then not run, and not listed. Decision 066.
 const storage = createStorage(ENV);
+// What sees whether a photo of a report shows the sea: two models in the worker's image, loaded
+// the first time a report needs them. Decision 067.
+const analyser = createAnalyser({ folder: ENV.MEDIA_MODELS_DIR ?? join(process.cwd(), "models") });
 // What alert mails leave with. Null on an instance whose worker was given no way out, or not the
 // addresses a mail links to: what an alert tells then stays in the web app's list.
 const mailOut = mailOutOf(ENV);
@@ -255,7 +260,15 @@ if (storage) {
   await boss.work(
     MEDIA_QUEUE,
     withStart,
-    attemptOf(MEDIA_QUEUE, (db) => processMedia(db, storage), mediaDone),
+    attemptOf(
+      MEDIA_QUEUE,
+      (db) =>
+        processMedia(db, storage, {
+          analyser,
+          ...(ENV.REPORT_KEEP_DAYS !== undefined && { keepReportDays: ENV.REPORT_KEEP_DAYS }),
+        }),
+      mediaDone,
+    ),
   );
   uploads = listenForUploads(ENV.DATABASE_URL, MEDIA_CHANNEL, () => {
     boss.send(MEDIA_QUEUE).catch(() => {});

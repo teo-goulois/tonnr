@@ -1,3 +1,4 @@
+import type { MediaPurpose } from "@repo/config/media";
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
@@ -6,7 +7,8 @@ import { judgeFile, putFile, typeOfFile, videoSeconds } from "@/lib/media-upload
 import { m } from "@/paraglide/messages.js";
 import { client } from "@/utils/orpc";
 
-// The photos and the videos being sent from this browser, for the forms of the sessions. They
+// The photos and the videos being sent from this browser, for the forms of the sessions and of
+// the reports (decision 067). They
 // are kept here and not in a form, so that one goes on being sent once its form is closed: a
 // session saved while a video still goes up keeps it. Decision 066.
 
@@ -67,7 +69,7 @@ async function send(key: string) {
   try {
     const durationSeconds = upload.kind === "video" ? await videoSeconds(file) : null;
     const asked = await client.v1.media.prepare({
-      purpose: "session",
+      purpose: upload.purpose,
       contentType: upload.type,
       bytes: file.size,
       ...(durationSeconds !== null && { durationSeconds }),
@@ -110,7 +112,7 @@ async function send(key: string) {
  * Starts sending files, each as soon as it is taken. Answers the key of each file taken, and
  * each file refused with why, before anything was asked of the API.
  */
-export function startUploads(chosen: readonly File[]) {
+export function startUploads(chosen: readonly File[], purpose: MediaPurpose = "session") {
   const started: string[] = [];
   const refused: { name: string; why: "type" | "size" }[] = [];
   for (const file of chosen) {
@@ -124,6 +126,7 @@ export function startUploads(chosen: readonly File[]) {
     kept.set(key, {
       key,
       name: file.name,
+      purpose,
       kind: judged,
       type: typeOfFile(file),
       preview: URL.createObjectURL(file),

@@ -11,6 +11,8 @@ import sharp, { type Sharp } from "sharp";
 const DISPLAY_EDGE = 2560;
 // The shortest side of the small one, so that it fills a square of a list without blur.
 const THUMB_EDGE = 480;
+// The longest side of what the analysis of a report looks at.
+const SAMPLE_EDGE = 512;
 // More pixels than a phone's camera takes, and fewer than a file made to fill the worker's
 // memory once decoded.
 export const PHOTO_MOST_PIXELS = 100_000_000;
@@ -96,7 +98,7 @@ export async function renderPhoto(file: Uint8Array) {
   // The color profile is kept, so that a phone's wide colors stay as they were taken. Nothing
   // else of the file's metadata is written.
   const base = image.keepIccProfile();
-  const [display, thumb] = await Promise.all([
+  const [display, thumb, sample] = await Promise.all([
     rendered(
       base
         .clone()
@@ -116,6 +118,12 @@ export async function renderPhoto(file: Uint8Array) {
         .webp({ quality: 72 }),
       "image/webp",
     ),
+    // What the analysis of a report looks at, kept nowhere: the size its models read at.
+    base
+      .clone()
+      .resize({ width: SAMPLE_EDGE, height: SAMPLE_EDGE, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer(),
   ]);
-  return { display, thumb };
+  return { display, thumb, sample };
 }

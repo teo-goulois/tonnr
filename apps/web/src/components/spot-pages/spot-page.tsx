@@ -13,6 +13,7 @@ import { m } from "@/paraglide/messages.js";
 import { GuideTexts } from "./guide-texts";
 import { NearbyBreaks } from "./nearby-breaks";
 import { NextTides } from "./next-tides";
+import { RecentReports } from "./recent-reports";
 import { SeaNow } from "./sea-now";
 import { SeaSentence } from "./sea-sentence";
 import { Crumbs, SpotFrame, SpotSection } from "./spot-frame";
@@ -112,6 +113,7 @@ export function SpotPage({ page, now }: { page: SpotPageData; now: number }) {
       <GuideTexts texts={page.texts} />
 
       <SeaNow waves={page.waves} wind={page.wind} now={now} />
+      <RecentReports page={page} now={now} />
       <NextTides tide={page.tide} timezone={found.timezone} />
       <WeekTable week={page.week} now={now} />
       <NearbyBreaks nearby={page.nearby} />

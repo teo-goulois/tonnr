@@ -80,6 +80,11 @@ export function TermsPage() {
         </p>
       </LegalSection>
 
+      <LegalSection title={m.terms_reports_title()}>
+        <p>{m.terms_reports_text()}</p>
+        <p>{m.terms_reports_rights(who)}</p>
+      </LegalSection>
+
       <LegalSection title={m.terms_shared_title()}>
         <p>{m.terms_shared_text()}</p>
       </LegalSection>

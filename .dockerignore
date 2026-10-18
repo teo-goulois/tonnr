@@ -9,6 +9,8 @@
 
 **/dist
 **/build
+# The models a developer fetched: the image fetches its own.
+apps/worker/models
 **/.next
 **/.nuxt
 **/.output

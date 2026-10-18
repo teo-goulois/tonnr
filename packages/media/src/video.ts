@@ -212,6 +212,10 @@ export type RenderedVideo = {
   video: { path: string; width: number; height: number; durationMs: number };
   poster: Rendition;
   thumb: Rendition;
+  // What the file said of itself, read before the copy that says nothing of it.
+  probed: Probed;
+  // Images of the start, the middle and the end, for the analysis of a report. Kept nowhere.
+  frames: Buffer[];
 };
 
 /**
@@ -222,7 +226,14 @@ export type RenderedVideo = {
 export async function renderVideo(
   input: string,
   folder: string,
-  options: { mostSeconds: number; audio: boolean; tools?: Tools; signal?: AbortSignal },
+  options: {
+    mostSeconds: number;
+    audio: boolean;
+    // Whether to take three images of it for the analysis of a report.
+    frames?: boolean;
+    tools?: Tools;
+    signal?: AbortSignal;
+  },
 ): Promise<RenderedVideo> {
   const tools = options.tools ?? DEFAULT_TOOLS;
   const probed = await probeVideo(input, tools, options.signal);
@@ -315,6 +326,35 @@ export async function renderVideo(
     options.signal,
   );
   const frame = await readFile(still);
+  // Three images across the video, as the analysis reads them.
+  const frames: Buffer[] = [];
+  if (options.frames) {
+    for (const [index, share] of [0.2, 0.5, 0.8].entries()) {
+      const path = join(folder, `frame-${index}.jpg`);
+      await run(
+        tools.ffmpeg,
+        [
+          "-nostdin",
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-ss",
+          String(probed.durationSeconds * share),
+          "-i",
+          output,
+          "-frames:v",
+          "1",
+          "-vf",
+          "scale=w='min(iw,512)':h='min(ih,512)':force_original_aspect_ratio=decrease",
+          "-y",
+          path,
+        ],
+        60_000,
+        options.signal,
+      );
+      frames.push(await readFile(path));
+    }
+  }
   const meta = await sharp(frame).metadata();
   const posterOf = async (edge: number, fit: "inside" | "outside", quality: number) => {
     const { data, info } = await sharp(frame)
@@ -332,5 +372,7 @@ export async function renderVideo(
     },
     poster: await posterOf(POSTER_EDGE, "inside", 78),
     thumb: await posterOf(THUMB_EDGE, "outside", 72),
+    probed,
+    frames,
   };
 }

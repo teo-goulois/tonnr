@@ -44,3 +44,19 @@ export const ACCOUNT_MOST_BYTES = 2048 * MB;
 /** The forms of a medium the worker keeps, which an address of the API names. */
 export const MEDIA_VARIANTS = ["thumb", "display", "poster", "video"] as const;
 export type MediaVariant = (typeof MEDIA_VARIANTS)[number];
+
+/** How many photos and videos a report shows. Decision 067. */
+export const REPORT_MOST_MEDIA = 4;
+
+/** How long a report is the sea of now, and how long a break shows it at all, in hours. */
+export const REPORT_NOW_HOURS = 6;
+export const REPORT_SHOWN_HOURS = 7 * 24;
+
+/** How many characters a report's note takes. */
+export const REPORT_NOTE_MOST = 280;
+
+/**
+ * The version of the terms a report is sent under, which say what its author lets the instance
+ * do with its photos: the day they were written. A change of what they say changes it.
+ */
+export const REPORT_TERMS = "2026-10-19";

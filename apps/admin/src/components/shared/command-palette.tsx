@@ -149,6 +149,11 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/moderation", search: { kind: "guides" } }),
         },
         {
+          value: `${m.nav_moderation()} ${m.moderation_kind_reports()} reports photos videos waves flagged checks exif position nudity`,
+          label: `${m.nav_moderation()} : ${m.moderation_kind_reports()}`,
+          run: () => void navigate({ to: "/moderation", search: { kind: "reports" } }),
+        },
+        {
           value: `${m.nav_catalogue()} catalogue breaks spots map merge edit`,
           label: m.nav_catalogue(),
           run: () => void navigate({ to: "/catalogue" }),

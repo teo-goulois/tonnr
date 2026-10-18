@@ -2,11 +2,13 @@ import { ORPCError } from "@orpc/server";
 import { SHORE_WINDS } from "@repo/conditions/shore-wind";
 import { breakAtAddress, pathOf } from "@repo/db/addresses";
 import { GUIDE_LANGUAGES, GUIDE_TEXT_LINES } from "@repo/db/schema/community";
+import { surfReport } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { confirmedWordsOf } from "../guides";
+import { describeReports, reportSchema, shownSince } from "../reports";
 import { callerProcedure } from "../index";
 import {
   confirmedTextsOf,
@@ -145,6 +147,10 @@ const pageSchema = z.object({
       text: z.string(),
     }),
   ),
+  // What accounts showed of the waves there in the last week, the latest first, six at most:
+  // decision 067. Their photos' addresses are good for two hours at least, past the hour the
+  // page is kept.
+  reports: z.array(reportSchema),
   // The breaks within 50 km, the listed ones first, eight at most.
   nearby: z.array(
     z.object({
@@ -226,14 +232,31 @@ export const pagesRouter = {
       }
       const row = found.row;
       const now = new Date();
-      const [confirmed, texts, waves, wind, nearby, week] = await Promise.all([
+      const [confirmed, texts, waves, wind, nearby, week, shown] = await Promise.all([
         confirmedWordsOf(context.db, [row.id]),
         confirmedTextsOf(context.db, row.id),
         nearestStation(context.db, row, "waves", now),
         nearestStation(context.db, row, "wind", now),
         nearbyBreaks(context.db, row),
         weekAt(context.forecasts, row, now),
+        context.db
+          .select()
+          .from(surfReport)
+          .where(
+            and(
+              eq(surfReport.breakId, row.id),
+              eq(surfReport.state, "published"),
+              gte(surfReport.createdAt, shownSince(now.getTime())),
+            ),
+          )
+          .orderBy(desc(surfReport.createdAt))
+          .limit(6),
       ]);
+      const reports = await describeReports(context.db, context.storage, shown, {
+        callerId: null,
+        now: now.getTime(),
+        hoursAfter: 2,
+      });
       const described = describeBreak(row, confirmed.get(row.id));
       const tide = nextTides(row, now);
       const hour = week?.now ?? null;
@@ -278,6 +301,7 @@ export const pagesRouter = {
             verdict: verdictOf(described.characteristics, hour, tide),
           },
         },
+        reports,
         nearby: nearby.map(({ row: near, listed, distanceKm }) => ({
           id: near.id,
           name: near.name,

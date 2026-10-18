@@ -1,3 +1,4 @@
+import type { describeMedia } from "@repo/api/media";
 import type { AppRouterClient } from "@repo/api/routers/index";
 
 type V1 = AppRouterClient["v1"];
@@ -16,6 +17,15 @@ export type BreakdownRow = Answer<V1["usage"]["breakdown"]>["rows"][number];
 export type Publication = Answer<V1["publications"]["list"]>["publications"][number];
 // A contribution to a break's guide, as an operator reads it.
 export type Review = Answer<V1["reviews"]["list"]>["reviews"][number];
+// A report of the waves at a break, as an operator reads it, with what was checked of each of
+// its photos and videos: decision 067.
+export type ReviewedReport = Answer<V1["reports"]["review"]>["reports"][number];
+export type ReportState = ReviewedReport["state"];
+export type ReportReason = ReviewedReport["reasons"][number];
+export type ReportMedium = ReviewedReport["media"][number];
+// What the worker checked of one medium. The API answers it as the database keeps it, untyped:
+// its type is the column's.
+export type MediaChecks = NonNullable<Parameters<typeof describeMedia>[1][number]["checks"]>;
 export type OperatorAction = Answer<V1["actions"]["list"]>["actions"][number];
 export type InstanceState = Answer<V1["instance"]["state"]>;
 export type Overview = Answer<V1["instance"]["overview"]>;

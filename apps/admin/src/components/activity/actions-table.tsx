@@ -86,6 +86,10 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_contribution_refused()];
     case "contribution.keep":
       return [m.action_contribution_kept()];
+    case "report.publish":
+      return [m.action_report_published()];
+    case "report.remove":
+      return [m.action_report_removed()];
     case "account.sign_out":
       return [m.action_signed_out({ count: formatCount(action.changes?.sessions ?? 0) })];
     case "account.suspend":
@@ -171,6 +175,28 @@ function Subject({ action, existing }: { action: OperatorAction; existing: Reado
   return action.developerName ?? <span className="text-neutral-7">{m.usage_no_developer()}</span>;
 }
 
+/**
+ * What a record says. A decision on a report leads to the reports it left in that state: the
+ * record names the account that sent it, and not the report.
+ */
+function Said({ action, children }: { action: OperatorAction; children: string }) {
+  if (action.action === "report.publish" || action.action === "report.remove") {
+    return (
+      <Link
+        to="/moderation"
+        search={{
+          kind: "reports",
+          state: action.action === "report.publish" ? "published" : "removed",
+        }}
+        className={linked}
+      >
+        {children}
+      </Link>
+    );
+  }
+  return children;
+}
+
 /** What the operators did, the latest first: when, who, to which account, and what. */
 export function ActionsTable({ actions, existing, own, empty }: ActionsTableProps) {
   if (actions?.length === 0) return <p className="text-s text-neutral-7">{empty}</p>;
@@ -205,7 +231,9 @@ export function ActionsTable({ actions, existing, own, empty }: ActionsTableProp
                 )}
                 <TableCell>
                   {sentences(action, own).map((sentence) => (
-                    <p key={sentence}>{sentence}</p>
+                    <p key={sentence}>
+                      <Said action={action}>{sentence}</Said>
+                    </p>
                   ))}
                 </TableCell>
               </TableRow>

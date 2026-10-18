@@ -72,7 +72,7 @@ Later, in no order:
 
 - A few photos of a break, each in a named place: the peak from the beach, the access, where to enter the water, the hazard at low tide. Each is looked at before it shows. An instance has nowhere to keep a file today.
 - A community tab that says what to do nearby: the breaks with no guide, the contributions to confirm.
-- A question the day after an alert told: was the account there, and how was it. The answers are summed over time and never shown as they come, so that nobody reads there where it is good now.
+- A question the day after an alert told: was the account there, and how was it. The answers are summed over time and never shown as they come, so that nobody reads there where it is good now. At the breaks of the catalogue, [decision 067](067-reports-of-the-waves.md) shows what accounts send of the waves as they are, at Téo's request.
 - A draw each month for a small gift, among the accounts that had a contribution confirmed that month: one ticket for each contribution, up to a cap.
 - A ranking by season, which the rows allow.
 - An emblem for each rank, in place of its initials. Three were drawn on 2026-10-12, with the way from one rank to the next and a word to the account the day it reaches one. Téo set them aside the same day: the branch `prototype/rank-emblems` keeps them.

@@ -240,6 +240,8 @@ export const OPERATOR_ACTIONS = [
   "errors.on",
   "media.off",
   "media.on",
+  "report.publish",
+  "report.remove",
   "break.update",
   "break.merge",
   "break.delete",

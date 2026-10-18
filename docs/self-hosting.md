@@ -348,6 +348,20 @@ An account adds photos and videos to the sessions of its log, which it alone rea
 - What a file said of where and when it was taken is kept nowhere: the worker writes no metadata into what it makes.
 - For development, a store with R2's API runs in Docker: `docker run -d -p 9100:9000 -e RUSTFS_ACCESS_KEY=devkey -e RUSTFS_SECRET_KEY=devsecret123 rustfs/rustfs`, a bucket made in it, and `MEDIA_ENDPOINT=http://localhost:9100` with that key and secret.
 
+### Reports of the waves
+
+The same bucket keeps the reports accounts send at the breaks of the catalogue, and the same job of the worker checks them: where and when each photo was taken, and whether it shows the sea, with two open models that run in the worker. Decision 067 gives the rules.
+
+- The worker's image downloads the models as it is built, about 230 MB, at the revisions and with the checksums `packages/media/src/models.ts` names, and the worker never downloads one as it runs. It loads them the first time a report comes, and keeps a few hundred megabytes of memory for them.
+- On another platform, or from a clone, put them in a folder with `pnpm --filter worker exec tsx scripts/fetch-models.ts <folder>` and name it in `MEDIA_MODELS_DIR`. A worker that finds no model leaves every report to an operator, in the admin's moderation.
+- A report is shown a week, then kept, hidden from everyone but the operators. Set `REPORT_KEEP_DAYS` to have the worker delete the reports older than that many days, with their files: without it, it deletes none, and your privacy policy must say so, as Téo's does.
+- The admin's moderation has a tab of the reports, with what was checked of each photo, where an operator shows a report or removes it.
+
+| Variable           | Who reads it | What it is for                                                                              |
+| ------------------ | ------------ | ------------------------------------------------------------------------------------------- |
+| `MEDIA_MODELS_DIR` | The worker   | Optional. Where the models are. The image's `models` folder, beside the worker, without it. |
+| `REPORT_KEEP_DAYS` | The worker   | Optional. How many days a report is kept. Every report is kept without it.                  |
+
 ## Accounts, the operator, and API keys
 
 The API asks who calls. It answers an account, by the session of a sign-in, or a program, by an API key. It also answers your web app for a visitor who has no account, until you close the instance to them: see "Visitors of the web app" below. Anyone else gets 401, the health check and the reference aside. Decisions 019, 020 and 039 give the rules.

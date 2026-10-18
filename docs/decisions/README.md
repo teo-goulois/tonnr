@@ -70,3 +70,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [064. An alert set on a surf break of the catalogue](064-alerts-on-surf-breaks.md)
 - [065. Read the private research catalogue from the admin](065-private-catalogue-in-the-admin.md)
 - [066. Photos and videos of a session, kept in a bucket](066-photos-and-videos-of-a-session.md)
+- [067. Reports of the waves at a break, checked to be of there, of now, and of the sea](067-reports-of-the-waves.md)

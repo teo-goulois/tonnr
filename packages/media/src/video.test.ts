@@ -80,8 +80,10 @@ describe.skipIf(!hasFfmpeg)("renderVideo", { timeout: 60_000 }, () => {
 
   it("makes an upright H.264 at 30 images a second that says nothing of where it was filmed", async () => {
     const out = await mkdtemp(join(folder, "out-"));
-    const made = await renderVideo(phone, out, { mostSeconds: 60, audio: false });
+    const made = await renderVideo(phone, out, { mostSeconds: 60, audio: false, frames: true });
     expect([made.video.width, made.video.height]).toEqual([360, 640]);
+    expect(made.frames).toHaveLength(3);
+    expect(made.probed.location).toBe("+43.4832-001.5586/");
     expect(made.poster.contentType).toBe("image/webp");
     const probed = JSON.parse(
       execFileSync("ffprobe", [

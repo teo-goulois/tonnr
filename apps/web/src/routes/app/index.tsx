@@ -51,6 +51,7 @@ import { usePush } from "./-push";
 import { useRecentViews } from "./-recents";
 import { usePlaceSearch } from "./-search";
 import { useProfile } from "./-profile";
+import { useReports } from "./-reports";
 import { useSessions } from "./-sessions";
 import { useSharedList } from "./-shared";
 
@@ -973,6 +974,12 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     place: sessionPlace,
     onSeeLog: () => void navigate({ search: { ...mode, panel: "account", settings: "sessions" } }),
   });
+  // The reports of the waves at the break that is open: decision 067.
+  const reporting = useReports({
+    signedIn,
+    breakId: selectedBreakId,
+    status: sessioning.media.status,
+  });
   // Where a new session was is searched among the account's spots and the breaks.
   const sessionSearch = usePlaceSearch({
     isOn: sessioning.open !== null && !sessioning.open.sessionId && !sessioning.open.place,
@@ -1380,6 +1387,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }}
       search={{ ...searching, isOpen: isSearchOpen, onOpenChange: setIsSearchOpen }}
       sessioning={sessioning}
+      reporting={reporting}
       profiling={profiling}
       sessionSearch={sessionSearch}
       alertSearch={{

@@ -40,13 +40,14 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - \`GET /v1/stations\`: buoys and wind stations with their latest reading, in an area (\`bbox\`), by \`provider\` or by what they measure (\`measures=waves|wind\`).
 - \`GET /v1/stations/{id}\`: one station with its latest reading.
 - \`GET /v1/stations/{id}/readings\`: a station's readings over a period, newest first.
-- \`GET /v1/pages/breaks/{country}/{region}/{slug}\`: what the page of a surf break says, in one call: the break, the nearest buoy and wind station, the next tides, the week from the forecast the instance keeps, and the breaks nearby. \`GET /v1/pages/places\`, \`.../{country}\` and \`.../{country}/{region}\` list the countries, the regions and the breaks that have a page; \`GET /v1/pages/breaks?page=n\` and \`GET /v1/pages/hubs\` give every address, for a sitemap.
+- \`GET /v1/pages/breaks/{country}/{region}/{slug}\`: what the page of a surf break says, in one call: the break, the nearest buoy and wind station, the next tides, the week from the forecast the instance keeps, the reports of the week, and the breaks nearby. \`GET /v1/pages/places\`, \`.../{country}\` and \`.../{country}/{region}\` list the countries, the regions and the breaks that have a page; \`GET /v1/pages/breaks?page=n\` and \`GET /v1/pages/hubs\` give every address, for a sitemap.
 - \`GET /v1/forecasts?latitude=&longitude=&days=\`: hourly waves, wind and weather at a point, up to seven days. \`start\` and \`end\` give a period of one's own in place of \`days\`, and \`stepHours\` one hour in so many.
 - \`GET /v1/tides/extremes\`: high and low tides near a point.
 - \`GET /v1/tides/timeline\`: the tide's height at regular intervals near a point.
 - \`GET /v1/breaks\`: the catalogue of surf breaks, in an area or by name.
 - \`GET /v1/breaks/search\`: surf breaks by their name or their town's.
 - \`GET /v1/breaks/{id}\`: one surf break, with what is known of it.
+- \`GET /v1/reports?breakId=\`: the reports of the last week at a surf break: photos and videos of the waves that accounts sent, checked to have been taken there within two hours and to show the sea, with how big the waves looked and the username they are read under.
 - \`GET /v1/maps/wave-height\`: where to get map tiles of the wave height and of the direction the waves come from, and how to read them.
 - \`GET /v1/health\`: answers anyone, and says since when the API and its worker run.
 

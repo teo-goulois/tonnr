@@ -233,6 +233,8 @@ type SessionMediaFieldProps = {
   disabled: boolean;
   // An operator stopped uploads: what the session keeps stays, and nothing is added.
   paused: boolean;
+  // How many it takes: a session's ten, or a report's four.
+  most?: number;
   onAdd: (files: File[]) => void;
   onRemove: (index: number) => void;
   onRetry: (key: string) => void;
@@ -250,12 +252,13 @@ export function SessionMediaField({
   uploads,
   disabled,
   paused,
+  most = SESSION_MOST_MEDIA,
   onAdd,
   onRemove,
   onRetry,
   onOpen,
 }: SessionMediaFieldProps) {
-  const full = entries.length >= SESSION_MOST_MEDIA;
+  const full = entries.length >= most;
   return (
     <div className="grid gap-xs px-xs py-s">
       <span className="px-xxs">{m.media_title()}</span>

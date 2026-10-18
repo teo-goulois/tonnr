@@ -63,7 +63,7 @@ function OperatorLayout() {
     <AdminShell
       key={account.id}
       account={account}
-      waiting={waiting.spots + waiting.guides}
+      waiting={waiting.spots + waiting.guides + waiting.reports}
       wide={wide}
     >
       <Outlet />

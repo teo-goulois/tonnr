@@ -164,7 +164,7 @@ function Request({ publication, now, onAccept, onRefuse }: RequestProps) {
   );
 }
 
-export type ModerationKind = "spots" | "guides";
+export type ModerationKind = "spots" | "guides" | "reports";
 
 type ModerationPageProps = {
   kind: ModerationKind;
@@ -177,7 +177,8 @@ type ModerationPageProps = {
 
 /**
  * What users ask the instance to show to everyone, for an operator to answer: the spots their
- * owners asked to make public, and what accounts wrote of the breaks.
+ * owners asked to make public, what accounts wrote of the breaks, and the photos and videos of
+ * the waves they sent from them.
  */
 export function ModerationPage({ kind, onKindChange, waiting, children }: ModerationPageProps) {
   const counted = (count: number) =>
@@ -200,6 +201,10 @@ export function ModerationPage({ kind, onKindChange, waiting, children }: Modera
             <TabsTab value="guides">
               {m.moderation_kind_guides()}
               {counted(waiting.guides)}
+            </TabsTab>
+            <TabsTab value="reports">
+              {m.moderation_kind_reports()}
+              {counted(waiting.reports)}
             </TabsTab>
           </TabsList>
         </Tabs>

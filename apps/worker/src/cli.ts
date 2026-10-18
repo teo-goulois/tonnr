@@ -17,7 +17,9 @@ import { ingest, providersOf } from "./ingest";
 import { tellMoments } from "./moments";
 import { keepListedForecasts } from "./pages";
 import { mediaDone, processMedia } from "./media";
+import { createAnalyser } from "@repo/media/analysis";
 import { createStorage } from "@repo/media/storage";
+import { join } from "node:path";
 import { grantOperator, removeOperator } from "./operators";
 import { pushKeys } from "./push-keys";
 
@@ -69,7 +71,17 @@ try {
     // The photos and the videos that wait, on an instance that keeps some: decision 066.
     const storage = createStorage(ENV);
     if (!storage) throw new Error("This instance keeps no media: MEDIA_BUCKET is not set");
-    mediaDone(await Effect.runPromise(processMedia(db, storage)));
+    const analyser = createAnalyser({
+      folder: ENV.MEDIA_MODELS_DIR ?? join(process.cwd(), "models"),
+    });
+    mediaDone(
+      await Effect.runPromise(
+        processMedia(db, storage, {
+          analyser,
+          ...(ENV.REPORT_KEEP_DAYS !== undefined && { keepReportDays: ENV.REPORT_KEEP_DAYS }),
+        }),
+      ),
+    );
   } else if (job === "moments") {
     await Effect.runPromise(tellMoments(db, mailOutOf(ENV), pushOutOf(ENV)));
   } else if (job === "push-keys") {

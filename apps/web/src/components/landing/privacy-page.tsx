@@ -54,12 +54,14 @@ export function PrivacyPage() {
             m.privacy_content_shared(),
             m.privacy_content_public(),
             m.privacy_content_guides(),
+            m.privacy_content_reports(),
             m.privacy_content_sizes(),
             m.privacy_content_friends(),
             m.privacy_content_operator(who),
           ]}
         />
         <p>{m.privacy_content_media()}</p>
+        <p>{m.privacy_reports()}</p>
       </LegalSection>
 
       <LegalSection title={m.privacy_alerts_title()}>
@@ -122,6 +124,7 @@ export function PrivacyPage() {
         <List
           items={[
             m.privacy_keep_account(),
+            m.privacy_keep_reports(),
             m.privacy_keep_counts(),
             m.privacy_keep_mails(),
             m.privacy_keep_consent(),

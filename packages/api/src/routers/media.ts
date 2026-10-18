@@ -3,13 +3,14 @@ import {
   ACCOUNT_MOST_BYTES,
   kindOfType,
   MEDIA_KINDS,
+  MEDIA_PURPOSES,
   MEDIA_MOST_BYTES,
   VIDEO_MOST_SECONDS,
 } from "@repo/config/media";
 import { holdAccounts } from "@repo/db/accounts";
 import { media, mediaPause, mediaSentDay, mediaSentHour } from "@repo/db/schema/media";
 import { surfSession } from "@repo/db/schema/sessions";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { recordAction } from "../actions";
@@ -85,16 +86,18 @@ export const mediaRouter = {
       successStatus: 201,
       summary: "Ask where to send a photo or a video",
       description:
-        "For a session of the caller's log. `contentType` and `bytes` say what will be sent: " +
+        "For a session of the caller's log, or a report at a break: `purpose`. `contentType` " +
+        "and `bytes` say what will be sent: " +
         "the answer is an address that takes that file, of that type and that size, with PUT and " +
         "the headers it gives, for fifteen minutes. Once it is sent, `POST /media/{id}/uploaded` " +
-        "says so. A photo is at most 40 MB, a video 1 GB and a minute long; an account keeps " +
+        "says so. A photo is at most 40 MB, a video 1 GB and a minute long, half a minute for a " +
+        "report; an account keeps " +
         "2 GB once each file is made smaller, and asks for 40 files an hour.",
       tags: ["Media"],
     })
     .input(
       z.object({
-        purpose: z.literal("session"),
+        purpose: z.enum(MEDIA_PURPOSES),
         contentType: z.string().max(100),
         bytes: z.number().int().min(1),
         // How long the video lasts, as the browser read it: one that says too long is refused
@@ -265,9 +268,16 @@ export const mediaRouter = {
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .handler(async ({ input, context }) => {
+      // A report's go with it: `DELETE /reports/{id}`.
       const [deleted] = await context.db
         .delete(media)
-        .where(and(eq(media.id, input.id), eq(media.userId, context.session.user.id)))
+        .where(
+          and(
+            eq(media.id, input.id),
+            eq(media.userId, context.session.user.id),
+            isNull(media.reportId),
+          ),
+        )
         .returning({ id: media.id });
       if (!deleted) throw notFound(input.id);
       return deleted;

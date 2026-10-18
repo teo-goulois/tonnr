@@ -209,6 +209,38 @@ const PAGE: SpotPage = {
   tide: TIDE,
   week: WEEK,
   nearby: NEARBY,
+  // An invented report of the morning, its picture standing for what the bucket would give.
+  reports: [
+    {
+      id: "report-1",
+      breakId: "00000000-0000-4000-8000-000000000001",
+      createdAt: new Date(Date.now() - 50 * 60 * 1000),
+      author: "maelle",
+      waveSize: "chest",
+      setSize: "head",
+      note: null,
+      distanceKm: 0.4,
+      media: [
+        {
+          id: "report-1-photo",
+          kind: "photo",
+          state: "ready",
+          failure: null,
+          width: 2560,
+          height: 1440,
+          durationMs: null,
+          thumb: "/landing/hero-map-light-en.webp",
+          display: "/landing/hero-map-light-en.webp",
+          poster: null,
+          video: null,
+        },
+      ],
+      mine: false,
+      state: "published",
+      reasons: [],
+      flagged: false,
+    },
+  ],
   break: {
     id: "00000000-0000-4000-8000-000000000001",
     name: "La Torche",

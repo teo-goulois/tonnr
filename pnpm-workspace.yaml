@@ -12,6 +12,10 @@ allowBuilds:
   nucleo-ui-fill-duo-18: true
   nucleo-ui-outline-18: true
   core-js: false
+  # Its CPU binaries come in the package: the script fetches CUDA's alone, which no instance
+  # uses. Decision 067.
+  onnxruntime-node: false
+  protobufjs: false
 catalog:
   zod: ^4.5.4
   typescript: ^7.0.2

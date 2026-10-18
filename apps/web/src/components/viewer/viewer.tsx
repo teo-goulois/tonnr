@@ -51,6 +51,9 @@ import { ContributionsPanel } from "@/components/guides/contributions-panel";
 import { LogbookPanel } from "@/components/sessions/logbook-panel";
 import { PlaceSessions } from "@/components/sessions/place-sessions";
 import { SessionSheet } from "@/components/sessions/session-sheet";
+import { ReportSheet } from "@/components/reports/report-sheet";
+import { ReportsPanel } from "@/components/reports/reports-panel";
+import type { Reporting } from "@/components/reports/types";
 import type { SessionPlace, Sessioning } from "@/components/sessions/types";
 import { openCommandPalette } from "@/components/shared/command-palette";
 import type { Guiding } from "@/components/guides/types";
@@ -223,6 +226,9 @@ type ViewerProps = {
   // The account's log of its sessions, and the search that finds where one was: decision 043.
   sessioning: Sessioning;
   sessionSearch: PlaceSearching;
+  // The reports of the waves at the break that is open, and the form one is sent from:
+  // decision 067.
+  reporting: Reporting;
   // What the account said of itself as a surfer, and the questions it is asked once: decision 063.
   profiling: Profiling;
   // The search that finds where a new alert goes, in a sheet of its own.
@@ -502,6 +508,7 @@ export function Viewer({
   adding,
   search,
   sessioning,
+  reporting,
   sessionSearch,
   profiling,
   alertSearch,
@@ -998,6 +1005,24 @@ export function Viewer({
               }
               switching={alerting.switching}
               onSwitch={alerting.onSwitch}
+            />
+          )
+        }
+        reports={
+          drawn.found.data && (
+            <ReportsPanel
+              now={now}
+              signedIn={signedIn}
+              reports={reporting.here}
+              offered={reporting.status?.offered !== false}
+              onSend={() =>
+                drawn.found.data &&
+                reporting.onBegin({ breakId: drawn.found.data.id, name: drawn.found.data.name })
+              }
+              onSignIn={signIn}
+              onCreateAccount={createAccount}
+              onDelete={reporting.onDelete}
+              onFlag={reporting.onFlag}
             />
           )
         }
@@ -2099,6 +2124,12 @@ export function Viewer({
         tide={alertTide}
         onWrite={(written) => alertWriting && writeAlert(alertWriting.place, written)}
         onDone={() => setAlertWriting(null)}
+      />
+      <ReportSheet
+        wide={wide}
+        reporting={reporting}
+        username={account.user?.username}
+        onUsernameSave={account.onUsernameSave}
       />
       <SessionSheet
         wide={wide}

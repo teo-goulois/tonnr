@@ -93,6 +93,8 @@ const ANSWERS_A_KEY = [
   "v1.pages.region",
   "v1.pages.hubs",
   "v1.pages.listed",
+  // The reports of the waves at a break, which everyone reads: decision 067.
+  "v1.reports.list",
   "v1.stations.get",
   "v1.stations.list",
   "v1.stations.readings",
@@ -182,6 +184,10 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.media.sessions",
   "v1.media.status",
   "v1.media.uploaded",
+  // What an account sends of the waves at a break, deletes, or flags: decision 067.
+  "v1.reports.create",
+  "v1.reports.delete",
+  "v1.reports.flag",
   // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
   "v1.push.devices",
   "v1.push.forget",
@@ -485,6 +491,9 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.publications.list",
         "v1.publications.accept",
         "v1.publications.refuse",
+        "v1.reports.waiting",
+        "v1.reports.review",
+        "v1.reports.decide",
         "v1.reviews.list",
         "v1.reviews.accept",
         "v1.reviews.refuse",

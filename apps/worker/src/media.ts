@@ -16,7 +16,18 @@ import {
   mediaSentHour,
   mediaTrash,
 } from "@repo/db/schema/media";
+import { surfReport } from "@repo/db/schema/reports";
+import { surfBreak } from "@repo/db/schema/spots";
+import type { Analyser } from "@repo/media/analysis";
+import { readPhoto, readVideo, type Taken } from "@repo/media/metadata";
 import { PhotoRefused, renderPhoto } from "@repo/media/photo";
+import {
+  checkPosition,
+  checkTime,
+  judgeMedium,
+  judgeReport,
+  type MediaChecks,
+} from "@repo/media/report-checks";
 import type { Storage } from "@repo/media/storage";
 import { DEFAULT_TOOLS, type Tools, VideoRefused, renderVideo } from "@repo/media/video";
 import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -51,6 +62,8 @@ export type MediaRun = {
   failed: number;
   retried: number;
   abandoned: number;
+  // Reports older than the instance keeps them, deleted with their files.
+  purged: number;
   trashed: number;
   // Lists of keys the bucket would not delete this time, and lists left for the next runs.
   trashFailed: number;
@@ -71,6 +84,7 @@ async function claimNext(db: Database, claim: string) {
         media.id,
         sql`(select ${media.id} from ${media}
           where ${media.state} = 'uploaded'
+            and (${media.purpose} = 'session' or ${media.reportId} is not null)
             and ${media.attempts} < ${MOST_ATTEMPTS}
             and (${media.claimedUntil} is null or ${media.claimedUntil} < now())
           order by ${media.uploadedAt} limit 1 for update skip locked)`,
@@ -97,7 +111,16 @@ async function render(
   // Each key is added as it is written, so that a failure afterwards deletes what was written.
   written: string[],
   signal?: AbortSignal,
-): Promise<{ files: MediaFiles; width: number; height: number; durationMs: number | null }> {
+): Promise<{
+  files: MediaFiles;
+  width: number;
+  height: number;
+  durationMs: number | null;
+  // For a report's: what the file said of where and when it was taken, and what the analysis
+  // looks at.
+  taken: Taken | null;
+  samples: Uint8Array[];
+}> {
   const held = await storage.head(row.uploadKey);
   if (!held) throw new Changed();
   if (held.bytes !== row.uploadBytes || held.bytes > MEDIA_MOST_BYTES[row.kind]) {
@@ -128,8 +151,10 @@ async function render(
     return { key, contentType, bytes: body.byteLength, ...size } satisfies MediaFile;
   };
 
+  const forReport = row.purpose === "report";
   if (row.kind === "photo") {
-    const made = await renderPhoto(await readFile(original));
+    const bytes = await readFile(original);
+    const made = await renderPhoto(bytes);
     const display = await put(
       "display.avif",
       made.display.body,
@@ -142,6 +167,8 @@ async function render(
       width: display.width,
       height: display.height,
       durationMs: null,
+      taken: forReport ? await readPhoto(bytes) : null,
+      samples: forReport ? [made.sample] : [],
     };
   }
 
@@ -150,6 +177,7 @@ async function render(
     // A video kept for a session keeps its sound. One shown to everyone does not: it would carry
     // what people said beside the camera.
     audio: row.purpose === "session",
+    frames: forReport,
     tools,
     ...(signal && { signal }),
   });
@@ -161,6 +189,8 @@ async function render(
     width: video.width,
     height: video.height,
     durationMs: made.video.durationMs,
+    taken: forReport ? readVideo(made.probed) : null,
+    samples: made.frames,
   };
 }
 
@@ -178,6 +208,84 @@ async function forget(db: Database, storage: Storage, keys: readonly string[]) {
 }
 
 /**
+ * What a medium of a report comes to: where and when it was taken, from the file or else from
+ * the phone, and, when both fit, what the analysis sees in it. Null for a medium of no report.
+ */
+async function checksOf(
+  db: Database,
+  row: Row,
+  taken: Taken | null,
+  samples: readonly Uint8Array[],
+  analyser: Analyser | undefined,
+): Promise<MediaChecks | null> {
+  if (!row.reportId) return null;
+  const [report] = await db
+    .select({
+      sentAt: surfReport.createdAt,
+      deviceLatitude: surfReport.deviceLatitude,
+      deviceLongitude: surfReport.deviceLongitude,
+      deviceAccuracyM: surfReport.deviceAccuracyM,
+      offsetMinutes: surfReport.offsetMinutes,
+      latitude: surfBreak.latitude,
+      longitude: surfBreak.longitude,
+    })
+    .from(surfReport)
+    .innerJoin(surfBreak, eq(surfBreak.id, surfReport.breakId))
+    .where(eq(surfReport.id, row.reportId));
+  if (!report) return null;
+  const device =
+    report.deviceLatitude !== null && report.deviceLongitude !== null
+      ? {
+          latitude: report.deviceLatitude,
+          longitude: report.deviceLongitude,
+          accuracyM: report.deviceAccuracyM,
+        }
+      : null;
+  const position = checkPosition(taken?.point ?? null, device, report);
+  const time = checkTime(taken?.time ?? null, {
+    at: report.sentAt,
+    offsetMinutes: report.offsetMinutes,
+    positionSource: position.source,
+  });
+  // The analysis looks only at what was taken there and lately: the rest is refused already.
+  let analysis = null;
+  if (!position.reason && !time.reason && analyser && samples.length > 0) {
+    // A model that cannot be loaded leaves the medium to an operator.
+    analysis = await analyser.analyse(samples).catch(() => null);
+  }
+  return judgeMedium(position, time, analysis);
+}
+
+/**
+ * Decides a report once each of its media is made or refused: shown, left to an operator, or
+ * refused. The phone's position is kept only where it placed a medium within the radius. A
+ * report an operator or the flags already moved is not decided again.
+ */
+export async function settleReport(db: Database, reportId: string) {
+  const rows = await db
+    .select({ state: media.state, checks: media.checks })
+    .from(media)
+    .where(eq(media.reportId, reportId));
+  if (rows.some((row) => row.state === "awaiting_upload" || row.state === "uploaded")) return null;
+  const verdict = judgeReport(
+    rows.map((row) => (row.state === "ready" && row.checks ? row.checks : null)),
+  );
+  const placed = rows.some(
+    (row) => row.checks?.position.source === "device" && row.checks.position.reason === null,
+  );
+  const [settled] = await db
+    .update(surfReport)
+    .set({
+      state: verdict,
+      checkedAt: new Date(),
+      ...(!placed && { deviceLatitude: null, deviceLongitude: null, deviceAccuracyM: null }),
+    })
+    .where(and(eq(surfReport.id, reportId), eq(surfReport.state, "checking")))
+    .returning({ id: surfReport.id });
+  return settled ? verdict : null;
+}
+
+/**
  * Makes of one medium what is shown, and says so in its row: only while the row is still this
  * worker's, so that one deleted or taken by another meanwhile keeps none of it.
  */
@@ -187,6 +295,7 @@ async function processOne(
   row: Row,
   claim: string,
   tools: Tools,
+  analyser: Analyser | undefined,
   signal?: AbortSignal,
 ): Promise<"ready" | "failed" | "retried"> {
   const mine = and(eq(media.id, row.id), eq(media.claim, claim), eq(media.state, "uploaded"));
@@ -194,6 +303,7 @@ async function processOne(
   const written: string[] = [];
   try {
     const made = await render(storage, row, folder, tools, written, signal);
+    const checks = await checksOf(db, row, made.taken, made.samples, analyser);
     const [kept] = await db
       .update(media)
       .set({
@@ -203,6 +313,7 @@ async function processOne(
         width: made.width,
         height: made.height,
         durationMs: made.durationMs,
+        checks,
         readyAt: new Date(),
         claim: null,
         claimedUntil: null,
@@ -214,6 +325,7 @@ async function processOne(
       return "retried";
     }
     await storage.remove([row.uploadKey]).catch(() => {});
+    if (row.reportId) await settleReport(db, row.reportId);
     return "ready";
   } catch (error) {
     await forget(db, storage, written);
@@ -239,6 +351,7 @@ async function processOne(
       .set({ state: "failed", failure: refused, claim: null, claimedUntil: null })
       .where(mine);
     await storage.remove([row.uploadKey]).catch(() => {});
+    if (row.reportId) await settleReport(db, row.reportId);
     return "failed";
   } finally {
     await rm(folder, { recursive: true, force: true });
@@ -257,8 +370,11 @@ async function giveUp(db: Database, storage: Storage) {
         or(isNull(media.claimedUntil), lt(media.claimedUntil, sql`now()`)),
       ),
     )
-    .returning({ uploadKey: media.uploadKey });
+    .returning({ uploadKey: media.uploadKey, reportId: media.reportId });
   if (gone.length > 0) await storage.remove(gone.map((row) => row.uploadKey)).catch(() => {});
+  for (const reportId of new Set(gone.flatMap((row) => (row.reportId ? [row.reportId] : [])))) {
+    await settleReport(db, reportId);
+  }
   return gone.length;
 }
 
@@ -276,7 +392,8 @@ async function abandonUnused(db: Database, now: number) {
         media.id,
         sql`(select ${media.id} from ${media}
           where ${media.createdAt} < ${before}
-            and (${media.sessionId} is null or ${media.state} = 'awaiting_upload')
+            and ((${media.sessionId} is null and ${media.reportId} is null)
+              or ${media.state} = 'awaiting_upload')
           for update skip locked)`,
       ),
     )
@@ -290,6 +407,19 @@ async function pruneCounts(db: Database, now: number) {
   await db
     .delete(mediaSentDay)
     .where(lt(mediaSentDay.day, new Date(now - 7 * DAY_MS).toISOString().slice(0, 10)));
+}
+
+/**
+ * Deletes the reports older than an instance keeps them, with their media, whose files go to the
+ * trash. Téo's instance keeps them all for now: the setting is not set. Decision 067.
+ */
+async function purgeReports(db: Database, now: number, days: number) {
+  const before = new Date(now - days * DAY_MS);
+  const gone = await db
+    .delete(surfReport)
+    .where(lt(surfReport.createdAt, before))
+    .returning({ id: surfReport.id });
+  return gone.length;
 }
 
 /** Deletes from the bucket the keys nothing keeps, a few hundred at a time. */
@@ -323,7 +453,14 @@ async function emptyTrash(db: Database, storage: Storage) {
 export async function runMedia(
   db: Database,
   storage: Storage,
-  options: { tools?: Tools; signal?: AbortSignal; now?: () => number } = {},
+  options: {
+    tools?: Tools;
+    analyser?: Analyser;
+    // How many days a report is kept, when the instance deletes them: decision 067.
+    keepReportDays?: number;
+    signal?: AbortSignal;
+    now?: () => number;
+  } = {},
 ): Promise<MediaRun> {
   const now = options.now ?? Date.now;
   const tools = options.tools ?? DEFAULT_TOOLS;
@@ -333,6 +470,7 @@ export async function runMedia(
     failed: 0,
     retried: 0,
     abandoned: 0,
+    purged: 0,
     trashed: 0,
     trashFailed: 0,
     trashLeft: 0,
@@ -343,26 +481,33 @@ export async function runMedia(
   while (now() - started < RUN_MS && !options.signal?.aborted) {
     const row = await claimNext(db, claim);
     if (!row) break;
-    run[await processOne(db, storage, row, claim, tools, options.signal)] += 1;
+    run[await processOne(db, storage, row, claim, tools, options.analyser, options.signal)] += 1;
   }
   run.abandoned = await abandonUnused(db, now());
   await pruneCounts(db, now());
+  if (options.keepReportDays !== undefined) {
+    run.purged = await purgeReports(db, now(), options.keepReportDays);
+  }
   Object.assign(run, await emptyTrash(db, storage));
   return run;
 }
 
 /** The job of the scheduler, which runs until it is stopped and is given its signal. */
-export const processMedia = (db: Database, storage: Storage, tools?: Tools) =>
+export const processMedia = (
+  db: Database,
+  storage: Storage,
+  options: { analyser?: Analyser; keepReportDays?: number; tools?: Tools } = {},
+) =>
   Effect.tryPromise({
-    try: (signal) => runMedia(db, storage, { signal, ...(tools && { tools }) }),
+    try: (signal) => runMedia(db, storage, { signal, ...options }),
     catch: (cause) => new StoreError({ provider: "media", cause }),
   });
 
 /** What a run says it did. */
 export function mediaDone(run: MediaRun): Done {
-  if (run.ready + run.failed + run.abandoned + run.trashed > 0) {
+  if (run.ready + run.failed + run.abandoned + run.purged + run.trashed > 0) {
     console.log(
-      `media: ${run.ready} ready, ${run.failed} failed, ${run.retried} to try again, ${run.abandoned} never used, ${run.trashed} files deleted (${run.trashLeft} lists left)`,
+      `media: ${run.ready} ready, ${run.failed} failed, ${run.retried} to try again, ${run.abandoned} never used, ${run.purged} reports past their days, ${run.trashed} files deleted (${run.trashLeft} lists left)`,
     );
   }
   return { counts: { ...run }, degraded: run.retried > 0 || run.trashFailed > 0 };

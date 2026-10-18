@@ -5,3 +5,6 @@ node_modules/
 !.env.schema
 *.log
 /src/env.ts
+
+# The models `scripts/fetch-models.ts` puts there: decision 067.
+/models

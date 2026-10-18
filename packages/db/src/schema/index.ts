@@ -12,3 +12,4 @@ export * from "./sessions";
 export * from "./catalogue";
 export * from "./profile";
 export * from "./media";
+export * from "./reports";

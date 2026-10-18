@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { type MediaChecks, surfReport } from "./reports";
 import { surfSession } from "./sessions";
 
 // The photos and the videos an account sends, and the files of them the bucket keeps:
@@ -53,8 +54,8 @@ export type MediaFile = {
 export type MediaFiles = Partial<Record<"thumb" | "display" | "poster" | "video", MediaFile>>;
 
 /**
- * A photo or a video an account sends. It is sent for a purpose, then belongs to the session it
- * was given to, and goes with it. While it belongs to nothing it waits a day for the form it was
+ * A photo or a video an account sends. It is sent for a purpose, then belongs to the session or
+ * the report it was given to, and goes with it. While it belongs to nothing it waits a day for the form it was
  * sent from, then goes. A row that goes leaves its keys in `media_trash`, which the database
  * writes itself, so that the worker deletes the files whichever way it went.
  */
@@ -69,6 +70,8 @@ export const media = pgTable(
     kind: text("kind").$type<"photo" | "video">().notNull(),
     state: text("state").$type<MediaState>().notNull().default("awaiting_upload"),
     sessionId: text("session_id").references(() => surfSession.id, { onDelete: "cascade" }),
+    // Or the report it shows the waves of: decision 067.
+    reportId: text("report_id").references(() => surfReport.id, { onDelete: "cascade" }),
     // Its place among the media of what it belongs to, from 0.
     position: smallint("position").notNull().default(0),
     // Where the browser sends the file, which nothing ever reads from but the worker, with what
@@ -84,6 +87,9 @@ export const media = pgTable(
     height: integer("height"),
     durationMs: integer("duration_ms"),
     failure: text("failure").$type<MediaFailure>(),
+    // What was checked of a medium of a report: where and when it was taken, and what it shows.
+    // Null for a session's, and until the worker checked it.
+    checks: jsonb("checks").$type<MediaChecks>(),
     // The worker that took it, until when, and how many times one did.
     claim: text("claim"),
     claimedUntil: timestamp("claimed_until", { withTimezone: true }),
@@ -95,11 +101,13 @@ export const media = pgTable(
   (table) => [
     index("media_userId_idx").on(table.userId),
     index("media_sessionId_idx").on(table.sessionId),
+    index("media_reportId_idx").on(table.reportId),
     // What waits for the worker, the oldest first.
     index("media_waiting_idx")
       .on(table.uploadedAt)
       .where(sql`${table.state} = 'uploaded'`),
     check("media_session_purpose", sql`${table.sessionId} is null or ${table.purpose} = 'session'`),
+    check("media_report_purpose", sql`${table.reportId} is null or ${table.purpose} = 'report'`),
   ],
 );
 

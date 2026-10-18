@@ -33,6 +33,8 @@ type BreakPanelProps = PointConditionsProps & {
   // for from elsewhere: the tab then comes in view. Decision 064.
   alerts?: ReactNode;
   alertAsked?: number;
+  // What accounts showed of the waves there lately, for the tab after the forecast: decision 067.
+  reports?: ReactNode;
 };
 
 /** The week and the tide at a surf break of the catalogue, and what is written of the break. */
@@ -55,10 +57,13 @@ export function BreakPanel({
   sessions,
   alerts,
   alertAsked = 0,
+  reports,
 }: BreakPanelProps) {
-  // The address says whether the guide is in view. The alerts and the sessions are tabs the
-  // panel keeps to itself: only an alert asked for from elsewhere leads to one.
-  const [kept, setKept] = useState<"alert" | "sessions" | null>(alertAsked > 0 ? "alert" : null);
+  // The address says whether the guide is in view. The alerts, the sessions and the reports are
+  // tabs the panel keeps to itself: only an alert asked for from elsewhere leads to one.
+  const [kept, setKept] = useState<"alert" | "sessions" | "reports" | null>(
+    alertAsked > 0 ? "alert" : null,
+  );
   const asked = useRef(alertAsked);
   useEffect(() => {
     if (alertAsked === asked.current) return;
@@ -83,11 +88,12 @@ export function BreakPanel({
       spot={found.data}
       tab={kept ?? (guideAsked ? "guide" : "forecast")}
       onTabChange={(next: DetailsTab) => {
-        setKept(next === "sessions" || next === "alert" ? next : null);
+        setKept(next === "sessions" || next === "alert" || next === "reports" ? next : null);
         onGuideAsked(next === "guide");
       }}
       alert={alerts}
       sessions={sessions}
+      reports={reports}
       now={now}
       forecast={forecast}
       tides={tides}

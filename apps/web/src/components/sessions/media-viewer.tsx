@@ -12,6 +12,8 @@ import type { MediaItem } from "../viewer/types";
 
 type MediaViewerProps = {
   items: readonly MediaItem[];
+  // What the viewer is named for a screen reader: a session's photos unless it says.
+  label?: string;
   // The one shown, or null while the viewer is closed.
   shown: string | null;
   onShow: (id: string | null) => void;
@@ -54,7 +56,7 @@ function Slide({ item }: { item: MediaItem }) {
  * The viewer: the photo or the video over the whole screen, the arrows and a slide of a finger to
  * go from one to the next, the arrow keys while it is open, and how many there are.
  */
-export function MediaViewer({ items, shown, onShow }: MediaViewerProps) {
+export function MediaViewer({ items, label, shown, onShow }: MediaViewerProps) {
   const ready = items.filter((item) => item.state === "ready");
   const index = ready.findIndex((item) => item.id === shown);
   const item = index >= 0 ? ready[index] : undefined;
@@ -67,7 +69,7 @@ export function MediaViewer({ items, shown, onShow }: MediaViewerProps) {
   return (
     <Dialog open={item !== undefined} onOpenChange={(open) => !open && onShow(null)}>
       <DialogScreen
-        aria-label={m.media_viewer_title()}
+        aria-label={label ?? m.media_viewer_title()}
         // Dark in both themes: the theme's own dark values, scoped to the viewer.
         className="dark grid grid-rows-[auto_1fr] bg-neutral-1 text-neutral-10"
         onKeyDown={(event) => {
