@@ -187,6 +187,12 @@ const SEA_LAYER = "sea:";
 const SEA_FADE_MS = 250;
 // The source of the basemap, whose tiles say where the water is.
 const BASEMAP_SOURCE = "openmaptiles";
+// How wide a name may run before it takes a second line, in letters' heights. The basemap's own
+// width of 8 cut a town such as "Le Mont-Saint-Michel" after a hyphen, onto two lines: the names
+// of the basemap are given this width, and a break's or a spot's name a little less, for it is
+// bold and stands beside a disc.
+const BASEMAP_NAME_WIDTH = 14;
+const PLACE_NAME_WIDTH = 12;
 // More markers than this hide the map, and the dots under them still say where the stations are.
 const MAX_MARKERS = 140;
 const BUOY_BOX = { width: 104, height: 32 };
@@ -890,6 +896,16 @@ export function StationMap({
     const instance = map.current;
     if (!instance || styleVersion === 0 || instance.getSource("stations")) return;
 
+    for (const layer of instance.getStyle().layers) {
+      if (
+        layer.type === "symbol" &&
+        layer.source === BASEMAP_SOURCE &&
+        layer.layout?.["text-field"]
+      ) {
+        instance.setLayoutProperty(layer.id, "text-max-width", BASEMAP_NAME_WIDTH);
+      }
+    }
+
     const surface = themeColor("--neutral-1");
     const ink = themeColor("--neutral-10");
     instance.addSource("stations", { type: "geojson", data: stationFeatures([]) });
@@ -977,8 +993,8 @@ export function StationMap({
         "text-variable-anchor": ["top", "bottom", "left", "right"],
         // Clear of the disc, in letters' heights.
         "text-radial-offset": byBreakDisc((disc) => (disc.radius + 5) / 11),
-        "text-justify": "auto",
-        "text-max-width": 8,
+        "text-justify": "center",
+        "text-max-width": PLACE_NAME_WIDTH,
         // Where two names would meet, the one of a break looked at lately is kept.
         "symbol-sort-key": ["case", isRecent, 0, 1],
       },
@@ -1003,8 +1019,8 @@ export function StationMap({
         "text-radial-offset": byBreakDisc(
           (disc) => (Math.max(RECENT_RADIUS, disc.radius) + 5) / 11,
         ),
-        "text-justify": "auto",
-        "text-max-width": 8,
+        "text-justify": "center",
+        "text-max-width": PLACE_NAME_WIDTH,
       },
       paint: {
         "text-color": ink,
@@ -1038,8 +1054,8 @@ export function StationMap({
         "text-size": 11,
         "text-variable-anchor": ["top", "bottom", "left", "right"],
         "text-radial-offset": byBreakDisc((disc) => (Math.max(SPOT_RADIUS, disc.radius) + 5) / 11),
-        "text-justify": "auto",
-        "text-max-width": 8,
+        "text-justify": "center",
+        "text-max-width": PLACE_NAME_WIDTH,
       },
       paint: {
         "text-color": ink,
