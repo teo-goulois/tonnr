@@ -2,6 +2,7 @@ import { APP_NAME } from "@repo/config/app";
 import { Button } from "@repo/ui/components/ui/button";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
 import { ChevronRightIcon, LogOutIcon } from "@repo/ui/icon";
+import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -328,6 +329,45 @@ export function AccountPanel({
           </ul>
         </Section>
       )}
+
+      {/* The pages beside the app, which the map otherwise leads to only through the palette. */}
+      <Section title={m.account_about({ app: APP_NAME })}>
+        <Link
+          to="/"
+          className="focus-ring -mx-xs flex min-h-11 items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+        >
+          <span className="grid gap-xxs">
+            <span>{m.account_about_home({ app: APP_NAME })}</span>
+            <span className="text-s text-neutral-7">{m.account_about_home_hint()}</span>
+          </span>
+          <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+        </Link>
+        <Link
+          to="/learn"
+          className="focus-ring -mx-xs flex min-h-11 items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+        >
+          <span>{m.learn_footer()}</span>
+          <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+        </Link>
+        <Link
+          to="/sources"
+          className="focus-ring -mx-xs flex min-h-11 items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+        >
+          <span>{m.page_sources()}</span>
+          <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+        </Link>
+        <p className="flex flex-wrap gap-x-m gap-y-xs text-s text-neutral-7">
+          <Link to="/terms" className="focus-ring rounded-(--radius-xs) hover:text-neutral-10">
+            {m.terms_title()}
+          </Link>
+          <Link to="/privacy" className="focus-ring rounded-(--radius-xs) hover:text-neutral-10">
+            {m.privacy_title()}
+          </Link>
+          <Link to="/legal" className="focus-ring rounded-(--radius-xs) hover:text-neutral-10">
+            {m.legal_title()}
+          </Link>
+        </p>
+      </Section>
 
       <AnalyticsSetting />
 
