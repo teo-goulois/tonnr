@@ -572,7 +572,7 @@ export function PrototypeAlertEditor({
             })
           }
         />
-        <span className="-mt-xs flex justify-between text-xs text-neutral-7 tabular-nums">
+        <span className="flex justify-between text-xs text-neutral-7 tabular-nums">
           <span>{scale.unit(formatNumber(ends[0], scale.digits))}</span>
           <span>{scale.unit(formatNumber(ends[1], scale.digits))}</span>
         </span>
