@@ -393,6 +393,22 @@ Open the admin's address only once the command has said it is done. Cloudflare m
 
 To run it on your machine instead, against an API on your machine, set `VITE_SERVER_URL` in `apps/admin/.env` and run `pnpm run dev:admin`: it answers at `http://localhost:3002`, which the API's `ADMIN_ORIGIN` then names.
 
+### A private research catalogue
+
+The Catalogue's **Private sources** tab can read a separate research database.
+Set `CATALOGUE_DATABASE_URL` in the API's runtime environment only, using a
+reader-only PostgreSQL role. Do not set it in the admin, web app or their build
+environments. Without the setting the tab says that the private catalogue is not
+configured; the rest of the instance still works.
+
+The expected `catalogue` schema has its own migrations and is managed separately.
+Tonnr's application migrations do not create it and must never be pointed at this
+database. Keep `DATABASE_URL` set to the application database. The view reads the
+private catalogue through operator-only RPC procedures, without a public REST
+route or MCP tool. It does not fetch providers, change records or import them into
+the public catalogue. [Decision 065](decisions/065-private-catalogue-in-the-admin.md)
+records this boundary.
+
 - The admin signs in with an account's address and password, as the web app does. It creates no account.
 - An account that is no operator signs in to it too. It sees the console: the developer accounts you made it a member of, from a developer account's page. An account that is a member of none is shown its identifier, which is what you need to add it. So the people you give keys to may open the admin's address, and nothing of what runs the instance answers them.
 - Its address and the API's must belong to one site, such as `admin.example.org` and `api.example.org`. The session cookie is the API's, and a browser does not send it from a page of another site. An admin on your machine therefore runs an API on your machine. Do not name an address of your machine in the `ADMIN_ORIGIN` of an instance online: whatever runs there would run the instance.

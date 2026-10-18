@@ -15,7 +15,14 @@ export const Route = createFileRoute("/_operator/catalogue")({
 // propose to it. Decision 049.
 function CatalogueLayout() {
   const navigate = useNavigate();
-  const isImport = useLocation({ select: (location) => location.pathname.endsWith("/import") });
+  const part = useLocation({
+    select: (location) =>
+      location.pathname.endsWith("/sources")
+        ? "sources"
+        : location.pathname.endsWith("/import")
+          ? "import"
+          : "breaks",
+  });
   const waiting = useQuery(
     orpc.v1.candidates.list.queryOptions({ input: { status: "waiting" }, meta: { quiet: true } }),
   );
@@ -26,9 +33,16 @@ function CatalogueLayout() {
       <div className="flex flex-wrap items-center justify-between gap-s">
         <h1 className="text-l font-medium">{m.nav_catalogue()}</h1>
         <Tabs
-          value={isImport ? "import" : "breaks"}
+          value={part}
           onValueChange={(value) =>
-            void navigate({ to: value === "import" ? "/catalogue/import" : "/catalogue" })
+            void navigate({
+              to:
+                value === "sources"
+                  ? "/catalogue/sources"
+                  : value === "import"
+                    ? "/catalogue/import"
+                    : "/catalogue",
+            })
           }
         >
           <TabsList aria-label={m.catalogue_parts()}>
@@ -42,6 +56,7 @@ function CatalogueLayout() {
                 </Badge>
               )}
             </TabsTab>
+            <TabsTab value="sources">{m.catalogue_tab_sources()}</TabsTab>
           </TabsList>
         </Tabs>
       </div>

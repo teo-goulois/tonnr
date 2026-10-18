@@ -5,7 +5,16 @@ import { createApp } from "./app";
 import { createAnalytics } from "./analytics";
 import { ENV } from "./env.server";
 import { readRevision } from "./revision";
-import { auth, db, forecasts, ideas, places, usage, verification } from "./services";
+import {
+  auth,
+  db,
+  forecasts,
+  ideas,
+  places,
+  privateCatalogue,
+  usage,
+  verification,
+} from "./services";
 
 // The moment the process started, which the migrations may have followed by minutes: the state
 // of the instance shows it, to tell whether a deployment took.
@@ -24,6 +33,7 @@ const app = createApp({
   places,
   verification,
   ideas,
+  privateCatalogue,
   pushKey,
   startedAt,
   revision,
@@ -54,6 +64,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
       // The requests are answered: what they counted is written before the database is left.
       await usage.stop();
       await analytics?.stop().catch(() => {});
+      await privateCatalogue?.close().catch(() => {});
       await db.$client.end();
       process.exit(0);
     });

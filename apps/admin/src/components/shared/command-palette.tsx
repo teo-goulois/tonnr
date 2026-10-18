@@ -159,6 +159,11 @@ export function CommandPalette() {
           run: () => void navigate({ to: "/catalogue/import" }),
         },
         {
+          value: `${m.nav_catalogue()} ${m.catalogue_tab_sources()} private sources versions research provenance`,
+          label: `${m.nav_catalogue()} : ${m.catalogue_tab_sources()}`,
+          run: () => void navigate({ to: "/catalogue/sources" }),
+        },
+        {
           value: `${m.catalogue_filter_close()} duplicates close pairs doublons`,
           label: `${m.nav_catalogue()} : ${m.catalogue_filter_close()}`,
           run: () => void navigate({ to: "/catalogue", search: { filter: "close" } }),

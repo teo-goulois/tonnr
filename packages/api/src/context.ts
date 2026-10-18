@@ -6,6 +6,7 @@ import type { Database } from "@repo/db";
 import type { Analytics, AnalyticsRequest } from "./analytics";
 import type { Ideas } from "./ideas";
 import type { Places } from "./places";
+import type { PrivateCatalogue } from "./private-catalogue";
 import type { Usage, Way } from "./usage";
 
 export type Context = {
@@ -44,6 +45,8 @@ export type Context = {
   forecasts: Forecasts;
   // The search of places by name, which asks the service the instance names. Decision 030.
   places: Places;
+  // Optional separate reader of private provider research. Only admin RPC procedures use it.
+  privateCatalogue?: PrivateCatalogue | undefined;
   // The process that answers, as the state of the instance shows it: when it started, and the
   // web app's address as it holds it. Both are the server's to say.
   // `revision` is the commit the program was built from, null or left out where it does not

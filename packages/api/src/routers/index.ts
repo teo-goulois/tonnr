@@ -28,6 +28,7 @@ import { pagesRouter } from "./pages";
 import { placesRouter } from "./places";
 import { preferencesRouter } from "./preferences";
 import { profileRouter } from "./profile";
+import { privateCatalogueRouter } from "./private-catalogue";
 import { publicationsRouter } from "./publications";
 import { reviewsRouter } from "./reviews";
 import { pushRouter } from "./push";
@@ -72,6 +73,7 @@ export const v1Router = {
   pages: pagesRouter,
   places: placesRouter,
   profile: profileRouter,
+  privateCatalogue: privateCatalogueRouter,
   publications: publicationsRouter,
   push: pushRouter,
   reviews: reviewsRouter,

@@ -34,3 +34,11 @@ export type CandidateSummary = CandidateList["candidates"][number];
 export type CandidateStatus = CandidateSummary["status"];
 export type CandidatePage = Answer<V1["candidates"]["get"]>;
 export type Candidate = CandidatePage["candidate"];
+// Private source identities and export occurrences, separate from the product's surf breaks.
+export type PrivateSourceSummary = Answer<V1["privateCatalogue"]["summary"]>;
+export type PrivateSourceList = Answer<V1["privateCatalogue"]["records"]>;
+export type PrivateSourceRecord = PrivateSourceList["items"][number];
+export type PrivateSourceDetail = Answer<V1["privateCatalogue"]["record"]>;
+export type PrivateSourceSnapshot = Answer<V1["privateCatalogue"]["snapshot"]>;
+export type PrivateSourceClaims = Answer<V1["privateCatalogue"]["claims"]>;
+export type PrivateSourceResources = Answer<V1["privateCatalogue"]["resources"]>;

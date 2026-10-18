@@ -40,6 +40,8 @@ type Services = {
   verification: Context["verification"];
   // What sends the ideas sent from the landing. Without it, none is sent.
   ideas?: Context["ideas"];
+  // The separate private catalogue, read only by the admin's operators.
+  privateCatalogue?: Context["privateCatalogue"];
   // The public key of the pair the instance sends push with, as `pushKeyOf` checked it. Without
   // it the instance sends none, and takes no subscription.
   pushKey?: string | undefined;
@@ -99,6 +101,7 @@ export function createApp({
   places,
   verification,
   ideas,
+  privateCatalogue,
   pushKey,
   startedAt = new Date(),
   revision = null,
@@ -179,7 +182,10 @@ export function createApp({
     return answer;
   });
 
-  const v1Handler = new OpenAPIHandler(v1Router, {
+  // OpenAPI infers routes even for procedures without `.route()`. Private research is
+  // reachable only through the admin's RPC client, so leave it out of this handler itself.
+  const { privateCatalogue: _rpcOnlyCatalogue, ...httpRouter } = v1Router;
+  const v1Handler = new OpenAPIHandler(httpRouter, {
     plugins: [
       new OpenAPIReferencePlugin({
         schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -260,6 +266,7 @@ export function createApp({
       places,
       verification,
       ideas,
+      privateCatalogue,
       reply: {} as Context["reply"],
       server: { startedAt, webOrigin, revision, pushKey },
     };

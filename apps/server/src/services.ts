@@ -1,6 +1,7 @@
 import { createForecasts } from "@repo/api/forecasts";
 import { createIdeas } from "@repo/api/ideas";
 import { createPlaces } from "@repo/api/places";
+import { createPrivateCatalogue } from "@repo/api/private-catalogue";
 import { createUsage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { createVerification } from "@repo/auth/verification";
@@ -22,3 +23,7 @@ export const usage = createUsage(db);
 export const forecasts = createForecasts(db);
 // Finds a place by its name, through the search service the settings name.
 export const places = createPlaces(ENV);
+// Separate from the application database: no app migration, ingestion or write uses it.
+export const privateCatalogue = ENV.CATALOGUE_DATABASE_URL
+  ? createPrivateCatalogue({ DATABASE_URL: ENV.CATALOGUE_DATABASE_URL })
+  : undefined;
