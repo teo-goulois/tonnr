@@ -12,7 +12,6 @@ import type { Written } from "./alert-words";
 import type { TidePoint } from "./tide-band";
 import type { Alerting } from "./types";
 // PROTOTYPE: the variants of branch prototype/alert-conditions.
-import { ProtoBar } from "./prototype/proto-bar";
 import { PrototypeAlertEditor } from "./prototype/proto-editor";
 import { useProto } from "./prototype/state";
 
@@ -94,7 +93,6 @@ export function AlertSheet({
       opensRaised
     >
       {/* PROTOTYPE */}
-      {shown && isReady && <ProtoBar />}
       {shown && isReady && proto.on && proto.editor === "proto" ? (
         <PrototypeAlertEditor
           key={shown.key}

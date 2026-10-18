@@ -41,6 +41,9 @@ function readInitial(): ProtoChoice {
   }
   const or = params.get("or");
   if (or === "1" || or === "2" || or === "3") choice.or = or;
+  // Téo's picks, 2026-10-18: the tide's cycle and a "+" after each value. The bar that chose
+  // the variants is gone, so the prototype shows those alone.
+  if (choice.on) Object.assign(choice, { editor: "proto", tide: "d", or: "3" });
   if (choice.on) sessionStorage.setItem(KEY, JSON.stringify(choice));
   return choice;
 }
