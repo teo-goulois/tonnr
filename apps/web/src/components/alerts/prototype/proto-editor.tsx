@@ -130,6 +130,7 @@ function Slot({
   isWide = false,
   open = false,
   onAny,
+  value,
   children,
 }: {
   label: string;
@@ -141,6 +142,9 @@ function Slot({
   open?: boolean;
   // Leaves the part asking nothing: what "Peu importe" does. A part that always asks has none.
   onAny?: () => void;
+  // The value alone, said big at the top of the popover, where the title says what it is of.
+  // A long one, the tide's, wraps there and does not move.
+  value?: { said: string; long?: boolean };
   children: ReactNode;
 }) {
   // While its part is open, the sentence keeps the words it had: what is chosen there would
@@ -174,11 +178,17 @@ function Slot({
       >
         {withAfter(kept?.shown ?? shown, kept ? kept.after : after)}
       </PopoverTrigger>
-      <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
+      <PopoverPopup
+        className={cn("grid grid-cols-[minmax(0,1fr)] gap-s text-s", isWide ? "w-80" : "w-72")}
+      >
         <div className="grid gap-xxs">
           <PopoverTitle className="text-s text-neutral-7">{label}</PopoverTitle>
           {/* The sentence keeps its words while the part is open: the value moves here. */}
-          <MorphText className="text-l font-medium text-pretty">{words}</MorphText>
+          {value?.long ? (
+            <span className="text-m font-medium text-pretty">{value.said}</span>
+          ) : (
+            <MorphText className="max-w-full text-l font-medium">{value?.said ?? words}</MorphText>
+          )}
         </div>
         {children}
         <div className="flex gap-xs">
@@ -553,6 +563,7 @@ export function PrototypeAlertEditor({
         open={open}
         words={isSet ? said(rangeWords(key, value)) : any}
         onAny={() => apply({ criteria: { ...one.criteria, [key]: undefined } })}
+        value={{ said: isSet ? rangeWords(key, value) : "Peu importe" }}
       >
         <Slider
           value={thumbs}
@@ -605,6 +616,7 @@ export function PrototypeAlertEditor({
         label={label}
         open={open}
         onAny={() => setArc(undefined)}
+        value={{ said: value ? arcWords(value) : "Peu importe" }}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
         shown={
@@ -819,6 +831,7 @@ export function PrototypeAlertEditor({
         open={open}
         words={isSet ? words : any}
         onAny={() => setAsk({})}
+        value={{ said: isSet ? words : "Peu importe", long: true }}
       >
         {body}
       </Slot>
