@@ -3,10 +3,12 @@ import {
   bigint,
   bigserial,
   check,
+  date,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -125,3 +127,30 @@ export const mediaPause = pgTable(
   },
   (table) => [check("media_pause_one_row", sql`${table.id} = 'instance'`)],
 );
+
+/**
+ * How many files each account asked to send, by the hour: what its limit counts. A medium
+ * deleted since still counts, so that deleting gives back nothing. The worker deletes what is two
+ * days old. Decision 066.
+ */
+export const mediaSentHour = pgTable(
+  "media_sent_hour",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    hour: timestamp("hour", { withTimezone: true }).notNull(),
+    files: integer("files").notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.hour] })],
+);
+
+/**
+ * How much every account together asked to send, by day in UTC: the instance's budget, which a
+ * request takes its share of in one statement, so that two at once never pass it together. The
+ * worker deletes what is a week old. Decision 066.
+ */
+export const mediaSentDay = pgTable("media_sent_day", {
+  day: date("day").primaryKey(),
+  bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+});

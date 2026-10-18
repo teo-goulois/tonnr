@@ -12,6 +12,8 @@ import {
   type MediaFailure,
   type MediaFile,
   type MediaFiles,
+  mediaSentDay,
+  mediaSentHour,
   mediaTrash,
 } from "@repo/db/schema/media";
 import { PhotoRefused, renderPhoto } from "@repo/media/photo";
@@ -92,6 +94,8 @@ async function render(
   row: Row,
   folder: string,
   tools: Tools,
+  // Each key is added as it is written, so that a failure afterwards deletes what was written.
+  written: string[],
   signal?: AbortSignal,
 ): Promise<{ files: MediaFiles; width: number; height: number; durationMs: number | null }> {
   const held = await storage.head(row.uploadKey);
@@ -117,6 +121,7 @@ async function render(
     size: { width: number; height: number },
   ) => {
     const key = `m/${row.id}/${name}`;
+    written.push(key);
     await storage.write(key, body, contentType);
     return { key, contentType, bytes: body.byteLength, ...size } satisfies MediaFile;
   };
@@ -157,8 +162,18 @@ async function render(
   };
 }
 
-const writtenKeys = (files: MediaFiles) =>
-  Object.values(files).flatMap((file) => (file ? [file.key] : []));
+/**
+ * Deletes files the worker wrote for a medium that keeps none of them. When the bucket does not
+ * answer, their keys go to the trash, which tries again: no file is left that nothing names.
+ */
+async function forget(db: Database, storage: Storage, keys: readonly string[]) {
+  if (keys.length === 0) return;
+  try {
+    await storage.remove(keys);
+  } catch {
+    await db.insert(mediaTrash).values({ keys: [...keys] });
+  }
+}
 
 /**
  * Makes of one medium what is shown, and says so in its row: only while the row is still this
@@ -174,10 +189,9 @@ async function processOne(
 ): Promise<"ready" | "failed" | "retried"> {
   const mine = and(eq(media.id, row.id), eq(media.claim, claim), eq(media.state, "uploaded"));
   const folder = await mkdtemp(join(tmpdir(), "tonnr-media-"));
-  let written: MediaFiles = {};
+  const written: string[] = [];
   try {
-    const made = await render(storage, row, folder, tools, signal);
-    written = made.files;
+    const made = await render(storage, row, folder, tools, written, signal);
     const [kept] = await db
       .update(media)
       .set({
@@ -194,13 +208,13 @@ async function processOne(
       .where(mine)
       .returning({ id: media.id });
     if (!kept) {
-      await storage.remove(writtenKeys(written));
+      await forget(db, storage, written);
       return "retried";
     }
     await storage.remove([row.uploadKey]).catch(() => {});
     return "ready";
   } catch (error) {
-    await storage.remove(writtenKeys(written)).catch(() => {});
+    await forget(db, storage, written);
     const refused: MediaFailure | null =
       error instanceof PhotoRefused || error instanceof VideoRefused
         ? error.reason
@@ -268,6 +282,14 @@ async function abandonUnused(db: Database, now: number) {
   return gone.length;
 }
 
+/** Deletes the counts of what was sent once no limit reads them: two days of hours, a week of days. */
+async function pruneCounts(db: Database, now: number) {
+  await db.delete(mediaSentHour).where(lt(mediaSentHour.hour, new Date(now - 2 * DAY_MS)));
+  await db
+    .delete(mediaSentDay)
+    .where(lt(mediaSentDay.day, new Date(now - 7 * DAY_MS).toISOString().slice(0, 10)));
+}
+
 /** Deletes from the bucket the keys nothing keeps, a few hundred at a time. */
 async function emptyTrash(db: Database, storage: Storage) {
   const rows = await db
@@ -322,6 +344,7 @@ export async function runMedia(
     run[await processOne(db, storage, row, claim, tools, options.signal)] += 1;
   }
   run.abandoned = await abandonUnused(db, now());
+  await pruneCounts(db, now());
   Object.assign(run, await emptyTrash(db, storage));
   return run;
 }

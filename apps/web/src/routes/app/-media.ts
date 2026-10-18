@@ -13,6 +13,8 @@ import { client } from "@/utils/orpc";
 const kept = new Map<string, Upload>();
 const files = new Map<string, File>();
 const stops = new Map<string, AbortController>();
+// The files whose form closed while they went up: each is forgotten once it went.
+const released = new Set<string>();
 const listeners = new Set<() => void>();
 let snapshot: ReadonlyMap<string, Upload> = new Map();
 
@@ -97,6 +99,10 @@ async function send(key: string) {
     toast.error(words);
   } finally {
     stops.delete(key);
+    if (released.has(key)) {
+      release(key);
+      changed();
+    }
   }
 }
 
@@ -145,23 +151,28 @@ export function retryUpload(key: string) {
 export function dropUpload(key: string, discard: boolean) {
   const upload = kept.get(key);
   stops.get(key)?.abort();
-  if (upload) URL.revokeObjectURL(upload.preview);
-  kept.delete(key);
-  files.delete(key);
+  release(key);
   changed();
   if (discard && upload?.id) void client.v1.media.discard({ id: upload.id }).catch(() => {});
 }
 
-/** Forgets files that were sent, whose form is closed: the session shows them from the API now. */
+/** Lets go of a file: its address in the browser, the file itself, and its line. */
+function release(key: string) {
+  const upload = kept.get(key);
+  if (upload) URL.revokeObjectURL(upload.preview);
+  kept.delete(key);
+  files.delete(key);
+  released.delete(key);
+}
+
+/**
+ * Forgets the files of a form that closed: the session shows them from the API now. One still
+ * going up goes on, and is forgotten once it went.
+ */
 export function forgetSent(keys: readonly string[]) {
-  let any = false;
   for (const key of keys) {
-    const upload = kept.get(key);
-    if (upload?.state !== "sent") continue;
-    URL.revokeObjectURL(upload.preview);
-    kept.delete(key);
-    files.delete(key);
-    any = true;
+    if (kept.get(key)?.state === "sending") released.add(key);
+    else release(key);
   }
-  if (any) changed();
+  changed();
 }

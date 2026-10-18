@@ -2,7 +2,7 @@ import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { operator, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
-import { media, mediaPause, mediaTrash } from "@repo/db/schema/media";
+import { media, mediaPause, mediaSentDay, mediaSentHour, mediaTrash } from "@repo/db/schema/media";
 import { surfSession } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -42,6 +42,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos of a session", ()
     await db.delete(surfBreak);
     await db.delete(mediaTrash);
     await db.delete(mediaPause);
+    await db.delete(mediaSentDay);
     await db.insert(user).values([
       { id: "ana", name: "Ana", email: "ana@example.org" },
       { id: "ben", name: "Ben", email: "ben@example.org" },
@@ -207,6 +208,31 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos of a session", ()
     expect(asking.context.reply.retryAfterSeconds).toBe(3600);
     vi.setSystemTime(new Date(AT.getTime() + 61 * 60 * 1000));
     await call(v1Router.media.prepare, { ...photo, bytes: 1000 }, by("ana"));
+  });
+
+  it("gives nothing back of the hour for a file that is deleted", async () => {
+    for (let index = 0; index < 40; index += 1) {
+      const asked = await call(v1Router.media.prepare, { ...photo, bytes: 1000 }, by("ana"));
+      await call(v1Router.media.discard, { id: asked.id }, by("ana"));
+    }
+    await expect(
+      call(v1Router.media.prepare, { ...photo, bytes: 1000 }, by("ana")),
+    ).rejects.toEqual(refusal("TOO_MANY_REQUESTS"));
+  });
+
+  it("takes no more than the instance's day, and gives back the hour of a request it refuses", async () => {
+    await database.db
+      .insert(mediaSentDay)
+      .values({ day: "2026-10-10", bytes: 20 * 1024 * MB - 2 * MB });
+    await call(v1Router.media.prepare, { ...photo, bytes: 2 * MB }, by("ana"));
+    await expect(call(v1Router.media.prepare, { ...photo, bytes: 1 }, by("ben"))).rejects.toEqual(
+      refusal("SERVICE_UNAVAILABLE"),
+    );
+    const hours = await database.db.select().from(mediaSentHour);
+    expect(hours.map((row) => [row.userId, row.files])).toEqual([["ana", 1]]);
+    // The next day has its own.
+    vi.setSystemTime(new Date("2026-10-11T00:10:00Z"));
+    await call(v1Router.media.prepare, { ...photo, bytes: 1 }, by("ben"));
   });
 
   it("takes a file once the bucket holds it as it was said, and drops one that is not", async () => {

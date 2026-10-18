@@ -7,9 +7,9 @@ import {
   VIDEO_MOST_SECONDS,
 } from "@repo/config/media";
 import { holdAccounts } from "@repo/db/accounts";
-import { media, mediaPause } from "@repo/db/schema/media";
+import { media, mediaPause, mediaSentDay, mediaSentHour } from "@repo/db/schema/media";
 import { surfSession } from "@repo/db/schema/sessions";
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { recordAction } from "../actions";
@@ -30,6 +30,13 @@ import {
 // bucket, and never through the API: the API signs where it goes, then hears that it is there.
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** Why a request to send is refused once its transaction has begun: it is rolled back. */
+class Refused extends Error {
+  constructor(readonly why: "hour" | "day") {
+    super(why);
+  }
+}
 
 function notFound(id: string) {
   return new ORPCError("NOT_FOUND", { message: `No photo or video "${id}".` });
@@ -124,40 +131,60 @@ export const mediaRouter = {
 
       const now = Date.now();
       const id = crypto.randomUUID();
-      const refused = await context.db.transaction(async (tx) => {
-        // What an account sends is counted one request after the other.
-        await holdAccounts(tx, [userId]);
-        if (await uploadsPaused(tx)) return "paused" as const;
-        const [mine] = await tx
-          .select({
-            lastHour: sql<number>`(count(*) filter (where ${media.createdAt} >= ${new Date(now - HOUR_MS)}))::int`,
-            // What is kept once made smaller, and what waits to be, at the size it was said.
-            kept: sql<number>`(coalesce(sum(case when ${media.state} in ('awaiting_upload', 'uploaded') then ${media.uploadBytes} else ${media.bytes} end), 0))::float8`,
-          })
-          .from(media)
-          .where(eq(media.userId, userId));
-        if ((mine?.lastHour ?? 0) >= UPLOADS_PER_HOUR) return "hour" as const;
-        if ((mine?.kept ?? 0) + input.bytes > ACCOUNT_MOST_BYTES) return "full" as const;
-        const midnight = new Date(now);
-        midnight.setUTCHours(0, 0, 0, 0);
-        const [day] = await tx
-          .select({ sent: sql<number>`(coalesce(sum(${media.uploadBytes}), 0))::float8` })
-          .from(media)
-          .where(gte(media.createdAt, midnight));
-        if ((day?.sent ?? 0) + input.bytes > INSTANCE_DAILY_BYTES) return "day" as const;
-        await tx.insert(media).values({
-          id,
-          userId,
-          purpose: input.purpose,
-          kind,
-          uploadKey: `up/${id}`,
-          uploadType: input.contentType.toLowerCase(),
-          uploadBytes: input.bytes,
-          // By the API's clock, which the counts above read.
-          createdAt: new Date(now),
+      const refused = await context.db
+        .transaction(async (tx) => {
+          // What an account sends is counted one request after the other.
+          await holdAccounts(tx, [userId]);
+          if (await uploadsPaused(tx)) return "paused" as const;
+          // What is kept once made smaller, and what waits to be, at the size it was said.
+          const [mine] = await tx
+            .select({
+              kept: sql<number>`(coalesce(sum(case when ${media.state} in ('awaiting_upload', 'uploaded') then ${media.uploadBytes} else ${media.bytes} end), 0))::float8`,
+            })
+            .from(media)
+            .where(eq(media.userId, userId));
+          if ((mine?.kept ?? 0) + input.bytes > ACCOUNT_MOST_BYTES) return "full" as const;
+          // The hour's files and the day's bytes are counted apart from the media, which may be
+          // deleted, each in one statement that takes its share only while there is room.
+          const hour = new Date(Math.floor(now / HOUR_MS) * HOUR_MS);
+          const [counted] = await tx
+            .insert(mediaSentHour)
+            .values({ userId, hour, files: 1 })
+            .onConflictDoUpdate({
+              target: [mediaSentHour.userId, mediaSentHour.hour],
+              set: { files: sql`${mediaSentHour.files} + 1` },
+              setWhere: sql`${mediaSentHour.files} < ${UPLOADS_PER_HOUR}`,
+            })
+            .returning({ files: mediaSentHour.files });
+          if (!counted) throw new Refused("hour");
+          const [reserved] = await tx
+            .insert(mediaSentDay)
+            .values({ day: new Date(now).toISOString().slice(0, 10), bytes: input.bytes })
+            .onConflictDoUpdate({
+              target: mediaSentDay.day,
+              set: { bytes: sql`${mediaSentDay.bytes} + ${input.bytes}` },
+              setWhere: sql`${mediaSentDay.bytes} + ${input.bytes} <= ${INSTANCE_DAILY_BYTES}`,
+            })
+            .returning({ bytes: mediaSentDay.bytes });
+          // Refused, the hour's count above is given back with the rest of the transaction.
+          if (!reserved) throw new Refused("day");
+          await tx.insert(media).values({
+            id,
+            userId,
+            purpose: input.purpose,
+            kind,
+            uploadKey: `up/${id}`,
+            uploadType: input.contentType.toLowerCase(),
+            uploadBytes: input.bytes,
+            // By the API's clock, which the counts above read.
+            createdAt: new Date(now),
+          });
+          return null;
+        })
+        .catch((error: unknown) => {
+          if (error instanceof Refused) return error.why;
+          throw error;
         });
-        return null;
-      });
       if (refused === "paused" || refused === "day") {
         throw new ORPCError("SERVICE_UNAVAILABLE", {
           message: "This instance takes no photos or videos for now. Try again later.",

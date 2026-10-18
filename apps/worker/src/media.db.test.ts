@@ -180,6 +180,39 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos the worker makes"
     expect(await database.db.select().from(mediaTrash)).toEqual([]);
   });
 
+  it("keeps in the trash what the bucket would not delete, and tries again", async () => {
+    await database.db.insert(mediaTrash).values({ keys: ["m/gone/display.avif"] });
+    storage.put("m/gone/display.avif", new Uint8Array(3), "image/avif");
+    const refusing: TestStorage = {
+      ...storage,
+      remove: () => Promise.reject(new Error("The bucket kept 1 of 1 files")),
+    };
+    expect(await runMedia(database.db, refusing)).toMatchObject({ trashed: 0, trashFailed: 1 });
+    const [kept] = await database.db.select().from(mediaTrash);
+    expect(kept).toMatchObject({ keys: ["m/gone/display.avif"], attempts: 1 });
+    expect(await runMedia(database.db, storage)).toMatchObject({ trashed: 1, trashLeft: 0 });
+    expect(storage.keys()).toEqual([]);
+  });
+
+  it("deletes what it wrote of a photo that failed half way", async () => {
+    const photo = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: "#123" },
+    })
+      .jpeg()
+      .toBuffer();
+    await sent("half", photo, "image/jpeg");
+    // The bucket takes the first file and refuses the second, every time.
+    const halfway: TestStorage = {
+      ...storage,
+      write: async (key, body, type) => {
+        if (key.endsWith("thumb.webp")) throw new Error("The bucket did not answer");
+        await storage.write(key, body, type);
+      },
+    };
+    expect(await runMedia(database.db, halfway)).toMatchObject({ retried: 1 });
+    expect(storage.keys()).toEqual(["up/half"]);
+  });
+
   it.skipIf(!hasFfmpeg)(
     "makes a video, its poster and its small picture",
     { timeout: 60_000 },

@@ -140,7 +140,12 @@ export function createStorage(settings: MediaSettings): Storage | null {
     },
     async remove(keys) {
       if (keys.length === 0) return;
-      await files.delete([...keys]);
+      // A bulk delete resolves whatever the bucket refused: what it refused is a failure here,
+      // so that the trash keeps the keys and tries again.
+      const deleted = await files.delete([...keys]);
+      if (deleted.errors && deleted.errors.length > 0) {
+        throw new Error(`The bucket kept ${deleted.errors.length} of ${keys.length} files`);
+      }
     },
   };
 }
