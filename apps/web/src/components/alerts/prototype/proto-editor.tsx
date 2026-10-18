@@ -5,6 +5,14 @@
 // `rules.ts`, over the hours the API's preview gives with no condition.
 
 import { Button } from "@repo/ui/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerPanel,
+  DrawerTitle,
+} from "@repo/ui/components/ui/drawer";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import {
@@ -20,6 +28,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { TIDE_STAGES, type TideStage } from "@repo/config/sea-words";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Fragment,
   type ReactNode,
   createContext,
   useContext,
@@ -30,6 +39,7 @@ import {
 } from "react";
 
 import { MorphText } from "@/components/shared/morph-text";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@/lib/sea-scales";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
@@ -83,6 +93,7 @@ import {
 } from "./rules";
 import { useProto } from "./state";
 
+const WIDE = "(min-width: 1024px)";
 const underlined = "underline decoration-dotted underline-offset-4";
 const SHORTEST_HOURS = [1, 2, 3, 4, 6];
 const LISTED = 8;
@@ -114,6 +125,8 @@ type GuideOf = {
   anyLabel?: string;
 };
 const Guide = createContext<GuideOf | null>(null);
+// A value added on a phone that says nothing until it is chosen.
+const Unsaid = createContext(false);
 
 /** Stops a press on what stands inside a part from opening the part. */
 const apart = {
@@ -121,7 +134,8 @@ const apart = {
   onPointerDown: (event: { stopPropagation: () => void }) => event.stopPropagation(),
 };
 
-/** A part of the sentence that opens what changes it: the editor's own, copied. */
+/** A part of the sentence that opens what changes it: a popover on a wide screen, a drawer on
+ * a phone, where it has no place on the sentence to hold to. */
 function Slot({
   label,
   words,
@@ -142,16 +156,18 @@ function Slot({
   open?: boolean;
   // Leaves the part asking nothing: what "Peu importe" does. A part that always asks has none.
   onAny?: () => void;
-  // The value alone, said big at the top of the popover, where the title says what it is of.
+  // The value alone, said big at the top of what opens, where the title says what it is of.
   // A long one, the tide's, wraps there and does not move.
   value?: { said: string; long?: boolean };
   children: ReactNode;
 }) {
-  // While its part is open, the sentence keeps the words it had: what is chosen there would
-  // move the words, and the part with them, under the finger.
+  const wide = useMediaQuery(WIDE);
+  const unsaid = useContext(Unsaid);
   const after = useContext(After);
   const guide = useContext(Guide);
   const [isOpen, setOpen] = useState(open);
+  // While a popover is open, the sentence keeps the words it had: what is chosen there would
+  // move the words, and the popover with them. A drawer holds to no word: the sentence follows.
   const [kept, setKept] = useState<{ shown: ReactNode; after: ReactNode } | null>(
     open ? { shown, after } : null,
   );
@@ -161,20 +177,77 @@ function Slot({
     if (!next) guide?.onClosed(byButton);
   };
   const current = guide?.current ?? false;
+  const any = guide?.onAny ?? onAny;
+  const triggerClass = cn(
+    "focus-ring cursor-pointer rounded-(--radius-xs) underline decoration-dotted underline-offset-4 outline-none",
+    isSet ? "font-medium" : "text-neutral-7",
+    current && "bg-neutral-3 px-xxs text-neutral-10 decoration-solid",
+  );
+  const valueLine = value?.long ? (
+    <span className="text-m font-medium text-pretty">{value.said}</span>
+  ) : (
+    <MorphText className="max-w-full text-l font-medium">{value?.said ?? words}</MorphText>
+  );
+  const buttons = (
+    <>
+      {any && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            any();
+            change(false, true);
+          }}
+        >
+          {guide?.anyLabel ?? "Peu importe"}
+        </Button>
+      )}
+      <Button type="button" size="sm" className="flex-1" onClick={() => change(false, true)}>
+        Valider
+      </Button>
+    </>
+  );
+
+  if (!wide) {
+    return (
+      <>
+        {!unsaid && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`${label} : ${words}`}
+            className={triggerClass}
+            onClick={() => change(true)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              change(true);
+            }}
+          >
+            {withAfter(shown, after)}
+          </span>
+        )}
+        <Drawer showSwipeHandle open={isOpen} onOpenChange={(next) => change(next)}>
+          <DrawerContent variant="edge">
+            <DrawerHeader className="gap-xxs">
+              <DrawerTitle className="text-s font-normal text-neutral-7">{label}</DrawerTitle>
+              {valueLine}
+            </DrawerHeader>
+            <DrawerPanel className="grid gap-s text-s">{children}</DrawerPanel>
+            <DrawerFooter>{buttons}</DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
   return (
     <Popover open={isOpen} onOpenChange={(next) => change(next)}>
       <PopoverTrigger
         nativeButton={false}
-        render={
-          <span
-            aria-label={`${label} : ${words}`}
-            className={cn(
-              "focus-ring cursor-pointer rounded-(--radius-xs) underline decoration-dotted underline-offset-4 outline-none",
-              isSet ? "font-medium" : "text-neutral-7",
-              current && "bg-neutral-3 px-xxs text-neutral-10 decoration-solid",
-            )}
-          />
-        }
+        render={<span aria-label={`${label} : ${words}`} className={triggerClass} />}
       >
         {withAfter(kept?.shown ?? shown, kept ? kept.after : after)}
       </PopoverTrigger>
@@ -183,33 +256,10 @@ function Slot({
       >
         <div className="grid gap-xxs">
           <PopoverTitle className="text-s text-neutral-7">{label}</PopoverTitle>
-          {/* The sentence keeps its words while the part is open: the value moves here. */}
-          {value?.long ? (
-            <span className="text-m font-medium text-pretty">{value.said}</span>
-          ) : (
-            <MorphText className="max-w-full text-l font-medium">{value?.said ?? words}</MorphText>
-          )}
+          {valueLine}
         </div>
         {children}
-        <div className="flex gap-xs">
-          {(guide?.onAny ?? onAny) && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="flex-1"
-              onClick={() => {
-                (guide?.onAny ?? onAny)?.();
-                change(false, true);
-              }}
-            >
-              {guide?.anyLabel ?? "Peu importe"}
-            </Button>
-          )}
-          <Button type="button" size="sm" className="flex-1" onClick={() => change(false, true)}>
-            Valider
-          </Button>
-        </div>
+        <div className="flex gap-xs">{buttons}</div>
       </PopoverPopup>
     </Popover>
   );
@@ -374,6 +424,7 @@ export function PrototypeAlertEditor({
   const id = useId();
   useUnits();
   const proto = useProto();
+  const wide = useMediaQuery(WIDE);
   const variant = proto.tide;
 
   // What the place says of itself: the stages of the tide it works at.
@@ -948,40 +999,48 @@ export function PrototypeAlertEditor({
   const guided = (key: Part, step: number, comma: boolean) => {
     const base = cases[0]!;
     const lines = alts[key] ?? [];
-    const last = lines.at(-1);
-    const plus = isSetPart(key, last ? last.one : base) && plusOf(key);
+    // On a phone, a value still to choose says nothing: the sentence gives it no room until it
+    // is chosen. A popover needs a word to hold to, so a wide screen says "à choisir".
+    const unsaid = (alt: Alt) => !wide && !isSetPart(key, alt.one);
+    const lastSaid = lines.filter((alt) => !unsaid(alt)).at(-1);
+    const plus = isSetPart(key, lastSaid ? lastSaid.one : base) && plusOf(key);
+    // The "+" and the comma follow the last value the sentence says.
+    const ending = (
+      <>
+        {plus}
+        {comma && ","}
+      </>
+    );
     return (
       <>
         <Guide.Provider value={guideOf(step)}>
-          <After.Provider
-            value={
-              lines.length === 0 && (
-                <>
-                  {plus}
-                  {comma && ","}
-                </>
-              )
-            }
-          >
+          <After.Provider value={lastSaid ? null : ending}>
             {part(key, base, 0, undefined, autoOpen === step)}
           </After.Provider>
         </Guide.Provider>
         {lines.map((alt) => (
-          <span key={alt.id} className="block ps-l">
-            <span className="text-neutral-7">ou</span>{" "}
-            <Guide.Provider value={altGuide(key, alt)}>
-              <After.Provider
-                value={
-                  <>
-                    {removeOf(key, alt.id)}
-                    {alt === last && plus}
-                  </>
-                }
-              >
-                {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
-              </After.Provider>
-            </Guide.Provider>
-          </span>
+          <Fragment key={alt.id}>
+            {!unsaid(alt) && (
+              <>
+                {" "}
+                <span className="text-neutral-7">ou</span>{" "}
+              </>
+            )}
+            <Unsaid.Provider value={unsaid(alt)}>
+              <Guide.Provider value={altGuide(key, alt)}>
+                <After.Provider
+                  value={
+                    <>
+                      {removeOf(key, alt.id)}
+                      {alt === lastSaid && ending}
+                    </>
+                  }
+                >
+                  {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
+                </After.Provider>
+              </Guide.Provider>
+            </Unsaid.Provider>
+          </Fragment>
         ))}
         {comma && " "}
       </>
