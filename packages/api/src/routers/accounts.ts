@@ -112,9 +112,9 @@ export const accountsRouter = {
       path: "/accounts",
       summary: "The accounts that signed up, the newest first",
       description:
-        `${ADMIN_ONLY} It gives each account's name, username and address, and nothing else of it: an ` +
-        "operator reads who signed up, not what they keep. Pages follow one another through " +
-        "`after`.",
+        `${ADMIN_ONLY} It gives each account's name, username and address, and when it was last ` +
+        "seen, and nothing else of it: an operator reads who signed up and who comes back, not " +
+        "what they keep. Pages follow one another through `after`.",
       tags: ["Accounts"],
     })
     .input(
@@ -141,6 +141,10 @@ export const accountsRouter = {
             isOperator: z.boolean(),
             // Since when the account is suspended. Null for one that is not.
             suspendedAt: z.date().nullable(),
+            // When one of its sessions was last opened or renewed, past its end or not: a session
+            // is renewed about once a day while it is used, so this says the day, not the minute.
+            // Null when it keeps none, as after it signed out everywhere. Decision 025.
+            lastSeenAt: z.date().nullable(),
           }),
         ),
         // What to pass as `after` to get the accounts that follow. Null on the last page.
@@ -173,6 +177,10 @@ export const accountsRouter = {
           createdAt: user.createdAt,
           isOperator: isNotNull(operator.userId).mapWith(Boolean),
           suspendedAt: accountSuspension.at,
+          lastSeenAt: sql<Date | null>`(
+            select max(${session.updatedAt}) from ${session}
+            where ${session.userId} = ${user.id}
+          )`.mapWith(session.updatedAt),
         })
         .from(user)
         .leftJoin(operator, eq(operator.userId, user.id))

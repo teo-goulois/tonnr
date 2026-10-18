@@ -29,7 +29,10 @@ type AccountsPageProps = {
   isLoadingMore: boolean;
 };
 
-/** The accounts that signed up, the newest first. Each leads to its page. */
+/**
+ * The accounts that signed up, the newest first, with the day each was last seen. Each leads to
+ * its page.
+ */
 export function AccountsPage({
   accounts,
   total,
@@ -69,6 +72,7 @@ export function AccountsPage({
               <TableHead>{m.account_username()}</TableHead>
               <TableHead>{m.auth_email()}</TableHead>
               <TableHead>{m.account_created()}</TableHead>
+              <TableHead>{m.account_last_seen()}</TableHead>
               <TableHead>
                 <span className="sr-only">{m.account_role()}</span>
               </TableHead>
@@ -96,6 +100,9 @@ export function AccountsPage({
                     <TableCell className="whitespace-nowrap text-neutral-7">
                       {formatDate(account.createdAt)}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-neutral-7">
+                      {account.lastSeenAt && formatDate(account.lastSeenAt)}
+                    </TableCell>
                     <TableCell>
                       <span className="flex flex-wrap gap-xs">
                         {account.isOperator && <Badge>{m.account_operator()}</Badge>}
@@ -108,7 +115,7 @@ export function AccountsPage({
                 ))
               : [0, 1, 2].map((row) => (
                   <TableRow key={row}>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={6}>
                       <Skeleton className="h-5 w-full" />
                     </TableCell>
                   </TableRow>

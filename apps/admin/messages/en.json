@@ -142,6 +142,7 @@
   "account_username_removed": "The username was taken away.",
   "action_username_removed": "Took the account’s username away",
   "account_created": "Signed up",
+  "account_last_seen": "Last seen",
   "account_role": "Role",
   "account_operator": "Operator",
   "nav_activity": "Activity",

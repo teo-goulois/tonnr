@@ -142,6 +142,7 @@
   "account_username_removed": "Le pseudo a été retiré.",
   "action_username_removed": "A retiré le pseudo du compte",
   "account_created": "Inscrit le",
+  "account_last_seen": "Vu le",
   "account_role": "Rôle",
   "account_operator": "Opérateur",
   "nav_activity": "Activité",

@@ -939,6 +939,7 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
         createdAt: new Date("2126-01-01T00:00:00Z"),
         isOperator: false,
         suspendedAt: null,
+        lastSeenAt: null,
       });
       expect(Object.fromEntries(accounts.map((found) => [found.id, found.isOperator]))).toEqual({
         late: false,
@@ -947,6 +948,34 @@ describe.skipIf(!TEST_DATABASE_URL)("running the instance", () => {
         owner: true,
         second: true,
         visitor: false,
+      });
+    });
+
+    it("say when each was last seen, by the session it renewed last, past its end or not", async () => {
+      const at = (iso: string) => new Date(iso);
+      const sessionOf = (id: string, userId: string, updatedAt: Date, expiresAt: Date) => ({
+        id,
+        userId,
+        token: `token-${id}`,
+        createdAt: at("2026-10-01T00:00:00Z"),
+        updatedAt,
+        expiresAt,
+      });
+      await database.db
+        .insert(session)
+        .values([
+          sessionOf("ana-1", "twin-a", at("2026-10-10T08:00:00Z"), at("2026-10-17T08:00:00Z")),
+          sessionOf("ana-2", "twin-a", at("2026-10-12T08:00:00Z"), at("2026-10-19T08:00:00Z")),
+          sessionOf("ben-1", "twin-b", at("2026-10-11T08:00:00Z"), at("2026-10-18T08:00:00Z")),
+        ]);
+
+      const seen = Object.fromEntries(
+        (await list()).accounts.map((found) => [found.id, found.lastSeenAt]),
+      );
+      expect(seen).toMatchObject({
+        "twin-a": at("2026-10-12T08:00:00Z"),
+        "twin-b": at("2026-10-11T08:00:00Z"),
+        late: null,
       });
     });
 
