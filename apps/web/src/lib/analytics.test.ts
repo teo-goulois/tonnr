@@ -95,8 +95,27 @@ describe("browser analytics privacy", () => {
           "with eyJhbGciOiJIUzI1NiJ9abcdefghijk",
       ),
     ).toBe(
-      "Push to https://fcm.googleapis.com/[…] failed for [email] on [id] at [number], " +
-        "[number] with [token]",
+      "Push to https://fcm.googleapis.com/[…] failed for [email] on [id] at [place] with " +
+        "[token]",
+    );
+  });
+  it("takes a name a person gave and a rounded place out of a message", () => {
+    expect(
+      scrubMessage(
+        'duplicate key value violates unique constraint "spot_owner_name" ' +
+          "Key (owner_id, name)=(42, Fouesnou) already exists.",
+      ),
+    ).toBe(
+      'duplicate key value violates unique constraint "spot_owner_name" Key (owner_id, name)=([text]) already exists.',
+    );
+    expect(scrubMessage('invalid input syntax for type integer: "Fouesnou"')).toBe(
+      'invalid input syntax for type integer: "[text]"',
+    );
+    expect(scrubMessage('column "name" of relation "spot" got "Pointe de la Torche"')).toBe(
+      'column "name" of relation "spot" got "[text]"',
+    );
+    expect(scrubMessage("No reading at 48.75, -1.57 nor at lat=47.9&lng=-4.4")).toBe(
+      "No reading at [place] nor at lat=[number]&lng=[number]",
     );
   });
   it("proxies ingestion to a fixed host without cookies, auth, query or incoming IP headers", async () => {

@@ -22,7 +22,10 @@ const FRAME_FIELDS = [
 ];
 const MECHANISM_FIELDS = ["type", "handled", "synthetic", "source", "exception_id", "parent_id"];
 
-/** A message with no parameters of a query, no address beyond its host, no email and no id. */
+/**
+ * A message with no parameters of a query, no address beyond its host, no email, no id, no name
+ * a person gave and no place.
+ */
 export function scrubMessage(message: string) {
   return (
     message
@@ -32,6 +35,19 @@ export function scrubMessage(message: string) {
       .replace(/\b(https?|wss?):\/\/(?:[^\s/?#@]*@)?([^\s/?#@"'`<>]+)[^\s"'`<>]*/gi, "$1://$2/[…]")
       .replace(/[^\s@"'`<>()[\]]+@[^\s@"'`<>()[\]]+\.[a-z]{2,}/gi, "[email]")
       .replace(/\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b/gi, "[id]")
+      // A name a person gave, such as a spot's, is quoted where the database says a value:
+      // "Key (owner_id, name)=(…)", 'invalid input …: "…"', or a text with a space or a mark in
+      // it. A quoted word of plain letters is left, for it names a table or a column.
+      .replace(/\)=\([^)]*\)/g, ")=([text])")
+      .replace(/:\s*"[^"\n]*"/g, ': "[text]"')
+      .replace(/"[^"\n]*"/g, (quoted) => (/^"[\w.$-]*"$/.test(quoted) ? quoted : '"[text]"'))
+      // A place, even one rounded to a kilometre: two numbers side by side, or a number named
+      // as a latitude or a longitude.
+      .replace(/-?\d{1,3}\.\d+\s*[,;/ ]\s*-?\d{1,3}\.\d+/g, "[place]")
+      .replace(
+        /\b(lat|latitude|lon|lng|longitude)(["']?\s*[=:]\s*)-?\d+(?:\.\d+)?/gi,
+        "$1$2[number]",
+      )
       // A token, a key, a long number: whatever runs long with no space in it.
       .replace(/\b[A-Za-z0-9_-]{24,}\b/g, "[token]")
       .replace(/-?\d+\.\d{3,}/g, "[number]")
