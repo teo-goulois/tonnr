@@ -15,7 +15,7 @@ import {
 } from "@repo/ui/components/ui/popover";
 import { Slider } from "@repo/ui/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { PlusIcon, XIcon } from "@repo/ui/icon";
+import { CirclePlusIcon, CircleXIcon, PlusIcon, XIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { TIDE_STAGES, type TideStage } from "@repo/config/sea-words";
 import { useQuery } from "@tanstack/react-query";
@@ -109,8 +109,11 @@ function Slot({
   open?: boolean;
   children: ReactNode;
 }) {
+  // While its part is open, the sentence keeps the words it had: what is chosen there would
+  // move the words, and the part with them, under the finger.
+  const [kept, setKept] = useState<ReactNode | null>(open ? shown : null);
   return (
-    <Popover defaultOpen={open}>
+    <Popover defaultOpen={open} onOpenChange={(isOpen) => setKept(isOpen ? shown : null)}>
       <PopoverTrigger
         nativeButton={false}
         render={
@@ -123,7 +126,7 @@ function Slot({
           />
         }
       >
-        {shown}
+        {kept ?? shown}
       </PopoverTrigger>
       <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
         <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
@@ -498,23 +501,16 @@ export function PrototypeAlertEditor({
           )
         }
       >
+        <CompassDial arc={value ?? around} now={at} label={label} onChange={setArc} />
         {value ? (
-          <>
-            <CompassDial arc={value} now={at} label={label} onChange={setArc} />
-            <Button type="button" size="sm" variant="outline" onClick={() => setArc(undefined)}>
-              {m.alert_sector_any()}
-            </Button>
-          </>
-        ) : (
-          <Button type="button" size="sm" onClick={() => setArc(around)}>
-            {at == null ? (
-              m.alert_sector_choose()
-            ) : (
-              <>
-                {m.alert_sector_as_now()} <Bearing degrees={at} />
-              </>
-            )}
+          <Button type="button" size="sm" variant="outline" onClick={() => setArc(undefined)}>
+            {m.alert_sector_any()}
           </Button>
+        ) : (
+          <span className="text-xs text-neutral-7">
+            Tournez le secteur{at == null ? "" : ", posé autour de maintenant"} : il compte dès
+            qu'il bouge.
+          </span>
         )}
       </Slot>
     );
@@ -797,9 +793,9 @@ export function PrototypeAlertEditor({
         type="button"
         aria-label="Ajouter une autre valeur"
         onClick={() => addAlt(key)}
-        className="focus-ring edge ms-xxs inline-flex size-5 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:bg-neutral-3-transparent"
+        className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
       >
-        <PlusIcon data-slot="icon" aria-hidden className="size-3" />
+        <CirclePlusIcon data-slot="icon" aria-hidden className="size-4.5" />
       </button>
     );
   const altLines = (key: Part) =>
@@ -812,47 +808,35 @@ export function PrototypeAlertEditor({
           type="button"
           aria-label="Retirer cette valeur"
           onClick={() => removeAlt(key, alt.id)}
-          className="focus-ring ms-xxs inline-flex size-5 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:bg-neutral-3-transparent"
+          className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
         >
-          <XIcon data-slot="icon" aria-hidden className="size-3" />
+          <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />
         </button>
       </span>
     ));
   // A part, its "+" and its other values. The "+" keeps to the comma after it, and a part whose
   // other values stand on lines of their own takes no comma: what follows starts the next line.
-  const said = (key: Part, one: Case, index: number, comma = true) => {
-    const value = part(key, one, index);
-    const tail = (
-      <>
-        {index === 0 && plus(key)}
-        {comma && ","}
-      </>
-    );
-    return (
-      <>
-        {index === 0 && hasAlts(key) ? (
-          <>
-            {value}
-            {plus(key)}
-            {altLines(key)}
-          </>
-        ) : key === "tide" ? (
-          // A long value: its last words go to the next line with the "+".
-          <>
-            {value}
-            <span className="whitespace-nowrap">{tail}</span>
-          </>
-        ) : (
-          // A short value goes to the next line with its "+", never apart from it.
+  const said = (key: Part, one: Case, index: number, comma = true) => (
+    <>
+      {part(key, one, index)}
+      {index === 0 && hasAlts(key) ? (
+        <>
+          {plus(key)}
+          {altLines(key)}
+        </>
+      ) : (
+        <>
+          {/* A word joiner: the "+" and the comma never start a line of their own. */}
+          {"\u2060"}
           <span className="whitespace-nowrap">
-            {value}
-            {tail}
+            {index === 0 && plus(key)}
+            {comma && ","}
           </span>
-        )}
-        {comma && " "}
-      </>
-    );
-  };
+        </>
+      )}
+      {comma && " "}
+    </>
+  );
 
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
