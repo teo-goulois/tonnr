@@ -44,7 +44,8 @@ describe("renderPhoto", () => {
     }
   });
 
-  it("makes a big photo smaller", async () => {
+  // A runner of CI takes seconds to encode an AVIF of this size.
+  it("makes a big photo smaller", { timeout: 30_000 }, async () => {
     const file = await sharp({
       create: { width: 6000, height: 4000, channels: 3, background: "#fff" },
     })
