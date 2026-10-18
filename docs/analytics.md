@@ -43,6 +43,7 @@ Successful oRPC actions:
 - `list_updated`
 - `list_viewed`
 - `logbook_recap_viewed`
+- `media_upload_started`
 - `notification_read`
 - `place_searched`
 - `push_device_removed`

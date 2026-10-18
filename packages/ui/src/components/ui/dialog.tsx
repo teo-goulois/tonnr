@@ -106,3 +106,30 @@ export function DialogDescription({
 }
 
 export { DialogPrimitive, DialogPopup as DialogContent };
+
+/**
+ * The whole screen as the surface, with no backdrop of its own: for a viewer of photos, which
+ * brings its own layout. Pair with a controlled <Dialog open onOpenChange>.
+ */
+export function DialogScreen({
+  children,
+  className,
+  ...props
+}: DialogPrimitive.Popup.Props): React.ReactElement {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Popup
+        className={cn(
+          "fixed inset-0 z-50 outline-none",
+          "transition-opacity duration-200",
+          "data-ending-style:opacity-0 data-starting-style:opacity-0",
+          className,
+        )}
+        data-slot="dialog-screen"
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Popup>
+    </DialogPrimitive.Portal>
+  );
+}

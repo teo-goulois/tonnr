@@ -2,7 +2,7 @@ import { ChevronRightIcon } from "@repo/ui/icon";
 
 import { formatClock, formatDate, formatDuration } from "@/lib/format";
 
-import type { Session } from "../viewer/types";
+import type { MediaItem, Session } from "../viewer/types";
 import { RatingStars } from "./rating";
 import { SessionSea } from "./session-sea";
 
@@ -23,13 +23,17 @@ export function SessionRow({
   session,
   now,
   withPlace = false,
+  media,
   onOpen,
 }: {
   session: Session;
   now: number;
   withPlace?: boolean;
+  // Its photos and videos: the first one shown is drawn small at the end. Decision 066.
+  media?: readonly MediaItem[] | undefined;
   onOpen: () => void;
 }) {
+  const first = media?.find((item) => item.state === "ready" && item.thumb);
   return (
     <li>
       <button
@@ -49,6 +53,15 @@ export function SessionRow({
           )}
           <SessionSea session={session} />
         </span>
+        {first?.thumb && (
+          <img
+            src={first.thumb}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="size-10 shrink-0 rounded-(--radius-xs) bg-neutral-3 object-cover"
+          />
+        )}
         <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
       </button>
     </li>

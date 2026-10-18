@@ -8,11 +8,13 @@ import { m } from "@/paraglide/messages.js";
 
 import { ConditionsSummary } from "../alerts/alert-summary";
 import { AccountPrompt } from "../viewer/saved-panel";
-import type { AlertCriteria, Loadable, Session } from "../viewer/types";
+import type { AlertCriteria, Loadable, MediaItem, Session } from "../viewer/types";
 import { SessionRow } from "./session-row";
 
 type PlaceSessionsProps = {
   now: number;
+  // The photos and videos of the sessions, by session. Decision 066.
+  media?: Readonly<Record<string, MediaItem[]>>;
   signedIn: boolean;
   // The sessions the account surfed at the place, the latest first.
   sessions: Loadable<Session[]>;
@@ -31,6 +33,7 @@ type PlaceSessionsProps = {
  */
 export function PlaceSessions({
   now,
+  media,
   signedIn,
   sessions,
   onAdd,
@@ -112,6 +115,7 @@ export function PlaceSessions({
           {sessions.data.map((session) => (
             <SessionRow
               key={session.id}
+              media={media?.[session.id]}
               session={session}
               now={now}
               onOpen={() => onOpen(session)}

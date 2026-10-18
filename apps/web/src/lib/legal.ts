@@ -39,6 +39,7 @@ export const RECIPIENTS: {
   where?: () => string;
 }[] = [
   { name: "Cloudflare", does: m.privacy_does_web, where: m.privacy_where_us },
+  { name: "Cloudflare R2", does: m.privacy_does_media, where: m.privacy_where_us },
   { name: "Scaleway", does: m.privacy_does_api, where: m.privacy_where_france },
   { name: "Unosend", does: m.privacy_does_mail, where: m.privacy_where_us },
   { name: "PostHog", does: m.privacy_does_analytics, where: m.privacy_where_eu },

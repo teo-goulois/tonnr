@@ -7,12 +7,13 @@ import {
   VIDEO_MOST_SECONDS,
 } from "@repo/config/media";
 import { holdAccounts } from "@repo/db/accounts";
-import { media } from "@repo/db/schema/media";
+import { media, mediaPause } from "@repo/db/schema/media";
 import { surfSession } from "@repo/db/schema/sessions";
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { protectedProcedure } from "../index";
+import { recordAction } from "../actions";
+import { adminProcedure, protectedProcedure } from "../index";
 import {
   describeMedia,
   INSTANCE_DAILY_BYTES,
@@ -21,6 +22,7 @@ import {
   UPLOAD_SECONDS,
   UPLOADS_PER_HOUR,
   uploadsPaused,
+  uploadsPausedAt,
   wakeWorker,
 } from "../media";
 
@@ -34,6 +36,40 @@ function notFound(id: string) {
 }
 
 export const mediaRouter = {
+  status: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/media/status",
+      summary: "Whether the instance takes photos and videos, and how much the caller keeps",
+      description:
+        "`offered` is false on an instance that keeps none, and `paused` while an operator " +
+        "stopped uploads. `keptBytes` counts what the caller keeps, and what it sent that is " +
+        "not yet made smaller at the size it was said.",
+      tags: ["Media"],
+    })
+    .output(
+      z.object({
+        offered: z.boolean(),
+        paused: z.boolean(),
+        keptBytes: z.number(),
+        mostBytes: z.number(),
+      }),
+    )
+    .handler(async ({ context }) => {
+      const [mine] = await context.db
+        .select({
+          kept: sql<number>`(coalesce(sum(case when ${media.state} in ('awaiting_upload', 'uploaded') then ${media.uploadBytes} else ${media.bytes} end), 0))::float8`,
+        })
+        .from(media)
+        .where(eq(media.userId, context.session.user.id));
+      return {
+        offered: Boolean(context.storage),
+        paused: await uploadsPaused(context.db),
+        keptBytes: mine?.kept ?? 0,
+        mostBytes: ACCOUNT_MOST_BYTES,
+      };
+    }),
+
   prepare: protectedProcedure
     .meta({ analytics: "media_upload_started" })
     .route({
@@ -246,5 +282,42 @@ export const mediaRouter = {
         (sessions[sessionId] ??= []).push(described[index]!);
       });
       return { sessions };
+    }),
+
+  uploads: adminProcedure
+    .route({
+      method: "PUT",
+      path: "/media/uploads",
+      summary: "Stop every upload of photos and videos, or start them again",
+      description:
+        "Takes the signed-in session of an operator of the instance, in a request that names " +
+        "the admin's site in `Origin`. No key calls this: decision 020. Off, the API signs no " +
+        "upload for any account: what is kept is still shown and deleted, and what was sent " +
+        "already is still made smaller. On, accounts send them again. Stopping what is " +
+        "stopped changes nothing and records nothing, and so does starting what runs.",
+      tags: ["Instance"],
+    })
+    .input(z.object({ on: z.boolean() }))
+    // Since when an operator has uploads stopped. Null while none has.
+    .output(z.object({ pausedAt: z.date().nullable() }))
+    .handler(async ({ input, context }) => {
+      const operatorId = context.session.user.id;
+      const pausedAt = await context.db.transaction(async (tx) => {
+        if (input.on) {
+          const [lifted] = await tx.delete(mediaPause).returning({ id: mediaPause.id });
+          if (lifted) await recordAction(tx, { operatorId, action: "media.on", developer: null });
+        } else {
+          const [written] = await tx
+            .insert(mediaPause)
+            .values({ id: "instance" })
+            .onConflictDoNothing()
+            .returning({ id: mediaPause.id });
+          if (written) {
+            await recordAction(tx, { operatorId, action: "media.off", developer: null });
+          }
+        }
+        return uploadsPausedAt(tx);
+      });
+      return { pausedAt };
     }),
 };

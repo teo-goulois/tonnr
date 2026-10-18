@@ -238,6 +238,8 @@ export const OPERATOR_ACTIONS = [
   "visitors.open",
   "errors.off",
   "errors.on",
+  "media.off",
+  "media.on",
   "break.update",
   "break.merge",
   "break.delete",

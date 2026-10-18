@@ -5,6 +5,7 @@ import { countForecastCells } from "@repo/db/forecasts";
 import { accountSuspension, apiUsage, USAGE_VIA } from "@repo/db/schema/access";
 import { session, user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
+import { media } from "@repo/db/schema/media";
 import {
   FAILURE_KINDS,
   job,
@@ -19,6 +20,7 @@ import type { Database } from "@repo/db";
 
 import { errorReportsPausedAt } from "../error-reports";
 import { adminProcedure, publicProcedure } from "../index";
+import { uploadsPausedAt } from "../media";
 import { isDemandStrong, STRONG_DEMAND_AT, visitorsClosedAt } from "../visitors";
 
 const ADMIN_ONLY =
@@ -103,6 +105,37 @@ export function describeJob(row: JobRow, now: Date) {
     lastFailureAt: isLost ? row.deadlineAt : row.lastFailureAt,
     lastFailure: isLost ? EXPIRED : known(row.lastFailure),
     failuresInARow: row.failuresInARow + (isLost ? 1 : 0),
+  };
+}
+
+/**
+ * What the bucket keeps of the accounts' photos and videos, what waits for the worker, and since
+ * when an operator has uploads stopped: decision 066.
+ */
+async function keptMedia(db: Database) {
+  const [[figures], pausedAt] = await Promise.all([
+    db
+      .select({
+        ready: sql<number>`count(*) filter (where ${media.state} = 'ready')`.mapWith(Number),
+        bytes:
+          sql<number>`coalesce(sum(${media.bytes}) filter (where ${media.state} = 'ready'), 0)`.mapWith(
+            Number,
+          ),
+        waiting:
+          sql<number>`count(*) filter (where ${media.state} in ('awaiting_upload', 'uploaded'))`.mapWith(
+            Number,
+          ),
+        failed: sql<number>`count(*) filter (where ${media.state} = 'failed')`.mapWith(Number),
+      })
+      .from(media),
+    uploadsPausedAt(db),
+  ]);
+  return {
+    pausedAt,
+    ready: figures?.ready ?? 0,
+    bytes: figures?.bytes ?? 0,
+    waiting: figures?.waiting ?? 0,
+    failed: figures?.failed ?? 0,
   };
 }
 
@@ -409,6 +442,20 @@ export const instanceRouter = {
         // Since when an operator has the web app send no error report: decision 054. Null
         // while none has.
         errorReports: z.object({ pausedAt: z.date().nullable() }),
+        // The photos and the videos of the accounts' sessions: decision 066.
+        media: z.object({
+          // Whether the instance keeps any: false while the bucket's settings are not all set.
+          offered: z.boolean(),
+          // Since when an operator has uploads stopped. Null while none has.
+          pausedAt: z.date().nullable(),
+          // The media made into what is shown, and how much of the bucket their files take.
+          ready: z.number(),
+          bytes: z.number(),
+          // The media asked for and not yet sent, or sent and not yet made.
+          waiting: z.number(),
+          // The media the worker refused or gave up on, which an account still sees.
+          failed: z.number(),
+        }),
         // The mail the API sends: through what, and how many mails it counted today, in UTC,
         // against what it lets out in a day. A mail is counted before it leaves, and stays
         // counted when it did not. `via` is null on an instance that sends none.
@@ -436,7 +483,7 @@ export const instanceRouter = {
     .handler(async ({ context }) => {
       const { db } = context;
 
-      const [workers, jobs, providers, sized, cells, calls, mails, closedAt, pausedAt] =
+      const [workers, jobs, providers, sized, cells, calls, mails, closedAt, pausedAt, kept] =
         await Promise.all([
           db
             .select()
@@ -473,6 +520,7 @@ export const instanceRouter = {
           currentCalls(db, MAIL_PROVIDER),
           visitorsClosedAt(db),
           errorReportsPausedAt(db),
+          keptMedia(db),
         ]);
 
       const at = new Date(Number(sized.rows[0]?.at));
@@ -498,6 +546,7 @@ export const instanceRouter = {
         database: { sizeBytes: Number(sized.rows[0]?.size ?? 0) },
         visitors: { closedAt, busy: isDemandStrong(calls), closesAt: STRONG_DEMAND_AT },
         errorReports: { pausedAt },
+        media: { offered: Boolean(context.storage), ...kept },
         mail: {
           via: context.verification.via,
           today: mails.get("day") ?? 0,

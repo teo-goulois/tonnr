@@ -2,16 +2,78 @@ import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { LogbookPanel } from "@/components/sessions/logbook-panel";
+import { MediaViewer } from "@/components/sessions/media-viewer";
 import { PlaceSessions } from "@/components/sessions/place-sessions";
 import { RatingInput, RatingStars } from "@/components/sessions/rating";
 import { SessionForm } from "@/components/sessions/session-form";
+import { SessionMediaField } from "@/components/sessions/session-media";
 import { SessionConditions, SessionCredits } from "@/components/sessions/session-sea";
 import { SurfSizeInput, SurfSizePicture } from "@/components/sessions/surf-size";
-import type { SurfSize } from "@/components/sessions/types";
-import type { Session, SessionDetail, SessionRecap } from "@/components/viewer/types";
+import type { SessionMedia, SurfSize, Upload } from "@/components/sessions/types";
+import type { MediaItem, Session, SessionDetail, SessionRecap } from "@/components/viewer/types";
 import { SIZES } from "@repo/conditions/sessions/sizes";
 
 const NOW = new Date("2026-10-13T09:00:00Z").getTime();
+
+// Invented photos and videos of a session, in each state a form shows: the picture of the
+// landing's map stands for what the bucket would give.
+const PICTURE = "/landing/hero-map-light-en.webp";
+function medium(id: string, change: Partial<MediaItem>): MediaItem {
+  return {
+    id,
+    kind: "photo",
+    state: "ready",
+    failure: null,
+    width: 2560,
+    height: 1440,
+    durationMs: null,
+    thumb: PICTURE,
+    display: PICTURE,
+    poster: null,
+    video: null,
+    ...change,
+  };
+}
+const KEPT: MediaItem[] = [
+  medium("photo", {}),
+  medium("video", { kind: "video", durationMs: 42_000, poster: PICTURE, display: null }),
+  medium("making", { state: "processing", thumb: null, display: null }),
+  medium("refused", { state: "failed", failure: "too_long", thumb: null, display: null }),
+];
+const SENDING: Upload[] = [
+  {
+    key: "going",
+    name: "IMG_2041.HEIC",
+    kind: "photo",
+    type: "image/jpeg",
+    preview: PICTURE,
+    progress: 0.4,
+    state: "sending",
+    error: null,
+    id: "going",
+  },
+  {
+    key: "lost",
+    name: "IMG_2042.MOV",
+    kind: "photo",
+    type: "image/jpeg",
+    preview: PICTURE,
+    progress: 0.7,
+    state: "failed",
+    error: "IMG_2042.MOV couldn't be uploaded.",
+    id: "lost",
+  },
+];
+const MEDIA: SessionMedia = {
+  status: { offered: true, paused: false, keptBytes: 0, mostBytes: 2048 * 1024 * 1024 },
+  open: { data: KEPT, isPending: false, isError: false },
+  bySession: {},
+  uploads: new Map(SENDING.map((upload) => [upload.key, upload])),
+  onStart: () => [],
+  onRetry: () => toast("Sent again"),
+  onDrop: () => {},
+  onForget: () => {},
+};
 
 // The figures of a session that nothing was read of.
 const NOTHING: Session["figures"] = {
@@ -256,8 +318,12 @@ export function SessionSamples() {
           wide
           isSaving={false}
           onSave={(draft) => toast(draft.note || "Saved")}
+          media={MEDIA}
+          onOpenMedia={() => {}}
         />
       </Sample>
+
+      <MediaSamples />
 
       <Sample title="What was kept of the sea with a session">
         <SessionConditions session={DETAIL} />
@@ -300,5 +366,47 @@ export function SessionSamples() {
         />
       </Sample>
     </div>
+  );
+}
+
+/**
+ * The photos and the videos of a session: the strip of its form, with one of each state, and the
+ * viewer that opens over the whole screen. Decision 066.
+ */
+function MediaSamples() {
+  const [shown, setShown] = useState<string | null>(null);
+  return (
+    <Sample title="The photos and the videos of a session">
+      <div className="edge rounded-(--radius-xs) [--edge-color:var(--neutral-4)]">
+        <SessionMediaField
+          entries={[
+            ...KEPT.map((item) => ({ kept: item.id })),
+            ...SENDING.map((upload) => ({ upload: upload.key })),
+          ]}
+          kept={KEPT}
+          uploads={MEDIA.uploads}
+          disabled={false}
+          paused={false}
+          onAdd={() => {}}
+          onRemove={() => toast("Taken out")}
+          onRetry={MEDIA.onRetry}
+          onOpen={(item) => setShown(item.id)}
+        />
+      </div>
+      <div className="edge rounded-(--radius-xs) [--edge-color:var(--neutral-4)]">
+        <SessionMediaField
+          entries={[{ kept: "photo" }]}
+          kept={KEPT}
+          uploads={MEDIA.uploads}
+          disabled={false}
+          paused
+          onAdd={() => {}}
+          onRemove={() => {}}
+          onRetry={() => {}}
+          onOpen={(item) => setShown(item.id)}
+        />
+      </div>
+      <MediaViewer items={KEPT} shown={shown} onShow={setShown} />
+    </Sample>
   );
 }

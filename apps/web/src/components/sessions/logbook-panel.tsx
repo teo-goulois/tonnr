@@ -6,12 +6,14 @@ import { useMemo } from "react";
 import { formatDuration, formatMonth } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import type { Loadable, Session, SessionRecap } from "../viewer/types";
+import type { Loadable, MediaItem, Session, SessionRecap } from "../viewer/types";
 import { RatingStars } from "./rating";
 import { SessionRow } from "./session-row";
 
 type LogbookPanelProps = {
   now: number;
+  // The photos and videos of the sessions, by session. Decision 066.
+  media?: Readonly<Record<string, MediaItem[]>>;
   log: Loadable<Session[]>;
   recap: Loadable<SessionRecap>;
   onAdd: () => void;
@@ -40,7 +42,15 @@ function Count({ name, count, minutes }: { name: string; count: number; minutes:
  * surfs most with how it rated them, and every session, month by month. One step into the
  * account's panel. Decision 043.
  */
-export function LogbookPanel({ now, log, recap, onAdd, onOpen, onOpenPlace }: LogbookPanelProps) {
+export function LogbookPanel({
+  now,
+  media,
+  log,
+  recap,
+  onAdd,
+  onOpen,
+  onOpenPlace,
+}: LogbookPanelProps) {
   // The sessions month by month, the latest month first, as the list gives them.
   const months = useMemo(() => {
     const byMonth: { name: string; sessions: Session[] }[] = [];
@@ -141,6 +151,7 @@ export function LogbookPanel({ now, log, recap, onAdd, onOpen, onOpenPlace }: Lo
             {month.sessions.map((session) => (
               <SessionRow
                 key={session.id}
+                media={media?.[session.id]}
                 session={session}
                 now={now}
                 withPlace

@@ -59,6 +59,7 @@ export function PrivacyPage() {
             m.privacy_content_operator(who),
           ]}
         />
+        <p>{m.privacy_content_media()}</p>
       </LegalSection>
 
       <LegalSection title={m.privacy_alerts_title()}>

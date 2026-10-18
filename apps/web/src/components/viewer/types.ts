@@ -65,6 +65,10 @@ export type Session = Answer<V1["sessions"]["list"]>["sessions"][number];
 export type SessionDetail = Answer<V1["sessions"]["get"]>;
 /** What the account's log comes to. */
 export type SessionRecap = Answer<V1["sessions"]["recap"]>;
+/** A photo or a video of a session, with addresses that read its files. Decision 066. */
+export type MediaItem = Answer<V1["media"]["sessions"]>["sessions"][string][number];
+/** Whether the instance takes photos and videos, and how much the account keeps. */
+export type MediaStatus = Answer<V1["media"]["status"]>;
 
 /** What the account said of itself as a surfer. Decision 063. */
 export type SurferProfile = NonNullable<Answer<V1["profile"]["get"]>>;

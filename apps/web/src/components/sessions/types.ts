@@ -1,4 +1,13 @@
-import type { Loadable, Session, SessionDetail, SessionRecap } from "../viewer/types";
+import type { MediaKind } from "@repo/config/media";
+
+import type {
+  Loadable,
+  MediaItem,
+  MediaStatus,
+  Session,
+  SessionDetail,
+  SessionRecap,
+} from "../viewer/types";
 
 /** How big the waves of a session looked, from `ankle` to `triple_overhead`. */
 export type SurfSize = NonNullable<Session["waveSize"]>;
@@ -16,6 +25,8 @@ export type SessionDraft = {
   // How big most of the waves and the sets looked. Null while the surfer has not said.
   waveSize: SurfSize | null;
   setSize: SurfSize | null;
+  // The photos and the videos it keeps, in their order. Decision 066.
+  mediaIds: string[];
 };
 
 /** What the sheet of a session is open on: a new one, at a place when it is known, or one of the log. */
@@ -42,4 +53,42 @@ export type Sessioning = {
   onChange: (session: Session, changed: Partial<SessionDraft>) => Promise<boolean>;
   isDeleting: boolean;
   onDelete: (session: Session) => Promise<boolean>;
+  media: SessionMedia;
+};
+
+/** The photos and the videos of the sessions, for the screens that show and send them. */
+export type SessionMedia = {
+  // Whether the instance takes them, and whether an operator stopped uploads. Undefined while it
+  // is asked.
+  status: MediaStatus | undefined;
+  // The media of the session the sheet is open on.
+  open: Loadable<MediaItem[]>;
+  // The media of the sessions of the log and of the place that is open, by session.
+  bySession: Readonly<Record<string, MediaItem[]>>;
+  uploads: ReadonlyMap<string, Upload>;
+  // Starts sending files: answers the keys of those taken.
+  onStart: (files: File[]) => string[];
+  onRetry: (key: string) => void;
+  // Takes a file being sent out of a form. `discard` deletes it from the API, for one that no
+  // session was given yet.
+  onDrop: (key: string, discard: boolean) => void;
+  // Forgets the files sent from a form that closed.
+  onForget: (keys: string[]) => void;
+};
+
+/** A photo or a video being sent from this browser, or that was. Decision 066. */
+export type Upload = {
+  key: string;
+  name: string;
+  kind: MediaKind;
+  type: string;
+  // An address of the browser that draws the file while it goes, which a form shows.
+  preview: string;
+  // How much of it went, from 0 to 1.
+  progress: number;
+  // `sending` until the bucket holds it and the API heard so, then `sent`, or `failed`.
+  state: "sending" | "sent" | "failed";
+  error: string | null;
+  // The medium's id, once the API gave one: what a session is saved with.
+  id: string | null;
 };

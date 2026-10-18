@@ -57,6 +57,11 @@ type InstancePageProps = {
   onAskingErrorsChange: (asking: "off" | "on" | undefined) => void;
   // Turns the web app's error reports off for every browser, or on. Rejects when it fails.
   onErrorsChange: (on: boolean) => Promise<unknown>;
+  // The dialog that stops the uploads of photos and videos, or the one that starts them again.
+  askingMedia: "off" | "on" | undefined;
+  onAskingMediaChange: (asking: "off" | "on" | undefined) => void;
+  // Stops every upload of photos and videos, or starts them again. Rejects when it fails.
+  onMediaChange: (on: boolean) => Promise<unknown>;
 };
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
@@ -110,6 +115,16 @@ function LastAttempt({ job, now }: { job: Job; now: number }) {
         )}
     </div>
   );
+}
+
+/** What the bucket keeps, in a line: "128 kept · 1.2 GB · 3 waiting". */
+function keptPhrases(media: InstanceState["media"]) {
+  return [
+    m.media_kept({ count: formatCount(media.ready) }),
+    formatBytes(media.bytes),
+    ...(media.waiting > 0 ? [m.media_waiting({ count: formatCount(media.waiting) })] : []),
+    ...(media.failed > 0 ? [m.media_failed({ count: formatCount(media.failed) })] : []),
+  ];
 }
 
 type Worker = InstanceState["workers"][number];
@@ -176,8 +191,8 @@ function WorkerFact({ workers, now }: { workers: Worker[]; now: number }) {
 
 /**
  * The state of the instance: its programs, what each job of the worker last did, its data,
- * whether it answers the visitors of its web app and whether the web app sends error reports,
- * which an operator changes here.
+ * whether it answers the visitors of its web app, whether the web app sends error reports and
+ * whether accounts send photos and videos, which an operator changes here.
  */
 export function InstancePage({
   state,
@@ -188,6 +203,9 @@ export function InstancePage({
   askingErrors,
   onAskingErrorsChange,
   onErrorsChange,
+  askingMedia,
+  onAskingMediaChange,
+  onMediaChange,
 }: InstancePageProps) {
   // An API of the version before this page's says nothing of forecasts: the admin and the API
   // are not deployed together, and the section waits rather than fail.
@@ -201,6 +219,9 @@ export function InstancePage({
   const closesAt = (visitors?.closesAt as number | undefined) ?? null;
   const errors = state?.errorReports as InstanceState["errorReports"] | undefined;
   const errorsOn = errors?.pausedAt === null;
+  // An API of the version before says nothing of the photos and videos either.
+  const media = state?.media as InstanceState["media"] | undefined;
+  const uploadsOn = media?.pausedAt === null;
   return (
     <>
       <h1 className="text-l font-medium">{m.nav_instance()}</h1>
@@ -259,6 +280,37 @@ export function InstancePage({
                 onClick={() => onAskingErrorsChange(errorsOn ? "off" : "on")}
               >
                 {errorsOn ? m.errors_turn_off() : m.errors_turn_on()}
+              </Button>
+            </span>
+          )}
+        </Fact>
+        <Fact label={m.instance_media()}>
+          {!media ? (
+            <Skeleton className="h-6 w-40" />
+          ) : !media.offered ? (
+            <span className="grid gap-xxs">
+              {m.media_none()}
+              <span className="text-s text-neutral-7">{m.media_none_note()}</span>
+            </span>
+          ) : (
+            <span className="grid justify-items-start gap-xs">
+              <span className="flex flex-wrap items-center gap-xs">
+                <Badge variant={uploadsOn ? "success" : "warning"}>
+                  {uploadsOn ? m.media_on() : m.media_off()}
+                </Badge>
+                <span className="text-s text-neutral-7">
+                  {media.pausedAt
+                    ? m.media_off_note({ ago: formatAgo(media.pausedAt, now) })
+                    : m.media_on_note()}
+                </span>
+              </span>
+              <span className="tabular-nums">{keptPhrases(media).join(" · ")}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onAskingMediaChange(uploadsOn ? "off" : "on")}
+              >
+                {uploadsOn ? m.media_turn_off() : m.media_turn_on()}
               </Button>
             </span>
           )}
@@ -535,6 +587,23 @@ export function InstancePage({
         confirmLabel={m.errors_turn_on()}
         variant="default"
         onConfirm={() => onErrorsChange(true)}
+      />
+      <ConfirmDialog
+        open={askingMedia === "off" && media?.offered === true && media.pausedAt === null}
+        onOpenChange={(open) => onAskingMediaChange(open ? "off" : undefined)}
+        title={m.media_off_title()}
+        body={m.media_off_body()}
+        confirmLabel={m.media_turn_off()}
+        onConfirm={() => onMediaChange(false)}
+      />
+      <ConfirmDialog
+        open={askingMedia === "on" && media?.offered === true && media.pausedAt !== null}
+        onOpenChange={(open) => onAskingMediaChange(open ? "on" : undefined)}
+        title={m.media_on_title()}
+        body={m.media_on_body()}
+        confirmLabel={m.media_turn_on()}
+        variant="default"
+        onConfirm={() => onMediaChange(true)}
       />
     </>
   );

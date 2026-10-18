@@ -21,7 +21,7 @@ A photo of a phone is 3 to 5 MB, often in HEIF, and a minute of its video, in 4K
 - The browser says it is sent with `media.uploaded`. The API asks the bucket what it holds, keeps its ETag, and wakes the worker with `NOTIFY`. A file of another size or type is deleted there.
 - Before it signs, under the account's row: a photo is a JPEG, PNG, WebP, AVIF or a phone's HEIF of 40 MB at most, and a video an MP4, a QuickTime or a WebM of 1 GB and a minute at most; an account keeps 2 GB, counting what waits at the size it was said; it asks for 40 files an hour; every account together sends 20 GB a day. Chosen here, but for the three of Téo's.
 - A file is sent under `up/<id>`, a key the browser may write to while its address works and that nothing ever shows. What is shown is under `m/<id>/`, which only the worker writes. Codex said that a browser could put a file again under the first key while it is read: the worker reads the file that has the ETag the API kept, and refuses another.
-- An operator stops every upload from the admin, `media_pause`, and what is kept is still shown and deleted.
+- An operator stops every upload from the admin's page of the instance, `PUT /v1/media/uploads`, which writes `media_pause` and says who in `operator_action`; what is kept is still shown and deleted. A file whose address was signed in the quarter of an hour before still arrives and is made. The page says how many media are kept, their size, and how many wait or failed.
 
 ### What the worker makes of it
 
@@ -45,7 +45,11 @@ A photo of a phone is 3 to 5 MB, often in HEIF, and a minute of its video, in 4K
 
 ### In the web app
 
-What the session's form and its sheet show is said once it is built.
+- The form of a session has a line of its photos and videos, under how big the waves looked: a strip of squares and a last one that adds more. A file goes up as soon as it is chosen, with a ring of how far it went, while the rest of the form is filled in. A file the browser can tell is of another type, or too big, is refused before anything is asked. One that failed is sent again with a press. Chosen here.
+- A file goes on going up once its form is closed: the files being sent are kept by the route, not by the form, and a session saved while a video still goes up keeps it and says so. A file taken out of a new session's form is deleted at once; one taken out of a session that keeps it goes when the form is saved.
+- A press on a square opens the viewer, `MediaViewer`: one photo or video at a time, over the whole screen and dark in either theme, with arrows on a wide screen, a slide of a finger on a phone and the arrow keys. A video plays when it is asked to, with its sound.
+- The log and the tab of a place's sessions draw the first photo of a session small at the end of its line. The media of what is on screen are asked again every three seconds while one is being made.
+- `media.status` says whether the instance takes media: the line is not drawn on an instance that keeps none.
 
 ## Rejected
 

@@ -180,35 +180,39 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos the worker makes"
     expect(await database.db.select().from(mediaTrash)).toEqual([]);
   });
 
-  it.skipIf(!hasFfmpeg)("makes a video, its poster and its small picture", async () => {
-    const folder = await mkdtemp(join(tmpdir(), "worker-video-"));
-    try {
-      const path = join(folder, "clip.mp4");
-      execFileSync("ffmpeg", [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-f",
-        "lavfi",
-        "-i",
-        "testsrc2=size=320x240:rate=25:duration=2",
-        "-c:v",
-        "libx264",
-        "-y",
-        path,
-      ]);
-      await sent("v1", await readFile(path), "video/mp4", "video");
-      expect(await runMedia(database.db, storage)).toMatchObject({ ready: 1 });
-      const row = await rowOf("v1");
-      expect(row).toMatchObject({ state: "ready", width: 320, height: 240, durationMs: 2000 });
-      expect(Object.keys(row?.files ?? {}).sort()).toEqual(["poster", "thumb", "video"]);
-      expect(storage.keys().sort()).toEqual([
-        "m/v1/poster.webp",
-        "m/v1/thumb.webp",
-        "m/v1/video.mp4",
-      ]);
-    } finally {
-      await rm(folder, { recursive: true, force: true });
-    }
-  });
+  it.skipIf(!hasFfmpeg)(
+    "makes a video, its poster and its small picture",
+    { timeout: 60_000 },
+    async () => {
+      const folder = await mkdtemp(join(tmpdir(), "worker-video-"));
+      try {
+        const path = join(folder, "clip.mp4");
+        execFileSync("ffmpeg", [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-f",
+          "lavfi",
+          "-i",
+          "testsrc2=size=320x240:rate=25:duration=2",
+          "-c:v",
+          "libx264",
+          "-y",
+          path,
+        ]);
+        await sent("v1", await readFile(path), "video/mp4", "video");
+        expect(await runMedia(database.db, storage)).toMatchObject({ ready: 1 });
+        const row = await rowOf("v1");
+        expect(row).toMatchObject({ state: "ready", width: 320, height: 240, durationMs: 2000 });
+        expect(Object.keys(row?.files ?? {}).sort()).toEqual(["poster", "thumb", "video"]);
+        expect(storage.keys().sort()).toEqual([
+          "m/v1/poster.webp",
+          "m/v1/thumb.webp",
+          "m/v1/video.mp4",
+        ]);
+      } finally {
+        await rm(folder, { recursive: true, force: true });
+      }
+    },
+  );
 });

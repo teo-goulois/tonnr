@@ -3,12 +3,24 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import type { SessionOpen, SessionPlace, Sessioning } from "@/components/sessions/types";
-import type { Loadable } from "@/components/viewer/types";
+import type { Loadable, MediaItem } from "@/components/viewer/types";
 import { m } from "@/paraglide/messages.js";
 import { orpc } from "@/utils/orpc";
 
+import { dropUpload, forgetSent, retryUpload, startUploads, useUploads } from "./-media";
+
 // A log is read whole while it is short: a longer one shows its latest sessions.
 const LOG_MOST = 200;
+// How often the media of a session are asked again while one is not yet made.
+const MEDIA_EVERY_MS = 3000;
+const NO_MEDIA: Readonly<Record<string, MediaItem[]>> = {};
+
+// Whether some medium of an answer is still being sent or made.
+function isMaking(answer: { sessions: Record<string, MediaItem[]> } | undefined) {
+  return Object.values(answer?.sessions ?? {}).some((items) =>
+    items.some((item) => item.state === "uploading" || item.state === "processing"),
+  );
+}
 
 type Asked = {
   signedIn: boolean;
@@ -77,8 +89,52 @@ export function useSessions({ signedIn, isLogShown, place, onSeeLog }: Asked): S
     }),
   );
 
-  // Every list and the recap follow what was written.
-  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.v1.sessions.key() });
+  // The photos and the videos: whether the instance takes them, those of the session the sheet
+  // is open on, and those of the sessions of the log and of the place. Asked again every few
+  // seconds while one is being made. Decision 066.
+  const mediaStatus = useQuery(
+    orpc.v1.media.status.queryOptions({ enabled: signedIn, staleTime: 5 * 60 * 1000, ...quiet }),
+  );
+  const making = (query: {
+    state: { data: { sessions: Record<string, MediaItem[]> } | undefined };
+  }) => (isMaking(query.state.data) ? MEDIA_EVERY_MS : false);
+  const openMedia = useQuery(
+    orpc.v1.media.sessions.queryOptions({
+      input: { sessionIds: [openId ?? ""] },
+      enabled: signedIn && openId !== undefined,
+      select: (answer) => answer.sessions[openId ?? ""] ?? [],
+      refetchInterval: making,
+      ...quiet,
+    }),
+  );
+  const listedIds = useMemo(
+    () =>
+      [...new Set([...(log.data ?? []), ...(here.data ?? [])].map((session) => session.id))]
+        .sort()
+        .slice(0, LOG_MOST),
+    [log.data, here.data],
+  );
+  const listedMedia = useQuery(
+    orpc.v1.media.sessions.queryOptions({
+      input: { sessionIds: listedIds },
+      enabled: signedIn && listedIds.length > 0 && mediaStatus.data?.offered !== false,
+      refetchInterval: making,
+      ...quiet,
+    }),
+  );
+  const uploads = useUploads();
+
+  // Every list and the recap follow what was written, and so do the media.
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: orpc.v1.sessions.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.v1.media.key() }),
+    ]);
+  // Whether files of a form are still going up when it is saved: they go on, and say so.
+  const stillSending = (ids: string[]) =>
+    [...uploads.values()].some(
+      (upload) => upload.state === "sending" && ids.includes(upload.id ?? ""),
+    );
   const create = useMutation(orpc.v1.sessions.create.mutationOptions());
   const update = useMutation(orpc.v1.sessions.update.mutationOptions());
   const remove = useMutation(orpc.v1.sessions.delete.mutationOptions());
@@ -89,6 +145,7 @@ export function useSessions({ signedIn, isLogShown, place, onSeeLog }: Asked): S
     here: useLoadable(here),
     detail: useLoadable(detail),
   };
+  const answeredMedia = { open: useLoadable(openMedia) };
 
   return {
     ...answered,
@@ -112,9 +169,11 @@ export function useSessions({ signedIn, isLogShown, place, onSeeLog }: Asked): S
           ...(draft.note && { note: draft.note }),
           ...(draft.waveSize && { waveSize: draft.waveSize }),
           ...(draft.setSize && { setSize: draft.setSize }),
+          ...(draft.mediaIds.length > 0 && { mediaIds: draft.mediaIds }),
         });
         setOpen(null);
         void refresh();
+        if (stillSending(draft.mediaIds)) toast.info(m.media_still_sending());
         // The sea of a session that was written long after, or while the provider rests, is said
         // to be missing where the session is read: here it is kept, and that is the news.
         toast.success(m.session_saved({ name: made.place.name }), {
@@ -137,11 +196,32 @@ export function useSessions({ signedIn, isLogShown, place, onSeeLog }: Asked): S
         queryClient.setQueryData(orpc.v1.sessions.get.queryKey({ input: { id: kept.id } }), kept);
         void refresh();
         toast.success(m.session_changed());
+        if (changed.mediaIds && stillSending(changed.mediaIds)) toast.info(m.media_still_sending());
         return true;
       } catch (error) {
         toast.error((error as Error).message);
         return false;
       }
+    },
+    media: {
+      status: mediaStatus.data,
+      open: answeredMedia.open,
+      bySession: listedMedia.data?.sessions ?? NO_MEDIA,
+      uploads,
+      onStart: (files) => {
+        const { started, refused } = startUploads(files);
+        for (const file of refused) {
+          toast.error(
+            file.why === "type"
+              ? m.media_refused_type({ name: file.name })
+              : m.media_refused_size({ name: file.name }),
+          );
+        }
+        return started;
+      },
+      onRetry: retryUpload,
+      onDrop: dropUpload,
+      onForget: forgetSent,
     },
     isDeleting: remove.isPending,
     onDelete: async (session) => {

@@ -102,6 +102,10 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_errors_off()];
     case "errors.on":
       return [m.action_errors_on()];
+    case "media.off":
+      return [m.action_media_off()];
+    case "media.on":
+      return [m.action_media_on()];
     case "break.update":
       return [m.action_break_updated()];
     case "break.merge":
@@ -132,7 +136,11 @@ const linked = "focus-ring rounded-(--radius-xs) underline-offset-4 outline-none
  * the sentence names the account.
  */
 function Subject({ action, existing }: { action: OperatorAction; existing: ReadonlySet<string> }) {
-  if (action.action.startsWith("visitors.") || action.action.startsWith("errors.")) {
+  if (
+    action.action.startsWith("visitors.") ||
+    action.action.startsWith("errors.") ||
+    action.action.startsWith("media.")
+  ) {
     return (
       <Link to="/instance" className={linked}>
         {m.nav_instance()}

@@ -15,6 +15,7 @@ import {
 import { AccountPrompt, BreakRow, SpotRow } from "../viewer/saved-panel";
 import type { Spot } from "../viewer/types";
 import { ViewerDrawer } from "../viewer/viewer-drawer";
+import { MediaViewer } from "./media-viewer";
 import { SessionForm } from "./session-form";
 import { sessionWhen } from "./session-row";
 import { SessionConditions, SessionCredits } from "./session-sea";
@@ -57,10 +58,14 @@ export function SessionSheet({
   // The place a new session was said to be at, in the sheet itself.
   const [picked, setPicked] = useState<SessionPlace | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  if (!open && (picked || isDeleting)) {
+  // The photo or the video shown over the whole screen.
+  const [shown, setShown] = useState<string | null>(null);
+  if (!open && (picked || isDeleting || shown)) {
     setPicked(null);
     setIsDeleting(false);
+    setShown(null);
   }
+  const { media } = sessioning;
 
   const isNew = open !== null && open.sessionId === undefined;
   const place = open?.place ?? picked ?? undefined;
@@ -159,6 +164,8 @@ export function SessionSheet({
           wide={wide}
           isSaving={sessioning.isSaving}
           onSave={(draft) => void sessioning.onAdd(place, draft)}
+          media={media}
+          onOpenMedia={(item) => setShown(item.id)}
         />
       ) : detail.isError ? (
         <p className="text-s text-neutral-7">{m.session_not_found()}</p>
@@ -194,6 +201,9 @@ export function SessionSheet({
             wide={wide}
             isSaving={sessioning.isSaving}
             onSave={(_draft, changed) => void sessioning.onChange(session, changed)}
+            media={media}
+            kept={media.open.data}
+            onOpenMedia={(item) => setShown(item.id)}
           />
           <div className="flex flex-wrap items-center gap-xs">
             {(session.place.spotId ?? session.place.breakId) && (
@@ -229,6 +239,7 @@ export function SessionSheet({
             )}
           </div>
           <SessionCredits session={session} />
+          <MediaViewer items={media.open.data ?? []} shown={shown} onShow={setShown} />
         </div>
       )}
     </ViewerDrawer>

@@ -121,10 +121,15 @@ export function storageOf(storage: Storage | null | undefined) {
   return storage;
 }
 
+/** Since when an operator has uploads stopped for every account. Null while none has. */
+export async function uploadsPausedAt(db: Pick<Database, "select">) {
+  const [pause] = await db.select({ at: mediaPause.at }).from(mediaPause);
+  return pause?.at ?? null;
+}
+
 /** Whether an operator stopped uploads for every account. */
 export async function uploadsPaused(db: Pick<Database, "select">) {
-  const [pause] = await db.select({ at: mediaPause.at }).from(mediaPause);
-  return pause !== undefined;
+  return (await uploadsPausedAt(db)) !== null;
 }
 
 /** Tells the worker that a file waits for it. A worker that is not there finds it within a minute. */

@@ -1,12 +1,13 @@
 import { call, ORPCError } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { operator, operatorAction } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { media, mediaPause, mediaTrash } from "@repo/db/schema/media";
 import { surfSession } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { testStorage, type TestStorage } from "@repo/media/testing";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "./context";
@@ -145,6 +146,20 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos of a session", ()
       by("ana"),
     );
     expect(video.kind).toBe("video");
+  });
+
+  it("says whether the instance takes media, and how much the account keeps", async () => {
+    expect(await call(v1Router.media.status, undefined, by("ana", null))).toMatchObject({
+      offered: false,
+      keptBytes: 0,
+    });
+    await call(v1Router.media.prepare, photo, by("ana"));
+    expect(await call(v1Router.media.status, undefined, by("ana"))).toEqual({
+      offered: true,
+      paused: false,
+      keptBytes: 3 * MB,
+      mostBytes: 2048 * MB,
+    });
   });
 
   it("takes nothing on an instance that keeps no media, or while an operator stopped uploads", async () => {
@@ -327,5 +342,81 @@ describe.skipIf(!TEST_DATABASE_URL)("the photos and the videos of a session", ()
     const keys = (await database.db.select().from(mediaTrash)).flatMap((row) => row.keys).sort();
     expect(keys).toEqual([`up/${one.id}`, `up/${two.id}`, `up/${three.id}`].sort());
     expect(await database.db.select().from(media)).toEqual([]);
+  });
+
+  describe("an operator", () => {
+    // An operator's request names the admin's site: decision 020.
+    const ADMIN = "https://admin.example.org";
+    const fromAdmin = (id: string, kept: TestStorage | null = storage) => {
+      const context: Context = { ...by(id, kept).context, site: ADMIN, adminSites: [ADMIN] };
+      return { context };
+    };
+    const uploads = (on: boolean, asking = fromAdmin("ben")) =>
+      call(v1Router.media.uploads, { on }, asking);
+
+    beforeEach(async () => {
+      await database.db.insert(operator).values({ userId: "ben" });
+    });
+
+    it("alone stops every upload, from the admin's site, and starts them again", async () => {
+      // An account that is no operator is refused, and so is an operator from the web app.
+      await expect(uploads(false, fromAdmin("ana"))).rejects.toEqual(refusal("FORBIDDEN"));
+      await expect(uploads(false, by("ben"))).rejects.toEqual(refusal("FORBIDDEN"));
+      await call(v1Router.media.prepare, photo, by("ana"));
+
+      const { pausedAt } = await uploads(false);
+      expect(pausedAt).toBeInstanceOf(Date);
+      await expect(call(v1Router.media.prepare, photo, by("ana"))).rejects.toEqual(
+        refusal("SERVICE_UNAVAILABLE"),
+      );
+      // Stopped twice, they are stopped since the first time.
+      expect(await uploads(false)).toEqual({ pausedAt });
+
+      expect(await uploads(true)).toEqual({ pausedAt: null });
+      expect(await uploads(true)).toEqual({ pausedAt: null });
+      await call(v1Router.media.prepare, photo, by("ana"));
+
+      // Each change is recorded once, and what changed nothing is not.
+      const done = await database.db
+        .select()
+        .from(operatorAction)
+        .where(inArray(operatorAction.action, ["media.off", "media.on"]))
+        .orderBy(operatorAction.at);
+      expect(done.map((action) => [action.action, action.operatorId])).toEqual([
+        ["media.off", "ben"],
+        ["media.on", "ben"],
+      ]);
+    });
+
+    it("reads what the instance keeps, what waits, and since when uploads are stopped", async () => {
+      const row = {
+        userId: "ana",
+        purpose: "session" as const,
+        kind: "photo" as const,
+        uploadType: "image/jpeg",
+        uploadBytes: 3 * MB,
+      };
+      await database.db.insert(media).values([
+        { ...row, id: "r1", uploadKey: "up/r1", state: "ready", bytes: 300_000 },
+        { ...row, id: "r2", uploadKey: "up/r2", state: "ready", bytes: 200_000 },
+        { ...row, id: "w1", uploadKey: "up/w1", state: "awaiting_upload" },
+        { ...row, id: "w2", uploadKey: "up/w2", state: "uploaded" },
+        { ...row, id: "f1", uploadKey: "up/f1", state: "failed", failure: "unreadable" },
+      ]);
+      const before = await call(v1Router.instance.state, undefined, fromAdmin("ben"));
+      expect(before.media).toEqual({
+        offered: true,
+        pausedAt: null,
+        ready: 2,
+        bytes: 500_000,
+        waiting: 2,
+        failed: 1,
+      });
+
+      const { pausedAt } = await uploads(false);
+      // An instance whose bucket's settings are not set keeps none.
+      const after = await call(v1Router.instance.state, undefined, fromAdmin("ben", null));
+      expect(after.media).toMatchObject({ offered: false, pausedAt });
+    });
   });
 });

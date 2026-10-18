@@ -8,12 +8,16 @@ import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_operator/instance")({
   // `visitors` opens the dialog that closes the app to visitors, or the one that opens it to
-  // them, and `errors` the one that turns its error reports off or on: the command palette
-  // comes here with them, from any page.
-  validateSearch: (search): { visitors?: "close" | "open"; errors?: "off" | "on" } => ({
+  // them, `errors` the one that turns its error reports off or on, and `media` the one that
+  // stops the uploads of photos and videos or starts them: the command palette comes here with
+  // them, from any page.
+  validateSearch: (
+    search,
+  ): { visitors?: "close" | "open"; errors?: "off" | "on"; media?: "off" | "on" } => ({
     visitors:
       search.visitors === "close" || search.visitors === "open" ? search.visitors : undefined,
     errors: search.errors === "off" || search.errors === "on" ? search.errors : undefined,
+    media: search.media === "off" || search.media === "on" ? search.media : undefined,
   }),
   component: InstanceRoute,
 });
@@ -25,7 +29,7 @@ function InstanceRoute() {
   const now = useNow(EVERY);
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
-  const { visitors: asking, errors: askingErrors } = Route.useSearch();
+  const { visitors: asking, errors: askingErrors, media: askingMedia } = Route.useSearch();
   const state = useQuery(orpc.v1.instance.state.queryOptions({ refetchInterval: EVERY }));
   // The page says since when at once, and the record of what was done has one more line.
   const changed = {
@@ -38,6 +42,7 @@ function InstanceRoute() {
   };
   const change = useMutation(orpc.v1.visitors.update.mutationOptions(changed));
   const changeErrors = useMutation(orpc.v1.errorReports.update.mutationOptions(changed));
+  const changeMedia = useMutation(orpc.v1.media.uploads.mutationOptions(changed));
 
   return (
     <InstancePage
@@ -53,6 +58,11 @@ function InstanceRoute() {
         void navigate({ search: errors ? { errors } : {}, replace: true })
       }
       onErrorsChange={(on) => changeErrors.mutateAsync({ on })}
+      askingMedia={askingMedia}
+      onAskingMediaChange={(media) =>
+        void navigate({ search: media ? { media } : {}, replace: true })
+      }
+      onMediaChange={(on) => changeMedia.mutateAsync({ on })}
     />
   );
 }

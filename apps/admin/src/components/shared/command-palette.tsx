@@ -205,6 +205,16 @@ export function CommandPalette() {
           label: m.errors_on_command(),
           run: () => void navigate({ to: "/instance", search: { errors: "on" } }),
         },
+        {
+          value: `${m.media_off_command()} media photos videos uploads bucket`,
+          label: m.media_off_command(),
+          run: () => void navigate({ to: "/instance", search: { media: "off" } }),
+        },
+        {
+          value: `${m.media_on_command()} media photos videos uploads bucket`,
+          label: m.media_on_command(),
+          run: () => void navigate({ to: "/instance", search: { media: "on" } }),
+        },
       ],
     },
     {

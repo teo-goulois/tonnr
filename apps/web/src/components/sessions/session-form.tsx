@@ -1,16 +1,19 @@
+import { SESSION_MOST_MEDIA } from "@repo/config/media";
 import { Button } from "@repo/ui/components/ui/button";
 import { Textarea } from "@repo/ui/components/ui/textarea";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { formatClock, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import type { Session } from "../viewer/types";
+import type { MediaItem, Session } from "../viewer/types";
 import { DurationInput, USUAL_MINUTES } from "./duration-input";
 import { RatingInput, ratingWord } from "./rating";
+import { type MediaEntry, SessionMediaField } from "./session-media";
 import { SurfSizeInput } from "./surf-size";
-import type { SessionDraft } from "./types";
+import type { SessionDraft, SessionMedia } from "./types";
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -107,7 +110,15 @@ type SessionFormProps = {
   isSaving: boolean;
   // The session as it is written, and what of it differs from the one that is changed.
   onSave: (draft: SessionDraft, changed: Partial<SessionDraft>) => void;
+  // The photos and the videos: what the instance takes, what is being sent, and what the session
+  // keeps, which a press opens in the viewer. Decision 066. `kept` is undefined while a session
+  // that is changed has its media asked for: nothing is added or taken out until they come.
+  media: SessionMedia;
+  kept?: readonly MediaItem[] | undefined;
+  onOpenMedia: (item: MediaItem) => void;
 };
+
+const NO_MEDIA: readonly MediaItem[] = [];
 
 /**
  * A session as it is written: when it began, how long it lasted, how big the waves looked, how
@@ -116,7 +127,16 @@ type SessionFormProps = {
  * is a choice among the usual ones or one's own, and the rating is five stars. Only when it began
  * is asked for: the rest has a usual answer, or may wait.
  */
-export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFormProps) {
+export function SessionForm({
+  session,
+  now,
+  wide,
+  isSaving,
+  onSave,
+  media,
+  kept,
+  onOpenMedia,
+}: SessionFormProps) {
   const [begun] = useState(() => session?.startedAt ?? usualStart(now));
   const [day, setDay] = useState(() => toDayField(begun));
   const [clock, setClock] = useState(() => toClockField(begun));
@@ -126,11 +146,53 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
   const [waveSize, setWaveSize] = useState(session?.waveSize ?? null);
   const [setSize, setSetSize] = useState(session?.setSize ?? null);
 
+  // The photos and the videos as the form holds them, once one is added or taken out: until then,
+  // what the session keeps, as the API says it.
+  const keptItems = kept ?? NO_MEDIA;
+  const isKeptAsked = session !== undefined && kept === undefined;
+  const keptIds = keptItems.map((item) => item.id);
+  const [touched, setTouched] = useState<MediaEntry[] | null>(null);
+  const entries: MediaEntry[] = touched ?? keptIds.map((id) => ({ kept: id }));
+  // What was sent from this form is forgotten as it closes: the session shows it from the API.
+  const sentHere = useRef<string[]>([]);
+  const { onForget } = media;
+  useEffect(() => () => onForget(sentHere.current), [onForget]);
+
+  const mediaIds = entries.flatMap((entry) => {
+    if ("kept" in entry) return [entry.kept];
+    const upload = media.uploads.get(entry.upload);
+    return upload?.id && upload.state !== "failed" ? [upload.id] : [];
+  });
+  // A file the API has not yet given an id: a moment, before the form can be saved.
+  const isAsking = entries.some((entry) => {
+    if ("kept" in entry) return false;
+    const upload = media.uploads.get(entry.upload);
+    return upload?.state === "sending" && upload.id === null;
+  });
+  const showsMedia = media.status?.offered === true || keptIds.length > 0;
+
+  function addMedia(files: File[]) {
+    const room = SESSION_MOST_MEDIA - entries.length;
+    if (files.length > room) toast.error(m.media_too_many({ count: SESSION_MOST_MEDIA }));
+    const keys = media.onStart(files.slice(0, Math.max(0, room)));
+    sentHere.current.push(...keys);
+    setTouched([...entries, ...keys.map((key) => ({ upload: key }))]);
+  }
+
+  function removeMedia(index: number) {
+    const entry = entries[index];
+    if (!entry) return;
+    // A file being sent belongs to no session yet: it goes from the API too. One the session
+    // keeps goes once the form is saved without it.
+    if ("upload" in entry) media.onDrop(entry.upload, true);
+    setTouched(entries.filter((_, at) => at !== index));
+  }
+
   const startedAt = fromFields(day, clock);
   const isAhead = startedAt !== null && startedAt.getTime() > now + AHEAD_MS;
 
   function save() {
-    if (!startedAt || isAhead || isSaving) return;
+    if (!startedAt || isAhead || isSaving || isAsking) return;
     const draft = {
       startedAt,
       durationMinutes: minutes,
@@ -138,8 +200,10 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
       note: note.trim(),
       waveSize,
       setSize,
+      mediaIds,
     };
     onSave(draft, {
+      ...(mediaIds.join() !== keptIds.join() && { mediaIds }),
       ...(startedAt.getTime() !== session?.startedAt.getTime() && { startedAt }),
       ...(minutes !== session?.durationMinutes && { durationMinutes: minutes }),
       ...(rating !== (session?.rating ?? null) && { rating }),
@@ -216,6 +280,19 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
               disabled={isSaving}
             />
           </Row>
+          {showsMedia && (
+            <SessionMediaField
+              entries={entries}
+              kept={keptItems}
+              uploads={media.uploads}
+              disabled={isSaving || isKeptAsked}
+              paused={media.status?.paused === true || media.status?.offered === false}
+              onAdd={addMedia}
+              onRemove={removeMedia}
+              onRetry={media.onRetry}
+              onOpen={onOpenMedia}
+            />
+          )}
           {/* The line says the rating in a word once it is given. */}
           <Row
             name={
@@ -245,7 +322,7 @@ export function SessionForm({ session, now, wide, isSaving, onSave }: SessionFor
         onChange={(event) => setNote(event.target.value)}
       />
 
-      <Button type="submit" disabled={!startedAt || isAhead} isPending={isSaving}>
+      <Button type="submit" disabled={!startedAt || isAhead || isAsking} isPending={isSaving}>
         {session ? m.session_save_changes() : m.session_save()}
       </Button>
     </form>

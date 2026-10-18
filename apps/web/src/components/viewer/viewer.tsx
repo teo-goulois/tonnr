@@ -949,6 +949,7 @@ export function Viewer({
                   now={now}
                   signedIn={signedIn}
                   sessions={sessionsHere}
+                  media={sessioning.media.bySession}
                   onAdd={() => beginSession({ kind: "spot", ...pointOf(spot) })}
                   onOpen={openSession}
                   onSignIn={signIn}
@@ -1006,6 +1007,7 @@ export function Viewer({
               now={now}
               signedIn={signedIn}
               sessions={sessionsHere}
+              media={sessioning.media.bySession}
               onAdd={() =>
                 drawn.found.data &&
                 beginSession({
@@ -1991,6 +1993,7 @@ export function Viewer({
         ) : ownSessions ? (
           <LogbookPanel
             now={now}
+            media={sessioning.media.bySession}
             log={sessioning.log}
             recap={sessioning.recap}
             onAdd={() => beginSession()}

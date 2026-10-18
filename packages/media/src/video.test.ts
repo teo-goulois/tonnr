@@ -17,7 +17,8 @@ const hasFfmpeg = (() => {
   }
 })();
 
-describe.skipIf(!hasFfmpeg)("renderVideo", () => {
+// Encoding takes seconds on a runner of CI, and more while other tests run beside it.
+describe.skipIf(!hasFfmpeg)("renderVideo", { timeout: 60_000 }, () => {
   let folder: string;
   let phone: string;
 

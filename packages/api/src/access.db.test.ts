@@ -180,6 +180,7 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.media.discard",
   "v1.media.prepare",
   "v1.media.sessions",
+  "v1.media.status",
   "v1.media.uploaded",
   // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
   "v1.push.devices",
@@ -474,6 +475,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         "v1.keys.list",
         "v1.keys.create",
         "v1.keys.revoke",
+        "v1.media.uploads",
         "v1.privateCatalogue.summary",
         "v1.privateCatalogue.records",
         "v1.privateCatalogue.record",
