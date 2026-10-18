@@ -343,6 +343,27 @@ function stagesWords(stages: TideStage[] | undefined) {
   );
 }
 
+/** The parts of the cycle in runs, each said by its ends: "de mi-marée montante à haute". */
+function cycleRuns(cycle: readonly string[] | undefined) {
+  if (!cycle?.length || cycle.length >= CYCLE.length) return undefined;
+  const on = CYCLE.map((one) => cycle.includes(one));
+  // Start after a part that is off, so that a run across "basse" stays whole.
+  const start = on.findIndex((isOn, at) => isOn && !on[(at + CYCLE.length - 1) % CYCLE.length]);
+  const runs: string[] = [];
+  let run: (typeof CYCLE)[number][] = [];
+  for (let step = 0; step <= CYCLE.length; step++) {
+    const at = (start + step) % CYCLE.length;
+    if (on[at] && step < CYCLE.length) {
+      run.push(CYCLE[at]!);
+      continue;
+    }
+    if (run.length === 1) runs.push(CYCLE_WORDS[run[0]!]);
+    else if (run.length > 1) runs.push(`de ${CYCLE_WORDS[run[0]!]} à ${CYCLE_WORDS[run.at(-1)!]}`);
+    run = [];
+  }
+  return joinOr(runs);
+}
+
 /** What a case asks of the tide, in words, in the variant that reads it. Empty: nothing. */
 function tideWords(variant: TideVariant, ask: TideAsk): string {
   const trend =
@@ -363,13 +384,13 @@ function tideWords(variant: TideVariant, ask: TideAsk): string {
       return [coefWords(ask), stages && `à ${stages}`].filter(Boolean).join(", ");
     }
     case "d": {
-      const cycle =
-        ask.cycle?.length && ask.cycle.length < CYCLE.length
-          ? CYCLE.filter((one) => ask.cycle?.includes(one))
-              .map((one) => CYCLE_WORDS[one])
-              .join(", ")
+      const coefs =
+        ask.coefs?.length && ask.coefs.length < COEF_KEYS.length
+          ? `coef ${COEF_KEYS.filter((key) => ask.coefs?.includes(key))
+              .map((key) => COEF_FIGURES[key])
+              .join(" ou ")}`
           : undefined;
-      return [cycle, coefWords(ask)].filter(Boolean).join(", ");
+      return [cycleRuns(ask.cycle), coefs].filter(Boolean).join(", ");
     }
   }
 }
@@ -913,8 +934,7 @@ export function PrototypeAlertEditor({
         open={open}
         words={isSet ? words : any}
         onAny={() => setAsk({})}
-        // The cycle's dial says the value itself: the words would say it twice.
-        value={variant === "d" ? { said: "" } : { said: isSet ? words : "Peu importe", long: true }}
+        value={{ said: isSet ? words : "Peu importe", long: true }}
       >
         {body}
       </Slot>
