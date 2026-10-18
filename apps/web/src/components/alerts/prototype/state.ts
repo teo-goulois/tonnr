@@ -40,7 +40,7 @@ function readInitial(): ProtoChoice {
     if (["a", "b", "c", "d"].includes(proto)) choice.tide = proto as TideVariant;
   }
   const or = params.get("or");
-  if (or === "1" || or === "2") choice.or = or;
+  if (or === "1" || or === "2" || or === "3") choice.or = or;
   if (choice.on) sessionStorage.setItem(KEY, JSON.stringify(choice));
   return choice;
 }

@@ -97,6 +97,7 @@ function Slot({
   shown = words,
   isSet,
   isWide = false,
+  open = false,
   children,
 }: {
   label: string;
@@ -104,10 +105,12 @@ function Slot({
   shown?: ReactNode;
   isSet: boolean;
   isWide?: boolean;
+  // Opens as it comes: a value just added with "+".
+  open?: boolean;
   children: ReactNode;
 }) {
   return (
-    <Popover>
+    <Popover defaultOpen={open}>
       <PopoverTrigger
         nativeButton={false}
         render={
@@ -191,6 +194,41 @@ function tideWords(variant: TideVariant, ask: TideAsk): string {
       return [cycle, coefWords(ask)].filter(Boolean).join(", ");
     }
   }
+}
+
+type Setter = (next: Partial<Case>) => void;
+
+// Variant 3: each part of the sentence may take other values, each on a line of its own after
+// "ou". An hour is found when each part has one of its values met: the alert is judged as every
+// combination of them, which is what the cases of variants 1 and 2 are.
+const PARTS = [
+  "waveHeightMeters",
+  "wavePeakPeriodSeconds",
+  "waveDirectionDegrees",
+  "windSpeedMetersPerSecond",
+  "windDirectionDegrees",
+  "tide",
+] as const;
+type Part = (typeof PARTS)[number];
+// An other value of a part, held as a whole case of which only that part is read.
+type Alt = { id: number; one: Case };
+type Alts = Partial<Record<Part, Alt[]>>;
+
+function combinations(base: Case, alts: Alts): Case[] {
+  let all: Case[] = [base];
+  for (const key of PARTS) {
+    const others = alts[key] ?? [];
+    if (others.length === 0) continue;
+    all = all.flatMap((one) => [
+      one,
+      ...others.map((alt) =>
+        key === "tide"
+          ? { ...one, tide: alt.one.tide }
+          : { ...one, criteria: { ...one.criteria, [key]: alt.one.criteria[key] } },
+      ),
+    ]);
+  }
+  return all.map((one, at) => ({ ...one, id: at }));
 }
 
 /** A case in a line: what the tabs of variant 2 and the windows say of it. */
@@ -322,6 +360,32 @@ export function PrototypeAlertEditor({
     setPrefilled(stagesWords(stages) ?? "toute marée");
   }, [touched, prefilled, bestTides, mean]);
 
+  const [alts, setAlts] = useState<Alts>({});
+  // The value just added, whose part opens by itself.
+  const [opened, setOpened] = useState<number | null>(null);
+  const addAlt = (key: Part) => {
+    setTouched(true);
+    const last = alts[key]?.at(-1)?.one ?? cases[0]!;
+    setAlts((current) => ({
+      ...current,
+      [key]: [...(current[key] ?? []), { id: nextId, one: structuredClone(last) }],
+    }));
+    setOpened(nextId);
+    setNextId((value) => value + 1);
+  };
+  const setAlt = (key: Part, altId: number, next: Partial<Case>) =>
+    setAlts((current) => ({
+      ...current,
+      [key]: (current[key] ?? []).map((alt) =>
+        alt.id === altId ? { ...alt, one: { ...alt.one, ...next } } : alt,
+      ),
+    }));
+  const removeAlt = (key: Part, altId: number) =>
+    setAlts((current) => ({
+      ...current,
+      [key]: (current[key] ?? []).filter((alt) => alt.id !== altId),
+    }));
+
   const update = (index: number, next: Partial<Case>) => {
     setTouched(true);
     setCases((current) => current.map((one, at) => (at === index ? { ...one, ...next } : one)));
@@ -338,11 +402,15 @@ export function PrototypeAlertEditor({
     setActive((current) => Math.max(0, Math.min(current, cases.length - 2)));
   };
 
-  const judged = useMemo(
-    () => judge(tried, cases, variant, extremes, shortestMinutes, now),
-    [tried, cases, variant, extremes, shortestMinutes, now],
+  const judgedCases = useMemo(
+    () => (proto.or === "3" ? combinations(cases[0]!, alts) : cases),
+    [proto.or, cases, alts],
   );
-  const asksAny = cases.some((one) => asksSomething(variant, one));
+  const judged = useMemo(
+    () => judge(tried, judgedCases, variant, extremes, shortestMinutes, now),
+    [tried, judgedCases, variant, extremes, shortestMinutes, now],
+  );
+  const asksAny = judgedCases.some((one) => asksSomething(variant, one));
   const tides = [
     ...judged.hours.flatMap((hour) => hour.tide.height ?? []),
     ...tide.map((point) => point.value),
@@ -355,7 +423,10 @@ export function PrototypeAlertEditor({
     key: RangeKey,
     any: string,
     said: (range: string) => string,
+    set?: Setter,
+    open?: boolean,
   ) {
+    const apply = set ?? ((next: Partial<Case>) => update(index, next));
     const scale = RANGES[key];
     const label = scale.label();
     const value = one.criteria[key];
@@ -363,7 +434,12 @@ export function PrototypeAlertEditor({
     const thumbs = thumbsOf(key, value, ends);
     const isSet = isSetRange(value);
     return (
-      <Slot label={label} isSet={isSet} words={isSet ? said(rangeWords(key, value)) : any}>
+      <Slot
+        label={label}
+        isSet={isSet}
+        open={open}
+        words={isSet ? said(rangeWords(key, value)) : any}
+      >
         <Slider
           value={thumbs}
           min={ends[0]}
@@ -374,7 +450,7 @@ export function PrototypeAlertEditor({
           }
           getAriaValueText={(_formatted, shown) => scale.unit(formatNumber(shown, scale.digits))}
           onValueChange={(next) =>
-            update(index, {
+            apply({
               criteria: {
                 ...one.criteria,
                 [key]: rangeAfter(key, value, thumbs, next as number[], ends),
@@ -393,7 +469,10 @@ export function PrototypeAlertEditor({
     key: ArcKey,
     at: number | null | undefined,
     usual: Arc,
+    set?: Setter,
+    open?: boolean,
   ) {
+    const apply = set ?? ((next: Partial<Case>) => update(index, next));
     const value = one.criteria[key];
     const label = CRITERION_LABELS[key]();
     const around: Arc =
@@ -403,11 +482,11 @@ export function PrototypeAlertEditor({
             from: (Math.round((at - 30) / 5) * 5 + 360) % 360,
             to: (Math.round((at + 30) / 5) * 5 + 360) % 360,
           };
-    const setArc = (arc: Arc | undefined) =>
-      update(index, { criteria: { ...one.criteria, [key]: arc } });
+    const setArc = (arc: Arc | undefined) => apply({ criteria: { ...one.criteria, [key]: arc } });
     return (
       <Slot
         label={label}
+        open={open}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
         shown={
@@ -441,9 +520,10 @@ export function PrototypeAlertEditor({
     );
   }
 
-  function tidePart(one: Case, index: number) {
+  function tidePart(one: Case, index: number, set?: Setter, open?: boolean) {
     const ask = one.tide;
-    const setAsk = (next: TideAsk) => update(index, { tide: next });
+    const apply = set ?? ((next: Partial<Case>) => update(index, next));
+    const setAsk = (next: TideAsk) => apply({ tide: next });
     const words = tideWords(variant, ask);
     const isSet = asksTide(variant, ask);
     const any =
@@ -637,7 +717,7 @@ export function PrototypeAlertEditor({
       );
     }
     return (
-      <Slot label="Marée" isSet={isSet} isWide words={isSet ? words : any}>
+      <Slot label="Marée" isSet={isSet} isWide open={open} words={isSet ? words : any}>
         {note}
         {body}
         {isSet && (
@@ -649,32 +729,118 @@ export function PrototypeAlertEditor({
     );
   }
 
+  function part(key: Part, one: Case, index: number, set?: Setter, open?: boolean) {
+    switch (key) {
+      case "waveHeightMeters":
+        return range(
+          one,
+          index,
+          key,
+          m.alert_any_height(),
+          (said) => m.alert_height_of({ range: said }),
+          set,
+          open,
+        );
+      case "wavePeakPeriodSeconds":
+        return range(
+          one,
+          index,
+          key,
+          m.alert_any_period(),
+          (said) => m.alert_period_of({ range: said }),
+          set,
+          open,
+        );
+      case "waveDirectionDegrees":
+        return sector(
+          one,
+          index,
+          key,
+          seaNow?.waveDirectionDegrees,
+          { from: 250, to: 310 },
+          set,
+          open,
+        );
+      case "windSpeedMetersPerSecond":
+        return range(
+          one,
+          index,
+          key,
+          m.alert_any_wind(),
+          (said) => m.alert_wind_at({ range: said }),
+          set,
+          open,
+        );
+      case "windDirectionDegrees":
+        return sector(
+          one,
+          index,
+          key,
+          seaNow?.windDirectionDegrees,
+          { from: 45, to: 135 },
+          set,
+          open,
+        );
+      case "tide":
+        return tidePart(one, index, set, open);
+    }
+  }
+
+  // Variant 3: the "+" after a value, and the other values of its part, a line each.
+  const withAlts = proto.or === "3";
+  const hasAlts = (key: Part) => withAlts && (alts[key]?.length ?? 0) > 0;
+  const plus = (key: Part) =>
+    withAlts && (
+      <button
+        type="button"
+        aria-label="Ajouter une autre valeur"
+        onClick={() => addAlt(key)}
+        className="focus-ring edge ms-xxs inline-flex size-5 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:bg-neutral-3-transparent"
+      >
+        <PlusIcon data-slot="icon" aria-hidden className="size-3" />
+      </button>
+    );
+  const altLines = (key: Part) =>
+    withAlts &&
+    (alts[key] ?? []).map((alt) => (
+      <span key={alt.id} className="block ps-l">
+        <span className="text-neutral-7">ou</span>{" "}
+        {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
+        <button
+          type="button"
+          aria-label="Retirer cette valeur"
+          onClick={() => removeAlt(key, alt.id)}
+          className="focus-ring ms-xxs inline-flex size-5 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:bg-neutral-3-transparent"
+        >
+          <XIcon data-slot="icon" aria-hidden className="size-3" />
+        </button>
+      </span>
+    ));
+  // A part, its "+" and its other values. A part whose other values stand on lines of their own
+  // takes no comma after it: what follows starts the next line.
+  const said = (key: Part, one: Case, index: number) => (
+    <>
+      {part(key, one, index)}
+      {index === 0 && plus(key)}
+      {index === 0 && altLines(key)}
+    </>
+  );
+  const after = (key: Part) => (hasAlts(key) ? " " : ", ");
+
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
       <>
-        {lead}{" "}
-        {range(one, index, "waveHeightMeters", m.alert_any_height(), (said) =>
-          m.alert_height_of({ range: said }),
-        )}
-        ,{" "}
-        {range(one, index, "wavePeakPeriodSeconds", m.alert_any_period(), (said) =>
-          m.alert_period_of({ range: said }),
-        )}
-        ,{" "}
-        {sector(one, index, "waveDirectionDegrees", seaNow?.waveDirectionDegrees, {
-          from: 250,
-          to: 310,
-        })}
-        , {m.alert_says_wind()}{" "}
-        {range(one, index, "windSpeedMetersPerSecond", m.alert_any_wind(), (said) =>
-          m.alert_wind_at({ range: said }),
-        )}
-        ,{" "}
-        {sector(one, index, "windDirectionDegrees", seaNow?.windDirectionDegrees, {
-          from: 45,
-          to: 135,
-        })}
-        , {m.alert_says_tide()} {tidePart(one, index)}
+        {lead} {said("waveHeightMeters", one, index)}
+        {after("waveHeightMeters")}
+        {said("wavePeakPeriodSeconds", one, index)}
+        {after("wavePeakPeriodSeconds")}
+        {said("waveDirectionDegrees", one, index)}
+        {after("waveDirectionDegrees")}
+        {m.alert_says_wind()} {said("windSpeedMetersPerSecond", one, index)}
+        {after("windSpeedMetersPerSecond")}
+        {said("windDirectionDegrees", one, index)}
+        {after("windDirectionDegrees")}
+        {m.alert_says_tide()} {said("tide", one, index)}
         {ending}
       </>
     );
@@ -725,7 +891,20 @@ export function PrototypeAlertEditor({
           />
         </div>
 
-        {proto.or === "1" ? (
+        {proto.or === "3" ? (
+          // Variant 3: one sentence, whose parts each take other values with "+".
+          <p className="text-l text-pretty">
+            {sentence(
+              cases[0]!,
+              0,
+              m.alert_says_waves(),
+              <>
+                {hasAlts("tide") ? " " : ", "}
+                {m.alert_says_for()} {shortestSlot}.
+              </>,
+            )}
+          </p>
+        ) : proto.or === "1" ? (
           // Variant 1: the cases follow one another in the sentence, each a whole sentence.
           <div className="grid gap-s">
             {cases.map((one, index) => (

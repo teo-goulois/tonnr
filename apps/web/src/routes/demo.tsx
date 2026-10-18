@@ -14,7 +14,7 @@ const BREAK = import.meta.env.VITE_DEMO_BREAK as string | undefined;
 export const Route = createFileRoute("/demo")({
   validateSearch: z.object({
     v: z.enum(["a", "b", "c", "d"]).optional().catch(undefined),
-    or: z.enum(["1", "2"]).optional().catch(undefined),
+    or: z.enum(["1", "2", "3"]).optional().catch(undefined),
   }),
   ssr: false,
   component: Demo,
@@ -38,7 +38,11 @@ function Demo() {
 
   return (
     <p className="p-l text-s text-neutral-7">
-      {!isOpen ? "No demo here." : hasFailed ? "The demo could not be opened." : "Opening the demo…"}
+      {!isOpen
+        ? "No demo here."
+        : hasFailed
+          ? "The demo could not be opened."
+          : "Opening the demo…"}
     </p>
   );
 }

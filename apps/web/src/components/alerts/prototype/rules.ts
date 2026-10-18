@@ -12,7 +12,7 @@ import { asked } from "../alert-words";
 export type Trend = "rising" | "falling";
 export type Range = { min?: number; max?: number };
 export type TideVariant = "a" | "b" | "c" | "d";
-export type OrVariant = "1" | "2";
+export type OrVariant = "1" | "2" | "3";
 
 export const STAGE_WORDS: Record<TideStage, string> = {
   low: "basse",

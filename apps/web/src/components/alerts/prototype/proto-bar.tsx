@@ -15,6 +15,7 @@ const TIDES: { value: TideVariant; label: string }[] = [
 const ORS: { value: OrVariant; label: string }[] = [
   { value: "1", label: "1 À la suite" },
   { value: "2", label: "2 Onglets" },
+  { value: "3", label: "3 + par valeur" },
 ];
 
 export function ProtoBar() {
