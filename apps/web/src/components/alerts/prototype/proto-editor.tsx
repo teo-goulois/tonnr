@@ -102,6 +102,15 @@ type ProtoEditorProps = {
 // that its words wrap as they like and its last word takes it along to the next line.
 const After = createContext<ReactNode>(null);
 
+// Variant 3 builds its sentence a part at a time: the part to answer stands out, and its
+// popover ends on what goes on, "Passer" while it asks nothing and "Suivant" once it does.
+type GuideOf = {
+  current: boolean;
+  last: boolean;
+  onClosed: (byButton: boolean) => void;
+};
+const Guide = createContext<GuideOf | null>(null);
+
 /** Stops a press on what stands inside a part from opening the part. */
 const apart = {
   onClick: (event: { stopPropagation: () => void }) => event.stopPropagation(),
@@ -129,10 +138,20 @@ function Slot({
 }) {
   // While its part is open, the sentence keeps the words it had: what is chosen there would
   // move the words, and the part with them, under the finger.
-  const [kept, setKept] = useState<ReactNode | null>(open ? shown : null);
   const after = useContext(After);
+  const guide = useContext(Guide);
+  const [isOpen, setOpen] = useState(open);
+  const [kept, setKept] = useState<{ shown: ReactNode; after: ReactNode } | null>(
+    open ? { shown, after } : null,
+  );
+  const change = (next: boolean, byButton = false) => {
+    setOpen(next);
+    setKept(next ? { shown, after } : null);
+    if (!next) guide?.onClosed(byButton);
+  };
+  const current = guide?.current ?? false;
   return (
-    <Popover defaultOpen={open} onOpenChange={(isOpen) => setKept(isOpen ? shown : null)}>
+    <Popover open={isOpen} onOpenChange={(next) => change(next)}>
       <PopoverTrigger
         nativeButton={false}
         render={
@@ -141,15 +160,26 @@ function Slot({
             className={cn(
               "focus-ring cursor-pointer rounded-(--radius-xs) underline decoration-dotted underline-offset-4 outline-none",
               isSet ? "font-medium" : "text-neutral-7",
+              current && "bg-neutral-3 px-xxs text-neutral-10 decoration-solid",
             )}
           />
         }
       >
-        {withAfter(kept ?? shown, after)}
+        {withAfter(kept?.shown ?? shown, kept ? kept.after : after)}
       </PopoverTrigger>
       <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
         <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
         {children}
+        {guide && (
+          <Button
+            type="button"
+            size="sm"
+            variant={current && !isSet ? "outline" : "default"}
+            onClick={() => change(false, true)}
+          >
+            {current ? (guide.last ? "Terminer" : isSet ? "Suivant" : "Passer") : "OK"}
+          </Button>
+        )}
       </PopoverPopup>
     </Popover>
   );
@@ -256,14 +286,16 @@ const PARTS = [
   "tide",
 ] as const;
 type Part = (typeof PARTS)[number];
+const STEPS_OF = [...PARTS, "shortest"] as const;
 // An other value of a part, held as a whole case of which only that part is read.
 type Alt = { id: number; one: Case };
 type Alts = Partial<Record<Part, Alt[]>>;
 
-function combinations(base: Case, alts: Alts): Case[] {
+function combinations(base: Case, alts: Alts, isSet: (key: Part, one: Case) => boolean): Case[] {
   let all: Case[] = [base];
   for (const key of PARTS) {
-    const others = alts[key] ?? [];
+    // A value still to choose asks nothing yet: it would let every hour through.
+    const others = (alts[key] ?? []).filter((alt) => isSet(key, alt.one));
     if (others.length === 0) continue;
     all = all.flatMap((one) => [
       one,
@@ -411,10 +443,13 @@ export function PrototypeAlertEditor({
   const [opened, setOpened] = useState<number | null>(null);
   const addAlt = (key: Part) => {
     setTouched(true);
-    const last = alts[key]?.at(-1)?.one ?? cases[0]!;
+    // An other value starts with nothing chosen: a copy of the first would say it twice.
+    const one = structuredClone(cases[0]!);
+    if (key === "tide") one.tide = {};
+    else delete one.criteria[key];
     setAlts((current) => ({
       ...current,
-      [key]: [...(current[key] ?? []), { id: nextId, one: structuredClone(last) }],
+      [key]: [...(current[key] ?? []), { id: nextId, one }],
     }));
     setOpened(nextId);
     setNextId((value) => value + 1);
@@ -448,9 +483,21 @@ export function PrototypeAlertEditor({
     setActive((current) => Math.max(0, Math.min(current, cases.length - 2)));
   };
 
+  const isSetPart = (key: Part, one: Case) =>
+    key === "tide"
+      ? asksTide(variant, one.tide)
+      : key === "waveDirectionDegrees" || key === "windDirectionDegrees"
+        ? one.criteria[key] !== undefined
+        : isSetRange(one.criteria[key]);
+  // Variant 3: how many steps of the sentence are said, the one at that index being the step
+  // to answer. An alert that exists is said whole.
+  const [revealed, setRevealed] = useState(alert ? STEPS_OF.length : 0);
+  // The step that opens by itself as it comes, after "Suivant" or "Passer".
+  const [autoOpen, setAutoOpen] = useState<number | null>(null);
   const judgedCases = useMemo(
-    () => (proto.or === "3" ? combinations(cases[0]!, alts) : cases),
-    [proto.or, cases, alts],
+    () => (proto.or === "3" ? combinations(cases[0]!, alts, isSetPart) : cases),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [proto.or, cases, alts, variant],
   );
   const judged = useMemo(
     () => judge(tried, judgedCases, variant, extremes, shortestMinutes, now),
@@ -827,67 +874,105 @@ export function PrototypeAlertEditor({
     }
   }
 
-  // Variant 3: the "+" after a value, and the other values of its part, a line each.
-  const withAlts = proto.or === "3";
-  const hasAlts = (key: Part) => withAlts && (alts[key]?.length ?? 0) > 0;
-  const plus = (key: Part) =>
-    withAlts && (
-      <button
-        type="button"
-        aria-label="Ajouter une autre valeur"
-        onPointerDown={apart.onPointerDown}
-        onClick={(event) => {
-          apart.onClick(event);
-          addAlt(key);
-        }}
-        className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
-      >
-        <CirclePlusIcon data-slot="icon" aria-hidden className="size-4.5" />
-      </button>
-    );
-  const remove = (key: Part, altId: number) => (
+  // Variant 3: the "+" after a value that is set, and the other values of its part, a line each.
+  const iconButton = (label: string, icon: ReactNode, onPress: () => void) => (
     <button
       type="button"
-      aria-label="Retirer cette valeur"
+      aria-label={label}
       onPointerDown={apart.onPointerDown}
       onClick={(event) => {
         apart.onClick(event);
-        removeAlt(key, altId);
+        onPress();
       }}
       className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
     >
-      <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />
+      {icon}
     </button>
   );
-  const altLines = (key: Part) =>
-    withAlts &&
-    (alts[key] ?? []).map((alt) => (
-      <span key={alt.id} className="block ps-l">
-        <span className="text-neutral-7">ou</span>{" "}
-        <After.Provider value={remove(key, alt.id)}>
-          {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
-        </After.Provider>
-      </span>
-    ));
-  // A part, its "+" and its other values. The "+" and the comma keep to the part's last word,
-  // and a part whose other values stand on lines of their own takes no comma: what follows
-  // starts the next line.
-  const said = (key: Part, one: Case, index: number, comma = true) => {
-    const others = index === 0 && hasAlts(key);
-    const tail = (
-      <>
-        {index === 0 && plus(key)}
-        {comma && !others && ","}
-      </>
+  const plusOf = (key: Part) =>
+    iconButton(
+      "Ajouter une autre valeur",
+      <CirclePlusIcon data-slot="icon" aria-hidden className="size-4.5" />,
+      () => addAlt(key),
     );
+  const removeOf = (key: Part, altId: number) =>
+    iconButton(
+      "Retirer cette valeur",
+      <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />,
+      () => removeAlt(key, altId),
+    );
+  const guideOf = (step: number): GuideOf => ({
+    current: step === revealed,
+    last: step === STEPS_OF.length - 1,
+    onClosed: (byButton) => {
+      if (step !== revealed) return;
+      setRevealed(step + 1);
+      setAutoOpen(byButton && step + 1 < STEPS_OF.length ? step + 1 : null);
+    },
+  });
+  // An other value left with nothing chosen goes as its part closes.
+  const altGuide = (key: Part, alt: Alt): GuideOf => ({
+    current: false,
+    last: false,
+    onClosed: () => {
+      if (!isSetPart(key, alt.one)) removeAlt(key, alt.id);
+    },
+  });
+  // A step of the sentence: its part, then its other values. The "+" stands after the last of
+  // them once that one is set, and the comma keeps to the first when it stands alone.
+  const guided = (key: Part, step: number, comma: boolean) => {
+    const base = cases[0]!;
+    const lines = alts[key] ?? [];
+    const last = lines.at(-1);
+    const plus = isSetPart(key, last ? last.one : base) && plusOf(key);
     return (
       <>
-        <After.Provider value={tail}>{part(key, one, index)}</After.Provider>
-        {others && altLines(key)}
+        <Guide.Provider value={guideOf(step)}>
+          <After.Provider
+            value={
+              lines.length === 0 && (
+                <>
+                  {plus}
+                  {comma && ","}
+                </>
+              )
+            }
+          >
+            {part(key, base, 0, undefined, autoOpen === step)}
+          </After.Provider>
+        </Guide.Provider>
+        {lines.map((alt) => (
+          <span key={alt.id} className="block ps-l">
+            <span className="text-neutral-7">ou</span>{" "}
+            <Guide.Provider value={altGuide(key, alt)}>
+              <After.Provider
+                value={
+                  <>
+                    {removeOf(key, alt.id)}
+                    {alt === last && plus}
+                  </>
+                }
+              >
+                {part(key, alt.one, 0, (next) => setAlt(key, alt.id, next), alt.id === opened)}
+              </After.Provider>
+            </Guide.Provider>
+          </span>
+        ))}
         {comma && " "}
       </>
     );
   };
+  const shows = (step: number) => step <= revealed;
+
+  // A part, its "+" and its other values. The "+" and the comma keep to the part's last word,
+  // and a part whose other values stand on lines of their own takes no comma: what follows
+  // starts the next line.
+  const said = (key: Part, one: Case, index: number, comma = true) => (
+    <>
+      <After.Provider value={comma && ","}>{part(key, one, index)}</After.Provider>
+      {comma && " "}
+    </>
+  );
 
   function sentence(one: Case, index: number, lead: string, ending: ReactNode) {
     return (
@@ -903,10 +988,11 @@ export function PrototypeAlertEditor({
     );
   }
 
-  const shortestSlot = (
+  const shortestOf = (open = false) => (
     <Slot
       label={m.alert_label_shortest()}
       isSet
+      open={open}
       words={m.alert_hours({ count: shortestMinutes / 60 })}
     >
       <ToggleGroup
@@ -924,6 +1010,7 @@ export function PrototypeAlertEditor({
       </ToggleGroup>
     </Slot>
   );
+  const shortestSlot = shortestOf();
   const caseDot = (index: number) =>
     cases.length > 1 && (
       <span
@@ -949,16 +1036,28 @@ export function PrototypeAlertEditor({
         </div>
 
         {proto.or === "3" ? (
-          // Variant 3: one sentence, whose parts each take other values with "+".
+          // Variant 3: one sentence, said a part at a time, whose parts each take other values
+          // with "+".
           <p className="text-l text-pretty">
-            {sentence(
-              cases[0]!,
-              0,
-              m.alert_says_waves(),
+            {m.alert_says_waves()} {guided("waveHeightMeters", 0, shows(1))}
+            {shows(1) && guided("wavePeakPeriodSeconds", 1, shows(2))}
+            {shows(2) && guided("waveDirectionDegrees", 2, shows(3))}
+            {shows(3) && (
               <>
-                {hasAlts("tide") ? "" : ", "}
-                {m.alert_says_for()} {shortestSlot}.
-              </>,
+                {m.alert_says_wind()} {guided("windSpeedMetersPerSecond", 3, shows(4))}
+              </>
+            )}
+            {shows(4) && guided("windDirectionDegrees", 4, shows(5))}
+            {shows(5) && (
+              <>
+                {m.alert_says_tide()} {guided("tide", 5, shows(6))}
+              </>
+            )}
+            {shows(6) && (
+              <>
+                {m.alert_says_for()}{" "}
+                <Guide.Provider value={guideOf(6)}>{shortestOf(autoOpen === 6)}</Guide.Provider>.
+              </>
             )}
           </p>
         ) : proto.or === "1" ? (
