@@ -1,5 +1,6 @@
 import { APP_NAME } from "@repo/config/app";
 
+import { appBanner } from "@/lib/app-banner";
 import { SHARED_PICTURE, placePicturePath } from "@/lib/public-pages";
 import { apiOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
@@ -64,6 +65,7 @@ export function placeHead(site: string, kind: PlaceKind, id: string, name: strin
       { property: "og:image:height", content: String(SHARED_PICTURE.height) },
       { property: "og:image:alt", content: m.place_picture_alt({ name: APP_NAME }) },
       { name: "twitter:card", content: "summary_large_image" },
+      ...appBanner(address),
     ],
   };
 }

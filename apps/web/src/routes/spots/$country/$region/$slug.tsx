@@ -3,8 +3,9 @@ import { APP_NAME } from "@repo/config/app";
 
 import { SpotClosed, SpotNotFound } from "@/components/spot-pages/spot-frame";
 import { SpotPage } from "@/components/spot-pages/spot-page";
+import { appBanner } from "@/lib/app-banner";
 import { type SpotPage as SpotPageData, fetchSpotPage } from "@/lib/pages-api";
-import { pageLinks, pageMeta, placePicturePath } from "@/lib/public-pages";
+import { pageAddress, pageLinks, pageMeta, placePicturePath } from "@/lib/public-pages";
 import { jsonLdScript, spotDescription, spotJsonLd, spotPath } from "@/lib/spot-pages";
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
@@ -45,6 +46,7 @@ export const Route = createFileRoute("/spots/$country/$region/$slug")({
         }),
         // A break that does not stand on its own has a page, which no search engine is asked to list.
         ...(page.listed ? [] : [{ name: "robots", content: "noindex" }]),
+        ...appBanner(pageAddress(site, path, locale)),
       ],
       links: pageLinks(site, path),
       scripts: [jsonLdScript(spotJsonLd(site, page, path))],

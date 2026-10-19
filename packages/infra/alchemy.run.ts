@@ -52,6 +52,8 @@ export default Alchemy.Stack(
         ),
         VITE_UMAMI_SCRIPT_URL: Config.String("VITE_UMAMI_SCRIPT_URL").pipe(Config.withDefault("")),
         VITE_UMAMI_WEBSITE_ID: Config.String("VITE_UMAMI_WEBSITE_ID").pipe(Config.withDefault("")),
+        // The app's id in the App Store, which Safari's banner offers: decision 073.
+        VITE_APP_STORE_ID: Config.String("VITE_APP_STORE_ID").pipe(Config.withDefault("")),
         // The web app tells search engines to leave the stage out, unless this says "true".
         WEB_INDEXED: Config.String("WEB_INDEXED").pipe(Config.withDefault("false")),
         WEB_DOMAIN: domain ?? "",

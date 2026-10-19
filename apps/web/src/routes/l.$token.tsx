@@ -3,6 +3,7 @@ import { APP_NAME } from "@repo/config/app";
 import { useEffect } from "react";
 
 import { AppPending } from "@/components/shared/app-pending";
+import { appBanner } from "@/lib/app-banner";
 import { SHARED_PICTURE, listPicturePath } from "@/lib/public-pages";
 import { apiOrigin, siteOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/l/$token")({
     const locale = getLocale();
     const title = titleOf(list ?? null);
     const description = m.list_picture_text();
+    const address = `${site}${localizeHref(`/l/${params.token}`, { locale })}`;
     return {
       meta: [
         { title },
@@ -41,12 +43,13 @@ export const Route = createFileRoute("/l/$token")({
         { property: "og:site_name", content: APP_NAME },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
-        { property: "og:url", content: `${site}${localizeHref(`/l/${params.token}`, { locale })}` },
+        { property: "og:url", content: address },
         { property: "og:image", content: `${site}${listPicturePath(locale)}` },
         { property: "og:image:width", content: String(SHARED_PICTURE.width) },
         { property: "og:image:height", content: String(SHARED_PICTURE.height) },
         { property: "og:image:alt", content: m.list_picture_alt({ name: APP_NAME }) },
         { name: "twitter:card", content: "summary_large_image" },
+        ...appBanner(address),
       ],
     };
   },

@@ -70,8 +70,8 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 
 - With `webcredentials`, the iPhone's keychain fills in the app's sign-in with the password it keeps for the web app, and keeps for the site a password made in the app. `get_login_creds` does the same on Android.
 - Safari on iOS draws a banner over a page whose head names the app in a `meta` called `apple-itunes-app`. The banner offers to get the app, or to open it at the address the page hands it, `app-argument`.
-  - The pages a link is sent to carry it, each with its own address: the short addresses and the pages of the breaks. Chosen here.
-  - It is drawn once the stage names the app's id in the App Store, `VITE_APP_STORE_ID`, which the app has once it is there.
+  - The pages a link is sent to carry it, each with its own address: the short addresses and the pages of the breaks. Chosen here. Their heads take it from `appBanner`, in `apps/web/src/lib/app-banner.ts`.
+  - It is drawn once the stage names the app's id in the App Store, `VITE_APP_STORE_ID`, which the app has once it is there. The build reads it, as it reads the address of the API, and a stage that names none writes no `meta`.
   - Chrome on Android has no such banner: a link there opens the app or the page.
 - The short addresses go on to the map at once in a browser. Whether the banner stays after that is to be seen.
 
@@ -99,7 +99,6 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 - On an iPhone, a person may send the site's links back to Safari from the app. iOS then opens them in Safari until the person chooses the app again, which the banner's "Open" does. A link typed in the address bar, or pressed on a page of the same site, stays in the browser. A link pressed in another app's own browser, such as Instagram's, often stays there.
 - An Android phone that could not verify the file opens the links in the browser, unless its owner lets the app open them in its settings.
 - A new address the app takes, or a new parameter of `/app`, changes the list and the parser in `packages/config` in the same change, and the line of AGENTS.md on the Worker.
-- Built on 2026-10-19: the list and the parser in `packages/config`, with their tests, and the two files in `apps/web/src/server.ts`, with the stage's values. Not built yet, in this order:
+- Built on 2026-10-19: the list and the parser in `packages/config`, with their tests, the two files in `apps/web/src/server.ts`, with the stage's values, and the banner, which waits for the app's id in the App Store. Not built yet, in this order:
   1. the associated domains and the intent filters of `apps/native`, with the parser behind them;
-  2. the trial of the web's Google sign-in on both phones;
-  3. the banner, once the app has its id in the App Store.
+  2. the trial of the web's Google sign-in on both phones.

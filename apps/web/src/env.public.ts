@@ -8,6 +8,7 @@ export const ENV = {
   VITE_POSTHOG_ENVIRONMENT: import.meta.env.VITE_POSTHOG_ENVIRONMENT,
   VITE_UMAMI_SCRIPT_URL: import.meta.env.VITE_UMAMI_SCRIPT_URL,
   VITE_UMAMI_WEBSITE_ID: import.meta.env.VITE_UMAMI_WEBSITE_ID,
+  VITE_APP_STORE_ID: import.meta.env.VITE_APP_STORE_ID,
 } satisfies Pick<
   PublicCoercedEnvSchema,
   | "VITE_SERVER_URL"
@@ -16,4 +17,5 @@ export const ENV = {
   | "VITE_POSTHOG_ENVIRONMENT"
   | "VITE_UMAMI_SCRIPT_URL"
   | "VITE_UMAMI_WEBSITE_ID"
+  | "VITE_APP_STORE_ID"
 >;

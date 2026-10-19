@@ -185,6 +185,9 @@ if (
       "separated by commas",
   );
 }
+if (values.VITE_APP_STORE_ID && !/^\d+$/.test(values.VITE_APP_STORE_ID)) {
+  faults.push(`VITE_APP_STORE_ID in .env.${stage} is not an id of the App Store, its digits alone`);
+}
 const analyticsValues = [
   "VITE_POSTHOG_PROJECT_TOKEN",
   "VITE_POSTHOG_HOST",
@@ -259,6 +262,7 @@ const deployed =
         WEB_REDIRECTS: values.WEB_REDIRECTS ?? "",
         APPLE_TEAM_ID: values.APPLE_TEAM_ID ?? "",
         ANDROID_CERT_SHA256: values.ANDROID_CERT_SHA256 ?? "",
+        VITE_APP_STORE_ID: values.VITE_APP_STORE_ID ?? "",
         VITE_POSTHOG_PROJECT_TOKEN: values.VITE_POSTHOG_PROJECT_TOKEN ?? "",
         VITE_POSTHOG_HOST: values.VITE_POSTHOG_HOST ?? "",
         VITE_POSTHOG_ENVIRONMENT: values.VITE_POSTHOG_ENVIRONMENT ?? "",

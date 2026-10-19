@@ -503,6 +503,8 @@ On a phone where the app is installed, the links of the web app open it: the map
 - A file the stage names nothing for answers `404`, and a stage that names neither claims no app. Deploy the web app again after you change them.
 - iPhones read Apple's file through Apple's cache, a day or more after it changes. A rule of your Cloudflare zone that challenges robots must leave both addresses alone, or no phone opens the app.
 
+Once the app is in the App Store, add its id to the stage's file, its digits alone, as `VITE_APP_STORE_ID`: the short addresses and the pages of the surf breaks then show Safari's banner on an iPhone, which offers the app, or opens it at the page.
+
 ## Signing in with Google
 
 Email and password work on every instance. Google sign-in is optional: set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together in the API's environment (`apps/server/.env` from a clone or with Docker Compose). Leave both empty to keep email alone. The web app learns whether Google is enabled from the API; no web build variable is needed. Decision 046 gives the account rules.

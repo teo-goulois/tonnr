@@ -3,6 +3,7 @@ import { APP_NAME } from "@repo/config/app";
 import { useEffect } from "react";
 
 import { AppPending } from "@/components/shared/app-pending";
+import { appBanner } from "@/lib/app-banner";
 import { SHARED_PICTURE, invitePicturePath } from "@/lib/public-pages";
 import { apiOrigin, siteOrigin } from "@/lib/site";
 import { m } from "@/paraglide/messages.js";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/i/$token")({
       ? m.invite_meta_title({ username, name: APP_NAME })
       : m.friends_share_text({ name: APP_NAME });
     const description = m.invite_meta_description({ name: APP_NAME });
+    const address = `${site}${localizeHref(`/i/${params.token}`, { locale })}`;
     return {
       meta: [
         { title },
@@ -43,12 +45,13 @@ export const Route = createFileRoute("/i/$token")({
         { property: "og:site_name", content: APP_NAME },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
-        { property: "og:url", content: `${site}${localizeHref(`/i/${params.token}`, { locale })}` },
+        { property: "og:url", content: address },
         { property: "og:image", content: `${site}${invitePicturePath(locale)}` },
         { property: "og:image:width", content: String(SHARED_PICTURE.width) },
         { property: "og:image:height", content: String(SHARED_PICTURE.height) },
         { property: "og:image:alt", content: m.invite_picture_alt({ name: APP_NAME }) },
         { name: "twitter:card", content: "summary_large_image" },
+        ...appBanner(address),
       ],
     };
   },
