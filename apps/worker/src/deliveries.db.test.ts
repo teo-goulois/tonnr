@@ -1,4 +1,5 @@
 import { testForecasts } from "@repo/conditions/forecasts/testing";
+import { readAppLink } from "@repo/config/links";
 import {
   alert,
   alertSettings,
@@ -136,6 +137,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the mails of the alerts", () => {
     expect(mail?.text).toContain(
       "Stop these mails: https://app.example.org/mail-off?u=owner&k=the-key",
     );
+    // Every address of the mail opens the app where it is installed, but the one that stops the
+    // mails, which stays in the browser: decision 073.
+    const addresses = mail?.text.match(/https:\/\/app\.example\.org\S*/g) ?? [];
+    expect(addresses.map((address) => readAppLink(address, out.webOrigin))).toEqual([
+      { screen: "map", search: { spot: "home" } },
+      { screen: "map", search: { panel: "alerts", alerts: "settings" } },
+      { screen: "browser", url: "https://app.example.org/mail-off?u=owner&k=the-key" },
+    ]);
     expect(mail?.headers).toEqual([
       {
         name: "List-Unsubscribe",

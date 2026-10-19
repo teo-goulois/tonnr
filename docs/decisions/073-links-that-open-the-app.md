@@ -58,7 +58,7 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
   - The page of a break is read through `pages.break`. It answers the break with its id, or the address of the break it was merged into, which the parser reads in turn. It asks the forecast provider nothing.
   - `/reset-password?token=` opens the app's own screen for a new password (decision 070).
 - Everything that opens the app goes through that parser: a universal link, a link of the app's own scheme with the same path, the address a push carries ([decision 072](072-push-to-the-apps.md)), and a code that the app's camera reads. A widget opens the app by its scheme ([decision 074](074-widgets-and-live-activities.md)). A link from a mail, a push, a code or a message then opens the same screen. A push needs no universal link: the app reads its address from the push itself. Expo Router hands the parser every address the system opens the app with, through its `+native-intent`, before any screen is drawn.
-- The parser is a module of `packages/config` that reads no clock and no network, which the app may import (decision 069): `src/links.ts`, or a name chosen when it is built. One test reads with it every address that these write: the worker's mails, the pushes, the reset's mail and the web's short routes. Another test fails when the web's route `/app` reads a parameter that the parser does not know. Chosen here.
+- The parser is a module of `packages/config` that reads no clock and no network, which the app may import (decision 069): `readAppLink`, in `src/links.ts`, which is given the address and the web app's origin, which the app is built with. An address of another site opens in the browser. A link of the app's own scheme is read as the same path on the site, and the scheme alone, with no path, opens the map. The tests read with it every address that these write, each where the address is written: the worker's mails and pushes in the worker's tests of them, the reset's mail in the API's, and the web's short routes in `apps/web/src/lib/app-links.test.ts`. A test there fails when the web's route `/app` reads a parameter that the parser does not know, or the parser one that the route does not: the route reads `mapSearch`, in `apps/web/src/lib/map-search.ts`. Chosen here.
 - The language prefix of a link does not change the app's language. A French link opens the app in the language it was set to. Chosen here.
 - The app answers what a link opens as the web app does:
   - A visitor is asked for an account where one is needed, and goes on to where the link led once signed in.
@@ -99,9 +99,8 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 - On an iPhone, a person may send the site's links back to Safari from the app. iOS then opens them in Safari until the person chooses the app again, which the banner's "Open" does. A link typed in the address bar, or pressed on a page of the same site, stays in the browser. A link pressed in another app's own browser, such as Instagram's, often stays there.
 - An Android phone that could not verify the file opens the links in the browser, unless its owner lets the app open them in its settings.
 - A new address the app takes, or a new parameter of `/app`, changes the list and the parser in `packages/config` in the same change, and the line of AGENTS.md on the Worker.
-- Nothing of it is built on 2026-10-19. It is built in this order:
-  1. the list and the parser in `packages/config`, with their tests;
-  2. the two files in `apps/web/src/server.ts`, with the stage's values;
-  3. the associated domains and the intent filters of `apps/native`, with the parser behind them;
-  4. the trial of the web's Google sign-in on both phones;
-  5. the banner, once the app has its id in the App Store.
+- Built on 2026-10-19: the list and the parser in `packages/config`, with their tests. Not built yet, in this order:
+  1. the two files in `apps/web/src/server.ts`, with the stage's values;
+  2. the associated domains and the intent filters of `apps/native`, with the parser behind them;
+  3. the trial of the web's Google sign-in on both phones;
+  4. the banner, once the app has its id in the App Store.

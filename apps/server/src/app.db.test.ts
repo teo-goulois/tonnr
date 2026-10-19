@@ -9,6 +9,7 @@ import { createUsage, type Usage } from "@repo/api/usage";
 import { appOriginsOf } from "@repo/api/cross-site";
 import { createAuth } from "@repo/auth";
 import { APP_SCHEME } from "@repo/config/app";
+import { readAppLink } from "@repo/config/links";
 import { suspensionHooks } from "@repo/auth/suspension";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { createEmailVerificationToken } from "better-auth/api";
@@ -1045,6 +1046,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         // The link opens the page of the web app in the language of its mail, with its token.
         expect(`${link.origin}${link.pathname}`).toBe(`${APP}/es/reset-password`);
         expect(link.searchParams.get("token")).toMatch(/^\w{24}$/);
+        // On a phone with the app, it opens the app's own screen, with the token: decision 073.
+        expect(readAppLink(link.href, APP)).toEqual({
+          screen: "reset-password",
+          token: link.searchParams.get("token"),
+        });
       });
 
       it("writes the mail in the language the account's alerts are sent in, once it is known", async () => {

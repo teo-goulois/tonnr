@@ -1,3 +1,4 @@
+import { readAppLink } from "@repo/config/links";
 import { accountSuspension } from "@repo/db/schema/access";
 import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
@@ -243,6 +244,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
       body: "author · Shoulder · “Clean sets on the outside”",
       url: `https://app.example.org/app?break=point&tab=reports&notice=${notice!.id}`,
       tag: "report-point",
+    });
+    // Pressed on a phone with the app, it opens the break's reports there: decision 073.
+    expect(readAppLink(sent?.push.url ?? "", out.webOrigin)).toEqual({
+      screen: "map",
+      search: { break: "point", tab: "reports", notice: notice!.id },
     });
     expect(sent?.push.image).toContain("m/first/0/thumb.webp");
     // Kept by a push service until the report is three hours old.

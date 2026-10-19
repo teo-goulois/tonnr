@@ -1,4 +1,5 @@
 import { testForecasts } from "@repo/conditions/forecasts/testing";
+import { readAppLink } from "@repo/config/links";
 import { countCalls } from "@repo/db/calls";
 import {
   alert,
@@ -172,6 +173,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
         },
       },
     ]);
+    // Pressed on a phone with the app, it opens the spot there: decision 073.
+    expect(readAppLink(service.sent()[0]?.push.url ?? "", out.webOrigin)).toEqual({
+      screen: "map",
+      search: { spot: "home" },
+    });
     expect(await states()).toEqual([["found", "sent"]]);
     expect(await pushedAt()).toEqual([hour(8)]);
 
@@ -1566,6 +1572,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     expect(rows[2]).toBe("and 10 more");
     // Several spots: it opens what the alerts told.
     expect(push.url).toBe("https://app.example.org/app?panel=alerts");
+    expect(readAppLink(push.url, out.webOrigin)).toEqual({
+      screen: "map",
+      search: { panel: "alerts" },
+    });
     // What push told is kept for all twelve.
     const links = await db.select().from(alertSpot);
     expect(links.filter((link) => link.pushed.length === 1)).toHaveLength(12);
