@@ -2379,6 +2379,31 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect((await choose(ana, "Ana_M")).status).toBe(200);
     });
 
+    it("is nobody's for thirty days once its account deleted itself", async () => {
+      const ana = cookieOf(await signUpAs("Ana"));
+      // The web app asks for the password again, from its own site: decision 071.
+      const wrong = await send("DELETE", "/v1/account", {
+        cookie: ana,
+        origin: APP,
+        body: { password: "not it" },
+      });
+      expect(wrong.status).toBe(403);
+      const deleted = await send("DELETE", "/v1/account", {
+        cookie: ana,
+        origin: APP,
+        body: { password },
+      });
+      expect(deleted.status).toBe(200);
+      expect(await database.db.select().from(user)).toEqual([]);
+      // Its session went with it.
+      expect((await send("GET", "/v1/account", { cookie: ana })).status).toBe(401);
+
+      expect((await signUpAs("ana", "second@example.org")).status).toBe(400);
+      // Thirty days on, anyone takes it.
+      await database.db.update(removedUsername).set({ freeAt: new Date(Date.now() - 60_000) });
+      expect((await signUpAs("ana", "second@example.org")).status).toBe(200);
+    });
+
     it("stays away once an operator took it, when a write that was under way puts it back", async () => {
       const ana = cookieOf(await signUpAs("Ana"));
       // An operator took the username away at the moment the account sent it again: the

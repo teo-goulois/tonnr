@@ -1,3 +1,4 @@
+import type { AppleRevocation, AppleTokens } from "@repo/auth/apple-revocation";
 import { createVerification } from "@repo/auth/verification";
 import type { Database } from "@repo/db";
 import { testMailer } from "@repo/mail/testing";
@@ -49,6 +50,28 @@ export function testVerification(db: Database, mailing: Mailing = {}) {
     sent,
     // The link of the last mail, as the account would follow it.
     link: () => /https?:\/\/\S+/.exec(sent().at(-1)?.text ?? "")?.[0] ?? null,
+  };
+}
+
+/**
+ * What revokes an account's tokens at Apple's, in a test, which asks Apple nothing: `asked` gives
+ * the tokens it was given, and `answers` what it says of the next ones.
+ */
+export function testApple(answer: "revoked" | "failed" = "revoked") {
+  const asked: AppleTokens[] = [];
+  let next = answer;
+  const apple: AppleRevocation = {
+    revoke: async (tokens) => {
+      asked.push(tokens);
+      return next;
+    },
+  };
+  return {
+    apple,
+    asked,
+    answers: (said: "revoked" | "failed") => {
+      next = said;
+    },
   };
 }
 

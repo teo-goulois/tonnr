@@ -342,8 +342,15 @@ export const accountsRouter = {
         // Taking away what is not there changes nothing, and records nothing.
         if (had?.username) {
           await tx.update(user).set({ username: null }).where(eq(user.id, input.id));
-          // A username that was taken away is not one to choose again.
-          await tx.insert(removedUsername).values({ username: had.username }).onConflictDoNothing();
+          // A username that was taken away is not one to choose again, for good: one that a
+          // deleted account left for thirty days, and that was taken since, is kept for good now.
+          await tx
+            .insert(removedUsername)
+            .values({ username: had.username })
+            .onConflictDoUpdate({
+              target: removedUsername.username,
+              set: { at: new Date(), freeAt: null },
+            });
           await recordAction(tx, {
             operatorId,
             action: "account.username_remove",

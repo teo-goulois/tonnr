@@ -46,6 +46,7 @@ import { orpc } from "@/utils/orpc";
 
 import { useAgents } from "./-agents";
 import { useAlerting } from "./-alerting";
+import { useAccountDeletion } from "./-deletion";
 import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
 import { usePush } from "./-push";
@@ -376,6 +377,10 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   const own = useOwnAccount();
   const verification = useSendVerification();
   const signOut = useSignOut();
+  const deletion = useAccountDeletion({
+    hasPassword: own.account?.hasPassword,
+    openedAt: session.data?.session.createdAt,
+  });
   const saveUsername = useUsername();
   const needsCheck = own.account?.checksAddresses === true && !own.account.emailVerified;
   // The account's link and its friends, read in the account's panel, and the link the address
@@ -1399,6 +1404,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         friendCount: friended.friendCount,
         agents,
         onSignOut: signOut,
+        deletion,
       }}
       friending={friended.friending}
       invitation={friended.invitation}

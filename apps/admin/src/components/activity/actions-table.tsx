@@ -98,6 +98,9 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_account_resumed()];
     case "account.username_remove":
       return [m.action_username_removed()];
+    // What the account did itself, from the app or the web: decision 071.
+    case "account.delete":
+      return [m.action_account_deleted()];
     case "visitors.close":
       return [m.action_visitors_closed()];
     case "visitors.open":

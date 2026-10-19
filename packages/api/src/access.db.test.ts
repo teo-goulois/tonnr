@@ -124,6 +124,8 @@ const ANSWERS_AN_ACCOUNT = [
   "preferences.getShortcuts",
   "preferences.saveShortcuts",
   "privateData",
+  // An account deletes itself, with its password again or a fresh sign-in: decision 071.
+  "v1.account.delete",
   "v1.account.get",
   "v1.account.sendVerification",
   // The assistants an account signed in, and its word taken back: decision 047.
@@ -418,6 +420,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         isOperator: true,
         emailVerified: false,
         checksAddresses: false,
+        hasPassword: false,
       });
       expect(await call(v1Router.account.get, undefined, bySession("visitor"))).toMatchObject({
         id: "visitor",

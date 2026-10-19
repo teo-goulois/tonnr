@@ -1,4 +1,6 @@
+import { DELETED_USERNAME_DAYS } from "@repo/config/account";
 import { APP_NAME } from "@repo/config/app";
+import { Link } from "@tanstack/react-router";
 
 import { PUBLISHER, RECIPIENTS } from "@/lib/legal";
 import { m } from "@/paraglide/messages.js";
@@ -132,14 +134,21 @@ export function PrivacyPage() {
             m.privacy_keep_mails(),
             m.privacy_keep_consent(),
             m.privacy_keep_backups(),
-            m.privacy_keep_after(),
+            m.privacy_keep_after({ days: DELETED_USERNAME_DAYS }),
           ]}
         />
       </LegalSection>
 
       <LegalSection title={m.privacy_rights_title()}>
         <p>{m.privacy_rights_text(who)}</p>
-        <p>{m.privacy_rights_delete(who)}</p>
+        {/* What Google Play's form names, at `/privacy#delete`: the steps, and the step itself,
+            which a visitor reaches once signed in. Decision 071. */}
+        <p id="delete" className="scroll-mt-xxl">
+          {m.privacy_rights_delete(who)}{" "}
+          <Link to="/app" search={{ panel: "account", settings: "delete" }} className={linked}>
+            {m.privacy_rights_delete_link()}
+          </Link>
+        </p>
         <p>
           {m.privacy_rights_cnil()}{" "}
           <a href={CNIL_URL} target="_blank" rel="noreferrer" className={linked}>

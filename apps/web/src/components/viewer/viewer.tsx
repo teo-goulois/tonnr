@@ -29,6 +29,7 @@ import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { type AccountDeletion, DeleteAccount } from "@/components/account/delete-account";
 import { AlertPlaceSheet } from "@/components/alerts/alert-place-sheet";
 import type { AlertPlace } from "@/components/alerts/alert-editor";
 import { AlertSheet, type AlertWriting } from "@/components/alerts/alert-sheet";
@@ -152,8 +153,17 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 // "add" is the panel that adds a spot. It stands beside the map, which takes the marker. The
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
-/** The part of the account's panel that is one step into it: how to be told of the alerts. */
-export type SettingsPart = "alerts" | "contributions" | "friends" | "profile" | "sessions";
+/**
+ * The part of the account's panel that is one step into it: how to be told of the alerts, and
+ * what deletes the account (decision 071).
+ */
+export type SettingsPart =
+  | "alerts"
+  | "contributions"
+  | "delete"
+  | "friends"
+  | "profile"
+  | "sessions";
 // How close the map comes to a place the search found: near enough to see where the wave breaks.
 const PLACE_ZOOM = 13;
 
@@ -308,6 +318,8 @@ type ViewerProps = {
     // The assistants it signed in to read it, and what disconnects one. Decision 047.
     agents: ConnectedAgents;
     onSignOut: () => void;
+    // What deletes the account, and what it asks first. Decision 071.
+    deletion: AccountDeletion;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
   // opens the panel on it.
@@ -1353,6 +1365,8 @@ export function Viewer({
   const ownFriends = settingsPart === "friends" && signedIn;
   const ownSessions = settingsPart === "sessions" && signedIn;
   const ownProfile = settingsPart === "profile" && signedIn;
+  // A visitor who follows the address that deletes an account signs in first: decision 071.
+  const ownDeletion = settingsPart === "delete" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -2012,10 +2026,17 @@ export function Viewer({
                   ? m.sessions_title()
                   : ownProfile
                     ? m.profile_title()
-                    : m.account_menu()
+                    : ownDeletion
+                      ? m.delete_account_title()
+                      : m.account_menu()
         }
         onBack={
-          alertSettings || ownContributions || ownFriends || ownSessions || ownProfile
+          alertSettings ||
+          ownContributions ||
+          ownFriends ||
+          ownSessions ||
+          ownProfile ||
+          ownDeletion
             ? () => onSettingsPartChange(undefined)
             : undefined
         }
@@ -2044,6 +2065,8 @@ export function Viewer({
             profiling={profiling}
             onSaved={() => onSettingsPartChange(undefined)}
           />
+        ) : ownDeletion ? (
+          <DeleteAccount deletion={account.deletion} />
         ) : ownSessions ? (
           <LogbookPanel
             now={now}
@@ -2070,6 +2093,7 @@ export function Viewer({
             onOpenSessions={() => onSettingsPartChange("sessions")}
             profile={profiling.profile}
             onOpenProfile={() => onSettingsPartChange("profile")}
+            onOpenDelete={() => onSettingsPartChange("delete")}
           />
         )}
       </ViewerTab>

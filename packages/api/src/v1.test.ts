@@ -9,6 +9,7 @@ import { v1Router } from "./routers/index";
 // instead (decisions 003 and 069). What a procedure takes and answers may only grow too, which
 // this list does not check.
 const V1_PROCEDURES = [
+  "account.delete",
   "account.get",
   "account.sendVerification",
   "accounts.get",

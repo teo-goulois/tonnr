@@ -4,7 +4,24 @@ import { removedUsername } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { username } from "better-auth/plugins";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
+
+/**
+ * Whether a username, in small letters, is kept from everyone: one an operator took away, for
+ * good, or one of an account deleted in the last thirty days.
+ */
+export async function isUsernameKept(database: Pick<Database, "select">, given: string) {
+  const [kept] = await database
+    .select({ username: removedUsername.username })
+    .from(removedUsername)
+    .where(
+      and(
+        eq(removedUsername.username, given),
+        or(isNull(removedUsername.freeAt), gt(removedUsername.freeAt, new Date())),
+      ),
+    );
+  return kept !== undefined;
+}
 
 /**
  * What others read of an account: decision 041. The sign-in library keeps it, with its own
@@ -13,38 +30,29 @@ import { and, eq } from "drizzle-orm";
  * of that one: an account could write another's name there, so it is left out.
  *
  * A username an operator took away is nobody's to take again, the account's it was taken from
- * no more than another's.
+ * no more than another's. The username of an account that was deleted is nobody's for thirty
+ * days: decision 071.
  */
 export function usernames(database: Database) {
   return username({
     displayUsername: false,
     minUsernameLength: USERNAME_MIN,
     maxUsernameLength: USERNAME_MAX,
-    usernameValidator: async (given) => {
-      if (usernameProblem(given) !== null) return false;
-      const [removed] = await database
-        .select({ username: removedUsername.username })
-        .from(removedUsername)
-        .where(eq(removedUsername.username, given.toLowerCase()));
-      return removed === undefined;
-    },
+    usernameValidator: async (given) =>
+      usernameProblem(given) === null && !(await isUsernameKept(database, given.toLowerCase())),
   });
 }
 
 /**
- * What keeps a username that an operator took away from coming back. The library checks a
+ * What keeps a username that is kept from everyone from coming back. The library checks a
  * username, then writes it, in two steps: an account that sends its own again at the moment an
  * operator takes it away is checked before the removal and written after it. So the username is
- * read again once it is written, and taken off when it is one that was removed.
+ * read again once it is written, and taken off when it is one that is kept.
  */
 export function usernameHooks(database: Database) {
   const settle = async (written: { id: string; username?: unknown }) => {
     if (typeof written.username !== "string") return;
-    const [removed] = await database
-      .select({ username: removedUsername.username })
-      .from(removedUsername)
-      .where(eq(removedUsername.username, written.username));
-    if (!removed) return;
+    if (!(await isUsernameKept(database, written.username))) return;
     await database
       .update(user)
       .set({ username: null })

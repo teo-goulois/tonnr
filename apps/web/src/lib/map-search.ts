@@ -16,8 +16,11 @@ export const mapSearch = z.object({
   // how to be told was before it was a part of the account's panel: a mail that was sent
   // then still leads there, and is taken to it.
   alerts: z.enum(["mine", "settings"]).optional(),
-  // The part of the account's panel in view: its first screen when left out.
-  settings: z.enum(["alerts", "contributions", "friends", "profile", "sessions"]).optional(),
+  // The part of the account's panel in view: its first screen when left out. "delete" is the
+  // step that deletes the account, the address Google Play's form names: decision 071.
+  settings: z
+    .enum(["alerts", "contributions", "delete", "friends", "profile", "sessions"])
+    .optional(),
   // What the link someone gave the reader ends with: whose it is and what it makes are said
   // over the map. Decision 041.
   invite: z.string().max(64).optional(),

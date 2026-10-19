@@ -1,4 +1,5 @@
 import type { Session } from "@repo/auth";
+import type { AppleRevocation } from "@repo/auth/apple-revocation";
 import type { Verification } from "@repo/auth/verification";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import type { Database } from "@repo/db";
@@ -37,6 +38,10 @@ export type Context = {
   // What sends whoever makes the product the ideas sent from the landing. Without it, an idea is
   // answered as an instance that sends no mail answers it. Decision 026.
   ideas?: Ideas | undefined;
+  // What revokes at Apple's the tokens of an account that signed in with Apple, as the account
+  // is deleted. Left out on an instance that does not offer Sign in with Apple, which asks
+  // Apple nothing. Decisions 070 and 071.
+  apple?: AppleRevocation | undefined;
   // What a procedure says of its answer beyond its body. The program that serves it reads it.
   reply: {
     // After how many seconds a caller that was told to wait may ask again.

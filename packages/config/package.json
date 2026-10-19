@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./account": "./src/account.ts",
     "./app": "./src/app.ts",
     "./errors": "./src/errors.ts",
     "./links": "./src/links.ts",

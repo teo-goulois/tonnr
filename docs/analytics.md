@@ -16,6 +16,7 @@ Authentication: `account_created`, `account_signed_in`, `account_signed_out`, `a
 
 Successful oRPC actions:
 
+- `account_deleted`, under the deleted account's opaque ID, which then names no account the instance keeps (decision 071)
 - `alert_created`
 - `alert_deleted`
 - `alert_previewed`

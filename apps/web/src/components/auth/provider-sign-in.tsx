@@ -21,6 +21,37 @@ const APPLE_LOOK = cn(
   "dark:disabled:text-neutral-6",
 );
 
+/** What this instance signs in with besides an address and a password, once it has said. */
+export function useSignInProviders() {
+  return useQuery({
+    queryKey: ["auth", "sign-in-providers"],
+    queryFn: async () => {
+      const answer =
+        await authClient.$fetch<Partial<Record<Provider, boolean>>>("/sign-in-providers");
+      if (answer.error) throw new Error("Sign-in providers could not be read");
+      return answer.data;
+    },
+    staleTime: 60_000,
+    retry: false,
+    meta: { quiet: true },
+  });
+}
+
+/**
+ * Sends the browser to the provider, and back to `returnTo`, or to where it is. False when the
+ * provider did not take it: the browser stays.
+ */
+export async function signInWith(provider: Provider, returnTo?: string, invitation?: string) {
+  const current = returnTo ? new URL(returnTo, window.location.origin).href : window.location.href;
+  const answer = await authClient.signIn.social({
+    provider,
+    callbackURL: providerReturnURL(current),
+    errorCallbackURL: providerErrorURL(current, provider),
+    ...(invitation && { additionalData: { invitation } }),
+  });
+  return !answer.error;
+}
+
 /** The button of one provider, in the words and the look its rules ask for. */
 export function ProviderButton({
   provider,
@@ -57,18 +88,7 @@ export function ProviderSignIn({
 }) {
   const [pending, setPending] = useState<Provider | null>(null);
   const sending = useRef(false);
-  const providers = useQuery({
-    queryKey: ["auth", "sign-in-providers"],
-    queryFn: async () => {
-      const answer =
-        await authClient.$fetch<Partial<Record<Provider, boolean>>>("/sign-in-providers");
-      if (answer.error) throw new Error("Sign-in providers could not be read");
-      return answer.data;
-    },
-    staleTime: 60_000,
-    retry: false,
-    meta: { quiet: true },
-  });
+  const providers = useSignInProviders();
 
   async function signIn(provider: Provider) {
     if (sending.current) return;
@@ -76,16 +96,7 @@ export function ProviderSignIn({
     setPending(provider);
     onPendingChange(true);
     try {
-      const current = returnTo
-        ? new URL(returnTo, window.location.origin).href
-        : window.location.href;
-      const answer = await authClient.signIn.social({
-        provider,
-        callbackURL: providerReturnURL(current),
-        errorCallbackURL: providerErrorURL(current, provider),
-        ...(invitation && { additionalData: { invitation } }),
-      });
-      if (!answer.error) return;
+      if (await signInWith(provider, returnTo, invitation)) return;
       toast.error(m.auth_failed());
     } catch {
       toast.error(m.auth_failed());

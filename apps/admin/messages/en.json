@@ -200,6 +200,7 @@
   "no": "No",
   "action_signed_out": "Closed its sessions ({count})",
   "action_account_resumed": "Let the account in again",
+  "action_account_deleted": "Deleted its own account",
   "action_unknown": "Did something this admin has no words for yet: {action}",
   "command_palette_label": "Command palette",
   "command_palette_placeholder": "Search pages, actions and developer accounts",

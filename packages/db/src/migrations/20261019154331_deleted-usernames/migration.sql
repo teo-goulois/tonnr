@@ -1,0 +1,1 @@
+ALTER TABLE "removed_username" ADD COLUMN "free_at" timestamp with time zone;

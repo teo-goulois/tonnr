@@ -59,6 +59,8 @@ type AccountPanelProps = {
   profile?: SurferProfile | null | undefined;
   // Opens the account's answers, one step into this panel.
   onOpenProfile: () => void;
+  // Opens what deletes the account, one step into this panel, under signing out. Decision 071.
+  onOpenDelete: () => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -101,6 +103,7 @@ export function AccountPanel({
   agents,
   profile,
   onOpenProfile,
+  onOpenDelete,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const palette = usePalette();
@@ -378,6 +381,22 @@ export function AccountPanel({
             {m.auth_sign_out()}
           </Button>
         </div>
+      )}
+
+      {/* Last of all, apart from the rest: the step that deletes the account says what goes
+          before it asks. */}
+      {account && (
+        <button
+          type="button"
+          className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+          onClick={onOpenDelete}
+        >
+          <span className="grid gap-xxs">
+            <span className="text-error">{m.delete_account_title()}</span>
+            <span className="text-s text-neutral-7">{m.delete_account_hint()}</span>
+          </span>
+          <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+        </button>
       )}
     </div>
   );

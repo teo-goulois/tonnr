@@ -40,13 +40,18 @@ export const accountSuspension = pgTable("account_suspension", {
 });
 
 /**
- * A username an operator took away from an account. Nobody takes it again, the account it was
- * taken from no more than another. The row names no account. Decision 041 gives the rules.
+ * A username that nobody may take: one an operator took away from an account, which nobody
+ * takes again, the account it was taken from no more than another, and one of an account that
+ * was deleted, which nobody takes for thirty days, so that no one passes for it at once. The row
+ * names no account. Decisions 041 and 071 give the rules.
  */
 export const removedUsername = pgTable("removed_username", {
   // In small letters, as a username is kept.
   username: text("username").primaryKey(),
   at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  // When the username of a deleted account is free again. Null for one an operator took away,
+  // which stays nobody's for good.
+  freeAt: timestamp("free_at", { withTimezone: true }),
 });
 
 /**
@@ -214,7 +219,9 @@ export const apiUsage = pgTable(
   ],
 );
 
-// What an operator can do to what runs the instance, as the record of it names it.
+// What an operator can do to what runs the instance, as the record of it names it, and the one
+// thing an account does that the record keeps: its own deletion, which an operator who is written
+// to afterwards reads by the account's id (decision 071).
 export const OPERATOR_ACTIONS = [
   "developer.create",
   "developer.update",
@@ -229,6 +236,7 @@ export const OPERATOR_ACTIONS = [
   "account.suspend",
   "account.resume",
   "account.username_remove",
+  "account.delete",
   "spot.publish",
   "spot.refuse",
   "contribution.accept",
@@ -288,7 +296,8 @@ export const operatorAction = pgTable(
   {
     id: text("id").primaryKey(),
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
-    // The operator who did it. Null once their account is deleted.
+    // The operator who did it, or the account that deleted itself. Null once their account is
+    // deleted.
     operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
     action: text("action", { enum: OPERATOR_ACTIONS }).notNull(),
     // The developer account it was done to, or whose key it was, with the name it had then.

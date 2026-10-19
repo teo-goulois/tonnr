@@ -69,6 +69,7 @@ import { toast } from "sonner";
 import { AccountPanel } from "@/components/account/account-panel";
 import { ConnectPage } from "@/components/auth/connect-page";
 import { ProviderButton } from "@/components/auth/provider-sign-in";
+import { DeletionSamples } from "@/components/design-system/account-samples";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { LearnSamples } from "@/components/design-system/learn-samples";
@@ -1049,6 +1050,7 @@ export function DesignSystemPage() {
               onOpenSessions={() => {}}
               profile={SAMPLE_PROFILE}
               onOpenProfile={() => {}}
+              onOpenDelete={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -1065,6 +1067,7 @@ export function DesignSystemPage() {
               onOpenSessions={() => {}}
               profile={null}
               onOpenProfile={() => {}}
+              onOpenDelete={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -1080,9 +1083,15 @@ export function DesignSystemPage() {
               onOpenFriends={() => {}}
               onOpenSessions={() => {}}
               onOpenProfile={() => {}}
+              onOpenDelete={() => {}}
             />
           </div>
         </div>
+      </Section>
+
+      {/* What deletes the account, one step into its panel: decision 071. */}
+      <Section title="Deleting the account">
+        <DeletionSamples />
       </Section>
 
       <Section title="Surfer profile, and the questions a new account is asked">

@@ -200,6 +200,7 @@
   "no": "Non",
   "action_signed_out": "A fermé ses sessions ({count})",
   "action_account_resumed": "A laissé rentrer le compte",
+  "action_account_deleted": "A supprimé son propre compte",
   "action_unknown": "A fait quelque chose que cet admin ne sait pas encore dire : {action}",
   "command_palette_label": "Palette de commandes",
   "command_palette_placeholder": "Chercher une page, une action ou un compte développeur",

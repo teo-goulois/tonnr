@@ -46,7 +46,11 @@ export function Analytics({
           : otherwise;
       if (state.location.pathname === "/login") return "authentication:sign_in:";
       const panel = allowed("panel", ["saved", "alerts", "account"], "map");
-      const settings = allowed("settings", ["alerts", "sessions", "friends", "contributions"], "");
+      const settings = allowed(
+        "settings",
+        ["alerts", "sessions", "friends", "contributions", "delete"],
+        "",
+      );
       const tab = allowed("tab", ["guide", "sessions", "alerts"], "conditions");
       const kind = search.station ? "station" : search.break ? "break" : search.spot ? "spot" : "";
       return [settings || panel, tab, kind].join(":");

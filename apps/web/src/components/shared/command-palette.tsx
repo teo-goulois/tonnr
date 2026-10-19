@@ -268,6 +268,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "friends" } }),
         },
         {
+          value: `${m.delete_account_title()} delete account supprimer compte eliminar borrar apagar conta gdpr rgpd`,
+          label: m.delete_account_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "delete" } }),
+        },
+        {
           value: `${m.account_settings()} settings account preferences ${m.units_title()} units knots nœuds km/h feet pieds celsius fahrenheit`,
           label: m.account_settings(),
           run: () => void navigate({ to: "/app", search: { panel: "account" } }),
