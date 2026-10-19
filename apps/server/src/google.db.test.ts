@@ -5,6 +5,8 @@ import { accountLink, sponsorship } from "@repo/db/schema/community";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { checkIdTokensWith, testIdTokens } from "./id-tokens.testing";
+
 const API = "https://api.example.test";
 const WEB = "https://web.example.test";
 const env = {
@@ -165,6 +167,49 @@ describe.skipIf(!TEST_DATABASE_URL)("Google OAuth over HTTP", () => {
     ]);
     await database.db.delete(sponsorship);
     await finish({ invitation: "made-up-invitation" });
+    expect(await database.db.select().from(sponsorship)).toHaveLength(0);
+  });
+
+  it("keeps an invitation for a new account made by an app's ID token only", async () => {
+    // The library reads the profile from the token itself: only the key that signs it is made up.
+    auth = createAuth(env, database.db);
+    const tokens = testIdTokens();
+    await checkIdTokensWith(auth, "google", tokens.publicKey);
+    await database.db.insert(user).values({
+      id: "inviter",
+      name: "Inviter",
+      email: "inviter@example.test",
+      username: "inviter",
+    });
+    await database.db
+      .insert(accountLink)
+      .values({ userId: "inviter", token: "made-up-invitation" });
+    const signIn = () =>
+      request("/sign-in/social", {
+        provider: "google",
+        idToken: {
+          token: tokens.sign({
+            iss: "https://accounts.google.com",
+            aud: env.GOOGLE_CLIENT_ID,
+            sub: "google-two",
+            email: "phone@example.test",
+            email_verified: true,
+            name: "Phone",
+          }),
+        },
+        additionalData: { invitation: "made-up-invitation" },
+      });
+
+    const first = await signIn();
+    expect(first.status).toBe(200);
+    const made = (await database.db.select().from(user)).find(
+      (row) => row.email === "phone@example.test",
+    );
+    expect(await database.db.select().from(sponsorship)).toMatchObject([
+      { sponsorId: "inviter", sponsoredId: made!.id },
+    ]);
+    await database.db.delete(sponsorship);
+    expect((await signIn()).status).toBe(200);
     expect(await database.db.select().from(sponsorship)).toHaveLength(0);
   });
 

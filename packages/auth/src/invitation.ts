@@ -15,15 +15,37 @@ async function keepInvitation(database: Database, made: InvitedAccount, token: u
   });
 }
 
-/** Runs only when OAuth creates an account; returning accounts acquire no sponsor. */
+// Where a sign-in with a provider carries its link. Through a browser, in the OAuth state, which
+// the callback reads back. With the ID token a provider's sheet gave an app, in the body's
+// `additionalData`, which the library leaves unread on that route. Decision 070.
+async function providerInvitation(context: GenericEndpointContext) {
+  if (context.path === "/sign-in/social") {
+    const body: unknown = context.body;
+    const data =
+      typeof body === "object" && body !== null && "additionalData" in body
+        ? body.additionalData
+        : undefined;
+    return typeof data === "object" && data !== null && "invitation" in data
+      ? data.invitation
+      : undefined;
+  }
+  if (context.path === "/callback/:id") {
+    return (await getOAuthState<{ invitation?: unknown }>())?.invitation;
+  }
+  return undefined;
+}
+
+/**
+ * Runs only when a provider creates an account, through a browser or by an ID token; returning
+ * accounts acquire no sponsor.
+ */
 export async function oauthInvitation(
   database: Database,
   made: InvitedAccount,
   context: GenericEndpointContext,
 ) {
   try {
-    const state = await getOAuthState<{ invitation?: unknown }>();
-    await keepInvitation(database, made, state?.invitation);
+    await keepInvitation(database, made, await providerInvitation(context));
   } catch {
     context.context.logger.error("An invitation was not kept");
   }

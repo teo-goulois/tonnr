@@ -95,7 +95,9 @@ export function createAuth(
         create: {
           after: async (made, context) => {
             await userHooks.create.after(made);
-            if (context?.path === "/callback/:id") await oauthInvitation(database, made, context);
+            // An account a provider made, through a browser or by an app's ID token. One made
+            // with an address and a password is read after its route, in `invitations`.
+            if (context) await oauthInvitation(database, made, context);
           },
         },
       },
