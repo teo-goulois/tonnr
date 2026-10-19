@@ -10,9 +10,10 @@ import { breakContribution } from "@repo/db/schema/community";
 import { surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq } from "drizzle-orm";
+import { Effect } from "effect";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { deleteAccountByCommand } from "./deletion";
+import { deleteAccountByCommand, forgetUsernames } from "./deletion";
 
 const WHO = "Ana <ana@example.org>, an account since 2026-09-01";
 
@@ -167,5 +168,22 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account by a command", () => {
     const answer = await deleteAccountByCommand(db, ["ana", "--write"], undefined);
     expect(answer.ok).toBe(true);
     expect(answer.lines.at(-1)).toMatch(/Apple was not asked/);
+  });
+
+  it("forgets a deleted account's username once its thirty days are over, and keeps one taken away", async () => {
+    const { db } = database;
+    const day = 24 * 60 * 60 * 1000;
+    await db.insert(removedUsername).values([
+      { username: "free_again", freeAt: new Date(Date.now() - 60_000) },
+      { username: "kept_still", freeAt: new Date(Date.now() + day) },
+      // Taken away by an operator: for good.
+      { username: "taken_away", freeAt: null },
+    ]);
+    expect(await Effect.runPromise(forgetUsernames(db))).toBe(1);
+    expect(
+      (await db.select({ username: removedUsername.username }).from(removedUsername))
+        .map((row) => row.username)
+        .toSorted(),
+    ).toEqual(["kept_still", "taken_away"]);
   });
 });

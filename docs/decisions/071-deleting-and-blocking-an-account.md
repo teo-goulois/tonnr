@@ -56,7 +56,7 @@ The database already knows what goes with an account. The 46 foreign keys that p
 
 ### Its username
 
-- The username of a deleted account is nobody's for thirty days, so that no one takes it at once and passes for the account. The deletion writes it in `removed_username`, which holds the usernames an operator took away, with the day it is free again: a new column, `free_at`, null for a username an operator took away, which stays nobody's for good. The check in `packages/auth/src/username.ts`, `isUsernameKept`, refuses it until then. An operator who takes away a username that a deleted account left, and that was taken since, keeps it for good: the row's `free_at` goes back to null. Thirty days are chosen here.
+- The username of a deleted account is nobody's for thirty days, so that no one takes it at once and passes for the account. The deletion writes it in `removed_username`, which holds the usernames an operator took away, with the day it is free again: a new column, `free_at`, null for a username an operator took away, which stays nobody's for good. The check in `packages/auth/src/username.ts`, `isUsernameKept`, refuses it until then. An operator who takes away a username that a deleted account left, and that was taken since, keeps it for good: the row's `free_at` goes back to null. Thirty days are chosen here. The worker's prune of every night deletes the rows whose day has passed, `forgetFreedUsernames` in `packages/db/src/deletion.ts`, so that the instance keeps a deleted account's username, and the day it was deleted, no longer than `/privacy` says: a review found them kept for good.
 
 ### Blocking an account
 

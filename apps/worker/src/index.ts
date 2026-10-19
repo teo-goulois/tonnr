@@ -7,6 +7,7 @@ import { breakSources } from "./breaks/import";
 import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { mailOutOf, pushOutOf } from "./deliveries";
+import { forgetUsernames } from "./deletion";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
@@ -196,12 +197,17 @@ await boss.work(
   withStart,
   attemptOf(
     PRUNE_QUEUE,
-    (db) => Effect.all({ deleted: pruneReadings(db), forecasts: pruneKeptForecasts(db) }),
-    ({ deleted, forecasts: kept }) => {
+    (db) =>
+      Effect.all({
+        deleted: pruneReadings(db),
+        forecasts: pruneKeptForecasts(db),
+        usernames: forgetUsernames(db),
+      }),
+    ({ deleted, forecasts: kept, usernames }) => {
       console.log(
-        `Pruned ${deleted} old wind readings, ${kept.cells} forecasts and ${kept.calls} counts of calls`,
+        `Pruned ${deleted} old wind readings, ${kept.cells} forecasts, ${kept.calls} counts of calls and ${usernames} usernames free again`,
       );
-      return { counts: { deleted, forecasts: kept.cells, callCounts: kept.calls } };
+      return { counts: { deleted, forecasts: kept.cells, callCounts: kept.calls, usernames } };
     },
   ),
 );

@@ -310,6 +310,7 @@
   "count_stale": "{count} laissés faute de prévision fraîche",
   "count_forecasts": "{count} prévisions supprimées",
   "count_call_counts": "{count} compteurs de requêtes supprimés",
+  "count_usernames": "{count} pseudos de comptes supprimés libérés",
   "providers_note": "Un relevé quitte la carte au bout de six heures. Un fournisseur qui publie avec un jour de retard n’en a aucun de moins de six heures et fonctionne comme il doit : sa tâche dit comment il tourne.",
   "providers_empty": "Aucune station pour l’instant.",
   "provider_name": "Fournisseur",

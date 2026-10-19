@@ -310,6 +310,7 @@
   "count_stale": "{count} left for want of a fresh forecast",
   "count_forecasts": "{count} forecasts let go",
   "count_call_counts": "{count} counts of requests let go",
+  "count_usernames": "{count} usernames of deleted accounts let go",
   "providers_note": "A reading leaves the map after six hours. A provider that publishes a day late has none under six hours and works as it should: its job says how it runs.",
   "providers_empty": "No station yet.",
   "provider_name": "Provider",

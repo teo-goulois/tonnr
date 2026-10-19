@@ -2,10 +2,12 @@ import type { AppleRevocation } from "@repo/auth/apple-revocation";
 import { DELETED_USERNAME_DAYS } from "@repo/config/account";
 import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
-import { deleteAccount, isOperator } from "@repo/db/deletion";
+import { deleteAccount, forgetFreedUsernames, isOperator } from "@repo/db/deletion";
+import { Effect } from "effect";
 
 import { type Outcome, readArguments, refused } from "./command";
 import { accountOf, noAccount } from "./operators";
+import { StoreError } from "./store";
 
 /**
  * `job account-delete <account id> [--write]`: names an account and, with `--write`, deletes it
@@ -76,3 +78,14 @@ export async function deleteAccountByCommand(
     ],
   };
 }
+
+/**
+ * Forgets the usernames of deleted accounts once their thirty days are over, so that none is kept
+ * past them: the prune of every night runs it. Decision 071.
+ */
+export const forgetUsernames = Effect.fn("forgetUsernames")(function* (db: Database) {
+  return yield* Effect.tryPromise({
+    try: () => forgetFreedUsernames(db),
+    catch: (cause) => new StoreError({ provider: "usernames", cause }),
+  });
+});
