@@ -1,9 +1,6 @@
-import { Text, View } from "react-native";
+import { AlertsScreen } from "@/components/alerts/alerts-screen";
 
+/** What the alerts told, and the alerts themselves: decision 031. */
 export default function Screen() {
-  return (
-    <View className="flex-1 items-center justify-center bg-background">
-      <Text className="text-m text-muted">alerts</Text>
-    </View>
-  );
+  return <AlertsScreen />;
 }
