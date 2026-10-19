@@ -12,7 +12,9 @@ import { kindOf } from "./request";
 // the phone, as for a browser: Apple reads a line that stands in for it, and nothing of the alert.
 // A push that is given up has its stream cancelled, with HTTP/2's `RST_STREAM`: what was not sent
 // by then is not sent, nothing more of its answer is read, and the session goes on for the
-// others. Nothing here is logged of a push but how it failed, and never the token.
+// others, unless Apple had not begun to answer: the connection may then be half open, which TCP
+// tells only after minutes, and the session takes no new push. Nothing here is logged of a push
+// but how it failed, and never the token.
 
 /** What an instance sets to push to its iOS app: the key of its Apple team, and the app. */
 export type ApnsSettings = {
@@ -57,17 +59,24 @@ const TOKEN = /^[0-9a-f]{64,200}$/;
 
 /**
  * The streams of the instance to Apple: one HTTP/2 session to each host, opened as the first
- * push to it leaves, opened again once Apple or the network closed it or it has rested a
- * minute, and holding the program open only while a push is under way on it. `close` closes
- * them all.
+ * push to it leaves, opened again once Apple or the network closed it, it has rested a minute
+ * or a push on it was given up before Apple began to answer, and holding the program open only
+ * while a push is under way on it. `close` closes them all.
  */
 export function http2Streams(idleMs = IDLE_MS): { stream: Stream; close: () => void } {
-  const sessions = new Map<string, { session: http2.ClientHttp2Session; underWay: number }>();
-  const sessionTo = (origin: string) => {
+  type Kept = { session: http2.ClientHttp2Session; underWay: number };
+  const sessions = new Map<string, Kept>();
+  // A session that takes no new push: the next opens another, and the pushes under way on it end
+  // on their own, answered or given up, before it closes.
+  const retire = (origin: string, kept: Kept) => {
+    if (sessions.get(origin) === kept) sessions.delete(origin);
+    if (!kept.session.closed && !kept.session.destroyed) kept.session.close();
+  };
+  const sessionTo = (origin: string): Kept => {
     const open = sessions.get(origin);
     if (open && !open.session.closed && !open.session.destroyed) return open;
     const session = http2.connect(origin);
-    const kept = { session, underWay: 0 };
+    const kept: Kept = { session, underWay: 0 };
     sessions.set(origin, kept);
     // Closed or refused: the next push opens another. A session that Apple ends with GOAWAY
     // lets the streams under way finish, and takes no new one.
@@ -85,7 +94,7 @@ export function http2Streams(idleMs = IDLE_MS): { stream: Stream; close: () => v
   const stream: Stream = (origin, headers, body, signal) =>
     new Promise((resolve) => {
       if (signal.aborted) return resolve({ failure: "given up" });
-      let kept: ReturnType<typeof sessionTo>;
+      let kept: Kept;
       let request: http2.ClientHttp2Stream;
       try {
         kept = sessionTo(origin);
@@ -117,7 +126,13 @@ export function http2Streams(idleMs = IDLE_MS): { stream: Stream; close: () => v
         if (kept.underWay === 0 && !kept.session.destroyed) kept.session.unref();
         resolve(given);
       };
-      const giveUp = () => answer({ failure: "given up" });
+      // Given up before Apple began to answer it: the session may be half open, and every push
+      // on it would wait as long, holding its account's rows, so it is retired.
+      const giveUp = () => {
+        const isSilent = status === 0;
+        answer({ failure: "given up" });
+        if (isSilent) retire(origin, kept);
+      };
       signal.addEventListener("abort", giveUp, { once: true });
       request.on("response", (answered) => {
         status = Number(answered[":status"] ?? 0);

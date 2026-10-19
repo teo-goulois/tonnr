@@ -504,12 +504,12 @@ describe("a push to a server of this machine that speaks HTTP/2 as Apple does", 
     await server.close();
   });
 
-  it("cancels the stream of a push it gives up, in the time a push is given, and goes on with the session", async () => {
+  it("cancels the stream of a push it gives up, in the time a push is given, and goes on with the session Apple had begun to answer", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    // The first stream is never answered; the next ones are.
+    // The first stream is answered and never ended; the next ones are ended.
     const server = await serving((stream, path) => {
-      if (server.asked.length === 1) return;
       stream.respond({ ":status": 200 });
+      if (server.asked.length === 1) return;
       stream.end(path);
     });
     const pusher = local(server.origin, 150);
@@ -523,6 +523,52 @@ describe("a push to a server of this machine that speaks HTTP/2 as Apple does", 
     expect(await pusher.send(phone(), push, 60)).toBe("taken");
     expect(server.sessions()).toBe(1);
     expect(logged.mock.calls.flat().join(" ")).toBe("push: not taken (apns no answer in time)");
+    pusher.close();
+    await server.close();
+  });
+
+  it("opens another session after a push that Apple did not begin to answer, which may be half open", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // The first stream is never answered, as on a connection that went silent; the next ones are.
+    const server = await serving((stream, path) => {
+      if (server.asked.length === 1) return;
+      stream.respond({ ":status": 200 });
+      stream.end(path);
+    });
+    const pusher = local(server.origin, 150);
+
+    expect(await pusher.send(phone(), push, 60)).toBe("failed");
+    await vi.waitFor(() => expect(server.cancelled).toHaveLength(1));
+
+    expect(await pusher.send(phone(), push, 60)).toBe("taken");
+    expect(await pusher.send(phone(), push, 60)).toBe("taken");
+    expect(server.sessions()).toBe(2);
+    pusher.close();
+    await server.close();
+  });
+
+  it("lets the pushes under way on a session it retires end on their own", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // The first stream is never answered. The second is answered once the first was given up,
+    // on the session that took it.
+    let held: http2.ServerHttp2Stream | undefined;
+    const server = await serving((stream) => {
+      if (server.asked.length === 1) return;
+      held = stream;
+    });
+    const pusher = local(server.origin, 1000);
+
+    const first = pusher.send(phone(), push, 60);
+    await vi.waitFor(() => expect(server.asked).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const second = pusher.send(phone(), push, 60);
+    await vi.waitFor(() => expect(held).toBeDefined());
+
+    expect(await first).toBe("failed");
+    held?.respond({ ":status": 200 });
+    held?.end();
+    expect(await second).toBe("taken");
+    expect(server.sessions()).toBe(1);
     pusher.close();
     await server.close();
   });
