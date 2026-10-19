@@ -3,10 +3,12 @@
 
 // Where the browsers' push services answer: Chrome's and that of the browsers built on it,
 // Firefox's, Safari's, Edge's. A name that begins with a dot stands for every host under it.
+// Safari's is the one host of Apple's: its others are APNs's own, which a browser's push has no
+// business with (decision 072).
 const PUSH_HOSTS = [
   "fcm.googleapis.com",
   "updates.push.services.mozilla.com",
-  ".push.apple.com",
+  "web.push.apple.com",
   ".notify.windows.com",
 ];
 
