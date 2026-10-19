@@ -1897,5 +1897,10 @@
   "alert_week_days": "{count} dias em 7",
   "alert_week_coefficient": "coef. {value}",
   "alert_week_hint": "A escuro, as horas em que o alerta te avisaria, dentro das horas em que podes ir. Toca num dia para ver as suas janelas.",
-  "native_loading": "A carregar"
+  "native_loading": "A carregar",
+  "native_save": "Guardar",
+  "native_discard_title": "Descartar as tuas alterações?",
+  "native_discard_message": "O que alteraste aqui não está guardado.",
+  "native_discard": "Descartar",
+  "native_keep_editing": "Continuar a editar"
 }

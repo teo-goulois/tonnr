@@ -12,6 +12,7 @@ import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { formSheet } from "@/components/ui/sheet-options";
 import { navigationTheme, useTheme } from "@/lib/theme";
 import { queryClient } from "@/utils/orpc";
 
@@ -25,14 +26,7 @@ export default function RootLayout() {
             <ThemeProvider value={navigationTheme(scheme)}>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen
-                  name="create"
-                  options={{
-                    presentation: "formSheet",
-                    sheetAllowedDetents: "fitToContents",
-                    sheetGrabberVisible: true,
-                  }}
-                />
+                <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
               </Stack>
             </ThemeProvider>
           </HeroUINativeProvider>

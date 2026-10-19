@@ -1897,5 +1897,10 @@
   "alert_week_days": "{count} jours sur 7",
   "alert_week_coefficient": "coef {value}",
   "alert_week_hint": "En foncé, les heures où l'alerte te préviendrait, dans les heures où tu peux y aller. Touche un jour pour ses créneaux.",
-  "native_loading": "Chargement"
+  "native_loading": "Chargement",
+  "native_save": "Enregistrer",
+  "native_discard_title": "Abandonner tes modifications ?",
+  "native_discard_message": "Ce que tu as changé ici n'est pas enregistré.",
+  "native_discard": "Abandonner",
+  "native_keep_editing": "Continuer à modifier"
 }
