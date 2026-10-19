@@ -1,12 +1,18 @@
 import { readFileSync } from "node:fs";
 
 import { APP_NAME, APP_SCHEME, APP_SLUG } from "@repo/config/app";
+import { claimedPaths } from "@repo/config/links";
 import { LOCALES } from "@repo/config/locales";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
 };
+
+// The web app's site, whose addresses the app opens (decision 073): the store's builds name Téo's.
+const site = new URL(process.env.EXPO_PUBLIC_SITE_URL ?? "https://tonnr.app");
+// Apple and Google verify a domain over HTTPS only: a build against a local site claims none.
+const claimsLinks = site.protocol === "https:";
 
 // What the phone shows when the app asks for a permission, in each language, from the web app's
 // messages, where every string a person reads is kept (decision 069).
@@ -36,6 +42,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: APP_SCHEME,
     infoPlist: { ...english, CFBundleAllowMixedLocalizations: true },
+    // The site's links open the app, and the keychain fills its passwords: decision 073.
+    associatedDomains: claimsLinks ? [`applinks:${site.host}`, `webcredentials:${site.host}`] : [],
     buildNumber: "1",
     supportsTablet: false,
     config: { usesNonExemptEncryption: false },
@@ -44,6 +52,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: APP_SCHEME,
     versionCode: 1,
     predictiveBackGestureEnabled: true,
+    intentFilters: claimsLinks
+      ? [
+          {
+            action: "VIEW",
+            autoVerify: true,
+            category: ["BROWSABLE", "DEFAULT"],
+            // Android matches a path with `*` only: `:id` becomes it.
+            data: claimedPaths().map((path) => ({
+              scheme: "https",
+              host: site.host,
+              pathPattern: path.replace(/:[a-z]+/g, ".*"),
+            })),
+          },
+        ]
+      : [],
   },
   locales: Object.fromEntries(
     LOCALES.filter((locale) => locale !== "en").map((locale) => [

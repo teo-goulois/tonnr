@@ -1,5 +1,7 @@
-import { APP_SCHEME } from "./app";
-import { LOCALES, localePrefix } from "./locales";
+// By the package's own name, which Node resolves as the app's config loads this file, where a
+// path without its extension does not.
+import { APP_SCHEME } from "@repo/config/app";
+import { LOCALES, localePrefix } from "@repo/config/locales";
 
 // The links that open the apps for phones, and how an app reads one: decision 073. It reads no
 // clock and no network, so that the app imports it as the web app does.
