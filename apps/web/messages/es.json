@@ -1999,5 +1999,7 @@
   "native_send_link": "Enviar el enlace",
   "native_copy_link": "Copiar el enlace",
   "native_list_missing": "Esta lista ya no existe.",
-  "native_list_renamed": "Renombrada como {name}."
+  "native_list_renamed": "Renombrada como {name}.",
+  "native_auth_mode": "Iniciar sesión o crear una cuenta",
+  "native_auth_google_none": "No has iniciado sesión con Google. Vuelve a intentarlo o usa tu correo."
 }

@@ -1999,5 +1999,7 @@
   "native_send_link": "Enviar o link",
   "native_copy_link": "Copiar o link",
   "native_list_missing": "Esta lista já não existe.",
-  "native_list_renamed": "Passou a chamar-se {name}."
+  "native_list_renamed": "Passou a chamar-se {name}.",
+  "native_auth_mode": "Iniciar sessão ou criar uma conta",
+  "native_auth_google_none": "Não iniciaste sessão com o Google. Tenta de novo, ou usa o teu email."
 }
