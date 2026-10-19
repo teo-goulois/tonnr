@@ -1896,5 +1896,6 @@
   "alert_week_days_one": "1 day out of 7",
   "alert_week_days": "{count} days out of 7",
   "alert_week_coefficient": "coef {value}",
-  "alert_week_hint": "In dark, the hours the alert would tell you about, within the hours you can go. Press a day for its windows."
+  "alert_week_hint": "In dark, the hours the alert would tell you about, within the hours you can go. Press a day for its windows.",
+  "native_loading": "Loading"
 }

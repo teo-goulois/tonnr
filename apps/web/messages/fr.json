@@ -1896,5 +1896,6 @@
   "alert_week_days_one": "1 jour sur 7",
   "alert_week_days": "{count} jours sur 7",
   "alert_week_coefficient": "coef {value}",
-  "alert_week_hint": "En foncé, les heures où l'alerte te préviendrait, dans les heures où tu peux y aller. Touche un jour pour ses créneaux."
+  "alert_week_hint": "En foncé, les heures où l'alerte te préviendrait, dans les heures où tu peux y aller. Touche un jour pour ses créneaux.",
+  "native_loading": "Chargement"
 }

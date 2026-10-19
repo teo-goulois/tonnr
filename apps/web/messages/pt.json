@@ -1896,5 +1896,6 @@
   "alert_week_days_one": "1 dia em 7",
   "alert_week_days": "{count} dias em 7",
   "alert_week_coefficient": "coef. {value}",
-  "alert_week_hint": "A escuro, as horas em que o alerta te avisaria, dentro das horas em que podes ir. Toca num dia para ver as suas janelas."
+  "alert_week_hint": "A escuro, as horas em que o alerta te avisaria, dentro das horas em que podes ir. Toca num dia para ver as suas janelas.",
+  "native_loading": "A carregar"
 }
