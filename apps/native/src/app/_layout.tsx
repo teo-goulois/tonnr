@@ -3,32 +3,38 @@ import "@/global.css";
 // what a browser keeps in it the same way.
 import "expo-sqlite/localStorage/install";
 import "@/lib/i18n";
+// The theme that was chosen, put in force before anything is drawn.
+import "@/lib/theme";
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, ThemeProvider } from "expo-router";
 import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { navigationTheme, useTheme } from "@/lib/theme";
 import { queryClient } from "@/utils/orpc";
 
 export default function RootLayout() {
+  const { scheme } = useTheme();
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardProvider>
           <HeroUINativeProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen
-                name="create"
-                options={{
-                  presentation: "formSheet",
-                  sheetAllowedDetents: "fitToContents",
-                  sheetGrabberVisible: true,
-                }}
-              />
-            </Stack>
+            <ThemeProvider value={navigationTheme(scheme)}>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                  name="create"
+                  options={{
+                    presentation: "formSheet",
+                    sheetAllowedDetents: "fitToContents",
+                    sheetGrabberVisible: true,
+                  }}
+                />
+              </Stack>
+            </ThemeProvider>
           </HeroUINativeProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>
