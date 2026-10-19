@@ -22,8 +22,10 @@ export const queryClient = new QueryClient({
 export const link = new RPCLink({
   url: `${ENV.EXPO_PUBLIC_SERVER_URL}/rpc`,
   async fetch(request, init) {
+    // React Native's Request leaves `body` empty whatever it holds: read it as text.
+    const reads = request.method === "GET" || request.method === "HEAD";
     return expoFetch(request.url, {
-      body: request.body ? await request.blob() : undefined,
+      body: reads ? undefined : await request.text(),
       headers: request.headers,
       method: request.method,
       signal: request.signal,

@@ -9,7 +9,13 @@ import { m } from "@/paraglide/messages";
  */
 export default function TabsLayout() {
   return (
-    <NativeTabs>
+    <NativeTabs
+      screenListeners={({ route }) => ({
+        tabPress: () => {
+          if (route.name === "add") router.push("/create");
+        },
+      })}
+    >
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Icon sf={{ default: "map", selected: "map.fill" }} md="map" />
         <NativeTabs.Trigger.Label>{m.nav_map()}</NativeTabs.Trigger.Label>
@@ -32,11 +38,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf={{ default: "person", selected: "person.fill" }} md="person" />
         <NativeTabs.Trigger.Label>{m.account_menu()}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger
-        name="add"
-        disabled
-        listeners={{ tabPress: () => router.push("/create") }}
-      >
+      <NativeTabs.Trigger name="add" disabled>
         <NativeTabs.Trigger.Icon sf="plus" md="add" />
         <NativeTabs.Trigger.Label hidden>{m.nav_add()}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
