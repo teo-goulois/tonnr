@@ -163,6 +163,21 @@ describe("readAppLink", () => {
     });
   });
 
+  it("never reads what follows the app's scheme as another site", () => {
+    for (const address of [
+      "app.tonnr:////other.example/b/b-1",
+      "app.tonnr:/\\other.example/b/b-1",
+      "app.tonnr://\\\\other.example/b/b-1",
+      "app.tonnr:/\t/other.example/b/b-1",
+      "app.tonnr:// //other.example/b/b-1",
+    ]) {
+      expect(readAppLink(address, site), address).toEqual({
+        screen: "browser",
+        url: `${site}/other.example/b/b-1`,
+      });
+    }
+  });
+
   it("reads a path alone against the site, as a push may carry it", () => {
     expect(readAppLink("/app?station=62001", site)).toEqual({
       screen: "map",

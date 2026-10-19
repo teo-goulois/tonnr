@@ -101,11 +101,15 @@ export function isClaimedPath(pathname: string) {
   });
 }
 
-/** The address of the web app a link names: its scheme's are read against the site. */
+/**
+ * The address of the web app a link names: its scheme's are read against the site. What the
+ * scheme is followed by is a path and never a host: the slashes, backslashes and spaces it starts
+ * with are dropped, since a URL reads `//`, `/\` or `/<tab>/` as the start of another host.
+ */
 function webAddressOf(address: string, site: string) {
   const scheme = `${APP_SCHEME}:`;
   const written = address.startsWith(scheme)
-    ? `/${address.slice(scheme.length).replace(/^\/+/, "")}`
+    ? `/${address.slice(scheme.length).replace(/^[\s/\\]+/, "")}`
     : address;
   try {
     return new URL(written, site);
