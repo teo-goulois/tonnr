@@ -1,4 +1,6 @@
 import { Button } from "@repo/ui/components/ui/button";
+import { Switch } from "@repo/ui/components/ui/switch";
+import { useId } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -27,6 +29,11 @@ type ListPanelProps = {
   isKeeping: boolean;
   // An account that kept the list lets go of it.
   onLeave?: () => void;
+  // Whether the reports at the list's breaks are told to the reader, its owner or an account
+  // that kept it, each by its own switch, and what changes it. Null for whoever reads it by its
+  // link. Decision 068.
+  reportsOn?: boolean | null;
+  onReportsChange?: (on: boolean) => void;
   // The owner opens what shares the list.
   onShare?: () => void;
   onSignIn: () => void;
@@ -54,6 +61,8 @@ export function ListPanel({
   onKeep,
   isKeeping,
   onLeave,
+  reportsOn = null,
+  onReportsChange,
   onShare,
   onSignIn,
   onCreateAccount,
@@ -62,6 +71,7 @@ export function ListPanel({
   onPick,
 }: ListPanelProps) {
   const size = list.stationIds.length + list.breakIds.length + list.spots.length;
+  const reportsId = useId();
 
   return (
     <div className="grid gap-l">
@@ -105,6 +115,19 @@ export function ListPanel({
         </ul>
       )}
 
+      {reportsOn !== null && onReportsChange && list.access !== "link" && (
+        <div className="flex items-start justify-between gap-m">
+          <div className="grid gap-xxs">
+            <span id={reportsId}>{m.list_reports()}</span>
+            <span className="text-s text-neutral-7">{m.list_reports_hint()}</span>
+          </div>
+          <Switch
+            aria-labelledby={reportsId}
+            checked={reportsOn}
+            onCheckedChange={onReportsChange}
+          />
+        </div>
+      )}
       {list.access === "owner" && onShare && (
         <div>
           <Button variant="secondary" onClick={onShare}>

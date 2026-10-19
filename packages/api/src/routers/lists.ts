@@ -218,7 +218,11 @@ export async function viewOf(
     isDefault: list.isDefault,
     access,
     reportsOn:
-      access === "owner" ? list.reportsOn : access === "member" ? (membership?.reportsOn ?? true) : null,
+      access === "owner"
+        ? list.reportsOn
+        : access === "member"
+          ? (membership?.reportsOn ?? true)
+          : null,
     stationIds: held.stationIds,
     breakIds: held.breakIds,
     // Nothing of an alert or of a request to publish goes with a spot here: they are read on

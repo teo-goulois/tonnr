@@ -72,8 +72,10 @@ export const Route = createFileRoute("/app/")({
     // What the link someone gave the reader ends with: whose it is and what it makes are said
     // over the map. Decision 041.
     invite: z.string().max(64).optional(),
-    // The tab a break's panel opens on: its forecast when left out.
-    tab: z.enum(["guide"]).optional(),
+    // The tab a break's panel opens on: its forecast when left out. "reports" is what a notice
+    // of reports opens, with the notice it read: decision 068.
+    tab: z.enum(["guide", "reports"]).optional(),
+    notice: z.string().max(64).optional(),
     // What the page of a break asks the map to begin: an alert at the break, on a spot of the
     // account's own there, made first when it has none. Decision 059.
     create: z.enum(["alert"]).optional(),
@@ -355,6 +357,30 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       meta: { quiet: true },
     }),
   );
+  const notices = useQuery(
+    orpc.v1.reportNotices.list.queryOptions({
+      input: { limit: 50 },
+      enabled: signedIn && panel === "alerts",
+      select: (answer) => answer.notices,
+      meta: { quiet: true },
+    }),
+  );
+  const readNotice = useMutation(
+    orpc.v1.reportNotices.markRead.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.reportNotices.key() }),
+    }),
+  );
+  // A notice opened from its push names itself in the address: it is read once the break's
+  // reports are in view, by the account it was for, and leaves the address. Another account's,
+  // or one that is gone, is left as it is, without a word.
+  const openedNotice = search.notice;
+  const readOpened = useRef(readNotice.mutate);
+  readOpened.current = readNotice.mutate;
+  useEffect(() => {
+    if (!openedNotice || session.isPending) return;
+    if (signedIn) readOpened.current({ id: openedNotice });
+    void navigate({ search: (previous) => ({ ...previous, notice: undefined }), replace: true });
+  }, [openedNotice, signedIn, session.isPending, navigate]);
 
   // How to be told of the alerts is a part of the account's panel.
   const isSettingAlerts = panel === "account" && search.settings === "alerts";
@@ -837,6 +863,13 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       onError: (error) => toast.error(error.message),
     }),
   );
+  // Whether the reports at a list's breaks are told to the account: decision 068.
+  const switchListReports = useMutation(
+    orpc.v1.lists.reports.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.lists.key() }),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
   const leaveList = useMutation(
     orpc.v1.lists.leave.mutationOptions({
       onSuccess: async () => {
@@ -1169,6 +1202,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
             id: "favorites",
             name: "",
             isDefault: true,
+            reportsOn: true,
             stationIds: [],
             breakIds: [],
             spotIds: [],
@@ -1244,6 +1278,10 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       isKeepingList={keepList.isPending}
       onLeaveList={() => listView && leaveList.mutate({ id: listView.id })}
+      listReports={
+        switchListReports.isPending ? switchListReports.variables.on : listView?.reportsOn
+      }
+      onSwitchListReports={(on) => listView && switchListReports.mutate({ id: listView.id, on })}
       sharing={{
         isSaving: shareList.isPending || renewShare.isPending || unshareList.isPending,
         onShare: (list, password) =>
@@ -1331,6 +1369,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       alerting={alerting}
       guiding={guided.guiding}
       guideAsked={search.tab === "guide"}
+      reportsAsked={search.tab === "reports"}
       onGuideAsked={(asked) =>
         void navigate({
           search: (previous) => ({ ...previous, tab: asked ? "guide" : undefined }),
@@ -1439,6 +1478,11 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       onDeleteList={(list) => deleteList.mutate({ id: list.id })}
       onReadNotification={(notification) => markRead.mutate({ id: notification.id })}
+      notices={loadable(notices)}
+      onOpenNotice={(notice) => {
+        if (notice.readAt === null) readNotice.mutate({ id: notice.id });
+        void navigate({ search: { ...mode, break: notice.breakId, tab: "reports" } });
+      }}
     />
   );
 }

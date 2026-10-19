@@ -127,7 +127,11 @@ export function reportPush(content: ReportPushContent): Push {
     content.waveSize ? words.sizes[content.waveSize] : null,
     content.note ? words.quote(line(content.note, NOTE_CHARACTERS)) : null,
   ].filter((part): part is string => part !== null);
-  const query = new URLSearchParams({ break: content.breakId, tab: "reports", notice: content.noticeId });
+  const query = new URLSearchParams({
+    break: content.breakId,
+    tab: "reports",
+    notice: content.noticeId,
+  });
   return {
     title: line(title, TITLE_CHARACTERS),
     body: line(parts.join(" · "), LINE_CHARACTERS),

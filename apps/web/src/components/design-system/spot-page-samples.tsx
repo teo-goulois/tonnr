@@ -238,6 +238,7 @@ const PAGE: SpotPage = {
       mine: false,
       state: "published",
       reasons: [],
+      stats: null,
       flagged: false,
     },
   ],

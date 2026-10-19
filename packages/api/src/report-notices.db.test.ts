@@ -121,7 +121,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
       uploadType: "image/jpeg",
       uploadBytes: 3,
       files: {
-        thumb: { key: `m/${id}/0/thumb.webp`, contentType: "image/webp", bytes: 3, width: 4, height: 3 },
+        thumb: {
+          key: `m/${id}/0/thumb.webp`,
+          contentType: "image/webp",
+          bytes: 3,
+          width: 4,
+          height: 3,
+        },
       },
     });
   }
@@ -222,9 +228,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
     it("marks a notice read, its own account's alone", async () => {
       await shown("first");
       await notice("now", "ben", ["first"]);
-      await expect(
-        call(v1Router.reportNotices.markRead, { id: "now" }, by("cy")),
-      ).rejects.toEqual(refusal("NOT_FOUND"));
+      await expect(call(v1Router.reportNotices.markRead, { id: "now" }, by("cy"))).rejects.toEqual(
+        refusal("NOT_FOUND"),
+      );
       const read = await call(v1Router.reportNotices.markRead, { id: "now" }, by("ben"));
       expect(read.readAt).toEqual(AT);
       // The first reading keeps its time.
@@ -250,9 +256,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
       await database.db.insert(stationListBreak).values({ listId: "shared", breakId: "point" });
       await database.db.insert(stationListMember).values({ listId: "shared", userId: "ben" });
 
-      expect(
-        await call(v1Router.lists.reports, { id: "shared", on: false }, by("ben")),
-      ).toEqual({ id: "shared", reportsOn: false });
+      expect(await call(v1Router.lists.reports, { id: "shared", on: false }, by("ben"))).toEqual({
+        id: "shared",
+        reportsOn: false,
+      });
       // The owner's switch is its own, and the list did not change.
       const owned = await call(v1Router.lists.list, undefined, by("ana"));
       expect(owned.lists[0]).toMatchObject({ reportsOn: true, updatedAt: at });
@@ -294,7 +301,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
         .select({ publishedAt: surfReport.publishedAt })
         .from(surfReport)
         .where(eq(surfReport.id, "first"));
-      await database.db.update(surfReport).set({ state: "hidden" }).where(eq(surfReport.id, "first"));
+      await database.db
+        .update(surfReport)
+        .set({ state: "hidden" })
+        .where(eq(surfReport.id, "first"));
       vi.setSystemTime(new Date(AT.getTime() + HOUR));
       await call(v1Router.reports.decide, { id: "first", decision: "publish" }, by("op", ADMIN));
       const [after] = await database.db

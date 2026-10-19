@@ -180,6 +180,18 @@ function Card({ report, now, isBusy, onShow, onRemove }: CardProps) {
             <None />
           )}
         </Fact>
+        {report.stats && (
+          // Each browser counts once, and nobody reads who: decision 068.
+          <Fact label={m.reports_audience()}>
+            <span className="tabular-nums">
+              {m.reports_audience_line({
+                views: formatCount(report.stats.views),
+                opens: formatCount(report.stats.opens),
+                told: formatCount(report.stats.told),
+              })}
+            </span>
+          </Fact>
+        )}
         <Fact label={m.reports_found()}>
           {report.reasons.length > 0 ? (
             <ul className="grid gap-xxs">

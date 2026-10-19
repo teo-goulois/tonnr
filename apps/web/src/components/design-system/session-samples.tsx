@@ -12,7 +12,14 @@ import { SessionMediaField } from "@/components/sessions/session-media";
 import { SessionConditions, SessionCredits } from "@/components/sessions/session-sea";
 import { SurfSizeInput, SurfSizePicture } from "@/components/sessions/surf-size";
 import type { SessionMedia, SurfSize, Upload } from "@/components/sessions/types";
-import type { MediaItem, Session, SessionDetail, SessionRecap } from "@/components/viewer/types";
+import { NoticeRow } from "@/components/viewer/alerts-panel";
+import type {
+  MediaItem,
+  ReportNotice,
+  Session,
+  SessionDetail,
+  SessionRecap,
+} from "@/components/viewer/types";
 import { SIZES } from "@repo/conditions/sessions/sizes";
 
 const NOW = new Date("2026-10-13T09:00:00Z").getTime();
@@ -433,6 +440,7 @@ function report(id: string, minutesAgo: number, change: Partial<Report>): Report
     state: "published",
     reasons: [],
     flagged: false,
+    stats: null,
     ...change,
   };
 }
@@ -445,6 +453,13 @@ const REPORTS: Report[] = [
       medium("shown-photo", {}),
       medium("shown-video", { kind: "video", durationMs: 18_000 }),
     ],
+  }),
+  report("mine", 70, {
+    author: "you",
+    mine: true,
+    waveSize: "shoulder",
+    note: "Glassy on the right bank.",
+    stats: { views: 124, opens: 31, told: 18 },
   }),
   report("checking", 2, {
     author: "you",
@@ -462,8 +477,59 @@ const REPORTS: Report[] = [
   }),
 ];
 
-/** What accounts showed of the waves at a break, as its tab draws it. */
+// What an account was told of the reports at the breaks it keeps: a new one with its photo, three
+// that joined one notice and were read, one taken down, and one past its week. Decision 068.
+function notice(id: string, minutesAgo: number, change: Partial<ReportNotice>): ReportNotice {
+  const at = new Date(NOW - minutesAgo * 60 * 1000);
+  return {
+    id,
+    breakId: "break",
+    breakName: "La Gravière",
+    createdAt: at,
+    updatedAt: at,
+    readAt: null,
+    told: 1,
+    shown: 1,
+    state: "shown",
+    latest: {
+      reportId: `${id}-report`,
+      author: "maelle",
+      waveSize: "chest",
+      note: "Clean sets on the outside, a bit of wind from noon.",
+      thumb: "/landing/hero-map-light-en.webp",
+    },
+    ...change,
+  };
+}
+const NOTICES: ReportNotice[] = [
+  notice("new", 12, {}),
+  notice("many", 3 * 60, { readAt: new Date(NOW), told: 3, shown: 3, breakName: "Lafitenia" }),
+  notice("removed", 26 * 60, { readAt: new Date(NOW), shown: 0, state: "removed", latest: null }),
+  notice("past", 9 * 24 * 60, { shown: 0, state: "past", latest: null, breakName: "Parlementia" }),
+];
+
+/** What accounts showed of the waves at a break, as its tab draws it, and what tells of them. */
 function ReportSamples() {
+  return (
+    <>
+      <Sample title="The notices of reports, in the alerts' list">
+        <ul className="-mx-xs grid gap-xxs">
+          {NOTICES.map((one) => (
+            <NoticeRow
+              key={one.id}
+              notice={one}
+              now={NOW}
+              onOpen={() => toast(`Open ${one.breakName}`)}
+            />
+          ))}
+        </ul>
+      </Sample>
+      <ReportsSample />
+    </>
+  );
+}
+
+function ReportsSample() {
   return (
     <Sample title="The reports of a break">
       <ReportsPanel

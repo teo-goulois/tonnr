@@ -23,6 +23,7 @@ export type AlertSettingsChange = Partial<
     | "onEvening"
     | "eveningMinutes"
     | "onBegin"
+    | "onReports"
     | "noticeMinutes"
     | "quietFrom"
     | "quietTo"
@@ -303,6 +304,16 @@ export function AlertSettingsForm({
               ))}
           </ToggleGroup>
         )}
+      </Section>
+
+      {/* The reports at the breaks the account keeps, told as they come: decision 068. */}
+      <Section title={m.alert_settings_reports_title()}>
+        <Setting
+          label={m.alert_settings_reports()}
+          hint={m.alert_settings_reports_hint()}
+          checked={kept.onReports}
+          onCheckedChange={(onReports) => onChange({ onReports })}
+        />
       </Section>
 
       <Section title={m.alert_settings_ahead()}>

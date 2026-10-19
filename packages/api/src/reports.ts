@@ -129,9 +129,7 @@ export async function describeReports(
       reasons: isMine ? reasonsOf(mine) : [],
       flagged: flags.some((flag) => flag.reportId === row.id),
       stats:
-        isMine || options.withStats
-          ? { views: row.views, opens: row.opens, told: row.told }
-          : null,
+        isMine || options.withStats ? { views: row.views, opens: row.opens, told: row.told } : null,
     };
   });
 }

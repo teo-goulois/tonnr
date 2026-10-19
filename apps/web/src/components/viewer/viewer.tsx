@@ -108,6 +108,7 @@ import {
 import { StationPanel } from "./station-panel";
 import {
   type AlertNotification,
+  type ReportNotice,
   type Forecast,
   type Guide,
   type GuideOwn,
@@ -266,6 +267,10 @@ type ViewerProps = {
   recents: Recent[];
   onClearRecents: () => void;
   notifications: Loadable<AlertNotification[]>;
+  // What the account was told of the reports at the breaks it keeps, listed with what its
+  // alerts told, and what opens one: decision 068.
+  notices: Loadable<ReportNotice[]>;
+  onOpenNotice: (notice: ReportNotice) => void;
   // The alerts of the account, its settings, and what the screens do with them.
   alerting: Alerting;
   // What the guide of a break does for its reader: decision 041.
@@ -275,6 +280,8 @@ type ViewerProps = {
   guideAsked: boolean;
   onGuideAsked: (asked: boolean) => void;
   onOpenGuide: (breakId: string) => void;
+  // Whether the address asks for the reports of the break it selects, as a notice opens them.
+  reportsAsked: boolean;
   // The account's link and its friends, and the link the address names, if it names one.
   friending: Friending;
   invitation: Invitation | undefined;
@@ -347,6 +354,10 @@ type ViewerProps = {
   onKeepList: () => void;
   isKeepingList: boolean;
   onLeaveList: () => void;
+  // Whether the reports at the breaks of the list in view are told to the account, as it is
+  // being changed, and what changes it: decision 068. Null for a list read by its link.
+  listReports: boolean | null | undefined;
+  onSwitchListReports: (on: boolean) => void;
   // The owner shares a list, changes what its link asks, gives it a new link, or stops.
   sharing: {
     isSaving: boolean;
@@ -528,11 +539,14 @@ export function Viewer({
   recents,
   onClearRecents,
   notifications,
+  notices,
+  onOpenNotice,
   alerting,
   guiding,
   guideAsked,
   onGuideAsked,
   onOpenGuide,
+  reportsAsked,
   friending,
   invitation,
   push,
@@ -569,6 +583,8 @@ export function Viewer({
   onKeepList,
   isKeepingList,
   onLeaveList,
+  listReports,
+  onSwitchListReports,
   sharing,
   onCopySpot,
   isCopyingSpot,
@@ -980,6 +996,7 @@ export function Viewer({
         guiding={guiding}
         guideAsked={guideAsked}
         onGuideAsked={askGuide}
+        reportsAsked={reportsAsked}
         forecast={drawn.forecast}
         tides={drawn.tides}
         extremes={drawn.extremes}
@@ -1099,6 +1116,7 @@ export function Viewer({
     guiding,
     guideAsked,
     askGuide,
+    reportsAsked,
     signedIn,
     sessionsHere,
     beginSession,
@@ -1875,6 +1893,8 @@ export function Viewer({
             onKeep={onKeepList}
             isKeeping={isKeepingList}
             onLeave={onLeaveList}
+            reportsOn={listReports ?? null}
+            onReportsChange={onSwitchListReports}
             onShare={() => setSharingId(listView.id)}
             {...accountPrompt}
             lists={lists.data ?? []}
@@ -1946,6 +1966,8 @@ export function Viewer({
           tab={alertsTab}
           onTabChange={onAlertsTabChange}
           notifications={notifications}
+          notices={notices}
+          onOpenNotice={onOpenNotice}
           alerts={alerting.alerts}
           {...accountPrompt}
           onRead={onReadNotification}

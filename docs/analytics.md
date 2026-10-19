@@ -4,7 +4,7 @@ Provider: PostHog EU. The operated instance uses the Tonnr project; configure a 
 
 Audience counts: Umami, on every page of the web app, with no query string and no fragment, and no consent asked. Decision 055. Its pageviews are the only figures for the landing; PostHog's events below stay the product's.
 
-Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too. `surfer_profile_saved` and `surfer_profile_put_off` say how many answer the questions a new account is asked, decision 063.
+Activation: `alert_created`. The onboarding funnel is `account_created` → `spot_created` → `alert_created`. Measure visitor conversion separately with `app_active` → `account_created`: direct sign-up can happen before first map use. For retention, start at `alert_created` and return on `app_active`. `session_logged` measures the logbook's value too. `surfer_profile_saved` and `surfer_profile_put_off` say how many answer the questions a new account is asked, decision 063. Whether the reports of the waves are used is `report_sent`, `reports_seen` (a browser's batch of views), `report_media_opened`, and `report_notice_read`, which says a notice of reports, from the list or its push, brought someone to a break: decision 068. The admin's overview counts the rest from the database: the notices made and pushed, and the accounts that switched them off.
 
 ## Events
 
@@ -37,6 +37,7 @@ Successful oRPC actions:
 - `list_created`
 - `list_deleted`
 - `list_left`
+- `list_reports_switched`
 - `list_share_renewed`
 - `list_shared`
 - `list_unshared`
@@ -52,7 +53,10 @@ Successful oRPC actions:
 - `recent_places_cleared`
 - `report_deleted`
 - `report_flagged`
+- `report_media_opened`
+- `report_notice_read`
 - `report_sent`
+- `reports_seen`
 - `session_deleted`
 - `session_logged`
 - `session_updated`

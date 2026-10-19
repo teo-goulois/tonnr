@@ -299,7 +299,9 @@ describe.skipIf(!TEST_DATABASE_URL)("a list shared by a link", () => {
 
     const bens = await call(v1Router.lists.list, undefined, by("ben"));
     expect(bens.lists).toEqual([]);
-    expect(bens.joined).toEqual([{ id: list.id, name: "Winter", isDefault: false, size: 2 }]);
+    expect(bens.joined).toEqual([
+      { id: list.id, name: "Winter", isDefault: false, reportsOn: true, size: 2 },
+    ]);
     const anas = await call(v1Router.lists.list, undefined, by("ana"));
     expect(anas.joined).toEqual([]);
     expect(anas.lists[0]?.share?.members).toBe(1);

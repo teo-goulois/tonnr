@@ -22,6 +22,8 @@ export type JoinedList = Answer<V1["lists"]["list"]>["joined"][number];
 /** One list alone, with its spots: its owner's, one that was kept, or one opened by its link. */
 export type ListView = Answer<V1["lists"]["view"]>;
 export type AlertNotification = Answer<V1["notifications"]["list"]>["notifications"][number];
+/** What an account was told of the reports at a break it keeps: decision 068. */
+export type ReportNotice = Answer<V1["reportNotices"]["list"]>["notices"][number];
 /** A spot of the user's own: a place they named. */
 export type Spot = Answer<V1["spots"]["list"]>["spots"][number];
 /** An alert of the user's: the conditions that make one or several of their spots work. */

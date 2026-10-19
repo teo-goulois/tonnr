@@ -9,6 +9,7 @@ import type { Range, RangeName, UsagePoint } from "@/lib/usage";
 import { m } from "@/paraglide/messages.js";
 
 import { Pulse } from "./pulse";
+import { ReportPulse } from "./report-pulse";
 
 type OverviewPageProps = {
   // The instance in a glance. Undefined while it loads.
@@ -66,6 +67,7 @@ export function OverviewPage({
     <>
       <h1 className="text-l font-medium">{m.nav_overview()}</h1>
       <Pulse overview={overview} />
+      <ReportPulse overview={overview} />
 
       <div className="flex flex-wrap items-center justify-between gap-s">
         <h2 className="text-m font-medium">{m.usage_title()}</h2>

@@ -149,13 +149,12 @@ const chunks = <T>(items: readonly T[]) =>
  * Whether a report is told: once it was first shown within two hours of being sent, and while
  * it is less than three hours old. One shown before this version says no moment, and is not.
  */
-export function isWorthTelling(
-  report: { createdAt: Date; publishedAt: Date | null },
-  now: Date,
-) {
+export function isWorthTelling(report: { createdAt: Date; publishedAt: Date | null }, now: Date) {
   if (!report.publishedAt) return false;
   const sent = report.createdAt.getTime();
-  return report.publishedAt.getTime() - sent <= TOLD_WITHIN_MS && now.getTime() - sent < NOTICE_WORTH_MS;
+  return (
+    report.publishedAt.getTime() - sent <= TOLD_WITHIN_MS && now.getTime() - sent < NOTICE_WORTH_MS
+  );
 }
 
 /**
@@ -429,10 +428,7 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
       tx.select({ username: user.username }).from(user).where(eq(user.id, newest.userId)),
     ]);
     const locale = settings.locale ?? "en";
-    await tx
-      .update(reportNotice)
-      .set({ pushState: "sending", claimedAt: now })
-      .where(pending);
+    await tx.update(reportNotice).set({ pushState: "sending", claimedAt: now }).where(pending);
     return {
       userId: notice.userId,
       content: {
@@ -457,7 +453,13 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
  * The second step: holds the account, its settings, the notice, its reports and the account's
  * browsers, reads again what may have stopped the push, and hands it to every browser at once.
  */
-async function hand(db: Database, out: PushOut, storage: Storage | null, noticeId: string, taken: Taken) {
+async function hand(
+  db: Database,
+  out: PushOut,
+  storage: Storage | null,
+  noticeId: string,
+  taken: Taken,
+) {
   const began = Date.now();
   return db.transaction(async (tx): Promise<Outcome> => {
     const held = await hold(tx, noticeId);

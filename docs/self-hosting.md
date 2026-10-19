@@ -356,6 +356,8 @@ The same bucket keeps the reports accounts send at the breaks of the catalogue, 
 - On another platform, or from a clone, put them in a folder with `pnpm --filter worker exec tsx scripts/fetch-models.ts <folder>` and name it in `MEDIA_MODELS_DIR`. A worker that finds no model leaves every report to an operator, in the admin's moderation.
 - A report is shown a week, then kept, hidden from everyone but the operators. Set `REPORT_KEEP_DAYS` to have the worker delete the reports older than that many days, with their files: without it, it deletes none, and your privacy policy must say so, as Téo's does.
 - The admin's moderation has a tab of the reports, with what was checked of each photo, where an operator shows a report or removes it.
+- A report that is shown is told to the accounts that keep its break in a list, in the web app and by push: the worker's job `tell-reports` does it every minute, one notice at a break in three hours for an account, six pushes a day at most. It pushes with the pair of keys of the alerts (see "Push"): a worker without them lists the notices and pushes nothing. A notice is kept 30 days. Decision 068.
+- The author of a report reads how many browsers saw it and opened its photos, and how many accounts it was told to: each browser counts a report once, and the API keeps the numbers and nothing of who.
 
 | Variable           | Who reads it | What it is for                                                                              |
 | ------------------ | ------------ | ------------------------------------------------------------------------------------------- |

@@ -741,6 +741,8 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       eveningMinutes: 19 * 60,
       onChange: true,
       onBegin: true,
+      // The reports at the breaks the account keeps: decision 068.
+      onReports: true,
       noticeMinutes: 0,
       daylightOnly: true,
       week: null,

@@ -23,6 +23,8 @@ type BreakPanelProps = PointConditionsProps & {
   // Whether the guide is the tab in view, which the address says, and what changes it.
   guideAsked: boolean;
   onGuideAsked: (asked: boolean) => void;
+  // Whether the address asks for its reports, as a notice of them opens it: decision 068.
+  reportsAsked?: boolean;
   // The buoy the sea is read on at this break, and how to open its panel over this one.
   nearby?: Nearby;
   nearbyWind?: NearbyWind;
@@ -47,6 +49,7 @@ export function BreakPanel({
   guiding,
   guideAsked,
   onGuideAsked,
+  reportsAsked = false,
   forecast,
   tides,
   extremes,
@@ -86,7 +89,7 @@ export function BreakPanel({
   return (
     <Details
       spot={found.data}
-      tab={kept ?? (guideAsked ? "guide" : "forecast")}
+      tab={kept ?? (guideAsked ? "guide" : reportsAsked && reports ? "reports" : "forecast")}
       onTabChange={(next: DetailsTab) => {
         setKept(next === "sessions" || next === "alert" || next === "reports" ? next : null);
         onGuideAsked(next === "guide");

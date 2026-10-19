@@ -286,7 +286,11 @@ if (storage) {
   await boss.work(
     REPORTS_QUEUE,
     withStart,
-    attemptOf(REPORTS_QUEUE, (db) => tellReports(db, { push: pushOut, storage }), reportNoticesDone),
+    attemptOf(
+      REPORTS_QUEUE,
+      (db) => tellReports(db, { push: pushOut, storage }),
+      reportNoticesDone,
+    ),
   );
 }
 

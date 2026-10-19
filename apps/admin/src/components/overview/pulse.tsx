@@ -1,11 +1,11 @@
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 
 import type { Overview } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
+
+import { Tile } from "./tile";
 
 type PulseProps = {
   // Undefined while it loads.
@@ -20,35 +20,6 @@ const VIA: Record<string, () => string> = {
   visitor: m.via_visitor,
   none: m.via_none,
 };
-
-/** One number, with a word under it, and where it leads. */
-function Tile({
-  label,
-  value,
-  note,
-  to,
-}: {
-  label: string;
-  value: ReactNode;
-  note?: ReactNode;
-  to?: "/accounts" | "/instance";
-}) {
-  const body = (
-    <>
-      <dt className="text-s text-neutral-7">{label}</dt>
-      <dd className="text-xl font-medium tabular-nums">{value}</dd>
-      {note !== undefined && <dd className="text-s text-neutral-7">{note}</dd>}
-    </>
-  );
-  const className = "grid content-start gap-xxs rounded-(--radius-s) border border-neutral-3 p-s";
-  return to ? (
-    <Link to={to} className={`${className} focus-ring outline-none hover:bg-neutral-2`}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
-  );
-}
 
 /**
  * The instance in a glance: how many people are here, how much they ask, and whether the

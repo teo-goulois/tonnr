@@ -352,12 +352,14 @@ export const instanceRouter = {
               sql`case when ${surfReport.state} = 'refused' and ${surfReport.createdAt} > ${weekAgo} then 1 end`,
             ),
             waiting: count(sql`case when ${surfReport.state} = 'review' then 1 end`),
-            views: sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.views} end), 0)::int`.mapWith(
-              Number,
-            ),
-            opens: sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.opens} end), 0)::int`.mapWith(
-              Number,
-            ),
+            views:
+              sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.views} end), 0)::int`.mapWith(
+                Number,
+              ),
+            opens:
+              sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.opens} end), 0)::int`.mapWith(
+                Number,
+              ),
           })
           .from(surfReport),
         db

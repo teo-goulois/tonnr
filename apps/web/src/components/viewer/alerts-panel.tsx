@@ -2,6 +2,7 @@ import { momentOf } from "@repo/conditions/alerts/clock";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import {
+  CameraIcon,
   CircleCheckIcon,
   ClockIcon,
   type IconProps,
@@ -17,9 +18,10 @@ import { formatDistance, formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
 import { MyAlerts } from "../alerts/my-alerts";
+import { sizesWords } from "../sessions/surf-size";
 import { Bearing } from "./bearing";
 import { AccountPrompt } from "./saved-panel";
-import type { Alert, AlertNotification, Loadable } from "./types";
+import type { Alert, AlertNotification, Loadable, ReportNotice } from "./types";
 
 /**
  * The parts of the alerts panel: what was told, and the alerts. How to be told is a setting of
@@ -90,6 +92,10 @@ type AlertsPanelProps = {
   tab: AlertsTab;
   onTabChange: (tab: AlertsTab) => void;
   notifications: Loadable<AlertNotification[]>;
+  // What the account was told of the reports at the breaks it keeps, and what opens one: the
+  // break, on its reports. Decision 068.
+  notices: Loadable<ReportNotice[]>;
+  onOpenNotice: (notice: ReportNotice) => void;
   alerts: Loadable<Alert[]>;
   onSignIn: () => void;
   onCreateAccount: () => void;
@@ -143,15 +149,81 @@ export function AlertsPanel({
   );
 }
 
-/** What the alerts told, newest first. */
+/**
+ * A notice of reports: the break, how many reports, and the newest one still shown, with its
+ * first photo. Pressed, it opens the break on its reports, whether it was read or not.
+ */
+export function NoticeRow({
+  notice,
+  now,
+  onOpen,
+}: {
+  notice: ReportNotice;
+  now: number;
+  onOpen: (notice: ReportNotice) => void;
+}) {
+  const unread = notice.readAt === null;
+  // The reports still shown, or all those it told once none is.
+  const count = notice.shown > 0 ? notice.shown : notice.told;
+  const title =
+    count > 1
+      ? m.notice_title_many({ count, name: notice.breakName })
+      : m.notice_title_one({ name: notice.breakName });
+  const { latest } = notice;
+  const said = latest
+    ? [latest.author ?? m.report_someone(), sizesWords(latest.waveSize, null), latest.note]
+        .filter(Boolean)
+        .join(" · ")
+    : notice.state === "past"
+      ? m.notice_past()
+      : m.notice_removed();
+  return (
+    <li>
+      <button
+        type="button"
+        className={cn(
+          rowLayout,
+          "focus-ring cursor-pointer text-left outline-none hover:bg-neutral-3-transparent",
+        )}
+        onClick={() => onOpen(notice)}
+      >
+        <CameraIcon aria-hidden className="mt-0.5 size-4.5 shrink-0" />
+        <span className="grid min-w-0 flex-1 gap-xxs">
+          <span className={cn("truncate", unread && "font-medium")}>{title}</span>
+          <span className="text-s text-neutral-7">{m.notice_label()}</span>
+          <span className={cn("line-clamp-2 text-s", !latest && "text-neutral-7")}>{said}</span>
+          <span className="text-xs text-neutral-7">{formatAgo(notice.updatedAt, now)}</span>
+        </span>
+        {latest?.thumb && (
+          <img
+            src={latest.thumb}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="size-12 shrink-0 rounded-(--radius-xs) bg-neutral-3 object-cover"
+          />
+        )}
+        {unread && (
+          <span className="mt-2 size-2 shrink-0 rounded-full bg-color-1">
+            <span className="sr-only">{m.alerts_unread()}</span>
+          </span>
+        )}
+      </button>
+    </li>
+  );
+}
+
+/** What the alerts told, and the notices of reports, newest first. */
 function News({
   now,
   notifications,
+  notices,
   onRead,
-}: Pick<AlertsPanelProps, "now" | "notifications" | "onRead">) {
+  onOpenNotice,
+}: Pick<AlertsPanelProps, "now" | "notifications" | "notices" | "onRead" | "onOpenNotice">) {
   // A buoy's height and its distance are written in the reader's units.
   useUnits();
-  if (notifications.isPending) {
+  if (notifications.isPending || notices.isPending) {
     return (
       <ul className="-mx-xs grid gap-xxs">
         <AlertRowSkeleton />
@@ -163,13 +235,27 @@ function News({
   if (notifications.isError) {
     return <p className="text-s text-neutral-7">{m.alerts_load_failed()}</p>;
   }
-  if (!notifications.data?.length) {
+  // The notices are said when they come: what cannot be loaded of them leaves the alerts.
+  const told = [
+    ...(notifications.data ?? []).map((notification) => ({
+      at: notification.createdAt.getTime(),
+      notification,
+    })),
+    ...(notices.data ?? []).map((notice) => ({ at: notice.updatedAt.getTime(), notice })),
+  ].sort((a, b) => b.at - a.at);
+  if (told.length === 0) {
     return <p className="text-neutral-7">{m.alerts_empty()}</p>;
   }
 
   return (
     <ul className="-mx-xs grid gap-xxs">
-      {notifications.data.map((notification) => {
+      {told.map((one) => {
+        if ("notice" in one) {
+          return (
+            <NoticeRow key={one.notice.id} notice={one.notice} now={now} onOpen={onOpenNotice} />
+          );
+        }
+        const { notification } = one;
         const { moment, payload } = notification;
         const { label, icon: MomentIcon, quiet } = MOMENTS[moment];
         const unread = notification.readAt === null;

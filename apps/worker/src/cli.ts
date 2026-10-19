@@ -22,9 +22,10 @@ import { createStorage } from "@repo/media/storage";
 import { join } from "node:path";
 import { grantOperator, removeOperator } from "./operators";
 import { pushKeys } from "./push-keys";
+import { reportNoticesDone, tellReports } from "./report-notices";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
-// `... job moments`, `... job exposure`, `... job pages`, or `... job media`. Seven more take a value and write only with `--write`:
+// `... job moments`, `... job exposure`, `... job pages`, `... job media`, or `... job reports`. Seven more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
 // `... job candidates <folder>`, `... job candidates-remove <list>`,
 // `... job operator <account id>` and `... job operator-remove <account id>`. One reads and
@@ -50,6 +51,7 @@ const others = [
   "exposure",
   "pages",
   "media",
+  "reports",
   "push-keys",
   ...Object.keys(commands),
 ];
@@ -80,6 +82,13 @@ try {
           analyser,
           ...(ENV.REPORT_KEEP_DAYS !== undefined && { keepReportDays: ENV.REPORT_KEEP_DAYS }),
         }),
+      ),
+    );
+  } else if (job === "reports") {
+    // What the reports shown since tell the accounts that keep their break: decision 068.
+    reportNoticesDone(
+      await Effect.runPromise(
+        tellReports(db, { push: pushOutOf(ENV), storage: createStorage(ENV) }),
       ),
     );
   } else if (job === "moments") {

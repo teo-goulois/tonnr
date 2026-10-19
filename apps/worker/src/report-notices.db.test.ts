@@ -30,17 +30,11 @@ describe("whether a report is told", () => {
     expect(isWorthTelling({ createdAt: sent, publishedAt: AT }, AT)).toBe(true);
     // Shown by an operator two hours and a half after it was sent.
     expect(
-      isWorthTelling(
-        { createdAt: new Date(AT.getTime() - 2.5 * HOUR), publishedAt: AT },
-        AT,
-      ),
+      isWorthTelling({ createdAt: new Date(AT.getTime() - 2.5 * HOUR), publishedAt: AT }, AT),
     ).toBe(false);
     // Shown at once, but told only once the worker came back three hours later.
     expect(
-      isWorthTelling(
-        { createdAt: sent, publishedAt: sent },
-        new Date(AT.getTime() + 2.5 * HOUR),
-      ),
+      isWorthTelling({ createdAt: sent, publishedAt: sent }, new Date(AT.getTime() + 2.5 * HOUR)),
     ).toBe(false);
     // Shown before this version, which says no moment.
     expect(isWorthTelling({ createdAt: sent, publishedAt: null }, AT)).toBe(false);
@@ -70,9 +64,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
     // An account's pushes of the day are counted by the database's own day.
     await db.delete(providerCalls);
     const accounts = ["author", "keeper", "member", "spotter", "off", "listoff", "away", "out"];
-    await db.insert(user).values(
-      accounts.map((id) => ({ id, name: id, email: `${id}@example.org`, username: id })),
-    );
+    await db
+      .insert(user)
+      .values(accounts.map((id) => ({ id, name: id, email: `${id}@example.org`, username: id })));
     await db.insert(surfBreak).values([
       { id: "point", slug: "point", name: "La Point", latitude: 43.48, longitude: -1.56 },
       { id: "other", slug: "other", name: "Other", latitude: 44, longitude: -1.3 },
@@ -149,14 +143,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
 
   const device = async (userId: string) => {
     const made = service.device();
-    await database.db
-      .insert(pushSubscription)
-      .values({ id: `${userId}-device`, userId, ...made });
+    await database.db.insert(pushSubscription).values({ id: `${userId}-device`, userId, ...made });
   };
-  const run = (push: PushOut | null = out) =>
-    runReportNotices(database.db, { push, storage });
+  const run = (push: PushOut | null = out) => runReportNotices(database.db, { push, storage });
   const notices = () =>
-    database.db.select().from(reportNotice).orderBy(asc(reportNotice.userId), asc(reportNotice.createdAt));
+    database.db
+      .select()
+      .from(reportNotice)
+      .orderBy(asc(reportNotice.userId), asc(reportNotice.createdAt));
   const membersOf = async (noticeId: string) =>
     (
       await database.db
@@ -342,10 +336,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
 
   it("holds the pushes of a day past six", async () => {
     await device("keeper");
-    const breaks = Array.from({ length: ACCOUNT_DAILY_REPORT_PUSHES + 1 }, (_, index) => `b${index}`);
-    await database.db.insert(surfBreak).values(
-      breaks.map((id) => ({ id, slug: id, name: id, latitude: 43, longitude: -1 })),
+    const breaks = Array.from(
+      { length: ACCOUNT_DAILY_REPORT_PUSHES + 1 },
+      (_, index) => `b${index}`,
     );
+    await database.db
+      .insert(surfBreak)
+      .values(breaks.map((id) => ({ id, slug: id, name: id, latitude: 43, longitude: -1 })));
     await database.db
       .insert(stationListBreak)
       .values(breaks.map((breakId) => ({ listId: "favorites", breakId })));

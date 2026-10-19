@@ -62,6 +62,7 @@ export function PrivacyPage() {
         />
         <p>{m.privacy_content_media()}</p>
         <p>{m.privacy_reports()}</p>
+        <p>{m.privacy_reports_told()}</p>
       </LegalSection>
 
       <LegalSection title={m.privacy_alerts_title()}>
@@ -125,6 +126,7 @@ export function PrivacyPage() {
           items={[
             m.privacy_keep_account(),
             m.privacy_keep_reports(),
+            m.privacy_keep_notices(),
             m.privacy_keep_sent(),
             m.privacy_keep_counts(),
             m.privacy_keep_mails(),
