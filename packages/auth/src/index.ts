@@ -12,6 +12,17 @@ import { suspensionHooks } from "./suspension";
 import { keepsUsername, usernameHooks, usernames } from "./username";
 import { RESET_SECONDS, type Verification, VERIFICATION_SECONDS } from "./verification";
 
+const DAY_SECONDS = 24 * 60 * 60;
+
+/**
+ * How long a session lasts: ninety days, and ninety more from the first time it is used a day or
+ * more after it was last renewed. The library has one length for every session, the web's and
+ * the app's. Signing out, a new password, an operator and a suspension still end one at once.
+ * Decision 070.
+ */
+export const SESSION_SECONDS = 90 * DAY_SECONDS;
+const SESSION_RENEWED_AFTER_SECONDS = DAY_SECONDS;
+
 export type AuthConfig = GoogleConfig & {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
@@ -55,6 +66,7 @@ export function createAuth(
       }),
     },
     socialProviders,
+    session: { expiresIn: SESSION_SECONDS, updateAge: SESSION_RENEWED_AFTER_SECONDS },
     account: {
       accountLinking: { enabled: true, requireLocalEmailVerified: true, trustedProviders: [] },
     },

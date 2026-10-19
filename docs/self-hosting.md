@@ -406,6 +406,8 @@ curl --header 'Authorization: Bearer <key>' https://api.example.org/v1/stations
 
 Later, `/api/auth/sign-in/email` takes the same address and password and gives a new session.
 
+A session lasts ninety days, on the web, in the apps and in a script alike, and ninety more from the first call a day or more after it was last renewed: whoever comes back within ninety days stays signed in. Signing out, a new password, and an operator who closes an account's sessions or suspends it end one at once. Decision 070.
+
 The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts. A browser adds it. A script has to, on sign-up, on sign-in, on anything that writes with the session, and on every call to what runs the instance, a read too: the developer accounts, the keys, the counts and the list of accounts.
 
 - A key reads the shared data only. It reads nothing of an account, so it can be given to a program.

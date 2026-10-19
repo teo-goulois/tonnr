@@ -14,7 +14,7 @@ Sign-up is open, and an account calls the API with its session without a limit. 
 
 - `GET /v1/accounts/{id}` gives an account: its name, its address, whether the address was checked, when it signed up, whether it is an operator, whether it is suspended and since when, how many sessions it has open, and when one of them was last opened or renewed. Nothing of what the account keeps.
 - `GET /v1/accounts` says of each account whether it is suspended, and when it was last seen: when one of the sessions it keeps was last opened or renewed, past its end or not, so that an operator tells the accounts that come back from those that signed up once. Téo asked for it on 2026-10-18. Nothing new is kept for it: an account that signed out everywhere, or whose sessions an operator closed, has none left and reads as never seen.
-- A session is renewed about once a day while it is used. So the last renewal says that the account was there that day, not at what minute. A session past its end is not counted, whether the sign-in library has deleted it yet or not.
+- A session lasts ninety days, and is renewed for ninety more about once a day while it is used: [decision 070](070-signing-in-from-the-app.md) set it on 2026-10-19, in place of the sign-in library's week. So the last renewal says that the account was there that day, not at what minute. A session past its end is not counted, whether the sign-in library has deleted it yet or not.
 - The address a session came from and the browser it named are kept by the sign-in library and are not given: decision 020 keeps no address of a caller.
 
 ### Closing its sessions
