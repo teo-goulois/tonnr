@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AlertPreview } from "../viewer/types";
-import { hasSeaAhead, heldBack, hoursAhead, judgeTried, openPieces } from "./alert-trial";
+import { hasSeaAhead, heldBack, hoursAhead, judgeTried, openPieces } from "./trial";
 
 type Tried = AlertPreview["spots"][number];
 
@@ -79,7 +79,7 @@ describe("what a trial gives", () => {
   });
 });
 
-describe("conditions judged in the browser", () => {
+describe("conditions judged by the editor", () => {
   // Six hours of sea, from 06:00, with waves that grow from 0.5 m to 3 m.
   const sea = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00"].map(
     (time, index) =>
