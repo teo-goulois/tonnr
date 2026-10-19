@@ -62,8 +62,9 @@ type CardProps = {
   description?: string;
   children?: ReactNode;
   variant?: SurfaceVariant;
-  /** A card that opens something: the whole card is one button, named by its title. */
+  /** A card that opens something: the whole card is one button, read as what it says. */
   onPress?: () => void;
+  /** What a screen reader says of a card that opens something: else all it holds, read in order. */
   accessibilityLabel?: string;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
@@ -109,7 +110,7 @@ export function Card({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       onPress={onPress}
       style={({ pressed }) => [
