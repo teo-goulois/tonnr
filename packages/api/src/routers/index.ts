@@ -33,6 +33,7 @@ import { privateCatalogueRouter } from "./private-catalogue";
 import { publicationsRouter } from "./publications";
 import { reviewsRouter } from "./reviews";
 import { pushRouter } from "./push";
+import { reportNoticesRouter } from "./report-notices";
 import { reportsRouter } from "./reports";
 import { sessionsRouter } from "./sessions";
 import { sharedRouter } from "./shared";
@@ -49,7 +50,8 @@ import { visitorsRouter } from "./visitors";
 // 047 say which an agent calls as a tool of the MCP server, decision 049 how an operator
 // keeps the catalogue of breaks, and decision 057 what the public pages of the web app read, and
 // decision 063 what an account says of itself as a surfer, decision 066 the photos and the
-// videos of its sessions, and decision 067 the reports of the waves at a break.
+// videos of its sessions, decision 067 the reports of the waves at a break, and decision 068 what
+// an account is told of them.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -80,6 +82,7 @@ export const v1Router = {
   privateCatalogue: privateCatalogueRouter,
   publications: publicationsRouter,
   push: pushRouter,
+  reportNotices: reportNoticesRouter,
   reports: reportsRouter,
   reviews: reviewsRouter,
   sessions: sessionsRouter,

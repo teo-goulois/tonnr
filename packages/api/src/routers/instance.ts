@@ -3,9 +3,11 @@ import { MAIL_PROVIDER } from "@repo/auth/verification";
 import { currentCalls } from "@repo/db/calls";
 import { countForecastCells } from "@repo/db/forecasts";
 import { accountSuspension, apiUsage, USAGE_VIA } from "@repo/db/schema/access";
+import { alertSettings } from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
 import { station } from "@repo/db/schema/buoys";
 import { media } from "@repo/db/schema/media";
+import { reportNotice, surfReport } from "@repo/db/schema/reports";
 import {
   FAILURE_KINDS,
   job,
@@ -13,7 +15,7 @@ import {
   type JobFailure,
   workerProcess,
 } from "@repo/db/schema/instance";
-import { asc, count, countDistinct, desc, gt, max, sql, sum } from "drizzle-orm";
+import { asc, count, countDistinct, desc, eq, gt, max, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Database } from "@repo/db";
@@ -286,6 +288,25 @@ export const instanceRouter = {
           late: z.number(),
           failed: z.number(),
         }),
+        // The reports of the last seven days and what they told, by when each happened, as the
+        // rows keep them now: a report deleted since counts no more. Decisions 067 and 068.
+        reports: z.object({
+          sent: z.number(),
+          // First shown in the seven days, by its checks or by an operator.
+          shown: z.number(),
+          refused: z.number(),
+          // Left to an operator now, whenever they were sent.
+          waiting: z.number(),
+          // The notices made, those whose push a push service took, and those read.
+          notices: z.number(),
+          pushed: z.number(),
+          read: z.number(),
+          // The views and the opened photos of the reports sent in the seven days.
+          views: z.number(),
+          opens: z.number(),
+          // The accounts that switched the reports off.
+          switchedOff: z.number(),
+        }),
       }),
     )
     .handler(async ({ context }) => {
@@ -322,6 +343,34 @@ export const instanceRouter = {
           db.execute<{ at: string }>(sql`select (extract(epoch from now()) * 1000)::bigint as at`),
         ]);
 
+      const [[reports], [notices], switchedOff] = await Promise.all([
+        db
+          .select({
+            sent: count(sql`case when ${surfReport.createdAt} > ${weekAgo} then 1 end`),
+            shown: count(sql`case when ${surfReport.publishedAt} > ${weekAgo} then 1 end`),
+            refused: count(
+              sql`case when ${surfReport.state} = 'refused' and ${surfReport.createdAt} > ${weekAgo} then 1 end`,
+            ),
+            waiting: count(sql`case when ${surfReport.state} = 'review' then 1 end`),
+            views: sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.views} end), 0)::int`.mapWith(
+              Number,
+            ),
+            opens: sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.opens} end), 0)::int`.mapWith(
+              Number,
+            ),
+          })
+          .from(surfReport),
+        db
+          .select({
+            notices: count(),
+            pushed: count(sql`case when ${reportNotice.pushState} = 'sent' then 1 end`),
+            read: count(reportNotice.readAt),
+          })
+          .from(reportNotice)
+          .where(gt(reportNotice.createdAt, weekAgo)),
+        db.$count(alertSettings, eq(alertSettings.onReports, false)),
+      ]);
+
       const at = new Date(Number(clock.rows[0]?.at));
       const states = jobs.map((row) => jobState(row, at));
       const busy = isDemandStrong(calls);
@@ -351,6 +400,18 @@ export const instanceRouter = {
             at.getTime() - workers[0].seenAt.getTime() < SEEN_WITHIN_S * 1000,
           late: states.filter((state) => state === "late").length,
           failed: states.filter((state) => state === "failed" || state === "expired").length,
+        },
+        reports: {
+          sent: reports?.sent ?? 0,
+          shown: reports?.shown ?? 0,
+          refused: reports?.refused ?? 0,
+          waiting: reports?.waiting ?? 0,
+          notices: notices?.notices ?? 0,
+          pushed: notices?.pushed ?? 0,
+          read: notices?.read ?? 0,
+          views: reports?.views ?? 0,
+          opens: reports?.opens ?? 0,
+          switchedOff,
         },
       };
     }),

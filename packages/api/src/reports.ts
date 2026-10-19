@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
+
 import { REPORT_SHOWN_HOURS } from "@repo/config/media";
 import type { Database } from "@repo/db";
+import { countCalls } from "@repo/db/calls";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
 import {
@@ -14,6 +17,7 @@ import type { Storage } from "@repo/media/storage";
 import { and, asc, count, eq, gt, inArray } from "drizzle-orm";
 import { z } from "zod";
 
+import type { Caller } from "./index";
 import { describeMedia, mediaItemSchema } from "./media";
 
 // What the API says of the reports at a break: decision 067.
@@ -44,6 +48,12 @@ export const reportSchema = z.object({
   reasons: z.array(z.enum(REPORT_REASONS)),
   // Whether the caller said it should not be shown.
   flagged: z.boolean(),
+  // For its author and an operator: how many browsers saw it and opened one of its photos or
+  // videos, each counted once by the browser, and how many accounts it was told to. Null for
+  // anyone else. Decision 068.
+  stats: z
+    .object({ views: z.number().int(), opens: z.number().int(), told: z.number().int() })
+    .nullable(),
 });
 export type Report = z.infer<typeof reportSchema>;
 
@@ -76,7 +86,7 @@ export async function describeReports(
   db: Pick<Database, "select">,
   storage: Storage | null | undefined,
   rows: readonly ReportRow[],
-  options: { callerId: string | null; now: number; hoursAfter?: number },
+  options: { callerId: string | null; now: number; hoursAfter?: number; withStats?: boolean },
 ): Promise<Report[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
@@ -118,6 +128,10 @@ export async function describeReports(
       state: row.state,
       reasons: isMine ? reasonsOf(mine) : [],
       flagged: flags.some((flag) => flag.reportId === row.id),
+      stats:
+        isMine || options.withStats
+          ? { views: row.views, opens: row.opens, told: row.told }
+          : null,
     };
   });
 }
@@ -149,4 +163,34 @@ export function hasAddress(note: string) {
   return /(https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|fr|es|pt|app|co|me|ly|gg)\b)/i.test(
     note,
   );
+}
+
+// What a caller may count of the reports it saw in an hour: decision 068. A view is counted by
+// the browser, once a report; this bounds what a caller that asks again and again adds, and the
+// writes it costs. The counts are kept with the provider's and pruned with them. A visitor is
+// counted by a hash of its address, enough to tell one from another and nothing to find it by.
+export const REPORT_COUNTS = "report-counts";
+export const REPORT_COUNTS_AN_HOUR = 120;
+
+/**
+ * Counts one call that counts views or opens, and says whether it may: a key counts nothing, a
+ * program has no screen, and a caller that has asked its hour's calls counts nothing more.
+ */
+export async function admitReportCount(context: {
+  db: Pick<Database, "transaction">;
+  caller: Caller;
+  address?: string | null;
+}) {
+  const { caller } = context;
+  if (caller.via === "key") return false;
+  const who =
+    caller.via === "session"
+      ? `session:${caller.userId}`
+      : caller.via === "link"
+        ? `link:${caller.listId}`
+        : `visitor:${context.address ? createHash("sha256").update(context.address).digest("hex").slice(0, 16) : "unknown"}`;
+  const full = await countCalls(context.db, [
+    { provider: REPORT_COUNTS, bucket: `hour:${who}`, span: "hour", limit: REPORT_COUNTS_AN_HOUR },
+  ]);
+  return full === null;
 }

@@ -95,6 +95,10 @@ const ANSWERS_A_KEY = [
   "v1.pages.listed",
   // The reports of the waves at a break, which everyone reads: decision 067.
   "v1.reports.list",
+  // What a browser counts of the reports it saw: a key is answered, and counts nothing.
+  // Decision 068.
+  "v1.reports.opened",
+  "v1.reports.seen",
   "v1.stations.get",
   "v1.stations.list",
   "v1.stations.readings",
@@ -167,12 +171,17 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.lists.removeSpot",
   "v1.lists.removeStation",
   "v1.lists.renewShare",
+  // Whether the reports at a list's breaks are told to the caller: decision 068.
+  "v1.lists.reports",
   "v1.lists.share",
   "v1.lists.unshare",
   "v1.lists.update",
   "v1.lists.view",
   "v1.notifications.list",
   "v1.notifications.markRead",
+  // What an account was told of the reports at the breaks it keeps: decision 068.
+  "v1.reportNotices.list",
+  "v1.reportNotices.markRead",
   "v1.places.search",
   // What an account said of itself as a surfer is its own: decision 063.
   "v1.profile.get",

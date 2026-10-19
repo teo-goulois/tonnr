@@ -50,6 +50,8 @@ const listSchema = z.object({
   name: z.string(),
   // True for the favorites. A client shows them under a label of its own.
   isDefault: z.boolean(),
+  // Whether the reports at its breaks are told to its owner: decision 068.
+  reportsOn: z.boolean(),
   // In the order the stations were added.
   stationIds: z.array(z.string()),
   // The surf breaks of the catalogue the list holds, in the order they were added.
@@ -95,6 +97,9 @@ export const listViewSchema = z.object({
   isDefault: z.boolean(),
   // How the caller reads it.
   access: z.enum(["owner", "member", "link"]),
+  // Whether the reports at its breaks are told to the caller, its owner or an account that kept
+  // it, each by its own switch. Null for whoever reads it by its link. Decision 068.
+  reportsOn: z.boolean().nullable(),
   stationIds: z.array(z.string()),
   breakIds: z.array(z.string()),
   spots: z.array(spotSchema),
@@ -105,6 +110,7 @@ function describeList(row: typeof stationList.$inferSelect, held: Held) {
     id: row.id,
     name: row.name,
     isDefault: row.isDefault,
+    reportsOn: row.reportsOn,
     stationIds: held.stationIds,
     breakIds: held.breakIds,
     spotIds: held.spotIds,
@@ -194,6 +200,13 @@ export async function viewOf(
   userId: string | undefined,
 ) {
   const held = await heldBy(db, list.id);
+  const [membership] =
+    access === "member" && userId
+      ? await db
+          .select({ reportsOn: stationListMember.reportsOn })
+          .from(stationListMember)
+          .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)))
+      : [];
   const rows =
     held.spotIds.length > 0
       ? await db.select().from(spot).where(inArray(spot.id, held.spotIds))
@@ -204,6 +217,8 @@ export async function viewOf(
     name: list.name,
     isDefault: list.isDefault,
     access,
+    reportsOn:
+      access === "owner" ? list.reportsOn : access === "member" ? (membership?.reportsOn ?? true) : null,
     stationIds: held.stationIds,
     breakIds: held.breakIds,
     // Nothing of an alert or of a request to publish goes with a spot here: they are read on
@@ -255,6 +270,8 @@ export const listsRouter = {
             id: z.string(),
             name: z.string(),
             isDefault: z.boolean(),
+            // Whether the reports at its breaks are told to the caller: its own switch.
+            reportsOn: z.boolean(),
             // How many things it holds, of every kind.
             size: z.number(),
           }),
@@ -306,18 +323,19 @@ export const listsRouter = {
       }
 
       const kept = await context.db
-        .select({ list: stationList })
+        .select({ list: stationList, reportsOn: stationListMember.reportsOn })
         .from(stationListMember)
         .innerJoin(stationList, eq(stationList.id, stationListMember.listId))
         .where(eq(stationListMember.userId, userId))
         .orderBy(asc(stationListMember.createdAt), asc(stationList.id));
       const joined = [];
-      for (const { list } of kept) {
+      for (const { list, reportsOn } of kept) {
         const held = await heldBy(context.db, list.id);
         joined.push({
           id: list.id,
           name: list.name,
           isDefault: list.isDefault,
+          reportsOn,
           size: held.stationIds.length + held.breakIds.length + held.spotIds.length,
         });
       }
@@ -776,6 +794,39 @@ export const listsRouter = {
         .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)));
       if (!kept) throw notFound(input.id);
       return viewOf(context.db, list, "member", userId);
+    }),
+
+  reports: protectedProcedure
+    .meta({ analytics: "list_reports_switched" })
+    .route({
+      method: "PUT",
+      path: "/lists/{id}/reports",
+      summary: "Say whether the reports at a list's breaks are told to the caller",
+      description:
+        "For a list of the caller's, or one of someone else's that it kept: each account has its " +
+        "own switch, which another's does not change. A report at a break is told when one of " +
+        "the lists that hold it says yes, or when it is the break of one of the caller's spots. " +
+        "Decision 068.",
+      tags: ["Lists"],
+    })
+    .input(z.object({ id: listIdSchema, on: z.boolean() }))
+    .output(z.object({ id: z.string(), reportsOn: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      // What the list holds is unchanged, and so is the moment it last changed.
+      const [own] = await context.db
+        .update(stationList)
+        .set({ reportsOn: input.on, updatedAt: sql`${stationList.updatedAt}` })
+        .where(isCallersList(userId, input.id))
+        .returning({ id: stationList.id, reportsOn: stationList.reportsOn });
+      if (own) return own;
+      const [kept] = await context.db
+        .update(stationListMember)
+        .set({ reportsOn: input.on })
+        .where(and(eq(stationListMember.listId, input.id), eq(stationListMember.userId, userId)))
+        .returning({ id: stationListMember.listId, reportsOn: stationListMember.reportsOn });
+      if (!kept) throw notFound(input.id);
+      return kept;
     }),
 
   leave: protectedProcedure

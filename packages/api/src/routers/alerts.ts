@@ -894,6 +894,16 @@ export const alertsRouter = {
             .set({ dueAt: sql`least(${reportNotice.dueAt}, now())` })
             .where(and(eq(reportNotice.userId, userId), eq(reportNotice.pushState, "pending")));
         }
+        // An account that stops the reports, or goes away, waits for the push of one that is
+        // being handed over, and none leaves once it is answered.
+        if (changes.onReports === false || changes.awayUntil !== undefined) {
+          await tx
+            .select({ id: reportNotice.id })
+            .from(reportNotice)
+            .where(and(eq(reportNotice.userId, userId), eq(reportNotice.pushState, "sending")))
+            .orderBy(reportNotice.id)
+            .for("update");
+        }
         return saved;
       });
       return { ...settingsOf(row), mail: mailOf(context) };

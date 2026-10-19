@@ -1,0 +1,207 @@
+import { ORPCError } from "@orpc/server";
+import { user } from "@repo/db/schema/auth";
+import { media } from "@repo/db/schema/media";
+import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
+import { SURF_SIZES } from "@repo/db/schema/sessions";
+import { surfBreak } from "@repo/db/schema/spots";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { z } from "zod";
+
+import { protectedProcedure } from "../index";
+import { describeMedia } from "../media";
+import { shownSince } from "../reports";
+
+// What an account was told of the reports at the breaks it keeps: decision 068. Apart from what
+// its alerts told, which `notifications` answers and an assistant reads.
+
+const noticeSchema = z.object({
+  id: z.string(),
+  breakId: z.string(),
+  breakName: z.string(),
+  // When it began, and when the last report joined it.
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  // Null until the caller read it, and again when a report joins it.
+  readAt: z.date().nullable(),
+  // How many reports it told, and how many of them are still shown.
+  told: z.number().int(),
+  shown: z.number().int(),
+  // "shown" while one of its reports is; "past" once they are older than a week, which nobody
+  // reads any more; "removed" when they were hidden, removed or deleted.
+  state: z.enum(["shown", "past", "removed"]),
+  // The newest of its reports that is shown: who sent it, how big the waves looked, its words
+  // and its first photo's thumbnail, an address good for an hour at least. Null when none is.
+  latest: z
+    .object({
+      reportId: z.string(),
+      author: z.string().nullable(),
+      waveSize: z.enum(SURF_SIZES).nullable(),
+      note: z.string().nullable(),
+      thumb: z.string().nullable(),
+    })
+    .nullable(),
+});
+
+export const reportNoticesRouter = {
+  list: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/report-notices",
+      summary: "What the caller was told of the reports at the breaks it keeps, newest first",
+      description:
+        "A notice is a break and the reports shown there in three hours, which the caller was " +
+        "told of as it keeps the break in a list or as the break of one of its spots. `unread` " +
+        "counts those not read, whatever `limit` says. Reading here marks nothing as read.",
+      tags: ["Notifications"],
+    })
+    .input(
+      z.object({
+        unreadOnly: z.union([z.boolean(), z.stringbool()]).default(false),
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+      }),
+    )
+    .output(z.object({ notices: z.array(noticeSchema), unread: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      const now = Date.now();
+      const [rows, [unread]] = await Promise.all([
+        context.db
+          .select({ notice: reportNotice, breakName: surfBreak.name })
+          .from(reportNotice)
+          .innerJoin(surfBreak, eq(surfBreak.id, reportNotice.breakId))
+          .where(
+            and(
+              eq(reportNotice.userId, userId),
+              input.unreadOnly ? isNull(reportNotice.readAt) : undefined,
+            ),
+          )
+          .orderBy(desc(reportNotice.updatedAt), desc(reportNotice.id))
+          .limit(input.limit),
+        context.db
+          .select({ total: count() })
+          .from(reportNotice)
+          .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt))),
+      ]);
+      const ids = rows.map((row) => row.notice.id);
+      const told =
+        ids.length === 0
+          ? []
+          : await context.db
+              .select({
+                noticeId: reportNoticeReport.noticeId,
+                id: surfReport.id,
+                userId: surfReport.userId,
+                state: surfReport.state,
+                createdAt: surfReport.createdAt,
+                waveSize: surfReport.waveSize,
+                note: surfReport.note,
+              })
+              .from(reportNoticeReport)
+              .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
+              .where(inArray(reportNoticeReport.noticeId, ids))
+              .orderBy(desc(surfReport.createdAt), desc(surfReport.id));
+      const since = shownSince(now).getTime();
+      const isShown = (one: (typeof told)[number]) =>
+        one.state === "published" && one.createdAt.getTime() >= since;
+      const latestOf = new Map(
+        ids.map((id) => [id, told.find((one) => one.noticeId === id && isShown(one))]),
+      );
+      const latest = [...latestOf.values()].filter((one) => one !== undefined);
+      const [authors, photos] = await Promise.all([
+        latest.length === 0
+          ? []
+          : context.db
+              .select({ id: user.id, username: user.username })
+              .from(user)
+              .where(inArray(user.id, [...new Set(latest.map((one) => one.userId))])),
+        latest.length === 0
+          ? []
+          : context.db
+              .select()
+              .from(media)
+              .where(
+                and(
+                  inArray(
+                    media.reportId,
+                    latest.map((one) => one.id),
+                  ),
+                  eq(media.state, "ready"),
+                ),
+              )
+              .orderBy(asc(media.position), asc(media.createdAt)),
+      ]);
+      // The first photo of each, described as a report's photos are.
+      const firsts = latest.flatMap((one) => {
+        const first = photos.find((photo) => photo.reportId === one.id);
+        return first ? [first] : [];
+      });
+      const described = await describeMedia(context.storage, firsts, now);
+
+      return {
+        unread: unread?.total ?? 0,
+        notices: rows.map(({ notice, breakName }) => {
+          const mine = told.filter((one) => one.noticeId === notice.id);
+          const shown = mine.filter(isShown).length;
+          const newest = latestOf.get(notice.id);
+          const thumb = newest
+            ? (described[firsts.findIndex((one) => one.reportId === newest.id)]?.thumb ?? null)
+            : null;
+          return {
+            id: notice.id,
+            breakId: notice.breakId,
+            breakName,
+            createdAt: notice.createdAt,
+            updatedAt: notice.updatedAt,
+            readAt: notice.readAt,
+            told: notice.told,
+            shown,
+            state:
+              shown > 0
+                ? ("shown" as const)
+                : mine.some((one) => one.state === "published")
+                  ? ("past" as const)
+                  : ("removed" as const),
+            latest: newest
+              ? {
+                  reportId: newest.id,
+                  author: authors.find((one) => one.id === newest.userId)?.username ?? null,
+                  waveSize: newest.waveSize,
+                  note: newest.note,
+                  thumb,
+                }
+              : null,
+          };
+        }),
+      };
+    }),
+
+  markRead: protectedProcedure
+    .meta({ analytics: "report_notice_read" })
+    .route({
+      method: "POST",
+      path: "/report-notices/{id}/read",
+      summary: "Mark one of the caller's notices of reports as read",
+      description:
+        "What the web app says once the caller opened the break's reports from the notice, in " +
+        "the list or from its push: it reads every report there. The first reading keeps its time.",
+      tags: ["Notifications"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ id: z.string(), readAt: z.date() }))
+    .handler(async ({ input, context }) => {
+      const owned = and(
+        eq(reportNotice.id, input.id),
+        eq(reportNotice.userId, context.session.user.id),
+      );
+      await context.db
+        .update(reportNotice)
+        .set({ readAt: new Date() })
+        .where(and(owned, isNull(reportNotice.readAt)));
+      const [row] = await context.db
+        .select({ id: reportNotice.id, readAt: reportNotice.readAt })
+        .from(reportNotice)
+        .where(owned);
+      if (!row?.readAt) throw new ORPCError("NOT_FOUND", { message: `No notice "${input.id}".` });
+      return { id: row.id, readAt: row.readAt };
+    }),
+};

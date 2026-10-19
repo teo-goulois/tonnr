@@ -3,6 +3,7 @@ import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import { hourOf } from "@repo/conditions/forecasts/week";
 import { setsFit } from "@repo/conditions/sessions/sizes";
 import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST, REPORT_TERMS } from "@repo/config/media";
+import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
@@ -15,9 +16,10 @@ import { Effect, Result } from "effect";
 import { z } from "zod";
 
 import { recordAction } from "../actions";
-import { adminProcedure, callerProcedure, protectedProcedure } from "../index";
+import { adminProcedure, type Caller, callerProcedure, protectedProcedure } from "../index";
 import { describeMedia, storageOf, wakeWorker } from "../media";
 import {
+  admitReportCount,
   describeReports,
   FLAGS_HIDE,
   flagsOf,
@@ -55,6 +57,37 @@ const noteSchema = z
   .refine((note) => !hasControlCharacter(note), "must not contain control characters")
   // What everyone reads holds no address to go elsewhere.
   .refine((note) => !hasAddress(note), "must not contain an address");
+
+/**
+ * Adds one to a count of each report that is shown and is not the caller's. One statement for
+ * each, in the order of their ids, so that two browsers that count the same reports at once
+ * never wait on each other in a circle.
+ */
+async function countUp(
+  context: { db: Database; caller: Caller },
+  ids: readonly string[],
+  column: "views" | "opens",
+) {
+  const callerId = context.caller.via === "session" ? context.caller.userId : null;
+  const since = shownSince(Date.now());
+  let counted = 0;
+  for (const id of [...new Set(ids)].sort()) {
+    const done = await context.db
+      .update(surfReport)
+      .set({ [column]: sql`${surfReport[column]} + 1` })
+      .where(
+        and(
+          eq(surfReport.id, id),
+          eq(surfReport.state, "published"),
+          gte(surfReport.createdAt, since),
+          callerId ? ne(surfReport.userId, callerId) : undefined,
+        ),
+      )
+      .returning({ id: surfReport.id });
+    counted += done.length;
+  }
+  return counted;
+}
 
 /** The hour of the forecast kept for a break's cell, when one is kept: nothing is asked for it. */
 async function keptHour(
@@ -301,6 +334,42 @@ export const reportsRouter = {
       };
     }),
 
+  seen: callerProcedure
+    .meta({ analytics: "reports_seen" })
+    .route({
+      method: "POST",
+      path: "/reports/seen",
+      summary: "Count that a browser saw some reports",
+      description:
+        "What the web app says once a report has been in view a second, a report once a " +
+        "browser. Each report that is shown, and is not the caller's, is counted once, and " +
+        "nothing of who saw it is kept: its author reads the number. A key counts nothing, and " +
+        "a caller counts 120 times an hour at most. Decision 068.",
+      tags: ["Reports"],
+    })
+    .input(z.object({ ids: z.array(z.string().max(64)).min(1).max(20) }))
+    .output(z.object({ counted: z.number().int() }))
+    .handler(async ({ input, context }) => ({
+      counted: (await admitReportCount(context)) ? await countUp(context, input.ids, "views") : 0,
+    })),
+
+  opened: callerProcedure
+    .meta({ analytics: "report_media_opened" })
+    .route({
+      method: "POST",
+      path: "/reports/{id}/opened",
+      summary: "Count that a browser opened a photo or a video of a report",
+      description:
+        "Once a report and a browser, as `POST /reports/seen` counts a view, and by the same " +
+        "rules. Decision 068.",
+      tags: ["Reports"],
+    })
+    .input(z.object({ id: z.string().max(64) }))
+    .output(z.object({ counted: z.number().int() }))
+    .handler(async ({ input, context }) => ({
+      counted: (await admitReportCount(context)) ? await countUp(context, [input.id], "opens") : 0,
+    })),
+
   delete: protectedProcedure
     .meta({ analytics: "report_deleted" })
     .route({
@@ -474,7 +543,11 @@ export const reportsRouter = {
       const reports = page.map((row) => row.report);
       const ids = reports.map((row) => row.id);
       const [described, mediaRows, flags] = await Promise.all([
-        describeReports(context.db, context.storage, reports, { callerId: null, now }),
+        describeReports(context.db, context.storage, reports, {
+          callerId: null,
+          now,
+          withStats: true,
+        }),
         ids.length > 0
           ? context.db
               .select()

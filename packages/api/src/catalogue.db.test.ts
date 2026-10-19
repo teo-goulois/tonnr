@@ -9,6 +9,7 @@ import { breakCandidate, breakCandidateImage } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
 import { stationList, stationListBreak } from "@repo/db/schema/lists";
 import { recentView } from "@repo/db/schema/preferences";
+import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { surfSession } from "@repo/db/schema/sessions";
 import { spot, surfBreak, surfBreakListing, surfBreakRecord } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
@@ -338,6 +339,22 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         status: "merged",
         breakId: ids.south,
       });
+      // A report at it, and what was told of it: decisions 067 and 068.
+      await db.insert(surfReport).values({
+        id: "report-1",
+        userId: "ana",
+        breakId: ids.south,
+        state: "published",
+        terms: "2026-10-19",
+      });
+      await db.insert(reportNotice).values({
+        id: "notice-1",
+        userId: "ana",
+        breakId: ids.south,
+        createdAt: new Date("2026-10-02T09:00:00Z"),
+        updatedAt: new Date("2026-10-02T09:00:00Z"),
+      });
+      await db.insert(reportNoticeReport).values({ noticeId: "notice-1", reportId: "report-1" });
     };
 
     const merge = async (keepId: string, mergeId: string, sourceOf?: "kept" | "merged") => {
@@ -405,6 +422,13 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         { listId: "list-2", breakId: ids.north },
       ]);
       expect(await db.select().from(surfSession)).toMatchObject([{ breakId: ids.north }]);
+      // The reports go with it, and their notices too, where they were deleted before.
+      expect(await db.select().from(surfReport)).toMatchObject([
+        { id: "report-1", breakId: ids.north },
+      ]);
+      expect(await db.select().from(reportNotice)).toMatchObject([
+        { id: "notice-1", breakId: ids.north },
+      ]);
       // An alert set on both holds the one that stays once, and what was seen at the one that
       // went is forgotten.
       expect(
