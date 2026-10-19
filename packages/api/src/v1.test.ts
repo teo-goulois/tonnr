@@ -115,6 +115,7 @@ const V1_PROCEDURES = [
   "pages.hubs",
   "pages.listed",
   "pages.region",
+  "places.now",
   "places.search",
   "preferences.clearRecents",
   "preferences.getDisplay",
