@@ -27,6 +27,29 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
+                {/* A place opens low, over the map that stays alive under it, and rises to be
+                    read: decision 040's two heights. */}
+                <Stack.Screen
+                  name="place/[kind]/[id]"
+                  options={formSheet({ detents: [0.45, 0.94], undimmedUpTo: 0 })}
+                />
+                <Stack.Screen name="search" options={formSheet({ detents: [0.94] })} />
+                <Stack.Screen name="alert/new" options={formSheet()} />
+                <Stack.Screen name="alert/[id]" options={formSheet()} />
+                <Stack.Screen name="session/new" options={formSheet()} />
+                <Stack.Screen name="session/[id]" options={formSheet()} />
+                <Stack.Screen name="report/new" options={formSheet()} />
+                <Stack.Screen name="spot/new" options={formSheet()} />
+                <Stack.Screen name="list/[id]" options={{ headerShown: true }} />
+                <Stack.Screen name="shared/[token]" options={{ headerShown: true }} />
+                <Stack.Screen name="sign-in" options={formSheet()} />
+                <Stack.Screen name="forgot-password" options={formSheet()} />
+                <Stack.Screen name="reset-password" options={formSheet()} />
+                <Stack.Screen name="onboarding" options={{ presentation: "fullScreenModal" }} />
+                <Stack.Screen
+                  name="media/[id]"
+                  options={{ presentation: "fullScreenModal", animation: "fade" }}
+                />
                 {/* Development only: each route sends a build for testers or a store to the map. */}
                 <Stack.Screen
                   name="design-system"
