@@ -50,10 +50,10 @@ import { StoreError } from "./store";
 // the other; then the report. It holds no account: it writes rows that name accounts, which a
 // flag, a suspension or a deletion does not wait for.
 //
-// A push leaves in two steps, as an alert's does (decision 031). The first decides what it says
-// and writes that it is leaving. The second holds the account, its settings, the notice, the
-// reports it speaks of and the account's browsers, in that order, which is the API's, reads
-// again what may stop it, counts it against the account's day, and hands it over: a flag, an
+// A push leaves in two steps, as an alert's does (decision 031). The first decides what it says,
+// counts it against the account's day once, and writes that it is leaving. The second holds the
+// account, its settings, the notice, the reports it speaks of and the account's browsers, in that
+// order, which is the API's, reads again what may stop it, and hands it over: a flag, an
 // operator's decision or a deletion of one of those reports waits for it, and none leaves once
 // they are answered. A worker that stops between the two leaves it leaving, which is taken as
 // told ten minutes later: a push is sent once at most.
@@ -223,7 +223,7 @@ async function announce(db: Database, reportId: string, canPush: boolean) {
             updatedAt: now,
             readAt: null,
             told: sql`${reportNotice.told} + 1`,
-            expiresAt: sql`case when ${reportNotice.pushState} = 'pending'
+            expiresAt: sql`case when ${reportNotice.pushState} in ('pending', 'sending')
               then greatest(${reportNotice.expiresAt}, ${expiresAt}) else ${reportNotice.expiresAt} end`,
           })
           .where(inArray(reportNotice.id, ids));
@@ -321,6 +321,11 @@ async function hold(tx: Transaction, noticeId: string) {
     .from(user)
     .where(eq(user.id, head.userId))
     .for("share");
+  // An account that set nothing has no row to hold, and its first change would not wait: it
+  // gets one, with the defaults it reads already.
+  if (account) {
+    await tx.insert(alertSettings).values({ userId: head.userId }).onConflictDoNothing();
+  }
   const [settingsRow] = await tx
     .select()
     .from(alertSettings)
@@ -389,8 +394,8 @@ async function imageOf(tx: Transaction, storage: Storage | null, reportId: strin
 }
 
 /**
- * The first step: decides what the push of a notice says, and writes that it is leaving. One
- * that cannot leave is settled, or put off to the end of the quiet hours.
+ * The first step: decides what the push of a notice says, counts it once, and writes that it is
+ * leaving. One that cannot leave is settled, or put off to the end of the quiet hours.
  */
 async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken | Outcome> {
   return db.transaction(async (tx) => {
@@ -422,12 +427,29 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
     );
     if (keeps.length === 0) return settle("expired");
 
+    // Counted once, with the claim, against the account's day: a push written anew is not
+    // counted again, and one that left stays counted whatever becomes of the worker.
+    if (!notice.countedAt) {
+      const full = await countCalls(tx, [
+        {
+          provider: `${REPORT_PUSH_PROVIDER}:${notice.userId}`,
+          bucket: "day",
+          span: "day",
+          limit: ACCOUNT_DAILY_REPORT_PUSHES,
+        },
+      ]);
+      if (full) return settle("held");
+    }
+
     const [[place], [author]] = await Promise.all([
       tx.select({ name: surfBreak.name }).from(surfBreak).where(eq(surfBreak.id, notice.breakId)),
       tx.select({ username: user.username }).from(user).where(eq(user.id, newest.userId)),
     ]);
     const locale = settings.locale ?? "en";
-    await tx.update(reportNotice).set({ pushState: "sending", claimedAt: now }).where(pending);
+    await tx
+      .update(reportNotice)
+      .set({ pushState: "sending", claimedAt: now, countedAt: notice.countedAt ?? now })
+      .where(pending);
     return {
       userId: notice.userId,
       content: {
@@ -472,15 +494,16 @@ async function hand(
       .orderBy(asc(pushSubscription.id))
       .for("update");
     const sending = and(eq(reportNotice.id, noticeId), eq(reportNotice.pushState, "sending"));
-    const settle = async (state: Exclude<Outcome, "skipped">) => {
+    const settle = async (state: Exclude<Outcome, "skipped" | "held">) => {
       await tx.update(reportNotice).set({ pushState: state, settledAt: now }).where(sending);
       return state;
     };
-    // Nothing was handed over, and nothing was told: it is read again at the next run.
-    const putBack = async (dueAt = now) => {
+    // Nothing was handed over, and nothing was told: it is read again at the next run, worth
+    // as long as the newest report it now holds.
+    const putBack = async (dueAt: Date, expiresAt: Date) => {
       await tx
         .update(reportNotice)
-        .set({ pushState: "pending", claimedAt: null, dueAt })
+        .set({ pushState: "pending", claimedAt: null, dueAt, expiresAt })
         .where(sending);
       return "skipped" as const;
     };
@@ -498,22 +521,12 @@ async function hand(
     // A report that went or came meanwhile, or a hold that came too late to last as long as a
     // push may take: it is written anew.
     const stamp = stampOf(held.notice.breakId, shown);
-    if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) return putBack();
+    if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) {
+      return putBack(now, keepUntil);
+    }
     // The quiet hours may have begun since it was written: it waits for their end.
     const leaves = leavesAt(now, quietHoursOf(held.settings));
-    if (leaves.getTime() > now.getTime()) return putBack(leaves);
-
-    // Counted as it is handed over, once nothing else stops it, and kept with it: a push written
-    // anew is not counted twice, and one past the day's count is held, for good.
-    const full = await countCalls(tx, [
-      {
-        provider: `${REPORT_PUSH_PROVIDER}:${taken.userId}`,
-        bucket: "day",
-        span: "day",
-        limit: ACCOUNT_DAILY_REPORT_PUSHES,
-      },
-    ]);
-    if (full) return settle("held");
+    if (leaves.getTime() > now.getTime()) return putBack(leaves, keepUntil);
 
     const push = reportPush({
       ...taken.content,

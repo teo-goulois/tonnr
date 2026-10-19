@@ -553,19 +553,31 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     }),
   );
   // A notice opened from its push names itself in the address: it is read once its break is
-  // shown, on its reports, by the account it was for, and then leaves the address. It waits
-  // there for an account that is not signed in yet. Another account's, or one that is gone, is
-  // left as it is, without a word. Decision 068.
+  // shown, on its reports, by the account it was for, and leaves the address once the API said
+  // so, or said it is no notice of this account's, or the break is gone. It waits there for an
+  // account that is not signed in yet, and through an answer that did not come. Decision 068.
   const openedNotice = search.notice;
   const readOpened = useRef(readNotice.mutate);
   readOpened.current = readNotice.mutate;
   const isBreakShown = found.isSuccess;
-  const isBreakGone = found.isError || selectedBreakId === undefined;
+  const isBreakGone =
+    selectedBreakId === undefined ||
+    (found.isError && (found.error as { code?: unknown } | null)?.code === "NOT_FOUND");
   useEffect(() => {
     if (!openedNotice || session.isPending || !signedIn) return;
-    if (!isBreakShown && !isBreakGone) return;
-    if (isBreakShown) readOpened.current({ id: openedNotice });
-    void navigate({ search: (previous) => ({ ...previous, notice: undefined }), replace: true });
+    const forget = () =>
+      void navigate({ search: (previous) => ({ ...previous, notice: undefined }), replace: true });
+    if (isBreakGone) return forget();
+    if (!isBreakShown) return;
+    readOpened.current(
+      { id: openedNotice },
+      {
+        onSuccess: forget,
+        onError: (error) => {
+          if ((error as { code?: unknown }).code === "NOT_FOUND") forget();
+        },
+      },
+    );
   }, [openedNotice, signedIn, session.isPending, isBreakShown, isBreakGone, navigate]);
   // How big the break's waves run against the forecast, from the sessions surfed there: one
   // figure and a count, which its panel says under the tiles. Decision 062.
@@ -1024,6 +1036,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   // The reports of the waves at the break that is open: decision 067.
   const reporting = useReports({
     signedIn,
+    account: session.data?.user.id,
     breakId: selectedBreakId,
     status: sessioning.media.status,
   });

@@ -9,6 +9,7 @@ CREATE TABLE "report_notice" (
 	"push_state" text,
 	"due_at" timestamp with time zone,
 	"expires_at" timestamp with time zone,
+	"counted_at" timestamp with time zone,
 	"claimed_at" timestamp with time zone,
 	"settled_at" timestamp with time zone
 );

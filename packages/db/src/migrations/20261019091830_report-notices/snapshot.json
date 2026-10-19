@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "89c5b75b-7cee-4038-abe0-c08fddd64fd0",
+  "id": "f6aa2446-040b-40e8-8a0e-09d7977b8985",
   "prevIds": [
     "6e75fbbc-07cb-46cc-9beb-5f11e554f1cd"
   ],
@@ -8187,6 +8187,19 @@
       "generated": null,
       "identity": null,
       "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "report_notice"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "counted_at",
       "entityType": "columns",
       "schema": "public",
       "table": "report_notice"

@@ -248,6 +248,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
     // Kept by a push service until the report is three hours old.
     expect(sent?.keepSeconds).toBeGreaterThan(2.5 * 60 * 60);
     expect(notice).toMatchObject({ pushState: "sent" });
+    // An account that set nothing was given its settings' row, so that its first change waits for
+    // a push being handed over.
+    expect(
+      await database.db.select().from(alertSettings).where(eq(alertSettings.userId, "keeper")),
+    ).toHaveLength(1);
     // An account with no browser has its notice, and no push.
     const [member] = (await notices()).filter((one) => one.userId === "member");
     expect(member).toMatchObject({ pushState: null });
@@ -328,6 +333,20 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
       .values({ noticeId: notice!.id, reportId: "second" });
     expect(await handNoticePush(database.db, out, storage, notice!.id, taken)).toBe("skipped");
     expect(service.sent()).toHaveLength(0);
+    // Put back worth as long as the newest report it holds now.
+    const [second] = await database.db
+      .select({ createdAt: surfReport.createdAt })
+      .from(surfReport)
+      .where(eq(surfReport.id, "second"));
+    const [waiting] = await database.db
+      .select()
+      .from(reportNotice)
+      .where(eq(reportNotice.id, notice!.id));
+    expect(waiting).toMatchObject({
+      pushState: "pending",
+      expiresAt: new Date(second!.createdAt.getTime() + 3 * HOUR),
+    });
+    expect(waiting?.countedAt).not.toBeNull();
     expect(await run()).toMatchObject({ sent: 1 });
     expect(service.sent()[0]?.push.title).toBe("2 reports at La Point");
     const counted = await database.db.select().from(providerCalls);

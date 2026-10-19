@@ -61,13 +61,16 @@ const isChecking = (reports: readonly Report[] | undefined) =>
 
 type Asked = {
   signedIn: boolean;
+  // Who is signed in: what an account reads of its own reports, their counts among it, is kept
+  // under it, as a session can become another account's in another tab. Decision 068.
+  account: string | undefined;
   // The break whose panel is open.
   breakId: string | undefined;
   status: MediaStatus | undefined;
 };
 
 /** The reports of the break that is open, and the form that sends one. */
-export function useReports({ signedIn, breakId, status }: Asked): Reporting {
+export function useReports({ signedIn, account, breakId, status }: Asked): Reporting {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<{ breakId: string; name: string } | null>(null);
   // From the press to the answer, the phone's position asked for first: the form waits.
@@ -77,6 +80,7 @@ export function useReports({ signedIn, breakId, status }: Asked): Reporting {
   const here = useQuery(
     orpc.v1.reports.list.queryOptions({
       input: { breakId: breakId ?? "" },
+      queryKey: [...orpc.v1.reports.list.queryKey({ input: { breakId: breakId ?? "" } }), account],
       enabled: breakId !== undefined,
       refetchInterval: (query) =>
         isChecking(query.state.data?.reports) ? CHECKING_EVERY_MS : false,

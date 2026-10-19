@@ -245,6 +245,9 @@ export const reportNotice = pgTable(
     // Not before, which quiet hours decide, and not after: its reports are too old by then.
     dueAt: timestamp("due_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // When its push was counted against the account's day: once, whatever becomes of it, so that
+    // a push written anew is not counted again, and one that left is counted for good.
+    countedAt: timestamp("counted_at", { withTimezone: true }),
     // When its push was handed over, and when it was settled.
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
     settledAt: timestamp("settled_at", { withTimezone: true }),
