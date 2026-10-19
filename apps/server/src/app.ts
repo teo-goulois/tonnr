@@ -35,6 +35,10 @@ type Services = {
     ADMIN_ORIGIN?: string | undefined;
     // The origins the instance's apps for phones name themselves by. Decision 069.
     APP_ORIGINS?: string | undefined;
+    // The bundle of the iOS app and the Firebase project of the Android app the instance
+    // pushes to. Decision 072.
+    APNS_TOPIC?: string | undefined;
+    FCM_PROJECT_ID?: string | undefined;
   };
   db: Database;
   analytics?: Analytics | undefined;
@@ -147,6 +151,11 @@ export function createApp({
   // The sites whose pages may call with a visitor's session, and write with it: the web app,
   // the admin app, the API's own reference, and the apps for phones.
   const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites, ...appOrigins])];
+  // The apps the instance pushes to, which the API takes a device of: decision 072.
+  const appPush = {
+    ios: env.APNS_TOPIC || undefined,
+    android: env.FCM_PROJECT_ID || undefined,
+  };
   // Which of the instance's own apps a site is, whose analytics headers are read: the web app,
   // an app for phones, or none.
   const ownAppOf = (site: string | null) =>
@@ -309,7 +318,7 @@ export function createApp({
       storage,
       apple,
       reply: {} as Context["reply"],
-      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey, appPush },
     };
 
     const answered =
@@ -352,7 +361,7 @@ export function createApp({
       places,
       verification,
       adminSites,
-      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey, appPush },
     },
     { onError: logFault, accounts: agents },
   );

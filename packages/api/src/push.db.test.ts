@@ -116,13 +116,17 @@ describe.skipIf(!TEST_DATABASE_URL)("a browser's push subscription", () => {
     it("gives the public key of its pair, for a browser to subscribe with", async () => {
       expect(await call(v1Router.push.key, undefined, by("ana"))).toEqual({
         publicKey: INSTANCE_KEY,
+        apps: { ios: false, android: false },
       });
     });
 
     it("says that it sends no push when it holds no key, and then takes no subscription", async () => {
       const without = by("ana", { pushKey: null });
 
-      expect(await call(v1Router.push.key, undefined, without)).toEqual({ publicKey: null });
+      expect(await call(v1Router.push.key, undefined, without)).toEqual({
+        publicKey: null,
+        apps: { ios: false, android: false },
+      });
       await expect(call(v1Router.push.subscribe, browser(), without)).rejects.toEqual(
         refusal("SERVICE_UNAVAILABLE"),
       );
@@ -138,6 +142,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a browser's push subscription", () => {
 
       expect(device).toEqual({
         id: expect.any(String),
+        kind: "web",
         label: "Chrome · macOS",
         createdAt: expect.any(Date),
         seenAt: expect.any(Date),
@@ -849,7 +854,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a browser's push subscription", () => {
 
       expect(devices.map((device) => device.id)).toEqual([older!.id, newer!.id]);
       expect(devices.map((device) => Object.keys(device).sort())).toEqual(
-        Array(2).fill(["createdAt", "id", "label", "seenAt"]),
+        Array(2).fill(["createdAt", "id", "kind", "label", "seenAt"]),
       );
     });
   });

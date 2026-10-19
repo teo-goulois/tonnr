@@ -157,6 +157,15 @@ export function pushOutOf(
   return pusher && webOrigin ? { pusher, webOrigin } : null;
 }
 
+/**
+ * The browsers among an account's devices, which the pusher writes to at their address. A phone
+ * of decision 072 is passed over: this worker does not push to it.
+ */
+export const browsersOf = <Row extends { kind: string; endpoint: string | null }>(rows: Row[]) =>
+  rows.flatMap((row) =>
+    row.kind === "web" && row.endpoint !== null ? [{ ...row, endpoint: row.endpoint }] : [],
+  );
+
 /** A way out of a notification. */
 export type Channel = (typeof DELIVERY_CHANNELS)[number];
 /** What the worker sends with, by way out. Null for a way out the instance has not. */
@@ -965,12 +974,14 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
     // API takes them last too, and holds nothing else with them.
     const devices =
       channel === "push"
-        ? await tx
-            .select()
-            .from(pushSubscription)
-            .where(eq(pushSubscription.userId, taken.userId))
-            .orderBy(asc(pushSubscription.id))
-            .for("update")
+        ? browsersOf(
+            await tx
+              .select()
+              .from(pushSubscription)
+              .where(eq(pushSubscription.userId, taken.userId))
+              .orderBy(asc(pushSubscription.id))
+              .for("update"),
+          )
         : [];
     const { stamp } = await writtenFrom(tx, channel, taken, { alerts, settingsRow });
     const sending = delivery(notificationId, channel, "sending");

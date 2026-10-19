@@ -67,6 +67,13 @@ export type DeliveryClaim = {
 export type DayHours = { from: number; to: number }[];
 
 export const ALERT_MOMENTS = ["found", "moved", "gone", "evening", "begins"] as const;
+/**
+ * What a device that is pushed to is: a browser, by the address its push service gave it, or the
+ * app on an iPhone or an Android phone, by the token Apple or Google gave it. Decision 072.
+ */
+export const PUSH_KINDS = ["web", "ios", "android"] as const;
+/** Which of Apple's two hosts takes the pushes of an iPhone's app: its build says. */
+export const APNS_ENVIRONMENTS = ["development", "production"] as const;
 export const DELIVERY_CHANNELS = ["mail", "push"] as const;
 export const DELIVERY_STATES = [
   // Waiting for its hour, or for the worker.
@@ -107,6 +114,10 @@ export const alert = pgTable(
     // looks that find a window are two forecasts, fetched apart. Null for an alert that was
     // never looked at, or that starts over.
     lookedAt: timestamp("looked_at", { withTimezone: true }),
+    // The alert is paused until then, the end of the day its owner said "Not today" on: no hour
+    // of it before then is open, as none of any alert is before the account's own `awayUntil`.
+    // Null when it is not paused. Decision 072.
+    awayUntil: timestamp("away_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -344,9 +355,10 @@ export const notificationDelivery = pgTable(
 );
 
 /**
- * A browser that asked to be sent an account's alerts: what its push service gave it. The
- * address is a capability, since whoever holds it can send to that browser: it is never logged,
- * and the API never gives it back. An account that has one is told by push.
+ * A device that asked to be sent an account's alerts: a browser, with what its push service gave
+ * it, or the app on a phone, with the token Apple or Google gave it (decision 072). The address
+ * and the token are capabilities, since whoever holds one can send to that device: neither is
+ * ever logged, and the API never gives them back. An account that has one is told by push.
  */
 export const pushSubscription = pgTable(
   "push_subscription",
@@ -355,14 +367,27 @@ export const pushSubscription = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // Where the browser's push service takes a message for it. A browser has one, and it goes
+    // A browser, or the app on an iPhone or an Android phone. The check below holds the shape
+    // of each.
+    kind: text("kind", { enum: PUSH_KINDS }).default("web").notNull(),
+    // Where a browser's push service takes a message for it. A browser has one, and it goes
     // with whoever is signed in there: an account that subscribes takes it from the one before.
-    endpoint: text("endpoint").notNull().unique(),
-    // The browser's public key and its secret, in base64url: what a message is encrypted with.
+    // Null for a phone.
+    endpoint: text("endpoint").unique(),
+    // The token APNs or FCM gave the app on a phone, which its pushes are sent to. It goes with
+    // whoever is signed in there, as a browser's address does. Null for a browser.
+    token: text("token").unique(),
+    // For an iPhone, which of Apple's hosts its build is pushed through. Null otherwise.
+    environment: text("environment", { enum: APNS_ENVIRONMENTS }),
+    // The bundle or the package the phone's app was built with: what its pushes are sent under.
+    // Null for a browser.
+    appId: text("app_id"),
+    // The device's public key and its secret, in base64url: what a message is encrypted with. An
+    // app makes its own pair, as a browser does, and keeps the private key on the phone.
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
-    // What the browser calls itself, for the account to tell its devices apart. Null when it
-    // did not say.
+    // What the device calls itself, for the account to tell its devices apart: a browser's
+    // name, a phone's model. Null when it did not say.
     label: text("label"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     // When the browser last said that it still holds this subscription.
@@ -375,5 +400,14 @@ export const pushSubscription = pgTable(
   (table) => [
     index("push_subscription_userId_idx").on(table.userId),
     index("push_subscription_sessionId_idx").on(table.sessionId),
+    // A browser has its address and nothing of an app's. A phone has its token and its app,
+    // and no address, and an iPhone the host its build is pushed through. Each part is true or
+    // false, never null, which a check would take.
+    check(
+      "push_subscription_kind_shape",
+      sql`(${table.kind} = 'web' and ${table.endpoint} is not null and ${table.token} is null and ${table.environment} is null and ${table.appId} is null)
+        or (${table.kind} = 'ios' and ${table.endpoint} is null and ${table.token} is not null and ${table.environment} is not null and ${table.environment} in ('development', 'production') and ${table.appId} is not null)
+        or (${table.kind} = 'android' and ${table.endpoint} is null and ${table.token} is not null and ${table.environment} is null and ${table.appId} is not null)`,
+    ),
   ],
 );

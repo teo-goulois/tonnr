@@ -211,12 +211,16 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.reports.create",
   "v1.reports.delete",
   "v1.reports.flag",
-  // The browsers an account's alerts are pushed to are its own: decision 031, "Push".
+  // The browsers an account's alerts are pushed to are its own: decision 031, "Push". So are
+  // the phones: decision 072.
   "v1.push.devices",
   "v1.push.forget",
+  "v1.push.forgetApp",
   "v1.push.key",
+  "v1.push.registerApp",
   "v1.push.remove",
   "v1.push.renew",
+  "v1.push.renewApp",
   "v1.push.subscribe",
   // An account's log of its sessions is its own: decision 043.
   "v1.sessions.create",

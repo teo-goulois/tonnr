@@ -79,6 +79,8 @@ Successful oRPC actions:
 - `units_updated`
 - `verification_requested`
 
+`push_subscribed` and `push_disabled` count a phone's device as they count a browser's: the app for phones makes and forgets its own through `push.registerApp` and `push.forgetApp`, and its `surface` says which system it runs on (decision 072).
+
 ## Error reports
 
 `$exception`, in PostHog's Error tracking, from two places:

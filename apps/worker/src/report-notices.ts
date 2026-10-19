@@ -38,7 +38,7 @@ import {
 import { union } from "drizzle-orm/pg-core";
 import { Effect } from "effect";
 
-import type { PushOut } from "./deliveries";
+import { type PushOut, browsersOf } from "./deliveries";
 import type { Transaction } from "./kept";
 import { type Done, WRITE_SECONDS } from "./runs";
 import { StoreError } from "./store";
@@ -498,12 +498,14 @@ async function hand(
     const now = new Date();
     const shown = await shownOf(tx, held.notice, now, true);
     // The browsers of the account, held last, as the API holds them, until the push has left.
-    const devices = await tx
-      .select()
-      .from(pushSubscription)
-      .where(eq(pushSubscription.userId, taken.userId))
-      .orderBy(asc(pushSubscription.id))
-      .for("update");
+    const devices = browsersOf(
+      await tx
+        .select()
+        .from(pushSubscription)
+        .where(eq(pushSubscription.userId, taken.userId))
+        .orderBy(asc(pushSubscription.id))
+        .for("update"),
+    );
     const sending = and(eq(reportNotice.id, noticeId), eq(reportNotice.pushState, "sending"));
     const settle = async (state: Exclude<Outcome, "skipped" | "held">) => {
       await tx.update(reportNotice).set({ pushState: state, settledAt: now }).where(sending);

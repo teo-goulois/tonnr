@@ -511,7 +511,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
   it("forgets a browser whose push service says it is gone", async () => {
     await device("keeper");
     const [subscribed] = await database.db.select().from(pushSubscription);
-    service.answers.set(subscribed!.endpoint, 410);
+    service.answers.set(subscribed!.endpoint!, 410);
     await shown("first");
     expect(await run()).toMatchObject({ sent: 0, expired: 1 });
     expect(await database.db.select().from(pushSubscription)).toHaveLength(0);

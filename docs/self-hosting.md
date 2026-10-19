@@ -295,6 +295,19 @@ Set the two values in `apps/server/.env`, then run `docker compose up --detach` 
 - The web app serves its service worker at `/sw.js`, from the same address as its pages. It shows a push and opens its page: it keeps no page for use offline, and answers no request.
 - An iPhone or an iPad is sent push only by an app that was added to the Home Screen, and the settings say so there.
 
+#### To the apps for phones
+
+The app for phones that `apps/native` builds is a device too, by the token Apple's or Google's service gave it, with two keys of its own that a push is encrypted for, as a browser's is: decision 072. The apps in the stores are pushed to by Téo's instance alone, since the key of Apple's team and the Firebase project are his. Yours pushes to the app you build, with a team and a project of your own.
+
+| Variable         | Who reads it | What it is for                                                                                     |
+| ---------------- | ------------ | -------------------------------------------------------------------------------------------------- |
+| `APNS_TOPIC`     | The API      | The bundle your iOS app is built with. The API takes an iPhone's device of that app, and no other. |
+| `FCM_PROJECT_ID` | The API      | The Firebase project your Android app is built with. The API takes an Android phone's device then. |
+
+- Without either, the API refuses a phone's device with 503, and `GET /v1/push/key` says which apps the instance pushes to. Neither is a secret.
+- A phone's device is kept as a browser's is: its token is answered to no one and logged nowhere, it goes with the session of the app, and it counts among the ten devices of its account.
+- This version's worker pushes to browsers alone, and passes the phones over.
+
 ### Coming from an earlier version
 
 The version before kept a spot's conditions on the spot. This one gives each such spot an alert when its migration runs. It leaves the spot's two columns and the first `notification` table where they are, for the version before to go on reading while this one starts, and the version after this one drops them.

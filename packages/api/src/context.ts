@@ -66,6 +66,9 @@ export type Context = {
   // `appOrigins` are the origins the instance's apps for phones name themselves by, which make
   // a request of theirs one of the instance's own, as the web app's, and `clients` the builds of
   // those apps it answers, which its settings say: decision 069.
+  // `appPush` says which of those apps the instance pushes to: on iOS the bundle its pushes go
+  // under, `APNS_TOPIC`, and on Android the Firebase project, `FCM_PROJECT_ID`. One that is
+  // left out is pushed to by no worker of the instance. Decision 072.
   server: {
     startedAt: Date;
     webOrigin: string;
@@ -73,5 +76,6 @@ export type Context = {
     clients?: Clients;
     revision?: string | null;
     pushKey?: string | undefined;
+    appPush?: { ios?: string | undefined; android?: string | undefined };
   };
 };

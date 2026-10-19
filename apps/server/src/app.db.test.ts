@@ -83,7 +83,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
    * memory, and `sent` and `link` say what left.
    */
   function make(
-    settings: typeof env & { ADMIN_ORIGIN?: string } & ClientSettings,
+    settings: typeof env & {
+      ADMIN_ORIGIN?: string;
+      APNS_TOPIC?: string;
+      FCM_PROJECT_ID?: string;
+    } & ClientSettings,
     mailing: Mailing = { on: false },
     // The search of places asks no service: a test gives the one whose answers it sets.
     places = testPlaces().places,
@@ -2105,17 +2109,23 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const cookie = await signUp("reader");
 
       const overRest = await send("GET", "/v1/push/key", { cookie }, pushing);
-      expect([overRest.status, await bodyOf(overRest)]).toEqual([200, { publicKey: INSTANCE_KEY }]);
+      expect([overRest.status, await bodyOf(overRest)]).toEqual([
+        200,
+        { publicKey: INSTANCE_KEY, apps: { ios: false, android: false } },
+      ]);
       const overRpc = await send(
         "POST",
         "/rpc/v1/push/key",
         { cookie, origin: APP, body: {} },
         pushing,
       );
-      expect(await bodyOf(overRpc)).toEqual({ json: { publicKey: INSTANCE_KEY } });
+      expect(await bodyOf(overRpc)).toEqual({
+        json: { publicKey: INSTANCE_KEY, apps: { ios: false, android: false } },
+      });
 
       expect(await bodyOf(await send("GET", "/v1/push/key", { cookie }))).toEqual({
         publicKey: null,
+        apps: { ios: false, android: false },
       });
       expect((await send("GET", "/v1/push/key", {}, pushing)).status).toBe(401);
     });
@@ -2136,7 +2146,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
 
       const made = await ask("POST", "/v1/push/devices", browser());
       expect(made.status).toBe(201);
-      expect(Object.keys(made.body).sort()).toEqual(["createdAt", "id", "label", "seenAt"]);
+      expect(Object.keys(made.body).sort()).toEqual(["createdAt", "id", "kind", "label", "seenAt"]);
       const id = String(made.body.id);
       expect((await ask("POST", "/v1/push/devices/renew", { id, ...browser() })).status).toBe(200);
       expect((await ask("POST", "/v1/push/devices/renew", browser())).status).toBe(200);
@@ -2170,6 +2180,90 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect(lines).toContain("/v1/push/devices");
       expect(`${answers.join("\n")}\n${lines}`).not.toContain("kept-out");
       expect(faults).not.toHaveBeenCalled();
+    });
+
+    it("takes a phone's token in a request's body, and gives it back in no answer and no log", async () => {
+      // An instance that pushes to its apps, on both systems.
+      const toApps = make(
+        { ...env, APNS_TOPIC: "org.example.app", FCM_PROJECT_ID: "example-project" },
+        { on: false },
+        testPlaces().places,
+        INSTANCE_KEY,
+      ).app;
+      const cookie = await signUp("reader");
+      const from = { cookie, origin: APP };
+      logged.mockClear();
+      const faults = vi.mocked(console.error);
+      faults.mockClear();
+      const answers: string[] = [];
+      const ask = async (method: string, path: string, body?: unknown) => {
+        const response = await send(method, path, { ...from, body }, toApps);
+        const text = await response.text();
+        answers.push(text);
+        return { status: response.status, body: JSON.parse(text) as Record<string, unknown> };
+      };
+      // A token of an iPhone's, which the test writes so that it is found wherever it went.
+      const TOKEN = `${"ab".repeat(28)}6b657074`;
+      const phone = (token = TOKEN) => ({
+        kind: "ios",
+        token,
+        environment: "production",
+        appId: "org.example.app",
+        keys: testReceiver().keys,
+        label: "iPhone 17",
+      });
+
+      expect((await ask("GET", "/v1/push/key")).body).toMatchObject({
+        apps: { ios: true, android: true },
+      });
+      const made = await ask("POST", "/v1/push/apps", phone());
+      expect(made.status).toBe(201);
+      expect(made.body).toMatchObject({ kind: "ios", label: "iPhone 17" });
+      const id = String(made.body.id);
+      expect((await ask("POST", "/v1/push/apps/renew", { id, ...phone() })).status).toBe(200);
+      expect((await ask("POST", "/rpc/v1/push/renewApp", { json: phone() })).status).toBe(200);
+      expect((await ask("GET", "/v1/push/devices")).body).toMatchObject({
+        devices: [{ id, kind: "ios" }],
+      });
+      // A token that is none, and one the caller has no device for.
+      expect((await ask("POST", "/v1/push/apps", phone(`${TOKEN}zz`))).status).toBe(400);
+      expect(
+        (await ask("POST", "/v1/push/apps/renew", phone(`${"cd".repeat(28)}6b657074`))).status,
+      ).toBe(404);
+      // A browser's subscription stays apart from a phone's.
+      expect((await ask("POST", "/v1/push/devices/renew", { id, ...browser() })).status).toBe(404);
+      expect(await subscriptions()).toMatchObject([{ id, kind: "ios", token: TOKEN }]);
+      expect(
+        (await ask("POST", "/v1/push/apps/forget", { kind: "ios", token: TOKEN })).body,
+      ).toEqual({ forgotten: true });
+      expect(await subscriptions()).toEqual([]);
+
+      const lines = logged.mock.calls.map((line: unknown[]) => String(line[0])).join("\n");
+      expect(lines).toContain("/v1/push/apps");
+      expect(`${answers.join("\n")}\n${lines}`).not.toContain("6b657074");
+      expect(faults).not.toHaveBeenCalled();
+    });
+
+    it("takes no phone of an app the instance does not push to", async () => {
+      const cookie = await signUp("reader");
+      const answer = await send(
+        "POST",
+        "/v1/push/apps",
+        {
+          cookie,
+          origin: APP,
+          body: {
+            kind: "android",
+            token: "invented:token",
+            appId: "org.example.app",
+            keys: testReceiver().keys,
+          },
+        },
+        pushing,
+      );
+
+      expect(answer.status).toBe(503);
+      expect(await subscriptions()).toEqual([]);
     });
 
     it("forgets a browser when its account signs out there, and no other of its browsers", async () => {
@@ -2236,6 +2330,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       }>(await send("GET", "/v1/openapi.json"));
       const routes = Object.entries(spec.paths).filter(([path]) => path.startsWith("/push"));
       expect(routes.map(([path]) => path).sort()).toEqual([
+        "/push/apps",
+        "/push/apps/forget",
+        "/push/apps/renew",
         "/push/devices",
         "/push/devices/forget",
         "/push/devices/renew",
