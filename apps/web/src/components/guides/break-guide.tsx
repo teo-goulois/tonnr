@@ -59,7 +59,7 @@ type LineProps = {
  * What blocks the author of a line, for the author of another's line: the reader's own lines
  * open no menu. Decision 071.
  */
-function blockerOf({ guiding, own }: Pick<LineProps, "guiding" | "own">) {
+export function blockerOf({ guiding, own }: Pick<LineProps, "guiding" | "own">) {
   return (by: Proposed["by"]) =>
     by && (own?.username == null || by.username !== own.username) ? guiding.onBlock : undefined;
 }

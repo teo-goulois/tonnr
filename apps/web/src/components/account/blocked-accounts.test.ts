@@ -2,7 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { blockerOf } from "../guides/break-guide";
 import { Author } from "../guides/rank";
+import type { Guiding } from "../guides/types";
 import { BlockDialog, BlockedAccounts, type Blocking } from "./blocked-accounts";
 
 // What the web app draws of a block: the list of the accounts blocked, the question asked first,
@@ -90,5 +92,23 @@ describe("the author of a guide's line", () => {
     render(createElement(Author, { by: null, onBlock: vi.fn() }));
     expect(screen.getByText("A contributor")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("what blocks the author of a line", () => {
+  const onBlock = vi.fn();
+  const guiding = { onBlock } as unknown as Guiding;
+  const kai = { username: "kai_reef", rank: null };
+
+  it("is offered on another's line, to an account and to a visitor", () => {
+    const own = { username: "ana" } as Parameters<typeof blockerOf>[0]["own"];
+    expect(blockerOf({ guiding, own })(kai)).toBe(onBlock);
+    expect(blockerOf({ guiding, own: undefined })(kai)).toBe(onBlock);
+  });
+
+  it("is not offered on the reader's own line, nor on a line that names nobody", () => {
+    const own = { username: "kai_reef" } as Parameters<typeof blockerOf>[0]["own"];
+    expect(blockerOf({ guiding, own })(kai)).toBeUndefined();
+    expect(blockerOf({ guiding, own })(null)).toBeUndefined();
   });
 });

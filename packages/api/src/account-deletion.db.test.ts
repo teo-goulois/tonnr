@@ -308,6 +308,22 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
     expect(forGood?.freeAt).toBeNull();
   });
 
+  it("keeps for good a username it left once an operator takes it away from its next holder", async () => {
+    const { db } = database;
+    await remove({ password: PASSWORD }, by("ana"));
+    // Thirty days on, Ben takes it, and an operator takes it away from him.
+    await db.update(removedUsername).set({ freeAt: sql`now() - interval '1 minute'` });
+    await db.update(user).set({ username: "ana" }).where(eq(user.id, "ben"));
+    await call(v1Router.accounts.removeUsername, { id: "ben" }, by("op", "s-op", { site: ADMIN }));
+
+    const [kept] = await db
+      .select()
+      .from(removedUsername)
+      .where(eq(removedUsername.username, "ana"));
+    expect(kept?.freeAt).toBeNull();
+    expect(await isUsernameKept(db, "ana")).toBe(true);
+  });
+
   it("asks an account with a password for it, and counts the wrong ones", async () => {
     expect(await remove({}, by("ana"))).toMatchObject({
       refused: "FORBIDDEN",
