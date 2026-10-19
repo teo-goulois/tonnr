@@ -406,7 +406,7 @@ curl --header 'Authorization: Bearer <key>' https://api.example.org/v1/stations
 
 Later, `/api/auth/sign-in/email` takes the same address and password and gives a new session.
 
-A session lasts ninety days, on the web, in the apps and in a script alike. `GET /api/auth/get-session` renews it for ninety more, with its cookie, once a day or more has passed since it was last renewed: the web app and the apps ask it as they open, so whoever comes back within ninety days stays signed in, and a script that keeps a session asks it too. A call to `/v1` or `/rpc` renews nothing. Signing out, a new password, and an operator who closes an account's sessions or suspends it end one at once. Decision 070.
+A session lasts ninety days, on the web, in the apps and in a script alike. `GET /api/auth/get-session` renews it for ninety more, with its cookie, once a day or more has passed since it was last renewed: the web app and the apps ask it as they open, so whoever comes back within ninety days stays signed in, and a script that keeps a session asks it too. A call to `/v1` or `/rpc` renews nothing. Safari may keep the cookie seven days at most when the API answers from a network address far from the web app's, behind another proxy: decision 070 says when. Signing out, a new password, and an operator who closes an account's sessions or suspends it end one at once. Decision 070.
 
 The `Origin` header is what tells the API that a request sent with a cookie comes from a site it trusts. A browser adds it. A script has to, on sign-up, on sign-in, on anything that writes with the session, and on every call to what runs the instance, a read too: the developer accounts, the keys, the counts and the list of accounts.
 
