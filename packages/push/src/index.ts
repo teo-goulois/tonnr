@@ -1,3 +1,5 @@
+import type { Locale } from "@repo/mail/verification";
+
 import { isPushEndpoint } from "./endpoints";
 import { PUSH_BYTES, encryptPush } from "./encrypt";
 import { readVapidKeys } from "./keys";
@@ -6,6 +8,8 @@ import { vapidHeader } from "./vapid";
 
 export { isPushEndpoint } from "./endpoints";
 export { makeVapidKeys } from "./keys";
+export { type ApnsSettings, createApnsPusher } from "./apns";
+export { type FcmSettings, createFcmPusher } from "./fcm";
 
 // How the instance sends a push to a browser: decision 031, "Push". This knows the standards a
 // push is written by, RFC 8030, 8291 and 8292, and nothing of an alert. They are built on
@@ -21,16 +25,57 @@ export type PushSettings = {
 };
 
 /**
+ * What a push lets its person do beyond opening it, which the app on a phone registers with the
+ * system as it starts: `today`, on the push of an alert whose hours are today, holds "Not
+ * today", which pauses the alert until the day ends, and `begins`, on "it is on", holds "Log a
+ * session". Decision 072.
+ */
+export type PushCategory = "today" | "begins";
+
+/**
  * What a push says, as the web app's service worker reads it: it shows `title` and `body`,
  * under `tag` so that a newer word on the same thing takes the older one's place, and opens
  * `url` when the notification is pressed. `image` is a picture a browser may show beside the
  * words, which Chrome does on Android and on a computer, and Safari and Firefox do not: a
  * report's push gives one (decision 068).
+ *
+ * The rest is what the app on a phone reads, and a browser is not sent (decision 072): the
+ * thread its notifications are grouped by, its category, the ids of what it is about, how it
+ * may interrupt, and how many things the account has not read, which the app's icon counts.
+ * `locale` is the language of the line Apple shows in its place when the app cannot open it.
  */
-export type Push = { title: string; body: string; url: string; tag: string; image?: string };
+export type Push = {
+  title: string;
+  body: string;
+  url: string;
+  tag: string;
+  image?: string;
+  locale?: Locale;
+  thread?: string;
+  category?: PushCategory;
+  ids?: { notification?: string; alert?: string; notice?: string };
+  level?: "passive" | "active" | "time-sensitive";
+  badge?: number;
+};
 
 /** A browser that subscribed: the address its push service gave it, and its two keys. */
-export type Device = { endpoint: string; p256dh: string; auth: string };
+export type WebDevice = { endpoint: string; p256dh: string; auth: string };
+
+/**
+ * The app on a phone: the token APNs or FCM gave it, the bundle or the package it was built
+ * with, for an iPhone which of Apple's hosts its build is pushed through, and the two keys it
+ * made, as a browser gives its own.
+ */
+export type AppDevice = {
+  token: string;
+  appId: string;
+  environment?: "development" | "production" | null;
+  p256dh: string;
+  auth: string;
+};
+
+/** A browser. */
+export type Device = WebDevice;
 
 /**
  * What became of a push to one browser. `taken`: its push service took it, which is not yet a
@@ -41,13 +86,14 @@ export type Device = { endpoint: string; p256dh: string; auth: string };
  */
 export type Outcome = "taken" | "gone" | "refused" | "failed";
 
-export type Pusher = {
+export type Pusher<To = WebDevice> = {
   /**
-   * Sends a push to one browser, once, and answers within ten seconds. `keepSeconds` is how
-   * long the push service keeps it for a browser that is off. What was sent when it gives up
-   * may still arrive, and nothing more is sent after the answer: the connection is closed.
+   * Sends a push to one device, once, and answers within ten seconds. `keepSeconds` is how
+   * long the push service keeps it for a device that is off. What was sent when it gives up
+   * may still arrive, and nothing more is sent after the answer: the connection is closed, or
+   * for Apple the stream.
    */
-  send: (device: Device, push: Push, keepSeconds: number) => Promise<Outcome>;
+  send: (device: To, push: Push, keepSeconds: number) => Promise<Outcome>;
 };
 
 // How long a push may take to leave: what holds an account's settings waits for it.

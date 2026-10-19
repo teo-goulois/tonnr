@@ -97,8 +97,22 @@ describe("the pusher of an instance", () => {
     const device = service.device();
 
     await service.pusher.send(device, { ...push, account: "owner" } as typeof push, 60);
+    // What the app on a phone reads a browser is not sent: decision 072.
+    await service.pusher.send(
+      device,
+      {
+        ...push,
+        locale: "fr",
+        thread: "alert:an-alert",
+        category: "today",
+        ids: { notification: "a-notification", alert: "an-alert" },
+        level: "active",
+        badge: 2,
+      },
+      60,
+    );
 
-    expect(service.sent()[0]?.push).toEqual(push);
+    expect(service.sent().map((sent) => sent.push)).toEqual([push, push]);
   });
 
   it("tells the push service how long to keep a push, in whole seconds it takes", async () => {
@@ -361,6 +375,23 @@ describe("a push to a server of this machine that stands for a push service", ()
 
     expect(answer).toEqual({ failure: "given up" });
     // The server that never answered sees the connection go.
+    await vi.waitFor(() => expect(server.ended()).toBe(1));
+    await server.close();
+  });
+
+  it("reads what the answer says as far as it is asked, and closes its connection", async () => {
+    const server = await serving(() => 400);
+
+    const answer = await post(
+      new URL(`http://127.0.0.1:${server.port}/push/invented`),
+      { ttl: "60" },
+      Buffer.from("a body"),
+      AbortSignal.timeout(2000),
+      12,
+    );
+
+    // The server goes on speaking, and is not listened to past what was asked.
+    expect(answer).toEqual({ status: 400, body: "the push ser" });
     await vi.waitFor(() => expect(server.ended()).toBe(1));
     await server.close();
   });
