@@ -320,13 +320,14 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes to the apps on phones", () => {
     const told = async () =>
       (await database.db.select().from(notification)).map((one) => one.moment);
 
-    it("offer “Not today” on the phones", async () => {
+    it("offer “Not today” on the phones, until the end of the account's day as it was written", async () => {
       await found();
 
       await pass();
 
-      expect(apple.sent()[0]?.push.category).toBe("today");
-      expect(google.sent()[0]?.push.category).toBe("today");
+      const midnight = new Date(Date.UTC(2026, 9, 10)).toISOString();
+      expect(apple.sent()[0]?.push).toMatchObject({ category: "today", pauseUntil: midnight });
+      expect(google.sent()[0]?.push).toMatchObject({ category: "today", pauseUntil: midnight });
     });
 
     it("tell nothing of today once the alert is paused, and the next look cuts what was told without a word", async () => {

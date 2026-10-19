@@ -166,6 +166,8 @@ export function alertPush(content: AlertPushContent): Push {
     locale: content.locale,
     thread: content.alertId === null ? "evening" : `alert:${content.alertId}`,
     ...(category ? { category } : {}),
+    // The day "Not today" pauses, which the app gives back as it is pressed.
+    ...(category === "today" ? { pauseUntil: content.today.end.toISOString() } : {}),
     ids: {
       notification: content.notificationId,
       ...(content.alertId === null ? {} : { alert: content.alertId }),

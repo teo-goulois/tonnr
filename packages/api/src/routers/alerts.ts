@@ -638,13 +638,25 @@ export const alertsRouter = {
       summary: "Pause one of the caller's alerts until the end of their day",
       description:
         "What “Not today” does on the push of an alert. Until the end of the day, by the " +
-        "API's clock in the account's time zone, no hour of the alert is open, by mail or by " +
-        "push, as none of any alert is before the account's own `awayUntil`. What the alert " +
-        "told stays told, and its next look cuts it without a word. A push of it on its way " +
-        "is written anew without today. `PATCH /alerts/{id}` with `awayUntil: null` lifts it.",
+        "API's clock in the account's time zone, and no later than `until`, the end of the " +
+        "day the push spoke of, no hour of the alert is open, by mail or by push, as none of " +
+        "any alert is before the account's own `awayUntil`. A day that is over is refused " +
+        "with 409, and pauses nothing. What the alert told stays told, and its next look cuts " +
+        "it without a word. A push of it on its way is written anew without today. " +
+        "`PATCH /alerts/{id}` with `awayUntil: null` lifts it.",
       tags: ["Alerts"],
     })
-    .input(z.object({ id: z.string() }))
+    .input(
+      z.object({
+        id: z.string(),
+        until: z.coerce
+          .date()
+          .describe(
+            "The end of the day the push spoke of: its `pauseUntil`. The pause ends then at " +
+              "the latest, so that a “Not today” pressed after midnight pauses no other day.",
+          ),
+      }),
+    )
     .output(alertSchema)
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
@@ -658,10 +670,17 @@ export const alertsRouter = {
           .for("update");
         if (!current) throw notFound(input.id);
         const [row] = await tx.select().from(alertSettings).where(eq(alertSettings.userId, userId));
-        // The phone's clock is not asked: the end of the day is the API's, in the account's zone.
+        // The phone's clock is not asked: the end of the day is the API's, in the account's
+        // zone, and the push's day bounds it. A push of a day that is over pauses nothing.
+        const now = new Date();
+        if (input.until.getTime() <= now.getTime()) {
+          throw new ORPCError("CONFLICT", { message: "The day that push spoke of is over." });
+        }
+        const end = endOfToday(now, settingsOf(row));
+        const until = input.until.getTime() < end.getTime() ? input.until : end;
         const [paused] = await tx
           .update(alert)
-          .set({ awayUntil: endOfToday(new Date(), settingsOf(row)), updatedAt: new Date() })
+          .set({ awayUntil: until, updatedAt: now })
           .where(eq(alert.id, input.id))
           .returning();
         if (!paused) throw notFound(input.id);

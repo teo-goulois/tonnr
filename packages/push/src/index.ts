@@ -27,8 +27,8 @@ export type PushSettings = {
 /**
  * What a push lets its person do beyond opening it, which the app on a phone registers with the
  * system as it starts: `today`, on the push of an alert whose hours are today, holds "Not
- * today", which pauses the alert until the day ends, and `begins`, on "it is on", holds "Log a
- * session". Decision 072.
+ * today", which pauses the alert until the day the push speaks of ends, `pauseUntil`, and
+ * `begins`, on "it is on", holds "Log a session". Decision 072.
  */
 export type PushCategory = "today" | "begins";
 
@@ -42,6 +42,9 @@ export type PushCategory = "today" | "begins";
  * The rest is what the app on a phone reads, and a browser is not sent (decision 072): the
  * thread its notifications are grouped by, its category, the ids of what it is about, how it
  * may interrupt, and how many things the account has not read, which the app's icon counts.
+ * `pauseUntil`, on a push of the category `today`, is the end of the account's day as the push
+ * was written, in ISO 8601: the app gives it back to `alerts.pauseToday`, so that a "Not today"
+ * pressed after midnight pauses no day the push did not speak of.
  * `locale` is the language of the line Apple shows in its place when the app cannot open it.
  */
 export type Push = {
@@ -55,6 +58,7 @@ export type Push = {
   category?: PushCategory;
   ids?: { notification?: string; alert?: string; notice?: string };
   level?: "passive" | "active" | "time-sensitive";
+  pauseUntil?: string;
   badge?: number;
 };
 

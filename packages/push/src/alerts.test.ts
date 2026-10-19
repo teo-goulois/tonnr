@@ -44,6 +44,8 @@ describe("the push of an alert", () => {
       // What the app on a phone reads besides, and a browser is not sent: decision 072.
       thread: "alert:bay",
       category: "today",
+      // The end of the account's day as the push was written, which "Not today" pauses until.
+      pauseUntil: "2026-10-12T22:00:00.000Z",
       ids: { notification: "n1", alert: "bay" },
       level: "active",
     });
@@ -74,6 +76,16 @@ describe("the push of an alert", () => {
       ).toBeUndefined();
     });
 
+    it("gives “Not today” the end of the day it speaks of, and no other push", () => {
+      // Written while the account's day ended an hour before Paris's.
+      const written = { start: at("12T05:00"), end: at("12T21:00") };
+      expect(alertPush(content({ today: written })).pauseUntil).toBe(written.end.toISOString());
+      expect(alertPush(content({ lines: [{ ...spot, open: tomorrow, sea }] }))).not.toHaveProperty(
+        "pauseUntil",
+      );
+      expect(alertPush(content({ moment: "begins" }))).not.toHaveProperty("pauseUntil");
+    });
+
     it("offers nothing more on hours that went, and on the evening before", () => {
       const gone = content({ moment: "gone", lines: [{ ...spot, open: [], gone: morning }] });
       const evening = content({
@@ -86,6 +98,7 @@ describe("the push of an alert", () => {
 
       expect(alertPush(gone)).toMatchObject({ thread: "alert:bay", level: "active" });
       expect(alertPush(gone).category).toBeUndefined();
+      expect(alertPush(gone)).not.toHaveProperty("pauseUntil");
       expect(alertPush(evening)).toMatchObject({
         thread: "evening",
         ids: { notification: "n1" },

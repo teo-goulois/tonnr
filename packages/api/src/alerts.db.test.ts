@@ -25,6 +25,8 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
   // Friday 9 October 2026, 08:00 UTC. The forecast of the tests has a swell of 1.2 m at every
   // hour, and the tide is known along this coast.
   const AT = new Date("2026-10-09T08:00:00Z");
+  // The end of the day a push of "Not today" spoke of, after the API's own: the API's bounds it.
+  const AFTER = new Date("2026-10-12T00:00:00Z");
   const swell = { waveHeightMeters: { min: 1 } };
 
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -345,7 +347,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       for (const ask of [
         () => call(v1Router.alerts.get, { id: made.id }, by("ben")),
         () => call(v1Router.alerts.update, { id: made.id, name: "Mine now" }, by("ben")),
-        () => call(v1Router.alerts.pauseToday, { id: made.id }, by("ben")),
+        () => call(v1Router.alerts.pauseToday, { id: made.id, until: AFTER }, by("ben")),
         () => call(v1Router.alerts.delete, { id: made.id }, by("ben")),
       ]) {
         await expect(ask()).rejects.toEqual(refusal("NOT_FOUND"));
@@ -476,7 +478,11 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect(made.awayUntil).toBeNull();
       await database.db.insert(alertSettings).values({ userId: "ana", zone: "Europe/Paris" });
 
-      const paused = await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+      const paused = await call(
+        v1Router.alerts.pauseToday,
+        { id: made.id, until: AFTER },
+        by("ana"),
+      );
 
       // Ten in the morning in Paris: its day ends at midnight there.
       const midnight = new Date("2026-10-09T22:00:00Z");
@@ -491,7 +497,9 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
     it("reads the day in UTC for an account whose time zone is not known yet", async () => {
       const made = await make();
 
-      expect(await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"))).toMatchObject({
+      expect(
+        await call(v1Router.alerts.pauseToday, { id: made.id, until: AFTER }, by("ana")),
+      ).toMatchObject({
         awayUntil: new Date("2026-10-10T00:00:00Z"),
       });
     });
@@ -500,7 +508,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       const made = await make();
       await see(made.id, "north");
 
-      await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+      await call(v1Router.alerts.pauseToday, { id: made.id, until: AFTER }, by("ana"));
 
       expect(await revisionOf(made.id)).toBe(0);
       expect([await windowsOf(made.id), await toldAt(made.id)]).toEqual([["north"], ["north"]]);
@@ -508,7 +516,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
 
     it("is lifted by a change that says so, and by no other", async () => {
       const made = await make();
-      await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+      await call(v1Router.alerts.pauseToday, { id: made.id, until: AFTER }, by("ana"));
 
       const renamed = await call(v1Router.alerts.update, { id: made.id, name: "Dawn" }, by("ana"));
       expect(renamed.awayUntil).not.toBeNull();
@@ -529,9 +537,37 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       ).rejects.toEqual(refusal("BAD_REQUEST"));
     });
 
+    it("ends no later than the day the push spoke of, as the account's zone wrote it then", async () => {
+      const made = await make();
+      await database.db.insert(alertSettings).values({ userId: "ana", zone: "Europe/Paris" });
+      // Written while the account's day ended an hour before Paris's.
+      const until = new Date("2026-10-09T21:00:00Z");
+
+      expect(
+        await call(v1Router.alerts.pauseToday, { id: made.id, until }, by("ana")),
+      ).toMatchObject({ awayUntil: until });
+    });
+
+    it("pauses nothing for a push of a day that is over, pressed after its midnight", async () => {
+      const made = await make();
+      await database.db.insert(alertSettings).values({ userId: "ana", zone: "Europe/Paris" });
+      // The push of the evening before said its day ended at midnight in Paris; it is pressed at
+      // ten past.
+      vi.setSystemTime(new Date("2026-10-09T22:10:00Z"));
+
+      await expect(
+        call(
+          v1Router.alerts.pauseToday,
+          { id: made.id, until: new Date("2026-10-09T22:00:00Z") },
+          by("ana"),
+        ),
+      ).rejects.toEqual(refusal("CONFLICT"));
+      expect((await call(v1Router.alerts.get, { id: made.id }, by("ana"))).awayUntil).toBeNull();
+    });
+
     it("is of an alert of the caller's", async () => {
       await expect(
-        call(v1Router.alerts.pauseToday, { id: "no-such-alert" }, by("ana")),
+        call(v1Router.alerts.pauseToday, { id: "no-such-alert", until: AFTER }, by("ana")),
       ).rejects.toEqual(refusal("NOT_FOUND"));
     });
   });
