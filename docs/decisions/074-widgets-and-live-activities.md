@@ -18,14 +18,16 @@ Google's rules for Live Updates take what the person started and follows, such a
 
 ### What the widgets read
 
-- `v1.places.now`, at `GET /v1/places/now`, says what the sea does at a few places, and asks the forecast provider nothing. It sits in `v1` beside `places.search` of [decision 030](030-place-search.md): one finds a place by its name, the other says the sea there. The name is chosen here.
-- It takes twelve places at most: breaks of the catalogue, stations, and spots. A spot is answered to its owner, and to an account that kept a list holding it ([decision 035](035-shared-lists.md)), as `lists.view` answers it. Any other spot is answered as missing. Twelve is chosen here.
-- It is built on `protectedProcedure`. A widget shows the places of an account, and a visitor has none: signed out, a widget says so and opens the sign-in. It is named in `ANSWERS_AN_ACCOUNT` of `packages/api/src/access.db.test.ts`. It is not a tool of the MCP server: an assistant has `get_forecast`, the tides and the stations. Chosen here.
+- `v1.places.now`, at `GET /v1/places/now`, says what the sea does at a few places, and asks the forecast provider nothing. It sits in `v1` beside `places.search` of [decision 030](030-place-search.md): one finds a place by its name, the other says the sea there. The name is chosen here. It is in `packages/api/src/routers/places.ts`.
+- It takes twelve places at most: breaks of the catalogue, stations, and spots, as `breakIds`, `stationIds` and `spotIds`. Each is a list, or ids between commas, as a query string writes them shortly. The answer gives the breaks, then the stations, then the spots, each once and in the order asked, with the moment it was made. Twelve is chosen here.
+- A spot is answered to its owner, to an account that kept a list holding it ([decision 035](035-shared-lists.md)), as `lists.view` answers it, and to whoever calls with that list's link, as `shared.open` answers it. Any other spot, and a place that does not exist, is left out of the answer, which says nothing of why.
+- It is built on `callerProcedure`, as what everyone shares is. What it says of a break or a station is what `forecasts.get`, the tides and `pages.break` say to anyone, and holding it to an account would only make a program read the same in more calls. So a key, a visitor and a list's link read breaks and stations there, and spots as said above. A widget still shows the places of an account: signed out, it says so and opens the sign-in. The procedure is named in `ANSWERS_A_KEY` of `packages/api/src/access.db.test.ts`, and the route in `/llms.txt`. It is not a tool of the MCP server: an assistant has `get_forecast`, the tides and the stations. Chosen as it was built, in place of the `protectedProcedure` that this record first named.
 - For each place it answers what the page of a break reads, with the functions of `packages/api/src/pages.ts`:
-  - The hours of the forecast that is kept for the place's cell, from the current hour to 48 hours ahead. `forecasts.kept` reads them from the store and asks nobody. Each hour has its height, peak period and direction, its wind, and how that wind meets the shore (`windAtShore`, from `shoreWind`, where the place knows its offshore bearing). The answer says when the forecast was fetched and whether it is stale.
-  - The latest readings of the nearest buoy and of the nearest wind station, by `nearestStation`, each with its time.
-  - The highs and lows of the next two days, computed as `nextTides` computes them, with the height now and its way.
-  - Each source with its licence and attribution, as every answer gives them.
+  - The hours of the forecast that is kept for the place's cell, from the current hour to 48 hours ahead (`hoursAhead`). `forecasts.kept` reads them from the store and asks nobody. Each hour has its height, its mean and peak periods and its direction, its wind with its gusts, and how that wind meets the shore (`windAtShore`, from `shoreWind`, where the place knows its offshore bearing). The answer says when the forecast was fetched and whether it is stale.
+  - What fits the place's own words at the hour now and what does not, by `verdictOf`, as the sentence of a panel lays them ([decision 061](061-a-panel-that-shows-less-or-more.md)). A break's words are the catalogue's with what accounts confirmed laid over, and a spot's are what its owner said of it. A station has none, and gets no verdict.
+  - The latest readings of the nearest buoy and of the nearest wind station, by `nearestStation`, each with its time and how the measured wind meets the shore. A station is its own nearest while it measures.
+  - The highs and lows of the next 48 hours, computed by `nextTides`, with the height now and its way.
+  - Each source with its licence and attribution, as every answer gives them: a break's from the catalogue, null where the list gave none, a station's network, the forecast's models, and the tide station.
 - A place whose cell nobody had kept in the day gets no forecast hours. `forecasts.kept` answers nothing of a forecast more than a day old. Such a place shows what its buoy and its wind station measured, and the tide.
 - A call counts one question in the caller's hour, as a forecast does, however many places it names: `admitForecastQuestion`. It costs the provider nothing, which is why decision 057 does not count the page of a break. But Cloudflare's cache answers a page for an hour, and nothing stands in front of a phone: counting the call stops an app that calls in a loop where a forecast would be stopped. Chosen here.
 
@@ -141,10 +143,9 @@ Google's rules for Live Updates take what the person started and follows, such a
 - iOS lets a widget be drawn again a limited number of times a day, and throttles push-to-start. A start that it holds back may show late or not at all, while the account's other devices have the push.
 - No event is added to PostHog. The counts of the calls of `places.now` say how often widgets ask.
 - AGENTS.md names `places.now`, `live_activity` and the job in the change that builds them.
-- Nothing of it is built on 2026-10-19. It comes after the app's first version, in this order:
-  1. `places.now`;
-  2. the widgets on iOS;
-  3. a session in progress, on both systems;
-  4. the quick actions and the control;
-  5. the widgets on Android, after their trial;
-  6. once the APNs sender of decision 072 runs, the Live Activity of a window that begins, with its switch, `live_activity`, the worker's job and `/privacy`.
+- Built on 2026-10-19: `places.now`, with its tests, which keep a forecast through a provider that a function stands for and check that the route asked it nothing. The rest comes after the app's first version, in this order:
+  1. the widgets on iOS;
+  2. a session in progress, on both systems;
+  3. the quick actions and the control;
+  4. the widgets on Android, after their trial;
+  5. once the APNs sender of decision 072 runs, the Live Activity of a window that begins, with its switch, `live_activity`, the worker's job and `/privacy`.

@@ -203,9 +203,12 @@ export async function nearbyBreaks(db: Reader, found: Break) {
     .slice(0, NEARBY_MOST);
 }
 
-/** The next tides at a point, from now for a day and a half: the highs and the lows to come. */
-export function nextTides(point: Point, now: Date) {
-  const end = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+/**
+ * The next tides at a point, from now for a day and a half unless so many hours are asked: the
+ * highs and the lows to come.
+ */
+export function nextTides(point: Point, now: Date, hours = 36) {
+  const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
   const next = predictTideExtremes({ ...point, start: now, end });
   if (!next) return null;
   // The height now, from the same prediction, and the way the tide goes: towards its next
@@ -257,6 +260,50 @@ export async function weekAt(
   return {
     days,
     now: hourOf(kept.hours, now),
+    fetchedAt: kept.fetchedAt,
+    stale: kept.stale,
+    source: forecastSource(
+      [...kept.models, ...kept.swellModels, ...kept.peakModels].map((model) => model.id),
+      kept.producers,
+    ),
+  };
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+export type HoursAhead = {
+  /** From the hour the moment falls in, which is the first, to so many hours after it. */
+  hours: ForecastHour[];
+  fetchedAt: Date;
+  stale: boolean;
+  source: ReturnType<typeof forecastSource>;
+};
+
+/**
+ * The hours of the forecast kept for a point's cell, from the hour the moment falls in to so
+ * many hours after it, from what is kept and from nothing else: null when none is kept, when
+ * the point has no sea in it, or when what is kept holds none of those hours. Decision 074.
+ */
+export async function hoursAhead(
+  forecasts: Pick<Forecasts, "kept">,
+  point: Point,
+  now: Date,
+  hours: number,
+): Promise<HoursAhead | null> {
+  // What is kept is read to the end of the day after the days asked, counted from the start of
+  // today in UTC: so many days reach the last hour from any hour of today.
+  const result = await Effect.runPromise(
+    Effect.result(forecasts.kept(point, Math.ceil(hours / 24))),
+  );
+  if (Result.isFailure(result)) return null;
+  const kept = result.success;
+  if (!kept || !kept.hours) return null;
+  const from = Math.floor(now.getTime() / HOUR_MS) * HOUR_MS;
+  const until = from + hours * HOUR_MS;
+  const ahead = kept.hours.filter(({ time }) => time.getTime() >= from && time.getTime() <= until);
+  if (ahead.length === 0) return null;
+  return {
+    hours: ahead,
     fetchedAt: kept.fetchedAt,
     stale: kept.stale,
     source: forecastSource(

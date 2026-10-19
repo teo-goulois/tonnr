@@ -93,6 +93,9 @@ const ANSWERS_A_KEY = [
   "v1.pages.region",
   "v1.pages.hubs",
   "v1.pages.listed",
+  // The sea at a few places from what is kept, for a phone's widgets: a break and a station are
+  // everyone's, and a spot is answered only to whoever reads it elsewhere. Decision 074.
+  "v1.places.now",
   // The reports of the waves at a break, which everyone reads: decision 067.
   "v1.reports.list",
   // What a browser counts of the reports it saw: a key is answered, and counts nothing.
@@ -858,6 +861,10 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         await expect(call(v1Router.spots.get, { id: "kept" }, caller)).rejects.toEqual(
           refusal("FORBIDDEN"),
         );
+        // Nor the sea there: a spot the caller does not read is left out (decision 074).
+        expect(await call(v1Router.places.now, { spotIds: ["kept"] }, caller)).toMatchObject({
+          places: [],
+        });
       }
       expect(await call(v1Router.spots.get, { id: "kept" }, bySession("owner"))).toMatchObject({
         name: "Kept",

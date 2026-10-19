@@ -1464,6 +1464,20 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect((await send("GET", "/v1/spots", { app: PHONE })).status).toBe(401);
     });
 
+    it("reads the sea at a few places, the ids of a query between commas or one by one", async () => {
+      for (const query of [
+        "stationIds=one,two",
+        "stationIds[]=one&stationIds[]=two",
+        "breakIds=one&spotIds=two",
+      ]) {
+        const read = await send("GET", `/v1/places/now?${query}`, { app: PHONE });
+        expect(read.status, query).toBe(200);
+        // None of them is known, and a visitor reads no spot: decision 074.
+        expect(await bodyOf(read)).toMatchObject({ places: [] });
+      }
+      expect((await send("GET", "/v1/places/now", { app: PHONE })).status).toBe(400);
+    });
+
     it("is asked for an account once an operator closes the instance, and told so on both transports", async () => {
       const cookie = await signUpOperator();
       expect(await bodyOf(await send("GET", "/v1/visitors"))).toEqual({ open: true });

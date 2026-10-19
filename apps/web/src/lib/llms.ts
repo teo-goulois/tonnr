@@ -41,6 +41,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - \`GET /v1/stations/{id}\`: one station with its latest reading.
 - \`GET /v1/stations/{id}/readings\`: a station's readings over a period, newest first.
 - \`GET /v1/pages/breaks/{country}/{region}/{slug}\`: what the page of a surf break says, in one call: the break, the nearest buoy and wind station, the next tides, the week from the forecast the instance keeps, the reports of the week, and the breaks nearby. \`GET /v1/pages/places\`, \`.../{country}\` and \`.../{country}/{region}\` list the countries, the regions and the breaks that have a page; \`GET /v1/pages/breaks?page=n\` and \`GET /v1/pages/hubs\` give every address, for a sitemap.
+- \`GET /v1/places/now?breakIds=&stationIds=\`: the sea at up to twelve surf breaks and stations at once, the ids between commas: for each, the next 48 hours of the forecast the instance keeps, the nearest buoy and wind station, and the next tides. It asks the forecast provider nothing, so a place nobody asked a forecast for in the day has none.
 - \`GET /v1/forecasts?latitude=&longitude=&days=\`: hourly waves, wind and weather at a point, up to seven days. \`start\` and \`end\` give a period of one's own in place of \`days\`, and \`stepHours\` one hour in so many.
 - \`GET /v1/tides/extremes\`: high and low tides near a point.
 - \`GET /v1/tides/timeline\`: the tide's height at regular intervals near a point.
