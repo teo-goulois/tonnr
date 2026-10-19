@@ -68,8 +68,9 @@ const analyser = createAnalyser({ folder: ENV.MEDIA_MODELS_DIR ?? join(process.c
 // What alert mails leave with. Null on an instance whose worker was given no way out, or not the
 // addresses a mail links to: what an alert tells then stays in the web app's list.
 const mailOut = mailOutOf(ENV);
-// What pushes leave with. Null on an instance that holds no pair of keys, or whose worker was
-// not given the web app's address: an account's browsers are then sent nothing.
+// What pushes leave with, to browsers and to the apps on phones (decision 072). Null on an
+// instance that holds none of the three ways out, or whose worker was not given the web app's
+// address: an account's devices are then sent nothing.
 const pushOut = pushOutOf(ENV);
 // Every job the scheduler runs, with its schedule. A queue that is not here cannot be run.
 const jobs: Scheduled[] = [

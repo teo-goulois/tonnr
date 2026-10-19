@@ -139,5 +139,7 @@ export function reportPush(content: ReportPushContent): Push {
     // A newer notice at the break takes the older one's place on the screen.
     tag: `report-${content.breakId}`,
     ...(content.image ? { image: content.image } : {}),
+    // The language of the line Apple shows when the app cannot open it: decision 072.
+    locale: content.locale,
   };
 }

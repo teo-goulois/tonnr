@@ -289,7 +289,7 @@ Set the two values in `apps/server/.env`, then run `docker compose up --detach` 
 - What a push says is encrypted for the browser: the push service learns which of its browsers is written to and when, and nothing of the alert. It learns your web app's address, which signs with your keys.
 - An account is sent 24 pushes a day at most, however many browsers it has. A push that the limit holds back is not sent later.
 - A push waits for the end of the account's quiet hours, as a mail does, and is written then. The push service is told to keep it until the hours it speaks of are over, and for the evening before until midnight: a device that was off until then is not told.
-- A push is given ten seconds for all the browsers of an account together. While it is handed over, the account's alerts, its settings and its subscriptions are held, so that a browser that is forgotten is answered once the push has left. Past the ten seconds its connections are closed, and it is not sent again: it may have left.
+- A push is given ten seconds for all the devices of an account together, browsers and phones. While it is handed over, the account's alerts, its settings and its devices are held, so that a device that is forgotten is answered once the push has left. Past the ten seconds its connections are closed, or for Apple its streams cancelled, and it is not sent again: it may have left.
 - A subscription that its push service says is gone, by a 404 or a 410, is deleted. When an account has none left, the push is given up.
 - The worker's log holds how a push failed, by the push service's status or the kind of failure. It never holds the address of a subscription, which is all it takes to write to that browser.
 - The web app serves its service worker at `/sw.js`, from the same address as its pages. It shows a push and opens its page: it keeps no page for use offline, and answers no request.
@@ -297,16 +297,27 @@ Set the two values in `apps/server/.env`, then run `docker compose up --detach` 
 
 #### To the apps for phones
 
-The app for phones that `apps/native` builds is a device too, by the token Apple's or Google's service gave it, with two keys of its own that a push is encrypted for, as a browser's is: decision 072. The apps in the stores are pushed to by Téo's instance alone, since the key of Apple's team and the Firebase project are his. Yours pushes to the app you build, with a team and a project of your own.
+The app for phones that `apps/native` builds is a device too, by the token Apple's or Google's service gave it, with two keys of its own that a push is encrypted for, as a browser's is: decision 072. The worker pushes to an iPhone through Apple's service, APNs, and to an Android phone through Google's, FCM, with no library and no service between them and your instance. The apps in the stores are pushed to by Téo's instance alone, since the key of Apple's team and the Firebase project are his. Yours pushes to the app you build, with a team and a project of your own.
 
-| Variable         | Who reads it | What it is for                                                                                     |
-| ---------------- | ------------ | -------------------------------------------------------------------------------------------------- |
-| `APNS_TOPIC`     | The API      | The bundle your iOS app is built with. The API takes an iPhone's device of that app, and no other. |
-| `FCM_PROJECT_ID` | The API      | The Firebase project your Android app is built with. The API takes an Android phone's device then. |
+| Variable           | Who reads it        | What it is for                                                                                        |
+| ------------------ | ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `APPLE_TEAM_ID`    | The worker          | The team of the Apple developer account that signs your iOS app: ten letters and figures.             |
+| `APNS_KEY_ID`      | The worker          | The id of the team's key for APNs, which Apple shows beside the key.                                  |
+| `APNS_PRIVATE_KEY` | The worker          | That key: the text of the `.p8` file Apple gives once. Keep it as you keep the API's secret.          |
+| `APNS_TOPIC`       | The API, the worker | The bundle your iOS app is built with. The API takes an iPhone's device of that app, and no other.    |
+| `FCM_PROJECT_ID`   | The API, the worker | The Firebase project your Android app is built with. The API takes an Android phone's device then.    |
+| `FCM_CLIENT_EMAIL` | The worker          | The project's service account the worker sends with, the `client_email` of its JSON file.             |
+| `FCM_PRIVATE_KEY`  | The worker          | That account's private key, the `private_key` of the same file. Keep it as you keep the API's secret. |
 
-- Without either, the API refuses a phone's device with 503, and `GET /v1/push/key` says which apps the instance pushes to. Neither is a secret.
-- A phone's device is kept as a browser's is: its token is answered to no one and logged nowhere, it goes with the session of the app, and it counts among the ten devices of its account.
-- This version's worker pushes to browsers alone, and passes the phones over.
+- Apple's key is made in the developer account, under "Certificates, Identifiers & Profiles", "Keys", with the service "Apple Push Notifications service (APNs)". One key serves Apple's two hosts and every app of the team. Apple gives the file once: keep a copy where you keep your secrets.
+- Google's account is a service account of the Firebase project, given the role "Firebase Cloud Messaging API Admin" and no other, with a key in JSON. Its private key may be written on one line, its line breaks as `\n`, as the JSON file writes them.
+- Set all four of Apple's, or none, and all three of Google's, or none. A worker that holds some of them and not the others does not start, and names what is missing, and so does one whose key is not a key of the kind asked for: Apple's of the curve P-256, Google's RSA. An instance with no pair of keys for browsers still pushes to its apps. It still needs `CORS_ORIGIN`, since a push names the page it opens by the web app's address.
+- Without `APNS_TOPIC` or `FCM_PROJECT_ID`, the API refuses a phone's device of that kind with 503, and `GET /v1/push/key` says which apps the instance pushes to. Neither is a secret. Give the API the two, and the worker all seven: with Docker Compose both read `apps/server/.env`.
+- A phone's device is kept as a browser's is: its token is answered to no one and logged nowhere, it goes with the session of the app, and it counts among the ten devices of its account. The worker sends one push to every device of the account, of every kind, and the 24 pushes of a day are counted for the account, whatever its devices are.
+- The worker needs the way out to `api.push.apple.com` and `api.sandbox.push.apple.com`, over HTTP/2 on port 443, and to `oauth2.googleapis.com` and `fcm.googleapis.com` over `https`. It keeps one connection to each of Apple's hosts while it sends, as Apple asks, and closes it after a minute with nothing to send. It asks Google for an access token once an hour.
+- What a push says is encrypted for the phone, as for a browser. Apple and Google learn the phone's token, when the push left, until when it is worth keeping, how urgent it is and its size. Apple also reads a line that stands in for the push, which says only that an alert has news, in the account's language, and a collapse id that names nothing. Neither learns which alert, spot or break a push is about.
+- A token that Apple says is gone, by a 410, or by a 400 `BadDeviceToken` or `DeviceTokenNotForTopic`, or that Google says is `UNREGISTERED` or `SENDER_ID_MISMATCH`, is deleted with its device. Apple's refusal of the instance's own token, `InvalidProviderToken` or `ExpiredProviderToken`, deletes nothing, and the log names it: check the team, the key and its id.
+- The worker's log holds how a push was not taken, as `push: not taken (apns BadDeviceToken)` or `push: not taken (fcm QUOTA_EXCEEDED)`. It never holds a token.
 
 ### Coming from an earlier version
 

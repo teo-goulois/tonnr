@@ -74,7 +74,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     kept = testForecasts();
     kept.provider.waves = swellBetween(8, 12);
     service = testPusher();
-    out = { pusher: service.pusher, webOrigin: "https://app.example.org" };
+    out = { web: service.pusher, webOrigin: "https://app.example.org" };
     const { db } = database;
     await db.delete(user);
     await db.delete(providerCalls);
@@ -1072,9 +1072,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     let stops = true;
     const stopping = {
       ...out,
-      pusher: {
+      web: {
         // The push service takes the first, and the worker stops before it can write so.
-        send: async (...given: Parameters<PushOut["pusher"]["send"]>) => {
+        send: async (...given: Parameters<typeof service.pusher.send>) => {
           const outcome = await service.pusher.send(...given);
           if (!stops) return outcome;
           stops = false;
@@ -1116,9 +1116,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     let answered = 0;
     const failing = {
       ...out,
-      pusher: {
+      web: {
         // The first fails at once, as a pusher never does. The other takes its time.
-        send: async (...given: Parameters<PushOut["pusher"]["send"]>) => {
+        send: async (...given: Parameters<typeof service.pusher.send>) => {
           if (given[0].endpoint === phone) throw new Error("A fault of the program");
           await new Promise((resolve) => setTimeout(resolve, 200));
           answered += 1;
@@ -1802,7 +1802,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
       await found();
       const stopping = {
         ...out,
-        pusher: {
+        web: {
           send: async () => {
             throw new Error("The worker stopped");
           },

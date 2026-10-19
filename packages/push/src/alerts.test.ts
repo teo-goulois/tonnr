@@ -36,6 +36,7 @@ describe("the push of an alert", () => {
       body: "Le banc : lun. 12 oct., 08:00 à 12:00\nPrévu pour lun. 12 oct., 08:00 : vagues 1,8 m, 11 s, O 270° ; vent 10 nd, E 90°",
       url: "https://app.example.org/fr/app?spot=s1",
       tag: expect.stringMatching(/^[\w-]{22}$/),
+      locale: "fr",
     });
   });
 

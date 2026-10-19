@@ -38,7 +38,19 @@ import { unitPreferences } from "@repo/db/schema/preferences";
 import { type Mail, type MailSettings, type Mailer, MAIL_PROVIDER, createMailer } from "@repo/mail";
 import type { AlertLine, AlertMoment } from "@repo/mail/alert-words";
 import { STARTING_UNITS, alertMail } from "@repo/mail/alerts";
-import { type Push, type PushSettings, type Pusher, createPusher } from "@repo/push";
+import {
+  type ApnsSettings,
+  type AppDevice,
+  type FcmSettings,
+  type Outcome as PushOutcome,
+  type Push,
+  type PushSettings,
+  type Pusher,
+  type WebDevice,
+  createApnsPusher,
+  createFcmPusher,
+  createPusher,
+} from "@repo/push";
 import { alertPush } from "@repo/push/alerts";
 import { and, asc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
@@ -64,10 +76,11 @@ import { wavesNear } from "./stations";
 import { StoreError } from "./store";
 
 // Decision 031, "What is sent, and how" and "Push". A notification gets a delivery for each
-// way out its account has: mail when it said yes to mail, push when a browser of its own
-// subscribed. A delivery says when it may leave, until when it is worth sending, and what became
-// of it. The lighter pass sends what is due. A message is written when it leaves, from what the
-// alert holds then: it may have waited for the end of the account's quiet hours.
+// way out its account has: mail when it said yes to mail, push when a device of its own
+// subscribed, a browser or the app on a phone (decision 072). A delivery says when it may
+// leave, until when it is worth sending, and what became of it. The lighter pass sends what is
+// due. A message is written when it leaves, from what the alert holds then: it may have waited
+// for the end of the account's quiet hours.
 //
 // The two ways out follow the same rules and leave apart: each keeps what it told at a spot,
 // each has its claims and its count for the day, and neither waits for the other. In what
@@ -140,31 +153,98 @@ export function mailOutOf(
   };
 }
 
-/** What the worker sends alert pushes with: the way out, and the web app's address. */
-export type PushOut = { pusher: Pusher; webOrigin: string };
+/**
+ * What the worker sends pushes with, and the web app's address, where a push leads: a way out
+ * for each kind of device, to browsers, to the app on an iPhone through Apple, and to the app on
+ * an Android phone through Google. One that is null or left out is a kind the worker does not
+ * reach: its devices are passed over. Decision 072.
+ */
+export type PushOut = {
+  web: Pusher<WebDevice> | null;
+  ios?: Pusher<AppDevice> | null;
+  android?: Pusher<AppDevice> | null;
+  webOrigin: string;
+};
 
 /**
- * What an instance's settings let the worker send push with. Null without a pair of keys, or
- * without the address of the web app, which names the instance to a push service and is where
- * a push leads: the worker then sends no push. It throws on a pair that is not one, with the
- * web app's address or without, so that the worker does not start with it.
+ * What an instance's settings let the worker send push with: any of its three ways out, the
+ * pair of keys for browsers, Apple's key and Google's account. Null with none of them, or
+ * without the address of the web app, which names the instance to a browser's push service and
+ * is where every push leads: the worker then sends no push. It throws on settings that cannot
+ * be right, with the web app's address or without, so that the worker does not start with them.
  */
 export function pushOutOf(
-  settings: PushSettings & { CORS_ORIGIN?: string | undefined },
+  settings: PushSettings & ApnsSettings & FcmSettings & { CORS_ORIGIN?: string | undefined },
 ): PushOut | null {
   const webOrigin = settings.CORS_ORIGIN ? new URL(settings.CORS_ORIGIN).origin : undefined;
-  const pusher = createPusher(settings, webOrigin);
-  return pusher && webOrigin ? { pusher, webOrigin } : null;
+  const web = createPusher(settings, webOrigin);
+  const ios = createApnsPusher(settings);
+  const android = createFcmPusher(settings);
+  if (!webOrigin || (!web && !ios && !android)) return null;
+  return { web, ios, android, webOrigin };
+}
+
+/** A device of an account, as `push_subscription` keeps it. */
+type DeviceRow = Pick<
+  typeof pushSubscription.$inferSelect,
+  "id" | "kind" | "endpoint" | "token" | "environment" | "appId" | "p256dh" | "auth"
+>;
+
+/** The kinds of device a way out reaches. */
+export const kindsOf = (out: PushOut) =>
+  (
+    [
+      ["web", out.web],
+      ["ios", out.ios],
+      ["android", out.android],
+    ] as const
+  ).flatMap(([kind, way]) => (way ? [kind] : []));
+
+/**
+ * Sends a push to one device by its kind's way out. Null for a device this worker cannot reach:
+ * a kind it has no way out for, or a row that does not hold what its kind is sent with.
+ */
+export function pushTo(
+  out: PushOut,
+  device: DeviceRow,
+  push: Push,
+  keepSeconds: number,
+): Promise<PushOutcome> | null {
+  const { p256dh, auth } = device;
+  if (device.kind === "web") {
+    if (!out.web || device.endpoint === null) return null;
+    return out.web.send({ endpoint: device.endpoint, p256dh, auth }, push, keepSeconds);
+  }
+  const way = device.kind === "ios" ? out.ios : out.android;
+  if (!way || device.token === null || device.appId === null) return null;
+  return way.send(
+    { token: device.token, appId: device.appId, environment: device.environment, p256dh, auth },
+    push,
+    keepSeconds,
+  );
 }
 
 /**
- * The browsers among an account's devices, which the pusher writes to at their address. A phone
- * of decision 072 is passed over: this worker does not push to it.
+ * Sends a push to every device of an account that this worker reaches, at once: together they
+ * take the time one is given, and all of them have answered before anything else happens.
+ * Those it cannot reach are passed over. Says what became of it at each device it was sent to.
  */
-export const browsersOf = <Row extends { kind: string; endpoint: string | null }>(rows: Row[]) =>
-  rows.flatMap((row) =>
-    row.kind === "web" && row.endpoint !== null ? [{ ...row, endpoint: row.endpoint }] : [],
-  );
+export async function pushToAll(
+  out: PushOut,
+  devices: readonly DeviceRow[],
+  push: Push,
+  keepSeconds: number,
+) {
+  const sent = devices.flatMap((device) => {
+    const sending = pushTo(out, device, push, keepSeconds);
+    return sending ? [{ device, sending }] : [];
+  });
+  const settled = await Promise.allSettled(sent.map((one) => one.sending));
+  return settled.map((one, index) => {
+    if (one.status === "rejected") throw one.reason;
+    return { device: sent[index]!.device, outcome: one.value };
+  });
+}
 
 /** A way out of a notification. */
 export type Channel = (typeof DELIVERY_CHANNELS)[number];
@@ -194,19 +274,29 @@ const nameAt = (told: ToldStretch[], hours: { start: Date; end: Date }) =>
       told.find((one) => overlaps(interval(one), hours)) ?? { start: hours.start.toISOString() },
   );
 
-// Whether a browser of the account is subscribed: an account that has one is told by push.
-async function hasDevice(tx: Transaction, userId: string) {
+// Whether a device of the account is subscribed, of a kind the worker reaches when it is said:
+// an account that has one is told by push.
+async function hasDevice(
+  tx: Transaction,
+  userId: string,
+  kinds?: readonly (typeof pushSubscription.$inferSelect)["kind"][],
+) {
   const [device] = await tx
     .select({ id: pushSubscription.id })
     .from(pushSubscription)
-    .where(eq(pushSubscription.userId, userId))
+    .where(
+      and(
+        eq(pushSubscription.userId, userId),
+        kinds ? inArray(pushSubscription.kind, [...kinds]) : undefined,
+      ),
+    )
     .limit(1);
   return device !== undefined;
 }
 
 /**
  * Puts a notification on its way out, by each way its account has: mail when it said yes to
- * mail, push when a browser of its own is subscribed. It may leave after the account's quiet
+ * mail, push when a device of its own is subscribed. It may leave after the account's quiet
  * hours, and is worth sending until the hours it speaks of are over, or, for the evening
  * before, until the day it lists begins. What it says is decided when it leaves, for each way
  * out apart.
@@ -786,8 +876,11 @@ async function takeBy(
     }
     // An address that is not checked yet may be before the hours are over: its mail waits.
     if (channel === "mail" && !account.emailVerified) return isOver ? done() : wait(again);
-    // An account is told by push while a browser of its own is subscribed, and no longer.
-    if (channel === "push" && !(await hasDevice(tx, made.userId))) return done();
+    // An account is told by push while a device of its own is subscribed that this worker
+    // reaches, and no longer: a push that has no device it can reach is given up.
+    if (channel === "push" && "web" in out && !(await hasDevice(tx, made.userId, kindsOf(out)))) {
+      return done();
+    }
 
     let said: Said | null;
     let later: Taken["later"] = null;
@@ -957,7 +1050,7 @@ async function takeBy(
 /**
  * Hands a message that was written to be leaving to its way out, while the account, its alerts
  * and its settings are held: an account that stops its mails, or is kept out, waits for the
- * message that is leaving, and once it is answered none leaves. A push also holds the browsers
+ * message that is leaving, and once it is answered none leaves. A push also holds the devices
  * it goes to: one that is forgotten, removed, or taken by another account waits for it too.
  *
  * What the message was written from is read again here. When any of it has changed since, a
@@ -970,19 +1063,20 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
   const { channel } = taken;
   return db.transaction(async (tx): Promise<Outcome> => {
     const { account, alerts, settingsRow } = await hold(tx, taken);
-    // The browsers of the account, held after its settings and until the push has left. The
-    // API takes them last too, and holds nothing else with them.
-    const devices =
+    // The devices of the account, of every kind, held after its settings and until the push
+    // has left. The API takes them last too, and holds nothing else with them. Those of a kind
+    // this worker does not reach are passed over.
+    const held =
       channel === "push"
-        ? browsersOf(
-            await tx
-              .select()
-              .from(pushSubscription)
-              .where(eq(pushSubscription.userId, taken.userId))
-              .orderBy(asc(pushSubscription.id))
-              .for("update"),
-          )
+        ? await tx
+            .select()
+            .from(pushSubscription)
+            .where(eq(pushSubscription.userId, taken.userId))
+            .orderBy(asc(pushSubscription.id))
+            .for("update")
         : [];
+    const reached = "web" in out ? kindsOf(out) : null;
+    const devices = reached ? held.filter((device) => reached.includes(device.kind)) : held;
     const { stamp } = await writtenFrom(tx, channel, taken, { alerts, settingsRow });
     const sending = delivery(notificationId, channel, "sending");
     const [mine] = await tx.select().from(notificationDelivery).where(sending);
@@ -1004,7 +1098,7 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
     };
 
     // The account stopped this way out or was kept out between the two steps: its mails, or
-    // the last of its browsers.
+    // the last of its devices this worker reaches.
     const isStopped =
       taken.channel === "mail"
         ? !account?.emailVerified ||
@@ -1027,19 +1121,15 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
     let isTaken: boolean;
     if (taken.channel === "mail" && "mailer" in out) {
       isTaken = (await out.mailer.send(taken.mail)) === "accepted";
-    } else if (taken.channel === "push" && "pusher" in out) {
-      // To every browser at once: together they take the time one is given. All of them have
-      // answered before anything else happens: none is left to send once the account is let go.
+    } else if (taken.channel === "push" && "web" in out) {
+      // To every device at once, each by its kind's way out: together they take the time one is
+      // given. All of them have answered before anything else happens: none is left to send
+      // once the account is let go.
       const keepSeconds = (taken.keepUntil.getTime() - now.getTime()) / 1000;
-      const settled = await Promise.allSettled(
-        devices.map((device) => out.pusher.send(device, taken.push, keepSeconds)),
-      );
-      const answers = settled.map((one) => {
-        if (one.status === "rejected") throw one.reason;
-        return one.value;
-      });
-      // A browser whose push service says that its subscription is no more is forgotten.
-      const gone = devices.filter((_, index) => answers[index] === "gone");
+      const results = await pushToAll(out, devices, taken.push, keepSeconds);
+      const answers = results.map((one) => one.outcome);
+      // A device whose service says that its subscription or its token is no more is forgotten.
+      const gone = results.filter((one) => one.outcome === "gone").map((one) => one.device);
       if (gone.length > 0) {
         await tx.delete(pushSubscription).where(
           inArray(
@@ -1048,12 +1138,12 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
           ),
         );
       }
-      // None is left: the account has no subscription any more, and nothing was told.
-      if (gone.length === devices.length) return giveUp("expired");
+      // None is left: the account has no device any more, and nothing was told.
+      if (gone.length === results.length) return giveUp("expired");
       isTaken = answers.includes("taken");
-      // Every push service said no: it did not leave, and nothing was told. It is not tried
-      // again, and the alert's next push says what this one had to say. A push service that
-      // did not answer may have taken it: that one is told, as a mail is.
+      // Every service said no: it did not leave, and nothing was told. It is not tried again,
+      // and the alert's next push says what this one had to say. A service that did not answer
+      // may have taken it: that one is told, as a mail is.
       if (!isTaken && !answers.includes("failed")) {
         await tx
           .update(notificationDelivery)
@@ -1091,7 +1181,7 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
  * has no way out for mail.
  */
 export const take = (db: Database, out: MailOut | PushOut | null, notificationId: string) =>
-  takeBy(db, out && "pusher" in out ? "push" : "mail", out, notificationId);
+  takeBy(db, out && "web" in out ? "push" : "mail", out, notificationId);
 
 /** The second step: hands over what `take` wrote, by the way out it wrote it for. */
 export const hand = handBy;

@@ -38,7 +38,7 @@ import {
 import { union } from "drizzle-orm/pg-core";
 import { Effect } from "effect";
 
-import { type PushOut, browsersOf } from "./deliveries";
+import { type PushOut, kindsOf, pushToAll } from "./deliveries";
 import type { Transaction } from "./kept";
 import { type Done, WRITE_SECONDS } from "./runs";
 import { StoreError } from "./store";
@@ -53,7 +53,7 @@ import { StoreError } from "./store";
 //
 // A push leaves in two steps, as an alert's does (decision 031). The first decides what it says,
 // counts it against the account's day once, and writes that it is leaving. The second holds the
-// account, its settings, the notice, the reports it speaks of and the account's browsers, in that
+// account, its settings, the notice, the reports it speaks of and the account's devices, in that
 // order, which is the API's, reads again what may stop it, and hands it over: a flag, an
 // operator's decision or a deletion of one of those reports waits for it, and none leaves once
 // they are answered. A worker that stops between the two leaves it leaving, which is taken as
@@ -165,7 +165,7 @@ export function isWorthTelling(report: { createdAt: Date; publishedAt: Date | nu
  * from the last three hours, or begins one. Says how many accounts it was told to. All of it is
  * one transaction: a worker that stops tells none of it, and the next run tells it whole.
  */
-async function announce(db: Database, reportId: string, canPush: boolean) {
+async function announce(db: Database, reportId: string, kinds: readonly PushKind[]) {
   return db.transaction(async (tx) => {
     await readCatalogue(tx);
     const [found] = await tx
@@ -238,14 +238,20 @@ async function announce(db: Database, reportId: string, canPush: boolean) {
       const joined = new Set(open.map((one) => one.userId));
       const fresh = part.filter((userId) => !joined.has(userId));
       if (fresh.length === 0) continue;
-      // Who can be pushed to, and when: at once, or at the end of their quiet hours.
+      // Who can be pushed to, on a device this worker reaches, and when: at once, or at the end
+      // of their quiet hours.
       const [settingsRows, devices] = await Promise.all([
         tx.select().from(alertSettings).where(inArray(alertSettings.userId, fresh)),
-        canPush
+        kinds.length > 0
           ? tx
               .selectDistinct({ userId: pushSubscription.userId })
               .from(pushSubscription)
-              .where(inArray(pushSubscription.userId, fresh))
+              .where(
+                and(
+                  inArray(pushSubscription.userId, fresh),
+                  inArray(pushSubscription.kind, [...kinds]),
+                ),
+              )
           : Promise.resolve([]),
       ]);
       const pushed = new Set(devices.map((one) => one.userId));
@@ -274,8 +280,13 @@ async function announce(db: Database, reportId: string, canPush: boolean) {
   });
 }
 
-/** Tells the reports shown since the last run, the oldest first. */
-export async function announceReports(db: Database, canPush: boolean) {
+type PushKind = (typeof pushSubscription.$inferSelect)["kind"];
+
+/**
+ * Tells the reports shown since the last run, the oldest first. A notice is pushed to an account
+ * that has a device of one of `kinds`, those the worker reaches.
+ */
+export async function announceReports(db: Database, kinds: readonly PushKind[]) {
   const waiting = await db
     .select({ id: surfReport.id })
     .from(surfReport)
@@ -283,7 +294,7 @@ export async function announceReports(db: Database, canPush: boolean) {
     .orderBy(asc(surfReport.createdAt), asc(surfReport.id))
     .limit(TOLD_AT_MOST);
   let accounts = 0;
-  for (const { id } of waiting) accounts += await announce(db, id, canPush);
+  for (const { id } of waiting) accounts += await announce(db, id, kinds);
   return { reports: waiting.length, accounts };
 }
 
@@ -481,7 +492,8 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
 
 /**
  * The second step: holds the account, its settings, the notice, its reports and the account's
- * browsers, reads again what may have stopped the push, and hands it to every browser at once.
+ * devices, reads again what may have stopped the push, and hands it to every device it reaches
+ * at once, each by its kind's way out.
  */
 async function hand(
   db: Database,
@@ -497,15 +509,17 @@ async function hand(
     if (!held || held.notice.pushState !== "sending") return "skipped";
     const now = new Date();
     const shown = await shownOf(tx, held.notice, now, true);
-    // The browsers of the account, held last, as the API holds them, until the push has left.
-    const devices = browsersOf(
+    // The devices of the account, of every kind, held last, as the API holds them, until the
+    // push has left. Those of a kind this worker does not reach are passed over.
+    const reached = kindsOf(out);
+    const devices = (
       await tx
         .select()
         .from(pushSubscription)
         .where(eq(pushSubscription.userId, taken.userId))
         .orderBy(asc(pushSubscription.id))
-        .for("update"),
-    );
+        .for("update")
+    ).filter((device) => reached.includes(device.kind));
     const sending = and(eq(reportNotice.id, noticeId), eq(reportNotice.pushState, "sending"));
     const settle = async (state: Exclude<Outcome, "skipped" | "held">) => {
       await tx.update(reportNotice).set({ pushState: state, settledAt: now }).where(sending);
@@ -546,16 +560,11 @@ async function hand(
       image: await imageOf(tx, storage, newest.id, keepUntil),
     });
     const keepSeconds = Math.max(60, (keepUntil.getTime() - now.getTime()) / 1000);
-    // To every browser at once: all of them have answered before anything else happens.
-    const settled = await Promise.allSettled(
-      devices.map((device) => out.pusher.send(device, push, keepSeconds)),
-    );
-    const answers = settled.map((one) => {
-      if (one.status === "rejected") throw one.reason;
-      return one.value;
-    });
-    // A browser whose push service says that its subscription is no more is forgotten.
-    const gone = devices.filter((_, index) => answers[index] === "gone");
+    // To every device at once: all of them have answered before anything else happens.
+    const results = await pushToAll(out, devices, push, keepSeconds);
+    const answers = results.map((one) => one.outcome);
+    // A device whose service says that its subscription or its token is no more is forgotten.
+    const gone = results.filter((one) => one.outcome === "gone").map((one) => one.device);
     if (gone.length > 0) {
       await tx.delete(pushSubscription).where(
         inArray(
@@ -564,10 +573,10 @@ async function hand(
         ),
       );
     }
-    // Every browser is gone: nothing was told.
-    if (gone.length === devices.length) return settle("expired");
-    // A push service that took it, or that did not answer and may have: told. Every one said
-    // no: it did not leave, and is not tried again.
+    // Every device is gone: nothing was told.
+    if (gone.length === results.length) return settle("expired");
+    // A service that took it, or that did not answer and may have: told. Every one said no: it
+    // did not leave, and is not tried again.
     if (answers.includes("taken") || answers.includes("failed")) return settle("sent");
     return settle("failed");
   });
@@ -603,7 +612,7 @@ export async function runReportNotices(
   ways: { push: PushOut | null; storage: Storage | null },
 ): Promise<ReportNoticesRun> {
   const run: ReportNoticesRun = {
-    ...(await announceReports(db, ways.push !== null)),
+    ...(await announceReports(db, ways.push ? kindsOf(ways.push) : [])),
     sent: 0,
     failed: 0,
     held: 0,

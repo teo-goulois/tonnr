@@ -64,7 +64,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(AT);
     service = testPusher();
-    out = { pusher: service.pusher, webOrigin: "https://app.example.org" };
+    out = { web: service.pusher, webOrigin: "https://app.example.org" };
     storage = testStorage();
     const db = database.db;
     await db.delete(user);

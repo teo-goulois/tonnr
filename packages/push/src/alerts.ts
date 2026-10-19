@@ -134,5 +134,7 @@ export function alertPush(content: AlertPushContent): Push {
         ? `${content.page}/app?${place.placeQuery ?? `spot=${encodeURIComponent(place.spotId)}`}`
         : `${content.page}/app?panel=alerts`,
     tag: tagOf(content),
+    // The language of the line Apple shows when the app cannot open it: decision 072.
+    locale: content.locale,
   };
 }

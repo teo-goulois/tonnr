@@ -27,6 +27,7 @@ describe("the push of a notice of reports", () => {
       url: "https://app.example.org/fr/app?break=b1&tab=reports&notice=n1",
       tag: "report-b1",
       image: "https://bucket.example.org/m/1/0/thumb.webp?X-Amz-Signature=abc",
+      locale: "fr",
     });
   });
 
@@ -75,6 +76,7 @@ describe("the push of a notice of reports", () => {
     );
     const [first, second] = service.sent();
     expect(first?.push.image).toBe(push.image);
-    expect(second?.push).toEqual({ ...push, image: undefined });
+    // A browser is sent the words, and nothing of what an app reads besides.
+    expect(second?.push).toEqual({ ...push, image: undefined, locale: undefined });
   });
 });
