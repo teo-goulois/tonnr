@@ -71,6 +71,7 @@ export function PrivacyPage() {
       <LegalSection title={m.privacy_alerts_title()}>
         <p>{m.privacy_alerts_mail()}</p>
         <p>{m.privacy_alerts_push()}</p>
+        <p>{m.privacy_alerts_apps()}</p>
       </LegalSection>
 
       <LegalSection title={m.privacy_search_title()}>

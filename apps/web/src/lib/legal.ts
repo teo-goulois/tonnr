@@ -53,4 +53,11 @@ export const RECIPIENTS: {
   { name: "OpenFreeMap", does: m.privacy_does_tiles },
   { name: "Copernicus Marine", does: m.privacy_does_sea, where: m.privacy_where_eu },
   { name: m.privacy_push_services, does: m.privacy_does_push },
+  // The pushes to the apps for phones, encrypted for the phone: decision 072.
+  { name: "Apple (APNs)", does: m.privacy_does_push_apple, where: m.privacy_where_us },
+  {
+    name: "Google (Firebase Cloud Messaging)",
+    does: m.privacy_does_push_google,
+    where: m.privacy_where_us,
+  },
 ];
