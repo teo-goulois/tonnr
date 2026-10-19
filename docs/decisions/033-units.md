@@ -1,6 +1,6 @@
 # 033. The units a reader chooses
 
-Status: accepted on 2026-10-11. Téo asked for it that day: an account's settings hold its units, and every screen follows them. It began with the wind speed, and he asked the same evening for every measurement.
+Status: accepted on 2026-10-11. Téo asked for it that day: an account's settings hold its units, and every screen follows them. It began with the wind speed, and he asked the same evening for every measurement. [Decision 069](069-an-app-for-phones.md) amended it on 2026-10-19: `getUnits` and `saveUnits` belong to `v1`, at `GET` and `PATCH /v1/preferences/units`, since the app for phones reads them too, and the saved shortcuts stay outside any version.
 
 ## Context
 

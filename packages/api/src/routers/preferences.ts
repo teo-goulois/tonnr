@@ -122,8 +122,9 @@ async function isThere(db: Database, userId: string, kind: RecentKind, id: strin
   return found !== undefined;
 }
 
-// What the web app keeps in the caller's account. It is not part of the public API.
-export const preferencesRouter = {
+// What the web app alone keeps in the caller's account: the keyboard's shortcuts, which a phone
+// has no use for. It is not part of the public API, and stays outside any version: decision 069.
+export const shortcutsRouter = {
   getShortcuts: protectedProcedure
     // Null until the caller saves shortcuts for the first time.
     .output(savedShortcutsSchema.nullable())
@@ -151,8 +152,26 @@ export const preferencesRouter = {
         .returning({ overrides: savedShortcuts.overrides, savedAt: savedShortcuts.savedAt });
       return saved!;
     }),
+};
 
+const PREFERENCES = ["Preferences"];
+
+// What the caller chose of how the apps write and draw, and what it looked at last, which every
+// app of the instance reads, the web app and the app for phones alike. It belongs to version 1,
+// since an app that is installed keeps calling it for months: decision 069.
+export const preferencesRouter = {
   getUnits: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/preferences/units",
+      summary: "The units the caller reads measurements in",
+      description:
+        "A wind speed, a height, a temperature, a distance and a rain. Null until the caller " +
+        "chooses: an app then reads in knots, metres, Celsius, kilometres and millimetres. The " +
+        "API's own answers stay in SI units: only what an app writes on a screen follows " +
+        "these. Decision 033.",
+      tags: PREFERENCES,
+    })
     // Null until the caller chooses units: an app then reads in the units it starts with.
     .output(unitsSchema.nullable())
     .handler(async ({ context }) => {
@@ -165,6 +184,16 @@ export const preferencesRouter = {
 
   saveUnits: protectedProcedure
     .meta({ analytics: "units_updated" })
+    .route({
+      method: "PATCH",
+      path: "/preferences/units",
+      summary: "Change some of the caller's units",
+      description:
+        "The units the call names change, and the others stay as they are: an app that knows " +
+        "fewer measurements than the API does not undo the choice of another. Answers every " +
+        "unit.",
+      tags: PREFERENCES,
+    })
     // The units the caller changes. The others stay as they are: an app that knows fewer units
     // than the API does not undo the choice of another.
     .input(unitsSchema.partial())
@@ -180,6 +209,15 @@ export const preferencesRouter = {
     }),
 
   getDisplay: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/preferences/display",
+      summary: "How the caller asks the apps to draw",
+      description:
+        "How much of the forecast a panel shows: `essentials`, `details` or `everything`. Null " +
+        "until the caller chooses: an app then shows everything. Decision 061.",
+      tags: PREFERENCES,
+    })
     // Null until the caller chooses how the apps draw: an app then draws as it starts.
     .output(displaySchema.nullable())
     .handler(async ({ context }) => {
@@ -192,6 +230,13 @@ export const preferencesRouter = {
 
   saveDisplay: protectedProcedure
     .meta({ analytics: "density_updated" })
+    .route({
+      method: "PATCH",
+      path: "/preferences/display",
+      summary: "Change how the caller asks the apps to draw",
+      description: "What the call names changes, and the rest stays as it is.",
+      tags: PREFERENCES,
+    })
     // What the caller changes. The rest stays as it is, as the units do.
     .input(displaySchema.partial())
     .output(displaySchema)
@@ -206,10 +251,29 @@ export const preferencesRouter = {
     }),
 
   getRecents: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/preferences/recents",
+      summary: "What the caller looked at last",
+      description:
+        `A station, a surf break or a spot of the caller's own, the last first, ${RECENTS_MOST} ` +
+        "at most, with its name and its place. One that is gone is left out. Decision 042.",
+      tags: PREFERENCES,
+    })
     .output(z.array(recentSchema))
     .handler(({ context }) => recentsOf(context.db, context.session.user.id)),
 
   saveRecent: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/preferences/recents",
+      summary: "Say that the caller opened a station, a break or a spot",
+      description:
+        "It comes first, and what was looked at before it follows: the oldest leaves when " +
+        `there are more than ${RECENTS_MOST}. Answers the list. A station or a break the ` +
+        "instance does not have, or a spot that is not the caller's, is refused with 404.",
+      tags: PREFERENCES,
+    })
     // The caller opened this. It comes first, and what was looked at before it follows.
     .input(z.object({ kind: z.enum(RECENT_KINDS), id: z.string().min(1).max(200) }))
     .output(z.array(recentSchema))
@@ -246,6 +310,13 @@ export const preferencesRouter = {
 
   clearRecents: protectedProcedure
     .meta({ analytics: "recent_places_cleared" })
+    .route({
+      method: "DELETE",
+      path: "/preferences/recents",
+      summary: "Forget what the caller looked at last",
+      description: "Answers the empty list.",
+      tags: PREFERENCES,
+    })
     .output(z.array(recentSchema))
     .handler(async ({ context }) => {
       await context.db.delete(recentView).where(eq(recentView.userId, context.session.user.id));

@@ -27,7 +27,7 @@ import { mediaRouter } from "./media";
 import { notificationsRouter } from "./notifications";
 import { pagesRouter } from "./pages";
 import { placesRouter } from "./places";
-import { preferencesRouter } from "./preferences";
+import { preferencesRouter, shortcutsRouter } from "./preferences";
 import { profileRouter } from "./profile";
 import { privateCatalogueRouter } from "./private-catalogue";
 import { publicationsRouter } from "./publications";
@@ -50,8 +50,8 @@ import { visitorsRouter } from "./visitors";
 // 047 say which an agent calls as a tool of the MCP server, decision 049 how an operator
 // keeps the catalogue of breaks, and decision 057 what the public pages of the web app read, and
 // decision 063 what an account says of itself as a surfer, decision 066 the photos and the
-// videos of its sessions, decision 067 the reports of the waves at a break, and decision 068 what
-// an account is told of them.
+// videos of its sessions, decision 067 the reports of the waves at a break, decision 068 what
+// an account is told of them, and decision 069 what the apps read of an account's preferences.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -78,6 +78,7 @@ export const v1Router = {
   notifications: notificationsRouter,
   pages: pagesRouter,
   places: placesRouter,
+  preferences: preferencesRouter,
   profile: profileRouter,
   privateCatalogue: privateCatalogueRouter,
   publications: publicationsRouter,
@@ -96,7 +97,8 @@ export const v1Router = {
 
 export const appRouter = {
   v1: v1Router,
-  preferences: preferencesRouter,
+  // The keyboard's shortcuts, which the web app alone keeps: decision 069.
+  preferences: shortcutsRouter,
   healthCheck: publicProcedure.handler(() => {
     return "OK";
   }),

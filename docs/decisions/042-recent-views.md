@@ -1,6 +1,6 @@
 # 042. What was looked at last, found again
 
-Status: accepted on 2026-10-12. Téo asked for it that day: the surf breaks looked at lately stand out on the map, so that they are easier to reach, and an account keeps them.
+Status: accepted on 2026-10-12. Téo asked for it that day: the surf breaks looked at lately stand out on the map, so that they are easier to reach, and an account keeps them. [Decision 069](069-an-app-for-phones.md) amended it on 2026-10-19: `getRecents`, `saveRecent` and `clearRecents` belong to `v1`, at `/v1/preferences/recents`, since the app for phones reads them too.
 
 ## Context
 

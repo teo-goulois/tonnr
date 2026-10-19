@@ -11,7 +11,9 @@ import { formatNumber } from "./format";
  * follows the choice. It is kept in the account, and in the browser so that a page opens in it.
  * Decision 033.
  */
-export type Units = NonNullable<Awaited<ReturnType<AppRouterClient["preferences"]["getUnits"]>>>;
+export type Units = NonNullable<
+  Awaited<ReturnType<AppRouterClient["v1"]["preferences"]["getUnits"]>>
+>;
 export type WindUnit = Units["windSpeed"];
 export type HeightUnit = Units["height"];
 export type TemperatureUnit = Units["temperature"];

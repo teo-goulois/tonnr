@@ -11,7 +11,7 @@ import { m } from "@/paraglide/messages.js";
  * every device, and in the browser, so that a page opens in it. Decision 061.
  */
 export type Density = NonNullable<
-  Awaited<ReturnType<AppRouterClient["preferences"]["getDisplay"]>>
+  Awaited<ReturnType<AppRouterClient["v1"]["preferences"]["getDisplay"]>>
 >["density"];
 
 // From the least to the most: "less" and "more" go one step along it.

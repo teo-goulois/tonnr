@@ -421,12 +421,64 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["/lists", "get"],
       ["/spots", "post"],
       ["/notifications", "get"],
+      ["/preferences/units", "get"],
+      ["/preferences/units", "patch"],
+      ["/preferences/display", "get"],
+      ["/preferences/display", "patch"],
+      ["/preferences/recents", "get"],
+      ["/preferences/recents", "post"],
+      ["/preferences/recents", "delete"],
     ] as const) {
       expect(spec.paths[path]?.[method]?.security, `${method} ${path}`).toEqual([{ session: [] }]);
     }
     // What the link of a mail does asks for neither.
     expect(spec.paths["/alert-mails/off"]?.post?.security).toEqual([]);
     expect(spec.paths["/alert-mails/off"]?.get?.security).toEqual([]);
+  });
+
+  it("keeps an account's units, density and recent views in v1, for the web app and the app for phones alike", async () => {
+    const cookie = await signUp("surfer");
+
+    const changed = await send("PATCH", "/v1/preferences/units", {
+      cookie,
+      app: PHONE,
+      body: { windSpeed: "kmh" },
+    });
+    expect(changed.status).toBe(200);
+    expect(await bodyOf(changed)).toMatchObject({ windSpeed: "kmh", height: "m" });
+    expect(
+      (
+        await send("PATCH", "/v1/preferences/display", {
+          cookie,
+          origin: APP,
+          body: { density: "essentials" },
+        })
+      ).status,
+    ).toBe(200);
+
+    // What one app wrote, the other reads, over both transports.
+    const units = await send("GET", "/v1/preferences/units", { cookie, origin: APP });
+    expect(await bodyOf(units)).toMatchObject({ windSpeed: "kmh" });
+    const display = await send("POST", "/rpc/v1/preferences/getDisplay", {
+      cookie,
+      app: PHONE,
+      body: {},
+    });
+    expect(await bodyOf(display)).toEqual({ json: { density: "essentials" } });
+    const recents = await send("DELETE", "/v1/preferences/recents", { cookie, app: PHONE });
+    expect([recents.status, await bodyOf(recents)]).toEqual([200, []]);
+
+    // They left the procedures outside any version. The keyboard's shortcuts stay there.
+    expect(
+      (await send("POST", "/rpc/preferences/getUnits", { cookie, origin: APP, body: {} })).status,
+    ).toBe(404);
+    expect(
+      (await send("POST", "/rpc/preferences/getShortcuts", { cookie, origin: APP, body: {} }))
+        .status,
+    ).toBe(200);
+    // A key reads none of them.
+    const key = (await makeKey(await signUpOperator())).key;
+    expect((await send("GET", "/v1/preferences/units", { key })).status).toBe(403);
   });
 
   it("lets the web app's pages call, with their cookie and every method the API has", async () => {

@@ -34,7 +34,7 @@ An app on a phone sends no `Origin` and no `Referer`, and keeps no cookie by its
 ### A version that installed apps keep calling
 
 - `v1` is released at the first build given to testers outside: TestFlight's external testing or a closed test of Google Play. From then on it only grows, as decision 003 says, since an app that is installed keeps calling for months.
-- Before then, what the app reads of an account's preferences moves into `v1`: its units, its density and what it looked at last, which sit under `preferences` today and outside any version. The keyboard's shortcuts stay where they are: a phone has no keyboard. A test then fails when a procedure of `v1` disappears.
+- Before then, what the app reads of an account's preferences moves into `v1`: its units, its density and what it looked at last, which sat under `preferences` and outside any version. They are `v1.preferences`, with the same names, at `/v1/preferences/units`, `/display` and `/recents`, and the web app calls them there. The keyboard's shortcuts stay where they are, under `preferences` outside any version: a phone has no keyboard. A test then fails when a procedure of `v1` disappears.
 - `v1.clients.get`, which anyone may call, says the oldest build of each platform the instance still answers, and where each store sells the app. An app older than that asks to be updated, and goes no further. It is to the app what the toast of a new deployment is to the web ([decision 021](021-web-stages.md)).
 
 ### The interface
@@ -64,4 +64,4 @@ An app on a phone sends no `Origin` and no `Referer`, and keeps no cookie by its
 - `v1` stops changing freely at the first test outside. A field renamed after that is a new version.
 - A screen exists twice, as decision 014 said, and what AGENTS.md asks of a change in the same change, the messages in four languages, the landing's cards, the analytics' inventory, `/privacy`, now asks it of two clients.
 - The workspace builds the app beside the API: `pnpm run check` checks it, and the API's and the worker's images still install none of it.
-- Built on 2026-10-19: the API and the sign-in library take the app's origin, as a write with a cookie, a visitor, and analytics that name the platform (`APP_ORIGINS`, `expo-origin`, `X-App`). Not built yet, in this order: the preferences moved into `v1`, `v1.clients.get`, the proxy's path for the app's analytics, then the app itself.
+- Built on 2026-10-19: the API and the sign-in library take the app's origin, as a write with a cookie, a visitor, and analytics that name the platform (`APP_ORIGINS`, `expo-origin`, `X-App`), and the preferences the app reads are in `v1`, where the web app calls them. Not built yet, in this order: `v1.clients.get`, the proxy's path for the app's analytics, then the app itself.

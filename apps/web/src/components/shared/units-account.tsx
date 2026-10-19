@@ -14,7 +14,7 @@ import { orpc } from "@/utils/orpc";
 export function UnitsFromAccount() {
   const { data: session } = authClient.useSession();
   const saved = useQuery(
-    orpc.preferences.getUnits.queryOptions({
+    orpc.v1.preferences.getUnits.queryOptions({
       enabled: Boolean(session),
       // An API from before the units answers with an error: the browser's own then stand.
       retry: false,
@@ -41,8 +41,8 @@ export function useSaveUnits() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const save = useMutation(
-    orpc.preferences.saveUnits.mutationOptions({
-      onSuccess: (data) => queryClient.setQueryData(orpc.preferences.getUnits.queryKey(), data),
+    orpc.v1.preferences.saveUnits.mutationOptions({
+      onSuccess: (data) => queryClient.setQueryData(orpc.v1.preferences.getUnits.queryKey(), data),
     }),
   );
 

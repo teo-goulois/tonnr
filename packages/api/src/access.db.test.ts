@@ -117,16 +117,9 @@ const takesASession = everyProcedure.filter(
 
 // The procedures any account may call with its session: what the account owns.
 const ANSWERS_AN_ACCOUNT = [
-  // What an account looked at last is its own to read and to clear: decision 042.
-  "preferences.clearRecents",
-  "preferences.getDisplay",
-  "preferences.getRecents",
+  // The keyboard's shortcuts, which the web app alone keeps, outside any version: decision 069.
   "preferences.getShortcuts",
-  "preferences.getUnits",
-  "preferences.saveDisplay",
-  "preferences.saveRecent",
   "preferences.saveShortcuts",
-  "preferences.saveUnits",
   "privateData",
   "v1.account.get",
   "v1.account.sendVerification",
@@ -186,6 +179,15 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.reportNotices.list",
   "v1.reportNotices.markRead",
   "v1.places.search",
+  // An account's units and density, which every app reads (decisions 033 and 061), and what it
+  // looked at last, its own to read and to clear (decision 042).
+  "v1.preferences.clearRecents",
+  "v1.preferences.getDisplay",
+  "v1.preferences.getRecents",
+  "v1.preferences.getUnits",
+  "v1.preferences.saveDisplay",
+  "v1.preferences.saveRecent",
+  "v1.preferences.saveUnits",
   // What an account said of itself as a surfer is its own: decision 063.
   "v1.profile.get",
   "v1.profile.putOff",

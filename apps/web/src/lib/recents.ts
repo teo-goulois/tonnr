@@ -7,7 +7,7 @@ import { useSyncExternalStore } from "react";
  * too, so that a page opens with it and a visitor has one. Decision 042.
  */
 export type Recent = Omit<
-  Awaited<ReturnType<AppRouterClient["preferences"]["getRecents"]>>[number],
+  Awaited<ReturnType<AppRouterClient["v1"]["preferences"]["getRecents"]>>[number],
   "viewedAt"
 >;
 

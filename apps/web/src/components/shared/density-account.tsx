@@ -15,7 +15,7 @@ import { orpc } from "@/utils/orpc";
 export function DisplayFromAccount() {
   const { data: session } = authClient.useSession();
   const saved = useQuery(
-    orpc.preferences.getDisplay.queryOptions({
+    orpc.v1.preferences.getDisplay.queryOptions({
       enabled: Boolean(session),
       // An API from before the display answers with an error: the browser's own then stands.
       retry: false,
@@ -42,8 +42,9 @@ export function useSaveDensity() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const save = useMutation(
-    orpc.preferences.saveDisplay.mutationOptions({
-      onSuccess: (data) => queryClient.setQueryData(orpc.preferences.getDisplay.queryKey(), data),
+    orpc.v1.preferences.saveDisplay.mutationOptions({
+      onSuccess: (data) =>
+        queryClient.setQueryData(orpc.v1.preferences.getDisplay.queryKey(), data),
     }),
   );
 

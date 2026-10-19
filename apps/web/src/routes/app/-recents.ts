@@ -20,9 +20,9 @@ type Asked = {
 export function useRecentViews({ account, isReady, viewed }: Asked) {
   const recents = useRecents();
   const queryClient = useQueryClient();
-  const key = orpc.preferences.getRecents.queryKey();
+  const key = orpc.v1.preferences.getRecents.queryKey();
   const kept = useQuery(
-    orpc.preferences.getRecents.queryOptions({
+    orpc.v1.preferences.getRecents.queryOptions({
       enabled: account !== undefined,
       // An API from before the recent views answers with an error: the browser's own then stand.
       retry: false,
@@ -34,10 +34,10 @@ export function useRecentViews({ account, isReady, viewed }: Asked) {
     if (kept.data) setRecents(kept.data);
   }, [kept.data]);
 
-  const keep = (data: Awaited<ReturnType<typeof orpc.preferences.getRecents.call>>) =>
+  const keep = (data: Awaited<ReturnType<typeof orpc.v1.preferences.getRecents.call>>) =>
     queryClient.setQueryData(key, data);
-  const save = useMutation(orpc.preferences.saveRecent.mutationOptions({ onSuccess: keep }));
-  const clear = useMutation(orpc.preferences.clearRecents.mutationOptions({ onSuccess: keep }));
+  const save = useMutation(orpc.v1.preferences.saveRecent.mutationOptions({ onSuccess: keep }));
+  const clear = useMutation(orpc.v1.preferences.clearRecents.mutationOptions({ onSuccess: keep }));
   const saveView = save.mutate;
 
   // A view is said once, when what is open changes or when another account reads it.
