@@ -140,6 +140,19 @@ const bezier = (value) => {
   if (!found) throw new Error(`${value} is not a cubic-bezier`);
   return found[1].split(",").map(Number);
 };
+// The widths of an edge, which the web draws as a shadow: `edge` there, `edge` in the app.
+const border = Object.fromEntries(
+  ["s", "m", "l"].map((step) => [step, px(root.get(`border-${step}`))]),
+);
+// Geist, which the web reads as one variable font: a phone names one file per weight, as
+// `assets/fonts` holds them, for each weight the theme names (`--weight-ui-*`), and the mono
+// one for figures (`--font-data`).
+const fonts = {
+  regular: "Geist-Regular",
+  medium: "Geist-Medium",
+  heavy: "Geist-Bold",
+  data: "GeistMono-Regular",
+};
 const motion = {
   duration: Number.parseInt(root.get("motion-duration"), 10),
   easing: bezier(root.get("motion-easing")),
@@ -174,12 +187,12 @@ ${RADII.map((step) => `  --radius-${step}: ${radius[step]}px;`).join("\n")}
   --radius-3xl: ${radius.m}px;
   --radius-4xl: ${radius.l}px;
   --field-radius: ${radius.xs}px;
-  --border-width: 0.5px;
-  --font-normal: "Geist-Regular";
-  --font-medium: "Geist-Medium";
-  --font-semibold: "Geist-Medium";
-  --font-bold: "Geist-Bold";
-  --font-mono: "GeistMono-Regular";
+  --border-width: ${border.s}px;
+  --font-normal: "${fonts.regular}";
+  --font-medium: "${fonts.medium}";
+  --font-semibold: "${fonts.medium}";
+  --font-bold: "${fonts.heavy}";
+  --font-mono: "${fonts.data}";
 }
 
 @layer theme {
@@ -220,6 +233,10 @@ export const space = ${JSON.stringify(space, null, 2)} as const;
 export const type = ${JSON.stringify(type, null, 2)} as const;
 
 export const radius = ${JSON.stringify(radius, null, 2)} as const;
+
+export const border = ${JSON.stringify(border, null, 2)} as const;
+
+export const fonts = ${JSON.stringify(fonts, null, 2)} as const;
 
 export const motion = ${JSON.stringify(motion, null, 2)} as const;
 `;

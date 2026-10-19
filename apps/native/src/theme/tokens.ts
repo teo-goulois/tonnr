@@ -153,6 +153,19 @@ export const radius = {
   "xl": 36
 } as const;
 
+export const border = {
+  "s": 0.5,
+  "m": 1.5,
+  "l": 2
+} as const;
+
+export const fonts = {
+  "regular": "Geist-Regular",
+  "medium": "Geist-Medium",
+  "heavy": "Geist-Bold",
+  "data": "GeistMono-Regular"
+} as const;
+
 export const motion = {
   "duration": 160,
   "easing": [
