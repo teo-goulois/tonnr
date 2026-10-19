@@ -240,10 +240,14 @@ describe.skipIf(!TEST_DATABASE_URL)("Sign in with Apple over HTTP", () => {
     });
 
     // Apple's origin is trusted with the cookies of the state it posts back, and no other site's.
-    // The library checks the origin of every post that carries a cookie, except in a test, which
-    // reads what it would check against.
-    expect(context.isTrustedOrigin(APPLE)).toBe(true);
-    expect(context.isTrustedOrigin("https://elsewhere.test")).toBe(false);
+    // The library checks the origin of every post that carries a cookie, except where NODE_ENV
+    // says a test runs: this one has it check, as it does in production.
+    context.skipOriginCheck = false;
+    const elsewhere = await request("/callback/apple", form, {
+      cookie,
+      origin: "https://elsewhere.test",
+    });
+    expect(elsewhere.status).toBe(403);
     const without = createAuth(
       { ...env, APPLE_SERVICES_ID: "", APPLE_KEY_ID: "", APPLE_PRIVATE_KEY: "" },
       database.db,
