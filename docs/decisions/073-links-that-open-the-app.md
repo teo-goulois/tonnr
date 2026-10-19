@@ -39,15 +39,15 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 
 - The Worker answers `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` itself, beside `robots.txt`: after `movedHost`, and before `paraglideMiddleware` and the router. It answers GET and HEAD with `200`, as `application/json`, with no redirect.
 - It writes them from values of the stage, kept in `packages/infra/.env.<stage>` as `WEB_INDEXED` is:
-  - `APPLE_APP_ID`, the app's id at Apple, its team then its bundle: `<team>.app.tonnr`.
-  - `ANDROID_PACKAGE`: `app.tonnr`.
+  - `APPLE_TEAM_ID`, the team of the Apple developer account that signs the app. The file names the app by its team then its bundle: `<team>.app.tonnr`.
   - `ANDROID_CERT_SHA256`, the fingerprints of the keys that sign the Android app, separated by commas. One is the key of Play App Signing, with which Google signs the app the store gives out. The other is Téo's upload key, which signs a build installed from his Mac.
 
   The names are chosen here. None of them is a secret: every copy of the app carries them.
 
-- A stage that names no app answers `404` at both addresses. An instance with no app of its own claims nothing. A self-hoster who builds `apps/native` names their own app (decision 069).
-- Apple's file lists, under `applinks`, the addresses of the section above, and names the same app under `webcredentials`. Android's file gives the package and the fingerprints two relations: `handle_all_urls` for the links and `get_login_creds` for the passwords. Android's file has no paths: the app's intent filters hold them.
-- The list of addresses is written once, in `packages/config`, beside the parser below. The Worker writes Apple's file from it, and the app's `app.config.ts` writes from it the intent filters of Android. Chosen here.
+- The bundle of iOS and the package of Android are `APP_SCHEME`, which the app's config reads too (decision 069), and not values of the stage. This record first named them `APPLE_APP_ID`, the team and the bundle together, and `ANDROID_PACKAGE`: two values that had to agree with a constant of the code, or the files would name an app that no build is. A self-hoster who builds `apps/native` changes `APP_SCHEME` once, for the app and the files (decision 069).
+- A file the stage names nothing for answers `404`: Apple's without `APPLE_TEAM_ID`, Android's without `ANDROID_CERT_SHA256`. A stage that names neither claims nothing, as an instance with no app of its own. Téo's has an Apple developer account and no Google Play account yet, so it serves Apple's file alone at first.
+- Apple's file lists, under `applinks`, the addresses of the section above, and names the same app under `webcredentials`. A segment of one or more characters is written `?*`. Apple does not say whether its `*` reads across a slash, so the same pattern with one segment more is excluded before each one: `/b/<id>` opens the app, and `/b/<id>/more`, which the web does not answer, does not. A test reads the file both ways. Chosen here. Android's file gives the package and the fingerprints two relations: `handle_all_urls` for the links and `get_login_creds` for the passwords. Android's file has no paths: the app's intent filters hold them.
+- The list of addresses is written once, `APP_LINK_PATHS` in `packages/config/src/links.ts`, beside the parser below. The Worker writes Apple's file from it (`apps/web/src/lib/well-known.ts`), and the app's `app.config.ts` writes from it the intent filters of Android. Chosen here.
 - The app names its domain when it is built: the `WEB_DOMAIN` of the stage it is built for, which the build reads from `packages/infra/.env.<stage>` ([decision 075](075-building-and-updating-the-apps.md)), just as the address of the API is fixed then (decision 069). On iOS it names it as `applinks:` and `webcredentials:`. On Android it gets an intent filter with `autoVerify` for each path. A development build names the domain with `?mode=developer`, so that a phone in developer mode reads the file from the site and not from Apple's cache.
 
 ### One reader of an address
@@ -93,14 +93,13 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 
 ## Consequences
 
-- A stage that has an app gets four more values. `APPLE_APP_ID`, `ANDROID_PACKAGE` and `ANDROID_CERT_SHA256` are declared `@public` in `packages/infra/.env.schema`, since they go into answers, and `VITE_APP_STORE_ID` in `apps/web/.env.schema`, with the other values the build reads. They are listed in `packages/infra/.env.example`, checked and passed on by `scripts/cloudflare-deploy.mjs` as `WEB_INDEXED` is, and given to the Worker by `alchemy.run.ts`. `docs/self-hosting.md` names them under "The apps for phones".
+- A stage that has an app gets three more values. `APPLE_TEAM_ID` and `ANDROID_CERT_SHA256` are declared `@public` in `packages/infra/.env.schema`, since they go into answers, and `VITE_APP_STORE_ID` in `apps/web/.env.schema`, with the other values the build reads. They are listed in `packages/infra/.env.example`, checked and passed on by `scripts/cloudflare-deploy.mjs` as `WEB_INDEXED` is, and given to the Worker by `alchemy.run.ts`. `docs/self-hosting.md` names them under "The apps for phones".
 - iPhones read Apple's file through Apple's cache, so a change to the list reaches them a day or more later. Android reads its file when the app is installed or updated. A phone that read an older file still opens the app at an address the list has since dropped, so the parser keeps reading every address the app ever claimed.
 - Apple's cache and Google's verifier are robots. A rule of the Cloudflare zone that challenges robots must leave the two addresses alone.
 - On an iPhone, a person may send the site's links back to Safari from the app. iOS then opens them in Safari until the person chooses the app again, which the banner's "Open" does. A link typed in the address bar, or pressed on a page of the same site, stays in the browser. A link pressed in another app's own browser, such as Instagram's, often stays there.
 - An Android phone that could not verify the file opens the links in the browser, unless its owner lets the app open them in its settings.
 - A new address the app takes, or a new parameter of `/app`, changes the list and the parser in `packages/config` in the same change, and the line of AGENTS.md on the Worker.
-- Built on 2026-10-19: the list and the parser in `packages/config`, with their tests. Not built yet, in this order:
-  1. the two files in `apps/web/src/server.ts`, with the stage's values;
-  2. the associated domains and the intent filters of `apps/native`, with the parser behind them;
-  3. the trial of the web's Google sign-in on both phones;
-  4. the banner, once the app has its id in the App Store.
+- Built on 2026-10-19: the list and the parser in `packages/config`, with their tests, and the two files in `apps/web/src/server.ts`, with the stage's values. Not built yet, in this order:
+  1. the associated domains and the intent filters of `apps/native`, with the parser behind them;
+  2. the trial of the web's Google sign-in on both phones;
+  3. the banner, once the app has its id in the App Store.

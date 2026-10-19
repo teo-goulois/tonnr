@@ -171,6 +171,20 @@ if (
     `WEB_REDIRECTS in .env.${stage} names something other than host names, or WEB_DOMAIN`,
   );
 }
+// The apps that open the stage's links, which the web app names to phones: decision 073.
+if (values.APPLE_TEAM_ID && !/^[A-Z0-9]{10}$/.test(values.APPLE_TEAM_ID)) {
+  faults.push(`APPLE_TEAM_ID in .env.${stage} is not an Apple team, ten capitals and digits`);
+}
+const fingerprints = (values.ANDROID_CERT_SHA256 ?? "").split(",").map((print) => print.trim());
+if (
+  values.ANDROID_CERT_SHA256 &&
+  fingerprints.some((print) => !/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/i.test(print))
+) {
+  faults.push(
+    `ANDROID_CERT_SHA256 in .env.${stage} is not SHA-256 fingerprints, such as 14:6D:…:E5, ` +
+      "separated by commas",
+  );
+}
 const analyticsValues = [
   "VITE_POSTHOG_PROJECT_TOKEN",
   "VITE_POSTHOG_HOST",
@@ -243,6 +257,8 @@ const deployed =
         VITE_SERVER_URL: values.VITE_SERVER_URL,
         WEB_INDEXED: values.WEB_INDEXED ?? "false",
         WEB_REDIRECTS: values.WEB_REDIRECTS ?? "",
+        APPLE_TEAM_ID: values.APPLE_TEAM_ID ?? "",
+        ANDROID_CERT_SHA256: values.ANDROID_CERT_SHA256 ?? "",
         VITE_POSTHOG_PROJECT_TOKEN: values.VITE_POSTHOG_PROJECT_TOKEN ?? "",
         VITE_POSTHOG_HOST: values.VITE_POSTHOG_HOST ?? "",
         VITE_POSTHOG_ENVIRONMENT: values.VITE_POSTHOG_ENVIRONMENT ?? "",

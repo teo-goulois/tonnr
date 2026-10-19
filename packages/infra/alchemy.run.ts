@@ -56,6 +56,11 @@ export default Alchemy.Stack(
         WEB_INDEXED: Config.String("WEB_INDEXED").pipe(Config.withDefault("false")),
         WEB_DOMAIN: domain ?? "",
         WEB_REDIRECTS: redirects.join(","),
+        // The apps for phones that open the stage's links, which the Worker names in the two
+        // files a phone reads: the Apple team that signs the app for iPhones, and the
+        // fingerprints of the keys that sign it for Android. Empty, it claims nothing: decision 073.
+        APPLE_TEAM_ID: Config.String("APPLE_TEAM_ID").pipe(Config.withDefault("")),
+        ANDROID_CERT_SHA256: Config.String("ANDROID_CERT_SHA256").pipe(Config.withDefault("")),
       },
       dev: {
         port: 3001,

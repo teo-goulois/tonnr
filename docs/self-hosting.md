@@ -493,6 +493,16 @@ The apps of `apps/native` call the API as the web app does, and name themselves 
 - The apps in the stores call Téo's instance alone. To have an app for yours, build `apps/native` with identifiers of your own, and name its origin in `APP_ORIGINS`.
 - A program can name that origin too, and then reads what a visitor reads, as it can with `Origin`: use a key for a program of yours.
 
+### Links that open the app
+
+On a phone where the app is installed, the links of the web app open it: the map of `/app`, the short addresses `/b/`, `/s/`, `/l/` and `/i/`, the pages of the surf breaks and `/reset-password`, in every language. Every other address stays in the browser. Decision 073 gives the list, which `APP_LINK_PATHS` holds in `packages/config/src/links.ts`. A phone opens the app only once the site names it, in two files that the web app answers from values of its stage, in `packages/infra/.env.<stage>`:
+
+- `APPLE_TEAM_ID`, the team of the Apple developer account that signs the app for iPhones, which the account's page of membership shows: `/.well-known/apple-app-site-association` then names the app as that team and `APP_SCHEME`, for its links and for the passwords the keychain keeps for the site.
+- `ANDROID_CERT_SHA256`, the SHA-256 fingerprints of the keys that sign the app for Android, separated by commas: the key of Play App Signing, which the Play Console shows under "App signing", and your upload key, which `keytool -list -v` prints. `/.well-known/assetlinks.json` then names the package `APP_SCHEME` with them.
+- The bundle id and the package are `APP_SCHEME`, in `packages/config/src/app.ts`, which the app is built with too. Change it there for an app of your own, before its first build in a store.
+- A file the stage names nothing for answers `404`, and a stage that names neither claims no app. Deploy the web app again after you change them.
+- iPhones read Apple's file through Apple's cache, a day or more after it changes. A rule of your Cloudflare zone that challenges robots must leave both addresses alone, or no phone opens the app.
+
 ## Signing in with Google
 
 Email and password work on every instance. Google sign-in is optional: set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together in the API's environment (`apps/server/.env` from a clone or with Docker Compose). Leave both empty to keep email alone. The web app learns whether Google is enabled from the API; no web build variable is needed. Decision 046 gives the account rules.

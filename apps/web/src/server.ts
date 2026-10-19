@@ -11,11 +11,18 @@ import {
   searchEngineFile,
 } from "./lib/public-pages";
 import { permanentWhenSamePage } from "./lib/redirects";
+import { wellKnownFile } from "./lib/well-known";
 import { locales, localizeHref } from "./paraglide/runtime.js";
 import { paraglideMiddleware } from "./paraglide/server.js";
 
 // What Cloudflare gives the Worker of a deployed stage. Nothing gives it in development.
-type Bindings = { WEB_INDEXED?: string; WEB_DOMAIN?: string; WEB_REDIRECTS?: string };
+type Bindings = {
+  WEB_INDEXED?: string;
+  WEB_DOMAIN?: string;
+  WEB_REDIRECTS?: string;
+  APPLE_TEAM_ID?: string;
+  ANDROID_CERT_SHA256?: string;
+};
 // What Cloudflare gives the Worker of the request: a way to finish work after the answer is sent.
 type Context = { waitUntil(promise: Promise<unknown>): void };
 
@@ -26,6 +33,14 @@ export default {
   async fetch(request: Request, bindings?: Bindings, context?: Context): Promise<Response> {
     const moved = movedHost(request, bindings);
     if (moved !== undefined) return moved;
+
+    // The files that let a phone open the app at the stage's addresses, answered before anything
+    // that may send the request on to a language's address: decision 073.
+    const appFile = wellKnownFile(request, {
+      appleTeamId: bindings?.APPLE_TEAM_ID,
+      androidFingerprints: bindings?.ANDROID_CERT_SHA256,
+    });
+    if (appFile !== undefined) return appFile;
 
     // A page of a surf break, a hub or a sitemap is served from the cache of the data center
     // while it lasts, and rendered again after: decision 057.
