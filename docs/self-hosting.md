@@ -492,6 +492,8 @@ The apps of `apps/native` call the API as the web app does, and name themselves 
 - `APP_ORIGINS`, in the API's environment, lists those origins, separated by commas. Leave it empty for the one of the apps this repository builds, `app.tonnr://`.
 - The apps in the stores call Téo's instance alone. To have an app for yours, build `apps/native` with identifiers of your own, and name its origin in `APP_ORIGINS`.
 - A program can name that origin too, and then reads what a visitor reads, as it can with `Origin`: use a key for a program of yours.
+- `GET /v1/clients` tells an app, and anyone, which of its builds your instance answers, from six optional settings of the API's environment, three for each platform: `APP_IOS_OLDEST_BUILD` and `APP_ANDROID_OLDEST_BUILD`, the oldest build it still answers, `APP_IOS_NEWEST_BUILD` and `APP_ANDROID_NEWEST_BUILD`, the newest its store sells, and `APP_IOS_STORE_URL` and `APP_ANDROID_STORE_URL`, the https address of the app's page in that store. A build is the number an app sends after its version in `X-App`. An app older than the oldest asks to be updated, and goes no further. Leave them empty while no app of yours is in a store: every build is then answered.
+- Raise an oldest build only once the build that replaces it is out in its store, and the newest with it: the API refuses to start with an oldest above the newest. A change takes effect when the API restarts.
 
 ### Links that open the app
 

@@ -6,6 +6,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { analyticsRequest, captureAction, type Analytics } from "@repo/api/analytics";
 import type { Context } from "@repo/api/context";
 import { clientAddressOf } from "@repo/api/address";
+import { clientsOf, type ClientSettings } from "@repo/api/clients";
 import { adminSitesOf, appOriginsOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { createMcp } from "@repo/api/mcp";
 import { appRouter, v1Router } from "@repo/api/routers/index";
@@ -26,7 +27,9 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
 type Services = {
-  env: {
+  // The builds of the apps for phones the instance answers, and where their stores sell them, are
+  // among them. Decision 069.
+  env: ClientSettings & {
     BETTER_AUTH_URL: string;
     CORS_ORIGIN: string;
     ADMIN_ORIGIN?: string | undefined;
@@ -130,6 +133,8 @@ export function createApp({
   // The origins the instance's apps for phones name themselves by, such as `app.tonnr://`. No
   // browser sends one: decision 069.
   const appOrigins = appOriginsOf(env.APP_ORIGINS, APP_SCHEME);
+  // Which builds of those apps it answers. A setting that cannot be right stops it here.
+  const clients = clientsOf(env);
   // The sites whose pages may call with a visitor's session, and write with it: the web app,
   // the admin app, the API's own reference, and the apps for phones.
   const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites, ...appOrigins])];
@@ -294,7 +299,7 @@ export function createApp({
       privateCatalogue,
       storage,
       reply: {} as Context["reply"],
-      server: { startedAt, webOrigin, appOrigins, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey },
     };
 
     const answered =
@@ -337,7 +342,7 @@ export function createApp({
       places,
       verification,
       adminSites,
-      server: { startedAt, webOrigin, appOrigins, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey },
     },
     { onError: logFault, accounts: agents },
   );

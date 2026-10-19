@@ -6,6 +6,7 @@ import {
   testVerification,
 } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
+import type { ClientSettings } from "@repo/api/clients";
 import { appOriginsOf } from "@repo/api/cross-site";
 import { createAuth } from "@repo/auth";
 import { APP_SCHEME } from "@repo/config/app";
@@ -82,7 +83,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
    * memory, and `sent` and `link` say what left.
    */
   function make(
-    settings: typeof env & { ADMIN_ORIGIN?: string },
+    settings: typeof env & { ADMIN_ORIGIN?: string } & ClientSettings,
     mailing: Mailing = { on: false },
     // The search of places asks no service: a test gives the one whose answers it sets.
     places = testPlaces().places,
@@ -1570,6 +1571,47 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         busy: false,
       });
       expect((await send("GET", "/v1/stations", { origin: APP })).status).toBe(200);
+    });
+  });
+
+  describe("the builds of the apps for phones", () => {
+    it("are said to anyone, and to the app while the instance is closed to visitors", async () => {
+      // An instance whose settings name none answers every build.
+      const none = await send("GET", "/v1/clients", { app: PHONE });
+      expect([none.status, none.headers.get("Cache-Control")]).toEqual([200, NOT_CACHED]);
+      expect(await bodyOf(none)).toEqual({
+        ios: { oldestBuild: null, newestBuild: null, storeUrl: null },
+        android: { oldestBuild: null, newestBuild: null, storeUrl: null },
+      });
+
+      const store = "https://apps.apple.com/app/id1234567890";
+      const said = make({
+        ...env,
+        ADMIN_ORIGIN: ADMIN,
+        APP_IOS_OLDEST_BUILD: 1200,
+        APP_IOS_NEWEST_BUILD: 1240,
+        APP_IOS_STORE_URL: store,
+      }).app;
+      const cookie = await signUpOperator();
+      const close = { cookie, origin: ADMIN, body: { open: false } };
+      expect((await send("PUT", "/v1/visitors", close, said)).status).toBe(200);
+
+      const ios = { oldestBuild: 1200, newestBuild: 1240, storeUrl: store };
+      for (const by of [{ app: PHONE }, { origin: APP }, {}]) {
+        const read = await send("GET", "/v1/clients", by, said);
+        expect([read.status, await bodyOf(read)]).toMatchObject([200, { ios }]);
+      }
+      const called = await send("POST", "/rpc/v1/clients/get", { app: PHONE, body: {} }, said);
+      expect(await bodyOf(called)).toMatchObject({ json: { ios } });
+      // The reference says that it asks for neither a key nor a session.
+      const spec = await bodyOf<Spec>(await send("GET", "/v1/openapi.json", {}, said));
+      expect(spec.paths["/clients"]?.get?.security).toEqual([]);
+    });
+
+    it("stop an API whose settings cannot be right", () => {
+      expect(() =>
+        make({ ...env, APP_ANDROID_OLDEST_BUILD: 1300, APP_ANDROID_NEWEST_BUILD: 1200 }),
+      ).toThrow(/APP_ANDROID_OLDEST_BUILD/);
     });
   });
 

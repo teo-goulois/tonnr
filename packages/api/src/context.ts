@@ -5,6 +5,7 @@ import type { Database } from "@repo/db";
 import type { Storage } from "@repo/media/storage";
 
 import type { Analytics, AnalyticsRequest } from "./analytics";
+import type { Clients } from "./clients";
 import type { Ideas } from "./ideas";
 import type { Places } from "./places";
 import type { PrivateCatalogue } from "./private-catalogue";
@@ -58,11 +59,13 @@ export type Context = {
   // instance sends push with, which a browser subscribes with: an instance without one sends
   // no push. Decision 031.
   // `appOrigins` are the origins the instance's apps for phones name themselves by, which make
-  // a request of theirs one of the instance's own, as the web app's: decision 069.
+  // a request of theirs one of the instance's own, as the web app's, and `clients` the builds of
+  // those apps it answers, which its settings say: decision 069.
   server: {
     startedAt: Date;
     webOrigin: string;
     appOrigins?: readonly string[];
+    clients?: Clients;
     revision?: string | null;
     pushKey?: string | undefined;
   };
