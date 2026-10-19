@@ -1947,5 +1947,14 @@
   "native_discard_title": "Abandonner tes modifications ?",
   "native_discard_message": "Ce que tu as changé ici n'est pas enregistré.",
   "native_discard": "Abandonner",
-  "native_keep_editing": "Continuer à modifier"
+  "native_keep_editing": "Continuer à modifier",
+  "native_map_label": "Carte de la mer",
+  "native_map_hint": "Appuie sur une bouée, un spot de surf ou l'un de tes spots pour l'ouvrir. Reste appuyé sur un endroit pour y ajouter un spot.",
+  "native_locate_denied": "{name} ne peut pas voir où tu es. Autorise-le dans les réglages.",
+  "native_open_settings": "Ouvrir les réglages",
+  "native_search_count": "Résultats : {count}.",
+  "native_spot_move_hint": "Déplace la carte, ou appuie dessus, pour mettre le marqueur là où la vague casse.",
+  "native_spot_near_break": "{name}, un spot de surf de la carte, est ici.",
+  "native_spot_from_break": "Partir de celui-ci",
+  "native_spot_marker": "L'endroit du spot"
 }

@@ -1947,5 +1947,14 @@
   "native_discard_title": "¿Descartar tus cambios?",
   "native_discard_message": "Lo que has cambiado aquí no está guardado.",
   "native_discard": "Descartar",
-  "native_keep_editing": "Seguir editando"
+  "native_keep_editing": "Seguir editando",
+  "native_map_label": "Mapa del mar",
+  "native_map_hint": "Pulsa una boya, un pico de surf o uno de tus spots para abrirlo. Mantén pulsado un lugar para añadir allí un spot.",
+  "native_locate_denied": "{name} no puede ver dónde estás. Permítelo en los ajustes.",
+  "native_open_settings": "Abrir los ajustes",
+  "native_search_count": "Resultados: {count}.",
+  "native_spot_move_hint": "Mueve el mapa, o púlsalo, para poner el marcador donde rompe la ola.",
+  "native_spot_near_break": "{name}, un pico de surf del mapa, está aquí.",
+  "native_spot_from_break": "Partir de él",
+  "native_spot_marker": "Dónde va el spot"
 }

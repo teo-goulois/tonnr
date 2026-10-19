@@ -1947,5 +1947,14 @@
   "native_discard_title": "Discard your changes?",
   "native_discard_message": "What you changed here is not saved.",
   "native_discard": "Discard",
-  "native_keep_editing": "Keep editing"
+  "native_keep_editing": "Keep editing",
+  "native_map_label": "Map of the sea",
+  "native_map_hint": "Press a buoy, a surf break or one of your spots to open it. Hold a place to add a spot there.",
+  "native_locate_denied": "{name} cannot see where you are. Allow it in Settings.",
+  "native_open_settings": "Open Settings",
+  "native_search_count": "Results: {count}.",
+  "native_spot_move_hint": "Move the map, or press it, to put the marker where the wave breaks.",
+  "native_spot_near_break": "{name}, a surf break of the map, is here.",
+  "native_spot_from_break": "Start from it",
+  "native_spot_marker": "Where the spot goes"
 }
