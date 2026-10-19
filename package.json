@@ -32,13 +32,14 @@
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/admin/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./packages/db/",
-    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/admin/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./packages/db/",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/admin/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./apps/native/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/admin/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./apps/worker/ && varlock codegen --path ./apps/native/ && varlock codegen --path ./packages/db/",
     "auth:generate": "cd apps/server && pnpm run auth:generate",
     "lint": "oxlint",
     "format": "oxfmt --write",
     "test": "turbo run test",
-    "check": "oxlint && oxfmt --check && turbo run check-types test"
+    "check": "oxlint && oxfmt --check && turbo run check-types test",
+    "dev:native": "pnpm --filter native start"
   },
   "dependencies": {
     "zod": "catalog:"

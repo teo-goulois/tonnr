@@ -1865,5 +1865,9 @@
   "report_stats_private": "solo tú lo ves",
   "privacy_reports_told": "Cuando se muestra un reporte en un spot, las cuentas que tienen ese spot en una lista reciben un aviso, en la app y por notificación. Lo que se te avisó se guarda 30 días. Cuando ves un reporte, o abres una de sus fotos, su contador sube uno: su autor lee ese número, que no nombra a nadie. Tu navegador guarda durante una semana los reportes que contó, para que cada uno cuente una sola vez.",
   "privacy_keep_notices": "Lo que se te avisó de los reportes de tus spots: 30 días.",
-  "alerts_more_notices": "Reportes anteriores"
+  "alerts_more_notices": "Reportes anteriores",
+  "native_permission_location": "{name} usa el lugar donde estás para mostrarte el mar a tu alrededor y para comprobar que un reporte se ha tomado allí.",
+  "native_permission_camera": "{name} usa la cámara para las fotos y vídeos de tus sesiones y tus reportes.",
+  "native_permission_photos": "{name} abre las fotos y vídeos que eliges para tus sesiones y tus reportes.",
+  "native_permission_microphone": "{name} graba el sonido de los vídeos que haces."
 }

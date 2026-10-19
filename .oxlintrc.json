@@ -7,5 +7,56 @@
   "rules": {},
   "env": {
     "builtin": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["apps/native/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@repo/api",
+                  "@repo/api/*",
+                  "@repo/db",
+                  "@repo/db/*",
+                  "@repo/auth",
+                  "@repo/auth/*",
+                  "@repo/media",
+                  "@repo/media/*",
+                  "@repo/push",
+                  "@repo/push/*",
+                  "@repo/mail",
+                  "@repo/mail/*",
+                  "@repo/upstream",
+                  "@repo/upstream/*",
+                  "@repo/infra",
+                  "@repo/infra/*"
+                ],
+                "allowTypeImports": true,
+                "message": "The app imports the server's packages as types only: what runs there needs Node and the database (decision 069)."
+              },
+              {
+                "group": [
+                  "@repo/conditions/tides/*",
+                  "@repo/conditions/spots/conditions",
+                  "@repo/conditions/forecasts/forecasts",
+                  "@repo/conditions/forecasts/open-meteo",
+                  "@repo/conditions/forecasts/open-data",
+                  "@repo/conditions/forecasts/copernicus-*",
+                  "@repo/conditions/forecasts/cell-forecast",
+                  "@repo/conditions/forecasts/model-files",
+                  "@repo/conditions/forecasts/testing"
+                ],
+                "allowTypeImports": true,
+                "message": "This module of packages/conditions reads files or asks a provider: the app asks the API instead (decision 069)."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

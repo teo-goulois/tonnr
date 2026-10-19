@@ -26,8 +26,8 @@ catalog:
   "@orpc/zod": ^1.15.0
   better-auth: 1.7.7
   next-themes: ^0.4.6
-  react: ^19.2.8
-  react-dom: ^19.2.8
+  react: 19.3.0
+  react-dom: 19.3.0
   sonner: ^2.0.8
   tailwindcss: ^4.3.3
   "@orpc/client": ^1.15.0
@@ -37,7 +37,36 @@ catalog:
   "@neaps/tide-database": 0.9.20260907
   "@neaps/tide-predictor": 0.11.0
   effect: 4.0.0
+peerDependencyRules:
+  # heroui-native 1.0.10 asks for gesture-handler 2, and Expo SDK 58 ships 3: its issue #524.
+  # Decision 069.
+  allowedVersions:
+    heroui-native>react-native-gesture-handler: "3"
 overrides:
   # drizzle-orm takes valibot as an optional peer and would otherwise share the 1.2.0 that
   # alchemy's tooling pins, which GHSA-5qjj-4xww-7phc names. Nothing here imports it.
   "drizzle-orm>valibot": ^1.4.2
+# Expo SDK 58 came out on 2026-10-15: its packages are younger than the age pnpm waits for, and
+# the app for phones needs them (decision 069). Drop each line once its version is old enough.
+minimumReleaseAgeExclude:
+  - "@expo/cli@58.1.12 || 58.1.13"
+  - "@expo/metro-config@58.0.15"
+  - babel-preset-expo@58.0.18
+  - expo-asset@58.0.17
+  - expo-localization@58.0.5
+  - expo-modules-cli@0.3.1
+  - expo-modules-core@58.0.23
+  - expo-modules-jsi@58.0.16
+  - expo-router@58.0.24
+  - expo@58.0.15 || 58.0.16
+  - uniwind@1.13.0
+  - "@expo/router-server@58.0.15"
+  - expo-file-system@58.0.10
+  - expo-font@58.0.9
+  - "@expo/ui@58.0.21"
+  - expo-blur@58.0.5
+  - expo-camera@58.0.11
+  - expo-image@58.0.16
+  - expo-location@58.0.18
+  - expo-video@58.0.12
+  - expo-widgets@58.0.21

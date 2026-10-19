@@ -1,0 +1,110 @@
+import { readFileSync } from "node:fs";
+
+import { APP_NAME, APP_SCHEME, APP_SLUG } from "@repo/config/app";
+import { LOCALES } from "@repo/config/locales";
+import type { ConfigContext, ExpoConfig } from "expo/config";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
+
+// What the phone shows when the app asks for a permission, in each language, from the web app's
+// messages, where every string a person reads is kept (decision 069).
+type Messages = Record<string, string>;
+const messagesOf = (locale: string): Messages =>
+  JSON.parse(readFileSync(new URL(`../web/messages/${locale}.json`, import.meta.url), "utf8"));
+const named = (text: string | undefined) => (text ?? "").replaceAll("{name}", APP_NAME);
+const permissionsOf = (messages: Messages) => ({
+  NSLocationWhenInUseUsageDescription: named(messages.native_permission_location),
+  NSCameraUsageDescription: named(messages.native_permission_camera),
+  NSPhotoLibraryUsageDescription: named(messages.native_permission_photos),
+  NSMicrophoneUsageDescription: named(messages.native_permission_microphone),
+});
+const english = permissionsOf(messagesOf("en"));
+
+// The app for phones: decision 069. Its identifiers stay once it is in a store, whatever the
+// name becomes, so they come from `APP_SCHEME` and never from `APP_NAME`.
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
+  name: APP_NAME,
+  slug: APP_SLUG,
+  scheme: APP_SCHEME,
+  version: pkg.version,
+  orientation: "portrait",
+  userInterfaceStyle: "automatic",
+  icon: "./assets/icon.png",
+  ios: {
+    bundleIdentifier: APP_SCHEME,
+    infoPlist: { ...english, CFBundleAllowMixedLocalizations: true },
+    buildNumber: "1",
+    supportsTablet: false,
+    config: { usesNonExemptEncryption: false },
+  },
+  android: {
+    package: APP_SCHEME,
+    versionCode: 1,
+    predictiveBackGestureEnabled: true,
+  },
+  locales: Object.fromEntries(
+    LOCALES.filter((locale) => locale !== "en").map((locale) => [
+      locale,
+      permissionsOf(messagesOf(locale)),
+    ]),
+  ),
+  plugins: [
+    "expo-router",
+    "expo-image",
+    "expo-video",
+    "expo-sharing",
+    "expo-sqlite",
+    "expo-background-task",
+    "expo-quick-actions",
+    "@maplibre/maplibre-react-native",
+    ["expo-location", { locationWhenInUsePermission: english.NSLocationWhenInUseUsageDescription }],
+    [
+      "expo-camera",
+      {
+        cameraPermission: english.NSCameraUsageDescription,
+        microphonePermission: english.NSMicrophoneUsageDescription,
+        recordAudioAndroid: true,
+      },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission: english.NSPhotoLibraryUsageDescription,
+        cameraPermission: english.NSCameraUsageDescription,
+        microphonePermission: english.NSMicrophoneUsageDescription,
+      },
+    ],
+    "expo-notifications",
+    "expo-secure-store",
+    "expo-localization",
+    "expo-web-browser",
+    [
+      "expo-splash-screen",
+      {
+        backgroundColor: "#ffffff",
+        dark: { backgroundColor: "#000000" },
+        image: "./assets/splash.png",
+        imageWidth: 120,
+      },
+    ],
+    // Geist, the theme's type, under the OFL (assets/fonts/OFL.txt). Each weight is its own file,
+    // named as iOS names it, so that a family names one weight on both platforms.
+    [
+      "expo-font",
+      {
+        fonts: [
+          "Geist-Regular",
+          "Geist-Medium",
+          "Geist-Bold",
+          "GeistMono-Regular",
+          "GeistMono-Medium",
+          "GeistMono-Bold",
+        ].map((font) => `./assets/fonts/${font}.ttf`),
+      },
+    ],
+  ],
+  experiments: { typedRoutes: true, reactCompiler: true },
+});

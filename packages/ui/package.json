@@ -13,7 +13,8 @@
     "./postcss.config": "./postcss.config.mjs"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "native-theme": "node scripts/native-theme.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
