@@ -120,6 +120,11 @@ export function createApp({
 }: Services) {
   const app = new Hono();
   const logFault = faultLogger(analytics);
+  // Who calls, read without renewing the session: the library would renew it in the database
+  // and leave the cookie as it was, since no answer of these routes carries the library's. Only
+  // `/api/auth/get-session` renews one, with its cookie. Decision 070.
+  const readSession = (headers: Headers) =>
+    auth.api.getSession({ headers, query: { disableRefresh: true } });
 
   const webOrigin = new URL(env.CORS_ORIGIN).origin;
   const apiOrigin = new URL(env.BETTER_AUTH_URL).origin;
@@ -188,7 +193,7 @@ export function createApp({
     )[c.req.path];
     const before =
       request && event === "account_signed_out"
-        ? await auth.api.getSession({ headers: c.req.raw.headers }).catch(() => null)
+        ? await readSession(c.req.raw.headers).catch(() => null)
         : null;
     const answer = await auth.handler(c.req.raw);
     if (request && event && answer.ok && c.req.method === "POST") {
@@ -202,7 +207,7 @@ export function createApp({
       const id =
         account ??
         (event === "account_updated"
-          ? (await auth.api.getSession({ headers: c.req.raw.headers }).catch(() => null))?.user.id
+          ? (await readSession(c.req.raw.headers).catch(() => null))?.user.id
           : undefined);
       if (id) captureAction(analytics, request, event, id);
     }
@@ -286,7 +291,7 @@ export function createApp({
       db,
       analytics,
       analyticsRequest: from ? analyticsRequest(c.req.raw.headers, from) : undefined,
-      session: await auth.api.getSession({ headers: c.req.raw.headers }),
+      session: await readSession(c.req.raw.headers),
       authorization: c.req.header("authorization") ?? null,
       site,
       adminSites,

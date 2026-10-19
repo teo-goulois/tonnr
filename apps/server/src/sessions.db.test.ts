@@ -1,7 +1,11 @@
+import { testForecasts, testPlaces, testVerification } from "@repo/api/testing";
+import { createUsage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { session, user } from "@repo/db/schema/auth";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createApp } from "./app";
 
 const API = "https://api.example.test";
 const WEB = "https://web.example.test";
@@ -19,16 +23,14 @@ describe.skipIf(!TEST_DATABASE_URL)("how long a session lasts", () => {
   afterAll(async () => {
     await database?.drop();
   });
+  const env = {
+    BETTER_AUTH_URL: API,
+    BETTER_AUTH_SECRET: "made-up-for-session-tests-and-long-enough",
+    CORS_ORIGIN: WEB,
+  };
   beforeEach(async () => {
     await database.db.delete(user);
-    auth = createAuth(
-      {
-        BETTER_AUTH_URL: API,
-        BETTER_AUTH_SECRET: "made-up-for-session-tests-and-long-enough",
-        CORS_ORIGIN: WEB,
-      },
-      database.db,
-    );
+    auth = createAuth(env, database.db);
   });
 
   function request(path: string, body?: unknown, cookie?: string) {
@@ -67,11 +69,12 @@ describe.skipIf(!TEST_DATABASE_URL)("how long a session lasts", () => {
     expect(set).toContain(`Max-Age=${90 * 24 * 60 * 60}`);
   });
 
+  const renewedAgo = async (ms: number) => {
+    await database.db.update(session).set({ expiresAt: new Date(Date.now() + 90 * DAY - ms) });
+  };
+
   it("is renewed for ninety days once it is used a day after it was last renewed", async () => {
     const { cookie } = await signUp();
-    const renewedAgo = async (ms: number) => {
-      await database.db.update(session).set({ expiresAt: new Date(Date.now() + 90 * DAY - ms) });
-    };
 
     // Used within the day: left as it is, and no cookie is sent back.
     await renewedAgo(DAY - 10 * MINUTE);
@@ -87,5 +90,36 @@ describe.skipIf(!TEST_DATABASE_URL)("how long a session lasts", () => {
     expect(late.status).toBe(200);
     expect(Math.abs((await expiry()) - (Date.now() + 90 * DAY))).toBeLessThan(MINUTE);
     expect(late.headers.getSetCookie().join()).toContain(`Max-Age=${90 * 24 * 60 * 60}`);
+  });
+
+  it("is renewed by the library's own route alone, whose answer renews the cookie too", async () => {
+    // A call of the API reads the session and could not send its cookie back: were it to renew
+    // the session, the cookie would run out while the session lived on.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const app = createApp({
+      env,
+      db: database.db,
+      auth,
+      usage: createUsage(database.db, { every: null }),
+      forecasts: testForecasts().forecasts,
+      places: testPlaces().places,
+      verification: testVerification(database.db, { on: false }).verification,
+    });
+    const { cookie } = await signUp();
+    await renewedAgo(DAY + 10 * MINUTE);
+    const due = await expiry();
+
+    const called = await app.request(`${API}/v1/account`, { headers: { cookie } });
+    expect(called.status).toBe(200);
+    expect(await expiry()).toBe(due);
+    expect(called.headers.getSetCookie().join()).not.toContain("session_token");
+
+    const read = await app.request(`${API}/api/auth/get-session`, {
+      headers: { cookie, origin: WEB },
+    });
+    expect(read.status).toBe(200);
+    expect(Math.abs((await expiry()) - (Date.now() + 90 * DAY))).toBeLessThan(MINUTE);
+    expect(read.headers.getSetCookie().join()).toContain(`Max-Age=${90 * 24 * 60 * 60}`);
+    vi.restoreAllMocks();
   });
 });

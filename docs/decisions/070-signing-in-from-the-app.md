@@ -28,7 +28,7 @@ The mails of an account's address take their language from `Accept-Language` unt
 ### How long a session lasts
 
 - A session lasts ninety days. It is renewed for ninety more when it is used a day or more after it was last renewed: `session` in `createAuth`, with `expiresIn` and `updateAge`. This holds on the web and in the app alike, since the library has one length for every session. Signing out, a new password, an operator who closes an account's sessions and a suspension still end a session at once (decisions 025 and 026). Accepted with the rest of the report.
-- The app reads its session from the library, `/api/auth/get-session`, each time it comes to the foreground. Once a day has passed, the answer renews the cookie the app keeps, as a browser's is renewed. The API renews a session in the database as `/rpc` reads it, and sends no cookie back. So the cookie of an app that only called `/rpc` would run out ninety days after it was given, while its session lived on. Chosen here.
+- The app reads its session from the library, `/api/auth/get-session`, each time it comes to the foreground, as the web app does as it loads and when its tab is shown again. That route alone renews a session: once a day has passed, its answer renews the session and the cookie together. The API reads the session of a call to `/rpc` or `/v1` without renewing it (`readSession`, in `apps/server/src/app.ts`), since its answer carries no cookie: a session renewed there would outlive the cookie, which the browser and the library's client drop at its old date. So what the app does in the background renews nothing, and an app nobody opens is signed out ninety days after it last renewed its session. Chosen here.
 
 ### Sign in with Apple
 
