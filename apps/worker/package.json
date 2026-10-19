@@ -36,6 +36,7 @@
     "world-atlas": "2.0.2"
   },
   "devDependencies": {
+    "@repo/auth": "workspace:*",
     "@repo/config": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "^8.23.1",

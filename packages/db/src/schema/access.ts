@@ -237,6 +237,7 @@ export const OPERATOR_ACTIONS = [
   "account.resume",
   "account.username_remove",
   "account.delete",
+  "account.delete_by_command",
   "spot.publish",
   "spot.refuse",
   "contribution.accept",
@@ -297,7 +298,7 @@ export const operatorAction = pgTable(
     id: text("id").primaryKey(),
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
     // The operator who did it, or the account that deleted itself. Null once their account is
-    // deleted.
+    // deleted, and for a command run on the instance's server, which names no account.
     operatorId: text("operator_id").references(() => user.id, { onDelete: "set null" }),
     action: text("action", { enum: OPERATOR_ACTIONS }).notNull(),
     // The developer account it was done to, or whose key it was, with the name it had then.

@@ -98,9 +98,12 @@ function sentences(action: OperatorAction, own?: "account"): string[] {
       return [m.action_account_resumed()];
     case "account.username_remove":
       return [m.action_username_removed()];
-    // What the account did itself, from the app or the web: decision 071.
+    // What the account did itself, from the app or the web, and what an operator did for one
+    // that asked by mail, with `job account-delete`: decision 071.
     case "account.delete":
       return [m.action_account_deleted()];
+    case "account.delete_by_command":
+      return [m.action_account_deleted_by_command()];
     case "visitors.close":
       return [m.action_visitors_closed()];
     case "visitors.open":
@@ -224,7 +227,12 @@ export function ActionsTable({ actions, existing, own, empty }: ActionsTableProp
                 </TableCell>
                 <TableCell className="max-w-48 truncate">
                   {action.operatorName ?? (
-                    <span className="text-neutral-7">{m.action_operator_gone()}</span>
+                    <span className="text-neutral-7">
+                      {/* A command run on the server names no operator. */}
+                      {action.action === "account.delete_by_command"
+                        ? m.action_by_command()
+                        : m.action_operator_gone()}
+                    </span>
                   )}
                 </TableCell>
                 {existing && (

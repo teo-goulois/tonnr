@@ -1,4 +1,5 @@
-import { createDb } from "@repo/db";
+import { appleRevocationOf } from "@repo/auth/apple-revocation";
+import { createDb, type Database } from "@repo/db";
 import { Effect } from "effect";
 
 import { evaluateAlerts } from "./alerts";
@@ -20,16 +21,18 @@ import { mediaDone, processMedia } from "./media";
 import { createAnalyser } from "@repo/media/analysis";
 import { createStorage } from "@repo/media/storage";
 import { join } from "node:path";
+import { deleteAccountByCommand } from "./deletion";
 import { grantOperator, removeOperator } from "./operators";
 import { pushKeys } from "./push-keys";
 import { reportNoticesDone, tellReports } from "./report-notices";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
-// `... job moments`, `... job exposure`, `... job pages`, `... job media`, or `... job reports`. Seven more take a value and write only with `--write`:
+// `... job moments`, `... job exposure`, `... job pages`, `... job media`, or `... job reports`. Eight more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
 // `... job candidates <folder>`, `... job candidates-remove <list>`,
-// `... job operator <account id>` and `... job operator-remove <account id>`. One reads and
-// writes nothing: `... job push-keys` makes the pair of keys an instance sends push with.
+// `... job operator <account id>`, `... job operator-remove <account id>` and
+// `... job account-delete <account id>`. One reads and writes nothing: `... job push-keys` makes
+// the pair of keys an instance sends push with.
 const [job, ...rest] = process.argv.slice(2);
 // A provider that asks for an account is a job only with the instance's key for it.
 const providers = providersOf(ENV);
@@ -43,6 +46,10 @@ const commands = {
   "candidates-remove": removeCandidatesOf,
   operator: grantOperator,
   "operator-remove": removeOperator,
+  // Deletes an account that asked by mail, and revokes its tokens at Apple's where the instance
+  // offers Sign in with Apple: decision 071.
+  "account-delete": (db: Database, args: string[]) =>
+    deleteAccountByCommand(db, args, appleRevocationOf(ENV)),
 };
 const command = Object.entries(commands).find(([name]) => name === job)?.[1];
 const others = [

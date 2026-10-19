@@ -893,6 +893,9 @@ importers:
         specifier: 2.0.2
         version: 2.0.2
     devDependencies:
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@repo/config':
         specifier: workspace:*
         version: link:../../packages/config

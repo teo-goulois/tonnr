@@ -1,22 +1,15 @@
 import { ORPCError } from "@orpc/server";
-import type { AppleTokens } from "@repo/auth/apple-revocation";
 import { isPassword, passwordHashOf } from "@repo/auth/password";
 import { DELETED_USERNAME_DAYS, FRESH_SIGN_IN_MINUTES } from "@repo/config/account";
 import { LOCALES } from "@repo/config/locales";
-import type { Database } from "@repo/db";
-import { holdAccounts } from "@repo/db/accounts";
 import { countCalls } from "@repo/db/calls";
-import { operator, removedUsername } from "@repo/db/schema/access";
-import { account, session, user } from "@repo/db/schema/auth";
-import { breakContribution } from "@repo/db/schema/community";
-import { and, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { deleteAccount, isOperator } from "@repo/db/deletion";
+import { operator } from "@repo/db/schema/access";
+import { session, user } from "@repo/db/schema/auth";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { recordAction } from "../actions";
-import { holdLine } from "../guides";
 import { protectedProcedure } from "../index";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 // What deleting an account asks of it: decision 071. Its password again, or, for an account
 // that has none, a session opened in the last ten minutes. Five wrong passwords in an hour and
@@ -30,62 +23,10 @@ const DELETION_TRIES = "account-delete";
 // compared with the present moment in UTC, whatever zone the connection keeps.
 const NOW_UTC = sql`(now() at time zone 'UTC')`;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const isOperator = async (db: Pick<Database, "select">, userId: string) => {
-  const [runs] = await db
-    .select({ userId: operator.userId })
-    .from(operator)
-    .where(eq(operator.userId, userId));
-  return runs !== undefined;
-};
-
 const runsTheInstance = () =>
   new ORPCError("CONFLICT", {
     message: "An operator's account is not deleted. Take its operator rights away first.",
   });
-
-/**
- * Deletes what the account wrote that was never confirmed, each line held as decision 041
- * orders, after the account's row: what waits, what was refused or taken back, and what another
- * confirmation closed. Left to the cascade, they would stay with no name on them. What was
- * confirmed stays, and names nobody once the row of `user` goes.
- */
-async function deleteUnconfirmed(tx: Transaction, userId: string) {
-  const rows = await tx
-    .select({
-      id: breakContribution.id,
-      breakRef: breakContribution.breakRef,
-      line: breakContribution.line,
-    })
-    .from(breakContribution)
-    .where(and(eq(breakContribution.userId, userId), ne(breakContribution.status, "confirmed")));
-  // Each line once, always in the same order.
-  const lines = [...new Set(rows.map((row) => `${row.breakRef}\u0000${row.line}`))].sort();
-  for (const held of lines) {
-    const [breakRef = "", line = ""] = held.split("\u0000");
-    await holdLine(tx, breakRef, line);
-  }
-  if (rows.length === 0) return;
-  await tx.delete(breakContribution).where(
-    and(
-      inArray(
-        breakContribution.id,
-        rows.map((row) => row.id),
-      ),
-      // What was confirmed meanwhile, before the line was held, stays.
-      ne(breakContribution.status, "confirmed"),
-    ),
-  );
-}
-
-/** The links of an account to Apple that kept a token, which Apple asks to be revoked. */
-async function appleLinksOf(tx: Transaction, userId: string): Promise<AppleTokens[]> {
-  return tx
-    .select({ refreshToken: account.refreshToken, accessToken: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, "apple")));
-}
 
 export const accountRouter = {
   get: protectedProcedure
@@ -255,50 +196,19 @@ export const accountRouter = {
         }
       }
 
-      const links = await db.transaction(async (tx) => {
-        // The account first, as decision 041 orders: a change of its friends, of a score or of
-        // what it has waiting waits for the deletion, or finds the account gone.
-        await holdAccounts(tx, [userId]);
-        // Made an operator meanwhile, by `job operator`.
-        if (await isOperator(tx, userId)) throw runsTheInstance();
-        await deleteUnconfirmed(tx, userId);
-        const apple = await appleLinksOf(tx, userId);
-
-        // Its username is nobody's for thirty days: no one takes it at once and passes for the
-        // account. One that an operator took away for good stays so.
-        const [had] = await tx
-          .select({ username: user.username })
-          .from(user)
-          .where(eq(user.id, userId));
-        if (had?.username) {
-          const freeAt = new Date(Date.now() + DELETED_USERNAME_DAYS * DAY_MS);
-          await tx
-            .insert(removedUsername)
-            .values({ username: had.username, freeAt })
-            .onConflictDoUpdate({
-              target: removedUsername.username,
-              set: { at: new Date(), freeAt },
-              setWhere: isNotNull(removedUsername.freeAt),
-            });
-        }
-
-        // The operators' record keeps that it was deleted, and when, by its id alone. The
-        // deletion sets the row's operator to null at once.
-        await recordAction(tx, {
-          operatorId: userId,
-          action: "account.delete",
-          developer: null,
-          account: { id: userId },
-        });
-        // The database does the rest: what goes with the account, and what is set to null.
-        await tx.delete(user).where(eq(user.id, userId));
-        return apple;
-      });
+      // What goes and what stays is `deleteAccount`'s, which `job account-delete` runs too.
+      const outcome = await db.transaction((tx) =>
+        deleteAccount(tx, userId, { action: "account.delete", operatorId: userId }),
+      );
+      if (!outcome.deleted) {
+        if (outcome.why === "operator") throw runsTheInstance();
+        throw new ORPCError("NOT_FOUND", { message: "This account was deleted already." });
+      }
 
       // Apple is asked once for each link, once the account is gone, and its answer changes
       // nothing: the account was deleted.
       if (context.apple) {
-        for (const tokens of links) await context.apple.revoke(tokens);
+        for (const tokens of outcome.apple) await context.apple.revoke(tokens);
       }
       return { deleted: true as const };
     }),

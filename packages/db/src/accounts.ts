@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import type { Database } from "./index";
 import { accountSuspension } from "./schema/access";
@@ -18,6 +18,16 @@ export async function holdAccounts(tx: Transaction, ids: (string | null | undefi
   for (const id of held) {
     await tx.select({ id: user.id }).from(user).where(eq(user.id, id)).for("no key update");
   }
+}
+
+/**
+ * Holds a line of a break's guide until the transaction ends: what changes the contributions of
+ * one line runs one at a time. It is taken after the accounts' rows and before any
+ * contribution's, always in that order, so that confirming one contribution and closing the
+ * others of its line never wait on each other. Decision 041.
+ */
+export async function holdLine(tx: Transaction, breakId: string, line: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${breakId}:${line}`}, 0))`);
 }
 
 /** Whether an operator suspended this account: decision 025. */

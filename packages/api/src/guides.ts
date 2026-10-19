@@ -115,15 +115,9 @@ export async function keepsBreak(db: Reader, userId: string, breakId: string) {
   return standing !== undefined;
 }
 
-/**
- * Holds a line of a break's guide until the transaction ends: what changes the contributions of
- * one line runs one at a time. It is taken after the accounts' rows and before any
- * contribution's, always in that order, so that confirming one contribution and closing the
- * others of its line never wait on each other.
- */
-export async function holdLine(tx: Transaction, breakId: string, line: string) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${breakId}:${line}`}, 0))`);
-}
+// What holds a line of a guide lives beside what holds the accounts, in packages/db, where
+// deleting an account reads it too: decision 071.
+export { holdLine } from "@repo/db/accounts";
 
 /** The username and the rank of each of some accounts that have a username. */
 export async function authorsOf(db: Reader, userIds: (string | null)[]) {

@@ -13,7 +13,7 @@ const keys = (count: number) => `${count} ${count === 1 ? "key" : "keys"}`;
  * The account with this id, in words that let whoever runs the command recognise it. The
  * account is held until the transaction ends, so that it is not deleted under the command.
  */
-async function accountOf(db: Pick<Database, "select">, id: string) {
+export async function accountOf(db: Pick<Database, "select">, id: string) {
   const [account] = await db.select().from(user).where(eq(user.id, id)).for("share");
   if (!account) return null;
   const since = account.createdAt.toISOString().slice(0, 10);
@@ -22,7 +22,7 @@ async function accountOf(db: Pick<Database, "select">, id: string) {
   return `${cleanText(account.name)} <${cleanText(account.email)}>, an account since ${since}`;
 }
 
-const noAccount = (id: string) =>
+export const noAccount = (id: string) =>
   refused(`No account "${cleanText(id)}". An account reads its id, signed in, at GET /v1/account.`);
 
 /**
