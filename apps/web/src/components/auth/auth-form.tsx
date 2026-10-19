@@ -21,7 +21,7 @@ import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 import { client } from "@/utils/orpc";
 
-import { GoogleSignIn } from "./google-sign-in";
+import { ProviderSignIn } from "./provider-sign-in";
 
 export type AuthMode = "sign-in" | "sign-up";
 
@@ -122,12 +122,12 @@ async function announceCheck(email: string) {
 /** Signs a visitor in, or creates their account. One form does both, and a link switches. */
 export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }: AuthFormProps) {
   const isSignUp = mode === "sign-up";
-  const [googlePending, setGooglePending] = useState(false);
+  const [providerPending, setProviderPending] = useState(false);
 
   const form = useForm({
     defaultValues: { username: "", email: "", password: "" },
     onSubmit: async ({ value }) => {
-      if (googlePending) return;
+      if (providerPending) return;
       const answer = isSignUp
         ? // The sign-in library asks every account for a name: a new one gives its username,
           // which is what it is called by.
@@ -178,11 +178,11 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }
     >
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
-          <GoogleSignIn
+          <ProviderSignIn
             invitation={invitation}
             returnTo={returnTo}
             disabled={isSubmitting}
-            onPendingChange={setGooglePending}
+            onPendingChange={setProviderPending}
           />
         )}
       </form.Subscribe>
@@ -248,7 +248,7 @@ export function AuthForm({ mode, onModeChange, onSuccess, invitation, returnTo }
 
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
-          <Button type="submit" isPending={isSubmitting} disabled={googlePending}>
+          <Button type="submit" isPending={isSubmitting} disabled={providerPending}>
             <MorphText>{isSignUp ? m.auth_create_account() : m.auth_sign_in()}</MorphText>
           </Button>
         )}

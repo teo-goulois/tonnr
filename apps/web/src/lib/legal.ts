@@ -45,6 +45,9 @@ export const RECIPIENTS: {
   { name: "PostHog", does: m.privacy_does_analytics, where: m.privacy_where_eu },
   { name: "Umami", does: m.privacy_does_audience },
   { name: "Google", does: m.privacy_does_google, where: m.privacy_where_us },
+  // Apple Distribution International, which Apple's privacy policy names for the European
+  // Economic Area. Decision 070.
+  { name: "Apple", does: m.privacy_does_apple, where: m.privacy_where_ireland },
   { name: "komoot (Photon)", does: m.privacy_does_search, where: m.privacy_where_germany },
   { name: "OpenFreeMap", does: m.privacy_does_tiles },
   { name: "Copernicus Marine", does: m.privacy_does_sea, where: m.privacy_where_eu },

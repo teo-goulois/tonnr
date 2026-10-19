@@ -3,13 +3,21 @@ import { LOCALES } from "@repo/config/locales";
 // What an address begins with in a language other than English, and the page after it.
 const PREFIXED = new RegExp(`^(/(?:${LOCALES.filter((l) => l !== "en").join("|")}))(/.*)$`);
 
+/** The providers an instance may offer to sign in with, besides an address: decisions 046 and 070. */
+export const PROVIDERS = ["apple", "google"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+
+export function isProvider(value: unknown): value is Provider {
+  return PROVIDERS.includes(value as Provider);
+}
+
 function splitLocale(pathname: string) {
   const [, prefix = "", page = pathname] = PREFIXED.exec(pathname) ?? [];
   return { prefix, page };
 }
 
 /** OAuth keeps the selected place, list and language across the external redirect. */
-export function googleReturnURL(current: string) {
+export function providerReturnURL(current: string) {
   const url = new URL(current);
   const { prefix, page } = splitLocale(url.pathname);
   if (page === "/login") {
@@ -22,13 +30,15 @@ export function googleReturnURL(current: string) {
   return url.href;
 }
 
-export function googleErrorURL(current: string) {
+/** The login a refusal returns to, which names the provider so that its words name it too. */
+export function providerErrorURL(current: string, provider: Provider) {
   const url = new URL(current);
   url.pathname = `${splitLocale(url.pathname).prefix}/login`;
   url.search = "";
   url.hash = "";
-  const target = new URL(googleReturnURL(current));
+  const target = new URL(providerReturnURL(current));
   url.searchParams.set("returnTo", target.pathname + target.search + target.hash);
+  url.searchParams.set("with", provider);
   return url.href;
 }
 

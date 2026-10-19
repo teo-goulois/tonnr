@@ -77,7 +77,7 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 
 ### The web's Google sign-in
 
-- The web's Google sign-in leaves the page for Google and comes back through the API, at `/api/auth/callback/google` on the API's host. The API then sends the browser on to the address the sign-in began from: `/app?…` in its language, or `/app` when it began on `/login` (`googleReturnURL`, in `apps/web/src/lib/google-auth.ts`, and [decision 046](046-google-sign-in.md)).
+- The web's Google sign-in leaves the page for Google and comes back through the API, at `/api/auth/callback/google` on the API's host. The API then sends the browser on to the address the sign-in began from: `/app?…` in its language, or `/app` when it began on `/login` (`providerReturnURL`, in `apps/web/src/lib/provider-auth.ts`, and [decision 046](046-google-sign-in.md)). Apple's, since [decision 070](070-signing-in-from-the-app.md), comes back the same way, at `/api/auth/callback/apple`, and is in the same case.
 - On an iPhone with the app, that last step comes from another host after a press on Google's page. iOS may take it as a universal link, and open the app, signed out, while the session was just set in Safari. Chrome on Android may do the same. It is tried on both, with a development build, before the first build given to testers outside.
 - If the app opens, the web's Google sign-in comes back to an address that the app does not claim, and that page goes on to `/app` from inside the page. A navigation within one site opens no app. Chosen here.
 - The app's own Google sign-in ends on its scheme, in the browser the app opened (decision 070), and meets no universal link.

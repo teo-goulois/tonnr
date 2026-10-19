@@ -59,14 +59,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@repo/ui/components/ui/tooltip-popup";
-import { ArrowRightIcon, GoogleIcon, PlusIcon } from "@repo/ui/icon";
+import { ArrowRightIcon, PlusIcon } from "@repo/ui/icon";
 import { DENSITIES, densityName } from "@/lib/density";
+import { PROVIDERS } from "@/lib/provider-auth";
 import { m } from "@/paraglide/messages.js";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
 import { ConnectPage } from "@/components/auth/connect-page";
+import { ProviderButton } from "@/components/auth/provider-sign-in";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { LearnSamples } from "@/components/design-system/learn-samples";
@@ -527,20 +529,13 @@ export function DesignSystemPage() {
       </Section>
 
       <Section title="Button">
-        <Row>
-          <Button variant="outline">
-            <GoogleIcon data-slot="icon" aria-hidden />
-            {m.auth_google()}
-          </Button>
-          <Button variant="outline" isPending>
-            <GoogleIcon data-slot="icon" aria-hidden />
-            {m.auth_google()}
-          </Button>
-          <Button variant="outline" disabled>
-            <GoogleIcon data-slot="icon" aria-hidden />
-            {m.auth_google()}
-          </Button>
-        </Row>
+        {PROVIDERS.map((provider) => (
+          <Row key={provider}>
+            <ProviderButton provider={provider} />
+            <ProviderButton provider={provider} isPending />
+            <ProviderButton provider={provider} disabled />
+          </Row>
+        ))}
         {VARIANTS.map((variant) => (
           <Row key={variant}>
             <Button variant={variant}>{variant}</Button>

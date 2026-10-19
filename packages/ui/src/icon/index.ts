@@ -1,6 +1,7 @@
 export type { IconProps } from "./icon-types";
 
 // Brand artwork, supplied by the provider.
+export { AppleIcon } from "./apple-icon";
 export { ClaudeIcon } from "./claude-icon";
 export { GmailIcon } from "./gmail-icon";
 export { GoogleIcon } from "./google-icon";
