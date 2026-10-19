@@ -116,7 +116,8 @@ export const alert = pgTable(
     lookedAt: timestamp("looked_at", { withTimezone: true }),
     // The alert is paused until then, the end of the day its owner said "Not today" on: no hour
     // of it before then is open, as none of any alert is before the account's own `awayUntil`.
-    // Null when it is not paused. Decision 072.
+    // Null when it was never paused or the pause was lifted. A pause that is over keeps its
+    // moment, which pauses nothing, and the API answers it as null. Decision 072.
     awayUntil: timestamp("away_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

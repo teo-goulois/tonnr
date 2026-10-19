@@ -494,6 +494,18 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       expect(alerts.map((one) => one.awayUntil)).toEqual([midnight]);
     });
 
+    it("is none once its day is over, in what the alert answers", async () => {
+      const made = await make();
+      await call(v1Router.alerts.pauseToday, { id: made.id, until: AFTER }, by("ana"));
+
+      // Midnight, UTC's, has passed.
+      vi.setSystemTime(new Date("2026-10-10T00:00:01Z"));
+
+      expect((await call(v1Router.alerts.get, { id: made.id }, by("ana"))).awayUntil).toBeNull();
+      const { alerts } = await call(v1Router.alerts.list, undefined, by("ana"));
+      expect(alerts.map((one) => one.awayUntil)).toEqual([null]);
+    });
+
     it("reads the day in UTC for an account whose time zone is not known yet", async () => {
       const made = await make();
 

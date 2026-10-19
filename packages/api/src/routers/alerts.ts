@@ -93,7 +93,8 @@ const alertSchema = z.object({
   criteria: criteriaSchema,
   enabled: z.boolean(),
   // The alert is paused until then, the end of the day its owner said "Not today" on: no hour
-  // of it before then is told. Null when it is not paused. Decision 072.
+  // of it before then is told. Null when it is not paused, and once the pause is over.
+  // Decision 072.
   awayUntil: z.date().nullable(),
   shortestMinutes: z.number(),
   // The spots of the account it is set on, and the breaks of the catalogue.
@@ -127,7 +128,8 @@ function describeAlert(row: typeof alert.$inferSelect, places: Place[]) {
     name: row.name,
     criteria: row.criteria,
     enabled: row.enabled,
-    awayUntil: row.awayUntil,
+    // A pause that is over is none: the row keeps its day until another, or a lift.
+    awayUntil: row.awayUntil && row.awayUntil.getTime() > Date.now() ? row.awayUntil : null,
     shortestMinutes: row.shortestMinutes,
     spotIds: places.flatMap((place) => place.spotId ?? []),
     breakIds: places.flatMap((place) => place.breakId ?? []),
