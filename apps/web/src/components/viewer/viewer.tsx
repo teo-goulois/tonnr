@@ -29,6 +29,7 @@ import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
 import { AccountPanel } from "@/components/account/account-panel";
+import { BlockDialog, BlockedAccounts, type Blocking } from "@/components/account/blocked-accounts";
 import { type AccountDeletion, DeleteAccount } from "@/components/account/delete-account";
 import { AlertPlaceSheet } from "@/components/alerts/alert-place-sheet";
 import type { AlertPlace } from "@/components/alerts/alert-editor";
@@ -155,10 +156,11 @@ const FRESH_WIND_MS = 2 * HOUR_MS;
 export type ViewerPanel = "saved" | "alerts" | "account" | "add";
 /**
  * The part of the account's panel that is one step into it: how to be told of the alerts, and
- * what deletes the account (decision 071).
+ * the accounts it blocked and what deletes it (decision 071).
  */
 export type SettingsPart =
   | "alerts"
+  | "blocked"
   | "contributions"
   | "delete"
   | "friends"
@@ -320,6 +322,8 @@ type ViewerProps = {
     onSignOut: () => void;
     // What deletes the account, and what it asks first. Decision 071.
     deletion: AccountDeletion;
+    // The accounts it blocked, and what blocks and unblocks one. Decision 071.
+    blocking: Blocking;
   };
   // The part of the account's panel in view, when it is not its first screen. Asking for one
   // opens the panel on it.
@@ -1057,6 +1061,7 @@ export function Viewer({
               onCreateAccount={createAccount}
               onDelete={reporting.onDelete}
               onFlag={reporting.onFlag}
+              onBlock={account.blocking.onBlock}
             />
           )
         }
@@ -1367,6 +1372,7 @@ export function Viewer({
   const ownProfile = settingsPart === "profile" && signedIn;
   // A visitor who follows the address that deletes an account signs in first: decision 071.
   const ownDeletion = settingsPart === "delete" && signedIn;
+  const ownBlocks = settingsPart === "blocked" && signedIn;
   // A button that floats on the map: the outline button, on the theme's surface.
   const floating =
     "bg-neutral-1 [--edge-color:var(--neutral-10-transparent)] hover:bg-neutral-3 aria-expanded:bg-neutral-3";
@@ -2028,7 +2034,9 @@ export function Viewer({
                     ? m.profile_title()
                     : ownDeletion
                       ? m.delete_account_title()
-                      : m.account_menu()
+                      : ownBlocks
+                        ? m.blocks_title()
+                        : m.account_menu()
         }
         onBack={
           alertSettings ||
@@ -2036,7 +2044,8 @@ export function Viewer({
           ownFriends ||
           ownSessions ||
           ownProfile ||
-          ownDeletion
+          ownDeletion ||
+          ownBlocks
             ? () => onSettingsPartChange(undefined)
             : undefined
         }
@@ -2067,6 +2076,8 @@ export function Viewer({
           />
         ) : ownDeletion ? (
           <DeleteAccount deletion={account.deletion} />
+        ) : ownBlocks ? (
+          <BlockedAccounts blocking={account.blocking} />
         ) : ownSessions ? (
           <LogbookPanel
             now={now}
@@ -2094,6 +2105,8 @@ export function Viewer({
             profile={profiling.profile}
             onOpenProfile={() => onSettingsPartChange("profile")}
             onOpenDelete={() => onSettingsPartChange("delete")}
+            blockCount={account.blocking.blocks.data?.length}
+            onOpenBlocks={() => onSettingsPartChange("blocked")}
           />
         )}
       </ViewerTab>
@@ -2202,6 +2215,8 @@ export function Viewer({
         username={account.user?.username}
         onUsernameSave={account.onUsernameSave}
       />
+      {/* What is asked before an account is blocked, from wherever it was shown. */}
+      <BlockDialog blocking={account.blocking} />
       {/* What the account is asked once, as it comes. */}
       {signedIn && (
         <Onboarding

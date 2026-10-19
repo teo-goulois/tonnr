@@ -259,6 +259,7 @@ const guidingOf = (signedIn: boolean): Guiding => ({
     done();
   },
   onAnswer: (question, answer) => said(`${question}: ${answer ?? "taken back"}`),
+  onBlock: (username) => said(`Block @${username}`),
 });
 
 const framed = "edge rounded-(--radius-xs) p-m";

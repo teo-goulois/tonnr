@@ -60,6 +60,8 @@ export type Friend = Answer<V1["friends"]["list"]>["friends"][number];
 export type FriendDetail = Answer<V1["friends"]["get"]>;
 /** Whose link an invitation is. */
 export type Inviter = Answer<V1["friends"]["open"]>;
+/** An account the signed-in account blocked: decision 071. */
+export type BlockedAccount = Answer<V1["blocks"]["list"]>["blocks"][number];
 
 /** A session of the account's log, as a list gives it: with its figures. Decision 043. */
 export type Session = Answer<V1["sessions"]["list"]>["sessions"][number];

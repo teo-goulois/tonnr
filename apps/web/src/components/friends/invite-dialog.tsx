@@ -55,12 +55,17 @@ export function InviteDialog({
                   {m.invite_title({ username: inviter.username })}
                   {inviter.rank && <RankBadge rank={inviter.rank} />}
                 </>
+              ) : invitation?.isBlocked ? (
+                m.invite_blocked()
               ) : invitation?.isGone ? (
                 m.invite_gone()
               ) : (
                 <Skeleton className="h-6 w-40" />
               )}
             </DialogTitle>
+            {invitation?.isBlocked && (
+              <DialogDescription>{m.invite_blocked_text()}</DialogDescription>
+            )}
             {inviter && (
               <DialogDescription>
                 {isOwn ? m.invite_own() : signedIn ? m.invite_text_signed_in() : m.invite_text()}

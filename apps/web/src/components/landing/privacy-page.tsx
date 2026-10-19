@@ -59,6 +59,7 @@ export function PrivacyPage() {
             m.privacy_content_reports(),
             m.privacy_content_sizes(),
             m.privacy_content_friends(),
+            m.privacy_content_blocks(),
             m.privacy_content_operator(who),
           ]}
         />

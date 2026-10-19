@@ -46,6 +46,7 @@ import { orpc } from "@/utils/orpc";
 
 import { useAgents } from "./-agents";
 import { useAlerting } from "./-alerting";
+import { useBlocks } from "./-blocks";
 import { useAccountDeletion } from "./-deletion";
 import { useFriends } from "./-friends";
 import { useGuiding, useStanding } from "./-guiding";
@@ -363,8 +364,15 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     // The settings say whether a new alert asks about mail: its sheet waits for them.
     isShown: isSettingAlerts || selectedSpotId !== undefined || alertPoint !== undefined,
   });
+  // The accounts the account blocked, read in the account's panel, and what blocks one from
+  // wherever it is shown: decision 071.
+  const blocking = useBlocks({ account: session.data?.user.id, isShown: panel === "account" });
   // What is written of the break in view, and what its reader does there.
-  const guided = useGuiding({ breakId: selectedBreakId, account: session.data?.user.id });
+  const guided = useGuiding({
+    breakId: selectedBreakId,
+    account: session.data?.user.id,
+    onBlock: blocking.onBlock,
+  });
   // Where the account stands in the guides, read where it shows: in the account's panel.
   const standing = useStanding({
     account: session.data?.user.id,
@@ -403,6 +411,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     isShown: panel === "account",
     invite: search.invite,
     onInviteDone: leaveInvite,
+    onBlock: blocking.onBlock,
   });
 
   // An address from before how to be told was a part of the account's panel is taken there.
@@ -1405,6 +1414,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
         agents,
         onSignOut: signOut,
         deletion,
+        blocking,
       }}
       friending={friended.friending}
       invitation={friended.invitation}

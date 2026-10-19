@@ -25,4 +25,6 @@ export type Guiding = {
   onConfirm: (contributionId: string) => void;
   onContest: (contributionId: string, reason: string, done: () => void) => void;
   onAnswer: (question: GuideQuestion, answer: string | null) => void;
+  // Asks whether to block the author of a line, by its username: decision 071.
+  onBlock: (username: string) => void;
 };

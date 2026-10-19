@@ -16,6 +16,8 @@ export type Friending = {
   onRenew: () => void;
   isRemoving: boolean;
   onRemove: (id: string) => void;
+  // Asks whether to block a friend, by its username, which ends the friendship: decision 071.
+  onBlock: (username: string) => void;
 };
 
 /**
@@ -26,6 +28,8 @@ export type Invitation = {
   inviter: Loadable<Inviter>;
   // True for a link that opens nothing: it was changed, or was never one.
   isGone: boolean;
+  // True for the link of an account the reader blocked, which names it no more: decision 071.
+  isBlocked: boolean;
   isAccepting: boolean;
   onAccept: () => void;
   // Asks for an account, with the link: one that is made through it has its owner as sponsor.

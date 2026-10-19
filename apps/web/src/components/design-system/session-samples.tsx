@@ -542,6 +542,7 @@ function ReportsSample() {
         onCreateAccount={() => {}}
         onDelete={async () => true}
         onFlag={async () => true}
+        onBlock={(username) => toast(`Block @${username}`)}
       />
     </Sample>
   );

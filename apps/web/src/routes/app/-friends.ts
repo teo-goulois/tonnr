@@ -30,6 +30,7 @@ export function useFriends({
   isShown,
   invite,
   onInviteDone,
+  onBlock,
 }: {
   account: string | undefined;
   username: string | null | undefined;
@@ -38,6 +39,8 @@ export function useFriends({
   invite: string | undefined;
   // Takes the link out of the address, once it has done what it does or was left.
   onInviteDone: () => void;
+  // Asks whether to block a friend: decision 071.
+  onBlock: (username: string) => void;
 }) {
   const queryClient = useQueryClient();
   const promptAuth = useAuthPrompt();
@@ -120,15 +123,17 @@ export function useFriends({
         return changed();
       },
       onError: (error) => {
-        const code = (error as { code?: unknown }).code;
+        const { code, data } = error as { code?: unknown; data?: { blocked?: unknown } };
         toast.error(
           code === "CONFLICT"
             ? m.invite_own()
-            : code === "FORBIDDEN"
-              ? m.invite_ended()
-              : code === "NOT_FOUND"
-                ? m.invite_gone()
-                : m.invite_failed(),
+            : code === "FORBIDDEN" && data?.blocked === true
+              ? m.invite_blocked()
+              : code === "FORBIDDEN"
+                ? m.invite_ended()
+                : code === "NOT_FOUND"
+                  ? m.invite_gone()
+                  : m.invite_failed(),
         );
         // A link that makes nothing is left: asking again would say the same.
         if (code !== undefined) onInviteDone();
@@ -161,6 +166,7 @@ export function useFriends({
     onRenew: () => sendRenewal({}),
     isRemoving: remove.isPending,
     onRemove: (id) => sendRemoval({ id }),
+    onBlock,
   };
 
   const { mutate: sendAcceptance } = accept;
@@ -170,6 +176,9 @@ export function useFriends({
       : {
           inviter: loadable(inviter),
           isGone: inviter.isError,
+          // The API tells whoever blocked the link's owner why it names no one: decision 071.
+          isBlocked:
+            (inviter.error as { data?: { blocked?: unknown } } | null)?.data?.blocked === true,
           isAccepting: accept.isPending,
           onAccept: () => sendAcceptance({ token: invite }),
           onCreateAccount: () =>

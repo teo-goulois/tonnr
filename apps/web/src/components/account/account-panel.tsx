@@ -61,6 +61,10 @@ type AccountPanelProps = {
   onOpenProfile: () => void;
   // Opens what deletes the account, one step into this panel, under signing out. Decision 071.
   onOpenDelete: () => void;
+  // How many accounts the account blocked, once the API has said, and what opens them, one step
+  // into this panel. Decision 071.
+  blockCount?: number | undefined;
+  onOpenBlocks: () => void;
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -104,6 +108,8 @@ export function AccountPanel({
   profile,
   onOpenProfile,
   onOpenDelete,
+  blockCount,
+  onOpenBlocks,
 }: AccountPanelProps) {
   const { theme, setTheme } = useTheme();
   const palette = usePalette();
@@ -229,6 +235,23 @@ export function AccountPanel({
                   : friendCount === 1
                     ? m.friends_count_one()
                     : m.friends_count({ count: friendCount })}
+              </span>
+            </span>
+            <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />
+          </button>
+          <button
+            type="button"
+            className="focus-ring -mx-xs flex min-h-11 cursor-pointer items-center justify-between gap-s rounded-(--radius-xs) px-xs text-left outline-none hover:bg-neutral-3-transparent"
+            onClick={onOpenBlocks}
+          >
+            <span className="grid gap-xxs">
+              <span>{m.blocks_title()}</span>
+              <span className="text-s text-neutral-7">
+                {blockCount === undefined || blockCount === 0
+                  ? m.blocks_hint()
+                  : blockCount === 1
+                    ? m.blocks_count_one()
+                    : m.blocks_count({ count: blockCount })}
               </span>
             </span>
             <ChevronRightIcon data-slot="icon" aria-hidden className="shrink-0 text-neutral-7" />

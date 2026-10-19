@@ -17,9 +17,10 @@ export const mapSearch = z.object({
   // then still leads there, and is taken to it.
   alerts: z.enum(["mine", "settings"]).optional(),
   // The part of the account's panel in view: its first screen when left out. "delete" is the
-  // step that deletes the account, the address Google Play's form names: decision 071.
+  // step that deletes the account, the address Google Play's form names, and "blocked" the
+  // accounts it blocked: decision 071.
   settings: z
-    .enum(["alerts", "contributions", "delete", "friends", "profile", "sessions"])
+    .enum(["alerts", "blocked", "contributions", "delete", "friends", "profile", "sessions"])
     .optional(),
   // What the link someone gave the reader ends with: whose it is and what it makes are said
   // over the map. Decision 041.

@@ -1,3 +1,7 @@
+import { Button } from "@repo/ui/components/ui/button";
+import { useState } from "react";
+
+import { BlockDialog, BlockedAccounts, type Blocking } from "@/components/account/blocked-accounts";
 import { type AccountDeletion, DeleteAccount } from "@/components/account/delete-account";
 
 // The steps of the account's panel that decision 071 adds, with invented accounts.
@@ -33,6 +37,64 @@ export function DeletionSamples() {
       {/* While the API has not said whether the account has a password. */}
       <div className="edge rounded-(--radius-xs) p-m">
         <DeleteAccount deletion={sampleDeletion({ hasPassword: undefined })} />
+      </div>
+    </div>
+  );
+}
+
+const sampleBlocking = (given: Partial<Blocking>): Blocking => ({
+  blocks: {
+    data: [
+      { id: "a", username: "kai_reef", since: new Date("2026-10-12T09:00:00Z") },
+      { id: "b", username: null, since: new Date("2026-10-02T18:00:00Z") },
+    ],
+    isPending: false,
+    isError: false,
+  },
+  onBlock: () => {},
+  unblocking: undefined,
+  onUnblock: () => {},
+  asked: undefined,
+  isBlocking: false,
+  onConfirm: () => {},
+  onCancel: () => {},
+  ...given,
+});
+
+/** The accounts an account blocked, and the question asked before it blocks one. */
+export function BlockSamples() {
+  const [asked, setAsked] = useState<string>();
+  return (
+    <div className="grid gap-m lg:grid-cols-2">
+      {/* Two blocked accounts, one of them without a username any more, and one being lifted. */}
+      <div className="edge rounded-(--radius-xs) p-m">
+        <BlockedAccounts blocking={sampleBlocking({ unblocking: "a" })} />
+      </div>
+      {/* No account blocked. */}
+      <div className="edge rounded-(--radius-xs) p-m">
+        <BlockedAccounts
+          blocking={sampleBlocking({ blocks: { data: [], isPending: false, isError: false } })}
+        />
+      </div>
+      {/* While the list comes. */}
+      <div className="edge rounded-(--radius-xs) p-m">
+        <BlockedAccounts
+          blocking={sampleBlocking({
+            blocks: { data: undefined, isPending: true, isError: false },
+          })}
+        />
+      </div>
+      <div>
+        <Button variant="outline" onClick={() => setAsked("kai_reef")}>
+          Ask before blocking
+        </Button>
+        <BlockDialog
+          blocking={sampleBlocking({
+            asked,
+            onConfirm: () => setAsked(undefined),
+            onCancel: () => setAsked(undefined),
+          })}
+        />
       </div>
     </div>
   );

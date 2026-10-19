@@ -182,9 +182,23 @@ function FriendRow({
                 </Button>
               </>
             ) : (
-              <Button variant="ghost" size="sm" onClick={() => setEnding(true)}>
-                {m.friends_remove()}
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" onClick={() => setEnding(true)}>
+                  {m.friends_remove()}
+                </Button>
+                {/* Ends the friendship too, and hides the friend's reports and name: decision
+                    071. A friend with no name is blocked by none. */}
+                {friend.username && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-error"
+                    onClick={() => friend.username && friending.onBlock(friend.username)}
+                  >
+                    {m.block_account({ username: friend.username })}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>

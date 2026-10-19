@@ -61,6 +61,7 @@ const friendingOf = (friends: Friend[], opened?: string): Friending => ({
   onRenew: () => toast("New link"),
   isRemoving: false,
   onRemove: (id) => toast(`End ${id}`),
+  onBlock: (username) => toast(`Block @${username}`),
 });
 
 const framed = "edge rounded-(--radius-xs) p-m";

@@ -268,6 +268,12 @@ export function CommandPalette() {
             void navigate({ to: "/app", search: { panel: "account", settings: "friends" } }),
         },
         {
+          value: `${m.blocks_title()} blocked blocks unblock bloqués débloquer bloqueadas desbloquear`,
+          label: m.blocks_title(),
+          run: () =>
+            void navigate({ to: "/app", search: { panel: "account", settings: "blocked" } }),
+        },
+        {
           value: `${m.delete_account_title()} delete account supprimer compte eliminar borrar apagar conta gdpr rgpd`,
           label: m.delete_account_title(),
           run: () =>

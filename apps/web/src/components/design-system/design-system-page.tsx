@@ -69,7 +69,7 @@ import { toast } from "sonner";
 import { AccountPanel } from "@/components/account/account-panel";
 import { ConnectPage } from "@/components/auth/connect-page";
 import { ProviderButton } from "@/components/auth/provider-sign-in";
-import { DeletionSamples } from "@/components/design-system/account-samples";
+import { BlockSamples, DeletionSamples } from "@/components/design-system/account-samples";
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { LearnSamples } from "@/components/design-system/learn-samples";
@@ -1031,6 +1031,7 @@ export function DesignSystemPage() {
               account={{ name: "maelle_lg", email: "maelle@example.org", username: "maelle_lg" }}
               standing={{ score: 180, rank: "cs" }}
               friendCount={3}
+              blockCount={2}
               agents={{
                 list: [
                   { clientId: "one", name: "Claude", site: "https://claude.ai", since: null },
@@ -1051,6 +1052,7 @@ export function DesignSystemPage() {
               profile={SAMPLE_PROFILE}
               onOpenProfile={() => {}}
               onOpenDelete={() => {}}
+              onOpenBlocks={() => {}}
             />
           </div>
           {/* An account made before usernames: it is asked to choose one. */}
@@ -1068,6 +1070,7 @@ export function DesignSystemPage() {
               profile={null}
               onOpenProfile={() => {}}
               onOpenDelete={() => {}}
+              onOpenBlocks={() => {}}
             />
           </div>
           {/* A visitor: the browser keeps the units, the theme and the language. */}
@@ -1084,6 +1087,7 @@ export function DesignSystemPage() {
               onOpenSessions={() => {}}
               onOpenProfile={() => {}}
               onOpenDelete={() => {}}
+              onOpenBlocks={() => {}}
             />
           </div>
         </div>
@@ -1092,6 +1096,11 @@ export function DesignSystemPage() {
       {/* What deletes the account, one step into its panel: decision 071. */}
       <Section title="Deleting the account">
         <DeletionSamples />
+      </Section>
+
+      {/* The accounts an account blocked, one step into its panel: decision 071. */}
+      <Section title="Blocking an account">
+        <BlockSamples />
       </Section>
 
       <Section title="Surfer profile, and the questions a new account is asked">

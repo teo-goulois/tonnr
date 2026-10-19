@@ -55,6 +55,15 @@ type LineProps = {
   onContest: (contributionId: string | undefined) => void;
 };
 
+/**
+ * What blocks the author of a line, for the author of another's line: the reader's own lines
+ * open no menu. Decision 071.
+ */
+function blockerOf({ guiding, own }: Pick<LineProps, "guiding" | "own">) {
+  return (by: Proposed["by"]) =>
+    by && (own?.username == null || by.username !== own.username) ? guiding.onBlock : undefined;
+}
+
 const quiet =
   "focus-ring cursor-pointer rounded-(--radius-xs) text-s font-medium text-neutral-10 underline underline-offset-4 outline-none";
 
@@ -198,7 +207,7 @@ function Waiting({ line, own, guiding, contesting, onContest }: LineProps) {
               {mine?.id === one.id ? m.guide_mine_shown() : m.guide_proposed()}
             </Badge>
             <span className="text-neutral-7">
-              <Author by={one.by} />
+              <Author by={one.by} onBlock={blockerOf({ guiding, own })(one.by)} />
             </span>
           </div>
           <div className="break-words">{read(line.line, one.value)}</div>
@@ -451,37 +460,39 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
   const value = Array.isArray(line.value) ? line.value : null;
   return (
     <li className="grid gap-xs">
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        className="focus-ring -mx-xs block cursor-pointer rounded-(--radius-xs) px-xs py-xxs outline-none hover:bg-neutral-3-transparent"
-        onClick={isOpen ? onClose : onOpen}
-      >
-        <CharacteristicRow
-          icon={
-            <span className={value ? undefined : "text-neutral-6"}>
-              <CharacteristicIcon field={field.key} given={value ?? []} />
-            </span>
-          }
-          label={field.label()}
+      <div className="grid">
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          className="focus-ring -mx-xs block cursor-pointer rounded-(--radius-xs) px-xs py-xxs outline-none hover:bg-neutral-3-transparent"
+          onClick={isOpen ? onClose : onOpen}
         >
-          {value ? (
-            <span className="grid gap-xxs">
+          <CharacteristicRow
+            icon={
+              <span className={value ? undefined : "text-neutral-6"}>
+                <CharacteristicIcon field={field.key} given={value ?? []} />
+              </span>
+            }
+            label={field.label()}
+          >
+            {value ? (
               <span>{readCharacteristic(field.key, value)}</span>
-              {line.origin === "contribution" && (
-                <span className="text-neutral-7">
-                  <Author by={line.by} />
-                </span>
-              )}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-xxs font-medium text-neutral-10">
-              <PlusIcon data-slot="icon" aria-hidden className="size-3" />
-              {m.guide_add()}
-            </span>
-          )}
-        </CharacteristicRow>
-      </button>
+            ) : (
+              <span className="inline-flex items-center gap-xxs font-medium text-neutral-10">
+                <PlusIcon data-slot="icon" aria-hidden className="size-3" />
+                {m.guide_add()}
+              </span>
+            )}
+          </CharacteristicRow>
+        </button>
+        {/* Who said it stands under the value, out of the button: its name opens a menu of its
+            own. */}
+        {value && line.origin === "contribution" && (
+          <span className="-mt-xxs pb-xxs pl-[calc(var(--spacing)*10+var(--spacing-s))] text-s text-neutral-7">
+            <Author by={line.by} onBlock={blockerOf(props)(line.by)} />
+          </span>
+        )}
+      </div>
       <Waiting {...props} />
       {isOpen && (
         <Writer own={own} guiding={guiding}>
@@ -524,7 +535,7 @@ function TextLine(props: LineProps & { name: TextLineName }) {
         <div className="grid gap-xxs text-s">
           <p className="break-words">{value}</p>
           <p className="flex flex-wrap items-center gap-x-xs text-neutral-7">
-            <Author by={line.by} />
+            <Author by={line.by} onBlock={blockerOf(props)(line.by)} />
             {/* The language is said to a reader of another. */}
             {line.language && line.language !== getLocale() && (
               <span>{writtenIn(line.language)}</span>

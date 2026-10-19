@@ -136,6 +136,8 @@ type ReportCardProps = {
   onOpen: (report: Report, item: MediaItem) => void;
   onDelete: (report: Report) => Promise<boolean>;
   onFlag: (report: Report, reason: FlagReason) => Promise<boolean>;
+  // Asks whether to block the author of another's report, by its username: decision 071.
+  onBlock: (username: string) => void;
 };
 
 /**
@@ -158,7 +160,15 @@ export function ReportStats({ stats }: { stats: NonNullable<Report["stats"]> }) 
 }
 
 /** A report: who sent it and when, from how far, its photos, how big it looked, and a few words. */
-export function ReportCard({ report, now, signedIn, onOpen, onDelete, onFlag }: ReportCardProps) {
+export function ReportCard({
+  report,
+  now,
+  signedIn,
+  onOpen,
+  onDelete,
+  onFlag,
+  onBlock,
+}: ReportCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   // Another's report that is shown is counted once this browser has seen it: decision 068.
   const counted = report.state === "published" && !report.mine ? report.id : null;
@@ -204,19 +214,33 @@ export function ReportCard({ report, now, signedIn, onOpen, onDelete, onFlag }: 
                 >
                   {m.report_delete()}
                 </MenuItem>
-              ) : report.flagged ? (
-                <MenuItem disabled>{m.report_flag_done()}</MenuItem>
               ) : (
-                <MenuSub>
-                  <MenuSubTrigger>{m.report_flag()}</MenuSubTrigger>
-                  <MenuSubPopup className="min-w-56">
-                    {FLAG_REASONS.map((reason) => (
-                      <MenuItem key={reason} onClick={() => void onFlag(report, reason)}>
-                        {FLAG_WORDS[reason]()}
-                      </MenuItem>
-                    ))}
-                  </MenuSubPopup>
-                </MenuSub>
+                <>
+                  {report.flagged ? (
+                    <MenuItem disabled>{m.report_flag_done()}</MenuItem>
+                  ) : (
+                    <MenuSub>
+                      <MenuSubTrigger>{m.report_flag()}</MenuSubTrigger>
+                      <MenuSubPopup className="min-w-56">
+                        {FLAG_REASONS.map((reason) => (
+                          <MenuItem key={reason} onClick={() => void onFlag(report, reason)}>
+                            {FLAG_WORDS[reason]()}
+                          </MenuItem>
+                        ))}
+                      </MenuSubPopup>
+                    </MenuSub>
+                  )}
+                  {/* Beside the flag, what hides every report of its author from the reader
+                      alone: decision 071. An author with no name is blocked by none. */}
+                  {report.author && (
+                    <MenuItem
+                      variant="destructive"
+                      onClick={() => report.author && onBlock(report.author)}
+                    >
+                      {m.block_account({ username: report.author })}
+                    </MenuItem>
+                  )}
+                </>
               )}
             </MenuPopup>
           </Menu>
@@ -258,6 +282,7 @@ type ReportsPanelProps = {
   onCreateAccount: () => void;
   onDelete: (report: Report) => Promise<boolean>;
   onFlag: (report: Report, reason: FlagReason) => Promise<boolean>;
+  onBlock: (username: string) => void;
 };
 
 /**
@@ -274,6 +299,7 @@ export function ReportsPanel({
   onCreateAccount,
   onDelete,
   onFlag,
+  onBlock,
 }: ReportsPanelProps) {
   const [shown, setShown] = useState<{ reportId: string; mediaId: string } | null>(null);
   const viewed = reports.data?.find((report) => report.id === shown?.reportId);
@@ -290,6 +316,7 @@ export function ReportsPanel({
       onOpen={(one, item) => setShown({ reportId: one.id, mediaId: item.id })}
       onDelete={onDelete}
       onFlag={onFlag}
+      onBlock={onBlock}
     />
   );
 

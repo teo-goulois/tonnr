@@ -61,9 +61,12 @@ export function useStanding({
 export function useGuiding({
   breakId,
   account,
+  onBlock,
 }: {
   breakId: string | undefined;
   account: string | undefined;
+  // Asks whether to block the author of a line: decision 071.
+  onBlock: (username: string) => void;
 }) {
   const signedIn = account !== undefined;
   const queryClient = useQueryClient();
@@ -238,6 +241,7 @@ export function useGuiding({
       onAnswer: (question, given) => {
         if (breakId !== undefined) sendAnswer({ breakId, question, answer: given });
       },
+      onBlock,
     }),
     [
       signedIn,
@@ -253,6 +257,7 @@ export function useGuiding({
       sendContest,
       sendAnswer,
       changed,
+      onBlock,
     ],
   );
 
