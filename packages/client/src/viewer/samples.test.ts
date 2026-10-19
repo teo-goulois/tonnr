@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Forecast, Reading } from "../types";
-import { modelSamples, periodKindOf, waveEnergy } from "./metrics";
+import type { Forecast, Reading } from "./types";
+import { modelSamples, periodKindOf, waveEnergy } from "./samples";
 
 const hour = (peak: number | null): Forecast["hours"][number] => ({
   time: new Date("2026-10-12T12:00:00Z"),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Sample } from "./metrics";
+import type { Sample } from "./samples";
 import {
   WIND_RANGES,
   aheadOf,

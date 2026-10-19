@@ -1,0 +1,23 @@
+{
+  "name": "@repo/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc -b ../api && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@repo/conditions": "workspace:*",
+    "@repo/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/api": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^5.0.3"
+  }
+}

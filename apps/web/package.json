@@ -17,6 +17,7 @@
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.15.0",
     "@repo/api": "workspace:*",
+    "@repo/client": "workspace:*",
     "@repo/conditions": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

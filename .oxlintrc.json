@@ -57,6 +57,75 @@
           }
         ]
       }
+    },
+    {
+      "files": ["packages/client/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "react",
+                  "react/**",
+                  "react-dom",
+                  "react-dom/**",
+                  "react-native",
+                  "react-native/**",
+                  "expo",
+                  "expo/**",
+                  "expo-*",
+                  "expo-*/**",
+                  "@expo/**",
+                  "node:*",
+                  "**/apps/**"
+                ],
+                "message": "packages/client holds rules both apps run, on a page and on a phone: what reads React, the DOM, a phone, Node or an app's own files stays in that app (decision 069)."
+              },
+              {
+                "group": [
+                  "@repo/api",
+                  "@repo/api/**",
+                  "@repo/db",
+                  "@repo/db/**",
+                  "@repo/auth",
+                  "@repo/auth/**",
+                  "@repo/media",
+                  "@repo/media/**",
+                  "@repo/push",
+                  "@repo/push/**",
+                  "@repo/mail",
+                  "@repo/mail/**",
+                  "@repo/upstream",
+                  "@repo/upstream/**",
+                  "@repo/infra",
+                  "@repo/infra/**",
+                  "@repo/ui",
+                  "@repo/ui/**"
+                ],
+                "allowTypeImports": true,
+                "message": "packages/client imports the server's packages and the interface as types only: both apps run it (decision 069)."
+              },
+              {
+                "group": [
+                  "@repo/conditions/tides/*",
+                  "@repo/conditions/spots/conditions",
+                  "@repo/conditions/forecasts/forecasts",
+                  "@repo/conditions/forecasts/open-meteo",
+                  "@repo/conditions/forecasts/open-data",
+                  "@repo/conditions/forecasts/copernicus-*",
+                  "@repo/conditions/forecasts/cell-forecast",
+                  "@repo/conditions/forecasts/model-files",
+                  "@repo/conditions/forecasts/testing"
+                ],
+                "allowTypeImports": true,
+                "message": "This module of packages/conditions reads files or asks a provider: the apps ask the API instead (decision 069)."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

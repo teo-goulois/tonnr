@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { ENGLISH, testReader } from "../testing";
 import {
   type AlertDraft,
+  alertWords,
   asked,
   changedParts,
   NOTHING_DRAFTED,
@@ -9,22 +11,33 @@ import {
   afterRead,
   afterSpotsRead,
   conditionsKey,
-  coefficientWords,
-  cycleWords,
-  tideWords,
   isOpenAlert,
   isUnsaved,
   leftAfterSave,
-  loosened,
   partsToSave,
-  rangeAfter,
-  rangeWords,
   samePart,
   setPart,
-  sliderEnds,
-  thumbsOf,
   withoutGone,
 } from "./alert-words";
+
+// The words of the conditions as an app builds them, for a reader of English in the units the
+// app starts with.
+const reader = testReader();
+const {
+  coefficientWords,
+  cycleWords,
+  loosened,
+  rangeAfter,
+  rangeWords,
+  sliderEnds,
+  thumbsOf,
+  tideWords,
+} = alertWords({
+  units: reader.units,
+  writing: reader.writing,
+  format: reader.format,
+  m: ENGLISH,
+});
 
 describe("the conditions as they are sent", () => {
   it("leave out a range with neither end and a part that is not there", () => {
