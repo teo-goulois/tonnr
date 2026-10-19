@@ -79,6 +79,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an account and its address", () => {
       emailVerified: false,
       checksAddresses: true,
       hasPassword: false,
+      signsInWith: [],
     });
     expect(await call(v1Router.account.get, undefined, by("checked", silent))).toMatchObject({
       emailVerified: true,

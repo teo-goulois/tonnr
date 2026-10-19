@@ -5,8 +5,8 @@ import { LOCALES } from "@repo/config/locales";
 import { countCalls } from "@repo/db/calls";
 import { deleteAccount, isOperator } from "@repo/db/deletion";
 import { operator } from "@repo/db/schema/access";
-import { session, user } from "@repo/db/schema/auth";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { account, session, user } from "@repo/db/schema/auth";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -22,6 +22,10 @@ const DELETION_TRIES = "account-delete";
 // The sign-in library keeps a session's moments in UTC, without saying so in the column: they are
 // compared with the present moment in UTC, whatever zone the connection keeps.
 const NOW_UTC = sql`(now() at time zone 'UTC')`;
+
+// The services an account may sign in with besides a password, as the sign-in library names
+// them: decisions 046 and 070.
+const SIGN_IN_SERVICES = ["apple", "google"] as const;
 
 const runsTheInstance = () =>
   new ORPCError("CONFLICT", {
@@ -56,16 +60,25 @@ export const accountRouter = {
         // Whether the account has a password: deleting it asks for it again, and an account
         // that signs in with another service alone signs in again instead. Decision 071.
         hasPassword: z.boolean(),
+        // The services the account signs in with besides a password, which it signs in again
+        // with before it is deleted: decisions 070 and 071.
+        signsInWith: z.array(z.enum(SIGN_IN_SERVICES)),
       }),
     )
     .handler(async ({ context }) => {
       const { id, name, email, emailVerified } = context.session.user;
       // The username is read where it is kept: the session's copy is as old as the session.
-      const [found] = await context.db
-        .select({ username: user.username, operatorId: operator.userId })
-        .from(user)
-        .leftJoin(operator, eq(operator.userId, user.id))
-        .where(eq(user.id, id));
+      const [[found], links] = await Promise.all([
+        context.db
+          .select({ username: user.username, operatorId: operator.userId })
+          .from(user)
+          .leftJoin(operator, eq(operator.userId, user.id))
+          .where(eq(user.id, id)),
+        context.db
+          .select({ providerId: account.providerId })
+          .from(account)
+          .where(and(eq(account.userId, id), inArray(account.providerId, SIGN_IN_SERVICES))),
+      ]);
       return {
         id,
         name,
@@ -75,6 +88,9 @@ export const accountRouter = {
         emailVerified,
         checksAddresses: context.verification.isOn,
         hasPassword: (await passwordHashOf(context.db, id)) !== null,
+        signsInWith: SIGN_IN_SERVICES.filter((service) =>
+          links.some((link) => link.providerId === service),
+        ),
       };
     }),
 

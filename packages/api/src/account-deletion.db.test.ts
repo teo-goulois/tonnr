@@ -380,12 +380,25 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
     expect(await database.db.select().from(operatorAction)).toEqual([]);
   });
 
-  it("says whether the account has a password, for the step that deletes it", async () => {
+  it("says whether the account has a password, and what else it signs in with, for the step that deletes it", async () => {
     expect(await call(v1Router.account.get, undefined, by("ana"))).toMatchObject({
       hasPassword: true,
+      signsInWith: [],
     });
     expect(await call(v1Router.account.get, undefined, by("gil"))).toMatchObject({
       hasPassword: false,
+      signsInWith: ["google"],
+    });
+    await database.db.insert(account).values({
+      id: "apple-gil",
+      accountId: "apple-sub",
+      providerId: "apple",
+      userId: "gil",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    expect(await call(v1Router.account.get, undefined, by("gil"))).toMatchObject({
+      signsInWith: ["apple", "google"],
     });
   });
 

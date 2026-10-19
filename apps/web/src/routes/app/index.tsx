@@ -385,10 +385,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
   const own = useOwnAccount();
   const verification = useSendVerification();
   const signOut = useSignOut();
-  const deletion = useAccountDeletion({
-    hasPassword: own.account?.hasPassword,
-    openedAt: session.data?.session.createdAt,
-  });
+  const deletion = useAccountDeletion({ account: own.account });
   const saveUsername = useUsername();
   const needsCheck = own.account?.checksAddresses === true && !own.account.emailVerified;
   // The account's link and its friends, read in the account's panel, and the link the address

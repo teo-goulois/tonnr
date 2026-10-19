@@ -425,6 +425,7 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         emailVerified: false,
         checksAddresses: false,
         hasPassword: false,
+        signsInWith: [],
       });
       expect(await call(v1Router.account.get, undefined, bySession("visitor"))).toMatchObject({
         id: "visitor",

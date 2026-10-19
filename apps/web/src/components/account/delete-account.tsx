@@ -3,9 +3,10 @@ import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { GoogleIcon } from "@repo/ui/icon";
 import { useId, useState } from "react";
 
+import { ProviderButton } from "@/components/auth/provider-sign-in";
+import type { Provider } from "@/lib/provider-auth";
 import { m } from "@/paraglide/messages.js";
 
 /** Why the API did not delete the account, as the step says it. */
@@ -13,21 +14,35 @@ export type DeletionRefusal = "password" | "session" | "many" | "operator" | "fa
 
 /** What deletes the account, and what it asks first: decision 071. The route gives it. */
 export type AccountDeletion = {
+  // The account that goes, as the step names it: `@` and its username, or its address before it
+  // has one. Undefined while the API has not said.
+  account: string | undefined;
   // Whether the account has a password, which it gives again. Undefined while the API has not
   // said.
   hasPassword: boolean | undefined;
-  // Whether this browser's session was opened in the last minutes: an account without a
-  // password is deleted from such a session alone, and signs in again first.
-  isFresh: boolean;
-  // Whether the instance signs in with Google, which such an account signs in again with.
-  offersGoogle: boolean;
+  // What an account without a password signs in again with, among what it signs in with: the
+  // API deletes it from a session opened in the last minutes alone, and says so when this one
+  // is older. The API judges, by its own clock: the device's may be wrong.
+  signsInAgainWith: Provider[];
   isDeleting: boolean;
-  isSigningIn: boolean;
+  // The provider being signed in with again, while it is.
+  signingIn: Provider | undefined;
   refused: DeletionRefusal | undefined;
   onDelete: (password: string | undefined) => void;
-  // Signs in again with Google, and comes back to this step.
-  onSignInAgain: () => void;
+  // Signs in again with that provider, and comes back to this step.
+  onSignInAgain: (provider: Provider) => void;
 };
+
+/** Why the API did not delete the account, as its refusal says. */
+export function refusalOf(error: unknown): DeletionRefusal {
+  const refused = error as { code?: string; data?: { refused?: string } };
+  if (refused.code === "FORBIDDEN") {
+    return refused.data?.refused === "session" ? "session" : "password";
+  }
+  if (refused.code === "TOO_MANY_REQUESTS") return "many";
+  if (refused.code === "CONFLICT") return "operator";
+  return "failed";
+}
 
 const REFUSALS: Record<DeletionRefusal, () => string> = {
   password: m.delete_account_wrong_password,
@@ -45,9 +60,14 @@ const REFUSALS: Record<DeletionRefusal, () => string> = {
 export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
   const id = useId();
   const [password, setPassword] = useState("");
-  const { hasPassword, isFresh, refused } = deletion;
-  // An account without a password signs in again once its session is old, or the API said so.
-  const signsInFirst = hasPassword === false && (!isFresh || refused === "session");
+  const { account, hasPassword, refused } = deletion;
+  // An account without a password signs in again once the API says its session is too old.
+  const signsInFirst = hasPassword === false && refused === "session";
+  const offered = deletion.signsInAgainWith;
+  // The button says which account goes: a sign-in again may have come back as another.
+  const confirm = account?.startsWith("@")
+    ? m.delete_account_confirm_named({ username: account.slice(1) })
+    : m.delete_account_confirm();
 
   return (
     <div className="grid gap-l">
@@ -64,6 +84,10 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
           </p>
         </section>
       </div>
+
+      {account !== undefined && (
+        <p className="text-s text-pretty">{m.delete_account_as({ account })}</p>
+      )}
 
       {hasPassword === undefined ? (
         <Skeleton className="h-20 w-full" />
@@ -98,28 +122,28 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
             <Button
               type="submit"
               variant="destructive"
+              className="max-w-full"
               isPending={deletion.isDeleting}
               disabled={!password}
             >
-              {m.delete_account_confirm()}
+              <span className="truncate">{confirm}</span>
             </Button>
           </div>
         </form>
       ) : signsInFirst ? (
         <div className="grid justify-items-start gap-s">
-          <p className="text-s">
-            {deletion.offersGoogle ? m.delete_account_sign_in_again() : m.delete_account_no_way()}
+          <p role="alert" className="text-s text-pretty">
+            {offered.length > 0 ? m.delete_account_sign_in_again() : m.delete_account_no_way()}
           </p>
-          {deletion.offersGoogle && (
-            <Button
-              variant="outline"
-              isPending={deletion.isSigningIn}
-              onClick={deletion.onSignInAgain}
-            >
-              <GoogleIcon data-slot="icon" aria-hidden />
-              {m.auth_google()}
-            </Button>
-          )}
+          {offered.map((provider) => (
+            <ProviderButton
+              key={provider}
+              provider={provider}
+              isPending={deletion.signingIn === provider}
+              disabled={deletion.signingIn !== undefined && deletion.signingIn !== provider}
+              onClick={() => deletion.onSignInAgain(provider)}
+            />
+          ))}
         </div>
       ) : (
         <div className="grid justify-items-start gap-s">
@@ -130,10 +154,11 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
           )}
           <Button
             variant="destructive"
+            className="max-w-full"
             isPending={deletion.isDeleting}
             onClick={() => deletion.onDelete(undefined)}
           >
-            {m.delete_account_confirm()}
+            <span className="truncate">{confirm}</span>
           </Button>
         </div>
       )}

@@ -7,11 +7,11 @@ import { type AccountDeletion, DeleteAccount } from "@/components/account/delete
 // The steps of the account's panel that decision 071 adds, with invented accounts.
 
 const sampleDeletion = (given: Partial<AccountDeletion>): AccountDeletion => ({
+  account: "@kai_reef",
   hasPassword: true,
-  isFresh: false,
-  offersGoogle: true,
+  signsInAgainWith: ["google"],
   isDeleting: false,
-  isSigningIn: false,
+  signingIn: undefined,
   refused: undefined,
   onDelete: () => {},
   onSignInAgain: () => {},
@@ -26,17 +26,26 @@ export function DeletionSamples() {
       <div className="edge rounded-(--radius-xs) p-m">
         <DeleteAccount deletion={sampleDeletion({ refused: "password" })} />
       </div>
-      {/* An account that signs in with Google, whose session is old: it signs in again. */}
+      {/* An account that signs in with Apple and Google, whose session the API found too old:
+          it signs in again with either. */}
       <div className="edge rounded-(--radius-xs) p-m">
-        <DeleteAccount deletion={sampleDeletion({ hasPassword: false })} />
+        <DeleteAccount
+          deletion={sampleDeletion({
+            hasPassword: false,
+            refused: "session",
+            signsInAgainWith: ["apple", "google"],
+          })}
+        />
       </div>
-      {/* The same, just signed in again. */}
+      {/* Just signed in again, as an account that has no username yet: its address names it. */}
       <div className="edge rounded-(--radius-xs) p-m">
-        <DeleteAccount deletion={sampleDeletion({ hasPassword: false, isFresh: true })} />
+        <DeleteAccount
+          deletion={sampleDeletion({ account: "kai@example.org", hasPassword: false })}
+        />
       </div>
       {/* While the API has not said whether the account has a password. */}
       <div className="edge rounded-(--radius-xs) p-m">
-        <DeleteAccount deletion={sampleDeletion({ hasPassword: undefined })} />
+        <DeleteAccount deletion={sampleDeletion({ account: undefined, hasPassword: undefined })} />
       </div>
     </div>
   );
