@@ -22,6 +22,7 @@
     "@maplibre/maplibre-react-native": "^11.5.0",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "^1.15.0",
+    "@repo/client": "workspace:*",
     "@repo/conditions": "workspace:*",
     "@repo/config": "workspace:*",
     "@repo/ui": "workspace:*",
