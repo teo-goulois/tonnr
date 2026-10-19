@@ -213,6 +213,32 @@ describe.skipIf(!TEST_DATABASE_URL)("Google OAuth over HTTP", () => {
     expect(await database.db.select().from(sponsorship)).toHaveLength(0);
   });
 
+  it("takes an app's ID token made for the web's client or an app's, and no other", async () => {
+    auth = createAuth({ ...env, GOOGLE_IOS_CLIENT_ID: "made-up-ios-client" }, database.db);
+    const tokens = testIdTokens();
+    await checkIdTokensWith(auth, "google", tokens.publicKey);
+    const signIn = (aud: string, sub: string) =>
+      request("/sign-in/social", {
+        provider: "google",
+        idToken: {
+          token: tokens.sign({
+            iss: "https://accounts.google.com",
+            aud,
+            sub,
+            email: `${sub}@example.test`,
+            email_verified: true,
+          }),
+        },
+      });
+    expect((await signIn("made-up-ios-client", "on-iphone")).status).toBe(200);
+    expect((await signIn(env.GOOGLE_CLIENT_ID, "on-web")).status).toBe(200);
+    expect((await signIn("another-client", "elsewhere")).status).toBe(401);
+    expect((await database.db.select().from(user)).map((row) => row.email).sort()).toEqual([
+      "on-iphone@example.test",
+      "on-web@example.test",
+    ]);
+  });
+
   it("rejects a callback without the browser's state cookie", async () => {
     const { state } = await start();
     const answer = await request(`/callback/google?state=${state}&code=made-up-code`);

@@ -520,6 +520,8 @@ Email and password work on every instance. Google sign-in is optional: set `GOOG
 
 Google receives the request to sign in and returns a name, an email address and an image. The auth library stores them and the provider's tokens in the existing auth tables. Only identity scopes are requested; this does not give the app access to Drive or Gmail. An existing email account links only after its local address is verified. A new Google account chooses its username when the app needs one.
 
+The apps for phones sign in with Google through a browser too, on the same client. An app that uses Google's own sheet instead sends the API the ID token Google gave it, made for a client of the app's: create an OAuth client of type **iOS**, with the app's bundle, and one of type **Android**, with its package and the fingerprint of the key that signs it, and set their ids in `GOOGLE_IOS_CLIENT_ID` and `GOOGLE_ANDROID_CLIENT_ID`. The API then takes a token made for any of the three. Either needs the web's pair, and neither has a secret.
+
 Provider setup follows [Better Auth's Google documentation](https://better-auth.com/docs/authentication/google).
 
 ## Checking addresses by mail
