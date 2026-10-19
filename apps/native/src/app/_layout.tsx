@@ -27,6 +27,15 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
+                {/* Development only: each route sends a build for testers or a store to the map. */}
+                <Stack.Screen
+                  name="design-system"
+                  options={{ headerShown: true, headerLargeTitle: true, title: "Design system" }}
+                />
+                <Stack.Screen
+                  name="design-system-sheet"
+                  options={formSheet({ detents: [0.6, 1] })}
+                />
               </Stack>
             </ThemeProvider>
           </HeroUINativeProvider>
