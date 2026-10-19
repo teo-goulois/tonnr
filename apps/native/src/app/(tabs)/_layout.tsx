@@ -1,6 +1,8 @@
 import { router } from "expo-router";
 import { NativeTabs } from "expo-router/native-tabs";
 
+import { useAccountStart } from "@/components/account/account-start";
+import { LoginWall, useVisitorWall } from "@/components/auth/login-wall";
 import { m } from "@/paraglide/messages";
 
 /**
@@ -8,6 +10,9 @@ import { m } from "@/paraglide/messages";
  * sheet of what to add, and is never a screen of its own.
  */
 export default function TabsLayout() {
+  useAccountStart();
+  // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039).
+  if (useVisitorWall()) return <LoginWall />;
   return (
     <NativeTabs
       screenListeners={({ route }) => ({
