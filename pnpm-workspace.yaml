@@ -37,6 +37,10 @@ catalog:
   "@neaps/tide-database": 0.9.20260907
   "@neaps/tide-predictor": 0.11.0
   effect: 4.0.0
+# One copy of a package for each version, whatever optional peers another package brings: the
+# app for phones brings expo-sqlite to drizzle-orm, which made a second copy of better-auth that
+# the types of @repo/auth could not name.
+dedupePeers: true
 peerDependencyRules:
   # heroui-native 1.0.10 asks for gesture-handler 2, and Expo SDK 58 ships 3: its issue #524.
   # Decision 069.
