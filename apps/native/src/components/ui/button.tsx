@@ -50,13 +50,6 @@ function lookOf(variant: ButtonVariant, disabled: boolean, colors: TonnrTheme["c
   }
 }
 
-const HERO_VARIANT = {
-  primary: "primary",
-  secondary: "secondary",
-  ghost: "ghost",
-  danger: "danger",
-} as const;
-
 type ButtonProps = {
   /** What the button says, which is also what a screen reader says. */
   children: string;
@@ -94,7 +87,7 @@ export function Button({
 
   return (
     <HeroButton
-      variant={HERO_VARIANT[variant]}
+      variant={variant}
       isDisabled={disabled || loading}
       onPress={onPress}
       accessibilityLabel={children}
@@ -184,7 +177,7 @@ export function IconButton({
 
   return (
     <HeroButton
-      variant={variant === "surface" ? "secondary" : HERO_VARIANT[variant]}
+      variant={variant === "surface" ? "secondary" : variant}
       isIconOnly
       isDisabled={disabled || loading}
       onPress={onPress}
