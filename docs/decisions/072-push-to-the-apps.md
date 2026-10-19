@@ -146,8 +146,9 @@ On an iPhone, Safari pushes to a web app only once it is on the Home Screen, and
 | `FCM_CLIENT_EMAIL` | the worker         | The project's service account, which may send messages and do nothing else. |
 | `FCM_PRIVATE_KEY`  | the worker         | That account's private key. Sensitive.                                      |
 
-- They are declared in `apps/server/.env.schema`, as the pair of keys for browsers is, and picked by the worker's schema (`APPLE_TEAM_ID`, `APNS_*`, `FCM_*`). The API reads the two that say whether the instance pushes to an app, which are not secret. It reads the team for Sign in with Apple too, which names the same one ([decision 070](070-signing-in-from-the-app.md)), once that is built: until then the worker alone reads it.
-- A worker that holds some of the three `APNS_*` and not all of them with the team, or some of Google's three and not all, does not start, and says which variable is missing, as it does for the pair of keys.
+- They are declared in `apps/server/.env.schema`, as the pair of keys for browsers is, and picked by the worker's schema (`APPLE_*`, `APNS_*`, `FCM_*`). `APPLE_TEAM_ID` is declared once, for Sign in with Apple and for the pushes, which name the same team ([decision 070](070-signing-in-from-the-app.md)). The API reads the two that say whether the instance pushes to an app, which are not secret, and the team for Sign in with Apple.
+- A worker that holds some of the three `APNS_*` and not all of them with the team, or some of Google's three and not all, does not start, and says which variable is missing, as it does for the pair of keys. The team alone, which Sign in with Apple reads, pushes to no iPhone.
+- Where the API and the worker are services of their own, each with its own variables, as on Téo's Easypanel, the worker is given its seven before the API its two: an API that names `APNS_TOPIC` beside a worker without Apple's key takes iPhones that no one pushes to.
 - One key of Apple's serves both of its hosts and every app of the team.
 - The keys stay out of the repository, with a copy of each in Téo's password manager (decision 075).
 
