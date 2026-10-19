@@ -52,6 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     associatedDomains: claimsLinks ? [`applinks:${site.host}`, `webcredentials:${site.host}`] : [],
     buildNumber: "1",
     supportsTablet: false,
+    usesAppleSignIn: true,
     config: { usesNonExemptEncryption: false },
   },
   android: {
