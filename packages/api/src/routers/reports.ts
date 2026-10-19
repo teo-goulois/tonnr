@@ -561,7 +561,11 @@ export const reportsRouter = {
           .set({
             state,
             decidedAt: now,
-            ...(input.decision === "publish" && { restoredAt: now }),
+            // The first moment it is shown stays: it says whether it is told (decision 068).
+            ...(input.decision === "publish" && {
+              restoredAt: now,
+              publishedAt: sql`coalesce(${surfReport.publishedAt}, ${now})`,
+            }),
           })
           .where(eq(surfReport.id, report.id));
         await recordAction(tx, {

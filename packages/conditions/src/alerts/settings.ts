@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: AlertSettings = {
   eveningMinutes: 19 * 60,
   onChange: true,
   onBegin: true,
+  onReports: true,
   noticeMinutes: 0,
   daylightOnly: true,
   week: null,

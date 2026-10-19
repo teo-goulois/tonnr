@@ -310,9 +310,11 @@ export async function settleReport(db: Database, reportId: string) {
       .set({ deviceLatitude: null, deviceLongitude: null, deviceAccuracyM: null })
       .where(eq(surfReport.id, reportId));
   }
+  const now = new Date();
   const [settled] = await db
     .update(surfReport)
-    .set({ state: verdict, checkedAt: new Date() })
+    // The moment it is first shown, which decides whether it is told: decision 068.
+    .set({ state: verdict, checkedAt: now, ...(verdict === "published" && { publishedAt: now }) })
     .where(and(eq(surfReport.id, reportId), eq(surfReport.state, "checking")))
     .returning({ id: surfReport.id });
   return settled ? verdict : null;

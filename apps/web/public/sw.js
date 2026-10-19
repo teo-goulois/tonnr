@@ -13,15 +13,18 @@ self.addEventListener("install", () => self.skipWaiting());
 // It takes the pages that are open, so that a notification can lead one of them to its page.
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-// What a push holds: `{ title, body, url, tag }`, all text. Anything else is no alert's push:
-// one with nothing in it, what is no JSON, and what is no such object all end the same way.
+// What a push holds: `{ title, body, url, tag }`, all text, and for a report's an `image`, the
+// address of a photo (decision 068). Anything else is no push of the instance: one with nothing
+// in it, what is no JSON, and what is no such object all end the same way. A picture that is no
+// address over `https` is left out, and the words are shown without it.
 function read(data) {
   try {
     const sent = data.json();
     const isText = (value) => typeof value === "string";
     if (!isText(sent.title) || sent.title.trim() === "" || !isText(sent.body)) return null;
     if (!isText(sent.url) || !isText(sent.tag)) return null;
-    return { title: sent.title, body: sent.body, url: sent.url, tag: sent.tag };
+    const image = isText(sent.image) && sent.image.startsWith("https://") ? sent.image : null;
+    return { title: sent.title, body: sent.body, url: sent.url, tag: sent.tag, image };
   } catch {
     return null;
   }
@@ -50,6 +53,8 @@ function show(push) {
     body: push.body,
     icon: ICON,
     data: { url: push.url },
+    // Shown where the browser shows a picture in a notification: Chrome's does, Safari's not.
+    ...(push.image ? { image: push.image } : {}),
     // A newer word on the same thing takes the older one's place, and is announced as news.
     ...(push.tag === "" ? {} : { tag: push.tag, renotify: true }),
   });

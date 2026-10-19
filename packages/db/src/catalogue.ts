@@ -19,6 +19,14 @@ export async function holdCatalogue(tx: Transaction) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('breaks'))`);
 }
 
+/**
+ * Holds the catalogue against its changes, beside others that only read it: what tells a report
+ * takes it first, so that no merge moves a break under it. Decision 068.
+ */
+export async function readCatalogue(tx: Transaction) {
+  await tx.execute(sql`select pg_advisory_xact_lock_shared(hashtext('breaks'))`);
+}
+
 /** Of some references of a list, those the catalogue knows already, as a break or as one that was. */
 export async function knownRefs(db: Reader, list: string, refs: string[]) {
   const known = new Set<string>();

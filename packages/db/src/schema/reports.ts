@@ -2,6 +2,7 @@ import {
   bigserial,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -141,6 +142,18 @@ export const surfReport = pgTable(
     // What an operator last decided of it, and when. Flags before `restoredAt` no longer count.
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     restoredAt: timestamp("restored_at", { withTimezone: true }),
+    // When it was first shown, by its checks or by an operator: it never changes after. Null
+    // for one never shown, and for one shown before decision 068, which nothing tells.
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    // When the worker told it to the accounts that keep its break, or decided not to: once,
+    // whatever becomes of it later. Null until it is shown. Decision 068.
+    announcedAt: timestamp("announced_at", { withTimezone: true }),
+    // How many accounts it was told to, as it was told. Its author reads it.
+    told: integer("told").default(0).notNull(),
+    // How many browsers saw it, and opened one of its photos or videos, each counted once by
+    // the browser itself: a number, and nothing of who. Its author reads them. Decision 068.
+    views: integer("views").default(0).notNull(),
+    opens: integer("opens").default(0).notNull(),
   },
   (table) => [
     index("surf_report_breakId_createdAt_idx").on(table.breakId, table.createdAt),
@@ -185,4 +198,81 @@ export const reportSent = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull(),
   },
   (table) => [index("report_sent_userId_at_idx").on(table.userId, table.at)],
+);
+
+/**
+ * Where the push of a notice stands: waiting for its hour; handed over, and not known to have
+ * left, by a worker that stopped meanwhile, which is taken as told; taken by a browser; refused
+ * by every one; held by the account's count for the day; given up once its reports were too
+ * old, gone, or the account had no browser left; none at all for an account with no browser
+ * when the notice began. Decision 068.
+ */
+export const NOTICE_PUSH_STATES = [
+  "pending",
+  "sending",
+  "sent",
+  "failed",
+  "held",
+  "expired",
+] as const;
+export type NoticePushState = (typeof NOTICE_PUSH_STATES)[number];
+
+/**
+ * What an account was told of the reports at a break it keeps: one notice in three hours at a
+ * break, which the reports shown meanwhile join. The web app lists it beside what the alerts
+ * told, and the worker pushes it once. Decision 068.
+ */
+export const reportNotice = pgTable(
+  "report_notice",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    breakId: text("break_id")
+      .notNull()
+      .references(() => surfBreak.id, { onDelete: "cascade" }),
+    // When the notice began: a report shown within three hours of it joins it.
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    // When the last report joined it.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    // Null until the account read it, and again when a report joins it.
+    readAt: timestamp("read_at", { withTimezone: true }),
+    // How many reports it told, those deleted since too.
+    told: integer("told").default(1).notNull(),
+    // Its push, null for an account that had no browser to push to when it began.
+    pushState: text("push_state").$type<NoticePushState>(),
+    // Not before, which quiet hours decide, and not after: its reports are too old by then.
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // When its push was handed over, and when it was settled.
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("report_notice_userId_createdAt_idx").on(table.userId, table.createdAt),
+    index("report_notice_userId_breakId_createdAt_idx").on(
+      table.userId,
+      table.breakId,
+      table.createdAt,
+    ),
+    index("report_notice_pushState_dueAt_idx").on(table.pushState, table.dueAt),
+  ],
+);
+
+/** A report a notice told. It goes with the report, and the notice then says it was removed. */
+export const reportNoticeReport = pgTable(
+  "report_notice_report",
+  {
+    noticeId: text("notice_id")
+      .notNull()
+      .references(() => reportNotice.id, { onDelete: "cascade" }),
+    reportId: text("report_id")
+      .notNull()
+      .references(() => surfReport.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.noticeId, table.reportId] }),
+    index("report_notice_report_reportId_idx").on(table.reportId),
+  ],
 );

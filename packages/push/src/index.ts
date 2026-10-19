@@ -23,9 +23,11 @@ export type PushSettings = {
 /**
  * What a push says, as the web app's service worker reads it: it shows `title` and `body`,
  * under `tag` so that a newer word on the same thing takes the older one's place, and opens
- * `url` when the notification is pressed.
+ * `url` when the notification is pressed. `image` is a picture a browser may show beside the
+ * words, which Chrome does on Android and on a computer, and Safari and Firefox do not: a
+ * report's push gives one (decision 068).
  */
-export type Push = { title: string; body: string; url: string; tag: string };
+export type Push = { title: string; body: string; url: string; tag: string; image?: string };
 
 /** A browser that subscribed: the address its push service gave it, and its two keys. */
 export type Device = { endpoint: string; p256dh: string; auth: string };
@@ -114,9 +116,16 @@ export function createPusher(
         if (!allows(device.endpoint)) return not("refused", "an address no push service gave");
         // A push service is told a number of seconds, and takes nothing else.
         if (!Number.isFinite(keepSeconds)) return not("refused", "no time to keep it for");
-        const said = Buffer.from(
-          JSON.stringify({ title: push.title, body: push.body, url: push.url, tag: push.tag }),
-        );
+        const words = { title: push.title, body: push.body, url: push.url, tag: push.tag };
+        // A picture's address goes with the words while they fit together: the words alone
+        // otherwise, which a browser shows the same.
+        const withImage = push.image
+          ? Buffer.from(JSON.stringify({ ...words, image: push.image }))
+          : null;
+        const said =
+          withImage && withImage.length <= PUSH_BYTES
+            ? withImage
+            : Buffer.from(JSON.stringify(words));
         if (said.length > PUSH_BYTES) return not("refused", "too long for one push");
         const body = encryptPush(said, device);
         if (!body) return not("refused", "keys that are not a browser's");

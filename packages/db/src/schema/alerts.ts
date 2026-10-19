@@ -191,6 +191,8 @@ export const alertSettings = pgTable("alert_settings", {
     .notNull(),
   onChange: boolean("on_change").default(true).notNull(),
   onBegin: boolean("on_begin").default(true).notNull(),
+  // Whether the reports at the breaks the account keeps are told to it: decision 068.
+  onReports: boolean("on_reports").default(true).notNull(),
   // How long before a window begins "it is on" is told, in minutes.
   noticeMinutes: integer("notice_minutes").default(0).notNull(),
   daylightOnly: boolean("daylight_only").default(true).notNull(),

@@ -15,6 +15,7 @@ import {
   notificationDelivery,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
+import { reportNotice } from "@repo/db/schema/reports";
 import { spot, surfBreak } from "@repo/db/schema/spots";
 import { LOCALES, isLocale, localePrefix } from "@repo/config/locales";
 import type { Locale } from "@repo/config/locales";
@@ -315,6 +316,8 @@ const settingsSchema = z.object({
   eveningMinutes: z.number(),
   onChange: z.boolean(),
   onBegin: z.boolean(),
+  // Whether the reports at the breaks the account keeps are told to it: decision 068.
+  onReports: z.boolean(),
   // How long before a window begins "it is on" is told, in minutes.
   noticeMinutes: z.number(),
   daylightOnly: z.boolean(),
@@ -809,6 +812,7 @@ export const alertsRouter = {
           eveningMinutes: minutesOfDay,
           onChange: z.boolean(),
           onBegin: z.boolean(),
+          onReports: z.boolean(),
           noticeMinutes: z.number().int().min(0).max(240).multipleOf(15),
           daylightOnly: z.boolean(),
           week: z.array(dayHoursSchema).length(7).nullable(),
@@ -884,6 +888,11 @@ export const alertsRouter = {
                 ),
               ),
             );
+          // So does the push of a notice of reports: decision 068.
+          await tx
+            .update(reportNotice)
+            .set({ dueAt: sql`least(${reportNotice.dueAt}, now())` })
+            .where(and(eq(reportNotice.userId, userId), eq(reportNotice.pushState, "pending")));
         }
         return saved;
       });

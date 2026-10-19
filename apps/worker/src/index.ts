@@ -12,6 +12,7 @@ import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { momentsDone, tellMoments } from "./moments";
 import { keepListedForecasts, pagesDone } from "./pages";
 import { listenForUploads, mediaDone, processMedia } from "./media";
+import { reportNoticesDone, tellReports } from "./report-notices";
 import { readRevision } from "./revision";
 import {
   announceWorker,
@@ -56,6 +57,7 @@ const ALERTS_QUEUE = "evaluate-alerts";
 const MOMENTS_QUEUE = "tell-alert-moments";
 const PAGES_QUEUE = "keep-listed-forecasts";
 const MEDIA_QUEUE = "process-media";
+const REPORTS_QUEUE = "tell-reports";
 // The bucket of the photos and the videos. Null on an instance that keeps none: the job that
 // makes them is then not run, and not listed. Decision 066.
 const storage = createStorage(ENV);
@@ -84,6 +86,8 @@ const jobs: Scheduled[] = [
   { name: PAGES_QUEUE, schedule: "50 */3 * * *" },
   // Every minute, and as soon as the API says a file waits: decision 066.
   ...(storage ? [{ name: MEDIA_QUEUE, schedule: "* * * * *" }] : []),
+  // What a report shown at a break tells the accounts that keep it, every minute: decision 068.
+  ...(storage ? [{ name: REPORTS_QUEUE, schedule: "* * * * *" }] : []),
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -274,6 +278,16 @@ if (storage) {
     boss.send(MEDIA_QUEUE).catch(() => {});
   });
   await boss.send(MEDIA_QUEUE);
+
+  // The reports shown since, told to the accounts that keep their break, and the pushes due.
+  await boss.createQueue(REPORTS_QUEUE, { policy: "stately", ...once });
+  await boss.updateQueue(REPORTS_QUEUE, once);
+  await boss.schedule(REPORTS_QUEUE, scheduled(REPORTS_QUEUE).schedule);
+  await boss.work(
+    REPORTS_QUEUE,
+    withStart,
+    attemptOf(REPORTS_QUEUE, (db) => tellReports(db, { push: pushOut, storage }), reportNoticesDone),
+  );
 }
 
 // A queue that stayed would keep queueing runs that nothing works.

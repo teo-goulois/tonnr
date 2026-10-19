@@ -7,6 +7,7 @@ import { breakCandidate } from "@repo/db/schema/catalogue";
 import { breakAnswer, breakContribution } from "@repo/db/schema/community";
 import { stationList, stationListBreak } from "@repo/db/schema/lists";
 import { recentView } from "@repo/db/schema/preferences";
+import { reportNotice, surfReport } from "@repo/db/schema/reports";
 import { surfSession } from "@repo/db/schema/sessions";
 import {
   BREAK_DESCRIPTION_LANGUAGES,
@@ -417,6 +418,11 @@ export async function mergeBreaks(
     .where(eq(breakCandidate.breakId, merge.id));
   // The address of the merged break's page leads to the one that stays: decision 057.
   await keepAddressOf(tx, merge, keep.id);
+  // The reports at the break that goes, and what was told of them, are the other's: they were
+  // deleted with it before (decisions 067 and 068). The notices first, then the reports, in the
+  // order the worker holds them as it pushes one.
+  await tx.update(reportNotice).set({ breakId: keep.id }).where(eq(reportNotice.breakId, merge.id));
+  await tx.update(surfReport).set({ breakId: keep.id }).where(eq(surfReport.breakId, merge.id));
 
   await tx.delete(surfBreak).where(eq(surfBreak.id, merge.id));
 

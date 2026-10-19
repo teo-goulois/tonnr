@@ -28,6 +28,8 @@ export const stationList = pgTable(
     name: text("name").notNull(),
     // True for the favorites, which are created the first time the user saves something.
     isDefault: boolean("is_default").default(false).notNull(),
+    // Whether the reports at the list's breaks are told to its owner: decision 068.
+    reportsOn: boolean("reports_on").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -132,6 +134,9 @@ export const stationListMember = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Whether the reports at the list's breaks are told to this account: its own switch, which
+    // the owner's does not change. Decision 068.
+    reportsOn: boolean("reports_on").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

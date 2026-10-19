@@ -49,7 +49,7 @@ const letters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
  * and a text that is longer ends with "…". A letter with its accents, or a sign made of
  * several, is kept whole or left out.
  */
-function line(text: string, characters: number) {
+export function line(text: string, characters: number) {
   const flat = text.replace(/[\s\p{Cc}]+/gu, " ").trim();
   if ([...flat].length <= characters) return flat;
   let kept = "";
