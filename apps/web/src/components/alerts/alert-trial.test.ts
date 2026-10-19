@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AlertPreview } from "../viewer/types";
-import { hasSeaAhead, heldBack, hoursAhead, openPieces } from "./alert-trial";
+import { hasSeaAhead, heldBack, hoursAhead, judgeTried, openPieces } from "./alert-trial";
 
 type Tried = AlertPreview["spots"][number];
 
@@ -76,5 +76,55 @@ describe("what a trial gives", () => {
       ["windSpeedMetersPerSecond", 2],
       ["wavePeakPeriodSeconds", 1],
     ]);
+  });
+});
+
+describe("conditions judged in the browser", () => {
+  // Six hours of sea, from 06:00, with waves that grow from 0.5 m to 3 m.
+  const sea = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00"].map(
+    (time, index) =>
+      ({
+        ...hour(time),
+        waveHeightMeters: [0.5, 1, 1.5, 2, 2.5, 3][index]!,
+        tideSegment: index < 3 ? "mid_rising" : "high",
+        tideCoefficient: 95,
+      }) as Tried["hours"][number],
+  );
+  // The account can go from 07:00 to 11:00.
+  const preview = tried("one", {
+    hours: sea,
+    windows: [{ start: at("06:00"), end: at("12:00") }],
+    open: [{ start: at("07:00"), end: at("11:00") }],
+  });
+
+  it("finds the windows of the conditions, within the hours the account can go", () => {
+    const judged = judgeTried(preview, { waveHeightMeters: { min: 1 } }, 60);
+
+    expect(judged.windows).toEqual([{ start: at("07:00"), end: at("12:00") }]);
+    expect(judged.open).toEqual([{ start: at("07:00"), end: at("11:00") }]);
+    expect(judged.hours[0]!.unmet).toEqual(["waveHeightMeters"]);
+  });
+
+  it("drops what is shorter than the shortest window", () => {
+    const criteria = { tideCycle: ["mid_rising" as const] };
+
+    expect(judgeTried(preview, criteria, 120).open).toEqual([
+      { start: at("07:00"), end: at("09:00") },
+    ]);
+    expect(judgeTried(preview, criteria, 180).open).toEqual([]);
+  });
+
+  it("finds an hour that any value of a part meets", () => {
+    const judged = judgeTried(
+      preview,
+      { waveHeightMeters: { max: 0.6 }, or: { waveHeightMeters: [{ min: 2.5 }] } },
+      60,
+    );
+
+    expect(judged.windows).toEqual([
+      { start: at("06:00"), end: at("07:00") },
+      { start: at("10:00"), end: at("12:00") },
+    ]);
+    expect(judged.open).toEqual([{ start: at("10:00"), end: at("11:00") }]);
   });
 });

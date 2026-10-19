@@ -44,6 +44,7 @@ describe("what an account likes at a place", () => {
         windDirectionDegrees: 90,
         tideHeightMeters: 2.44,
         tideTrend: "rising",
+        tideLevel: 0.45,
       }),
       session(4, {
         waveHeightMeters: 1.18,
@@ -53,6 +54,7 @@ describe("what an account likes at a place", () => {
         windDirectionDegrees: 70,
         tideHeightMeters: 3.1,
         tideTrend: "rising",
+        tideLevel: 0.7,
       }),
       session(4, {
         waveHeightMeters: 1.9,
@@ -63,6 +65,7 @@ describe("what an account likes at a place", () => {
         windDirectionDegrees: 250,
         tideHeightMeters: 2.8,
         tideTrend: "rising",
+        tideLevel: 0.5,
       }),
       // Rated low: its small waves and its onshore wind widen nothing.
       session(2, {
@@ -73,6 +76,7 @@ describe("what an account likes at a place", () => {
         windDirectionDegrees: 270,
         tideHeightMeters: 5,
         tideTrend: "falling",
+        tideLevel: 0.95,
       }),
     ]);
 
@@ -86,15 +90,15 @@ describe("what an account likes at a place", () => {
         waveDirectionDegrees: { from: 270, to: 310 },
         // The strongest wind that was liked, and no sector: two bearings are too few.
         windSpeedMetersPerSecond: { max: 7 },
-        tideHeightMeters: { min: 2.4, max: 3.1 },
-        tideTrend: "rising",
+        // The parts of the cycle they were surfed at, whatever the height of the tide.
+        tideCycle: ["mid_rising", "mid_high_rising"],
       },
     });
   });
 
-  it("leaves out what too few liked sessions had, and a tide that went both ways", () => {
+  it("leaves out what too few liked sessions had, and a tide whose stage was not read", () => {
     const liked = likedConditions([
-      session(5, { waveHeightMeters: 1.5, tideTrend: "rising" }),
+      session(5, { waveHeightMeters: 1.5, tideTrend: "rising", tideLevel: 0.5 }),
       session(5, { waveHeightMeters: 1.5, tideTrend: "falling" }),
       session(4, { waveHeightMeters: 1.5, tideTrend: "rising", wavePeakPeriodSeconds: 12 }),
     ]);

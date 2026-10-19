@@ -1,3 +1,4 @@
+import { TIDE_CYCLE, TIDE_STAGES, segmentOf } from "@repo/config/sea-words";
 import type { SpotCriteria } from "@repo/db/schema/spots";
 
 import type { SessionFigures } from "./figures";
@@ -93,16 +94,21 @@ export function likedConditions(sessions: RatedSession[]): Liked {
   );
   if (blowing) criteria.windDirectionDegrees = blowing;
 
-  const tides = known(figures.map((one) => one.tideHeightMeters));
-  if (enough(tides)) {
-    criteria.tideHeightMeters = {
-      min: down(Math.min(...tides), 0.1),
-      max: up(Math.max(...tides), 0.1),
-    };
-  }
-  const trends = figures.flatMap((one) => (one.tideTrend ? [one.tideTrend] : []));
-  if (trends.length >= LIKED_SESSIONS && trends.every((trend) => trend === trends[0])) {
-    criteria.tideTrend = trends[0];
+  // The parts of the tide's cycle the liked sessions were surfed at: a height is another stage
+  // on another day, and a part of the cycle is the same whatever the tide.
+  const segments = figures.flatMap((one) =>
+    one.tideLevel !== null && one.tideTrend !== null
+      ? [
+          segmentOf(
+            TIDE_STAGES[Math.min(TIDE_STAGES.length - 1, Math.floor(one.tideLevel * 5))]!,
+            one.tideTrend,
+          ),
+        ]
+      : [],
+  );
+  const cycle = TIDE_CYCLE.filter((segment) => segments.includes(segment));
+  if (segments.length >= LIKED_SESSIONS && cycle.length < TIDE_CYCLE.length) {
+    criteria.tideCycle = cycle;
   }
 
   return {

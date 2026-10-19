@@ -1,4 +1,14 @@
+import { MAX_ALTERNATIVES, type Part, tideSegmentAt } from "@repo/conditions/spots/criteria";
+import { COEFFICIENT_BANDS, type CoefficientBand, type TideSegment } from "@repo/config/sea-words";
 import { Button } from "@repo/ui/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerPanel,
+  DrawerTitle,
+} from "@repo/ui/components/ui/drawer";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import {
@@ -10,28 +20,46 @@ import {
 import { Slider } from "@repo/ui/components/ui/slider";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { CopyIcon, TrashIcon } from "@repo/ui/icon";
+import { CirclePlusIcon, CircleXIcon, CopyIcon, TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
-import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Fragment,
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { formatNumber, formatSeconds, toKnots } from "@/lib/format";
-import { formatHeight, formatWind, useUnits } from "@/lib/units";
+import { MorphText } from "@/components/shared/morph-text";
+import { formatHeight, useUnits } from "@/lib/units";
 import { holdUnsaved } from "@/lib/unsaved";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { formatNumber } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
+import { orpc } from "@/utils/orpc";
 
 import { Bearing } from "../viewer/bearing";
 import type { Alert, AlertCriteria, AlertPreview, Loadable, Spot } from "../viewer/types";
-import { hasSeaAhead, heldBack, hoursAhead, openPieces, stretchWords } from "./alert-trial";
+import { hasSeaAhead, heldBack, hoursAhead, judgeTried, openPieces } from "./alert-trial";
 import {
   type AlertDraft,
   type AlertTrial,
   type Arc,
   type ArcKey,
+  BAND_FIGURES,
   CRITERION_LABELS,
   RANGES,
   type RangeKey,
+  type TideAsk,
   arcWords,
   asked,
+  asksOfTide,
   NOTHING_DRAFTED,
   afterAnswer,
   afterRead,
@@ -45,12 +73,14 @@ import {
   setPart,
   sliderEnds,
   thumbsOf,
+  tideOf,
+  tideWords,
+  withTide,
 } from "./alert-words";
-import { TideTrend } from "./tide-trend";
-import { AlertTideChart } from "./alert-tide-chart";
 import { CompassDial } from "./compass-dial";
-import { HourStrip } from "./hour-strip";
+import { CycleDial } from "./cycle-dial";
 import type { TidePoint } from "./tide-band";
+import { type Asked, LiveCount, Week, WeekPreview, type WeekState, weekDays } from "./week-preview";
 
 // An alert as an editor holds it: the parts that can be changed.
 const draftOf = (alert: Alert): AlertDraft => ({
@@ -74,15 +104,29 @@ export type AlertPlace = {
   longitude: number;
 };
 
+// A wide screen opens a part in a popover, and a phone in a drawer.
+const WIDE = "(min-width: 1024px)";
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.
 const underlined = "underline decoration-dotted underline-offset-4";
 // The shortest windows an alert may ask for, in hours.
 const SHORTEST_HOURS = [1, 2, 3, 4, 6];
-// How many of the windows ahead are listed under the strips.
-const LISTED = 6;
 // The most spots an alert holds: decision 031.
 export const SPOTS_MOST = 12;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+// The parts of the sentence, in the order it says them: a new alert says them one at a time.
+const STEPS = [
+  "waveHeightMeters",
+  "wavePeakPeriodSeconds",
+  "waveDirectionDegrees",
+  "windSpeedMetersPerSecond",
+  "windDirectionDegrees",
+  "tide",
+  "shortest",
+] as const;
+type ValuePart = Exclude<Part, "tide">;
 
 type AlertEditorProps = {
   now: number;
@@ -93,12 +137,13 @@ type AlertEditorProps = {
   alert: Alert | undefined;
   // What a new alert starts from, when it is the copy of another.
   initial?: AlertDraft;
-  // The tide at the place over the two days ahead, drawn beside what is asked of it. Empty
-  // where no tide station is near.
+  // The tide at the place over the two days ahead: how long the parts of the cycle asked last.
+  // Empty where no tide station is near.
   tide: TidePoint[];
   // The time zone the account's days are read in. Undefined until it has set one: the browser's.
   zone: string | undefined;
-  // What the draft gives at its spots, and how to ask for it.
+  // Every figure of the hours ahead at the draft's places, and the hours the account can use,
+  // and how to ask for them.
   preview: Loadable<AlertPreview>;
   onTry: (trial: AlertTrial) => void;
   // True for an account that was never asked whether it wants its alerts by mail, on an
@@ -121,16 +166,40 @@ type AlertEditorProps = {
   onCopy: (draft: AlertDraft) => void;
 };
 
+// What follows a part's last word and keeps to it: its "+", its comma. A part reads it here, so
+// that its words wrap as they like and its last word takes the rest along to the next line.
+const After = createContext<ReactNode>(null);
+
+// What a part does as a new alert is said one part at a time: the part to answer stands out,
+// and closing it says the next one.
+type GuideOf = {
+  current: boolean;
+  onClosed: (byButton: boolean) => void;
+  // An other value offers to take it away, where a part offers "any".
+  onAny?: () => void;
+  anyLabel?: string;
+};
+const Guide = createContext<GuideOf | null>(null);
+// An other value that is still to choose: the sentence says nothing of it until it is.
+const Unsaid = createContext(false);
+
+/** Stops a press on what stands inside a part from opening the part. */
+const apart = (event: { stopPropagation: () => void }) => event.stopPropagation();
+
 /**
- * A part of the sentence that can be changed. One that asks nothing is written lighter. It is a
- * span that acts as a button: a button does not break where a sentence does.
+ * A part of the sentence, which opens what changes it: a popover on a wide screen, which stays
+ * where the part stood as it opened while the sentence says what is chosen, and a drawer on a
+ * phone. Both say the value big at their top and the count of the week, and end on two buttons.
+ * One that asks nothing is written lighter. Decision 031, "The editor".
  */
 function Slot({
   label,
   words,
   shown = words,
   isSet,
-  isWide = false,
+  open = false,
+  onAny,
+  value,
   children,
 }: {
   label: string;
@@ -138,38 +207,166 @@ function Slot({
   words: string;
   shown?: ReactNode;
   isSet: boolean;
-  // Wider, for a part that is set beside a chart.
-  isWide?: boolean;
+  // Opens as it comes: a value just added, or the next part of a new alert.
+  open?: boolean;
+  // Leaves the part asking nothing. A part that always asks has none.
+  onAny?: () => void;
+  // The value alone, said big at the top of what opens. A long one wraps and does not move.
+  value: { said: string; long?: boolean };
   children: ReactNode;
 }) {
+  const wide = useMediaQuery(WIDE);
+  const unsaid = useContext(Unsaid);
+  const after = useContext(After);
+  const guide = useContext(Guide);
+  const week = useContext(Week);
+  const [isOpen, setOpen] = useState(open);
+  // The count as the part opened: what is chosen there is said against it.
+  const [since, setSince] = useState<number | null>(open ? week.count : null);
+  const change = (next: boolean, byButton = false) => {
+    setOpen(next);
+    setSince(next ? week.count : null);
+    if (!next) guide?.onClosed(byButton);
+  };
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [stood, setStood] = useState<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    setStood(isOpen && wide ? (triggerRef.current?.getBoundingClientRect() ?? null) : null);
+  }, [isOpen, wide]);
+  const anchor = useMemo(
+    () => (stood ? { getBoundingClientRect: () => stood } : undefined),
+    [stood],
+  );
+  const any = guide?.onAny ?? onAny;
+  const triggerClass = cn(
+    "focus-ring cursor-pointer rounded-(--radius-xs) underline decoration-dotted underline-offset-4 outline-none",
+    isSet ? "font-medium" : "text-neutral-7",
+    guide?.current && "bg-neutral-3 px-xxs text-neutral-10 decoration-solid",
+  );
+  const valueLine = value.long ? (
+    <span className="text-m font-medium text-pretty">{value.said}</span>
+  ) : (
+    <MorphText className="max-w-full text-l font-medium">{value.said}</MorphText>
+  );
+  const buttons = (
+    <>
+      {any && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="flex-1"
+          onClick={() => {
+            any();
+            change(false, true);
+          }}
+        >
+          {guide?.anyLabel ?? m.alert_part_any()}
+        </Button>
+      )}
+      <Button type="button" size="sm" className="flex-1" onClick={() => change(false, true)}>
+        {m.alert_part_done()}
+      </Button>
+    </>
+  );
+  // Two parts may read the same: each says what it is of.
+  const name = m.alert_slot_name({ label, words });
+
+  if (!wide) {
+    return (
+      <>
+        {!unsaid && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={name}
+            className={triggerClass}
+            onClick={() => change(true)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              change(true);
+            }}
+          >
+            {withAfter(shown, after)}
+          </span>
+        )}
+        <Drawer showSwipeHandle open={isOpen} onOpenChange={(next) => change(next)}>
+          <DrawerContent variant="edge">
+            <DrawerHeader className="gap-xxs">
+              <DrawerTitle className="text-s font-normal text-neutral-7">{label}</DrawerTitle>
+              {valueLine}
+            </DrawerHeader>
+            <DrawerPanel className="grid gap-s text-s">
+              {children}
+              <LiveCount since={since} />
+            </DrawerPanel>
+            <DrawerFooter>{buttons}</DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={(next) => change(next)}>
       <PopoverTrigger
         nativeButton={false}
-        render={
-          <span
-            // Two parts may read the same: each says what it is of.
-            aria-label={m.alert_slot_name({ label, words })}
-            className={cn(
-              "focus-ring cursor-pointer rounded-(--radius-xs) underline decoration-dotted underline-offset-4 outline-none",
-              isSet ? "font-medium" : "text-neutral-7",
-            )}
-          />
-        }
+        render={<span ref={triggerRef} aria-label={name} className={triggerClass} />}
       >
-        {shown}
+        {/* A value still to choose stands as an empty mark, for its popover to hold to. */}
+        {unsaid ? null : withAfter(shown, after)}
       </PopoverTrigger>
-      <PopoverPopup className={cn("grid gap-s text-s", isWide ? "w-80" : "w-72")}>
-        <PopoverTitle className="text-s font-medium">{label}</PopoverTitle>
+      <PopoverPopup anchor={anchor} className="grid w-80 grid-cols-[minmax(0,1fr)] gap-s text-s">
+        <div className="grid gap-xxs">
+          <PopoverTitle className="text-s font-normal text-neutral-7">{label}</PopoverTitle>
+          {valueLine}
+        </div>
         {children}
+        <LiveCount since={since} />
+        <div className="flex gap-xs">{buttons}</div>
       </PopoverPopup>
     </Popover>
   );
 }
 
+/** The last word of a part held with what follows it, which the underline does not reach. */
+function withAfter(content: ReactNode, after: ReactNode) {
+  if (!after) return content;
+  const tail = <span className="inline-block no-underline">{after}</span>;
+  if (typeof content !== "string") {
+    return (
+      <span className="whitespace-nowrap">
+        {content}
+        {tail}
+      </span>
+    );
+  }
+  const at = content.lastIndexOf(" ");
+  return (
+    <>
+      {content.slice(0, at + 1)}
+      <span className="whitespace-nowrap">
+        {content.slice(at + 1)}
+        {tail}
+      </span>
+    </>
+  );
+}
+
+/** A length in minutes, by the quarter hour: "2 h 30". */
+function durationWords(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0
+    ? m.alert_hours({ count: hours })
+    : m.alert_hours_minutes({ hours, minutes: String(rest).padStart(2, "0") });
+}
+
 /**
  * An alert of a spot, said in one sentence whose parts open what changes them, with what it
- * gives over the days ahead. Decision 031.
+ * would tell over the week ahead. A new alert is said a part at a time, each chosen or passed,
+ * and a part takes other values after a "+" once it has one. Decision 031.
  */
 export function AlertEditor({
   now,
@@ -254,93 +451,251 @@ export function AlertEditor({
   const { criteria } = draft;
   const sent = useMemo(() => asked(criteria), [criteria]);
   const asksSomething = Object.keys(sent).length > 0;
+  const setCriteria = (next: AlertCriteria) => set("criteria", next);
 
-  // The preview follows the draft while the editor is open, and is let go of when it closes.
+  // The preview is asked of the draft's places while the editor is open, and let go of when it
+  // closes. It gives every hour, and the editor judges the conditions itself.
   useEffect(() => {
-    onTry({
-      criteria: sent,
-      shortestMinutes: draft.shortestMinutes,
-      spotIds: draft.spotIds,
-      breakIds: draft.breakIds,
-    });
-  }, [sent, draft.shortestMinutes, draft.spotIds, draft.breakIds, onTry]);
+    onTry({ spotIds: draft.spotIds, breakIds: draft.breakIds });
+  }, [draft.spotIds, draft.breakIds, onTry]);
   useEffect(() => () => onTry(null), [onTry]);
 
-  const setCriteria = (next: AlertCriteria) => set("criteria", next);
-  // What was tried at the places of the draft, in their order: the preview names a place by its
-  // id, a spot's or a break's. An answer may still be of the draft as it was a moment ago.
-  const tried = [...draft.spotIds, ...draft.breakIds].flatMap(
-    (placeId) => preview.data?.spots.find((one) => one.spotId === placeId) ?? [],
+  // What the conditions give at each place of the draft, in their order: the preview names a
+  // place by its id, a spot's or a break's. An answer may still be of the places as they were
+  // a moment ago.
+  const tried = useMemo(
+    () =>
+      [...draft.spotIds, ...draft.breakIds].flatMap((placeId) => {
+        const one = preview.data?.spots.find((spot) => spot.spotId === placeId);
+        return one ? [judgeTried(one, sent, draft.shortestMinutes)] : [];
+      }),
+    [draft.spotIds, draft.breakIds, preview.data, sent, draft.shortestMinutes],
   );
   const ahead = hoursAhead(
     tried.find((one) => one.spotId === place.id),
     now,
   );
   const current = ahead[0];
-  // What the tide does here: the hours that were tried, and the curve that is drawn.
-  const tides = [
-    ...ahead.flatMap((hour) => hour.tideHeightMeters ?? []),
-    ...tide.map((point) => point.value),
-  ];
-  // The tide beside what is asked of it, in each of the two parts that ask something of it.
-  const tideChart = tide.length > 1 && (
-    <div className="grid gap-xxs">
-      <AlertTideChart
-        label={m.alert_tide_chart({ spot: place.name })}
-        points={tide}
-        range={criteria.tideHeightMeters}
-        trend={criteria.tideTrend}
-      />
-      <span className="text-xs text-neutral-7">{m.alert_tide_caption({ spot: place.name })}</span>
-    </div>
+  const pieces = openPieces(tried, now);
+  const held = heldBack(ahead).slice(0, 2);
+
+  // The tide's turns over the days ahead, with their coefficients where the coast has them: how
+  // long the parts of the cycle last, and whether a coefficient can be asked here.
+  const span = useMemo(() => {
+    const start = new Date(now - DAY_MS);
+    start.setMinutes(0, 0, 0);
+    return { start, end: new Date(start.getTime() + 4 * DAY_MS) };
+    // The turns of the tide are read again every six hours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Math.floor(now / (6 * HOUR_MS))]);
+  const turns = useQuery(
+    orpc.v1.tides.extremes.queryOptions({
+      input: { latitude: place.latitude, longitude: place.longitude, ...span },
+      retry: false,
+      meta: { quiet: true },
+    }),
+  );
+  const extremes = useMemo(() => turns.data?.extremes ?? [], [turns.data]);
+  const hasCoefficients = extremes.some((one) => one.coefficient !== null);
+
+  // The asks of the tide, its own and its others.
+  const tideAsks = useMemo(
+    () => [tideOf(sent), ...(sent.or?.tide ?? [])].filter(asksOfTide),
+    [sent],
+  );
+  // How long the parts of the cycle asked last, at their longest over the curve drawn, to the
+  // quarter hour: a window cannot be longer, so a shortest window above it never comes.
+  const tideLasts = useMemo(() => {
+    const cycles = tideAsks.flatMap((ask) => (ask.tideCycle ? [ask.tideCycle] : []));
+    if (cycles.length === 0 || tide.length < 2) return null;
+    let longest = 0;
+    let start: number | null = null;
+    for (const point of tide) {
+      const segment = tideSegmentAt(point.time, point.value, extremes);
+      const meets = segment !== null && cycles.some((cycle) => cycle.includes(segment));
+      const at = point.time.getTime();
+      if (meets && start === null) start = at;
+      if (!meets && start !== null) {
+        longest = Math.max(longest, at - start);
+        start = null;
+      }
+    }
+    return longest > 0 ? Math.round(longest / (15 * 60 * 1000)) * 15 : null;
+  }, [tideAsks, tide, extremes]);
+  const tooShort = tideLasts !== null && tideLasts < draft.shortestMinutes;
+  // The longest of the shortest windows offered that the tide leaves room for.
+  const fits = [...SHORTEST_HOURS]
+    .reverse()
+    .find((hours) => tideLasts !== null && hours * 60 <= tideLasts);
+
+  const valuesOf = (key: ValuePart) =>
+    [sent[key], ...(sent.or?.[key] ?? [])].filter((value) => value !== undefined);
+  const askedFigures: Asked = {
+    waves: valuesOf("waveHeightMeters").length > 0,
+    period: valuesOf("wavePeakPeriodSeconds").length > 0,
+    swell: valuesOf("primarySwellHeightMeters").length > 0,
+    wind: valuesOf("windSpeedMetersPerSecond").length > 0,
+    tide: tideAsks.some(
+      (ask) => ask.tideCycle || ask.tideHeightMeters || ask.tideTrend !== undefined,
+    ),
+    coefficient: tideAsks.some((ask) => ask.tideCoefficients),
+  };
+  const weekState: WeekState = !asksSomething
+    ? "nothing"
+    : preview.isError
+      ? "failed"
+      : tried.length === 0
+        ? "pending"
+        : !tried.some((one) => one.hasSea)
+          ? "noSea"
+          : "ready";
+  const week = useMemo(
+    () => ({
+      count: weekState === "ready" ? pieces.length : null,
+      days: weekDays(pieces, now, zone).map((day) => day.pieces.length > 0),
+    }),
+    [weekState, pieces, now, zone],
   );
 
-  function range(key: RangeKey, any: string, said: (range: string) => string) {
+  // A place is named among the user's spots, the alert's places, or as the one written from.
+  const nameOf = (placeId: string) =>
+    placeId === place.id
+      ? place.name
+      : (spots.find((one) => one.id === placeId)?.name ??
+        alert?.places.find((one) => (one.spotId ?? one.breakId) === placeId)?.name ??
+        "");
+  const notes = [
+    ...(weekState === "ready" && pieces.length === 0 && hasSeaAhead(tried, now)
+      ? [m.alert_preview_outside()]
+      : []),
+    ...(tried.some((one) => one.forecastStale) ? [m.alert_preview_stale()] : []),
+    ...(tideAsks.length > 0
+      ? tried
+          .filter((one) => one.hasSea && !one.hasTide)
+          .map((one) => m.alert_no_tide({ spot: nameOf(one.spotId) }))
+      : []),
+  ];
+
+  // A new alert is said a part at a time: how many of its parts are said, the one at that
+  // index being the part to answer. An alert that is saved, or a copy, is said whole.
+  const [revealed, setRevealed] = useState(alert || initial ? STEPS.length : 0);
+  // The part that opens by itself as it comes, after the one before was answered.
+  const [autoOpen, setAutoOpen] = useState<number | null>(null);
+  const guideOf = (step: number): GuideOf => ({
+    current: step === revealed,
+    onClosed: (byButton) => {
+      if (step !== revealed) return;
+      setRevealed(step + 1);
+      setAutoOpen(byButton && step + 1 < STEPS.length ? step + 1 : null);
+    },
+  });
+  const shows = (step: number) => step <= revealed;
+
+  // An other value just added, still to choose: the part it is of. It stands after the others,
+  // opens as it comes, and goes when it is closed still empty.
+  const [adding, setAdding] = useState<Part | null>(null);
+
+  // The values of a part: its own first, then its others, as they are written.
+  const valueAt = (key: ValuePart, index: number) =>
+    index === 0 ? criteria[key] : criteria.or?.[key]?.[index - 1];
+  const tideAt = (index: number): TideAsk =>
+    index === 0 ? tideOf(criteria) : (criteria.or?.tide?.[index - 1] ?? {});
+  const othersOf = (key: Part) => (criteria.or?.[key] ?? []).length;
+  // Sets a value of a part. Its own value set to nothing leaves the whole part asking nothing:
+  // "any size" is no size, whatever else was said. An other value set to nothing goes. A value
+  // that is being moved keeps its place, the part's others with it, whatever it says meanwhile:
+  // `moving`, which a slider and the dial pass.
+  function setValue(key: Part, index: number, value: unknown, moving = false) {
+    const others = [...((criteria.or?.[key] ?? []) as unknown[])];
+    if (moving && value === undefined) {
+      if (index > 0) value = {};
+      else {
+        setCriteria(key === "tide" ? withTide(criteria, {}) : { ...criteria, [key]: undefined });
+        return;
+      }
+    }
+    if (index === 0 && value === undefined) {
+      const { [key]: _gone, ...rest } = criteria.or ?? {};
+      setCriteria({
+        ...(key === "tide" ? withTide(criteria, {}) : { ...criteria, [key]: undefined }),
+        or: rest,
+      });
+      return;
+    }
+    if (index === 0) {
+      setCriteria(
+        key === "tide"
+          ? withTide(criteria, value as TideAsk)
+          : { ...criteria, [key]: value as never },
+      );
+      return;
+    }
+    if (value === undefined) others.splice(index - 1, 1);
+    else others[index - 1] = value;
+    setCriteria({ ...criteria, or: { ...criteria.or, [key]: others } });
+    if (key === adding) setAdding(null);
+  }
+  const isSetValue = (key: Part, index: number) =>
+    key === "tide"
+      ? asksOfTide(tideAt(index))
+      : key === "waveDirectionDegrees" ||
+          key === "primarySwellDirectionDegrees" ||
+          key === "windDirectionDegrees"
+        ? valueAt(key, index) !== undefined
+        : isSetRange(valueAt(key, index) as { min?: number; max?: number } | undefined);
+
+  function range(
+    key: RangeKey & ValuePart,
+    index: number,
+    any: string,
+    said: (range: string) => string,
+    open: boolean,
+  ) {
     const scale = RANGES[key];
     const label = scale.label();
-    const value = criteria[key];
-    // The tide's slider runs over what the tide does here.
-    const ends = sliderEnds(
-      key,
-      value,
-      key === "tideHeightMeters" && tides.length > 0
-        ? [Math.floor(Math.min(...tides) * 2) / 2, Math.ceil(Math.max(...tides) * 2) / 2]
-        : undefined,
-    );
+    const value = valueAt(key, index) as { min?: number; max?: number } | undefined;
+    const ends = sliderEnds(key, value);
     const thumbs = thumbsOf(key, value, ends);
     const isSet = isSetRange(value);
-    const isTide = key === "tideHeightMeters";
     return (
       <Slot
         label={label}
         isSet={isSet}
-        isWide={isTide}
-        words={isSet ? said(rangeWords(key, value)) : any}
+        open={open}
+        // An other value says its value alone: the verb stands before the part's own.
+        words={isSet ? (index === 0 ? said(rangeWords(key, value)) : rangeWords(key, value)) : any}
+        onAny={() => setValue(key, index, undefined)}
+        value={{ said: isSet ? rangeWords(key, value) : m.alert_part_any() }}
       >
-        {isTide && tideChart}
         <Slider
           value={thumbs}
           min={ends[0]}
           max={ends[1]}
           step={scale.step}
-          getAriaLabel={(index) =>
-            index === 0 ? m.alert_slider_least({ label }) : m.alert_slider_most({ label })
+          getAriaLabel={(at) =>
+            at === 0 ? m.alert_slider_least({ label }) : m.alert_slider_most({ label })
           }
           getAriaValueText={(_formatted, shown) => scale.unit(formatNumber(shown, scale.digits))}
           onValueChange={(next) =>
-            setCriteria({
-              ...criteria,
-              [key]: rangeAfter(key, value, thumbs, next as number[], ends),
-            })
+            setValue(key, index, rangeAfter(key, value, thumbs, next as number[], ends), true)
           }
         />
-        <span className="text-xs text-neutral-7">{m.alert_slider_hint()}</span>
+        <span className="flex justify-between text-xs text-neutral-7 tabular-nums">
+          <span>{scale.unit(formatNumber(ends[0], scale.digits))}</span>
+          <span>{scale.unit(formatNumber(ends[1], scale.digits))}</span>
+        </span>
       </Slot>
     );
   }
 
-  function sector(key: ArcKey, at: number | null | undefined, usual: Arc) {
-    const value = criteria[key];
+  function sector(
+    key: ArcKey & ValuePart,
+    index: number,
+    at: number | null | undefined,
+    usual: Arc,
+    open: boolean,
+  ) {
+    const value = valueAt(key, index) as Arc | undefined;
     const label = CRITERION_LABELS[key]();
     // Around where it comes from now, when the forecast says, or around the usual.
     const around: Arc =
@@ -350,9 +705,12 @@ export function AlertEditor({
             from: (Math.round((at - 30) / 5) * 5 + 360) % 360,
             to: (Math.round((at + 30) / 5) * 5 + 360) % 360,
           };
+    const setArc = (arc: Arc | undefined) => setValue(key, index, arc);
     return (
       <Slot
         label={label}
+        open={open}
+        onAny={() => setArc(undefined)}
         isSet={value !== undefined}
         words={value ? m.alert_from_sector({ arc: arcWords(value) }) : m.alert_any_from()}
         shown={
@@ -364,62 +722,266 @@ export function AlertEditor({
             </>
           )
         }
+        value={{
+          said: value
+            ? m.alert_sector_degrees({
+                arc: arcWords(value),
+                from: String(value.from),
+                to: String(value.to),
+              })
+            : m.alert_part_any(),
+        }}
       >
-        {value ? (
-          <>
-            <CompassDial
-              arc={value}
-              now={at}
-              label={label}
-              onChange={(arc) => setCriteria({ ...criteria, [key]: arc })}
-            />
-            <Button
-              type="button"
-              size="sm"
+        <CompassDial arc={value ?? around} now={at} label={label} onChange={setArc} />
+        <DegreesFields arc={value ?? around} label={label} onChange={setArc} />
+      </Slot>
+    );
+  }
+
+  function tidePart(index: number, open: boolean) {
+    const ask = tideAt(index);
+    const words = tideWords(ask);
+    const isSet = asksOfTide(ask);
+    // A height and a way, from before the cycle: the cycle takes their place once it is chosen.
+    const before =
+      isSetRange(ask.tideHeightMeters) || ask.tideTrend !== undefined
+        ? tideWords({ tideHeightMeters: ask.tideHeightMeters, tideTrend: ask.tideTrend })
+        : undefined;
+    const choose = (next: Pick<TideAsk, "tideCycle" | "tideCoefficients">) =>
+      setValue("tide", index, {
+        tideCycle: ask.tideCycle,
+        tideCoefficients: ask.tideCoefficients,
+        ...next,
+      });
+    return (
+      <Slot
+        label={m.alert_label_tide()}
+        isSet={isSet}
+        open={open}
+        words={isSet ? words : m.alert_any_tide_moment()}
+        onAny={() => setValue("tide", index, undefined)}
+        value={{ said: isSet ? words : m.alert_part_any(), long: true }}
+      >
+        <CycleDial
+          value={ask.tideCycle ?? []}
+          onChange={(cycle) => choose({ tideCycle: cycle as TideSegment[] })}
+        />
+        {before && (
+          <span className="text-xs text-pretty text-neutral-7">
+            {m.alert_tide_before({ words: before })}
+          </span>
+        )}
+        {hasCoefficients && (
+          <div className="grid gap-xxs">
+            <span className="text-xs text-neutral-7">{m.alert_label_coefficient()}</span>
+            <ToggleGroup
+              multiple
               variant="outline"
-              onClick={() => setCriteria({ ...criteria, [key]: undefined })}
+              size="sm"
+              aria-label={m.alert_label_coefficient()}
+              value={ask.tideCoefficients ?? []}
+              onValueChange={(pressed) =>
+                choose({
+                  tideCoefficients: COEFFICIENT_BANDS.filter((band) =>
+                    (pressed as CoefficientBand[]).includes(band),
+                  ),
+                })
+              }
             >
-              {m.alert_sector_any()}
-            </Button>
-          </>
-        ) : (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setCriteria({ ...criteria, [key]: around })}
-          >
-            {at == null ? (
-              m.alert_sector_choose()
-            ) : (
-              <>
-                {m.alert_sector_as_now()} <Bearing degrees={at} />
-              </>
-            )}
-          </Button>
+              {COEFFICIENT_BANDS.map((band) => (
+                <ToggleGroupItem key={band} value={band}>
+                  <span className="tabular-nums">{BAND_FIGURES[band]}</span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
         )}
       </Slot>
     );
   }
 
-  const trends = [
-    { value: "any", label: m.alert_any_trend() },
-    { value: "rising", label: m.alert_trend_rising() },
-    { value: "falling", label: m.alert_trend_falling() },
-  ] as const;
-  const shortest = draft.shortestMinutes / 60;
+  function part(key: Part, index: number, open: boolean) {
+    switch (key) {
+      case "waveHeightMeters":
+        return range(
+          key,
+          index,
+          index === 0 ? m.alert_any_height() : m.alert_to_choose(),
+          (said) => m.alert_height_of({ range: said }),
+          open,
+        );
+      case "wavePeakPeriodSeconds":
+        return range(
+          key,
+          index,
+          index === 0 ? m.alert_any_period() : m.alert_to_choose(),
+          (said) => m.alert_period_of({ range: said }),
+          open,
+        );
+      case "primarySwellHeightMeters":
+        return range(
+          key,
+          index,
+          index === 0 ? m.alert_any_swell_height() : m.alert_to_choose(),
+          (said) => m.alert_swell_height_of({ range: said }),
+          open,
+        );
+      case "windSpeedMetersPerSecond":
+        return range(
+          key,
+          index,
+          index === 0 ? m.alert_any_wind() : m.alert_to_choose(),
+          (said) => m.alert_wind_at({ range: said }),
+          open,
+        );
+      case "waveDirectionDegrees":
+        return sector(key, index, current?.waveDirectionDegrees, { from: 250, to: 310 }, open);
+      case "primarySwellDirectionDegrees":
+        return sector(
+          key,
+          index,
+          current?.primarySwellDirectionDegrees,
+          { from: 250, to: 310 },
+          open,
+        );
+      case "windDirectionDegrees":
+        return sector(key, index, current?.windDirectionDegrees, { from: 45, to: 135 }, open);
+      case "tide":
+        return tidePart(index, open);
+    }
+  }
 
-  const pieces = openPieces(tried, now);
-  const held = heldBack(ahead).slice(0, 2);
-  // A place is named among the user's spots, the alert's places, or as the one written from.
-  const nameOf = (placeId: string) =>
-    placeId === place.id
-      ? place.name
-      : (spots.find((one) => one.id === placeId)?.name ??
-        alert?.places.find((one) => (one.spotId ?? one.breakId) === placeId)?.name ??
-        "");
-  const asksTide = sent.tideHeightMeters !== undefined || sent.tideTrend !== undefined;
-  const asksSwell =
-    sent.primarySwellHeightMeters !== undefined || sent.primarySwellDirectionDegrees !== undefined;
+  const iconButton = (label: string, icon: ReactNode, onPress: () => void) => (
+    <button
+      type="button"
+      aria-label={label}
+      onPointerDown={apart}
+      onClick={(event) => {
+        apart(event);
+        onPress();
+      }}
+      className="focus-ring ms-xxs inline-flex size-6 -translate-y-0.5 items-center justify-center rounded-full align-middle text-neutral-7 outline-none hover:text-neutral-10"
+    >
+      {icon}
+    </button>
+  );
+
+  /**
+   * A part of the sentence with its other values, each after "or". The "+" stands after the
+   * last value said, once that one is set and the part has room for one more, and the comma
+   * after it. `step` is its place in a new alert's sentence: none for the swell's parts, which
+   * are said whole.
+   */
+  function said(key: Part, comma: string, step?: number) {
+    const others = othersOf(key);
+    const pending = adding === key ? 1 : 0;
+    const lines = Array.from({ length: others + pending }, (_, at) => at + 1);
+    // A value still to choose says nothing: the sentence gives it no room until it is chosen.
+    const unsaid = (index: number) => index > others || !isSetValue(key, index);
+    const lastSaid = lines.filter((index) => !unsaid(index)).at(-1) ?? 0;
+    const plus =
+      isSetValue(key, lastSaid) &&
+      others < MAX_ALTERNATIVES &&
+      adding === null &&
+      iconButton(
+        m.alert_add_value({ label: partLabel(key) }),
+        <CirclePlusIcon data-slot="icon" aria-hidden className="size-4.5" />,
+        () => setAdding(key),
+      );
+    const ending = (
+      <>
+        {plus}
+        {comma}
+      </>
+    );
+    const own = (
+      <After.Provider value={lastSaid === 0 ? ending : null}>
+        {part(key, 0, step !== undefined && autoOpen === step)}
+      </After.Provider>
+    );
+    return (
+      <>
+        {step === undefined ? own : <Guide.Provider value={guideOf(step)}>{own}</Guide.Provider>}
+        {lines.map((index) => (
+          // The values of a part keep their order: nothing else tells them apart.
+          // oxlint-disable-next-line react/no-array-index-key
+          <Fragment key={index}>
+            {!unsaid(index) && (
+              <>
+                {" "}
+                <span className="text-neutral-7">{m.alert_or_word()}</span>{" "}
+              </>
+            )}
+            <Unsaid.Provider value={unsaid(index)}>
+              <Guide.Provider
+                value={{
+                  current: false,
+                  onAny: () => setValue(key, index, undefined),
+                  anyLabel: m.alert_part_remove(),
+                  // An other value left with nothing chosen goes as it closes.
+                  onClosed: () => {
+                    if (index > others) setAdding(null);
+                    else if (!isSetValue(key, index)) setValue(key, index, undefined);
+                  },
+                }}
+              >
+                <After.Provider
+                  value={
+                    <>
+                      {index <= others &&
+                        iconButton(
+                          m.alert_remove_value({ label: partLabel(key) }),
+                          <CircleXIcon data-slot="icon" aria-hidden className="size-4.5" />,
+                          () => setValue(key, index, undefined),
+                        )}
+                      {index === lastSaid && ending}
+                    </>
+                  }
+                >
+                  {part(key, index, index > others)}
+                </After.Provider>
+              </Guide.Provider>
+            </Unsaid.Provider>
+          </Fragment>
+        ))}
+      </>
+    );
+  }
+
+  const shortest = draft.shortestMinutes / 60;
+  const shortestSlot = (
+    <Guide.Provider value={guideOf(STEPS.indexOf("shortest"))}>
+      <Slot
+        label={m.alert_label_shortest()}
+        isSet
+        open={autoOpen === STEPS.indexOf("shortest")}
+        words={m.alert_hours({ count: shortest })}
+        value={{ said: m.alert_hours({ count: shortest }) }}
+      >
+        <ToggleGroup
+          variant="outline"
+          size="sm"
+          aria-label={m.alert_label_shortest()}
+          value={[String(shortest)]}
+          onValueChange={([pressed]) => {
+            if (pressed) set("shortestMinutes", Number(pressed) * 60);
+          }}
+        >
+          {SHORTEST_HOURS.map((hours) => (
+            <ToggleGroupItem key={hours} value={String(hours)}>
+              {m.alert_hours({ count: hours })}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        {tideLasts !== null && (
+          <span className={cn("text-xs", tooShort ? "text-neutral-9" : "text-neutral-7")}>
+            {m.alert_tide_lasts({ lasts: durationWords(tideLasts) })}
+          </span>
+        )}
+      </Slot>
+    </Guide.Provider>
+  );
+
   // The spots that may share the alert: the user's others, whatever alerts they are in.
   const neighbours = spots.filter((one) => one.id !== place.id);
   const isFull = draft.spotIds.length + draft.breakIds.length >= SPOTS_MOST;
@@ -436,404 +998,359 @@ export function AlertEditor({
   useEffect(() => () => holdUnsaved(false), []);
 
   return (
-    // What is written scrolls, and the buttons stay at the bottom of the sheet.
-    <form
-      className="flex min-h-0 flex-1 flex-col"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!canSave) return;
-        const name = draft.name.trim();
-        const whole = { ...draft, name, criteria: sent };
-        const patch = {
-          ...parts,
-          ...(parts.name === undefined ? {} : { name }),
-          ...(parts.criteria === undefined ? {} : { criteria: sent }),
-        };
-        // A new alert is sent whole, and one that is saved by the parts that were changed.
-        const sending = alert ? patch : whole;
-        setDrafting((current) => ({ ...current, sending }));
-        void onSave(whole, patch, asksMail ? wantsMail : undefined).then((answer) =>
-          setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer))),
-        );
-      }}
-    >
-      <div className="-mx-xs -mt-xs grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain px-xs pt-xs pb-m">
-        <div className="grid gap-xs">
-          <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
-          <Input
-            id={`${id}-name`}
-            value={draft.name}
-            maxLength={80}
-            onChange={(event) => set("name", event.currentTarget.value)}
-          />
-        </div>
+    <Week.Provider value={week}>
+      {/* What is written scrolls, and the buttons stay at the bottom of the sheet. */}
+      <form
+        className="flex min-h-0 flex-1 flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!canSave) return;
+          const name = draft.name.trim();
+          const whole = { ...draft, name, criteria: sent };
+          const patch = {
+            ...parts,
+            ...(parts.name === undefined ? {} : { name }),
+            ...(parts.criteria === undefined ? {} : { criteria: sent }),
+          };
+          // A new alert is sent whole, and one that is saved by the parts that were changed.
+          const sending = alert ? patch : whole;
+          setDrafting((current) => ({ ...current, sending }));
+          void onSave(whole, patch, asksMail ? wantsMail : undefined).then((answer) =>
+            setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer))),
+          );
+        }}
+      >
+        <div className="-mx-xs -mt-xs grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain px-xs pt-xs pb-m">
+          <div className="grid gap-xs">
+            <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
+            <Input
+              id={`${id}-name`}
+              value={draft.name}
+              maxLength={80}
+              onChange={(event) => set("name", event.currentTarget.value)}
+            />
+          </div>
 
-        {/* The alert, said. Every underlined part opens what changes it. */}
-        <p className="text-l text-pretty">
-          {m.alert_says_waves()}{" "}
-          {range("waveHeightMeters", m.alert_any_height(), (said) =>
-            m.alert_height_of({ range: said }),
-          )}
-          ,{" "}
-          {range("wavePeakPeriodSeconds", m.alert_any_period(), (said) =>
-            m.alert_period_of({ range: said }),
-          )}
-          , {sector("waveDirectionDegrees", current?.waveDirectionDegrees, { from: 250, to: 310 })},{" "}
-          {m.alert_says_wind()}{" "}
-          {range("windSpeedMetersPerSecond", m.alert_any_wind(), (said) =>
-            m.alert_wind_at({ range: said }),
-          )}
-          , {sector("windDirectionDegrees", current?.windDirectionDegrees, { from: 45, to: 135 })},{" "}
-          {m.alert_says_tide()}{" "}
-          {range("tideHeightMeters", m.alert_any_tide(), (said) =>
-            m.alert_tide_at({ range: said }),
-          )}
-          ,{" "}
-          <Slot
-            label={m.alert_label_tide_trend()}
-            isSet={criteria.tideTrend !== undefined}
-            isWide
-            words={
-              trends.find((trend) => trend.value === (criteria.tideTrend ?? "any"))?.label ?? ""
-            }
-            shown={
-              // A trend is an arrow and a word, as a direction is.
-              criteria.tideTrend && <TideTrend trend={criteria.tideTrend} className={underlined} />
-            }
-          >
-            {tideChart}
-            <ToggleGroup
-              variant="outline"
-              size="sm"
-              aria-label={m.alert_label_tide_trend()}
-              value={[criteria.tideTrend ?? "any"]}
-              onValueChange={([pressed]) => {
-                if (!pressed) return;
-                setCriteria({
-                  ...criteria,
-                  tideTrend: pressed === "any" ? undefined : (pressed as "rising" | "falling"),
-                });
-              }}
-            >
-              {trends.map((trend) => (
-                <ToggleGroupItem key={trend.value} value={trend.value}>
-                  {trend.value === "any" ? trend.label : <TideTrend trend={trend.value} />}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Slot>
-          , {m.alert_says_for()}{" "}
-          <Slot label={m.alert_label_shortest()} isSet words={m.alert_hours({ count: shortest })}>
-            <ToggleGroup
-              variant="outline"
-              size="sm"
-              aria-label={m.alert_label_shortest()}
-              value={[String(shortest)]}
-              onValueChange={([pressed]) => {
-                if (pressed) set("shortestMinutes", Number(pressed) * 60);
-              }}
-            >
-              {SHORTEST_HOURS.map((hours) => (
-                <ToggleGroupItem key={hours} value={String(hours)}>
-                  {m.alert_hours({ count: hours })}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </Slot>
-          .
-        </p>
-
-        {/* The swell apart from the wind sea, for whoever wants to ask about it. It opens by
-          itself on an alert that already asks something of the swell. */}
-        <details
-          className="group grid gap-xs"
-          open={isAdvancedOpen}
-          onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
-        >
-          <summary className="focus-ring w-fit cursor-pointer rounded-(--radius-xs) text-s text-neutral-8 outline-none hover:text-neutral-10">
-            {m.alert_advanced()}
-          </summary>
-          <p className="text-s text-pretty text-neutral-7">
-            {m.alert_advanced_about()}
-            {current &&
-              current.waveHeightMeters !== null &&
-              current.primarySwellHeightMeters != null && (
+          {/* The alert, said. Every underlined part opens what changes it. */}
+          <div className="grid gap-s">
+            <p className="text-l text-pretty">
+              {m.alert_says_waves()} {said("waveHeightMeters", shows(1) ? "," : "", 0)}
+              {shows(1) && <> {said("wavePeakPeriodSeconds", shows(2) ? "," : "", 1)}</>}
+              {shows(2) && <> {said("waveDirectionDegrees", shows(3) ? "," : "", 2)}</>}
+              {shows(3) && (
                 <>
                   {" "}
-                  {m.alert_advanced_now({
-                    waves: formatHeight(current.waveHeightMeters),
-                    swell: formatHeight(current.primarySwellHeightMeters),
-                  })}
+                  {m.alert_says_wind()} {said("windSpeedMetersPerSecond", shows(4) ? "," : "", 3)}
                 </>
               )}
-          </p>
-          <p className="text-l text-pretty">
-            {m.alert_says_swell()}{" "}
-            {range("primarySwellHeightMeters", m.alert_any_swell_height(), (said) =>
-              m.alert_swell_height_of({ range: said }),
-            )}
-            ,{" "}
-            {sector("primarySwellDirectionDegrees", current?.primarySwellDirectionDegrees, {
-              from: 250,
-              to: 310,
-            })}
-            .
-          </p>
-        </details>
-
-        {/* What the sentence gives, over the days ahead, or how to make it give something. */}
-        <div
-          className="edge grid gap-s rounded-(--radius-s) p-s [--edge-color:var(--neutral-4)]"
-          aria-live="polite"
-        >
-          {!asksSomething ? (
-            <p className="text-s text-pretty text-neutral-7">{m.alert_preview_no_condition()}</p>
-          ) : preview.isError ? (
-            <p className="text-s text-neutral-7">
-              {preview.isUnavailable ? m.alert_preview_failed() : m.alert_preview_no_sea()}
+              {shows(4) && <> {said("windDirectionDegrees", shows(5) ? "," : "", 4)}</>}
+              {shows(5) && (
+                <>
+                  {" "}
+                  {m.alert_says_tide()} {said("tide", shows(6) ? "," : "", 5)}
+                </>
+              )}
+              {shows(6) && (
+                <>
+                  {" "}
+                  {m.alert_says_lasts()} {shortestSlot}.
+                </>
+              )}
             </p>
-          ) : tried.length === 0 ? (
-            // Nothing was answered yet: no count is said of a forecast that was not read.
-            <p className="text-s text-neutral-7">{m.alert_preview_pending()}</p>
+            {tooShort && shows(5) && tideLasts !== null && (
+              <div className="flex flex-wrap items-center gap-xs text-s text-neutral-8">
+                <span className="text-pretty">
+                  {m.alert_tide_short({
+                    lasts: durationWords(tideLasts),
+                    shortest: durationWords(draft.shortestMinutes),
+                  })}
+                </span>
+                {fits !== undefined && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => set("shortestMinutes", fits * 60)}
+                  >
+                    {m.alert_tide_short_fit({ hours: m.alert_hours({ count: fits }) })}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* The swell apart from the wind sea, for whoever wants to ask about it. It opens by
+            itself on an alert that already asks something of the swell. */}
+          {revealed >= STEPS.length && (
+            <details
+              className="group grid gap-xs"
+              open={isAdvancedOpen}
+              onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
+            >
+              <summary className="focus-ring w-fit cursor-pointer rounded-(--radius-xs) text-s text-neutral-8 outline-none hover:text-neutral-10">
+                {m.alert_advanced()}
+              </summary>
+              <p className="text-s text-pretty text-neutral-7">
+                {m.alert_advanced_about()}
+                {current &&
+                  current.waveHeightMeters !== null &&
+                  current.primarySwellHeightMeters != null && (
+                    <>
+                      {" "}
+                      {m.alert_advanced_now({
+                        waves: formatHeight(current.waveHeightMeters),
+                        swell: formatHeight(current.primarySwellHeightMeters),
+                      })}
+                    </>
+                  )}
+              </p>
+              <p className="text-l text-pretty">
+                {m.alert_says_swell()} {said("primarySwellHeightMeters", ",")}{" "}
+                {said("primarySwellDirectionDegrees", "")}.
+              </p>
+            </details>
+          )}
+
+          {/* What the sentence would tell over the week ahead. */}
+          <WeekPreview
+            state={weekState}
+            pieces={pieces}
+            asked={askedFigures}
+            now={now}
+            zone={zone}
+            nameOf={tried.length > 1 ? nameOf : undefined}
+            notes={notes}
+          />
+
+          {asksSomething && held.length > 0 && (
+            <div className="grid gap-xs">
+              <h3 className="text-s font-medium">{m.alert_held_title()}</h3>
+              {held.map(([key, hours]) => (
+                <div key={key} className="flex items-center justify-between gap-s text-s">
+                  <span>
+                    {CRITERION_LABELS[key]()}{" "}
+                    <span className="text-neutral-7">{m.alert_held_alone({ hours })}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCriteria(loosened(criteria, key))}
+                  >
+                    {m.alert_loosen()}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {neighbours.length > 0 && (
+            <div className="grid gap-xs">
+              <p id={`${id}-also`} className="text-s font-medium">
+                {m.alert_also_on()}
+              </p>
+              <ToggleGroup
+                multiple
+                variant="outline"
+                size="sm"
+                aria-labelledby={`${id}-also`}
+                value={draft.spotIds.filter((spotId) => spotId !== place.id)}
+                onValueChange={(pressed) =>
+                  set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed)
+                }
+              >
+                {neighbours.map((one) => (
+                  <ToggleGroupItem
+                    key={one.id}
+                    value={one.id}
+                    // A spot can still be taken out of an alert that is full.
+                    disabled={isFull && !draft.spotIds.includes(one.id)}
+                  >
+                    {one.name}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              {isFull && (
+                <p className="text-xs text-neutral-7">
+                  {m.alert_spots_most({ count: SPOTS_MOST })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {asksMail && (
+            <div className="flex items-start justify-between gap-m">
+              <div className="grid gap-xxs">
+                <span id={`${id}-mail`}>{m.alert_mail_ask()}</span>
+                <span className="text-s text-neutral-7">
+                  {mailWaits ? m.alert_mail_ask_hint_unchecked() : m.alert_mail_ask_hint()}
+                </span>
+              </div>
+              <Switch
+                aria-labelledby={`${id}-mail`}
+                checked={wantsMail}
+                onCheckedChange={setWantsMail}
+              />
+            </div>
+          )}
+
+          {/* An alert that is saved may be turned off without being deleted. A new one is on. */}
+          {alert && (
+            <div className="flex items-center justify-between gap-m">
+              <span id={`${id}-enabled`}>{m.alert_enabled_label()}</span>
+              <Switch
+                aria-labelledby={`${id}-enabled`}
+                checked={draft.enabled}
+                onCheckedChange={(enabled) => set("enabled", enabled)}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-xs pt-s pb-[var(--drawer-keyboard-inset,0px)]">
+          {alert && isConfirming ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setIsConfirming(false)}
+              >
+                {m.action_cancel()}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="flex-1"
+                aria-label={m.alert_delete({ name: alert.name })}
+                disabled={isBusy}
+                onClick={() => {
+                  setIsConfirming(false);
+                  onDelete(alert);
+                }}
+              >
+                {m.action_delete()}
+              </Button>
+            </>
           ) : (
             <>
-              <p className={cn("font-medium", preview.isPending && "text-neutral-7")}>
-                {pieces.length === 0
-                  ? hasSeaAhead(tried, now)
-                    ? m.alert_preview_outside()
-                    : m.alert_preview_none()
-                  : pieces.length === 1
-                    ? m.alert_preview_one()
-                    : m.alert_preview_many({ count: pieces.length })}
-              </p>
-              {tried.map((one) =>
-                one.hasSea ? (
-                  <div key={one.spotId} className="grid gap-xxs">
-                    {tried.length > 1 && <span className="text-xs">{nameOf(one.spotId)}</span>}
-                    <HourStrip
-                      hours={hoursAhead(one, now)}
-                      open={one.open}
-                      zone={zone}
-                      label={
-                        one.open.some((piece) => piece.end.getTime() > now)
-                          ? m.alert_strip_summary({
-                              spot: nameOf(one.spotId),
-                              hours: one.open
-                                .filter((piece) => piece.end.getTime() > now)
-                                .map((piece) => stretchWords(piece, zone))
-                                .join(", "),
-                            })
-                          : m.alert_strip_none({ spot: nameOf(one.spotId) })
-                      }
-                    />
-                  </div>
-                ) : (
-                  <p key={one.spotId} className="text-s text-neutral-7">
-                    {nameOf(one.spotId)} · {m.alert_preview_no_sea()}
-                  </p>
-                ),
-              )}
-              {pieces.length > 0 && (
-                <ul className="grid gap-xxs text-s">
-                  {pieces.slice(0, LISTED).map((piece) => {
-                    const first = piece.hours.find(
-                      (hour) => hour.time.getTime() === piece.start.getTime(),
-                    );
-                    return (
-                      <li
-                        key={`${piece.spotId}-${piece.start.getTime()}`}
-                        className="flex justify-between gap-s tabular-nums"
-                      >
-                        <span>
-                          {tried.length > 1 && `${nameOf(piece.spotId)} · `}
-                          {stretchWords(piece, zone)}
-                        </span>
-                        {first && (
-                          <span className="text-neutral-7">
-                            {[
-                              first.waveHeightMeters !== null &&
-                                formatHeight(first.waveHeightMeters),
-                              first.wavePeakPeriodSeconds !== null &&
-                                formatSeconds(first.wavePeakPeriodSeconds),
-                              asksSwell &&
-                                first.primarySwellHeightMeters != null &&
-                                m.alert_preview_swell({
-                                  height: formatHeight(first.primarySwellHeightMeters),
-                                }),
-                              first.windSpeedMetersPerSecond !== null &&
-                                formatWind(toKnots(first.windSpeedMetersPerSecond)),
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                  {pieces.length > LISTED && (
-                    <li className="text-neutral-7">
-                      {m.alert_preview_more({ count: pieces.length - LISTED })}
-                    </li>
-                  )}
-                </ul>
-              )}
-              {tried.some((one) => one.forecastStale) && (
-                <p className="text-xs text-neutral-7">{m.alert_preview_stale()}</p>
+              <Button type="submit" className="flex-1" isPending={isSaving} disabled={!canSave}>
+                {m.alert_save()}
+              </Button>
+              {/* A saved alert may be copied into another, and deleted. */}
+              {alert && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={m.alert_copy({ name: draft.name })}
+                    disabled={isBusy || !asksSomething}
+                    onClick={() => onCopy({ ...draft, criteria: sent })}
+                  >
+                    <CopyIcon data-slot="icon" aria-hidden />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={m.alert_delete({ name: alert.name })}
+                    isPending={isDeleting}
+                    disabled={isBusy}
+                    onClick={() => setIsConfirming(true)}
+                  >
+                    <TrashIcon data-slot="icon" aria-hidden />
+                  </Button>
+                </>
               )}
             </>
           )}
-          {asksTide &&
-            tried
-              .filter((one) => one.hasSea && !one.hasTide)
-              .map((one) => (
-                <p key={one.spotId} className="text-s text-neutral-7">
-                  {m.alert_no_tide({ spot: nameOf(one.spotId) })}
-                </p>
-              ))}
         </div>
+      </form>
+    </Week.Provider>
+  );
+}
 
-        {asksSomething && held.length > 0 && (
-          <div className="grid gap-xs">
-            <h3 className="text-s font-medium">{m.alert_held_title()}</h3>
-            {held.map(([key, hours]) => (
-              <div key={key} className="flex items-center justify-between gap-s text-s">
-                <span>
-                  {CRITERION_LABELS[key]()}{" "}
-                  <span className="text-neutral-7">{m.alert_held_alone({ hours })}</span>
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCriteria(loosened(criteria, key))}
-                >
-                  {m.alert_loosen()}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+/** The name of a part, for its "+" and its "×". */
+function partLabel(key: Part) {
+  return key === "tide" ? m.alert_label_tide() : CRITERION_LABELS[key]();
+}
 
-        {neighbours.length > 0 && (
-          <div className="grid gap-xs">
-            <p id={`${id}-also`} className="text-s font-medium">
-              {m.alert_also_on()}
-            </p>
-            <ToggleGroup
-              multiple
-              variant="outline"
-              size="sm"
-              aria-labelledby={`${id}-also`}
-              value={draft.spotIds.filter((spotId) => spotId !== place.id)}
-              onValueChange={(pressed) =>
-                set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed)
-              }
-            >
-              {neighbours.map((one) => (
-                <ToggleGroupItem
-                  key={one.id}
-                  value={one.id}
-                  // A spot can still be taken out of an alert that is full.
-                  disabled={isFull && !draft.spotIds.includes(one.id)}
-                >
-                  {one.name}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            {isFull && (
-              <p className="text-xs text-neutral-7">{m.alert_spots_most({ count: SPOTS_MOST })}</p>
-            )}
-          </div>
-        )}
+/** The two ends of a sector in degrees, typed, for what the dial's steps are too coarse for. */
+function DegreesFields({
+  arc,
+  label,
+  onChange,
+}: {
+  arc: Arc;
+  label: string;
+  onChange: (arc: Arc) => void;
+}) {
+  return (
+    <div className="flex gap-xs">
+      <DegreeField
+        word={m.alert_degrees_from()}
+        label={m.alert_sector_from({ label })}
+        degrees={arc.from}
+        onChange={(from) => onChange({ ...arc, from })}
+      />
+      <DegreeField
+        word={m.alert_degrees_to()}
+        label={m.alert_sector_to({ label })}
+        degrees={arc.to}
+        onChange={(to) => onChange({ ...arc, to })}
+      />
+    </div>
+  );
+}
 
-        {asksMail && (
-          <div className="flex items-start justify-between gap-m">
-            <div className="grid gap-xxs">
-              <span id={`${id}-mail`}>{m.alert_mail_ask()}</span>
-              <span className="text-s text-neutral-7">
-                {mailWaits ? m.alert_mail_ask_hint_unchecked() : m.alert_mail_ask_hint()}
-              </span>
-            </div>
-            <Switch
-              aria-labelledby={`${id}-mail`}
-              checked={wantsMail}
-              onCheckedChange={setWantsMail}
-            />
-          </div>
-        )}
-
-        {/* An alert that is saved may be turned off without being deleted. A new one is on. */}
-        {alert && (
-          <div className="flex items-center justify-between gap-m">
-            <span id={`${id}-enabled`}>{m.alert_enabled_label()}</span>
-            <Switch
-              aria-labelledby={`${id}-enabled`}
-              checked={draft.enabled}
-              onCheckedChange={(enabled) => set("enabled", enabled)}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-xs pt-s pb-[var(--drawer-keyboard-inset,0px)]">
-        {alert && isConfirming ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1"
-              onClick={() => setIsConfirming(false)}
-            >
-              {m.action_cancel()}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              className="flex-1"
-              aria-label={m.alert_delete({ name: alert.name })}
-              disabled={isBusy}
-              onClick={() => {
-                setIsConfirming(false);
-                onDelete(alert);
-              }}
-            >
-              {m.action_delete()}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button type="submit" className="flex-1" isPending={isSaving} disabled={!canSave}>
-              {m.alert_save()}
-            </Button>
-            {/* A saved alert may be copied into another, and deleted. */}
-            {alert && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={m.alert_copy({ name: draft.name })}
-                  disabled={isBusy || !asksSomething}
-                  onClick={() => onCopy({ ...draft, criteria: sent })}
-                >
-                  <CopyIcon data-slot="icon" aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={m.alert_delete({ name: alert.name })}
-                  isPending={isDeleting}
-                  disabled={isBusy}
-                  onClick={() => setIsConfirming(true)}
-                >
-                  <TrashIcon data-slot="icon" aria-hidden />
-                </Button>
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </form>
+function DegreeField({
+  word,
+  label,
+  degrees,
+  onChange,
+}: {
+  word: string;
+  label: string;
+  degrees: number;
+  onChange: (degrees: number) => void;
+}) {
+  // What is typed, which may be empty for a moment; the dial's moves write over it.
+  const [typed, setTyped] = useState(String(degrees));
+  const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    if (!isEditing) setTyped(String(degrees));
+  }, [degrees, isEditing]);
+  return (
+    <label className="grid flex-1 gap-xxs">
+      <span className="text-xs text-neutral-7">{word}</span>
+      <span className="relative">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={359}
+          step={1}
+          aria-label={label}
+          value={typed}
+          onFocus={() => setIsEditing(true)}
+          onBlur={() => {
+            setIsEditing(false);
+            setTyped(String(degrees));
+          }}
+          onChange={(event) => {
+            const text = event.currentTarget.value;
+            setTyped(text);
+            const number = Number(text);
+            if (text === "" || !Number.isFinite(number)) return;
+            onChange(((Math.round(number) % 360) + 360) % 360);
+          }}
+          className="pe-l tabular-nums"
+        />
+        <span className="pointer-events-none absolute inset-y-0 end-s flex items-center text-neutral-7">
+          °
+        </span>
+      </span>
+    </label>
   );
 }

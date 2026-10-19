@@ -5,7 +5,16 @@ import { m } from "@/paraglide/messages.js";
 
 import { Bearing } from "../viewer/bearing";
 import type { Alert, AlertCriteria } from "../viewer/types";
-import { type Arc, type RangeKey, isSetRange, rangeWords } from "./alert-words";
+import {
+  type Arc,
+  type Part,
+  type RangeKey,
+  asksOfTide,
+  isSetRange,
+  rangeWords,
+  tideOf,
+  tideWords,
+} from "./alert-words";
 import { TideTrend } from "./tide-trend";
 
 /**
@@ -21,43 +30,75 @@ export function ConditionsSummary({
 }) {
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
-  const range = (key: RangeKey) => {
-    const value = criteria[key];
-    return isSetRange(value) ? [rangeWords(key, value)] : [];
-  };
-  // A direction is an arrow and a name: the two ends of the sector, clockwise.
-  const sector = (arc: Arc | undefined) =>
-    arc
-      ? [
+  // A part with other values says them all, joined by "or".
+  const either = (said: ReactNode[]) =>
+    said.length <= 1
+      ? said
+      : [
           <>
-            <Bearing degrees={arc.from} />–<Bearing degrees={arc.to} />
+            {said.map((one, at) => (
+              // The values of a part keep their order: nothing else tells them apart.
+              // oxlint-disable-next-line react/no-array-index-key
+              <Fragment key={at}>
+                {at > 0 && ` ${m.alert_or_word()} `}
+                {one}
+              </Fragment>
+            ))}
           </>,
-        ]
-      : [];
+        ];
+  const range = (key: RangeKey & Part) =>
+    either(
+      [criteria[key], ...(criteria.or?.[key] ?? [])].flatMap((value) =>
+        isSetRange(value) ? [rangeWords(key, value)] : [],
+      ),
+    );
+  // A direction is an arrow and a name: the two ends of the sector, clockwise.
+  const sector = (
+    key: "waveDirectionDegrees" | "primarySwellDirectionDegrees" | "windDirectionDegrees",
+  ) =>
+    either(
+      [criteria[key], ...(criteria.or?.[key] ?? [])].flatMap((arc: Arc | undefined) =>
+        arc
+          ? [
+              <>
+                <Bearing degrees={arc.from} />–<Bearing degrees={arc.to} />
+              </>,
+            ]
+          : [],
+      ),
+    );
+  // The tide of an alert written before the cycle says its way with an arrow.
+  const tide = either(
+    [tideOf(criteria), ...(criteria.or?.tide ?? [])].filter(asksOfTide).map((ask) =>
+      ask.tideTrend && !ask.tideCycle && !ask.tideCoefficients ? (
+        <>
+          {isSetRange(ask.tideHeightMeters) &&
+            `${rangeWords("tideHeightMeters", ask.tideHeightMeters)}, `}
+          <TideTrend trend={ask.tideTrend} />
+        </>
+      ) : (
+        tideWords(ask)
+      ),
+    ),
+  );
   const groups: [string, ReactNode[]][] = [
     [
       m.alert_summary_waves(),
       [
         ...range("waveHeightMeters"),
         ...range("wavePeakPeriodSeconds"),
-        ...sector(criteria.waveDirectionDegrees),
+        ...sector("waveDirectionDegrees"),
       ],
     ],
     [
       m.alert_summary_swell(),
-      [...range("primarySwellHeightMeters"), ...sector(criteria.primarySwellDirectionDegrees)],
+      [...range("primarySwellHeightMeters"), ...sector("primarySwellDirectionDegrees")],
     ],
     [
       m.alert_summary_wind(),
-      [...range("windSpeedMetersPerSecond"), ...sector(criteria.windDirectionDegrees)],
+      [...range("windSpeedMetersPerSecond"), ...sector("windDirectionDegrees")],
     ],
-    [
-      m.alert_summary_tide(),
-      [
-        ...range("tideHeightMeters"),
-        ...(criteria.tideTrend ? [<TideTrend trend={criteria.tideTrend} />] : []),
-      ],
-    ],
+    [m.alert_summary_tide(), tide],
   ];
 
   const said = groups.filter(([, parts]) => parts.length > 0);

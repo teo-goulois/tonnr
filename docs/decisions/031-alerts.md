@@ -23,13 +23,12 @@ The first version also had faults that no rule of it named. It announced a windo
 
 ### The alert
 
-- An alert belongs to one account, and only that account reads it. It has a name, the conditions that make its spots work, and a switch. The conditions are the criteria of decision 006, unchanged: swell height, period and direction, wind speed and direction, tide height and trend.
+- An alert belongs to one account, and only that account reads it. It has a name, the conditions that make its spots work, and a switch. The conditions are the criteria of decision 006: swell height, period and direction, wind speed and direction, and the tide, which is asked by its cycle and its coefficient since 2026-10-19 ("The tide"). A part may take other values ("Or").
 - An alert is set on one spot or on several, all of its account, and a spot may be in several alerts. Since [decision 064](064-alerts-on-surf-breaks.md) it may be set on surf breaks of the catalogue too, which count among its twelve places. The conditions are checked at each of an alert's spots, with that spot's own forecast and tide: spots that share an alert share what is asked of the sea, not the sea. Two alerts on one spot are looked at, told and sent apart: each keeps what it saw and what it told there, and hours that both find are told by both, each under its name.
 - An alert keeps the shortest window worth telling, two hours unless its owner says otherwise. Chosen here, and kept on the alert: a spot that works an hour around low tide is a matter of the spot, not of the person.
 - An alert whose last spot is deleted, or taken out of it, is deleted with it.
 - An account holds at most 100 alerts, and an alert at most 12 spots. Chosen here.
 - A spot's panel lists its alerts, each with its name, what it asks and its switch, and opens one to change it. An alert is written in a sheet of its own, over whatever is open, and not in the panel, which Téo asked for on 2026-10-16: its name, the sentence of its conditions, what they give over the days ahead, and its button to save, which stays at the bottom of the sheet and closes it. A saved alert is turned off, copied and deleted there too. A second alert of a spot is named after the spot and its rank, and any alert can be started from a copy of another: one for small clean days is a few figures away from one for big ones. Chosen here.
-- What an alert asks of the tide is set beside the tide itself: the curve at the spot over the two days ahead, with the heights the alert takes as a band across it, and the curve brighter where the tide is in them and goes the way that is asked. It shows the tide alone, and roughly: what the alert finds is decided hour by hour, with every other condition, the account's hours and the shortest window, and the screen says so under the curve.
 - What is written of an alert and not saved is not lost without a word. Opening another alert, starting a copy, closing the sheet or the panel, choosing something else on the map, following a link, the browser's way back, signing out and leaving the page all ask first: one question at a time, in a dialog over whatever is open, and the alert that is open stays as it is when it is asked for again. What was sent is not saved until its save has answered, and a copy is something to lose before it is touched. What is written stays guarded until it is saved or its editor is gone: an answer to leave does not take the guard away, so a leaving that fails changes nothing. The browser's way back is undone at once and done again when the answer is to leave. Renaming or moving the spot keeps its panel as it was. Deleting the spot asks for itself, and nothing more. A part that is changed again while its save is on its way is kept as it was last written, and one that is put back to what the alert says follows the alert again.
 - An alert asks at least one thing of the sea: with no condition every hour would be a window. A range with neither a least nor a most asks nothing, and is not kept.
 - An alert starts over when its conditions change, when it is switched off, and at a spot that is moved: what it saw of the sea and what it told there are forgotten, and nothing is called off. The sea is another under other conditions, and at another place. Chosen here.
@@ -133,6 +132,33 @@ The worker looks at each alert every three hours: at each of its spots, over the
 - A push service that says a subscription is gone has it deleted. A push is sent when one device at least took it. One that no device took is not tried again. What it told depends on whether it can have left: when a push service did not answer, or answered that it failed itself, nobody knows, and the push is taken as told, as a mail is. When every push service said no, it did not leave: nothing was told, and the alert's next push says what this one had to say. When every device is gone the account has no subscription left: the push is given up, and nothing was told. Chosen here.
 - An account is sent at most 24 pushes a day, however many devices it has. Chosen here.
 - What is sent is encrypted for the browser, as the standards ask (RFC 8291, with RFC 8292 for who sends): the push service reads the address, and nothing of the alert. The instance signs with its private key and names itself by the web app's address. `packages/push` builds this on Node's own cryptography and its own request, with no library: a library's request is the part that had to be ours, as the mail's was over SMTP.
+
+### The tide
+
+Asked on 2026-10-18, after a tester asked for the coefficient, and chosen by Téo among four prototypes the same day: a height, a stage of the tide, a coefficient, and the cycle with a coefficient. He took the last.
+
+- An alert asks the tide by the parts of its cycle, `tideCycle`: one tide from low water to the next, in eight parts, low and high water each one part and each middle stage named with the way the tide goes, "mid tide rising". An hour's part is the fifth of the range of the tide under way, between the turn before it and the turn after, so that it follows how strong the tide is by itself: a height is another stage on a day of big tides. `tideSegmentAt` in `packages/conditions` reads it, and the editor draws it as one curve whose parts a press takes or leaves.
+- And by how strong it is, `tideCoefficients`: under 70, from 70 to 90, over 90, read on the high water nearest the hour, within half a day. A coast whose tables print no coefficient meets none, and the editor offers none there.
+- The height and the way of the tide stay for the alerts that asked them, and are judged as before: the editor says them, and the cycle takes their place once it is chosen. A new alert is never given them. What an account likes at a place, from the sessions it rated there, is said in the parts of the cycle they were surfed at.
+- How long the parts asked last over the two days ahead is measured as the alert is written, and a shortest window longer than that is said never to come, with a button to the longest that fits.
+
+### Or
+
+Asked by Téo on 2026-10-18, from the same tester, who wanted several ranges in one alert. He chose a "+" after each value among three prototypes.
+
+- Each part of an alert may take other values, three at most, under `or`: waves of 1 to 2 m or of 3 m and more. An hour meets the part when it meets one of them, and the alert when it meets every part. The tide's other values are whole asks of the tide, a part of the cycle with its coefficient. Every combination of the values is so judged, without being written.
+- What asks nothing is left out as it is saved, an other value as a range with no end, and a set of every word or of none. A part whose own value asks nothing takes its first other one. `askedCriteria` holds it, for the API and the web app.
+- A condition that holds windows back is loosened in each of its values. The parts of the cycle and the coefficient have no notch: loosened, the tide asks nothing.
+
+### The editor
+
+Worked out with Téo through a demo on 2026-10-18.
+
+- A new alert is said one part at a time, from "Tell me when the waves are of any size": each part is chosen or passed, and the next opens as it is answered. An alert that is saved, or a copy, is said whole.
+- A part opens in a popover on a wide screen, which stays where the part stood while the sentence says what is chosen, and in a drawer over the sheet on a phone. Both say the value big at their top, the count of the week as it was when they opened and what was won or lost since, and end on two buttons: any, which leaves the part asking nothing, and done. An other value offers to remove it instead.
+- A part takes a "+" once it has a value, after the last of its values, and none before. An other value says nothing in the sentence until it is chosen, and goes if it is closed empty.
+- The sentence ends on "and it lasts at least", the shortest window.
+- What the sentence would tell over the week is a line under it, the windows and the days with one, with a dot for each day, which opens on the seven days, each a line of its hours, and a day on its windows, said in the figures the alert asks and no other. The editor asks the preview once for its places, with no condition, which gives every figure of every hour and the hours the account can use, and judges each change itself, by the rules the worker judges by: it asks the API nothing as a slider moves.
 
 ### Conditions stay strict
 

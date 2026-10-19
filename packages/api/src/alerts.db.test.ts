@@ -185,6 +185,34 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       );
     });
 
+    it("keeps other values of a part, and the tide's cycle, as they ask something", async () => {
+      const made = await make({
+        criteria: {
+          waveHeightMeters: {},
+          tideCycle: ["high", "low"],
+          tideCoefficients: ["small", "medium", "big"],
+          or: {
+            waveHeightMeters: [{ min: 1, max: 2 }, { min: 3 }],
+            tide: [{ tideCycle: ["mid_falling"], tideCoefficients: ["big"] }, {}],
+          },
+        },
+      });
+
+      // A part whose own value asks nothing takes its first other; a set of every word, and
+      // what asks nothing, are left out.
+      expect(made.criteria).toEqual({
+        waveHeightMeters: { min: 1, max: 2 },
+        tideCycle: ["low", "high"],
+        or: {
+          waveHeightMeters: [{ min: 3 }],
+          tide: [{ tideCycle: ["mid_falling"], tideCoefficients: ["big"] }],
+        },
+      });
+      await expect(
+        make({ criteria: { or: { waveHeightMeters: Array(4).fill({ min: 1 }) } } }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("may be one of several on a spot, each with its name, its conditions and its spots", async () => {
       const small = await make({ name: "Small and clean" });
       const big = await make({

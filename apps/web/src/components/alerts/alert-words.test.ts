@@ -9,6 +9,9 @@ import {
   afterRead,
   afterSpotsRead,
   conditionsKey,
+  coefficientWords,
+  cycleWords,
+  tideWords,
   isOpenAlert,
   isUnsaved,
   leftAfterSave,
@@ -489,5 +492,66 @@ describe("what a spot's panel is asked to write", () => {
     // A new alert that is being written is not the one a second new alert asks for.
     expect(isOpenAlert({}, {})).toBe(false);
     expect(isOpenAlert(null, { alertId: "bay" })).toBe(false);
+  });
+});
+
+describe("the tide, said", () => {
+  it("says the parts of the cycle in runs, by their ends", () => {
+    expect(cycleWords(["mid_rising", "mid_high_rising", "high"])).toBe(
+      "from mid tide rising to high",
+    );
+    // A run across low water stays whole.
+    expect(cycleWords(["mid_low_falling", "low", "mid_low_rising", "high"])).toBe(
+      "from late falling to early rising or high",
+    );
+    expect(cycleWords([])).toBeUndefined();
+  });
+
+  it("says the bands of the coefficient in figures", () => {
+    expect(coefficientWords(["big", "small"])).toBe("coef < 70 or > 90");
+    expect(coefficientWords(["small", "medium", "big"])).toBeUndefined();
+  });
+
+  it("says the cycle, the coefficient, and the height of an older alert", () => {
+    expect(tideWords({ tideCycle: ["low"], tideCoefficients: ["big"] })).toBe("low, coef > 90");
+    expect(tideWords({ tideTrend: "rising" })).toBe("rising");
+  });
+});
+
+describe("a part with other values", () => {
+  it("is the same conditions whatever the order of their keys", () => {
+    expect(
+      conditionsKey({
+        waveHeightMeters: { min: 1 },
+        or: { waveHeightMeters: [{ max: 3, min: 2 }] },
+      }),
+    ).toBe(
+      conditionsKey({
+        or: { waveHeightMeters: [{ min: 2, max: 3 }] },
+        waveHeightMeters: { min: 1 },
+      }),
+    );
+  });
+
+  it("is loosened in each of its values", () => {
+    expect(
+      loosened(
+        { wavePeakPeriodSeconds: { min: 10 }, or: { wavePeakPeriodSeconds: [{ max: 6 }] } },
+        "wavePeakPeriodSeconds",
+      ),
+    ).toEqual({ wavePeakPeriodSeconds: { min: 9 }, or: { wavePeakPeriodSeconds: [{ max: 7 }] } });
+  });
+
+  it("asks nothing of the tide once the cycle is loosened", () => {
+    expect(
+      loosened(
+        {
+          tideCycle: ["low"],
+          waveHeightMeters: { min: 1 },
+          or: { tide: [{ tideCycle: ["high"] }] },
+        },
+        "tideCycle",
+      ),
+    ).toEqual({ waveHeightMeters: { min: 1 } });
   });
 });

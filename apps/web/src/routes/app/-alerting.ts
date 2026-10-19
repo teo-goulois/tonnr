@@ -13,8 +13,8 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { orpc } from "@/utils/orpc";
 
-// How long the conditions must stay as they are before they are tried: a slider that moves
-// asks nothing.
+// How long the places must stay as they are before they are tried: a neighbour pressed on and
+// off asks nothing.
 const TRIAL_WAIT_MS = 300;
 const MINUTE_MS = 60 * 1000;
 
@@ -83,7 +83,7 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
     const timer = setTimeout(() => setTried(trial), TRIAL_WAIT_MS);
     return () => clearTimeout(timer);
   }, [trial]);
-  const canTry = signedIn && tried !== null && Object.keys(tried.criteria).length > 0;
+  const canTry = signedIn && tried !== null && tried.spotIds.length + tried.breakIds.length > 0;
   // The places tried, spots and breaks, by their ids: the preview answers each under its id.
   const triedSpots = [...(tried?.spotIds ?? []), ...(tried?.breakIds ?? [])];
   const preview = useQuery(
@@ -91,8 +91,10 @@ export function useAlerting({ signedIn, isShown }: { signedIn: boolean; isShown:
       input: {
         spotIds: tried?.spotIds ?? [],
         breakIds: tried?.breakIds ?? [],
-        criteria: tried?.criteria ?? {},
-        shortestMinutes: tried?.shortestMinutes ?? 120,
+        // No condition, and windows of an hour: every figure of every hour, and every hour the
+        // account can use. The editor judges its conditions over them itself.
+        criteria: {},
+        shortestMinutes: 60,
         days: 7,
       },
       enabled: canTry,

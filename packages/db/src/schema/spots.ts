@@ -12,6 +12,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { CoefficientBand, TideSegment } from "@repo/config/sea-words";
 import { sql } from "drizzle-orm";
 
 import { user } from "./auth";
@@ -36,8 +37,34 @@ export type SpotCriteria = {
   primarySwellDirectionDegrees?: Arc;
   windSpeedMetersPerSecond?: Range;
   windDirectionDegrees?: Arc;
+  // Asked by alerts written before 2026-10-19, which the editor no longer offers: the parts of
+  // the cycle say the tide better, since a height means another stage on another day.
   tideHeightMeters?: Range;
   tideTrend?: "rising" | "falling";
+  // The parts of the tide's cycle, and how strong the tide is: decision 031, "The tide".
+  tideCycle?: TideSegment[];
+  tideCoefficients?: CoefficientBand[];
+  // Other values of a part, any of which will do as well as the one above: waves of 1 to 2 m
+  // or of 3 m and more. The tide's are whole asks of the tide. Decision 031, "Or".
+  or?: CriteriaAlternatives;
+};
+
+/** What an alert asks of the tide: one value of its part. */
+export type TideAsk = Pick<
+  SpotCriteria,
+  "tideHeightMeters" | "tideTrend" | "tideCycle" | "tideCoefficients"
+>;
+
+/** The other values of each part of an alert's conditions. */
+export type CriteriaAlternatives = {
+  waveHeightMeters?: Range[];
+  wavePeakPeriodSeconds?: Range[];
+  waveDirectionDegrees?: Arc[];
+  primarySwellHeightMeters?: Range[];
+  primarySwellDirectionDegrees?: Arc[];
+  windSpeedMetersPerSecond?: Range[];
+  windDirectionDegrees?: Arc[];
+  tide?: TideAsk[];
 };
 
 // What a break is said to be. Each list is the whole vocabulary of its column: the import refuses

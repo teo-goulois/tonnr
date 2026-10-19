@@ -1,3 +1,17 @@
+import {
+  type Criterion,
+  type Part,
+  TIDE_KEYS,
+  askedCriteria,
+  tideAskOf,
+} from "@repo/conditions/spots/criteria";
+import {
+  COEFFICIENT_BANDS,
+  TIDE_CYCLE,
+  type CoefficientBand,
+  type TideSegment,
+} from "@repo/config/sea-words";
+
 import { compassPoint, formatNumber, toKnots } from "@/lib/format";
 import {
   getUnits,
@@ -12,7 +26,13 @@ import { m } from "@/paraglide/messages.js";
 
 import type { AlertCriteria } from "../viewer/types";
 
-export type CriterionKey = keyof AlertCriteria;
+export type CriterionKey = Criterion;
+export type { Part };
+/** What an alert asks of the tide: one value of its part. */
+export type TideAsk = Pick<
+  AlertCriteria,
+  "tideHeightMeters" | "tideTrend" | "tideCycle" | "tideCoefficients"
+>;
 // The first three are the whole sea, with the period of its peak. The swell apart from the wind
 // sea is `primarySwellHeightMeters` and `primarySwellDirectionDegrees`: decision 038.
 export type RangeKey =
@@ -154,7 +174,116 @@ export const CRITERION_LABELS: Record<CriterionKey, () => string> = {
   windDirectionDegrees: m.alert_label_wind_from,
   tideHeightMeters: m.alert_label_tide_height,
   tideTrend: m.alert_label_tide_trend,
+  tideCycle: m.alert_label_tide,
+  tideCoefficients: m.alert_label_coefficient,
 };
+
+/** Each part of the tide's cycle, in a word or two: "mid tide rising". */
+export const SEGMENT_WORDS: Record<TideSegment, () => string> = {
+  low: m.alert_tide_low,
+  mid_low_rising: m.alert_tide_mid_low_rising,
+  mid_rising: m.alert_tide_mid_rising,
+  mid_high_rising: m.alert_tide_mid_high_rising,
+  high: m.alert_tide_high,
+  mid_high_falling: m.alert_tide_mid_high_falling,
+  mid_falling: m.alert_tide_mid_falling,
+  mid_low_falling: m.alert_tide_mid_low_falling,
+};
+
+/** The bands of the coefficient in figures: a word alone says too little. */
+export const BAND_FIGURES: Record<CoefficientBand, string> = {
+  small: "< 70",
+  medium: "70–90",
+  big: "> 90",
+};
+
+/** Words joined by "or": "a, b or c". */
+export function orWords(words: string[]) {
+  if (words.length <= 1) return words[0] ?? "";
+  return m.alert_or_list({ list: words.slice(0, -1).join(", "), last: words.at(-1)! });
+}
+
+/**
+ * The parts of the cycle in runs, each said by its two ends, from low water on: a run across low
+ * water stays whole and comes first. "from mid tide rising to high". Undefined for none, or all.
+ */
+export function cycleWords(cycle: readonly TideSegment[] | undefined) {
+  if (!cycle?.length || cycle.length >= TIDE_CYCLE.length) return undefined;
+  const length = TIDE_CYCLE.length;
+  const on = TIDE_CYCLE.map((one) => cycle.includes(one));
+  // Each run from the part that follows one not asked, with where it starts: a run that
+  // started before low water and goes on past it starts below nought.
+  const runs: { from: number; parts: TideSegment[] }[] = [];
+  for (let at = 0; at < length; at++) {
+    if (!on[at] || on[(at + length - 1) % length]) continue;
+    const parts: TideSegment[] = [];
+    for (let next = at; on[next % length] && parts.length < length; next++) {
+      parts.push(TIDE_CYCLE[next % length]!);
+    }
+    runs.push({ from: at + parts.length > length ? at - length : at, parts });
+  }
+  return orWords(
+    runs
+      .sort((one, other) => one.from - other.from)
+      .map(({ parts }) =>
+        parts.length === 1
+          ? SEGMENT_WORDS[parts[0]!]()
+          : m.alert_tide_run({
+              from: SEGMENT_WORDS[parts[0]!](),
+              to: SEGMENT_WORDS[parts.at(-1)!](),
+            }),
+      ),
+  );
+}
+
+/** The bands of the coefficient asked, in figures: "coef < 70 or > 90". */
+export function coefficientWords(bands: readonly CoefficientBand[] | undefined) {
+  if (!bands?.length || bands.length >= COEFFICIENT_BANDS.length) return undefined;
+  return m.alert_tide_coefficient({
+    bands: COEFFICIENT_BANDS.filter((band) => bands.includes(band))
+      .map((band) => BAND_FIGURES[band])
+      .join(m.alert_or()),
+  });
+}
+
+/**
+ * What an ask of the tide says, in words: the parts of its cycle and its coefficient, or the
+ * height and the way of an alert written before the cycle. Empty when it asks nothing.
+ */
+export function tideWords(ask: TideAsk) {
+  const trend =
+    ask.tideTrend === "rising"
+      ? m.alert_trend_rising()
+      : ask.tideTrend === "falling"
+        ? m.alert_trend_falling()
+        : undefined;
+  return [
+    cycleWords(ask.tideCycle),
+    coefficientWords(ask.tideCoefficients),
+    isSetRange(ask.tideHeightMeters)
+      ? m.alert_tide_at({ range: rangeWords("tideHeightMeters", ask.tideHeightMeters) })
+      : undefined,
+    trend,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** Whether an ask of the tide asks something. */
+export const asksOfTide = (ask: TideAsk) => Object.keys(tideAskOf(ask)).length > 0;
+
+/** The ask of the tide that conditions hold as their own: the tide's fields of them. */
+export function tideOf(criteria: AlertCriteria): TideAsk {
+  return Object.fromEntries(TIDE_KEYS.map((key) => [key, criteria[key]]));
+}
+
+/** Conditions whose own ask of the tide is another. */
+export function withTide(criteria: AlertCriteria, ask: TideAsk): AlertCriteria {
+  const rest = Object.fromEntries(
+    Object.entries(criteria).filter(([key]) => !(TIDE_KEYS as readonly string[]).includes(key)),
+  );
+  return { ...rest, ...ask };
+}
 
 export function isSetRange(range: Range | undefined): range is Range {
   return range !== undefined && (range.min !== undefined || range.max !== undefined);
@@ -177,29 +306,28 @@ export function arcWords(arc: Arc) {
   return `${compassPoint(arc.from)}–${compassPoint(arc.to)}`;
 }
 
-/** The conditions as they are sent: a range with neither end, or a part left out, is not there. */
+/** The conditions as they are sent: what asks nothing is not there. */
 export function asked(criteria: AlertCriteria): AlertCriteria {
-  return Object.fromEntries(
-    Object.entries(criteria).filter(
-      ([, criterion]) =>
-        typeof criterion === "string" ||
-        (criterion !== undefined && Object.values(criterion).some((end) => end !== undefined)),
-    ),
-  );
+  return askedCriteria(criteria);
+}
+
+// A value as one string, its keys in order, at every depth.
+function stable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, inner]) => inner !== undefined)
+        .sort(([one], [other]) => one.localeCompare(other))
+        .map(([key, inner]) => [key, stable(inner)]),
+    );
+  }
+  return value;
 }
 
 /** The conditions as one string, the same for the same conditions in whatever order they come. */
 export function conditionsKey(criteria: AlertCriteria) {
-  const sorted = (value: object) =>
-    Object.fromEntries(Object.entries(value).sort(([one], [other]) => one.localeCompare(other)));
-  return JSON.stringify(
-    Object.entries(asked(criteria))
-      .sort(([one], [other]) => one.localeCompare(other))
-      .map(([key, criterion]) => [
-        key,
-        typeof criterion === "object" ? sorted(criterion) : criterion,
-      ]),
-  );
+  return JSON.stringify(stable(asked(criteria)));
 }
 
 /**
@@ -263,39 +391,63 @@ export function rangeAfter(
 // A sector loosens by this much at each end.
 const ARC_NOTCH = 15;
 
-/**
- * One notch wider: what the button beside a condition that holds a spot back does. Whatever
- * the condition took, it still takes: a sector that would pass the whole compass asks nothing
- * any more, and a range stops at the least and the most the API takes.
- */
-export function loosened(criteria: AlertCriteria, key: CriterionKey): AlertCriteria {
-  if (key === "tideTrend") return { ...criteria, tideTrend: undefined };
+// One value of a range or a sector, one notch wider. Undefined when it would ask nothing.
+function wider(key: RangeKey | ArcKey, value: Range | Arc): Range | Arc | undefined {
   if (isArcKey(key)) {
-    const arc = criteria[key];
-    if (!arc) return criteria;
+    const arc = value as Arc;
     const sweep = (arc.to - arc.from + 360) % 360 || 360;
-    if (sweep + 2 * ARC_NOTCH >= 360) return { ...criteria, [key]: undefined };
-    return {
-      ...criteria,
-      [key]: { from: (arc.from - ARC_NOTCH + 360) % 360, to: (arc.to + ARC_NOTCH) % 360 },
-    };
+    if (sweep + 2 * ARC_NOTCH >= 360) return undefined;
+    return { from: (arc.from - ARC_NOTCH + 360) % 360, to: (arc.to + ARC_NOTCH) % 360 };
   }
-  const range = criteria[key];
-  if (!range) return criteria;
-  const { step, floor, ceiling, kept, shown } = RANGES[key];
+  const range = value as Range;
+  const { step, floor, ceiling, kept, shown } = RANGES[key as RangeKey];
   // A period loosens by a second, a height by two tenths, the wind by two knots.
   const by = key === "wavePeakPeriodSeconds" ? step : step * 2;
   return {
-    ...criteria,
-    [key]: {
-      ...(range.min === undefined
-        ? {}
-        : { min: Math.max(floor, Math.min(range.min, kept(shown(range.min) - by))) }),
-      ...(range.max === undefined
-        ? {}
-        : { max: Math.min(ceiling, Math.max(range.max, kept(shown(range.max) + by))) }),
-    },
+    ...(range.min === undefined
+      ? {}
+      : { min: Math.max(floor, Math.min(range.min, kept(shown(range.min) - by))) }),
+    ...(range.max === undefined
+      ? {}
+      : { max: Math.min(ceiling, Math.max(range.max, kept(shown(range.max) + by))) }),
   };
+}
+
+/**
+ * One notch wider: what the button beside a condition that holds a spot back does. Whatever
+ * the condition took, it still takes: a sector that would pass the whole compass asks nothing
+ * any more, and a range stops at the least and the most the API takes. Each of a part's values
+ * is widened. The tide, which has no notch, asks nothing any more.
+ */
+export function loosened(criteria: AlertCriteria, key: CriterionKey): AlertCriteria {
+  if ((TIDE_KEYS as readonly string[]).includes(key)) {
+    const asks = [tideOf(criteria), ...(criteria.or?.tide ?? [])];
+    // A height is widened as a range is, and a way of the tide let go of, in every ask of the
+    // tide. The parts of the cycle and the coefficient have no notch: the tide asks nothing more.
+    const eased =
+      key === "tideHeightMeters"
+        ? asks.map((ask) => ({
+            ...ask,
+            tideHeightMeters: ask.tideHeightMeters && wider(key, ask.tideHeightMeters),
+          }))
+        : key === "tideTrend"
+          ? asks.map((ask) => ({ ...ask, tideTrend: undefined }))
+          : [];
+    const [own = {}, ...others] = eased as TideAsk[];
+    return asked({ ...withTide(criteria, own), or: { ...criteria.or, tide: others } });
+  }
+  const part = key as RangeKey | ArcKey;
+  const own = criteria[part];
+  const values = (criteria.or?.[part as Exclude<Part, "tide">] ?? []) as (Range | Arc)[];
+  const widened = [own, ...values].flatMap((value) => (value ? [wider(part, value)] : []));
+  // A value that now takes every direction makes the whole part take them.
+  const whole = widened.some((value) => value === undefined);
+  const [first, ...rest] = whole ? [] : widened;
+  return asked({
+    ...criteria,
+    [part]: first,
+    or: { ...criteria.or, [part]: rest },
+  });
 }
 
 /** An alert as its editor holds it, before it is saved. */
@@ -309,11 +461,8 @@ export type AlertDraft = {
   breakIds: string[];
 };
 
-/** What of a draft the preview is asked for. Null when no editor is open. */
-export type AlertTrial = Pick<
-  AlertDraft,
-  "criteria" | "shortestMinutes" | "spotIds" | "breakIds"
-> | null;
+/** The places of a draft, which the preview is asked about. Null when no editor is open. */
+export type AlertTrial = Pick<AlertDraft, "spotIds" | "breakIds"> | null;
 
 /** Whether two values of a part of a draft say the same. */
 export function samePart<Key extends keyof AlertDraft>(

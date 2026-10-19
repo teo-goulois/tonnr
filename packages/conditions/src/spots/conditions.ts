@@ -4,10 +4,18 @@ import { Effect } from "effect";
 import type { Forecasts } from "../forecasts/forecasts";
 import { FORECAST_SOURCE } from "../forecasts/wave-models";
 import { predictTideExtremes, predictTideTimeline } from "../tides/tide-prediction";
-import { findWindows, tideTrendAt, unmetCriteria, type HourConditions } from "./criteria";
+import {
+  coefficientAt,
+  findWindows,
+  tideSegmentAt,
+  tideTrendAt,
+  unmetCriteria,
+  type HourConditions,
+} from "./criteria";
 
 const HOUR_MS = 60 * 60 * 1000;
-// Longer than the wait between two tides anywhere, so the tide after the last hour is found.
+// Longer than the wait between two tides anywhere, so the tide before the first hour and the one
+// after the last are found: an hour's part of the cycle is read between them.
 const NEXT_TIDE_MARGIN_MS = 26 * HOUR_MS;
 
 type AssessedSpot = { latitude: number; longitude: number; criteria: SpotCriteria };
@@ -42,7 +50,7 @@ export const assessSpot = Effect.fn("assessSpot")(function* (
   const extremes =
     predictTideExtremes({
       ...point,
-      start: first,
+      start: new Date(first.getTime() - NEXT_TIDE_MARGIN_MS),
       end: new Date(last.getTime() + NEXT_TIDE_MARGIN_MS),
     })?.extremes ?? [];
 
@@ -60,6 +68,8 @@ export const assessSpot = Effect.fn("assessSpot")(function* (
       windDirectionDegrees: hour.windDirectionDegrees,
       tideHeightMeters: tideAt.get(hour.time.getTime()) ?? null,
       tideTrend: tideTrendAt(hour.time, extremes),
+      tideSegment: tideSegmentAt(hour.time, tideAt.get(hour.time.getTime()) ?? null, extremes),
+      tideCoefficient: coefficientAt(hour.time, extremes),
     };
     return { ...conditions, unmet: unmetCriteria(conditions, spot.criteria) };
   });

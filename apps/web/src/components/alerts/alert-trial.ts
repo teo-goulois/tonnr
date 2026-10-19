@@ -1,13 +1,50 @@
+import { findWindows, unmetCriteria } from "@repo/conditions/spots/criteria";
+
 import { formatClock, formatDay, formatDayAndClock } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
-import type { AlertPreview } from "../viewer/types";
+import type { AlertCriteria, AlertPreview } from "../viewer/types";
 import type { CriterionKey } from "./alert-words";
 
 const HOUR_MS = 60 * 60 * 1000;
 
 type Tried = AlertPreview["spots"][number];
 type Stretch = { start: Date; end: Date };
+
+/**
+ * What conditions give at a place, judged here, as the API would judge them: the preview was
+ * asked with no condition and windows of an hour, so its open hours are every hour the account
+ * can use, and its hours carry every figure. The editor judges each change at once, by the rules
+ * the worker judges by, and asks the API nothing more.
+ */
+export function judgeTried(tried: Tried, criteria: AlertCriteria, shortestMinutes: number): Tried {
+  if (!tried.hasSea) return tried;
+  const usable = (time: Date) =>
+    tried.open.some((piece) => piece.start <= time && time < piece.end);
+  const hours = tried.hours.map((hour) => ({ ...hour, unmet: unmetCriteria(hour, criteria) }));
+  const windows = findWindows(hours);
+  // The hours of each window the account can use, in runs as long as the shortest at least.
+  const open: Stretch[] = [];
+  for (const sea of windows) {
+    let run: Date | null = null;
+    let last: Date | null = null;
+    const close = () => {
+      if (run && last && last.getTime() + HOUR_MS - run.getTime() >= shortestMinutes * 60_000) {
+        open.push({ start: run, end: new Date(last.getTime() + HOUR_MS) });
+      }
+      run = null;
+    };
+    for (let at = sea.start.getTime(); at < sea.end.getTime(); at += HOUR_MS) {
+      const time = new Date(at);
+      if (usable(time)) {
+        run ??= time;
+        last = time;
+      } else close();
+    }
+    close();
+  }
+  return { ...tried, hours, windows, open };
+}
 
 /** The hours of a spot's forecast from this one on: the forecast begins with the day. */
 export function hoursAhead(tried: Tried | undefined, now: number) {

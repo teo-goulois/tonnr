@@ -4,7 +4,8 @@ import { openHours } from "@repo/conditions/alerts/open";
 import { MAX_HORIZON_DAYS, availabilityOf, settingsOf } from "@repo/conditions/alerts/settings";
 import { MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
-import { criteriaSchema } from "@repo/conditions/spots/criteria";
+import { CRITERIA_KEYS, askedCriteria, criteriaSchema } from "@repo/conditions/spots/criteria";
+import { TIDE_CYCLE } from "@repo/config/sea-words";
 import type { Database } from "@repo/db";
 import {
   alert,
@@ -45,17 +46,9 @@ const nameSchema = z
   .max(80)
   .refine((name) => !hasControlCharacter(name), "must not contain control characters");
 
-// A range with neither end asks nothing: it is left out, as if it had not been given.
-const askedSchema = criteriaSchema.transform(
-  (criteria) =>
-    Object.fromEntries(
-      Object.entries(criteria).filter(
-        ([, criterion]) =>
-          typeof criterion === "string" ||
-          (criterion !== undefined && Object.values(criterion).some((end) => end !== undefined)),
-      ),
-    ) as z.infer<typeof criteriaSchema>,
-);
+// What asks nothing is left out, as if it had not been given: a range with neither end, a set
+// of every word or of none, an other value that asks nothing. Decision 031, "Or".
+const askedSchema = criteriaSchema.transform((criteria) => askedCriteria(criteria));
 
 // An alert asks at least one thing of the sea: with no condition every hour would be a window.
 const conditionsSchema = askedSchema.refine(
@@ -458,7 +451,11 @@ export const alertsRouter = {
           "The alerts of the account you act for. An alert names the conditions that make " +
           "some of its spots work, in `criteria`: bounds on the wave height, its peak " +
           "period and the direction it comes from, on the first swell, on the wind's speed " +
-          "and direction, on the tide's height, and whether the tide rises or falls. A " +
+          "and direction, and on the tide: the parts of its cycle in `tideCycle`, from low " +
+          "water through high water and back, and how strong it is in `tideCoefficients`, " +
+          "under 70, 70 to 90 or over 90. An older alert may ask the tide's height and whether " +
+          "it rises or falls instead. `or` holds other values of a part, any of which will do " +
+          "as well as the part's own: waves of 1 to 2 m or of 3 m and more. A " +
           "condition left out asks nothing. It is set on the places of `places`, in order, each " +
           "with its name: a spot of the account's, whose id list_my_spots names in `spotIds`, or " +
           "a surf break of the catalogue, whose id search_surf_breaks names in `breakIds`. It tells its owner when the forecast holds them for `shortestMinutes` at " +
@@ -686,8 +683,12 @@ export const alertsRouter = {
                 windDirectionDegrees: z.number().nullable(),
                 tideHeightMeters: z.number().nullable(),
                 tideTrend: z.enum(["rising", "falling"]).nullable(),
+                // The part of the tide's cycle, and the coefficient of the nearest high water
+                // where the coast's tables print one.
+                tideSegment: z.enum(TIDE_CYCLE).nullable(),
+                tideCoefficient: z.number().nullable(),
                 // The conditions this hour does not meet. Empty when the spot works.
-                unmet: z.array(criteriaSchema.keyof()),
+                unmet: z.array(z.enum(CRITERIA_KEYS)),
               }),
             ),
             // The runs of hours in which every condition is met.

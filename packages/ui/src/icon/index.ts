@@ -185,6 +185,8 @@ export { IconNotebook as LogbookIcon } from "nucleo-micro-bold/components/IconNo
 export { IconStar as RatingIcon } from "nucleo-micro-bold/components/IconStar";
 export { IconStarFilled as RatingFillIcon } from "nucleo-micro-bold/components/IconStarFilled";
 export { IconStarHalf2 as RatingHalfIcon } from "nucleo-micro-bold/components/IconStarHalf2";
+export { IconCirclePlus as CirclePlusIcon } from "nucleo-micro-bold/components/IconCirclePlus";
+export { IconCircleXmark as CircleXIcon } from "nucleo-micro-bold/components/IconCircleXmark";
 
 // Small interface primitives — Nucleo Micro Bold, except LoaderIcon which keeps
 // its Lucide artwork.

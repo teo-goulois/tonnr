@@ -8,8 +8,7 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
-import { type Arc, rangeWords } from "@/components/alerts/alert-words";
-import { TideTrend } from "@/components/alerts/tide-trend";
+import { type Arc, cycleWords, rangeWords } from "@/components/alerts/alert-words";
 import { Bearing } from "@/components/viewer/bearing";
 import type { AlertCriteria } from "@/components/viewer/types";
 import {
@@ -45,8 +44,7 @@ const EXAMPLE = {
   waveDirectionDegrees: { from: 250, to: 310 },
   windSpeedMetersPerSecond: { max: 12 / KNOTS_PER_MS },
   windDirectionDegrees: { from: 45, to: 135 },
-  tideHeightMeters: { min: 2, max: 4 },
-  tideTrend: "rising",
+  tideCycle: ["mid_rising", "mid_high_rising", "high"],
 } satisfies AlertCriteria;
 const SHORTEST_HOURS = 2;
 // The green the map gives a sea of a metre and a half: a spot that works.
@@ -203,14 +201,8 @@ export function LandingAlert() {
               })}
             </Part>
             , <Sector at={4} arc={EXAMPLE.windDirectionDegrees} />, {m.alert_says_tide()}{" "}
-            <Part at={5}>
-              {m.alert_tide_at({ range: rangeWords("tideHeightMeters", EXAMPLE.tideHeightMeters) })}
-            </Part>
-            ,{" "}
-            <Part at={6}>
-              <TideTrend trend={EXAMPLE.tideTrend} className={underlined} />
-            </Part>
-            , {m.alert_says_for()} <Part at={7}>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
+            <Part at={5}>{cycleWords(EXAMPLE.tideCycle)}</Part>, {m.alert_says_lasts()}{" "}
+            <Part at={6}>{m.alert_hours({ count: SHORTEST_HOURS })}</Part>.
           </p>
           {/* The figures of the sentence are the lessons of the beginner's guide: decision 060. */}
           <p className="mt-m text-s text-neutral-7">
