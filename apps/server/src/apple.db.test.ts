@@ -176,6 +176,8 @@ describe.skipIf(!TEST_DATABASE_URL)("Sign in with Apple over HTTP", () => {
     const refused = async (token: string, nonce?: string) =>
       (await request("/sign-in/social", { provider: "apple", idToken: { token, nonce } })).status;
     expect(await refused(idToken({ aud: "app.someone.else" }))).toBe(401);
+    // Nor one made for the web's Services ID, which Apple's page gives the browser.
+    expect(await refused(idToken({ aud: "app.example.web" }))).toBe(401);
     expect(await refused(testIdTokens().sign({ iss: APPLE, aud: "app.example", sub: "x" }))).toBe(
       401,
     );
@@ -183,6 +185,22 @@ describe.skipIf(!TEST_DATABASE_URL)("Sign in with Apple over HTTP", () => {
     expect(await refused(idToken({ nonce: "one" }), "another")).toBe(401);
     expect(await database.db.select().from(user)).toHaveLength(0);
     expect(await database.db.select().from(session)).toHaveLength(0);
+  });
+
+  it("takes no ID token on an instance with no app, and still signs the web in", async () => {
+    auth = createAuth(env, database.db, []);
+    await checkIdTokensWith(auth, "apple", tokens.publicKey);
+    const signIn = (aud: string) =>
+      request("/sign-in/social", { provider: "apple", idToken: { token: idToken({ aud }) } });
+    expect((await signIn("app.example.web")).status).toBe(404);
+    expect((await signIn("app.example")).status).toBe(404);
+    expect(await database.db.select().from(session)).toHaveLength(0);
+    const start = await request("/sign-in/social", {
+      provider: "apple",
+      callbackURL: `${WEB}/app`,
+      disableRedirect: true,
+    });
+    expect(start.status).toBe(200);
   });
 
   it("signs the web in through Apple's page, which posts its answer from Apple's origin", async () => {

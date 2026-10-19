@@ -63,10 +63,14 @@ describe("Sign in with Apple's settings", () => {
     expect(read(apple!.clientSecret).signed).toBe(true);
   });
 
-  it("takes an ID token made for the web's Services ID or for an app's bundle", () => {
+  it("takes an ID token made for an app's bundle alone, and none on an instance with no app", () => {
     const { apple } = appleProvider(settings, ["app.example://", "app.example.beta://"]);
     expect(apple?.clientId).toBe("app.example.web");
-    expect(apple?.audience).toEqual(["app.example.web", "app.example", "app.example.beta"]);
+    expect(apple).toMatchObject({ audience: ["app.example", "app.example.beta"] });
+    expect(apple).not.toHaveProperty("disableIdTokenSignIn");
+    const { apple: webAlone } = appleProvider(settings, []);
+    expect(webAlone).not.toHaveProperty("audience");
+    expect(webAlone).toMatchObject({ disableIdTokenSignIn: true });
   });
 
   it("signs the client's secret Apple asks for, with the key, for less than six months", () => {

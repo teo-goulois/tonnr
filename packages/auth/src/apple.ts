@@ -65,9 +65,12 @@ export function appleClientSecret(
  * set together, beside the team. Some of them and not all stops the API as it starts, as a
  * partial pair of Google's does. Without them it is off.
  *
- * The web signs in through Apple's page, with the Services ID. The app sends the ID token Apple's
- * sheet gave it, made for its bundle, which is the scheme of the origin it names itself by,
- * `app.tonnr` for `app.tonnr://`: the API takes a token made for either. Decisions 069 and 070.
+ * The web signs in through Apple's page, with the Services ID, and exchanges a code: it sends no
+ * ID token. The app sends the ID token Apple's sheet gave it, made for its bundle, which is the
+ * scheme of the origin it names itself by, `app.tonnr` for `app.tonnr://`: the API takes a token
+ * made for a bundle alone, and none on an instance with no app. Apple's page also gives the
+ * browser a token made for the Services ID, which would otherwise sign in for an hour wherever it
+ * was sent, with no nonce. Decisions 069 and 070.
  *
  * The secret is signed as the API starts, which checks the key, and again before it runs out,
  * whenever the library reads it.
@@ -107,7 +110,8 @@ export function appleProvider(
       get clientSecret() {
         return current();
       },
-      audience: [settings.clientId, ...bundles],
+      // An empty list would read as the Services ID: the library falls back to it.
+      ...(bundles.length > 0 ? { audience: bundles } : { disableIdTokenSignIn: true }),
     },
   };
 }

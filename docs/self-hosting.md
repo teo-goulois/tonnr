@@ -536,7 +536,7 @@ Sign in with Apple is optional too, on the web and in the app for iPhone, and ta
 6. Restart or deploy the API, and check that the web app offers **Continue with Apple** and completes a sign-in.
 
 - Apple asks for a secret with each sign-in, a token signed with the key that lasts six months at most. The API signs one as it starts, lasting a day, and signs it again before it runs out: there is nothing to renew by hand.
-- The app for iPhone signs in with Apple's own sheet and sends the API the token it gave, made for the app's bundle. The API reads the bundle from the origin the app names itself by: `app.tonnr` for `app.tonnr://`, the default of `APP_ORIGINS`. An app of your own has its bundle as the scheme of its origin.
+- The app for iPhone signs in with Apple's own sheet and sends the API the token it gave, made for the app's bundle. The API reads the bundle from the origin the app names itself by: `app.tonnr` for `app.tonnr://`, the default of `APP_ORIGINS`. An app of your own has its bundle as the scheme of its origin. A token made for the Services ID is refused there: the web signs in through Apple's page alone.
 - Apple gives a name the first time a person signs in, and an address, which may be one of its relay. An account made with Apple has no password and no username: it chooses a username when the app needs one, and sets a password through the mail of a forgotten one. An existing account is linked only once both addresses are checked, as with Google.
 - Apple's page posts its answer to the API from `https://appleid.apple.com`, with the cookies of the sign-in under way, and the sign-in library then trusts that origin. A proxy in front of the API lets that post through.
 
