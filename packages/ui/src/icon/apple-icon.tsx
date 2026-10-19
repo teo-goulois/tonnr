@@ -3,6 +3,9 @@ import type { IconProps } from "./icon-types";
 // Apple's mark, in the color of the words beside it, as Apple's rules for a Sign in with Apple
 // button ask. From Simple Icons, CC0: https://simpleicons.org/?q=apple
 // https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
+// Apple asks a button of one's own to take the mark from its Design Resources, whose licence
+// binds a member of its Developer Program and forbids passing the files on, so they are not
+// here. Decision 070.
 export function AppleIcon({ size = "1em", width, height, title, ...props }: IconProps) {
   return (
     <svg

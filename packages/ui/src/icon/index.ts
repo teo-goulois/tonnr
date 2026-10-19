@@ -1,6 +1,7 @@
 export type { IconProps } from "./icon-types";
 
-// Brand artwork, supplied by the provider.
+// Brand artwork, supplied by the provider, except Apple's mark, drawn by Simple Icons: Apple
+// gives its own under a licence that a public repository cannot keep. Decision 070.
 export { AppleIcon } from "./apple-icon";
 export { ClaudeIcon } from "./claude-icon";
 export { GmailIcon } from "./gmail-icon";
