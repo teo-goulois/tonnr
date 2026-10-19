@@ -38,13 +38,16 @@ export function googleProvider(env: GoogleConfig) {
     : {};
 }
 
-/** The browser learns what this instance offers without receiving its credentials. */
-export function signInProviders(google: boolean) {
+/**
+ * The web app and the apps learn which providers this instance offers without receiving their
+ * credentials, and show a button for each: decisions 046 and 070.
+ */
+export function signInProviders(offered: { google: boolean; apple: boolean }) {
   return {
     id: "sign-in-providers",
     endpoints: {
       signInProviders: createAuthEndpoint("/sign-in-providers", { method: "GET" }, async (ctx) =>
-        ctx.json({ google }),
+        ctx.json({ google: offered.google, apple: offered.apple }),
       ),
     },
   } satisfies BetterAuthPlugin;

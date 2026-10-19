@@ -4,7 +4,7 @@ Date: 2026-10-13
 
 ## Decision
 
-Google is a second way to sign in or create an account, through Better Auth's own OAuth provider. Email and password remain available. The API enables Google only with both credentials and refuses an incomplete pair. Its auth endpoint `GET /api/auth/sign-in-providers` answers only whether Google is available; the web app shows the button from that answer. No credential goes into the web build.
+Google is a second way to sign in or create an account, through Better Auth's own OAuth provider. Email and password remain available. The API enables Google only with both credentials and refuses an incomplete pair. Its auth endpoint `GET /api/auth/sign-in-providers` answers only whether Google is available; the web app shows the button from that answer. [Decision 070](070-signing-in-from-the-app.md) adds Apple to that answer, and takes Google's ID tokens from the apps. No credential goes into the web build.
 
 The provider asks for an account selection and its default identity scopes. Better Auth checks the OAuth state, exchanges the code, and creates the session through the same suspension hooks as email sign-in. It links an existing account only when the Google address and the local address are verified. A local unchecked account is asked to use its password and check its address first. No provider bypasses that check.
 

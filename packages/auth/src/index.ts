@@ -6,6 +6,7 @@ import * as schema from "@repo/db/schema/auth";
 import { betterAuth } from "better-auth";
 
 import { agentSignIn } from "./agents";
+import { APPLE_ORIGIN, type AppleConfig, appleProvider } from "./apple";
 import { googleProvider, type GoogleConfig, signInProviders } from "./google";
 import { invitations, oauthInvitation } from "./invitation";
 import { suspensionHooks } from "./suspension";
@@ -23,13 +24,14 @@ const DAY_SECONDS = 24 * 60 * 60;
 export const SESSION_SECONDS = 90 * DAY_SECONDS;
 const SESSION_RENEWED_AFTER_SECONDS = DAY_SECONDS;
 
-export type AuthConfig = GoogleConfig & {
-  BETTER_AUTH_URL: string;
-  BETTER_AUTH_SECRET: string;
-  CORS_ORIGIN: string;
-  // The admin app's address, when the instance has one. It signs in as the web app does.
-  ADMIN_ORIGIN?: string | undefined;
-};
+export type AuthConfig = GoogleConfig &
+  AppleConfig & {
+    BETTER_AUTH_URL: string;
+    BETTER_AUTH_SECRET: string;
+    CORS_ORIGIN: string;
+    // The admin app's address, when the instance has one. It signs in as the web app does.
+    ADMIN_ORIGIN?: string | undefined;
+  };
 
 export function createAuth(
   env: AuthConfig,
@@ -41,7 +43,7 @@ export function createAuth(
   // mail, no address is checked.
   verification?: Verification,
 ) {
-  const socialProviders = googleProvider(env);
+  const socialProviders = { ...googleProvider(env), ...appleProvider(env, appOrigins) };
   const userHooks = usernameHooks(database);
   return betterAuth({
     appName: APP_NAME,
@@ -53,6 +55,8 @@ export function createAuth(
       env.CORS_ORIGIN,
       ...(env.ADMIN_ORIGIN ? [env.ADMIN_ORIGIN] : []),
       ...appOrigins,
+      // Apple's page posts its answer to the callback, with the cookies of the sign-in's state.
+      ...("apple" in socialProviders ? [APPLE_ORIGIN] : []),
     ],
     emailAndPassword: {
       enabled: true,
@@ -119,7 +123,7 @@ export function createAuth(
       // which the library then reads as the request's origin. Decisions 069 and 070.
       expo(),
       usernames(database),
-      signInProviders("google" in socialProviders),
+      signInProviders({ google: "google" in socialProviders, apple: "apple" in socialProviders }),
       // What signs an agent in as an account: decision 047.
       ...agentSignIn(env, database),
     ],

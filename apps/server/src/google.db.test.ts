@@ -107,9 +107,15 @@ describe.skipIf(!TEST_DATABASE_URL)("Google OAuth over HTTP", () => {
   }
 
   it("exposes availability without any credential, and leaves unconfigured instances on email", async () => {
-    expect(await (await request("/sign-in-providers")).json()).toEqual({ google: true });
+    expect(await (await request("/sign-in-providers")).json()).toEqual({
+      google: true,
+      apple: false,
+    });
     auth = createAuth({ ...env, GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "" }, database.db);
-    expect(await (await request("/sign-in-providers")).json()).toEqual({ google: false });
+    expect(await (await request("/sign-in-providers")).json()).toEqual({
+      google: false,
+      apple: false,
+    });
     expect(
       (await request("/sign-in/social", { provider: "google", callbackURL: WEB })).status,
     ).toBe(404);

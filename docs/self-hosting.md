@@ -524,6 +524,22 @@ The apps for phones sign in with Google through a browser too, on the same clien
 
 Provider setup follows [Better Auth's Google documentation](https://better-auth.com/docs/authentication/google).
 
+## Signing in with Apple
+
+Sign in with Apple is optional too, on the web and in the app for iPhone, and takes an Apple developer account. Set `APPLE_SERVICES_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` together, with `APPLE_TEAM_ID`, in the API's environment, or none of the three: some and not all stop the API as it starts. The web app learns from the API whether Apple is on, as it does for Google. App Review's guideline 4.8 asks an app in the App Store that offers Google's sign-in to offer as well one that lets a person keep their address private, which Apple's does. Decision 070 gives the rules.
+
+1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list), open the App ID of your app, `app.tonnr` or your own bundle, and tick **Sign in with Apple**. The Services ID and the key below are grouped under it as their primary App ID.
+2. Create a **Services ID**, such as `app.tonnr.web`, tick **Sign in with Apple** and configure it: the primary App ID, your API's domain, such as `api.example.org`, and as return URL `${BETTER_AUTH_URL}/api/auth/callback/apple`, with the actual public API address and no trailing slash. It is the API's address, not the web app's. Apple takes HTTPS on a public domain alone, so neither `localhost` nor a `.localify` domain. The Services ID goes in `APPLE_SERVICES_ID`.
+3. Under **Keys**, create a key with **Sign in with Apple**, configured with the same primary App ID, and download its `.p8` file, which Apple gives once. Its Key ID goes in `APPLE_KEY_ID`, and the file's content in `APPLE_PRIVATE_KEY`, from `-----BEGIN PRIVATE KEY-----` to its end, with its lines, or with each line break written `\n` on one line. Keep the file as you keep a password: whoever holds it signs in as your instance at Apple.
+4. Your Team ID, shown in the developer account under **Membership details**, goes in `APPLE_TEAM_ID`.
+5. Under **Services**, configure **Sign in with Apple for Email Communication**: register the domain of `EMAIL_FROM`, with the SPF record the page asks for, and the address itself. A person may hide their address from you. Apple then gives an address of its relay, which passes on the mails of the senders registered there and refuses every other: without this, the mail that checks the address, the one for a new password and the alerts' mails never reach such an account.
+6. Restart or deploy the API, and check that the web app offers **Continue with Apple** and completes a sign-in.
+
+- Apple asks for a secret with each sign-in, a token signed with the key that lasts six months at most. The API signs one as it starts, lasting a day, and signs it again before it runs out: there is nothing to renew by hand.
+- The app for iPhone signs in with Apple's own sheet and sends the API the token it gave, made for the app's bundle. The API reads the bundle from the origin the app names itself by: `app.tonnr` for `app.tonnr://`, the default of `APP_ORIGINS`. An app of your own has its bundle as the scheme of its origin.
+- Apple gives a name the first time a person signs in, and an address, which may be one of its relay. An account made with Apple has no password and no username: it chooses a username when the app needs one, and sets a password through the mail of a forgotten one. An existing account is linked only once both addresses are checked, as with Google.
+- Apple's page posts its answer to the API from `https://appleid.apple.com`, with the cookies of the sign-in under way, and the sign-in library then trusts that origin. A proxy in front of the API lets that post through.
+
 ## Checking addresses by mail
 
 An instance sends no mail unless you give it a way out. With one, it sends each account that signs up a mail with a link, which marks the account's address as checked. Nothing else changes: an account signs in and uses the instance whether it follows the link or not. An account that forgot its password is mailed a link to choose another, which works once, for an hour: an instance without mail cannot do that, and its web app says so. Decision 026 gives the rules.
