@@ -21,7 +21,7 @@ import { Effect } from "effect";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { evaluateAlerts } from "./alerts";
-import type { PushOut } from "./deliveries";
+import { type PushOut, hand, take } from "./deliveries";
 import { tellMoments } from "./moments";
 import { runReportNotices } from "./report-notices";
 
@@ -403,6 +403,30 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes to the apps on phones", () => {
       expect(await told()).toEqual(["found"]);
       expect([...browsers.sent(), ...apple.sent(), ...google.sent()]).toEqual([]);
       expect(await pushedAt()).toEqual([]);
+    });
+
+    it("are given back to be written anew when the alert is paused while they are being handed over", async () => {
+      await found();
+      // The first step alone: the push is written, and marked as leaving.
+      const [due] = await database.db
+        .select()
+        .from(notificationDelivery)
+        .where(eq(notificationDelivery.channel, "push"));
+      const id = due?.notificationId ?? "";
+      const taken = await take(database.db, out, id);
+      if (typeof taken === "string") throw new Error(`not taken: ${taken}`);
+      expect(await states()).toEqual([["found", "sending"]]);
+
+      // "Not today" is pressed meanwhile: no look ran, and the alert's pause alone changed.
+      await pause();
+      expect(await hand(database.db, out, id, taken)).toBe("skipped");
+
+      expect([...browsers.sent(), ...apple.sent(), ...google.sent()]).toEqual([]);
+      expect(await states()).toEqual([["found", "pending"]]);
+      expect(await pushedAt()).toEqual([]);
+      // Written anew, it has no hour of today to tell.
+      await pass();
+      expect([...browsers.sent(), ...apple.sent(), ...google.sent()]).toEqual([]);
     });
 
     it("are not found at all by an alert that was paused before its looks", async () => {
