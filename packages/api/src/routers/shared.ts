@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { blockedBy } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import { stationList, stationListMember } from "@repo/db/schema/lists";
 import { and, count, eq } from "drizzle-orm";
@@ -46,8 +47,8 @@ export const sharedRouter = {
         "<token>.<pass>`, or `List <token>` without one, to read the stations, the breaks, " +
         "the forecasts and the tides as an account does. The list's owner and an account " +
         "that kept it are known by their session, and are asked no password. `owner` is the " +
-        "username of whoever shares the list, null for an account that chose none, and is " +
-        "answered with `locked` too. " +
+        "username of whoever shares the list, null for an account that chose none, and to an " +
+        "account that blocked it (decision 071), and is answered with `locked` too. " +
         "Decision 035.",
       tags: ["Lists"],
     })
@@ -83,8 +84,10 @@ export const sharedRouter = {
             .from(stationListMember)
             .where(and(eq(stationListMember.listId, list.id), eq(stationListMember.userId, userId)))
         : [];
-      // The username of whoever shares the list, which a link is shown with, locked or not.
+      // The username of whoever shares the list, which a link is shown with, locked or not. An
+      // account that blocked the owner reads none: decision 071.
       const ownerOf = async () => {
+        if ((await blockedBy(context.db, userId)).has(list.userId)) return null;
         const [owner] = await context.db
           .select({ username: user.username })
           .from(user)

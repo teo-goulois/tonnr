@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { blockedBy, notBlockedBy } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import {
   breakAnswer,
@@ -35,7 +36,8 @@ const proposedSchema = z.object({
   value: valueSchema,
   // The language a text is written in. Null for a list of words.
   language: z.enum(GUIDE_LANGUAGES).nullable(),
-  // Who wrote it. Null once its account is deleted, or has no username.
+  // Who wrote it. Null once its account is deleted, or has no username, and for an account that
+  // the reader blocked, whose contributions that wait the reader does not read (decision 071).
   by: authorSchema.nullable(),
   at: z.date(),
   // How many accounts that keep the break said it is right. They are counted and never named:
@@ -147,7 +149,10 @@ export const guidesRouter = {
         "author by a username and a rank. A text is given in the language asked for when " +
         "someone wrote one, and in another otherwise. `proposed` holds what was written and " +
         "not confirmed yet. `answers` says how the accounts that answered spread on three " +
-        `questions, once ${ANSWERS_SHOWN_FROM} of them did. Decision 041.`,
+        `questions, once ${ANSWERS_SHOWN_FROM} of them did. An account that blocked another ` +
+        "reads none of its contributions that wait, and its lines that were confirmed under " +
+        "no name. " +
+        "Decisions 041 and 071.",
       tags: ["Guides"],
     })
     .input(
@@ -182,10 +187,20 @@ export const guidesRouter = {
           desc(breakContribution.confirmedAt),
           desc(breakContribution.id),
         );
+      // An account reads nothing that an account it blocked has waiting, nor its username: a
+      // line that was confirmed stays what the guide says, under no name. Decision 071.
+      const reader = context.caller.via === "session" ? context.caller.userId : null;
+      const blocked = await blockedBy(db, reader);
       const shown = await db
         .select()
         .from(breakContribution)
-        .where(and(eq(breakContribution.breakId, found.id), eq(breakContribution.status, "shown")))
+        .where(
+          and(
+            eq(breakContribution.breakId, found.id),
+            eq(breakContribution.status, "shown"),
+            reader && blocked.size > 0 ? notBlockedBy(reader, breakContribution.userId) : undefined,
+          ),
+        )
         .orderBy(desc(breakContribution.shownAt), desc(breakContribution.id))
         .limit(GUIDE_LINES.length * SHOWN_MOST * 4);
       const said =
@@ -209,7 +224,8 @@ export const guidesRouter = {
         db,
         [...confirmed, ...shown].map((row) => row.userId),
       );
-      const by = (row: Contribution) => (row.userId ? (authors.get(row.userId) ?? null) : null);
+      const by = (row: Contribution) =>
+        row.userId && !blocked.has(row.userId) ? (authors.get(row.userId) ?? null) : null;
 
       const lines = GUIDE_LINES.map((line: GuideLine) => {
         const mine = confirmed.filter((row) => row.line === line);

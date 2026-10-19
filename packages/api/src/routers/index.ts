@@ -8,6 +8,7 @@ import { accountsRouter } from "./accounts";
 import { actionsRouter } from "./actions";
 import { agentsRouter } from "./agents";
 import { alertsRouter } from "./alerts";
+import { blocksRouter } from "./blocks";
 import { breaksRouter } from "./breaks";
 import { candidatesRouter } from "./candidates";
 import { catalogueRouter } from "./catalogue";
@@ -52,8 +53,9 @@ import { visitorsRouter } from "./visitors";
 // keeps the catalogue of breaks, and decision 057 what the public pages of the web app read, and
 // decision 063 what an account says of itself as a surfer, decision 066 the photos and the
 // videos of its sessions, decision 067 the reports of the waves at a break, decision 068 what
-// an account is told of them, and decision 069 what the apps read of an account's preferences
-// and which builds of the apps for phones the instance answers.
+// an account is told of them, decision 069 what the apps read of an account's preferences and
+// which builds of the apps for phones the instance answers, and decision 071 how an account
+// deletes itself and blocks another.
 export const v1Router = {
   account: accountRouter,
   activity: activityRouter,
@@ -61,6 +63,7 @@ export const v1Router = {
   actions: actionsRouter,
   agents: agentsRouter,
   alerts: alertsRouter,
+  blocks: blocksRouter,
   breaks: breaksRouter,
   candidates: candidatesRouter,
   catalogue: catalogueRouter,

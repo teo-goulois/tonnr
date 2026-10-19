@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
+import { blockedBy } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import {
   breakContribution,
@@ -112,6 +113,12 @@ async function holdOthers(tx: Transaction, id: string, userId: string, raises: b
     throw new ORPCError("FORBIDDEN", {
       message: "An account says nothing of its own contribution. Others do.",
     });
+  }
+  // What an account it blocked has waiting, it does not read: decision 071. A line that was
+  // confirmed is the guide's, the same for every reader, and may be contested still.
+  const waits = held.status === "pending" || held.status === "shown";
+  if (waits && held.userId !== null && (await blockedBy(tx, userId)).has(held.userId)) {
+    throw noContribution(id);
   }
   return { ...held, breakId: held.breakId };
 }

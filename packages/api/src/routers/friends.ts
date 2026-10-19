@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
+import { blockedBy } from "@repo/db/blocks";
 import { befriend, FRIENDS_MOST, ownerOfLink, pairOf } from "@repo/db/friends";
 import { user } from "@repo/db/schema/auth";
 import {
@@ -165,9 +166,10 @@ export const friendsRouter = {
       description:
         "Takes neither a key nor a session: the link is what says whose it is, to whoever " +
         "was given it. It answers the username and the rank of its owner, and nothing else. " +
-        "A link whose owner has no username opens nothing. To sign up through it, send it " +
-        "with the sign-up, as `invitation`: the new account then has the owner as its " +
-        "sponsor. Decision 041.",
+        "A link whose owner has no username opens nothing, and so does the link of an account " +
+        "that the caller's session blocked, which would name it: that refusal says so, with " +
+        "`data.blocked`. To sign up through it, send it with the sign-up, as `invitation`: " +
+        "the new account then has the owner as its sponsor. Decisions 041 and 071.",
       tags: ["Friends"],
     })
     .input(tokenInput)
@@ -175,7 +177,14 @@ export const friendsRouter = {
     .handler(async ({ input, context }) => {
       const owner = await ownerOfLink(context.db, input.token);
       const found = owner === null ? undefined : (await authorsOf(context.db, [owner])).get(owner);
-      if (!found) throw noLink();
+      if (!found || !owner) throw noLink();
+      // The blocker reads no name of the account it blocked, and is told why: decision 071.
+      if ((await blockedBy(context.db, context.session?.user.id)).has(owner)) {
+        throw new ORPCError("NOT_FOUND", {
+          message: "You blocked this account. Unblock it first.",
+          data: { blocked: true },
+        });
+      }
       return found;
     }),
 
@@ -191,7 +200,9 @@ export const friendsRouter = {
         "contributions, and nothing of its spots, its alerts or its lists. It makes no " +
         "sponsor: only an account made through a link has one. The answer is 409 for the " +
         "caller's own link, and 403 when the link's owner ended the friendship, which its " +
-        `link no longer makes, or when either has ${FRIENDS_MOST} friends. Decision 041.`,
+        `link no longer makes, when either has ${FRIENDS_MOST} friends, and while either ` +
+        "blocks the other: to the caller that blocked, with `data.blocked`. Decisions 041 " +
+        "and 071.",
       tags: ["Friends"],
     })
     .input(tokenInput)
@@ -206,9 +217,16 @@ export const friendsRouter = {
           throw new ORPCError("CONFLICT", { message: "This is your own link." });
         }
         const made = await befriend(tx, userId, owner);
+        // An account that blocked the caller is not named as having done so: decision 071.
         if (made === "ended") {
           throw new ORPCError("FORBIDDEN", {
             message: "This account ended the friendship. Its link no longer makes it.",
+          });
+        }
+        if (made === "blocking") {
+          throw new ORPCError("FORBIDDEN", {
+            message: "You blocked this account. Unblock it first.",
+            data: { blocked: true },
           });
         }
         if (made === "full") {

@@ -1,10 +1,11 @@
 import { ORPCError } from "@orpc/server";
+import { blockedBy, notBlockedBy } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
 import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { SURF_SIZES } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -53,7 +54,9 @@ export const reportNoticesRouter = {
         "told of as it keeps the break in a list or as the break of one of its spots, the one " +
         "a report joined last first. `unread` counts those not read, on every page. A page " +
         "that has more after it says where the next begins in `next`, which `before` and " +
-        "`beforeId` take. Reading here marks nothing as read.",
+        "`beforeId` take. Reading here marks nothing as read. The reports of an account the " +
+        "caller blocked are neither counted nor named, and a notice that told only those is " +
+        "left out: decision 071.",
       tags: ["Notifications"],
     })
     .input(
@@ -76,6 +79,24 @@ export const reportNoticesRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const now = Date.now();
+      // A notice says nothing of the reports of an account the caller blocked, and one that told
+      // only those is left out: decision 071.
+      const blocks = await blockedBy(context.db, userId);
+      const toldOthers =
+        blocks.size === 0
+          ? undefined
+          : exists(
+              context.db
+                .select({ one: sql`1` })
+                .from(reportNoticeReport)
+                .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
+                .where(
+                  and(
+                    eq(reportNoticeReport.noticeId, reportNotice.id),
+                    notBlockedBy(userId, surfReport.userId),
+                  ),
+                ),
+            );
       const [rows, [unread]] = await Promise.all([
         context.db
           .select({ notice: reportNotice, breakName: surfBreak.name })
@@ -84,6 +105,7 @@ export const reportNoticesRouter = {
           .where(
             and(
               eq(reportNotice.userId, userId),
+              toldOthers,
               input.unreadOnly ? isNull(reportNotice.readAt) : undefined,
               input.before
                 ? or(
@@ -103,7 +125,7 @@ export const reportNoticesRouter = {
         context.db
           .select({ total: count() })
           .from(reportNotice)
-          .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt))),
+          .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt), toldOthers)),
       ]);
       const more = rows.length > input.limit;
       const page = rows.slice(0, input.limit);
@@ -124,7 +146,12 @@ export const reportNoticesRouter = {
               })
               .from(reportNoticeReport)
               .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
-              .where(inArray(reportNoticeReport.noticeId, ids))
+              .where(
+                and(
+                  inArray(reportNoticeReport.noticeId, ids),
+                  blocks.size === 0 ? undefined : notBlockedBy(userId, surfReport.userId),
+                ),
+              )
               .orderBy(desc(surfReport.createdAt), desc(surfReport.id));
       const since = shownSince(now).getTime();
       const isShown = (one: (typeof told)[number]) =>
@@ -162,6 +189,22 @@ export const reportNoticesRouter = {
         return first ? [first] : [];
       });
       const described = await describeMedia(context.storage, firsts, now);
+      // How many of the reports each told were of an account the caller blocked since: they
+      // are not counted either.
+      const hidden =
+        blocks.size === 0 || ids.length === 0
+          ? []
+          : await context.db
+              .select({ noticeId: reportNoticeReport.noticeId, total: count() })
+              .from(reportNoticeReport)
+              .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
+              .where(
+                and(
+                  inArray(reportNoticeReport.noticeId, ids),
+                  inArray(surfReport.userId, [...blocks]),
+                ),
+              )
+              .groupBy(reportNoticeReport.noticeId);
 
       return {
         unread: unread?.total ?? 0,
@@ -180,7 +223,10 @@ export const reportNoticesRouter = {
             createdAt: notice.createdAt,
             updatedAt: notice.updatedAt,
             readAt: notice.readAt,
-            told: notice.told,
+            told: Math.max(
+              0,
+              notice.told - (hidden.find((one) => one.noticeId === notice.id)?.total ?? 0),
+            ),
             shown,
             state:
               shown > 0

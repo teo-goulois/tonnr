@@ -2,6 +2,7 @@ import { leavesAt } from "@repo/conditions/alerts/moments";
 import { type AlertSettings, quietHoursOf, settingsOf } from "@repo/conditions/alerts/settings";
 import { localePrefix } from "@repo/config/locales";
 import type { Database } from "@repo/db";
+import { notBlockedBy } from "@repo/db/blocks";
 import { countCalls } from "@repo/db/calls";
 import { readCatalogue } from "@repo/db/catalogue";
 import { accountSuspension } from "@repo/db/schema/access";
@@ -88,7 +89,8 @@ const CHUNK = 500;
  * The accounts told of a report at a break: those that keep it in a list of their own or in a
  * list shared with them that they kept, with that list's switch on, or as the break of one of
  * their own spots, or of a spot of the owner's in a list shared with them; whose own switch is
- * on, who are not away, and not suspended. Never its author. With `only`, that account or none.
+ * on, who are not away, and not suspended. Never its author, nor an account that blocked its
+ * author (decision 071). With `only`, that account or none.
  */
 async function keepersOf(
   tx: Transaction,
@@ -123,6 +125,7 @@ async function keepersOf(
     .where(
       and(
         ne(holders.userId, report.userId),
+        notBlockedBy(holders.userId, report.userId),
         only === undefined ? undefined : eq(holders.userId, only),
         or(isNull(alertSettings.onReports), eq(alertSettings.onReports, true)),
         or(isNull(alertSettings.awayUntil), lte(alertSettings.awayUntil, now)),
@@ -352,10 +355,17 @@ function isStopped(held: { suspended: boolean; settings: AlertSettings }, now: D
 }
 
 /**
- * The reports of a notice that are still shown, the newest first. `lock` holds them until the
- * transaction ends, so that a flag, an operator or their author waits for the push.
+ * The reports of a notice that are still shown, the newest first, but those of an account that
+ * the notice's owner blocked since they joined it: a push says nothing of them (decision 071).
+ * `lock` holds them until the transaction ends, so that a flag, an operator or their author
+ * waits for the push.
  */
-async function shownOf(tx: Transaction, noticeId: string, now: Date, lock = false) {
+async function shownOf(
+  tx: Transaction,
+  notice: { id: string; userId: string },
+  now: Date,
+  lock = false,
+) {
   const query = tx
     .select({
       id: surfReport.id,
@@ -368,9 +378,10 @@ async function shownOf(tx: Transaction, noticeId: string, now: Date, lock = fals
     .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
     .where(
       and(
-        eq(reportNoticeReport.noticeId, noticeId),
+        eq(reportNoticeReport.noticeId, notice.id),
         eq(surfReport.state, "published"),
         gt(surfReport.createdAt, new Date(now.getTime() - SHOWN_MS)),
+        notBlockedBy(notice.userId, surfReport.userId),
       ),
     )
     .orderBy(desc(surfReport.createdAt), desc(surfReport.id));
@@ -416,7 +427,7 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
       return "skipped";
     }
     // Written from the reports still shown, to an account that still keeps the break.
-    const shown = await shownOf(tx, noticeId, now);
+    const shown = await shownOf(tx, notice, now);
     const [newest] = shown;
     if (!newest || worthUntil(newest).getTime() <= now.getTime()) return settle("expired");
     const keeps = await keepersOf(
@@ -485,7 +496,7 @@ async function hand(
     // Taken as told meanwhile, by a run that found it left behind.
     if (!held || held.notice.pushState !== "sending") return "skipped";
     const now = new Date();
-    const shown = await shownOf(tx, noticeId, now, true);
+    const shown = await shownOf(tx, held.notice, now, true);
     // The browsers of the account, held last, as the API holds them, until the push has left.
     const devices = await tx
       .select()

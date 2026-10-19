@@ -258,6 +258,33 @@ export const friendship = pgTable(
 );
 
 /**
+ * An account that blocked another: it reads nothing more of the other's reports, its
+ * contributions that wait to be confirmed or its username, and the two are not friends while
+ * the row is there. One row for each pair and each way, kept by the two accounts' ids so that it
+ * outlives a change of username, and gone with either account. The blocked account is not told.
+ * Decision 071.
+ */
+export const accountBlock = pgTable(
+  "account_block",
+  {
+    blockerId: text("blocker_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    blockedId: text("blocked_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    // For what asks, from the blocked account's side, whether it is blocked: a link of a
+    // friend, and the deletion of an account, which the cascade finds by it.
+    index("account_block_blockedId_idx").on(table.blockedId),
+    check("account_block_not_self", sql`${table.blockerId} <> ${table.blockedId}`),
+  ],
+);
+
+/**
  * An account that was made through another's link: the other is its sponsor. It counts for the
  * sponsor once the account has a contribution confirmed. An account has one sponsor, for good.
  */

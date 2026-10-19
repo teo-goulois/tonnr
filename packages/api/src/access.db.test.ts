@@ -140,6 +140,10 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.alerts.preview",
   "v1.alerts.update",
   "v1.alerts.updateSettings",
+  // The accounts an account blocked are its own: decision 071.
+  "v1.blocks.add",
+  "v1.blocks.list",
+  "v1.blocks.remove",
   // What a member of a developer account reads of it. The door is an account's: who is a
   // member of what is held by each of them, and tested with them.
   "v1.console.breakdown",

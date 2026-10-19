@@ -1,6 +1,7 @@
 import { and, count, eq, isNull, or } from "drizzle-orm";
 
 import { holdAccounts } from "./accounts";
+import { blockBetween } from "./blocks";
 import type { Database } from "./index";
 import { accountLink, friendship, sponsorship } from "./schema/community";
 
@@ -51,13 +52,20 @@ export async function friendsOf(db: Reader, userId: string) {
 /**
  * Makes two accounts friends, at the word of `by`, who opened the link of `owner`. It answers
  * `made`, `already` for two that are friends, `ended` when the link's owner ended the
- * friendship, which its link no longer makes, and `full` when either has all the friends an
- * account may have. Whoever ended a friendship makes it again by opening the other's link.
+ * friendship, which its link no longer makes, or blocked `by`, `blocking` when `by` blocked the
+ * owner, and `full` when either has all the friends an account may have. Whoever ended a
+ * friendship makes it again by opening the other's link. No link makes one between two accounts
+ * while either blocks the other: decision 071.
  */
 export async function befriend(tx: Transaction, by: string, owner: string) {
   // Both accounts are held first: of two friendships made at once, the second counts the first,
-  // and one that is being ended is ended before this reads it.
+  // and one that is being ended is ended before this reads it. A block being written at the same
+  // moment holds them too: it is written first, or after this one, which it then ends.
   await holdAccounts(tx, [by, owner]);
+  const blocked = await blockBetween(tx, by, owner);
+  if (blocked === "one") return "blocking" as const;
+  // The blocked account is not told: it reads the friendship as one its owner ended.
+  if (blocked === "other") return "ended" as const;
   const pair = pairOf(by, owner);
   const [found] = await tx
     .select()

@@ -5,6 +5,7 @@ import { setsFit } from "@repo/conditions/sessions/sizes";
 import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST, REPORT_TERMS } from "@repo/config/media";
 import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
+import { notBlockedBy } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
 import { REPORT_STATES, reportSent, surfReport, surfReportFlag } from "@repo/db/schema/reports";
@@ -302,7 +303,8 @@ export const reportsRouter = {
         "Each is the waves at the break as an account saw them, in photos and videos found taken " +
         "there and of the sea, with how big they looked. A report is the sea of now for six " +
         "hours, and shown for a week. The caller's own come with where they stand and why one " +
-        "is not shown. Addresses of photos are good for an hour at least.",
+        "is not shown, and those of an account it blocked are left out. Addresses of photos " +
+        "are good for an hour at least.",
       tags: ["Reports"],
     })
     .input(z.object({ breakId: z.string() }))
@@ -324,6 +326,8 @@ export const reportsRouter = {
                   and(eq(surfReport.userId, callerId), ne(surfReport.state, "removed")),
                 )
               : eq(surfReport.state, "published"),
+            // An account reads nothing of an account it blocked: decision 071.
+            callerId ? notBlockedBy(callerId, surfReport.userId) : undefined,
           ),
         )
         .orderBy(desc(surfReport.createdAt), desc(surfReport.id))

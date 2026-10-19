@@ -2,6 +2,7 @@ import { readAppLink } from "@repo/config/links";
 import { accountSuspension } from "@repo/db/schema/access";
 import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
+import { accountBlock } from "@repo/db/schema/community";
 import {
   stationList,
   stationListBreak,
@@ -413,6 +414,47 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
       .where(eq(reportNotice.userId, "keeper"));
     expect(await run()).toMatchObject({ sent: 0, expired: 1 });
     expect(service.sent()).toHaveLength(0);
+  });
+
+  it("tells no account that blocked the author, and pushes a notice from the reports of others alone", async () => {
+    // Decision 071: the keeper blocked the author, and is told nothing of what it sends.
+    await database.db.insert(accountBlock).values({ blockerId: "keeper", blockedId: "author" });
+    await shown("first");
+    await run();
+    expect((await notices()).map((one) => one.userId)).toEqual(["member", "spotter"]);
+    await database.db.delete(accountBlock);
+    await database.db.delete(reportNotice);
+
+    // A notice that waits for the end of the quiet hours holds a report of the spotter's and,
+    // later, one of the author's, whom the keeper blocks before the push leaves.
+    await database.db.insert(alertSettings).values({
+      userId: "keeper",
+      quietFrom: 0,
+      quietTo: 23 * 60 + 59,
+    });
+    await device("keeper");
+    await shown("spotted", { by: "spotter", ago: 20 * 60 * 1000 });
+    await shown("authored", { by: "author" });
+    await run();
+    const [kept] = (await notices()).filter((one) => one.userId === "keeper");
+    expect((await membersOf(kept!.id)).toSorted()).toEqual(["authored", "spotted"]);
+    await database.db.insert(accountBlock).values({ blockerId: "keeper", blockedId: "author" });
+    await database.db
+      .update(alertSettings)
+      .set({ quietFrom: null, quietTo: null })
+      .where(eq(alertSettings.userId, "keeper"));
+    await database.db
+      .update(reportNotice)
+      .set({ dueAt: new Date() })
+      .where(eq(reportNotice.id, kept!.id));
+
+    expect(await run()).toMatchObject({ sent: 1 });
+    const [sent] = service.sent();
+    expect(sent?.push).toMatchObject({
+      title: "New report at La Point",
+      body: "spotter · Shoulder · “Clean sets on the outside”",
+    });
+    expect(sent?.push.image).toContain("m/spotted/0/thumb.webp");
   });
 
   it("does not push to an account that left the list meanwhile, or switched reports off", async () => {
