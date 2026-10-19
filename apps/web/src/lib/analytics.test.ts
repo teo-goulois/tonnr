@@ -180,3 +180,36 @@ it("refuses an ingestion redirect without forwarding its location", async () => 
   expect(response.status).toBe(502);
   expect(response.headers.has("location")).toBe(false);
 });
+
+// posthog-react-native posts its events in batches to `batch/`, through @posthog/core, and
+// compresses them when the phone can: decision 069.
+it("proxies the batches of the app for phones, and nothing else its client asks", async () => {
+  const read = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+  const batch = (path: string, headers: Record<string, string> = {}) =>
+    proxyAnalytics(
+      new Request(`https://example.org/ingest/${path}`, { method: "POST", headers, body: "{}" }),
+      "https://eu.i.posthog.com",
+      read,
+    );
+
+  const response = await batch("batch/", {
+    "Content-Type": "application/json",
+    "Content-Encoding": "gzip",
+    "User-Agent": "posthog-react-native/4.81.2",
+    "X-Forwarded-For": "private",
+  });
+  expect(response.status).toBe(200);
+  expect(read.mock.calls[0]![0]).toBe("https://eu.i.posthog.com/batch/");
+  expect([...new Headers(read.mock.calls[0]![1]?.headers).entries()]).toEqual([
+    ["content-encoding", "gzip"],
+    ["content-type", "application/json"],
+  ]);
+  expect((await batch("batch")).status).toBe(200);
+  expect(read.mock.calls[1]![0]).toBe("https://eu.i.posthog.com/batch");
+
+  // Its flags, its remote config, its surveys and its logs, which the app turns off.
+  for (const path of ["flags/?v=2", "array/phc_token/config", "api/surveys/", "i/v1/logs"]) {
+    expect((await batch(path)).status, path).toBe(404);
+  }
+  expect(read).toHaveBeenCalledTimes(2);
+});
