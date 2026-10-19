@@ -1,4 +1,4 @@
-import { createHmac, createPrivateKey, type KeyObject, sign } from "node:crypto";
+import { createHmac, createPrivateKey, hkdfSync, type KeyObject, sign } from "node:crypto";
 
 import type { Locale } from "@repo/mail/verification";
 
@@ -64,16 +64,22 @@ export function payloadFor(
   return { refused: "too long for one push" };
 }
 
+// What the key of a collapse id is drawn from the phone's secret for, and for nothing else.
+const COLLAPSE_INFO = "push collapse id";
+
 /**
- * What a push to an iPhone is collapsed under: its tag, hashed with the phone's own secret. A
- * newer word on the same thing then takes the older one's place on the phone, and Apple reads
- * nothing of what it is: the tag of a report's push names its break, which anyone can read in
- * the catalogue. Null for a push with no tag, which takes no other's place.
+ * What a push to an iPhone is collapsed under: its tag, hashed with a key drawn from the phone's
+ * own secret. A newer word on the same thing then takes the older one's place on the phone, and
+ * Apple reads nothing of what it is: the tag of a report's push names its break, which anyone
+ * can read in the catalogue. The key is the secret's through HKDF for this use alone, since RFC
+ * 8291 keys an HMAC with the secret itself to encrypt the push. Null for a push with no tag,
+ * which takes no other's place.
  */
 export function collapseIdOf(tag: string, auth: string) {
   const secret = bytesOf(auth, 16);
   if (!secret || tag === "") return null;
-  return createHmac("sha256", secret).update(tag).digest("base64url").slice(0, 22);
+  const key = Buffer.from(hkdfSync("sha256", secret, Buffer.alloc(0), COLLAPSE_INFO, 32));
+  return createHmac("sha256", key).update(tag).digest("base64url").slice(0, 22);
 }
 
 /**

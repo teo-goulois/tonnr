@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -29,6 +30,16 @@ describe("what a push to an iPhone is collapsed under", () => {
     expect(collapseIdOf("report-a-break", auth)).not.toBe(collapseIdOf("report-a-break", other));
     // Apple takes 64 bytes at most.
     expect(collapseIdOf("report-a-break", auth)).toMatch(/^[\w-]{22}$/);
+  });
+
+  it("is not keyed with the phone's secret itself, which encrypts the push", () => {
+    const { auth } = testReceiver().keys;
+    const underSecret = createHmac("sha256", Buffer.from(auth, "base64url"))
+      .update("report-a-break")
+      .digest("base64url")
+      .slice(0, 22);
+
+    expect(collapseIdOf("report-a-break", auth)).not.toBe(underSecret);
   });
 
   it("is none for a push with no tag, or a phone whose secret is none", () => {
