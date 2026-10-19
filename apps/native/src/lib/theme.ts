@@ -2,6 +2,7 @@
 import "expo-sqlite/localStorage/install";
 
 import type { Theme } from "expo-router";
+import { useSyncExternalStore } from "react";
 import { Uniwind, useUniwind } from "uniwind";
 
 import {
@@ -28,13 +29,25 @@ export function startingTheme(): ThemeChoice {
   return themeChoiceOf(localStorage.getItem(THEME_KEY));
 }
 
+// What was chosen, held here: Uniwind says the theme in force, which a `ScopedTheme` changes
+// for what it holds, and not what the person chose.
+let chosen = startingTheme();
+const listeners = new Set<() => void>();
+
 /** Puts a theme in force, and keeps the choice on the phone. */
 export function chooseTheme(choice: ThemeChoice) {
+  chosen = choice;
   localStorage.setItem(THEME_KEY, choice);
   Uniwind.setTheme(choice);
+  for (const listener of listeners) listener();
 }
 
-Uniwind.setTheme(startingTheme());
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+Uniwind.setTheme(chosen);
 
 export type TonnrTheme = {
   /** The theme in force: the system's when the choice is, or what a `ScopedTheme` draws. */
@@ -53,12 +66,13 @@ export type TonnrTheme = {
 
 /** The tokens of the theme in force, drawn again when it changes. */
 export function useTheme(): TonnrTheme {
-  const { theme, hasAdaptiveThemes } = useUniwind();
+  const { theme } = useUniwind();
+  const choice = useSyncExternalStore(subscribe, () => chosen);
   const scheme = theme === "dark" ? "dark" : "light";
   return {
     scheme,
     colors: scheme === "dark" ? dark : light,
-    choice: hasAdaptiveThemes ? "system" : scheme,
+    choice,
     choose: chooseTheme,
     space,
     type,
