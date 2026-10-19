@@ -48,7 +48,7 @@ export function Analytics({
       const panel = allowed("panel", ["saved", "alerts", "account"], "map");
       const settings = allowed(
         "settings",
-        ["alerts", "sessions", "friends", "contributions", "delete"],
+        ["alerts", "sessions", "friends", "contributions", "delete", "blocked"],
         "",
       );
       const tab = allowed("tab", ["guide", "sessions", "alerts"], "conditions");
