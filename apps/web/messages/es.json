@@ -2028,5 +2028,22 @@
   "native_delete_sign_in": "Inicia sesión para eliminar tu cuenta.",
   "native_away_back": "De vuelta el",
   "native_push_refused": "Las notificaciones están bloqueadas para {name}. Permítelas en Ajustes y actívalas aquí.",
-  "native_push_device_phone": "Un teléfono"
+  "native_push_device_phone": "Un teléfono",
+  "native_media_take": "Hacer una foto o un vídeo",
+  "native_media_choose": "Elegir de tu fototeca",
+  "native_media_camera_denied": "{name} no tiene acceso a la cámara. Permítelo en los ajustes del teléfono.",
+  "native_media_open_settings": "Abrir los ajustes",
+  "native_session_failed": "No se ha podido guardar la sesión.",
+  "native_session_from_photo": "Día y hora de tu primera foto.",
+  "native_session_place_near": "El más cercano a ti",
+  "native_session_place_change": "Elegir otro spot",
+  "native_session_delete_title": "¿Eliminar esta sesión?",
+  "native_session_delete_message": "Sus fotos y vídeos se eliminan con ella.",
+  "native_create_session_hint": "Se guarda lo que hacía el mar.",
+  "native_create_spot_hint": "Un lugar tuyo en el mapa.",
+  "native_create_alert_hint": "Que te avisen cuando lleguen tus condiciones.",
+  "native_report_shoot": "Fotografiar las olas",
+  "native_report_position_off": "{name} no tiene acceso a tu ubicación: se rechazará una foto cuyo archivo no diga dónde se tomó.",
+  "native_report_far": "Estás a {distance} del spot: se rechazará una foto tomada aquí.",
+  "native_report_menu_hint": "Borrar, denunciar o bloquear"
 }

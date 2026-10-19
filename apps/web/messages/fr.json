@@ -2028,5 +2028,22 @@
   "native_delete_sign_in": "Connecte-toi pour supprimer ton compte.",
   "native_away_back": "De retour le",
   "native_push_refused": "Les notifications sont bloquées pour {name}. Autorise-les dans les Réglages, puis active-les ici.",
-  "native_push_device_phone": "Un téléphone"
+  "native_push_device_phone": "Un téléphone",
+  "native_media_take": "Prendre une photo ou une vidéo",
+  "native_media_choose": "Choisir dans ta photothèque",
+  "native_media_camera_denied": "{name} n'a pas accès à l'appareil photo. Autorise-le dans les réglages de ton téléphone.",
+  "native_media_open_settings": "Ouvrir les réglages",
+  "native_session_failed": "La session n'a pas pu être enregistrée.",
+  "native_session_from_photo": "Jour et heure de ta première photo.",
+  "native_session_place_near": "Le plus proche de toi",
+  "native_session_place_change": "Choisir un autre spot",
+  "native_session_delete_title": "Supprimer cette session ?",
+  "native_session_delete_message": "Ses photos et vidéos sont supprimées avec elle.",
+  "native_create_session_hint": "Ce que faisait la mer est gardé avec.",
+  "native_create_spot_hint": "Un endroit à toi sur la carte.",
+  "native_create_alert_hint": "Sois prévenu quand tes conditions arrivent.",
+  "native_report_shoot": "Photographier les vagues",
+  "native_report_position_off": "{name} n'a pas accès à ta position : une photo dont le fichier ne dit pas où elle a été prise sera refusée.",
+  "native_report_far": "Tu es à {distance} du spot : une photo prise ici sera refusée.",
+  "native_report_menu_hint": "Supprimer, signaler ou bloquer"
 }

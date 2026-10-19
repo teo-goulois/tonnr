@@ -2028,5 +2028,22 @@
   "native_delete_sign_in": "Sign in to delete your account.",
   "native_away_back": "Back on",
   "native_push_refused": "Notifications are blocked for {name}. Allow them in Settings, then switch them on here.",
-  "native_push_device_phone": "A phone"
+  "native_push_device_phone": "A phone",
+  "native_media_take": "Take a photo or video",
+  "native_media_choose": "Choose from your library",
+  "native_media_camera_denied": "{name} can't use the camera. Allow it in your phone's settings.",
+  "native_media_open_settings": "Open settings",
+  "native_session_failed": "The session couldn't be saved.",
+  "native_session_from_photo": "Day and time from your first photo.",
+  "native_session_place_near": "The nearest to you",
+  "native_session_place_change": "Choose another spot",
+  "native_session_delete_title": "Delete this session?",
+  "native_session_delete_message": "Its photos and videos are deleted with it.",
+  "native_create_session_hint": "What the sea did is kept with it.",
+  "native_create_spot_hint": "A place of your own on the map.",
+  "native_create_alert_hint": "Get told when your conditions come.",
+  "native_report_shoot": "Shoot the waves",
+  "native_report_position_off": "{name} can't read your location: a photo whose file doesn't say where it was shot will be refused.",
+  "native_report_far": "You're {distance} from the spot: a photo shot here will be refused.",
+  "native_report_menu_hint": "Delete, flag or block"
 }
