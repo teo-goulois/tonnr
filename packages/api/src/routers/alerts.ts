@@ -1,7 +1,12 @@
 import { ORPCError } from "@orpc/server";
 import { zoneNamed } from "@repo/conditions/alerts/clock";
 import { openHours } from "@repo/conditions/alerts/open";
-import { MAX_HORIZON_DAYS, availabilityOf, settingsOf } from "@repo/conditions/alerts/settings";
+import {
+  MAX_HORIZON_DAYS,
+  availabilityOf,
+  endOfToday,
+  settingsOf,
+} from "@repo/conditions/alerts/settings";
 import { MAX_FORECAST_DAYS } from "@repo/conditions/forecasts/forecasts";
 import { assessSpot } from "@repo/conditions/spots/conditions";
 import { CRITERIA_KEYS, askedCriteria, criteriaSchema } from "@repo/conditions/spots/criteria";
@@ -87,6 +92,9 @@ const alertSchema = z.object({
   // The conditions that make its spots work, checked at each of them.
   criteria: criteriaSchema,
   enabled: z.boolean(),
+  // The alert is paused until then, the end of the day its owner said "Not today" on: no hour
+  // of it before then is told. Null when it is not paused. Decision 072.
+  awayUntil: z.date().nullable(),
   shortestMinutes: z.number(),
   // The spots of the account it is set on, and the breaks of the catalogue.
   spotIds: z.array(z.string()),
@@ -119,6 +127,7 @@ function describeAlert(row: typeof alert.$inferSelect, places: Place[]) {
     name: row.name,
     criteria: row.criteria,
     enabled: row.enabled,
+    awayUntil: row.awayUntil,
     shortestMinutes: row.shortestMinutes,
     spotIds: places.flatMap((place) => place.spotId ?? []),
     breakIds: places.flatMap((place) => place.breakId ?? []),
@@ -459,8 +468,10 @@ export const alertsRouter = {
           "condition left out asks nothing. It is set on the places of `places`, in order, each " +
           "with its name: a spot of the account's, whose id list_my_spots names in `spotIds`, or " +
           "a surf break of the catalogue, whose id search_surf_breaks names in `breakIds`. It tells its owner when the forecast holds them for `shortestMinutes` at " +
-          "least. `enabled: false` is an alert that is paused. Use `criteria` to say " +
-          "whether a forecast you read is what the person waits for. This tool changes no " +
+          "least. `enabled: false` is an alert that is switched off, and `awayUntil` says " +
+          "until when one is paused for the day, which tells nothing before then. Use " +
+          "`criteria` to say whether a forecast you read is what the person waits for. This " +
+          "tool changes no " +
           "alert. Next: list_my_alert_notifications for what the alerts told lately.",
       },
     })
@@ -507,7 +518,8 @@ export const alertsRouter = {
       description:
         "What is left out stays as it is. `spotIds`, when given, are all the spots of the " +
         "alert from then on, and `breakIds` all its breaks. New conditions start the alert over, and so does switching it " +
-        "off: what it saw of the sea and what it told are forgotten, and nothing is called off.",
+        "off: what it saw of the sea and what it told are forgotten, and nothing is called off. " +
+        "`awayUntil: null` lifts the pause of `POST /alerts/{id}/pause`.",
       tags: ["Alerts"],
     })
     .input(
@@ -519,6 +531,10 @@ export const alertsRouter = {
         criteria: conditionsSchema.optional(),
         enabled: z.boolean().optional(),
         shortestMinutes: shortestSchema.optional(),
+        awayUntil: z
+          .null()
+          .optional()
+          .describe("Null lifts the pause of “Not today”: the alert's hours of today open again."),
       }),
     )
     .output(alertSchema)
@@ -611,6 +627,45 @@ export const alertsRouter = {
         if (!updated) throw notFound(id);
         // The places that stay keep their place, and the new ones come after them.
         return describeAlert(updated, (await placesOf(tx, [id])).get(id) ?? []);
+      });
+    }),
+
+  pauseToday: protectedProcedure
+    .meta({ analytics: "alert_paused" })
+    .route({
+      method: "POST",
+      path: "/alerts/{id}/pause",
+      summary: "Pause one of the caller's alerts until the end of their day",
+      description:
+        "What “Not today” does on the push of an alert. Until the end of the day, by the " +
+        "API's clock in the account's time zone, no hour of the alert is open, by mail or by " +
+        "push, as none of any alert is before the account's own `awayUntil`. What the alert " +
+        "told stays told, and its next look cuts it without a word. A push of it on its way " +
+        "is written anew without today. `PATCH /alerts/{id}` with `awayUntil: null` lifts it.",
+      tags: ["Alerts"],
+    })
+    .input(z.object({ id: z.string() }))
+    .output(alertSchema)
+    .handler(async ({ input, context }) => {
+      const userId = context.session.user.id;
+      return context.db.transaction(async (tx) => {
+        // The alert is held as a change of it is, so that a message of it that is being handed
+        // over waits, and one that is written after reads the pause.
+        const [current] = await tx
+          .select({ id: alert.id })
+          .from(alert)
+          .where(and(eq(alert.id, input.id), eq(alert.userId, userId)))
+          .for("update");
+        if (!current) throw notFound(input.id);
+        const [row] = await tx.select().from(alertSettings).where(eq(alertSettings.userId, userId));
+        // The phone's clock is not asked: the end of the day is the API's, in the account's zone.
+        const [paused] = await tx
+          .update(alert)
+          .set({ awayUntil: endOfToday(new Date(), settingsOf(row)), updatedAt: new Date() })
+          .where(eq(alert.id, input.id))
+          .returning();
+        if (!paused) throw notFound(input.id);
+        return describeAlert(paused, (await placesOf(tx, [paused.id])).get(paused.id) ?? []);
       });
     }),
 

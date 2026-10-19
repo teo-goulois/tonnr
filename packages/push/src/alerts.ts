@@ -2,15 +2,20 @@ import { createHash } from "node:crypto";
 
 import { type AlertLine, type AlertSaid, alertWords } from "@repo/mail/alert-words";
 
-import type { Push } from "./index";
+import type { Push, PushCategory } from "./index";
 
 // The push an alert sends: decision 031, "Push". It says what the alert's mail says, in the
 // same words, and differs by its size: a title, a line or two, the page to open, and a tag.
 
 /** What an alert push says: what the alert has to say, and where its spots are. */
 export type AlertPushContent = Omit<AlertSaid, "lines"> & {
+  // The notification it tells, which the app marks read once the push is opened: decision 072.
+  notificationId: string;
   // The alert it is of. Null for the evening before, which lists every alert.
   alertId: string | null;
+  // What is left of the account's day as the push is written: an alert whose hours fall in it
+  // offers "Not today", which pauses it until the day ends. Decision 072.
+  today: { start: Date; end: Date };
   lines: (AlertLine & {
     spotId: string;
     // What the address of the line's place says after `/app?`: `spot=<id>`, or `break=<id>` for
@@ -77,11 +82,33 @@ function tagOf(content: AlertPushContent) {
   return createHash("sha256").update(JSON.stringify(thing)).digest("base64url").slice(0, 22);
 }
 
+// Whether a push of an alert offers "Not today", or "Log a session" for "it is on": the app on a
+// phone shows them on a long press. The evening before and "gone" offer nothing more than what
+// a press opens. Decision 072.
+function categoryOf(content: AlertPushContent): PushCategory | undefined {
+  if (content.moment === "begins") return "begins";
+  if (content.moment === "evening" || content.moment === "gone") return undefined;
+  const { start, end } = content.today;
+  const isToday = content.lines.some((one) =>
+    [...one.open, ...(one.moved?.open ?? [])].some(
+      (piece) => piece.start.getTime() < end.getTime() && piece.end.getTime() > start.getTime(),
+    ),
+  );
+  return isToday ? "today" : undefined;
+}
+
+// How the app on a phone may interrupt with it: "it is on" comes through a Focus that lets such
+// notifications through, since being late costs the session, and the evening before, which is
+// a recap, makes no sound and lights no screen. Decision 072.
+const levelOf = (moment: AlertPushContent["moment"]) =>
+  moment === "begins" ? "time-sensitive" : moment === "evening" ? "passive" : "active";
+
 /**
  * The push of an alert's notification, in the account's language, time zone and units: the
  * moment as its title, then the hours of the first spots and how many more there are. A push
  * of one spot says what the mail says of the sea there, and opens that spot. A push of several
- * opens what the alerts told.
+ * opens what the alerts told. What the app on a phone reads besides groups an alert's pushes
+ * under it, and the evening's under the evening: decision 072.
  */
 export function alertPush(content: AlertPushContent): Push {
   const lines = content.lines.map((one) => ({
@@ -126,6 +153,7 @@ export function alertPush(content: AlertPushContent): Push {
   if (spots.length > SPOTS) rows.push(MORE[content.locale](spots.length - SPOTS));
 
   const [place] = lines;
+  const category = categoryOf(content);
   return {
     title: line(headline, TITLE_CHARACTERS),
     body: rows.join("\n"),
@@ -136,5 +164,12 @@ export function alertPush(content: AlertPushContent): Push {
     tag: tagOf(content),
     // The language of the line Apple shows when the app cannot open it: decision 072.
     locale: content.locale,
+    thread: content.alertId === null ? "evening" : `alert:${content.alertId}`,
+    ...(category ? { category } : {}),
+    ids: {
+      notification: content.notificationId,
+      ...(content.alertId === null ? {} : { alert: content.alertId }),
+    },
+    level: levelOf(content.moment),
   };
 }

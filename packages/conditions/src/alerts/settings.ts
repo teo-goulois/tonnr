@@ -1,6 +1,7 @@
 import type { alertSettings } from "@repo/db/schema/alerts";
 
-import type { QuietHours } from "./moments";
+import { localTime } from "./clock";
+import { type QuietHours, dayOf } from "./moments";
 import type { Availability } from "./open";
 
 type Row = typeof alertSettings.$inferSelect;
@@ -56,30 +57,55 @@ export function settingsOf(row: Row | undefined): AlertSettings {
 /** The time zone an account's days and hours are read in: its own, or UTC until it is known. */
 export const zoneOf = (settings: AlertSettings) => settings.zone ?? "UTC";
 
-/** When the account can go. */
-export function availabilityOf(settings: AlertSettings): Availability {
-  return {
+/** What of an alert pauses it: "Not today", until the end of the day it was said on. */
+export type Paused = { awayUntil: Date | null };
+
+/**
+ * When the account can go, for one of its alerts: no hour is open before the later of the
+ * account's own `awayUntil` and the alert's, which its owner set by "Not today" (decision 072).
+ */
+export function pausedBy(availability: Availability, alert: Paused): Availability {
+  const { awayUntil } = alert;
+  if (!awayUntil || (availability.awayUntil && availability.awayUntil >= awayUntil)) {
+    return availability;
+  }
+  return { ...availability, awayUntil };
+}
+
+/** When the account can go, and for one of its alerts when it is given. */
+export function availabilityOf(settings: AlertSettings, alert?: Paused): Availability {
+  const availability = {
     zone: zoneOf(settings),
     daylightOnly: settings.daylightOnly,
     week: settings.week,
     awayUntil: settings.awayUntil,
   };
+  return alert ? pausedBy(availability, alert) : availability;
 }
 
 /**
  * What cuts the open hours of an alert's windows, as one string: two that differ are two ways
  * of cutting them. A look keeps the one it read, and knows by it that the hours it finds were
- * moved by a setting and not by the sea.
+ * moved by a setting, or by a pause of the alert, and not by the sea.
  */
-export function cutOf(settings: AlertSettings, shortestMinutes: number) {
-  const { zone, daylightOnly, week, awayUntil } = availabilityOf(settings);
+export function cutOf(settings: AlertSettings, alert: Paused & { shortestMinutes: number }) {
+  const { zone, daylightOnly, week, awayUntil } = availabilityOf(settings, alert);
   return JSON.stringify([
     zone,
     daylightOnly,
     week?.map((day) => day.map(({ from, to }) => [from, to])) ?? null,
     awayUntil?.getTime() ?? null,
-    shortestMinutes,
+    alert.shortestMinutes,
   ]);
+}
+
+/**
+ * Until when "Not today" pauses an alert: the end of the account's day as it is at `now`, on its
+ * own calendar and clock. Decision 072.
+ */
+export function endOfToday(now: Date, settings: AlertSettings) {
+  const zone = zoneOf(settings);
+  return dayOf(localTime(now, zone).date, zone).end;
 }
 
 /** The hours in which the account is sent nothing. Null when it set none. */

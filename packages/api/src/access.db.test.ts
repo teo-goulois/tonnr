@@ -137,6 +137,7 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.alerts.get",
   "v1.alerts.getSettings",
   "v1.alerts.list",
+  "v1.alerts.pauseToday",
   "v1.alerts.preview",
   "v1.alerts.update",
   "v1.alerts.updateSettings",

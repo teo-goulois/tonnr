@@ -11,6 +11,7 @@ import {
   type AlertSettings,
   availabilityOf,
   cutOf,
+  endOfToday,
   quietHoursOf,
   settingsOf,
   zoneOf,
@@ -35,6 +36,7 @@ import {
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
 import { unitPreferences } from "@repo/db/schema/preferences";
+import { reportNotice } from "@repo/db/schema/reports";
 import { type Mail, type MailSettings, type Mailer, MAIL_PROVIDER, createMailer } from "@repo/mail";
 import type { AlertLine, AlertMoment } from "@repo/mail/alert-words";
 import { STARTING_UNITS, alertMail } from "@repo/mail/alerts";
@@ -52,7 +54,7 @@ import {
   createPusher,
 } from "@repo/push";
 import { alertPush } from "@repo/push/alerts";
-import { and, asc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, lte, ne, sql } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import {
@@ -222,6 +224,37 @@ export function pushTo(
     push,
     keepSeconds,
   );
+}
+
+/**
+ * How many things an account has not read, as the alerts' tab counts them: what its alerts told
+ * and the notices of reports. The app on a phone counts them on its icon, as a push is handed
+ * over: decision 072.
+ */
+export async function unreadOf(tx: Transaction, userId: string) {
+  const [told] = await tx
+    .select({ total: count() })
+    .from(notification)
+    .where(and(eq(notification.userId, userId), isNull(notification.readAt)));
+  const [notices] = await tx
+    .select({ total: count() })
+    .from(reportNotice)
+    .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt)));
+  return (told?.total ?? 0) + (notices?.total ?? 0);
+}
+
+/**
+ * What a push says as it is handed over: with what the account has not read when an app on a
+ * phone is among its devices, which counts it on its icon. A browser reads no count.
+ */
+export async function counted(
+  tx: Transaction,
+  userId: string,
+  devices: readonly Pick<DeviceRow, "kind">[],
+  push: Push,
+): Promise<Push> {
+  if (!devices.some((device) => device.kind !== "web")) return push;
+  return { ...push, badge: await unreadOf(tx, userId) };
 }
 
 /**
@@ -498,11 +531,7 @@ async function newsOf(
   let waits = false;
   for (const one of links) {
     const fetchedAt = one.link.forecastFetchedAt;
-    if (
-      !fetchedAt ||
-      !isFresh(one.link, now) ||
-      one.link.cutBy !== cutOf(settings, one.alert.shortestMinutes)
-    ) {
+    if (!fetchedAt || !isFresh(one.link, now) || one.link.cutBy !== cutOf(settings, one.alert)) {
       waits = true;
       continue;
     }
@@ -724,7 +753,12 @@ async function hold(tx: Transaction, made: About) {
     .where(eq(user.id, made.userId))
     .for("share");
   const alerts = await tx
-    .select({ id: alert.id, enabled: alert.enabled, revision: alert.revision })
+    .select({
+      id: alert.id,
+      enabled: alert.enabled,
+      revision: alert.revision,
+      awayUntil: alert.awayUntil,
+    })
     .from(alert)
     .where(
       made.moment === "evening" ? eq(alert.userId, made.userId) : eq(alert.id, made.alertId ?? ""),
@@ -760,7 +794,9 @@ async function writtenFrom(
         : [];
   const stamp = JSON.stringify([
     settingsOf(held.settingsRow),
-    held.alerts.map((one) => [one.id, one.enabled, one.revision]),
+    // A pause of "Not today" too: a push of the alert on its way is written anew without the
+    // day it paused (decision 072).
+    held.alerts.map((one) => [one.id, one.enabled, one.revision, one.awayUntil?.getTime() ?? null]),
     links.map((one) => [
       one.place.id,
       one.alert.id,
@@ -1013,7 +1049,10 @@ async function takeBy(
         keepUntil: worthUntil(said, made.payload.day, settings),
         push: alertPush({
           ...saidAs,
+          notificationId: made.id,
           alertId: made.alertId,
+          // What is left of the account's day, on its calendar: decision 072.
+          today: { start: now, end: endOfToday(now, settings) },
           lines: said.lines.map((line, index) => ({
             ...line,
             spotId: places[index]?.id ?? "",
@@ -1126,7 +1165,8 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
       // given. All of them have answered before anything else happens: none is left to send
       // once the account is let go.
       const keepSeconds = (taken.keepUntil.getTime() - now.getTime()) / 1000;
-      const results = await pushToAll(out, devices, taken.push, keepSeconds);
+      const push = await counted(tx, taken.userId, devices, taken.push);
+      const results = await pushToAll(out, devices, push, keepSeconds);
       const answers = results.map((one) => one.outcome);
       // A device whose service says that its subscription or its token is no more is forgotten.
       const gone = results.filter((one) => one.outcome === "gone").map((one) => one.device);

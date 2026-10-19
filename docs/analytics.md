@@ -20,6 +20,7 @@ Successful oRPC actions:
 - `account_deleted`, under the deleted account's opaque ID, which then names no account the instance keeps (decision 071)
 - `alert_created`
 - `alert_deleted`
+- `alert_paused`
 - `alert_previewed`
 - `alert_settings_updated`
 - `alert_updated`
@@ -79,7 +80,7 @@ Successful oRPC actions:
 - `units_updated`
 - `verification_requested`
 
-`push_subscribed` and `push_disabled` count a phone's device as they count a browser's: the app for phones makes and forgets its own through `push.registerApp` and `push.forgetApp`, and its `surface` says which system it runs on (decision 072).
+`push_subscribed` and `push_disabled` count a phone's device as they count a browser's: the app for phones makes and forgets its own through `push.registerApp` and `push.forgetApp`, and its `surface` says which system it runs on (decision 072). `alert_paused` is "Not today" on the push of an alert, which pauses it until the end of the account's day: `alerts.pauseToday`, from the app for phones.
 
 ## Error reports
 

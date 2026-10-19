@@ -149,9 +149,10 @@ const lookAt = Effect.fn("lookAtAlert")(function* (
           .from(alertSettings)
           .where(eq(alertSettings.userId, row.userId));
         const settings = settingsOf(settingsRow);
-        const availability = availabilityOf(settings);
+        // The account's hours, and the alert's own pause of "Not today": decision 072.
+        const availability = availabilityOf(settings, current);
         const zone = zoneOf(settings);
-        const cut = cutOf(settings, current.shortestMinutes);
+        const cut = cutOf(settings, current);
         const until = tellUntil(now, zone, settings.horizonDays);
 
         const knownWindows = await tx

@@ -262,6 +262,7 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
         alertId: alert.id,
         userId: alert.userId,
         shortestMinutes: alert.shortestMinutes,
+        awayUntil: alert.awayUntil,
         link: alertSpot,
         place: placeColumns,
       })
@@ -340,7 +341,8 @@ export const tellMoments = Effect.fn("tellMoments")(function* (
     const [first] = spots;
     if (!first) continue;
     const settings = settingsOf(settingsOfUser.get(first.userId));
-    const availability = availabilityOf(settings);
+    // The account's hours, and the alert's own pause of "Not today": decision 072.
+    const availability = availabilityOf(settings, first);
     const of = new Map(spots.map((one) => [one.place.id, one]));
     // An alert is held only when it has something to say, or something to forget.
     const hasExpired = spots.some(

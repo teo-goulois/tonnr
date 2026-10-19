@@ -1,6 +1,7 @@
 import type { ToldPiece } from "@repo/conditions/alerts/look";
 import type { Watched } from "@repo/conditions/alerts/moments";
 import { type Availability, type Interval, openHours } from "@repo/conditions/alerts/open";
+import { pausedBy } from "@repo/conditions/alerts/settings";
 import type { Database } from "@repo/db";
 import {
   type SeaFigures,
@@ -232,12 +233,15 @@ export const watched = (one: Link, now: Date): Watched => ({
 
 /**
  * The hours of a sea window an account can use, by its settings and its alert's, at the spots
- * of one alert: the shortest window is the alert's, and a spot is named once.
+ * of one alert: the shortest window is the alert's, an alert paused by "Not today" opens no hour
+ * before its pause ends (decision 072), and a spot is named once.
  */
 export function openOf(links: Link[], availability: Availability) {
   const of = new Map(links.map((one) => [one.place.id, one]));
   return (spotId: string, sea: Interval) => {
     const one = of.get(spotId);
-    return one ? openHours(sea, one.place, availability, one.alert.shortestMinutes) : [];
+    return one
+      ? openHours(sea, one.place, pausedBy(availability, one.alert), one.alert.shortestMinutes)
+      : [];
   };
 }

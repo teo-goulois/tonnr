@@ -166,6 +166,46 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes to the apps on phones", () => {
       expect(counted?.calls).toBe(1);
     });
 
+    it("carry what the app reads, the ids and what the account has not read, and a browser none of it", async () => {
+      // A notice of reports that the account has not read either, at a break it keeps.
+      await database.db.insert(surfBreak).values({
+        id: "point",
+        slug: "point",
+        name: "La Point",
+        latitude: 43.48,
+        longitude: -1.56,
+      });
+      await database.db.insert(reportNotice).values({
+        id: "a-notice",
+        userId: "owner",
+        breakId: "point",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await found();
+
+      await pass();
+
+      const [told] = await database.db.select().from(notification);
+      const [ios] = apple.sent();
+      expect(ios?.push).toMatchObject({
+        thread: "alert:bay",
+        ids: { notification: told?.id, alert: "bay" },
+        level: "active",
+        // This notification, and the notice.
+        badge: 2,
+      });
+      // Its hours are tomorrow's: there is no "Not today".
+      expect(ios?.push.category).toBeUndefined();
+      expect(google.sent()[0]?.push).toEqual(ios?.push);
+      expect(Object.keys(browsers.sent()[0]?.push ?? {}).sort()).toEqual([
+        "body",
+        "tag",
+        "title",
+        "url",
+      ]);
+    });
+
     it("are kept by Apple and Google until the hours they speak of are over", async () => {
       await found();
       await pass();
@@ -259,6 +299,74 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes to the apps on phones", () => {
 
       expect(await states()).toEqual([["found", "failed"]]);
       expect(await pushedAt()).toEqual([new Date(SATURDAY + 8 * HOUR_MS).toISOString()]);
+    });
+  });
+
+  // "Not today": decision 072.
+  describe("of an alert whose hours are today", () => {
+    // This afternoon, in the account's time zone, which is UTC.
+    const FRIDAY = Date.UTC(2026, 9, 9);
+    beforeEach(() => {
+      kept.provider.waves = (seconds: number) =>
+        seconds * 1000 >= FRIDAY + 14 * HOUR_MS && seconds * 1000 < FRIDAY + 18 * HOUR_MS
+          ? 1.2
+          : 0.2;
+    });
+    const pause = () =>
+      database.db
+        .update(alert)
+        .set({ awayUntil: new Date(Date.UTC(2026, 9, 10)) })
+        .where(eq(alert.id, "bay"));
+    const told = async () =>
+      (await database.db.select().from(notification)).map((one) => one.moment);
+
+    it("offer “Not today” on the phones", async () => {
+      await found();
+
+      await pass();
+
+      expect(apple.sent()[0]?.push.category).toBe("today");
+      expect(google.sent()[0]?.push.category).toBe("today");
+    });
+
+    it("tell nothing of today once the alert is paused, and the next look cuts what was told without a word", async () => {
+      await found();
+      await pass();
+      await pause();
+
+      vi.advanceTimersByTime(3 * HOUR_MS);
+      await look();
+      await pass();
+
+      // No "gone" for hours the pause closed: one push, of the window as it was found.
+      expect(await told()).toEqual(["found"]);
+      expect(apple.sent()).toHaveLength(1);
+      expect(browsers.sent()).toHaveLength(1);
+      // What stands as told is cut as the hours are now: none of today.
+      const [link] = await database.db.select().from(alertSpot);
+      expect(link?.told).toEqual([]);
+    });
+
+    it("are not pushed once the alert is paused while its push waits, by any way out", async () => {
+      await found();
+      await pause();
+
+      await pass();
+      vi.advanceTimersByTime(3 * HOUR_MS);
+      await look();
+      await pass();
+
+      expect(await told()).toEqual(["found"]);
+      expect([...browsers.sent(), ...apple.sent(), ...google.sent()]).toEqual([]);
+      expect(await pushedAt()).toEqual([]);
+    });
+
+    it("are not found at all by an alert that was paused before its looks", async () => {
+      await pause();
+      await found();
+
+      expect(await pass()).toMatchObject({ pushes: 0 });
+      expect(await told()).toEqual([]);
     });
   });
 

@@ -141,5 +141,10 @@ export function reportPush(content: ReportPushContent): Push {
     ...(content.image ? { image: content.image } : {}),
     // The language of the line Apple shows when the app cannot open it: decision 072.
     locale: content.locale,
+    // What the app on a phone reads besides: the notices of a break are grouped together, and
+    // opening one marks it read once the break shows.
+    thread: `report:${content.breakId}`,
+    ids: { notice: content.noticeId },
+    level: "active",
   };
 }

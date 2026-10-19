@@ -28,6 +28,11 @@ describe("the push of a notice of reports", () => {
       tag: "report-b1",
       image: "https://bucket.example.org/m/1/0/thumb.webp?X-Amz-Signature=abc",
       locale: "fr",
+      // What the app on a phone reads besides: the break's notices under one thread, and the
+      // notice it marks read. Decision 072.
+      thread: "report:b1",
+      ids: { notice: "n1" },
+      level: "active",
     });
   });
 
@@ -77,6 +82,11 @@ describe("the push of a notice of reports", () => {
     const [first, second] = service.sent();
     expect(first?.push.image).toBe(push.image);
     // A browser is sent the words, and nothing of what an app reads besides.
-    expect(second?.push).toEqual({ ...push, image: undefined, locale: undefined });
+    expect(second?.push).toEqual({
+      title: push.title,
+      body: push.body,
+      url: push.url,
+      tag: push.tag,
+    });
   });
 });

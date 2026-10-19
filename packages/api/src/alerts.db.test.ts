@@ -345,6 +345,7 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
       for (const ask of [
         () => call(v1Router.alerts.get, { id: made.id }, by("ben")),
         () => call(v1Router.alerts.update, { id: made.id, name: "Mine now" }, by("ben")),
+        () => call(v1Router.alerts.pauseToday, { id: made.id }, by("ben")),
         () => call(v1Router.alerts.delete, { id: made.id }, by("ben")),
       ]) {
         await expect(ask()).rejects.toEqual(refusal("NOT_FOUND"));
@@ -465,6 +466,73 @@ describe.skipIf(!TEST_DATABASE_URL)("an alert", () => {
         ["south", []],
         ["far", []],
       ]);
+    });
+  });
+
+  // "Not today", on the push of an alert: decision 072.
+  describe("paused for the day", () => {
+    it("is paused until the end of the account's day, by the API's clock in its time zone", async () => {
+      const made = await make();
+      expect(made.awayUntil).toBeNull();
+      await database.db.insert(alertSettings).values({ userId: "ana", zone: "Europe/Paris" });
+
+      const paused = await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+
+      // Ten in the morning in Paris: its day ends at midnight there.
+      const midnight = new Date("2026-10-09T22:00:00Z");
+      expect(paused).toMatchObject({ id: made.id, enabled: true, awayUntil: midnight });
+      expect(await call(v1Router.alerts.get, { id: made.id }, by("ana"))).toMatchObject({
+        awayUntil: midnight,
+      });
+      const { alerts } = await call(v1Router.alerts.list, undefined, by("ana"));
+      expect(alerts.map((one) => one.awayUntil)).toEqual([midnight]);
+    });
+
+    it("reads the day in UTC for an account whose time zone is not known yet", async () => {
+      const made = await make();
+
+      expect(await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"))).toMatchObject({
+        awayUntil: new Date("2026-10-10T00:00:00Z"),
+      });
+    });
+
+    it("keeps what the alert saw and told, and is not read anew: its next look cuts it", async () => {
+      const made = await make();
+      await see(made.id, "north");
+
+      await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+
+      expect(await revisionOf(made.id)).toBe(0);
+      expect([await windowsOf(made.id), await toldAt(made.id)]).toEqual([["north"], ["north"]]);
+    });
+
+    it("is lifted by a change that says so, and by no other", async () => {
+      const made = await make();
+      await call(v1Router.alerts.pauseToday, { id: made.id }, by("ana"));
+
+      const renamed = await call(v1Router.alerts.update, { id: made.id, name: "Dawn" }, by("ana"));
+      expect(renamed.awayUntil).not.toBeNull();
+
+      const lifted = await call(
+        v1Router.alerts.update,
+        { id: made.id, awayUntil: null },
+        by("ana"),
+      );
+      expect(lifted).toMatchObject({ name: "Dawn", awayUntil: null });
+      // A change takes no pause of its own: "Not today" makes it.
+      await expect(
+        call(
+          v1Router.alerts.update,
+          { id: made.id, awayUntil: new Date("2026-10-20T00:00:00Z") } as never,
+          by("ana"),
+        ),
+      ).rejects.toEqual(refusal("BAD_REQUEST"));
+    });
+
+    it("is of an alert of the caller's", async () => {
+      await expect(
+        call(v1Router.alerts.pauseToday, { id: "no-such-alert" }, by("ana")),
+      ).rejects.toEqual(refusal("NOT_FOUND"));
     });
   });
 

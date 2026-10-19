@@ -28,6 +28,7 @@ const V1_PROCEDURES = [
   "alerts.list",
   "alerts.mailOff",
   "alerts.mailOffPage",
+  "alerts.pauseToday",
   "alerts.preview",
   "alerts.update",
   "alerts.updateSettings",

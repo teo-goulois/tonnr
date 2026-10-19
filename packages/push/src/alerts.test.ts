@@ -16,10 +16,14 @@ const sea = {
 };
 // A spot of an alert, and the window that is told there.
 const spot = { spotId: "s1", spotName: "Le banc", windows: ["w1"] };
+// Seven in the morning in Paris, and the rest of its day.
+const today = { start: at("12T05:00"), end: at("12T22:00") };
 const content = (more: Partial<AlertPushContent> = {}): AlertPushContent => ({
   locale: "fr",
   moment: "found",
+  notificationId: "n1",
   alertId: "bay",
+  today,
   alertName: "La baie",
   zone: "Europe/Paris",
   units: STARTING_UNITS,
@@ -37,6 +41,67 @@ describe("the push of an alert", () => {
       url: "https://app.example.org/fr/app?spot=s1",
       tag: expect.stringMatching(/^[\w-]{22}$/),
       locale: "fr",
+      // What the app on a phone reads besides, and a browser is not sent: decision 072.
+      thread: "alert:bay",
+      category: "today",
+      ids: { notification: "n1", alert: "bay" },
+      level: "active",
+    });
+  });
+
+  describe("read by the app on a phone", () => {
+    const tomorrow = [{ start: at("13T06:00"), end: at("13T10:00") }];
+
+    it("offers “Not today” while the hours it tells are in what is left of the account's day", () => {
+      expect(alertPush(content()).category).toBe("today");
+      // A window under way, which began before the push.
+      expect(
+        alertPush(content({ today: { start: at("12T07:00"), end: today.end } })).category,
+      ).toBe("today");
+      expect(
+        alertPush(content({ lines: [{ ...spot, open: tomorrow, sea }] })).category,
+      ).toBeUndefined();
+      // Hours that moved into the day, and hours that moved out of it.
+      const into = { open: morning, before: tomorrow };
+      const out = { open: tomorrow, before: morning };
+      expect(
+        alertPush(content({ moment: "moved", lines: [{ ...spot, open: [], moved: into }] }))
+          .category,
+      ).toBe("today");
+      expect(
+        alertPush(content({ moment: "moved", lines: [{ ...spot, open: [], moved: out }] }))
+          .category,
+      ).toBeUndefined();
+    });
+
+    it("offers nothing more on hours that went, and on the evening before", () => {
+      const gone = content({ moment: "gone", lines: [{ ...spot, open: [], gone: morning }] });
+      const evening = content({
+        moment: "evening",
+        alertId: null,
+        alertName: null,
+        day: "2026-10-12",
+        lines: [{ ...spot, alertName: "La baie", windows: [], open: morning }],
+      });
+
+      expect(alertPush(gone)).toMatchObject({ thread: "alert:bay", level: "active" });
+      expect(alertPush(gone).category).toBeUndefined();
+      expect(alertPush(evening)).toMatchObject({
+        thread: "evening",
+        ids: { notification: "n1" },
+        // A recap, with no sound and no lit screen.
+        level: "passive",
+      });
+      expect(alertPush(evening).category).toBeUndefined();
+      expect(alertPush(evening).ids).not.toHaveProperty("alert");
+    });
+
+    it("says that it is on with “Log a session”, through a Focus that lets such notifications through", () => {
+      expect(alertPush(content({ moment: "begins" }))).toMatchObject({
+        category: "begins",
+        level: "time-sensitive",
+        thread: "alert:bay",
+      });
     });
   });
 

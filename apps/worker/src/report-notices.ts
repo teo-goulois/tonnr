@@ -38,7 +38,7 @@ import {
 import { union } from "drizzle-orm/pg-core";
 import { Effect } from "effect";
 
-import { type PushOut, kindsOf, pushToAll } from "./deliveries";
+import { type PushOut, counted, kindsOf, pushToAll } from "./deliveries";
 import type { Transaction } from "./kept";
 import { type Done, WRITE_SECONDS } from "./runs";
 import { StoreError } from "./store";
@@ -561,7 +561,13 @@ async function hand(
     });
     const keepSeconds = Math.max(60, (keepUntil.getTime() - now.getTime()) / 1000);
     // To every device at once: all of them have answered before anything else happens.
-    const results = await pushToAll(out, devices, push, keepSeconds);
+    // With what the account has not read, for an app's icon, this notice among it.
+    const results = await pushToAll(
+      out,
+      devices,
+      await counted(tx, taken.userId, devices, push),
+      keepSeconds,
+    );
     const answers = results.map((one) => one.outcome);
     // A device whose service says that its subscription or its token is no more is forgotten.
     const gone = results.filter((one) => one.outcome === "gone").map((one) => one.device);
