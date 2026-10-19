@@ -192,7 +192,11 @@ export function NoticeRow({
           <span className={cn("truncate", unread && "font-medium")}>{title}</span>
           <span className="text-s text-neutral-7">{m.notice_label()}</span>
           <span className={cn("line-clamp-2 text-s", !latest && "text-neutral-7")}>{said}</span>
-          <span className="text-xs text-neutral-7">{formatAgo(notice.updatedAt, now)}</span>
+          <span className="text-xs text-neutral-7">
+            {now - notice.updatedAt.getTime() < 60_000
+              ? m.report_just_now()
+              : formatAgo(notice.updatedAt, now)}
+          </span>
         </span>
         {latest?.thumb && (
           <img
