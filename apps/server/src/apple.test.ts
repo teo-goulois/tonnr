@@ -1,6 +1,7 @@
 import { generateKeyPairSync, verify } from "node:crypto";
 
 import { appleProvider } from "@repo/auth/apple";
+import { APPLE_REVOKE_URL, appleRevocationOf } from "@repo/auth/apple-revocation";
 import { describe, expect, it } from "vitest";
 
 // A key made for the test, of the kind Apple gives: P-256, in a .p8 file's PEM.
@@ -100,5 +101,31 @@ describe("Sign in with Apple's settings", () => {
     expect(second).not.toBe(first);
     expect(read(second).payload.iat).toBe(now / 1000);
     expect(read(second).payload.exp).toBeGreaterThan(now / 1000);
+  });
+});
+
+// What revokes an account's tokens as it is deleted reads the same settings: decision 071.
+describe("revoking at Apple's", () => {
+  it("asks nothing on an instance without Sign in with Apple", () => {
+    expect(appleRevocationOf({})).toBeUndefined();
+    expect(appleRevocationOf({ APPLE_TEAM_ID: "TEAM123456" })).toBeUndefined();
+    expect(() => appleRevocationOf({ ...settings, APPLE_KEY_ID: "" })).toThrow();
+  });
+
+  it("revokes with the Services ID and a secret signed for it, which the web's tokens were given to", async () => {
+    const sent: URLSearchParams[] = [];
+    const send = (async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe(APPLE_REVOKE_URL);
+      sent.push(new URLSearchParams(String(init?.body)));
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
+    const apple = appleRevocationOf(settings, send);
+
+    expect(await apple?.revoke({ refreshToken: "the-refresh", accessToken: null })).toBe("revoked");
+    expect(sent[0]?.get("client_id")).toBe("app.example.web");
+    expect(sent[0]?.get("token")).toBe("the-refresh");
+    const secret = read(sent[0]?.get("client_secret") ?? "");
+    expect(secret.signed).toBe(true);
+    expect(secret.payload).toMatchObject({ iss: "TEAM123456", sub: "app.example.web" });
   });
 });

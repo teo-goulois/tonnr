@@ -6,6 +6,7 @@ import { createAnalytics } from "./analytics";
 import { ENV } from "./env.server";
 import { readRevision } from "./revision";
 import {
+  apple,
   auth,
   db,
   forecasts,
@@ -36,6 +37,7 @@ const app = createApp({
   ideas,
   privateCatalogue,
   storage,
+  apple,
   pushKey,
   startedAt,
   revision,

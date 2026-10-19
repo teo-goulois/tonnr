@@ -5,6 +5,7 @@ import { createPlaces } from "@repo/api/places";
 import { createPrivateCatalogue } from "@repo/api/private-catalogue";
 import { createUsage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
+import { appleRevocationOf } from "@repo/auth/apple-revocation";
 import { createVerification } from "@repo/auth/verification";
 import { APP_SCHEME } from "@repo/config/app";
 import { createDb } from "@repo/db";
@@ -35,3 +36,7 @@ export const privateCatalogue = ENV.CATALOGUE_DATABASE_URL
 // The bucket the photos and the videos are kept in. None without its settings: the instance then
 // keeps no media, and the web app offers none. Decision 066.
 export const storage = createStorage(ENV);
+// What revokes at Apple's the tokens of an account that is deleted, on an instance that offers
+// Sign in with Apple, with the client and the key its sign-in uses. None without them: Apple is
+// then asked nothing. Decision 071.
+export const apple = appleRevocationOf(ENV);

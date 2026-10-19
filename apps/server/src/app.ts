@@ -53,6 +53,9 @@ type Services = {
   privateCatalogue?: Context["privateCatalogue"];
   // The bucket the photos and the videos are kept in. Without it, the instance keeps none.
   storage?: Context["storage"];
+  // What revokes at Apple's the tokens of an account that is deleted. Without it, on an instance
+  // that does not offer Sign in with Apple, Apple is asked nothing. Decision 071.
+  apple?: Context["apple"];
   // The public key of the pair the instance sends push with, as `pushKeyOf` checked it. Without
   // it the instance sends none, and takes no subscription.
   pushKey?: string | undefined;
@@ -114,6 +117,7 @@ export function createApp({
   ideas,
   privateCatalogue,
   storage,
+  apple,
   pushKey,
   startedAt = new Date(),
   revision = null,
@@ -303,6 +307,7 @@ export function createApp({
       ideas,
       privateCatalogue,
       storage,
+      apple,
       reply: {} as Context["reply"],
       server: { startedAt, webOrigin, appOrigins, clients, revision, pushKey },
     };

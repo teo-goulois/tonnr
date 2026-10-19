@@ -61,31 +61,22 @@ export function appleClientSecret(
 }
 
 /**
- * Sign in with Apple, when the instance offers it: the Services ID, the key's id and its content
- * set together, beside the team. Some of them and not all stops the API as it starts, as a
- * partial pair of Google's does. Without them it is off.
+ * The client of the web's sign-in at Apple, the Services ID, with what signs its secret, when the
+ * instance offers Sign in with Apple: the Services ID, the key's id and its content set together,
+ * beside the team. Some of them and not all stops the program as it starts, as a partial pair of
+ * Google's does. Without them it is off, and this is undefined.
  *
- * The web signs in through Apple's page, with the Services ID, and exchanges a code: it sends no
- * ID token. The app sends the ID token Apple's sheet gave it, made for its bundle, which is the
- * scheme of the origin it names itself by, `app.tonnr` for `app.tonnr://`: the API takes a token
- * made for a bundle alone, and none on an instance with no app. Apple's page also gives the
- * browser a token made for the Services ID, which would otherwise sign in for an hour wherever it
- * was sent, with no nonce. Decisions 069 and 070.
- *
- * The secret is signed as the API starts, which checks the key, and again before it runs out,
- * whenever the library reads it.
+ * The secret is signed at once, which checks the key, and again before it runs out, whenever it
+ * is read. The sign-in reads it, and so does what revokes an account's tokens as it is deleted
+ * (decision 071).
  */
-export function appleProvider(
-  env: AppleConfig,
-  appOrigins: readonly string[],
-  now: () => number = Date.now,
-) {
+export function appleClientOf(env: AppleConfig, now: () => number = Date.now) {
   const clientId = env.APPLE_SERVICES_ID?.trim();
   const keyId = env.APPLE_KEY_ID?.trim();
   const content = env.APPLE_PRIVATE_KEY?.trim();
   const teamId = env.APPLE_TEAM_ID?.trim();
   const set = [clientId, keyId, content].filter(Boolean).length;
-  if (set === 0) return {};
+  if (set === 0) return undefined;
   if (set !== 3 || !teamId) {
     throw new Error(
       "APPLE_SERVICES_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY must be set together, with APPLE_TEAM_ID",
@@ -95,20 +86,42 @@ export function appleProvider(
   const seconds = () => Math.floor(now() / 1000);
   let issuedAt = seconds();
   let secret = appleClientSecret(settings, issuedAt);
-  const current = () => {
-    if (seconds() >= issuedAt + SECRET_SECONDS - SIGNED_AGAIN_BEFORE_SECONDS) {
-      issuedAt = seconds();
-      secret = appleClientSecret(settings, issuedAt);
-    }
-    return secret;
+  return {
+    clientId: settings.clientId,
+    clientSecret: () => {
+      if (seconds() >= issuedAt + SECRET_SECONDS - SIGNED_AGAIN_BEFORE_SECONDS) {
+        issuedAt = seconds();
+        secret = appleClientSecret(settings, issuedAt);
+      }
+      return secret;
+    },
   };
+}
+
+/**
+ * Sign in with Apple, when the instance offers it, with the client of `appleClientOf`.
+ *
+ * The web signs in through Apple's page, with the Services ID, and exchanges a code: it sends no
+ * ID token. The app sends the ID token Apple's sheet gave it, made for its bundle, which is the
+ * scheme of the origin it names itself by, `app.tonnr` for `app.tonnr://`: the API takes a token
+ * made for a bundle alone, and none on an instance with no app. Apple's page also gives the
+ * browser a token made for the Services ID, which would otherwise sign in for an hour wherever it
+ * was sent, with no nonce. Decisions 069 and 070.
+ */
+export function appleProvider(
+  env: AppleConfig,
+  appOrigins: readonly string[],
+  now: () => number = Date.now,
+) {
+  const client = appleClientOf(env, now);
+  if (!client) return {};
   const bundles = appOrigins.map((origin) => origin.slice(0, -"://".length));
   return {
     apple: {
-      clientId: settings.clientId,
+      clientId: client.clientId,
       // Read at each exchange of a code: the library keeps this object as it is given.
       get clientSecret() {
-        return current();
+        return client.clientSecret();
       },
       // An empty list would read as the Services ID: the library falls back to it.
       ...(bundles.length > 0 ? { audience: bundles } : { disableIdTokenSignIn: true }),
