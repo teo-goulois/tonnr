@@ -20,13 +20,14 @@ export function isDemandStrong(calls: ReadonlyMap<string, number>) {
 }
 
 /**
- * Whether a request that names no one comes from the web app: a visitor, whom the instance
- * answers while it is open to them. The request says so in `Origin`, which a browser writes
- * itself and a page cannot change. A program can write it too: it then reads what a visitor
- * reads, and no more. Decision 039.
+ * Whether a request that names no one comes from one of the instance's own apps: a visitor, whom
+ * the instance answers while it is open to them. The web app says so in `Origin`, which a
+ * browser writes itself and a page cannot change, and an app for phones in `expo-origin`, which
+ * no page can send. A program can write either too: it then reads what a visitor reads, and no
+ * more. Decisions 039 and 069.
  */
-export function isFromWebApp(site: string | null, webOrigin: string) {
-  return site !== null && site === webOrigin;
+export function isFromOwnApp(site: string | null, ownSites: readonly string[]) {
+  return site !== null && ownSites.includes(site);
 }
 
 /** Since when an operator has the instance answer no visitor. Null while none has. */

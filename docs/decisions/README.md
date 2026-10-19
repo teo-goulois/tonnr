@@ -72,3 +72,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [066. Photos and videos of a session, kept in a bucket](066-photos-and-videos-of-a-session.md)
 - [067. Reports of the waves at a break, checked to be of there, of now, and of the sea](067-reports-of-the-waves.md)
 - [068. Telling the reports at the breaks an account keeps, and what a report's author reads of it](068-telling-the-reports.md)
+- [069. An app for phones, one client of the API among others](069-an-app-for-phones.md)

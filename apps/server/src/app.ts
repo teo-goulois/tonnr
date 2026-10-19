@@ -6,7 +6,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { analyticsRequest, captureAction, type Analytics } from "@repo/api/analytics";
 import type { Context } from "@repo/api/context";
 import { clientAddressOf } from "@repo/api/address";
-import { adminSitesOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
+import { adminSitesOf, appOriginsOf, isCrossSiteWrite, siteOf } from "@repo/api/cross-site";
 import { createMcp } from "@repo/api/mcp";
 import { appRouter, v1Router } from "@repo/api/routers/index";
 import type { Usage } from "@repo/api/usage";
@@ -17,7 +17,7 @@ import {
   AGENT_SERVER_METADATA,
   agentAccounts,
 } from "@repo/auth/agents";
-import { APP_NAME } from "@repo/config/app";
+import { APP_NAME, APP_SCHEME } from "@repo/config/app";
 import type { Database } from "@repo/db";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { Hono } from "hono";
@@ -26,7 +26,13 @@ import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
 type Services = {
-  env: { BETTER_AUTH_URL: string; CORS_ORIGIN: string; ADMIN_ORIGIN?: string | undefined };
+  env: {
+    BETTER_AUTH_URL: string;
+    CORS_ORIGIN: string;
+    ADMIN_ORIGIN?: string | undefined;
+    // The origins the instance's apps for phones name themselves by. Decision 069.
+    APP_ORIGINS?: string | undefined;
+  };
   db: Database;
   analytics?: Analytics | undefined;
   auth: ReturnType<typeof createAuth>;
@@ -121,9 +127,16 @@ export function createApp({
   if (env.ADMIN_ORIGIN && adminSites.includes(webOrigin)) {
     throw new Error("ADMIN_ORIGIN must not be the web app's address, CORS_ORIGIN");
   }
+  // The origins the instance's apps for phones name themselves by, such as `app.tonnr://`. No
+  // browser sends one: decision 069.
+  const appOrigins = appOriginsOf(env.APP_ORIGINS, APP_SCHEME);
   // The sites whose pages may call with a visitor's session, and write with it: the web app,
-  // the admin app, and the API's own reference.
-  const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites])];
+  // the admin app, the API's own reference, and the apps for phones.
+  const trustedOrigins = [...new Set([webOrigin, apiOrigin, ...adminSites, ...appOrigins])];
+  // Which of the instance's own apps a site is, whose analytics headers are read: the web app,
+  // an app for phones, or none.
+  const ownAppOf = (site: string | null) =>
+    site === webOrigin ? "web" : site !== null && appOrigins.includes(site) ? "app" : null;
 
   // What follows `?` is left out of the log: it holds what a caller searched for. So is what a
   // caller writes where the id of a push device goes, when it is no id: it may be the address
@@ -152,8 +165,14 @@ export function createApp({
   );
 
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
-    const request =
-      c.req.header("origin") === webOrigin ? analyticsRequest(c.req.raw.headers) : undefined;
+    const from = ownAppOf(
+      siteOf({
+        origin: c.req.header("origin") ?? null,
+        appOrigin: c.req.header("expo-origin") ?? null,
+        referer: null,
+      }),
+    );
+    const request = from ? analyticsRequest(c.req.raw.headers, from) : undefined;
     const event = (
       {
         "/api/auth/sign-up/email": "account_created",
@@ -204,8 +223,9 @@ export function createApp({
               "Every call names its caller: an account, by the session cookie it gets when it " +
               "signs in, or a program, by an API key. A key reads the data everyone shares. " +
               "What belongs to an account takes that account's session, and each such route " +
-              "says so. The instance's web app also reads the data everyone shares for a " +
-              "visitor who has no account, while the instance is open to them: " +
+              "says so. The instance's web app, and its app for phones, also read the data " +
+              "everyone shares for a visitor who has no account, while the instance is open to " +
+              "them: " +
               "`GET /visitors` says whether it is.",
           },
           components: {
@@ -246,8 +266,11 @@ export function createApp({
       method: c.req.method,
       origin: c.req.header("origin") ?? null,
       referer: c.req.header("referer") ?? null,
+      appOrigin: c.req.header("expo-origin") ?? null,
       hasCookie: c.req.header("cookie") !== undefined,
     };
+    const site = siteOf(request);
+    const from = ownAppOf(site);
     if (isCrossSiteWrite(request, trustedOrigins)) {
       const message = "A write sent with a cookie must come from a site this API trusts.";
       const refusal = { defined: false, code: "FORBIDDEN", status: 403, message };
@@ -257,11 +280,10 @@ export function createApp({
     const context = {
       db,
       analytics,
-      analyticsRequest:
-        request.origin === webOrigin ? analyticsRequest(c.req.raw.headers) : undefined,
+      analyticsRequest: from ? analyticsRequest(c.req.raw.headers, from) : undefined,
       session: await auth.api.getSession({ headers: c.req.raw.headers }),
       authorization: c.req.header("authorization") ?? null,
-      site: siteOf(request),
+      site,
       adminSites,
       address: clientAddressOf(c.req.raw.headers, connectionAddressOf(c)),
       usage,
@@ -272,7 +294,7 @@ export function createApp({
       privateCatalogue,
       storage,
       reply: {} as Context["reply"],
-      server: { startedAt, webOrigin, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, revision, pushKey },
     };
 
     const answered =
@@ -315,7 +337,7 @@ export function createApp({
       places,
       verification,
       adminSites,
-      server: { startedAt, webOrigin, revision, pushKey },
+      server: { startedAt, webOrigin, appOrigins, revision, pushKey },
     },
     { onError: logFault, accounts: agents },
   );

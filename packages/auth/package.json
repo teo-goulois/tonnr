@@ -12,6 +12,7 @@
   "dependencies": {
     "@better-auth/core": "1.7.7",
     "@better-auth/drizzle-adapter": "1.7.7",
+    "@better-auth/expo": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",
     "@repo/db": "workspace:*",
     "@repo/mail": "workspace:*",

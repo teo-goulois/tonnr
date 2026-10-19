@@ -1,6 +1,6 @@
 # 014. One design for the web app and the mobile app
 
-Status: accepted on 2026-10-08.
+Status: accepted on 2026-10-08. [Decision 069](069-an-app-for-phones.md) amended it on 2026-10-19: the app is built on Expo SDK 58, its tokens are written from the theme by a script, it compiles the web app's messages, and what the system draws, its tabs, menus, widgets and Live Activities, takes the platform's symbols.
 
 ## Context
 

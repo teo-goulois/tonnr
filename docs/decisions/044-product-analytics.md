@@ -1,6 +1,6 @@
 # 044. Product analytics
 
-Status: decided on 2026-10-13, at Téo's request to install PostHog and follow his analytics handbook. The landing page is due to be rebuilt. [Decision 054](054-error-reports.md) amended it on 2026-10-15: the same consent covers error reports, and the API reports its faults. [Decision 055](055-audience-counts.md) amended it the same day: Umami counts the pages read, the landing's too.
+Status: decided on 2026-10-13, at Téo's request to install PostHog and follow his analytics handbook. The landing page is due to be rebuilt. [Decision 054](054-error-reports.md) amended it on 2026-10-15: the same consent covers error reports, and the API reports its faults. [Decision 055](055-audience-counts.md) amended it the same day: Umami counts the pages read, the landing's too. [Decision 069](069-an-app-for-phones.md) amended it on 2026-10-19: an event of the app for phones says `ios` or `android` as its surface, and the version of the binary.
 
 ## Decision
 

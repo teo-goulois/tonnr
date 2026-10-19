@@ -16,15 +16,17 @@ export const visitorsRouter = {
     .route({
       method: "GET",
       path: "/visitors",
-      summary: "Whether the instance answers the visitors of its web app",
+      summary: "Whether the instance answers the visitors of its own apps",
       description:
-        "Takes neither a key nor a session. A visitor is whoever opens the web app without an " +
-        "account: the API answers their requests, which name the web app's site in `Origin`, " +
+        "Takes neither a key nor a session. A visitor is whoever opens the web app, or the " +
+        "instance's app for phones, without an account: the API answers their requests, which " +
+        "name the web app's site in `Origin`, or the app's origin in `expo-origin`, " +
         "with the data everyone shares, until an operator closes the instance to them, or " +
         `demand is strong: once the instance has sent ${STRONG_DEMAND_AT} requests to its ` +
         "forecast provider in a day, UTC's, for the people who look, and until that day " +
         "ends. It then answers them 401, with `visitors: closed` in the error's `data`, and " +
-        "the web app asks for an account. A program calls with a key either way. Decision 039.",
+        "the app asks for an account. A program calls with a key either way. Decisions 039 " +
+        "and 069.",
       tags: ["Instance"],
     })
     .output(z.object({ open: z.boolean() }))
@@ -34,10 +36,10 @@ export const visitorsRouter = {
     .route({
       method: "PUT",
       path: "/visitors",
-      summary: "Close the instance to the visitors of its web app, or open it to them again",
+      summary: "Close the instance to the visitors of its own apps, or open it to them again",
       description:
         `${ADMIN_ONLY} Closed, the instance answers the accounts, the keys and the links of ` +
-        "shared lists as before, and no visitor: the web app asks them for an account. It " +
+        "shared lists as before, and no visitor: the apps ask them for an account. It " +
         "takes effect at the next call of each visitor. Closing an instance that is closed " +
         "changes nothing and records nothing, and so does opening one that is open. An " +
         "instance that an operator opens still answers no visitor while demand is strong: " +

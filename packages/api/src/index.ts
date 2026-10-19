@@ -9,7 +9,7 @@ import { admitKey, type KeyState, readAuthorization } from "./keys";
 import { procedureName } from "./procedures";
 import { admitLink } from "./shares";
 import { outcomeOf } from "./usage";
-import { answersVisitors, isFromWebApp, visitorsClosed } from "./visitors";
+import { answersVisitors, isFromOwnApp, visitorsClosed } from "./visitors";
 
 export const o = os.$context<Context>().$meta<ProcedureMeta>({});
 
@@ -19,7 +19,7 @@ export const publicProcedure = o;
 /**
  * Who a request names, before anything is asked of it: a key the instance knows, an account by
  * its session, the link of a shared list, or no one. A request that names no one and comes from
- * the web app is a visitor's. Of any other, `key` says whether it named a key or a link all the
+ * one of the instance's own apps, the web app or an app for phones, is a visitor's. Of any other, `key` says whether it named a key or a link all the
  * same: such a request is refused, and never passed over to look for a session.
  */
 type Named =
@@ -43,14 +43,13 @@ async function nameOf(context: Context): Promise<Named> {
 
   const userId = context.session?.user.id;
   if (userId) return { via: "session", userId };
-  return isFromWebApp(context.site, context.server.webOrigin)
-    ? { via: "visitor" }
-    : { via: "none", key: false };
+  const ownSites = [context.server.webOrigin, ...(context.server.appOrigins ?? [])];
+  return isFromOwnApp(context.site, ownSites) ? { via: "visitor" } : { via: "none", key: false };
 }
 
 /**
  * Who calls: an account, known by its session, a program, known by its key, whoever was given
- * the link of a shared list, or a visitor of the web app, who has no account.
+ * the link of a shared list, or a visitor of the instance's own apps, who has no account.
  */
 export type Caller =
   | { via: "session"; userId: string }

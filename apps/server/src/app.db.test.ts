@@ -6,7 +6,9 @@ import {
   testVerification,
 } from "@repo/api/testing";
 import { createUsage, type Usage } from "@repo/api/usage";
+import { appOriginsOf } from "@repo/api/cross-site";
 import { createAuth } from "@repo/auth";
+import { APP_SCHEME } from "@repo/config/app";
 import { suspensionHooks } from "@repo/auth/suspension";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { createEmailVerificationToken } from "better-auth/api";
@@ -32,6 +34,8 @@ const API = "http://localhost:3000";
 const APP = "http://localhost:3001";
 const ADMIN = "http://localhost:3002";
 const ELSEWHERE = "https://elsewhere.example";
+// The origin the apps for phones of this repository name themselves by: decision 069.
+const PHONE = `${APP_SCHEME}://`;
 const NOT_CACHED = "private, no-store";
 
 type By = {
@@ -39,6 +43,8 @@ type By = {
   key?: string;
   origin?: string;
   referer?: string;
+  // The origin an app for phones names itself by, in `expo-origin`.
+  app?: string;
   // What the request asks for as a language, in `Accept-Language`.
   language?: string;
   body?: unknown;
@@ -84,7 +90,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
   ) {
     const { db } = database;
     const mail = testVerification(db, { ...mailing, settings });
-    const auth = createAuth(settings, db, [], mail.verification);
+    const auth = createAuth(settings, db, appOriginsOf(undefined, APP_SCHEME), mail.verification);
     const made = createApp({
       env: settings,
       db,
@@ -128,6 +134,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
     if (by.key) headers.set("Authorization", `Bearer ${by.key}`);
     if (by.origin) headers.set("Origin", by.origin);
     if (by.referer) headers.set("Referer", by.referer);
+    if (by.app) headers.set("expo-origin", by.app);
     if (by.language) headers.set("Accept-Language", by.language);
     if (by.body === undefined) return to.request(path, { method, headers });
 
@@ -270,6 +277,12 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["a page the browser will not name", { origin: "null" }],
       ["a sender that names no site", {}],
       ["another site, whatever address it claims", { origin: ELSEWHERE, referer: `${APP}/app` }],
+      ["an app the instance does not know", { app: "other.app://" }],
+      ["a page of another site that claims to be the app", { origin: ELSEWHERE, app: PHONE }],
+      [
+        "a page the browser will not name, that claims to be the app",
+        { origin: "null", app: PHONE },
+      ],
     ])("is refused from %s", async (_, from) => {
       const cookie = await signUp("visitor");
 
@@ -304,11 +317,45 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       ["the admin app", { origin: ADMIN }],
       ["the API's own reference", { origin: API }],
       ["a page of the web app that names itself by its address", { referer: `${APP}/app` }],
+      ["the app for phones, by the origin it names", { app: PHONE }],
     ])("is taken from %s", async (_, from) => {
       const cookie = await signUp("visitor");
 
       expect((await send("POST", "/v1/lists", { cookie, body, ...from })).status).toBe(201);
       expect(await lists()).toHaveLength(1);
+    });
+
+    it("lets the app for phones sign up and in by the origin it names, and no app the instance does not know", async () => {
+      const account = {
+        name: "phone",
+        email: "phone@example.org",
+        password: "made-up-for-these-tests",
+      };
+      const made = await send("POST", "/api/auth/sign-up/email", { app: PHONE, body: account });
+      expect(made.status).toBe(200);
+      const cookie = made.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+      expect((await send("POST", "/v1/lists", { cookie, app: PHONE, body })).status).toBe(201);
+      const again = { email: account.email, password: account.password };
+      expect(
+        (await send("POST", "/api/auth/sign-in/email", { app: PHONE, body: again })).status,
+      ).toBe(200);
+
+      // An app the instance does not know signs up as any program may, with no session to
+      // borrow, and writes nothing with the session it got.
+      const other = { ...account, name: "other", email: "other@example.org" };
+      const theirs = await send("POST", "/api/auth/sign-up/email", {
+        app: "other.app://",
+        body: other,
+      });
+      const theirCookie = theirs.headers
+        .getSetCookie()
+        .map((set) => set.split(";")[0])
+        .join("; ");
+      const write = { cookie: theirCookie, app: "other.app://", body };
+      expect((await send("POST", "/v1/lists", write)).status).toBe(403);
     });
 
     it("does not concern a read, nor a write that carries a key and no cookie", async () => {
@@ -1396,6 +1443,25 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       // Nothing of an account, which a visitor has not.
       expect((await send("GET", "/v1/spots", { origin: APP })).status).toBe(401);
       expect((await send("GET", "/v1/account", { origin: APP })).status).toBe(401);
+    });
+
+    it("reads the same from the app for phones, and from no app the instance does not know", async () => {
+      expect((await send("GET", "/v1/stations", { app: PHONE })).status).toBe(200);
+      const called = await send("POST", "/rpc/v1/stations/list", {
+        app: PHONE,
+        body: { json: {} },
+      });
+      expect(called.status).toBe(200);
+
+      // An app names itself by a scheme of its own: a web address there names no site.
+      for (const app of ["other.app://", "null", `${APP}`]) {
+        expect((await send("GET", "/v1/stations", { app })).status).toBe(401);
+      }
+      // A page of another site that claims to be the app is the other site's.
+      expect((await send("GET", "/v1/stations", { origin: ELSEWHERE, app: PHONE })).status).toBe(
+        401,
+      );
+      expect((await send("GET", "/v1/spots", { app: PHONE })).status).toBe(401);
     });
 
     it("is asked for an account once an operator closes the instance, and told so on both transports", async () => {

@@ -1,6 +1,6 @@
 import { call } from "@orpc/server";
 import { describe, expect, it, vi } from "vitest";
-import { analyticsRequest, captureAction } from "./analytics";
+import { analyticsRequest, appClientOf, captureAction } from "./analytics";
 import type { Context } from "./context";
 import { protectedProcedure } from "./index";
 
@@ -21,6 +21,31 @@ describe("product action analytics", () => {
     expect(analyticsRequest(headers)).toEqual(request);
     headers.set("X-PostHog-Session-Id", "a token or free text");
     expect(analyticsRequest(headers)).toBeUndefined();
+  });
+  it("reads an app for phones only when it says its platform and its build", () => {
+    const headers = new Headers({
+      "X-Analytics-Consent": "granted",
+      "X-PostHog-Distinct-Id": request.distinctId,
+      "X-PostHog-Session-Id": request.sessionId,
+    });
+    expect(analyticsRequest(headers, "app")).toBeUndefined();
+    headers.set("X-App", "ios 1.2.0 34");
+    expect(analyticsRequest(headers, "app")).toEqual({
+      ...request,
+      app: { surface: "ios", version: "1.2.0+34" },
+    });
+    // The web app's requests are the web's, whatever they say: no page may send the header.
+    expect(analyticsRequest(headers, "web")).toEqual(request);
+  });
+  it.each([
+    "ios",
+    "ios 1.2.0",
+    "web 1.2.0 3",
+    "android 1.2 3",
+    "android 1.2.0 3 extra",
+    "ios 1.2.0 x",
+  ])("reads nothing of an app from %j", (header) => {
+    expect(appClientOf(header)).toBeNull();
   });
   it("captures one successful procedure with its authenticated ID, never its input/output", async () => {
     const capture = vi.fn();

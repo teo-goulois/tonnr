@@ -1,4 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
+import { expo } from "@better-auth/expo";
 import { APP_NAME } from "@repo/config/app";
 import type { Database } from "@repo/db";
 import * as schema from "@repo/db/schema/auth";
@@ -22,7 +23,9 @@ export type AuthConfig = GoogleConfig & {
 export function createAuth(
   env: AuthConfig,
   database: Database,
-  desktopOrigins: readonly string[] = [],
+  // The origins the instance's apps for phones name themselves by, as `appOriginsOf` read them.
+  // Decision 069.
+  appOrigins: readonly string[] = [],
   // What sends the mail that checks an address. Without it, or on an instance that sends no
   // mail, no address is checked.
   verification?: Verification,
@@ -38,7 +41,7 @@ export function createAuth(
     trustedOrigins: [
       env.CORS_ORIGIN,
       ...(env.ADMIN_ORIGIN ? [env.ADMIN_ORIGIN] : []),
-      ...desktopOrigins,
+      ...appOrigins,
     ],
     emailAndPassword: {
       enabled: true,
@@ -98,6 +101,9 @@ export function createAuth(
     // it makes of a new account: decision 041.
     hooks: { before: keepsUsername, after: invitations(database) },
     plugins: [
+      // An app for phones keeps its session's cookie itself and names itself in `expo-origin`,
+      // which the library then reads as the request's origin. Decisions 069 and 070.
+      expo(),
       usernames(database),
       signInProviders("google" in socialProviders),
       // What signs an agent in as an account: decision 047.

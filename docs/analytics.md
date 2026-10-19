@@ -8,7 +8,7 @@ Activation: `alert_created`. The onboarding funnel is `account_created` → `spo
 
 ## Events
 
-Every event has `surface=web`, `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release or `local`). Server events also carry `authenticated` and the browser's technical `$session_id`. No event carries inputs or resource IDs.
+Every event has `surface` (`web`, or `ios` and `android` for the app for phones, which says so in `X-App`: decision 069), `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release, the app's version and build such as `1.2.0+34`, or `local`). Server events also carry `authenticated` and the browser's technical `$session_id`. No event carries inputs or resource IDs.
 
 Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone; `$exception`, below. Landing: none in PostHog; Umami counts its pages.
 

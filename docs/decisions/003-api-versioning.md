@@ -1,6 +1,6 @@
 # 003. API versioning
 
-Status: accepted on 2026-10-08. Decision 019 changed who may call: every route asks, and no answer is kept by a shared cache.
+Status: accepted on 2026-10-08. Decision 019 changed who may call: every route asks, and no answer is kept by a shared cache. [Decision 069](069-an-app-for-phones.md) amended it on 2026-10-19: `v1` is released at the first build of the app for phones given to testers outside, and only grows from then on.
 
 ## Context
 

@@ -485,6 +485,14 @@ Anyone opens your web app without an account and reads the map: the buoys, the b
 - It takes effect at once, with no restart. What you set stays across restarts and updates, and holds whatever the day's count says: an instance you closed stays closed past midnight.
 - Update the API before the web app: a web app of this version in front of an older API shows its visitors a map that loads nothing.
 
+## The apps for phones
+
+The apps of `apps/native` call the API as the web app does, and name themselves by an origin of their own in `expo-origin`, such as `app.tonnr://`, which no browser sends. A request that names it is trusted as the web app's is: a write with its session's cookie, a visitor without an account, and its analytics headers. Decision 069 gives the rules.
+
+- `APP_ORIGINS`, in the API's environment, lists those origins, separated by commas. Leave it empty for the one of the apps this repository builds, `app.tonnr://`.
+- The apps in the stores call Téo's instance alone. To have an app for yours, build `apps/native` with identifiers of your own, and name its origin in `APP_ORIGINS`.
+- A program can name that origin too, and then reads what a visitor reads, as it can with `Origin`: use a key for a program of yours.
+
 ## Signing in with Google
 
 Email and password work on every instance. Google sign-in is optional: set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together in the API's environment (`apps/server/.env` from a clone or with Docker Compose). Leave both empty to keep email alone. The web app learns whether Google is enabled from the API; no web build variable is needed. Decision 046 gives the account rules.

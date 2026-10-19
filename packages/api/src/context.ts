@@ -57,9 +57,12 @@ export type Context = {
   // know: a program that runs from its sources. `pushKey` is the public key of the pair the
   // instance sends push with, which a browser subscribes with: an instance without one sends
   // no push. Decision 031.
+  // `appOrigins` are the origins the instance's apps for phones name themselves by, which make
+  // a request of theirs one of the instance's own, as the web app's: decision 069.
   server: {
     startedAt: Date;
     webOrigin: string;
+    appOrigins?: readonly string[];
     revision?: string | null;
     pushKey?: string | undefined;
   };

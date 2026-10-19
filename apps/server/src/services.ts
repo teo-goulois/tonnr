@@ -1,3 +1,4 @@
+import { appOriginsOf } from "@repo/api/cross-site";
 import { createForecasts } from "@repo/api/forecasts";
 import { createIdeas } from "@repo/api/ideas";
 import { createPlaces } from "@repo/api/places";
@@ -5,6 +6,7 @@ import { createPrivateCatalogue } from "@repo/api/private-catalogue";
 import { createUsage } from "@repo/api/usage";
 import { createAuth } from "@repo/auth";
 import { createVerification } from "@repo/auth/verification";
+import { APP_SCHEME } from "@repo/config/app";
 import { createDb } from "@repo/db";
 import { createMailer } from "@repo/mail";
 import { createStorage } from "@repo/media/storage";
@@ -17,7 +19,9 @@ export const db = createDb(ENV);
 const mailer = createMailer(ENV);
 export const verification = createVerification(ENV, db, mailer, ENV.EMAIL_DAILY_LIMIT);
 export const ideas = createIdeas(db, mailer, ENV.EMAIL_DAILY_LIMIT);
-export const auth = createAuth(ENV, db, [], verification);
+// The origins the apps for phones name themselves by: decision 069.
+export const appOrigins = appOriginsOf(ENV.APP_ORIGINS, APP_SCHEME);
+export const auth = createAuth(ENV, db, appOrigins, verification);
 // Counts the calls in memory and writes them every thirty seconds.
 export const usage = createUsage(db);
 // Keeps the forecasts in the database, and counts what it asks of their provider.

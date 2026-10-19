@@ -65,10 +65,11 @@ export function createAnalytics(env: Settings, revision: string | null) {
       const distinctId = account ?? request.distinctId;
       // An anonymous browser must give a device UUID, not another account's opaque ID.
       if (!account && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(distinctId)) return;
+      // An app for phones says its platform and its build; the web app is the API's revision.
       const properties: Record<string, unknown> = {
-        surface: "web",
+        surface: request.app?.surface ?? "web",
         environment: env.POSTHOG_ENVIRONMENT,
-        app_version: revision ?? "local",
+        app_version: request.app?.version ?? revision ?? "local",
         $session_id: request.sessionId,
         $geoip_disable: true,
         $ip: null,

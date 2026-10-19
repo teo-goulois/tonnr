@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isCrossSiteWrite } from "./cross-site";
+import { appOriginsOf, isCrossSiteWrite, siteOf } from "./cross-site";
 import { newKey, readAuthorization } from "./keys";
 
 describe("readAuthorization", () => {
@@ -114,5 +114,58 @@ describe("isCrossSiteWrite", () => {
   it("lets a request without a cookie through, which has no session to borrow", () => {
     expect(isCrossSiteWrite({ ...write, hasCookie: false }, trusted)).toBe(false);
     expect(isCrossSiteWrite({ ...write, hasCookie: false, origin: null }, trusted)).toBe(false);
+  });
+});
+
+describe("an app for phones", () => {
+  const trusted = ["https://app.example.org", "app.example://"];
+  const write = { method: "POST", origin: null, referer: null, hasCookie: true };
+
+  it("is known by the origin it names in expo-origin, which a browser cannot send bare", () => {
+    expect(siteOf({ ...write, appOrigin: "app.example://" })).toBe("app.example://");
+    expect(isCrossSiteWrite({ ...write, appOrigin: "app.example://" }, trusted)).toBe(false);
+    expect(isCrossSiteWrite({ ...write, appOrigin: "other.example://" }, trusted)).toBe(true);
+  });
+
+  it("is believed less than Origin, which a browser always writes", () => {
+    const fromPage = { ...write, origin: "https://elsewhere.example", appOrigin: "app.example://" };
+
+    expect(siteOf(fromPage)).toBe("https://elsewhere.example");
+    expect(isCrossSiteWrite(fromPage, trusted)).toBe(true);
+  });
+
+  it("names no site when it gives a web address, which is a site's and no app's", () => {
+    expect(siteOf({ ...write, appOrigin: "https://app.example.org" })).toBeNull();
+    expect(siteOf({ ...write, appOrigin: "null" })).toBeNull();
+  });
+
+  it("is read before the page's address", () => {
+    const both = { ...write, appOrigin: "app.example://", referer: "https://elsewhere.example/" };
+
+    expect(siteOf(both)).toBe("app.example://");
+  });
+
+  it("names itself as the instance lists it, or as the apps of this repository do", () => {
+    expect(appOriginsOf(undefined, "app.tonnr")).toEqual(["app.tonnr://"]);
+    expect(appOriginsOf(" app.one:// , app.two://,app.one://", "app.tonnr")).toEqual([
+      "app.one://",
+      "app.two://",
+    ]);
+    expect(appOriginsOf("", "app.tonnr")).toEqual([]);
+  });
+
+  it.each([
+    "null",
+    "null://",
+    "https://app.example.org",
+    "http://",
+    "https://",
+    "app.example",
+    "app.example://path",
+    "App.Example://",
+    "javascript://",
+    "file://",
+  ])("refuses %j as an app's origin, so that no page is trusted for one", (origin) => {
+    expect(() => appOriginsOf(origin, "app.tonnr")).toThrow();
   });
 });
