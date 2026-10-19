@@ -19,21 +19,21 @@
               {
                 "group": [
                   "@repo/api",
-                  "@repo/api/*",
+                  "@repo/api/**",
                   "@repo/db",
-                  "@repo/db/*",
+                  "@repo/db/**",
                   "@repo/auth",
-                  "@repo/auth/*",
+                  "@repo/auth/**",
                   "@repo/media",
-                  "@repo/media/*",
+                  "@repo/media/**",
                   "@repo/push",
-                  "@repo/push/*",
+                  "@repo/push/**",
                   "@repo/mail",
-                  "@repo/mail/*",
+                  "@repo/mail/**",
                   "@repo/upstream",
-                  "@repo/upstream/*",
+                  "@repo/upstream/**",
                   "@repo/infra",
-                  "@repo/infra/*"
+                  "@repo/infra/**"
                 ],
                 "allowTypeImports": true,
                 "message": "The app imports the server's packages as types only: what runs there needs Node and the database (decision 069)."
