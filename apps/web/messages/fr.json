@@ -1864,5 +1864,6 @@
   "report_told": "{count} surfeurs prévenus",
   "report_stats_private": "toi seul le vois",
   "privacy_reports_told": "Quand un report est affiché sur un spot, les comptes qui ont ce spot dans une liste en sont prévenus, dans l’appli et par notification. Ce qu’on t’a signalé est gardé 30 jours. Quand tu vois un report, ou que tu ouvres une de ses photos, son compteur augmente de un : son auteur lit ce chiffre, qui ne nomme personne. Ton navigateur garde une semaine les reports qu’il a comptés, pour que chacun ne compte qu’une fois.",
-  "privacy_keep_notices": "Ce qu’on t’a signalé des reports de tes spots : 30 jours."
+  "privacy_keep_notices": "Ce qu’on t’a signalé des reports de tes spots : 30 jours.",
+  "alerts_more_notices": "Reports plus anciens"
 }

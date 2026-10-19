@@ -1864,5 +1864,6 @@
   "report_told": "{count} surfers notified",
   "report_stats_private": "only you see this",
   "privacy_reports_told": "When a report is shown at a spot, the accounts that keep that spot in a list are told of it, in the app and by push. What you were told is kept 30 days. When you see a report, or open one of its photos, its count goes up by one: its author reads the count, which names nobody. Your browser keeps for a week which reports it counted, so that each counts once.",
-  "privacy_keep_notices": "What you were told of the reports at your spots: 30 days."
+  "privacy_keep_notices": "What you were told of the reports at your spots: 30 days.",
+  "alerts_more_notices": "Older reports"
 }

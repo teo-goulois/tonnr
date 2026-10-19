@@ -73,6 +73,11 @@ export function BreakPanel({
     asked.current = alertAsked;
     setKept("alert");
   }, [alertAsked]);
+  // The address that asks for the reports, as a notice of them opens it, wins over the tab the
+  // panel kept to itself: decision 068.
+  useEffect(() => {
+    if (reportsAsked) setKept(null);
+  }, [reportsAsked]);
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 

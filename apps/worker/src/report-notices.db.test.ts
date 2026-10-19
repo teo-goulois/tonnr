@@ -18,7 +18,13 @@ import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PushOut } from "./deliveries";
-import { ACCOUNT_DAILY_REPORT_PUSHES, isWorthTelling, runReportNotices } from "./report-notices";
+import {
+  ACCOUNT_DAILY_REPORT_PUSHES,
+  handNoticePush,
+  isWorthTelling,
+  runReportNotices,
+  takeNoticePush,
+} from "./report-notices";
 
 const HOUR = 60 * 60 * 1000;
 // Ten in the morning in Biarritz, out of the default quiet hours.
@@ -282,6 +288,84 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
     vi.setSystemTime(new Date("2026-10-18T05:00:00Z"));
     expect(await run()).toMatchObject({ sent: 0, expired: 1 });
     expect(service.sent()).toHaveLength(0);
+  });
+
+  it("gives a push up when the newer report that kept it worth sending was hidden", async () => {
+    vi.setSystemTime(new Date("2026-10-18T01:00:00Z"));
+    await database.db.insert(alertSettings).values({ userId: "keeper", zone: "Europe/Paris" });
+    await device("keeper");
+    await shown("night");
+    await run();
+    vi.setSystemTime(new Date("2026-10-18T04:00:00Z"));
+    await shown("dawn");
+    await run();
+    await database.db.update(surfReport).set({ state: "hidden" }).where(eq(surfReport.id, "dawn"));
+    // At the end of the quiet hours, the report still shown is four hours old.
+    vi.setSystemTime(new Date("2026-10-18T05:00:00Z"));
+    expect(await run()).toMatchObject({ sent: 0, expired: 1 });
+    expect(service.sent()).toHaveLength(0);
+  });
+
+  it("writes a push anew when a report joined it between its two steps, and counts it once", async () => {
+    await device("keeper");
+    await database.db.insert(alertSettings).values({
+      userId: "keeper",
+      quietFrom: 0,
+      quietTo: 23 * 60 + 59,
+    });
+    await shown("first");
+    await run();
+    await database.db
+      .update(alertSettings)
+      .set({ quietFrom: null, quietTo: null })
+      .where(eq(alertSettings.userId, "keeper"));
+    const [notice] = (await notices()).filter((one) => one.userId === "keeper");
+    const taken = await takeNoticePush(database.db, out, notice!.id);
+    if (typeof taken === "string") throw new Error(`taken: ${taken}`);
+    await shown("second");
+    await database.db
+      .insert(reportNoticeReport)
+      .values({ noticeId: notice!.id, reportId: "second" });
+    expect(await handNoticePush(database.db, out, storage, notice!.id, taken)).toBe("skipped");
+    expect(service.sent()).toHaveLength(0);
+    expect(await run()).toMatchObject({ sent: 1 });
+    expect(service.sent()[0]?.push.title).toBe("2 reports at La Point");
+    const counted = await database.db.select().from(providerCalls);
+    expect(counted.map((one) => [one.provider, one.calls])).toEqual([["report-push:keeper", 1]]);
+  });
+
+  it("writes a push anew when its break was merged into another between its two steps", async () => {
+    await device("keeper");
+    await shown("first");
+    await database.db.insert(alertSettings).values({
+      userId: "keeper",
+      quietFrom: 0,
+      quietTo: 23 * 60 + 59,
+    });
+    await run();
+    await database.db
+      .update(alertSettings)
+      .set({ quietFrom: null, quietTo: null })
+      .where(eq(alertSettings.userId, "keeper"));
+    const [notice] = (await notices()).filter((one) => one.userId === "keeper");
+    const taken = await takeNoticePush(database.db, out, notice!.id);
+    if (typeof taken === "string") throw new Error(`taken: ${taken}`);
+    // What a merge does: the notice and its reports name the break that stays.
+    await database.db
+      .update(reportNotice)
+      .set({ breakId: "other" })
+      .where(eq(reportNotice.breakId, "point"));
+    await database.db
+      .update(surfReport)
+      .set({ breakId: "other" })
+      .where(eq(surfReport.breakId, "point"));
+    await database.db.insert(stationListBreak).values({ listId: "favorites", breakId: "other" });
+    expect(await handNoticePush(database.db, out, storage, notice!.id, taken)).toBe("skipped");
+    expect(await run()).toMatchObject({ sent: 1 });
+    expect(service.sent()[0]?.push).toMatchObject({
+      title: "New report at Other",
+      tag: "report-other",
+    });
   });
 
   it("does not push a report that was hidden or deleted meanwhile", async () => {

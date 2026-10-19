@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQueries,
   useQuery,
@@ -349,19 +350,28 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       meta: { quiet: true },
     }),
   );
+  // What the alerts told and the notices of reports are the account's own: each is kept under
+  // the account it was asked for, so that a tab whose session became another account's, in
+  // another tab, never shows the first one's.
+  const accountId = session.data?.user.id;
   const notifications = useQuery(
     orpc.v1.notifications.list.queryOptions({
       input: { limit: 50 },
+      queryKey: [...orpc.v1.notifications.list.queryKey({ input: { limit: 50 } }), accountId],
       enabled: signedIn && panel === "alerts",
       select: (answer) => answer.notifications,
       meta: { quiet: true },
     }),
   );
-  const notices = useQuery(
-    orpc.v1.reportNotices.list.queryOptions({
-      input: { limit: 50 },
+  // The notices of reports, a page at a time: decision 068.
+  const notices = useInfiniteQuery(
+    orpc.v1.reportNotices.list.infiniteOptions({
+      input: (cursor: { at: Date; id: string } | undefined) =>
+        cursor ? { limit: 30, before: cursor.at, beforeId: cursor.id } : { limit: 30 },
+      initialPageParam: undefined as { at: Date; id: string } | undefined,
+      getNextPageParam: (page) => page.next ?? undefined,
+      queryKey: [...orpc.v1.reportNotices.list.key(), "feed", accountId],
       enabled: signedIn && panel === "alerts",
-      select: (answer) => answer.notices,
       meta: { quiet: true },
     }),
   );
@@ -370,17 +380,6 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.reportNotices.key() }),
     }),
   );
-  // A notice opened from its push names itself in the address: it is read once the break's
-  // reports are in view, by the account it was for, and leaves the address. Another account's,
-  // or one that is gone, is left as it is, without a word.
-  const openedNotice = search.notice;
-  const readOpened = useRef(readNotice.mutate);
-  readOpened.current = readNotice.mutate;
-  useEffect(() => {
-    if (!openedNotice || session.isPending) return;
-    if (signedIn) readOpened.current({ id: openedNotice });
-    void navigate({ search: (previous) => ({ ...previous, notice: undefined }), replace: true });
-  }, [openedNotice, signedIn, session.isPending, navigate]);
 
   // How to be told of the alerts is a part of the account's panel.
   const isSettingAlerts = panel === "account" && search.settings === "alerts";
@@ -553,6 +552,21 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       meta: { quiet: true },
     }),
   );
+  // A notice opened from its push names itself in the address: it is read once its break is
+  // shown, on its reports, by the account it was for, and then leaves the address. It waits
+  // there for an account that is not signed in yet. Another account's, or one that is gone, is
+  // left as it is, without a word. Decision 068.
+  const openedNotice = search.notice;
+  const readOpened = useRef(readNotice.mutate);
+  readOpened.current = readNotice.mutate;
+  const isBreakShown = found.isSuccess;
+  const isBreakGone = found.isError || selectedBreakId === undefined;
+  useEffect(() => {
+    if (!openedNotice || session.isPending || !signedIn) return;
+    if (!isBreakShown && !isBreakGone) return;
+    if (isBreakShown) readOpened.current({ id: openedNotice });
+    void navigate({ search: (previous) => ({ ...previous, notice: undefined }), replace: true });
+  }, [openedNotice, signedIn, session.isPending, isBreakShown, isBreakGone, navigate]);
   // How big the break's waves run against the forecast, from the sessions surfed there: one
   // figure and a count, which its panel says under the tiles. Decision 062.
   const sizeFactor = useQuery(
@@ -1478,9 +1492,15 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
       }
       onDeleteList={(list) => deleteList.mutate({ id: list.id })}
       onReadNotification={(notification) => markRead.mutate({ id: notification.id })}
-      notices={loadable(notices)}
+      notices={loadable({
+        ...notices,
+        data: notices.data?.pages.flatMap((page) => page.notices),
+      })}
+      onMoreNotices={notices.hasNextPage ? () => void notices.fetchNextPage() : undefined}
+      isLoadingMoreNotices={notices.isFetchingNextPage}
       onOpenNotice={(notice) => {
-        if (notice.readAt === null) readNotice.mutate({ id: notice.id });
+        // Read whatever the list shows of it: a report may have joined it since it loaded.
+        readNotice.mutate({ id: notice.id });
         void navigate({ search: { ...mode, break: notice.breakId, tab: "reports" } });
       }}
     />

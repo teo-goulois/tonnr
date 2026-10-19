@@ -271,6 +271,9 @@ type ViewerProps = {
   // alerts told, and what opens one: decision 068.
   notices: Loadable<ReportNotice[]>;
   onOpenNotice: (notice: ReportNotice) => void;
+  // The older notices, when there are more to load.
+  onMoreNotices: (() => void) | undefined;
+  isLoadingMoreNotices: boolean;
   // The alerts of the account, its settings, and what the screens do with them.
   alerting: Alerting;
   // What the guide of a break does for its reader: decision 041.
@@ -541,6 +544,8 @@ export function Viewer({
   notifications,
   notices,
   onOpenNotice,
+  onMoreNotices,
+  isLoadingMoreNotices,
   alerting,
   guiding,
   guideAsked,
@@ -1968,6 +1973,8 @@ export function Viewer({
           notifications={notifications}
           notices={notices}
           onOpenNotice={onOpenNotice}
+          onMoreNotices={onMoreNotices}
+          isLoadingMoreNotices={isLoadingMoreNotices}
           alerts={alerting.alerts}
           {...accountPrompt}
           onRead={onReadNotification}

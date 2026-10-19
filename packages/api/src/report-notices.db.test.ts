@@ -225,6 +225,25 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
       expect(now?.latest?.thumb).toContain("m/second/0/thumb.webp");
     });
 
+    it("pages the notices, and counts the unread ones of every page", async () => {
+      await shown("first");
+      for (const [index, id] of ["a", "b", "c"].entries()) {
+        vi.setSystemTime(new Date(AT.getTime() + index * 60_000));
+        await notice(id, "ben", ["first"]);
+      }
+      const first = await call(v1Router.reportNotices.list, { limit: 2 }, by("ben"));
+      expect(first.notices.map((one) => one.id)).toEqual(["c", "b"]);
+      expect(first.unread).toBe(3);
+      expect(first.next).toEqual({ at: new Date(AT.getTime() + 60_000), id: "b" });
+      const second = await call(
+        v1Router.reportNotices.list,
+        { limit: 2, before: first.next!.at, beforeId: first.next!.id },
+        by("ben"),
+      );
+      expect(second.notices.map((one) => one.id)).toEqual(["a"]);
+      expect(second.next).toBeNull();
+    });
+
     it("marks a notice read, its own account's alone", async () => {
       await shown("first");
       await notice("now", "ben", ["first"]);
@@ -239,6 +258,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports and their counts", (
       expect(await call(v1Router.reportNotices.list, { unreadOnly: true }, by("ben"))).toEqual({
         notices: [],
         unread: 0,
+        next: null,
       });
     });
   });

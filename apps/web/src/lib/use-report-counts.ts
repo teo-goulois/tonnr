@@ -34,9 +34,10 @@ export function useCountWhenSeen<Element extends HTMLElement>(id: string | null)
     const element = ref.current;
     if (!id || !element || typeof IntersectionObserver === "undefined") return;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Half of it in view, without a pause, for a second: a sliver of it is not seen.
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) {
+        if (entry?.isIntersecting && entry.intersectionRatio >= 0.5) {
           timer ??= setTimeout(() => {
             reportCounter()?.seen(id);
             observer.disconnect();
@@ -46,7 +47,7 @@ export function useCountWhenSeen<Element extends HTMLElement>(id: string | null)
           timer = undefined;
         }
       },
-      { threshold: 0.5 },
+      { threshold: [0, 0.5] },
     );
     observer.observe(element);
     return () => {

@@ -4,7 +4,7 @@ import { media } from "@repo/db/schema/media";
 import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { SURF_SIZES } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -50,17 +50,29 @@ export const reportNoticesRouter = {
       summary: "What the caller was told of the reports at the breaks it keeps, newest first",
       description:
         "A notice is a break and the reports shown there in three hours, which the caller was " +
-        "told of as it keeps the break in a list or as the break of one of its spots. `unread` " +
-        "counts those not read, whatever `limit` says. Reading here marks nothing as read.",
+        "told of as it keeps the break in a list or as the break of one of its spots, the one " +
+        "a report joined last first. `unread` counts those not read, on every page. A page " +
+        "that has more after it says where the next begins in `next`, which `before` and " +
+        "`beforeId` take. Reading here marks nothing as read.",
       tags: ["Notifications"],
     })
     .input(
       z.object({
         unreadOnly: z.union([z.boolean(), z.stringbool()]).default(false),
         limit: z.coerce.number().int().min(1).max(200).default(50),
+        // When the last notice of the page before was joined, and its id: notices joined at the
+        // same moment are told apart by their ids.
+        before: z.coerce.date().optional(),
+        beforeId: z.string().max(64).optional(),
       }),
     )
-    .output(z.object({ notices: z.array(noticeSchema), unread: z.number().int() }))
+    .output(
+      z.object({
+        notices: z.array(noticeSchema),
+        unread: z.number().int(),
+        next: z.object({ at: z.date(), id: z.string() }).nullable(),
+      }),
+    )
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
       const now = Date.now();
@@ -73,16 +85,30 @@ export const reportNoticesRouter = {
             and(
               eq(reportNotice.userId, userId),
               input.unreadOnly ? isNull(reportNotice.readAt) : undefined,
+              input.before
+                ? or(
+                    lt(reportNotice.updatedAt, input.before),
+                    input.beforeId
+                      ? and(
+                          eq(reportNotice.updatedAt, input.before),
+                          lt(reportNotice.id, input.beforeId),
+                        )
+                      : undefined,
+                  )
+                : undefined,
             ),
           )
           .orderBy(desc(reportNotice.updatedAt), desc(reportNotice.id))
-          .limit(input.limit),
+          .limit(input.limit + 1),
         context.db
           .select({ total: count() })
           .from(reportNotice)
           .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt))),
       ]);
-      const ids = rows.map((row) => row.notice.id);
+      const more = rows.length > input.limit;
+      const page = rows.slice(0, input.limit);
+      const last = page.at(-1)?.notice;
+      const ids = page.map((row) => row.notice.id);
       const told =
         ids.length === 0
           ? []
@@ -139,7 +165,8 @@ export const reportNoticesRouter = {
 
       return {
         unread: unread?.total ?? 0,
-        notices: rows.map(({ notice, breakName }) => {
+        next: more && last ? { at: last.updatedAt, id: last.id } : null,
+        notices: page.map(({ notice, breakName }) => {
           const mine = told.filter((one) => one.noticeId === notice.id);
           const shown = mine.filter(isShown).length;
           const newest = latestOf.get(notice.id);

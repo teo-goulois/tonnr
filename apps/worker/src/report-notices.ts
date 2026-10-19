@@ -50,10 +50,10 @@ import { StoreError } from "./store";
 // the other; then the report. It holds no account: it writes rows that name accounts, which a
 // flag, a suspension or a deletion does not wait for.
 //
-// A push leaves in two steps, as an alert's does (decision 031). The first decides what it says,
-// counts it against the account's day, and writes that it is leaving. The second holds the
-// account, its settings, the notice, the reports it speaks of and the account's browsers, in
-// that order, which is the API's, reads again what may stop it, and hands it over: a flag, an
+// A push leaves in two steps, as an alert's does (decision 031). The first decides what it says
+// and writes that it is leaving. The second holds the account, its settings, the notice, the
+// reports it speaks of and the account's browsers, in that order, which is the API's, reads
+// again what may stop it, counts it against the account's day, and hands it over: a flag, an
 // operator's decision or a deletion of one of those reports waits for it, and none leaves once
 // they are answered. A worker that stops between the two leaves it leaving, which is taken as
 // told ten minutes later: a push is sent once at most.
@@ -289,11 +289,21 @@ type Taken = {
   userId: string;
   // What the push says but its picture, which is signed as it is handed over.
   content: Omit<ReportPushContent, "image">;
-  // The reports it was written from: another set when it is handed over, and it is written anew.
+  // The break and the reports it was written from: another break, as a merge makes, or another
+  // set of reports when it is handed over, and it is written anew.
   stamp: string;
-  newestId: string;
-  keepUntil: Date;
 };
+
+/** What a push is written from: its break and the reports still shown there, newest first. */
+const stampOf = (breakId: string, shown: readonly { id: string }[]) =>
+  [breakId, ...shown.map((one) => one.id)].join(",");
+
+/**
+ * Until when a push is worth keeping: three hours after the newest report it tells that is still
+ * shown, whatever the reports that joined it and went since gave it before.
+ */
+const worthUntil = (newest: { createdAt: Date }) =>
+  new Date(newest.createdAt.getTime() + NOTICE_WORTH_MS);
 
 /**
  * Holds what a push depends on, in the order the API takes it: the account, so that a
@@ -347,6 +357,7 @@ async function shownOf(tx: Transaction, noticeId: string, now: Date, lock = fals
       userId: surfReport.userId,
       waveSize: surfReport.waveSize,
       note: surfReport.note,
+      createdAt: surfReport.createdAt,
     })
     .from(reportNoticeReport)
     .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
@@ -378,8 +389,8 @@ async function imageOf(tx: Transaction, storage: Storage | null, reportId: strin
 }
 
 /**
- * The first step: decides what the push of a notice says, counts it, and writes that it is
- * leaving. One that cannot leave is settled, or put off to the end of the quiet hours.
+ * The first step: decides what the push of a notice says, and writes that it is leaving. One
+ * that cannot leave is settled, or put off to the end of the quiet hours.
  */
 async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken | Outcome> {
   return db.transaction(async (tx) => {
@@ -393,7 +404,6 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
       return state;
     };
     if (isStopped(held, now)) return settle("expired");
-    if (!notice.expiresAt || notice.expiresAt.getTime() <= now.getTime()) return settle("expired");
     // The quiet hours as they are now: it waits for their end, and is read again then.
     const leaves = leavesAt(now, quietHoursOf(settings));
     if (leaves.getTime() > now.getTime()) {
@@ -403,7 +413,7 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
     // Written from the reports still shown, to an account that still keeps the break.
     const shown = await shownOf(tx, noticeId, now);
     const [newest] = shown;
-    if (!newest) return settle("expired");
+    if (!newest || worthUntil(newest).getTime() <= now.getTime()) return settle("expired");
     const keeps = await keepersOf(
       tx,
       { breakId: notice.breakId, userId: newest.userId },
@@ -411,17 +421,6 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
       notice.userId,
     );
     if (keeps.length === 0) return settle("expired");
-
-    // Counted as it is written to be leaving, which is when it is held back when the day is full.
-    const full = await countCalls(tx, [
-      {
-        provider: `${REPORT_PUSH_PROVIDER}:${notice.userId}`,
-        bucket: "day",
-        span: "day",
-        limit: ACCOUNT_DAILY_REPORT_PUSHES,
-      },
-    ]);
-    if (full) return settle("held");
 
     const [[place], [author]] = await Promise.all([
       tx.select({ name: surfBreak.name }).from(surfBreak).where(eq(surfBreak.id, notice.breakId)),
@@ -442,9 +441,7 @@ async function take(db: Database, out: PushOut, noticeId: string): Promise<Taken
         note: newest.note,
         page: `${out.webOrigin}${localePrefix(locale)}`,
       },
-      stamp: shown.map((one) => one.id).join(","),
-      newestId: newest.id,
-      keepUntil: notice.expiresAt,
+      stamp: stampOf(notice.breakId, shown),
     };
   });
 }
@@ -475,7 +472,7 @@ async function hand(
       .orderBy(asc(pushSubscription.id))
       .for("update");
     const sending = and(eq(reportNotice.id, noticeId), eq(reportNotice.pushState, "sending"));
-    const settle = async (state: Exclude<Outcome, "skipped" | "held">) => {
+    const settle = async (state: Exclude<Outcome, "skipped">) => {
       await tx.update(reportNotice).set({ pushState: state, settledAt: now }).where(sending);
       return state;
     };
@@ -489,6 +486,8 @@ async function hand(
     };
     const [newest] = shown;
     if (isStopped(held, now) || devices.length === 0 || !newest) return settle("expired");
+    const keepUntil = worthUntil(newest);
+    if (keepUntil.getTime() <= now.getTime()) return settle("expired");
     const keeps = await keepersOf(
       tx,
       { breakId: held.notice.breakId, userId: newest.userId },
@@ -498,17 +497,29 @@ async function hand(
     if (keeps.length === 0) return settle("expired");
     // A report that went or came meanwhile, or a hold that came too late to last as long as a
     // push may take: it is written anew.
-    const stamp = shown.map((one) => one.id).join(",");
+    const stamp = stampOf(held.notice.breakId, shown);
     if (stamp !== taken.stamp || Date.now() - began > HAND_WITHIN_MS) return putBack();
     // The quiet hours may have begun since it was written: it waits for their end.
     const leaves = leavesAt(now, quietHoursOf(held.settings));
     if (leaves.getTime() > now.getTime()) return putBack(leaves);
 
+    // Counted as it is handed over, once nothing else stops it, and kept with it: a push written
+    // anew is not counted twice, and one past the day's count is held, for good.
+    const full = await countCalls(tx, [
+      {
+        provider: `${REPORT_PUSH_PROVIDER}:${taken.userId}`,
+        bucket: "day",
+        span: "day",
+        limit: ACCOUNT_DAILY_REPORT_PUSHES,
+      },
+    ]);
+    if (full) return settle("held");
+
     const push = reportPush({
       ...taken.content,
-      image: await imageOf(tx, storage, taken.newestId, taken.keepUntil),
+      image: await imageOf(tx, storage, newest.id, keepUntil),
     });
-    const keepSeconds = Math.max(60, (taken.keepUntil.getTime() - now.getTime()) / 1000);
+    const keepSeconds = Math.max(60, (keepUntil.getTime() - now.getTime()) / 1000);
     // To every browser at once: all of them have answered before anything else happens.
     const settled = await Promise.allSettled(
       devices.map((device) => out.pusher.send(device, push, keepSeconds)),
@@ -535,6 +546,10 @@ async function hand(
     return settle("failed");
   });
 }
+
+/** The two steps of a push, for a test that changes something between them. */
+export const takeNoticePush = take;
+export const handNoticePush = hand;
 
 /** Sends one push that is due, or settles it, and says what became of it. */
 async function sendOne(db: Database, out: PushOut, storage: Storage | null, noticeId: string) {

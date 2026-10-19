@@ -1,4 +1,5 @@
 import { momentOf } from "@repo/conditions/alerts/clock";
+import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@repo/ui/components/ui/tabs";
 import {
@@ -96,6 +97,9 @@ type AlertsPanelProps = {
   // break, on its reports. Decision 068.
   notices: Loadable<ReportNotice[]>;
   onOpenNotice: (notice: ReportNotice) => void;
+  // The older notices, when there are more to load.
+  onMoreNotices?: (() => void) | undefined;
+  isLoadingMoreNotices?: boolean;
   alerts: Loadable<Alert[]>;
   onSignIn: () => void;
   onCreateAccount: () => void;
@@ -224,7 +228,18 @@ function News({
   notices,
   onRead,
   onOpenNotice,
-}: Pick<AlertsPanelProps, "now" | "notifications" | "notices" | "onRead" | "onOpenNotice">) {
+  onMoreNotices,
+  isLoadingMoreNotices = false,
+}: Pick<
+  AlertsPanelProps,
+  | "now"
+  | "notifications"
+  | "notices"
+  | "onRead"
+  | "onOpenNotice"
+  | "onMoreNotices"
+  | "isLoadingMoreNotices"
+>) {
   // A buoy's height and its distance are written in the reader's units.
   useUnits();
   if (notifications.isPending || notices.isPending) {
@@ -252,97 +267,111 @@ function News({
   }
 
   return (
-    <ul className="-mx-xs grid gap-xxs">
-      {told.map((one) => {
-        if ("notice" in one) {
-          return (
-            <NoticeRow key={one.notice.id} notice={one.notice} now={now} onOpen={onOpenNotice} />
-          );
-        }
-        const { notification } = one;
-        const { moment, payload } = notification;
-        const { label, icon: MomentIcon, quiet } = MOMENTS[moment];
-        const unread = notification.readAt === null;
+    <div className="grid gap-s">
+      <ul className="-mx-xs grid gap-xxs">
+        {told.map((one) => {
+          if ("notice" in one) {
+            return (
+              <NoticeRow key={one.notice.id} notice={one.notice} now={now} onOpen={onOpenNotice} />
+            );
+          }
+          const { notification } = one;
+          const { moment, payload } = notification;
+          const { label, icon: MomentIcon, quiet } = MOMENTS[moment];
+          const unread = notification.readAt === null;
 
-        return (
-          <li key={notification.id}>
-            <button
-              type="button"
-              // Reading an alert is the only thing to do with it, and only once.
-              disabled={!unread}
-              className={cn(
-                rowLayout,
-                "focus-ring text-left outline-none",
-                unread && "cursor-pointer hover:bg-neutral-3-transparent",
-              )}
-              onClick={() => onRead(notification)}
-            >
-              <MomentIcon
-                aria-hidden
-                className={cn("mt-0.5 size-4.5 shrink-0", quiet && "text-neutral-7")}
-              />
-              <span className="grid min-w-0 flex-1 gap-xxs">
-                <span className={cn("truncate", unread && "font-medium")}>
-                  {payload.alertName ??
-                    // The evening before lists a day, for every alert: it is named by that day.
-                    m.alerts_evening_title({
-                      day: payload.day
-                        ? formatDay(momentOf(payload.day, 12 * 60, payload.zone), payload.zone)
-                        : "",
-                    })}
-                </span>
-                <span className="text-s text-neutral-7">{label()}</span>
-                {payload.lines.map((line) => (
-                  <span key={line.spotId} className="grid gap-xxs text-s">
-                    <span>
-                      {/* The evening lists every alert: a line says whose it is, when its
-                          alert is not named after its spot. */}
-                      {line.alertName && line.alertName !== line.spotName && (
-                        <span className="text-neutral-7">{line.alertName} · </span>
-                      )}
-                      {lineOf(line, moment, payload.zone)}
-                    </span>
-                    {/* What the nearest wave station measured as the window began: the whole
-                        sea where it stands, given for the reader to judge. */}
-                    {line.buoy && line.buoy.significantHeightMeters !== null && (
-                      <span className="flex flex-wrap items-center gap-x-xxs text-neutral-7">
-                        {m.alerts_station({
-                          name: line.buoy.name,
-                          distance: formatDistance(line.buoy.distanceKm),
-                        })}{" "}
-                        {formatHeight(line.buoy.significantHeightMeters)}
-                        {line.buoy.peakPeriodSeconds !== null &&
-                          ` · ${formatSeconds(line.buoy.peakPeriodSeconds)}`}
-                        {line.buoy.peakDirectionDegrees !== null && (
-                          <>
-                            {" · "}
-                            <Bearing degrees={line.buoy.peakDirectionDegrees} />
-                          </>
-                        )}
-                        {" · "}
-                        {formatDayAndClock(new Date(line.buoy.observedAt), payload.zone)}
-                      </span>
-                    )}
-                    {line.buoy?.attribution && line.buoy.significantHeightMeters !== null && (
-                      <span className="text-xs text-neutral-7">
-                        {m.alerts_station_credit({ attribution: line.buoy.attribution })}
-                      </span>
-                    )}
+          return (
+            <li key={notification.id}>
+              <button
+                type="button"
+                // Reading an alert is the only thing to do with it, and only once.
+                disabled={!unread}
+                className={cn(
+                  rowLayout,
+                  "focus-ring text-left outline-none",
+                  unread && "cursor-pointer hover:bg-neutral-3-transparent",
+                )}
+                onClick={() => onRead(notification)}
+              >
+                <MomentIcon
+                  aria-hidden
+                  className={cn("mt-0.5 size-4.5 shrink-0", quiet && "text-neutral-7")}
+                />
+                <span className="grid min-w-0 flex-1 gap-xxs">
+                  <span className={cn("truncate", unread && "font-medium")}>
+                    {payload.alertName ??
+                      // The evening before lists a day, for every alert: it is named by that day.
+                      m.alerts_evening_title({
+                        day: payload.day
+                          ? formatDay(momentOf(payload.day, 12 * 60, payload.zone), payload.zone)
+                          : "",
+                      })}
                   </span>
-                ))}
-                <span className="text-xs text-neutral-7">
-                  {formatAgo(notification.createdAt, now)}
+                  <span className="text-s text-neutral-7">{label()}</span>
+                  {payload.lines.map((line) => (
+                    <span key={line.spotId} className="grid gap-xxs text-s">
+                      <span>
+                        {/* The evening lists every alert: a line says whose it is, when its
+                          alert is not named after its spot. */}
+                        {line.alertName && line.alertName !== line.spotName && (
+                          <span className="text-neutral-7">{line.alertName} · </span>
+                        )}
+                        {lineOf(line, moment, payload.zone)}
+                      </span>
+                      {/* What the nearest wave station measured as the window began: the whole
+                        sea where it stands, given for the reader to judge. */}
+                      {line.buoy && line.buoy.significantHeightMeters !== null && (
+                        <span className="flex flex-wrap items-center gap-x-xxs text-neutral-7">
+                          {m.alerts_station({
+                            name: line.buoy.name,
+                            distance: formatDistance(line.buoy.distanceKm),
+                          })}{" "}
+                          {formatHeight(line.buoy.significantHeightMeters)}
+                          {line.buoy.peakPeriodSeconds !== null &&
+                            ` · ${formatSeconds(line.buoy.peakPeriodSeconds)}`}
+                          {line.buoy.peakDirectionDegrees !== null && (
+                            <>
+                              {" · "}
+                              <Bearing degrees={line.buoy.peakDirectionDegrees} />
+                            </>
+                          )}
+                          {" · "}
+                          {formatDayAndClock(new Date(line.buoy.observedAt), payload.zone)}
+                        </span>
+                      )}
+                      {line.buoy?.attribution && line.buoy.significantHeightMeters !== null && (
+                        <span className="text-xs text-neutral-7">
+                          {m.alerts_station_credit({ attribution: line.buoy.attribution })}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                  <span className="text-xs text-neutral-7">
+                    {formatAgo(notification.createdAt, now)}
+                  </span>
                 </span>
-              </span>
-              {unread && (
-                <span className="mt-2 size-2 shrink-0 rounded-full bg-color-1">
-                  <span className="sr-only">{m.alerts_unread()}</span>
-                </span>
-              )}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+                {unread && (
+                  <span className="mt-2 size-2 shrink-0 rounded-full bg-color-1">
+                    <span className="sr-only">{m.alerts_unread()}</span>
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {/* The older notices of reports, which the list loads a page at a time: decision 068. */}
+      {onMoreNotices && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-self-start"
+          isPending={isLoadingMoreNotices}
+          onClick={onMoreNotices}
+        >
+          {m.alerts_more_notices()}
+        </Button>
+      )}
+    </div>
   );
 }

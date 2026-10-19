@@ -1864,5 +1864,6 @@
   "report_told": "{count} surfistas avisados",
   "report_stats_private": "só tu vês isto",
   "privacy_reports_told": "Quando um report é mostrado num spot, as contas que têm esse spot numa lista são avisadas, na app e por notificação. O que te foi avisado é guardado 30 dias. Quando vês um report, ou abres uma das suas fotos, o contador sobe um: o autor lê esse número, que não nomeia ninguém. O teu browser guarda durante uma semana os reports que contou, para que cada um conte só uma vez.",
-  "privacy_keep_notices": "O que te foi avisado dos reports dos teus spots: 30 dias."
+  "privacy_keep_notices": "O que te foi avisado dos reports dos teus spots: 30 dias.",
+  "alerts_more_notices": "Reports mais antigos"
 }

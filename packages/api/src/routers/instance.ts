@@ -288,16 +288,17 @@ export const instanceRouter = {
           late: z.number(),
           failed: z.number(),
         }),
-        // The reports of the last seven days and what they told, by when each happened, as the
-        // rows keep them now: a report deleted since counts no more. Decisions 067 and 068.
+        // The reports of the last seven days and what they told, each by when it happened, as
+        // the rows keep them now: a report deleted since counts no more. Decisions 067 and 068.
         reports: z.object({
+          // Sent, first shown by its checks or by an operator, and refused by its checks.
           sent: z.number(),
-          // First shown in the seven days, by its checks or by an operator.
           shown: z.number(),
           refused: z.number(),
-          // Left to an operator now, whenever they were sent.
+          // Left to an operator now, whenever they were sent: those its checks were unsure of,
+          // and those the flags of accounts hid.
           waiting: z.number(),
-          // The notices made, those whose push a push service took, and those read.
+          // The notices made, the pushes that a push service took, and the notices read.
           notices: z.number(),
           pushed: z.number(),
           read: z.number(),
@@ -349,9 +350,9 @@ export const instanceRouter = {
             sent: count(sql`case when ${surfReport.createdAt} > ${weekAgo} then 1 end`),
             shown: count(sql`case when ${surfReport.publishedAt} > ${weekAgo} then 1 end`),
             refused: count(
-              sql`case when ${surfReport.state} = 'refused' and ${surfReport.createdAt} > ${weekAgo} then 1 end`,
+              sql`case when ${surfReport.state} = 'refused' and ${surfReport.checkedAt} > ${weekAgo} then 1 end`,
             ),
-            waiting: count(sql`case when ${surfReport.state} = 'review' then 1 end`),
+            waiting: count(sql`case when ${surfReport.state} in ('review', 'hidden') then 1 end`),
             views:
               sql<number>`coalesce(sum(case when ${surfReport.createdAt} > ${weekAgo} then ${surfReport.views} end), 0)::int`.mapWith(
                 Number,
@@ -364,12 +365,13 @@ export const instanceRouter = {
           .from(surfReport),
         db
           .select({
-            notices: count(),
-            pushed: count(sql`case when ${reportNotice.pushState} = 'sent' then 1 end`),
-            read: count(reportNotice.readAt),
+            notices: count(sql`case when ${reportNotice.createdAt} > ${weekAgo} then 1 end`),
+            pushed: count(
+              sql`case when ${reportNotice.pushState} = 'sent' and ${reportNotice.settledAt} > ${weekAgo} then 1 end`,
+            ),
+            read: count(sql`case when ${reportNotice.readAt} > ${weekAgo} then 1 end`),
           })
-          .from(reportNotice)
-          .where(gt(reportNotice.createdAt, weekAgo)),
+          .from(reportNotice),
         db.$count(alertSettings, eq(alertSettings.onReports, false)),
       ]);
 
