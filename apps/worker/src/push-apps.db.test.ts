@@ -10,7 +10,8 @@ import {
 import { user } from "@repo/db/schema/auth";
 import { providerCalls } from "@repo/db/schema/forecasts";
 import { stationList, stationListBreak } from "@repo/db/schema/lists";
-import { reportNotice, surfReport } from "@repo/db/schema/reports";
+import { accountBlock } from "@repo/db/schema/community";
+import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { spot, surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import type { AppDevice } from "@repo/push";
@@ -204,6 +205,48 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes to the apps on phones", () => {
         "title",
         "url",
       ]);
+    });
+
+    it("count on the icon what the alerts' tab counts: fifty of what the alerts told at most, and the notices the account reads", async () => {
+      const { db } = database;
+      // Sixty things the alerts told before, which the account never read.
+      await db.insert(notification).values(
+        Array.from({ length: 60 }, (_, index) => ({
+          id: `old-${index}`,
+          userId: "owner",
+          moment: "found" as const,
+          key: `old-${index}`,
+          payload: { alertName: null, zone: "UTC", lines: [] },
+          createdAt: new Date(AT.getTime() - (index + 1) * HOUR_MS),
+        })),
+      );
+      // A notice that told a report of an account the owner blocked since, and nothing else,
+      // which it no longer reads; and one of a report that was taken down, which it does.
+      await db.insert(user).values({ id: "troll", name: "Troll", email: "troll@example.org" });
+      await db
+        .insert(accountBlock)
+        .values({ blockerId: "owner", blockedId: "troll", username: "troll" });
+      await db.insert(surfBreak).values({
+        id: "point",
+        slug: "point",
+        name: "La Point",
+        latitude: 43.48,
+        longitude: -1.56,
+      });
+      await db
+        .insert(surfReport)
+        .values({ id: "r-troll", userId: "troll", breakId: "point", terms: "1" });
+      await db.insert(reportNotice).values([
+        { id: "of-troll", userId: "owner", breakId: "point", createdAt: AT, updatedAt: AT },
+        { id: "taken-down", userId: "owner", breakId: "point", createdAt: AT, updatedAt: AT },
+      ]);
+      await db.insert(reportNoticeReport).values({ noticeId: "of-troll", reportId: "r-troll" });
+      await found();
+
+      await pass();
+
+      expect(apple.sent()[0]?.push.badge).toBe(50 + 1);
+      expect(google.sent()[0]?.push.badge).toBe(50 + 1);
     });
 
     it("are kept by Apple and Google until the hours they speak of are over", async () => {

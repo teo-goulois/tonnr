@@ -12,6 +12,7 @@
     "./media": "./src/media.ts",
     "./names": "./src/names.ts",
     "./sea-words": "./src/sea-words.ts",
+    "./unread": "./src/unread.ts",
     "./username": "./src/username.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"
   }

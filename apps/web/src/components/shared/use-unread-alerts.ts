@@ -1,3 +1,4 @@
+import { UNREAD_NOTIFICATIONS_COUNTED } from "@repo/config/unread";
 import { useQuery } from "@tanstack/react-query";
 
 import { authClient } from "@/lib/auth-client";
@@ -7,7 +8,7 @@ const MINUTE_MS = 60 * 1000;
 
 /**
  * How many of what its alerts told and of its notices of reports the account has not read:
- * decisions 031 and 068. None for a visitor. Each count is kept under the account it was asked
+ * decisions 031 and 068. The app on a phone counts the same on its icon (decision 072). None for a visitor. Each count is kept under the account it was asked
  * for: a session can become another account's in another tab.
  */
 export function useUnreadAlerts() {
@@ -19,7 +20,7 @@ export function useUnreadAlerts() {
     // The alerts panel says when they cannot be loaded. The bell just shows no count.
     meta: { quiet: true },
   };
-  const alerts = { unreadOnly: true, limit: 50 };
+  const alerts = { unreadOnly: true, limit: UNREAD_NOTIFICATIONS_COUNTED };
   const unread = useQuery(
     orpc.v1.notifications.list.queryOptions({
       input: alerts,

@@ -18,8 +18,10 @@ import {
 } from "@repo/conditions/alerts/settings";
 import { FORECAST_SOURCE } from "@repo/conditions/forecasts/wave-models";
 import { localePrefix } from "@repo/config/locales";
+import { UNREAD_NOTIFICATIONS_COUNTED } from "@repo/config/unread";
 import type { Database } from "@repo/db";
 import { isSuspended } from "@repo/db/accounts";
+import { blockedBy, toldOthers } from "@repo/db/blocks";
 import { countCalls } from "@repo/db/calls";
 import {
   DELIVERY_CHANNELS,
@@ -227,20 +229,24 @@ export function pushTo(
 }
 
 /**
- * How many things an account has not read, as the alerts' tab counts them: what its alerts told
- * and the notices of reports. The app on a phone counts them on its icon, as a push is handed
- * over: decision 072.
+ * How many things an account has not read, as the alerts' tab counts them: what its alerts told,
+ * up to the page the tab lists, and the notices of reports it reads, which leave out those that
+ * told only reports of accounts it blocked (decision 071). The app on a phone counts them on its
+ * icon, as a push is handed over: decision 072.
  */
 export async function unreadOf(tx: Transaction, userId: string) {
   const [told] = await tx
     .select({ total: count() })
     .from(notification)
     .where(and(eq(notification.userId, userId), isNull(notification.readAt)));
+  const blocks = await blockedBy(tx, userId);
   const [notices] = await tx
     .select({ total: count() })
     .from(reportNotice)
-    .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt)));
-  return (told?.total ?? 0) + (notices?.total ?? 0);
+    .where(
+      and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt), toldOthers(tx, blocks)),
+    );
+  return Math.min(told?.total ?? 0, UNREAD_NOTIFICATIONS_COUNTED) + (notices?.total ?? 0);
 }
 
 /**

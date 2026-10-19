@@ -1,11 +1,11 @@
 import { ORPCError } from "@orpc/server";
-import { blockedBy, notBlockedBy } from "@repo/db/blocks";
+import { blockedBy, notBlockedBy, toldOthers } from "@repo/db/blocks";
 import { user } from "@repo/db/schema/auth";
 import { media } from "@repo/db/schema/media";
 import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { SURF_SIZES } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -80,26 +80,9 @@ export const reportNoticesRouter = {
       const userId = context.session.user.id;
       const now = Date.now();
       // A notice says nothing of the reports of an account the caller blocked, and one that told
-      // only those is left out: decision 071. It told others when it told more reports than it
-      // still holds of the blocked accounts, since a report that was deleted leaves its count and
-      // not its row: a notice whose reports were taken down stays, and says so.
+      // only those is left out: decision 071.
       const blocks = await blockedBy(context.db, userId);
-      const toldOthers =
-        blocks.size === 0
-          ? undefined
-          : gt(
-              reportNotice.told,
-              sql`(${context.db
-                .select({ total: count() })
-                .from(reportNoticeReport)
-                .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
-                .where(
-                  and(
-                    eq(reportNoticeReport.noticeId, reportNotice.id),
-                    inArray(surfReport.userId, [...blocks]),
-                  ),
-                )})`,
-            );
+      const notOnlyBlocked = toldOthers(context.db, blocks);
       const [rows, [unread]] = await Promise.all([
         context.db
           .select({ notice: reportNotice, breakName: surfBreak.name })
@@ -108,7 +91,7 @@ export const reportNoticesRouter = {
           .where(
             and(
               eq(reportNotice.userId, userId),
-              toldOthers,
+              notOnlyBlocked,
               input.unreadOnly ? isNull(reportNotice.readAt) : undefined,
               input.before
                 ? or(
@@ -128,7 +111,7 @@ export const reportNoticesRouter = {
         context.db
           .select({ total: count() })
           .from(reportNotice)
-          .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt), toldOthers)),
+          .where(and(eq(reportNotice.userId, userId), isNull(reportNotice.readAt), notOnlyBlocked)),
       ]);
       const more = rows.length > input.limit;
       const page = rows.slice(0, input.limit);
