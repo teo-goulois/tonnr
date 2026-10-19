@@ -342,6 +342,38 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
     expect(await database.db.select().from(user).where(eq(user.id, "gil"))).toEqual([]);
   });
 
+  it("is followed by every table that names an account, which goes with it or forgets it", async () => {
+    // A table that a later change points at `user` says which it does: decision 071.
+    const found = await database.db.execute<{ named: string; rule: string }>(sql`
+      select c.conrelid::regclass::text || '.' || a.attname as named, c.confdeltype as rule
+      from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+      where c.contype = 'f' and c.confrelid = '"user"'::regclass
+    `);
+    const rows = "rows" in found ? found.rows : found;
+    expect(rows.filter((one) => one.rule !== "c" && one.rule !== "n")).toEqual([]);
+    // What stays naming nobody, and nothing else.
+    expect(
+      rows
+        .filter((one) => one.rule === "n")
+        .map((one) => one.named)
+        .toSorted(),
+    ).toEqual([
+      "account_suspension.operator_id",
+      "break_candidate.decided_by",
+      "break_contribution.decided_by",
+      "break_contribution.user_id",
+      "developer_member.operator_id",
+      "operator_action.operator_id",
+      "sponsorship.sponsor_id",
+      "spot_publication.decided_by",
+    ]);
+    // The blocks go with either account.
+    expect(
+      rows.filter((one) => one.named.startsWith("account_block.")).map((one) => one.rule),
+    ).toEqual(["c", "c"]);
+  });
+
   it("refuses an operator, whose rights are taken away first", async () => {
     expect(await remove({ password: PASSWORD }, by("op"))).toMatchObject({ refused: "CONFLICT" });
     expect(await database.db.select().from(user).where(eq(user.id, "op"))).toHaveLength(1);
