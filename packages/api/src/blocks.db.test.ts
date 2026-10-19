@@ -263,6 +263,52 @@ describe.skipIf(!TEST_DATABASE_URL)("blocking an account", () => {
     ]);
   });
 
+  it("keeps the blocker's notices whose reports were taken down, as anyone's", async () => {
+    const { db } = database;
+    const now = Date.now();
+    const report = (id: string, userId: string, ago: number) => ({
+      id,
+      userId,
+      breakId: REEF,
+      state: "published" as const,
+      terms: "2026-10-19",
+      createdAt: new Date(now - ago),
+      publishedAt: new Date(now - ago),
+    });
+    await db
+      .insert(surfReport)
+      .values([
+        report("cy-gone", "cy", 10_000),
+        report("ben-1", "ben", 20_000),
+        report("cy-half", "cy", 30_000),
+      ]);
+    const notice = (id: string, told: number, ago: number) => ({
+      id,
+      userId: "ana",
+      breakId: REEF,
+      told,
+      createdAt: new Date(now - ago),
+      updatedAt: new Date(now - ago),
+    });
+    // One that told a report of Cy's alone, and one that told one of Ben's and one of Cy's.
+    await db.insert(reportNotice).values([notice("gone", 1, 4_000), notice("half", 2, 5_000)]);
+    await db.insert(reportNoticeReport).values([
+      { noticeId: "gone", reportId: "cy-gone" },
+      { noticeId: "half", reportId: "ben-1" },
+      { noticeId: "half", reportId: "cy-half" },
+    ]);
+    await block("ana", "ben");
+    // Cy deletes both: their rows go with them, and the notices still say they told them.
+    await db.delete(surfReport).where(eq(surfReport.userId, "cy"));
+
+    const listed = await call(v1Router.reportNotices.list, {}, by("ana"));
+    expect(listed.unread).toBe(2);
+    expect(listed.notices).toEqual([
+      expect.objectContaining({ id: "gone", told: 1, shown: 0, state: "removed", latest: null }),
+      expect.objectContaining({ id: "half", told: 1, shown: 0, state: "removed", latest: null }),
+    ]);
+  });
+
   it("hides what the blocked account has waiting in a guide, and its name on what was confirmed", async () => {
     const { db } = database;
     const now = new Date();

@@ -5,7 +5,7 @@ import { media } from "@repo/db/schema/media";
 import { reportNotice, reportNoticeReport, surfReport } from "@repo/db/schema/reports";
 import { SURF_SIZES } from "@repo/db/schema/sessions";
 import { surfBreak } from "@repo/db/schema/spots";
-import { and, asc, count, desc, eq, exists, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -80,22 +80,25 @@ export const reportNoticesRouter = {
       const userId = context.session.user.id;
       const now = Date.now();
       // A notice says nothing of the reports of an account the caller blocked, and one that told
-      // only those is left out: decision 071.
+      // only those is left out: decision 071. It told others when it told more reports than it
+      // still holds of the blocked accounts, since a report that was deleted leaves its count and
+      // not its row: a notice whose reports were taken down stays, and says so.
       const blocks = await blockedBy(context.db, userId);
       const toldOthers =
         blocks.size === 0
           ? undefined
-          : exists(
-              context.db
-                .select({ one: sql`1` })
+          : gt(
+              reportNotice.told,
+              sql`(${context.db
+                .select({ total: count() })
                 .from(reportNoticeReport)
                 .innerJoin(surfReport, eq(surfReport.id, reportNoticeReport.reportId))
                 .where(
                   and(
                     eq(reportNoticeReport.noticeId, reportNotice.id),
-                    notBlockedBy(userId, surfReport.userId),
+                    inArray(surfReport.userId, [...blocks]),
                   ),
-                ),
+                )})`,
             );
       const [rows, [unread]] = await Promise.all([
         context.db
