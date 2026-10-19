@@ -86,9 +86,8 @@ export function BlockedAccounts({ blocking }: { blocking: Blocking }) {
         <ul className="grid gap-xs">
           {blocks.map((one) => (
             <li key={one.id} className="flex min-h-11 items-center justify-between gap-s">
-              <span className="truncate font-medium">
-                {one.username ? `@${one.username}` : m.friends_no_name()}
-              </span>
+              {/* The name it was blocked under, which the list keeps whatever it takes later. */}
+              <span className="truncate font-medium">@{one.username}</span>
               <Button
                 variant="outline"
                 size="sm"

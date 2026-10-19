@@ -267,16 +267,25 @@ export const friendship = pgTable(
 export const accountBlock = pgTable(
   "account_block",
   {
+    // What the blocker lifts it by: an id of its own, so that the block answers nothing that
+    // names the blocked account beyond the name it was blocked under.
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
     blockerId: text("blocker_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     blockedId: text("blocked_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // The username the blocker blocked, as it was then: the list of its blocks says that one,
+    // and not the one the account takes later, which the blocker would otherwise follow.
+    username: text("username").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    // One for each pair and each way. It also finds the blocks of a blocker.
+    uniqueIndex("account_block_blockerId_blockedId_idx").on(table.blockerId, table.blockedId),
     // For what asks, from the blocked account's side, whether it is blocked: a link of a
     // friend, and the deletion of an account, which the cascade finds by it.
     index("account_block_blockedId_idx").on(table.blockedId),

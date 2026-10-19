@@ -46,7 +46,7 @@ const sampleBlocking = (given: Partial<Blocking>): Blocking => ({
   blocks: {
     data: [
       { id: "a", username: "kai_reef", since: new Date("2026-10-12T09:00:00Z") },
-      { id: "b", username: null, since: new Date("2026-10-02T18:00:00Z") },
+      { id: "b", username: "swell_seeker", since: new Date("2026-10-02T18:00:00Z") },
     ],
     isPending: false,
     isError: false,
@@ -66,7 +66,7 @@ export function BlockSamples() {
   const [asked, setAsked] = useState<string>();
   return (
     <div className="grid gap-m lg:grid-cols-2">
-      {/* Two blocked accounts, one of them without a username any more, and one being lifted. */}
+      {/* Two blocked accounts, under the usernames they were blocked under, one being lifted. */}
       <div className="edge rounded-(--radius-xs) p-m">
         <BlockedAccounts blocking={sampleBlocking({ unblocking: "a" })} />
       </div>

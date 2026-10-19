@@ -62,7 +62,7 @@ export function useBlocks({
   const add = useMutation(
     orpc.v1.blocks.add.mutationOptions({
       onSuccess: (blocked) => {
-        toast.success(m.block_done({ username: blocked.username ?? askedName ?? "" }));
+        toast.success(m.block_done({ username: blocked.username }));
         setAsked(undefined);
         return changed();
       },

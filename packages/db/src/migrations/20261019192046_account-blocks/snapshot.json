@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "9bb34f8b-3b16-4c1b-b3a6-09dcc1290b74",
+  "id": "878cb65f-6685-495e-8f13-659d22c27dae",
   "prevIds": [
     "ecea9851-16e7-4594-b644-1041069d9ef7"
   ],
@@ -6424,6 +6424,19 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account_block"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
       "name": "blocker_id",
       "entityType": "columns",
       "schema": "public",
@@ -6438,6 +6451,19 @@
       "generated": null,
       "identity": null,
       "name": "blocked_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "account_block"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "username",
       "entityType": "columns",
       "schema": "public",
       "table": "account_block"
@@ -10059,6 +10085,34 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "blocker_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "blocked_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "account_block_blockerId_blockedId_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "account_block"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "blocked_id",
           "isExpression": false,
           "asc": true,
@@ -12655,17 +12709,6 @@
     },
     {
       "columns": [
-        "blocker_id",
-        "blocked_id"
-      ],
-      "nameExplicit": false,
-      "name": "account_block_pkey",
-      "entityType": "pks",
-      "schema": "public",
-      "table": "account_block"
-    },
-    {
-      "columns": [
         "break_id",
         "user_id",
         "question"
@@ -13121,6 +13164,16 @@
       "name": "worker_process_pkey",
       "schema": "public",
       "table": "worker_process",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "account_block_pkey",
+      "schema": "public",
+      "table": "account_block",
       "entityType": "pks"
     },
     {

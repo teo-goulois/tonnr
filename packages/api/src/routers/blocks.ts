@@ -15,11 +15,19 @@ import { protectedProcedure } from "../index";
 // The blocked account is not told. Decision 071.
 
 const blockSchema = z.object({
-  // The blocked account, by its id: what lifts the block.
+  // The block's own id, which lifts it. It names nothing of the blocked account: a block is no
+  // way to learn an account's id from its username.
   id: z.string(),
-  // The username it has now, which the blocker alone reads here. Null for one that has none.
-  username: z.string().nullable(),
+  // The username the account had when it was blocked. A block does not follow the names it takes
+  // later, which would tell the blocker who an account became: chosen here.
+  username: z.string(),
   since: z.date(),
+});
+
+const asBlock = (row: typeof accountBlock.$inferSelect) => ({
+  id: row.id,
+  username: row.username,
+  since: row.createdAt,
 });
 
 const noAccount = (username: string) =>
@@ -39,9 +47,10 @@ export const blocksRouter = {
         "contributions that wait to be confirmed, and its username nowhere: a confirmed line " +
         "of a guide stays, under no name. A friendship between the two ends, and no link makes " +
         "another while the block stands, either way. The block is kept by the two accounts' " +
-        "ids, whatever usernames they take later. The blocked account is not told. Blocking " +
-        `again changes nothing. An account blocks ${BLOCKS_MOST} at most, and not itself: ` +
-        "the answer is 403, and 409. Decision 071.",
+        "ids, whatever usernames they take later, and answered under the username it was made " +
+        "with, by an id of its own. The blocked account is not told. Blocking again changes " +
+        `nothing. An account blocks ${BLOCKS_MOST} at most, and not itself: the answer is ` +
+        "403, and 409. Decision 071.",
       tags: ["Blocks"],
     })
     .input(
@@ -71,11 +80,17 @@ export const blocksRouter = {
         // Both accounts are held, as a friendship holds them: one being made by a link at the
         // same moment is made first and ended here, or waits and is refused.
         await holdAccounts(tx, [userId, found.id]);
+        // Deleted, or renamed, while it was found: it is no longer the account of this name.
+        const [still] = await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(and(eq(user.id, found.id), eq(user.username, username)));
+        if (!still) throw noAccount(username);
         const [already] = await tx
           .select()
           .from(accountBlock)
           .where(and(eq(accountBlock.blockerId, userId), eq(accountBlock.blockedId, found.id)));
-        if (already) return { id: found.id, username: found.username, since: already.createdAt };
+        if (already) return asBlock(already);
         const [blocks] = await tx
           .select({ total: count() })
           .from(accountBlock)
@@ -99,10 +114,10 @@ export const blocksRouter = {
           );
         const [written] = await tx
           .insert(accountBlock)
-          .values({ blockerId: userId, blockedId: found.id })
+          .values({ blockerId: userId, blockedId: found.id, username })
           .returning();
         if (!written) throw new Error("The block was not written.");
-        return { id: found.id, username: found.username, since: written.createdAt };
+        return asBlock(written);
       });
     }),
 
@@ -112,23 +127,18 @@ export const blocksRouter = {
       path: "/blocks",
       summary: "The accounts the caller blocked, the latest first",
       description:
-        "Takes a signed-in session. Each comes with its id, which lifts the block, the " +
-        "username it has now and since when it is blocked. Decision 071.",
+        "Takes a signed-in session. Each comes with its own id, which lifts it, the username " +
+        "the account had when it was blocked, and since when. Decision 071.",
       tags: ["Blocks"],
     })
     .output(z.object({ blocks: z.array(blockSchema) }))
     .handler(async ({ context }) => {
       const rows = await context.db
-        .select({
-          id: accountBlock.blockedId,
-          username: user.username,
-          since: accountBlock.createdAt,
-        })
+        .select()
         .from(accountBlock)
-        .innerJoin(user, eq(user.id, accountBlock.blockedId))
         .where(eq(accountBlock.blockerId, context.session.user.id))
-        .orderBy(desc(accountBlock.createdAt), desc(accountBlock.blockedId));
-      return { blocks: rows };
+        .orderBy(desc(accountBlock.createdAt), desc(accountBlock.id));
+      return { blocks: rows.map(asBlock) };
     }),
 
   remove: protectedProcedure
@@ -140,8 +150,8 @@ export const blocksRouter = {
       description:
         "Takes a signed-in session. The caller reads the account again as everyone does. A " +
         "friendship that the block ended stays ended, as one the caller ended: the caller " +
-        "makes it again by opening the other's link. The answer is 404 for an account the " +
-        "caller did not block. Decision 071.",
+        "makes it again by opening the other's link. It takes the block's id, as the list " +
+        "gives it. The answer is 404 for a block that is not the caller's. Decision 071.",
       tags: ["Blocks"],
     })
     .input(z.object({ id: z.string().min(1).max(200) }))
@@ -150,13 +160,10 @@ export const blocksRouter = {
       const [lifted] = await context.db
         .delete(accountBlock)
         .where(
-          and(
-            eq(accountBlock.blockerId, context.session.user.id),
-            eq(accountBlock.blockedId, input.id),
-          ),
+          and(eq(accountBlock.id, input.id), eq(accountBlock.blockerId, context.session.user.id)),
         )
-        .returning({ id: accountBlock.blockedId });
-      if (!lifted) throw new ORPCError("NOT_FOUND", { message: "This account is not blocked." });
+        .returning({ id: accountBlock.id });
+      if (!lifted) throw new ORPCError("NOT_FOUND", { message: "No such block." });
       return { lifted: true as const };
     }),
 };

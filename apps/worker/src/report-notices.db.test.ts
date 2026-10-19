@@ -418,7 +418,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
 
   it("tells no account that blocked the author, and pushes a notice from the reports of others alone", async () => {
     // Decision 071: the keeper blocked the author, and is told nothing of what it sends.
-    await database.db.insert(accountBlock).values({ blockerId: "keeper", blockedId: "author" });
+    await database.db
+      .insert(accountBlock)
+      .values({ blockerId: "keeper", blockedId: "author", username: "author" });
     await shown("first");
     await run();
     expect((await notices()).map((one) => one.userId)).toEqual(["member", "spotter"]);
@@ -438,7 +440,9 @@ describe.skipIf(!TEST_DATABASE_URL)("the notices of reports", () => {
     await run();
     const [kept] = (await notices()).filter((one) => one.userId === "keeper");
     expect((await membersOf(kept!.id)).toSorted()).toEqual(["authored", "spotted"]);
-    await database.db.insert(accountBlock).values({ blockerId: "keeper", blockedId: "author" });
+    await database.db
+      .insert(accountBlock)
+      .values({ blockerId: "keeper", blockedId: "author", username: "author" });
     await database.db
       .update(alertSettings)
       .set({ quietFrom: null, quietTo: null })

@@ -94,28 +94,58 @@ describe.skipIf(!TEST_DATABASE_URL)("blocking an account", () => {
   const block = (blocker: string, username: string) =>
     call(v1Router.blocks.add, { username }, by(blocker));
 
-  it("is made by the username the account reads, listed with it, and lifted by the id", async () => {
+  it("is made by the username the account reads, listed with it, and lifted by its own id", async () => {
     const made = await block("ana", "@Ben");
-    expect(made).toMatchObject({ id: "ben", username: "ben", since: expect.any(Date) });
+    expect(made).toEqual({ id: expect.any(String), username: "ben", since: expect.any(Date) });
+    // A block names nothing of the account but the name it was blocked under.
+    expect(made.id).not.toBe("ben");
     // Blocking again changes nothing.
     expect(await block("ana", "ben")).toEqual(made);
 
-    // It outlives a change of username: the list says the one it has now.
+    // It outlives a change of username, and does not follow it: the blocker is not told who the
+    // account became.
     await database.db.update(user).set({ username: "ben_k" }).where(eq(user.id, "ben"));
     expect(await call(v1Router.blocks.list, undefined, by("ana"))).toEqual({
-      blocks: [{ id: "ben", username: "ben_k", since: made.since }],
+      blocks: [{ id: made.id, username: "ben", since: made.since }],
     });
-    // It is the blocker's alone to read.
+    expect((await blockedBy(database.db, "ana")).has("ben")).toBe(true);
+    // It is the blocker's alone to read, and to lift.
     expect(await call(v1Router.blocks.list, undefined, by("ben"))).toEqual({ blocks: [] });
+    expect(await refused(call(v1Router.blocks.remove, { id: made.id }, by("cy")))).toMatchObject({
+      code: "NOT_FOUND",
+    });
 
     expect(await refused(block("ana", "nobody_here"))).toMatchObject({ code: "NOT_FOUND" });
     expect(await refused(block("ana", "ana"))).toMatchObject({ code: "CONFLICT" });
 
-    expect(await call(v1Router.blocks.remove, { id: "ben" }, by("ana"))).toEqual({ lifted: true });
-    expect(await refused(call(v1Router.blocks.remove, { id: "ben" }, by("ana")))).toMatchObject({
+    expect(await call(v1Router.blocks.remove, { id: made.id }, by("ana"))).toEqual({
+      lifted: true,
+    });
+    expect(await refused(call(v1Router.blocks.remove, { id: made.id }, by("ana")))).toMatchObject({
       code: "NOT_FOUND",
     });
     expect(await call(v1Router.blocks.list, undefined, by("ana"))).toEqual({ blocks: [] });
+  });
+
+  it("answers 404 for an account deleted while it was being blocked", async () => {
+    // Ben's deletion holds his row: the block finds him, then waits for the row, which goes.
+    let release = () => {};
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let holding = () => {};
+    const isHolding = new Promise<void>((resolve) => (holding = resolve));
+    const deleting = database.db.transaction(async (tx) => {
+      await tx.select({ id: user.id }).from(user).where(eq(user.id, "ben")).for("update");
+      holding();
+      await released;
+      await tx.delete(user).where(eq(user.id, "ben"));
+    });
+    await isHolding;
+    const attempt = refused(block("ana", "ben"));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    release();
+    await deleting;
+    expect(await attempt).toMatchObject({ code: "NOT_FOUND" });
+    expect(await database.db.select().from(accountBlock)).toEqual([]);
   });
 
   it(`blocks ${BLOCKS_MOST} accounts at most`, async () => {
@@ -125,7 +155,7 @@ describe.skipIf(!TEST_DATABASE_URL)("blocking an account", () => {
       .values(many.map((id) => ({ id, name: id, email: `${id}@example.org` })));
     await database.db
       .insert(accountBlock)
-      .values(many.map((blockedId) => ({ blockerId: "ana", blockedId })));
+      .values(many.map((blockedId) => ({ blockerId: "ana", blockedId, username: blockedId })));
 
     expect(await refused(block("ana", "ben"))).toMatchObject({ code: "FORBIDDEN" });
     expect((await blockedBy(database.db, "ana")).has("ben")).toBe(false);
@@ -139,7 +169,7 @@ describe.skipIf(!TEST_DATABASE_URL)("blocking an account", () => {
       { userId: "ben", token: "ben-link" },
     ]);
 
-    await block("ana", "ben");
+    const made = await block("ana", "ben");
     const [ended] = await db.select().from(friendship);
     expect(ended).toMatchObject({ endedBy: "ana", endedAt: expect.any(Date) });
     expect((await call(v1Router.friends.list, undefined, by("ana"))).friends).toEqual([]);
@@ -169,7 +199,7 @@ describe.skipIf(!TEST_DATABASE_URL)("blocking an account", () => {
     ).toMatchObject({ code: "FORBIDDEN", data: { blocked: true } });
 
     // Once the block is lifted, the blocker makes the friendship again by the other's link.
-    await call(v1Router.blocks.remove, { id: "ben" }, by("ana"));
+    await call(v1Router.blocks.remove, { id: made.id }, by("ana"));
     expect(await call(v1Router.friends.accept, { token: "ben-link" }, by("ana"))).toMatchObject({
       id: "ben",
       username: "ben",

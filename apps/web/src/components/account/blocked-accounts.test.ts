@@ -13,8 +13,8 @@ afterEach(cleanup);
 const blockingOf = (given: Partial<Blocking>): Blocking => ({
   blocks: {
     data: [
-      { id: "kai", username: "kai_reef", since: new Date("2026-10-12T09:00:00Z") },
-      { id: "gone", username: null, since: new Date("2026-10-02T18:00:00Z") },
+      { id: "block-1", username: "kai_reef", since: new Date("2026-10-12T09:00:00Z") },
+      { id: "block-2", username: "swell_seeker", since: new Date("2026-10-02T18:00:00Z") },
     ],
     isPending: false,
     isError: false,
@@ -30,15 +30,15 @@ const blockingOf = (given: Partial<Blocking>): Blocking => ({
 });
 
 describe("the blocked accounts", () => {
-  it("lists each by its username, or as one that has none, and lifts a block by its account", () => {
+  it("lists each by the username it was blocked under, and lifts a block by its own id", () => {
     const blocking = blockingOf({});
     render(createElement(BlockedAccounts, { blocking }));
     expect(screen.getByText("@kai_reef")).toBeTruthy();
-    expect(screen.getByText("No username")).toBeTruthy();
+    expect(screen.getByText("@swell_seeker")).toBeTruthy();
     const [first] = screen.getAllByRole("button", { name: "Unblock" });
     fireEvent.click(first!);
     expect(blocking.onUnblock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "kai", username: "kai_reef" }),
+      expect.objectContaining({ id: "block-1", username: "kai_reef" }),
     );
   });
 
