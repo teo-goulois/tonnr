@@ -442,6 +442,92 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(rows).toHaveLength(1);
       expect(rows[0]?.shown).toBe(shownHash(apple.activities()[0]!.read.shown!));
     });
+    it("tells by push the later hours of a notification whose activity has run on the iPhone", async () => {
+      // The sea works in the morning and again in the afternoon, and what is on waits until 08:00.
+      kept.provider.waves = (seconds) =>
+        Math.max(swellBetween(8, 10)(seconds), swellBetween(13, 15)(seconds));
+      await database.db
+        .update(alertSettings)
+        .set({ quietFrom: 7 * 60, quietTo: 8 * 60 })
+        .where(eq(alertSettings.userId, "owner"));
+      await begins();
+      // The one that waits was written for the whole day, as one that waited longer would be.
+      const [made] = await database.db.select().from(notification);
+      const [line] = made?.payload.lines ?? [];
+      if (!made || !line) throw new Error("no notification");
+      await database.db
+        .update(notification)
+        .set({
+          payload: {
+            ...made.payload,
+            lines: [
+              { ...line, open: [{ start: hour(8).toISOString(), end: hour(15).toISOString() }] },
+            ],
+          },
+        })
+        .where(eq(notification.id, made.id));
+      vi.setSystemTime(hour(8));
+      expect(await pass()).toMatchObject({ pushes: 1 });
+      expect(apple.activities()).toMatchObject([
+        { read: { event: "start", shown: { end: hour(10).toISOString() } } },
+      ]);
+      await tokenGiven();
+      // The morning's activity runs, and ends with its hours.
+      vi.setSystemTime(new Date(hour(8).getTime() + 20 * MINUTE_MS));
+      await look();
+      vi.setSystemTime(new Date(hour(10).getTime() + 7 * MINUTE_MS));
+      expect(await follow()).toMatchObject({ ended: 1 });
+      vi.setSystemTime(new Date(hour(11).getTime() + 20 * MINUTE_MS));
+      await look();
+
+      vi.setSystemTime(hour(12.5));
+      expect(await pass()).toMatchObject({ pushes: 1 });
+
+      expect(apple.activities().map((one) => one.read.event)).toEqual(["start", "end"]);
+      expect(apple.sent()).toMatchObject([{ token: iphone.token }]);
+      expect(await activities()).toHaveLength(1);
+    });
+
+    it("updates the activity of the alert as it is now, of two that run, and starts no third", async () => {
+      await database.db.update(alert).set({ revision: 1 });
+      const runningAt = async (id: string, revision: number) => {
+        const told = crypto.randomUUID();
+        await database.db.insert(notification).values({
+          id: told,
+          userId: "owner",
+          alertId: "bay",
+          moment: "begins",
+          key: `begins:bay:${id}`,
+          payload: { alertName: "The bay", zone: "UTC", lines: [] },
+        });
+        const token = apple.activityToken();
+        await database.db.insert(liveActivity).values({
+          id,
+          createdAt: hour(7),
+          userId: "owner",
+          deviceId: "b-iphone",
+          environment: "production",
+          appId: iphone.appId,
+          notificationId: told,
+          alertId: "bay",
+          alertRevision: revision,
+          placeId: "home",
+          startsAt: hour(8),
+          token,
+          lastsUntil: hour(12),
+          shown: "before",
+        });
+        return token;
+      };
+      // The one the alert's change left, which the job has not ended yet, sorts first.
+      await runningAt("a-before", 0);
+      const current = await runningAt("b-now", 1);
+
+      await begins();
+
+      expect(apple.activities()).toMatchObject([{ token: current, read: { event: "update" } }]);
+      expect(await activities()).toHaveLength(2);
+    });
   });
 
   describe("followed every quarter of an hour", () => {

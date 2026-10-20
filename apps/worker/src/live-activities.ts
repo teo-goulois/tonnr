@@ -25,7 +25,7 @@ import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak } from "@repo/db/schema/spots";
 import type { Locale } from "@repo/mail/verification";
 import type { ApnsPusher, Outcome, WindowShown } from "@repo/push";
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
 import {
@@ -62,7 +62,8 @@ const TIDE_AHEAD_MS = 26 * HOUR_MS;
 const END_KEPT_SECONDS = 60 * 60;
 // iOS ends an activity eight hours after it started, and takes it off the lock screen four hours
 // later at most: what is sent to it after that shows nothing.
-const IOS_SHOWS_MS = 12 * HOUR_MS;
+const IOS_RUNS_MS = 8 * HOUR_MS;
+const IOS_SHOWS_MS = IOS_RUNS_MS + 4 * HOUR_MS;
 // An activity that ended is kept this long, so that an app that says it is still running is
 // told it ended, then forgotten with its token.
 const ENDED_KEPT_MS = DAY_MS;
@@ -336,8 +337,10 @@ export async function hasSwitchOn(tx: Transaction, userId: string) {
  * in `deliveries.ts`), while the account, its alert, its settings and its devices are held: on
  * an iPhone whose switch is on, as the Live Activity of its window, and as the push of decision
  * 072 everywhere else. A beginning of the alert while an activity of it runs on the iPhone
- * updates that one, and lights the screen, and starts no second one: one activity for a
- * notification. When APNs refuses the start or the update, the push leaves to that iPhone in its
+ * updates that one, the alert's as it is now and the latest first, and lights the screen, and
+ * starts no second one. A notification starts one activity on an iPhone: its later hours, once
+ * that one has run, leave as the push. When APNs refuses the start or the update, the push
+ * leaves to that iPhone in its
  * place, and a token that starts no more activities is let go of. When APNs takes it, nothing
  * says whether the system showed it.
  *
@@ -367,8 +370,15 @@ export async function beginOn(
   now: Date,
 ) {
   const iphones = devices.filter(switchedOn);
-  // The activities of the alert that run on them, held after the devices.
-  const runs =
+  // The activities of the alert that run on them, and those this notification started, held
+  // after the devices. One that iOS ended, eight hours after it started, runs no more.
+  const runsSince = new Date(now.getTime() - IOS_RUNS_MS);
+  const isRunning = (one: Running) =>
+    one.alertId === begins.alertId &&
+    one.endedAt === null &&
+    one.lastsUntil.getTime() > now.getTime() &&
+    one.createdAt.getTime() > runsSince.getTime();
+  const rows =
     iphones.length === 0
       ? []
       : await tx
@@ -380,13 +390,25 @@ export async function beginOn(
                 liveActivity.deviceId,
                 iphones.map((device) => device.id),
               ),
-              eq(liveActivity.alertId, begins.alertId),
-              isNull(liveActivity.endedAt),
-              gt(liveActivity.lastsUntil, now),
+              or(
+                and(
+                  eq(liveActivity.alertId, begins.alertId),
+                  isNull(liveActivity.endedAt),
+                  gt(liveActivity.lastsUntil, now),
+                  gt(liveActivity.createdAt, runsSince),
+                ),
+                eq(liveActivity.notificationId, begins.notificationId),
+              ),
             ),
           )
           .orderBy(asc(liveActivity.id))
           .for("update");
+  // Of those that run, the alert's as it is now first, then the latest: an older one is ended by
+  // the job that follows them.
+  const isCurrent = (one: Running) => Number(one.alertRevision === begins.revision);
+  const runs = rows
+    .filter(isRunning)
+    .sort((a, b) => isCurrent(b) - isCurrent(a) || b.createdAt.getTime() - a.createdAt.getTime());
   type Plan =
     | { kind: "push"; device: Device }
     | { kind: "start"; device: SwitchedOn; beginning: Beginning }
@@ -413,6 +435,12 @@ export async function beginOn(
           ? { kind: "update", device, run: { ...run, token: run.token }, ...next }
           : { kind: "push", device },
       );
+    } else if (
+      rows.some((one) => one.deviceId === device.id && one.notificationId === begins.notificationId)
+    ) {
+      // This notification started one there already, which ran: its later hours leave as the
+      // push, since the app names an activity by its iPhone and its notification.
+      plans.push({ kind: "push", device });
     } else if (begins.beginning) {
       // An activity that ran and should end is ended by the job that follows them.
       plans.push({ kind: "start", device, beginning: begins.beginning });
