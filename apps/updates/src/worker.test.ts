@@ -2,7 +2,7 @@ import { verify } from "node:crypto";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { NO_UPDATE_KEY, latestKey, signedKey } from "./bucket.ts";
+import { latestKey, signedKey } from "./bucket.ts";
 import {
   partName,
   putSigned,
@@ -21,7 +21,6 @@ const keys = testKeys();
 /** A bucket where an update was published for iOS, as `pnpm run release:js` leaves it. */
 function published() {
   const bucket = standInBucket();
-  putSigned(bucket, NO_UPDATE_KEY, '{"type":"noUpdateAvailable"}', keys.privateKey);
   putSigned(
     bucket,
     signedKey("ios", RUNTIME, UPDATE),
@@ -78,19 +77,17 @@ describe("the Worker of updates, over its bucket", () => {
     });
   });
 
-  it("tells an app that runs it that nothing is new, signed too", async () => {
+  it("tells an app that runs it that nothing is new, with a 204 that no key signs", async () => {
     const response = await ask(published(), { "expo-current-update-id": UPDATE });
-    expect(await partOf(response)).toEqual({
-      name: "directive",
-      json: { type: "noUpdateAvailable" },
-    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get("expo-protocol-version")).toBe("1");
   });
 
   it("tells the apps of another runtime that nothing is new", async () => {
     const response = await ask(published(), {
       "expo-runtime-version": "fedcba9876543210fedcba9876543210fedcba98",
     });
-    expect((await partOf(response)).json).toEqual({ type: "noUpdateAvailable" });
+    expect(response.status).toBe(204);
   });
 
   it("sends the apps back to their binary's JavaScript after a rollback", async () => {
@@ -107,7 +104,8 @@ describe("the Worker of updates, over its bucket", () => {
       name: "directive",
       json: { type: "rollBackToEmbedded" },
     });
-    expect((await partOf(await ask(bucket))).json).toEqual({ type: "noUpdateAvailable" });
+    // An app that runs its binary's JavaScript already has nothing to go back to.
+    expect((await ask(bucket)).status).toBe(204);
   });
 
   it("reads its bucket, writes nothing in it and logs nothing", async () => {

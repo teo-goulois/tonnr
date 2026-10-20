@@ -11,7 +11,7 @@ import {
 } from "@expo/code-signing-certificates";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { NO_UPDATE_KEY, latestKey, signedKey } from "./bucket.ts";
+import { latestKey, signedKey } from "./bucket.ts";
 import {
   type Exported,
   type ManifestInput,
@@ -142,7 +142,6 @@ describe("the order of a publication", () => {
       "files",
       "files",
       "updates",
-      "directives",
       "runtimes",
       "updates",
       "runtimes",
@@ -200,7 +199,7 @@ describe("a publication, from the bucket to an app", () => {
         updateWrites("android", android, signing.privateKey).writes,
       ]),
     );
-    expect(written).toEqual({ sent: 9, kept: 0 });
+    expect(written).toEqual({ sent: 8, kept: 0 });
     // Every file was there before a manifest named it, and the manifest before its pointer.
     const puts = bucket.calls
       .filter((call) => call.startsWith("PUT "))
@@ -224,20 +223,16 @@ describe("a publication, from the bucket to an app", () => {
     expect((await checked(await ask("android", "null"))).json.id).toBe(android.id);
   });
 
-  it("tells an app that runs it that nothing is new, in the directive signed once", async () => {
-    expect(await checked(await ask("ios", ios.id))).toEqual({
-      name: "directive",
-      json: { type: "noUpdateAvailable" },
-    });
-    expect(bucket.objects.get(NO_UPDATE_KEY)?.metadata.signature).toBe(
-      signatureOf(encode('{"type":"noUpdateAvailable"}'), signing.privateKey),
-    );
+  it("tells an app that runs it that nothing is new, which no key signs", async () => {
+    const response = await ask("ios", ios.id);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("expo-protocol-version")).toBe("1");
   });
 
   it("sends no file again that the bucket holds already", async () => {
     const next = inputOf("ios", { createdAt: "2026-10-21T10:00:00.000Z" });
     const writes = updateWrites("ios", next, signing.privateKey).writes;
-    expect(await writeAll(client, writes)).toEqual({ sent: 3, kept: 3 });
+    expect(await writeAll(client, writes)).toEqual({ sent: 2, kept: 3 });
     expect((await checked(await ask("ios", ios.id))).json.id).toBe(next.id);
   });
 

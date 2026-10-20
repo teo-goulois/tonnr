@@ -10,7 +10,6 @@ import { UPDATES_KEY_ID, UPDATES_SIGNATURE_ALGORITHM } from "@repo/config/update
 import {
   type Latest,
   type Platform,
-  NO_UPDATE_KEY,
   SIGNATURE_METADATA,
   fileKey,
   latestKey,
@@ -173,9 +172,6 @@ const signedWrite = (key: string, body: Uint8Array, privateKey: string): Write =
   metadata: { [SIGNATURE_METADATA]: signatureOf(body, privateKey) },
 });
 
-/** The directive that says nothing is new: the same bytes every time, signed the same. */
-export const NO_UPDATE = json({ type: "noUpdateAvailable" });
-
 const pointer = (platform: Platform, runtime: string, latest: Latest): Write => ({
   key: latestKey(platform, runtime),
   body: json(latest),
@@ -187,8 +183,8 @@ const pointer = (platform: Platform, runtime: string, latest: Latest): Write => 
 export const newUpdateId = () => randomUUID();
 
 /**
- * The writes of an update of one platform: its files, then its signed manifest, then the
- * directive that says nothing is new, and last what points the runtime's apps at it.
+ * The writes of an update of one platform: its files, then its signed manifest, and last what
+ * points the runtime's apps at it.
  */
 export function updateWrites(
   platform: Platform,
@@ -201,7 +197,6 @@ export function updateWrites(
     writes: [
       ...files,
       signedWrite(signedKey(platform, input.runtime, input.id), json(manifest), privateKey),
-      signedWrite(NO_UPDATE_KEY, NO_UPDATE, privateKey),
       pointer(platform, input.runtime, { kind: "update", id: input.id }),
     ],
   };
@@ -221,7 +216,6 @@ export function rollbackWrites(
   const directive = json({ type: "rollBackToEmbedded", parameters: { commitTime } });
   return [
     signedWrite(signedKey(platform, runtime, id), directive, privateKey),
-    signedWrite(NO_UPDATE_KEY, NO_UPDATE, privateKey),
     pointer(platform, runtime, { kind: "rollBackToEmbedded", id }),
   ];
 }
@@ -260,9 +254,7 @@ export function inOrder(writes: Write[][]): Write[] {
   const rest: Write[] = [];
   for (const write of writes.flat()) {
     if (write.immutable) files.set(write.key, write);
-    else if (write.key !== NO_UPDATE_KEY || !rest.some((kept) => kept.key === NO_UPDATE_KEY)) {
-      rest.push(write);
-    }
+    else rest.push(write);
   }
   return [...files.values(), ...rest];
 }

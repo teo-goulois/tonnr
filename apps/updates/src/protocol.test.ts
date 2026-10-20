@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_UPDATE_KEY, latestKey, signedKey } from "./bucket.ts";
+import { latestKey, signedKey } from "./bucket.ts";
 import { type Asked, type Store, answer, answerOf, multipartOf, readAsked } from "./protocol.ts";
 import { partName, readMultipart, signatureOf } from "./testing.ts";
 
@@ -77,7 +77,6 @@ const ASKED: Asked = {
   currentUpdateId: EMBEDDED,
   embeddedUpdateId: EMBEDDED,
 };
-const NO_UPDATE = { body: '{"type":"noUpdateAvailable"}', signature: 'sig="no", keyid="main"' };
 const MANIFEST = { body: `{"id":"${UPDATE}"}`, signature: 'sig="manifest", keyid="main"' };
 const ROLLBACK = { body: '{"type":"rollBackToEmbedded"}', signature: 'sig="back", keyid="main"' };
 const decoded = (answer: Awaited<ReturnType<typeof answerOf>>) =>
@@ -86,14 +85,7 @@ const decoded = (answer: Awaited<ReturnType<typeof answerOf>>) =>
     : { part: answer.part, body: new TextDecoder().decode(answer.signed.body) };
 
 describe("which part of a publication an app gets", () => {
-  it("is nothing new when nothing was published for its runtime", async () => {
-    expect(decoded(await answerOf(ASKED, storeOf({ [NO_UPDATE_KEY]: NO_UPDATE })))).toEqual({
-      part: "directive",
-      body: NO_UPDATE.body,
-    });
-  });
-
-  it("is a 204 before the directive that says nothing is new was ever signed", async () => {
+  it("is nothing new, which needs no signature, when nothing was published for its runtime", async () => {
     expect(await answerOf(ASKED, storeOf({}))).toEqual({ part: null });
   });
 
@@ -101,7 +93,6 @@ describe("which part of a publication an app gets", () => {
     const answer = await answerOf(
       ASKED,
       storeOf({
-        [NO_UPDATE_KEY]: NO_UPDATE,
         [latestKey("ios", RUNTIME)]: { body: `{"kind":"update","id":"${UPDATE}"}` },
         [signedKey("ios", RUNTIME, UPDATE)]: MANIFEST,
       }),
@@ -114,17 +105,15 @@ describe("which part of a publication an app gets", () => {
     const answer = await answerOf(
       { ...ASKED, currentUpdateId: UPDATE },
       storeOf({
-        [NO_UPDATE_KEY]: NO_UPDATE,
         [latestKey("ios", RUNTIME)]: { body: `{"kind":"update","id":"${UPDATE}"}` },
         [signedKey("ios", RUNTIME, UPDATE)]: MANIFEST,
       }),
     );
-    expect(decoded(answer)).toEqual({ part: "directive", body: NO_UPDATE.body });
+    expect(answer).toEqual({ part: null });
   });
 
   it("sends an app back to its binary's JavaScript, unless it runs it already", async () => {
     const objects = {
-      [NO_UPDATE_KEY]: NO_UPDATE,
       [latestKey("ios", RUNTIME)]: { body: `{"kind":"rollBackToEmbedded","id":"${UPDATE}"}` },
       [signedKey("ios", RUNTIME, UPDATE)]: ROLLBACK,
     };
@@ -133,27 +122,23 @@ describe("which part of a publication an app gets", () => {
       part: "directive",
       body: ROLLBACK.body,
     });
-    expect(decoded(await answerOf(ASKED, storeOf(objects)))).toEqual({
-      part: "directive",
-      body: NO_UPDATE.body,
-    });
+    expect(await answerOf(ASKED, storeOf(objects))).toEqual({ part: null });
   });
 
   it("is the runtime's own, on its own platform", async () => {
     const objects = {
-      [NO_UPDATE_KEY]: NO_UPDATE,
       [latestKey("android", RUNTIME)]: { body: `{"kind":"update","id":"${UPDATE}"}` },
       [signedKey("android", RUNTIME, UPDATE)]: MANIFEST,
     };
-    expect(decoded(await answerOf(ASKED, storeOf(objects)))?.body).toBe(NO_UPDATE.body);
+    expect(await answerOf(ASKED, storeOf(objects))).toEqual({ part: null });
     expect(decoded(await answerOf({ ...ASKED, platform: "android" }, storeOf(objects)))?.part).toBe(
       "manifest",
     );
   });
 
   it("reads a pointer it cannot read as nothing published", async () => {
-    const objects = { [NO_UPDATE_KEY]: NO_UPDATE, [latestKey("ios", RUNTIME)]: { body: "{" } };
-    expect(decoded(await answerOf(ASKED, storeOf(objects)))?.body).toBe(NO_UPDATE.body);
+    const objects = { [latestKey("ios", RUNTIME)]: { body: "{" } };
+    expect(await answerOf(ASKED, storeOf(objects))).toEqual({ part: null });
   });
 
   it("fails on a publication whose signed object is missing", async () => {
@@ -183,7 +168,13 @@ describe("the Worker's answer", () => {
     new Request(`https://updates.example.org${path}`, { headers, ...init });
 
   it("says the protocol and keeps no copy, whatever it answers", async () => {
-    const response = await answer(request(asking()), storeOf({ [NO_UPDATE_KEY]: NO_UPDATE }));
+    const response = await answer(
+      request(asking()),
+      storeOf({
+        [latestKey("ios", RUNTIME)]: { body: `{"kind":"update","id":"${UPDATE}"}` },
+        [signedKey("ios", RUNTIME, UPDATE)]: MANIFEST,
+      }),
+    );
     expect(response.status).toBe(200);
     expect(response.headers.get("expo-protocol-version")).toBe("1");
     expect(response.headers.get("expo-sfv-version")).toBe("0");
@@ -194,6 +185,9 @@ describe("the Worker's answer", () => {
     expect(empty.status).toBe(204);
     expect(empty.headers.get("expo-protocol-version")).toBe("1");
     expect(empty.headers.get("cache-control")).toBe("private, max-age=0");
+    // A 204 has no type: the client reads the protocol's header alone.
+    expect(empty.headers.get("content-type")).toBeNull();
+    expect(await empty.text()).toBe("");
   });
 
   it("refuses an unknown platform with 400 and another protocol with 406", async () => {

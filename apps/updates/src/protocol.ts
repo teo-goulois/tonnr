@@ -3,7 +3,6 @@
 // client of expo-updates 58 reads (`FileDownloader` in its iOS and Android code). Decision 075.
 import {
   type Platform,
-  NO_UPDATE_KEY,
   isPlatform,
   isRuntime,
   isUpdateId,
@@ -62,34 +61,33 @@ export interface Store {
 
 export type Answer =
   | { part: "manifest" | "directive"; signed: Signed }
-  // Nothing new, and no signed directive to say it, before a first publication: a 204.
+  // Nothing new: a 204, which protocol 1 allows, which needs no signature and which the client
+  // reads as it reads the directive `noUpdateAvailable`. A directive signed once and served to
+  // every runtime would carry one key's signature to binaries that may check another's, those
+  // of an older certificate, which would refuse it at each start.
   | { part: null };
 
 const signedOf = (object: Awaited<ReturnType<Store["get"]>>): Signed | null =>
   object?.signature ? { body: object.body, signature: object.signature } : null;
 
+const NOTHING_NEW: Answer = { part: null };
+
 /**
  * Which part of the latest publication of its runtime an app gets: the manifest of an update
- * it does not run, the directive that sends it back to its binary's JavaScript, or the one that
- * says there is nothing new.
+ * it does not run, the directive that sends it back to its binary's JavaScript, or nothing new.
  */
 export async function answerOf(asked: Asked, store: Store): Promise<Answer> {
-  const nothingNew = async (): Promise<Answer> => {
-    const signed = signedOf(await store.get(NO_UPDATE_KEY));
-    return signed ? { part: "directive", signed } : { part: null };
-  };
-
   const pointer = await store.get(latestKey(asked.platform, asked.runtime));
   const latest = pointer ? readLatest(new TextDecoder().decode(pointer.body)) : null;
-  if (!latest) return nothingNew();
-  if (latest.kind === "update" && asked.currentUpdateId === latest.id) return nothingNew();
+  if (!latest) return NOTHING_NEW;
+  if (latest.kind === "update" && asked.currentUpdateId === latest.id) return NOTHING_NEW;
   // An app that runs its binary's JavaScript already has nothing to go back to.
   if (
     latest.kind === "rollBackToEmbedded" &&
     asked.currentUpdateId !== null &&
     asked.currentUpdateId === asked.embeddedUpdateId
   ) {
-    return nothingNew();
+    return NOTHING_NEW;
   }
 
   const signed = signedOf(await store.get(signedKey(asked.platform, asked.runtime, latest.id)));

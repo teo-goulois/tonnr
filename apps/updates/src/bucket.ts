@@ -3,7 +3,6 @@
 //
 // files/<sha256>                               a file of an update, at the bucket's own domain
 // updates/<platform>/<runtime>/<id>.json       a manifest or a directive, its signature beside it
-// directives/noUpdateAvailable.json            the directive that says nothing is new, signed once
 // runtimes/<platform>/<runtime>/latest.json    which publication the runtime's apps get
 // runtimes/<platform>/<runtime>/shipped.json   the store build that shipped the runtime
 //
@@ -36,8 +35,6 @@ export const fileKey = (sha256Hex: string) => `files/${sha256Hex}`;
 
 export const signedKey = (platform: Platform, runtime: string, id: string) =>
   `updates/${platform}/${runtime}/${id}.json`;
-
-export const NO_UPDATE_KEY = "directives/noUpdateAvailable.json";
 
 export const latestKey = (platform: Platform, runtime: string) =>
   `runtimes/${platform}/${runtime}/latest.json`;
