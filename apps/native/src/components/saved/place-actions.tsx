@@ -9,7 +9,7 @@ import {
 } from "@repo/ui/icon";
 import { type Link, router } from "expo-router";
 import { type ComponentProps, useState } from "react";
-import { Platform, Share } from "react-native";
+import { Platform } from "react-native";
 
 import { placeHref } from "@/components/map/place-route";
 import type { GlyphIcon } from "@/components/shared/glyph";
@@ -17,6 +17,7 @@ import { feel } from "@/components/ui/haptics";
 import { useTell } from "@/components/ui/toast";
 import { ENV } from "@/env";
 import { useRequireAccount } from "@/lib/require-account";
+import { shareLink } from "@/lib/share";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
@@ -69,13 +70,7 @@ export function usePlaceActions() {
   async function share({ ref, name }: PlaceItem) {
     const url = placeLinkOf(ENV.EXPO_PUBLIC_SITE_URL, getLocale(), ref);
     if (!url) return;
-    const text = m.place_share_text({ name, app: APP_NAME });
-    // Whoever closes the sheet without sending has done nothing wrong.
-    await Share.share(
-      Platform.OS === "ios"
-        ? { title: name, message: text, url }
-        : { title: name, message: `${text}\n${url}` },
-    ).catch(() => {});
+    await shareLink({ title: name, message: m.place_share_text({ name, app: APP_NAME }), url });
   }
 
   function setAlert({ ref }: PlaceItem) {

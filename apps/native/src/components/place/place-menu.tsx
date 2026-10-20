@@ -3,7 +3,7 @@ import { APP_NAME } from "@repo/config/app";
 import { BellIcon, GlobalIcon, MapPinIcon, PenIcon, ShareIcon, TrashIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { BackHandler, Linking, Platform, ScrollView, Share, View } from "react-native";
+import { BackHandler, Linking, Platform, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -19,6 +19,7 @@ import { Text } from "@/components/ui/text";
 import { ENV } from "@/env";
 import type { Route } from "@/lib/links";
 import { useRequireAccount } from "@/lib/require-account";
+import { shareLink } from "@/lib/share";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -80,17 +81,10 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
 
   async function share() {
     if (!url) return;
-    const text = m.place_share_text({ name: title, app: APP_NAME });
-    try {
-      // iOS shows the address apart, as a link. Android takes one text, which ends with it.
-      await Share.share(
-        Platform.OS === "ios"
-          ? { title, message: text, url }
-          : { title, message: `${text}\n${url}` },
-      );
+    if (
+      await shareLink({ title, message: m.place_share_text({ name: title, app: APP_NAME }), url })
+    ) {
       close();
-    } catch {
-      // Whoever closes the sheet without sending has done nothing wrong.
     }
   }
 

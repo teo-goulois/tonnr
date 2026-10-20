@@ -3,7 +3,7 @@ import { APP_NAME } from "@repo/config/app";
 import { CopyIcon, Link2Icon, LockIcon, RestartIcon, ShareIcon, XIcon } from "@repo/ui/icon";
 import * as Clipboard from "expo-clipboard";
 import { useState } from "react";
-import { Platform, Share, View } from "react-native";
+import { View } from "react-native";
 
 import { confirmDestructive } from "@/components/saved/confirm";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { useTell } from "@/components/ui/toast";
 import { ENV } from "@/env";
+import { shareLink } from "@/lib/share";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -85,13 +86,11 @@ export function ShareSection({ list, privateSpots, mutations }: ShareSectionProp
   }
 
   async function send() {
-    const message = m.place_share_text({ name, app: APP_NAME });
-    // Whoever closes the sheet without sending has done nothing wrong.
-    await Share.share(
-      Platform.OS === "ios"
-        ? { title: name, message, url: link }
-        : { title: name, message: `${message}\n${link}` },
-    ).catch(() => {});
+    await shareLink({
+      title: name,
+      message: m.place_share_text({ name, app: APP_NAME }),
+      url: link,
+    });
   }
 
   async function renew() {
