@@ -18,6 +18,7 @@ import { useAccount } from "@/lib/account";
 import type { Route } from "@/lib/links";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { AlertRow } from "./alert-row";
@@ -26,7 +27,6 @@ import { NoticeRow, NotificationRow } from "./news-rows";
 import { type Told, byDay, placeOf, toldOf } from "./told";
 import { useAlertActions, useAlerts } from "./use-alerts";
 import { useNews } from "./use-news";
-import { useNow } from "./use-now";
 
 // The tab of the alerts, the web's `AlertsPanel` as a phone draws a list: a large title, a choice
 // between what was told and the account's alerts, each a list grouped as the platform groups one.

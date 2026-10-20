@@ -21,7 +21,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { wavesQuery } from "@/components/map/queries";
 import { useAccount } from "@/lib/account";
@@ -42,16 +42,6 @@ const FORECAST_DAYS = { days: 7, pastDays: 2 };
 // The days of tide a sheet opens with, around today, and the most it asks for on each side.
 const TIDE_DAYS = { before: 1, after: 6 };
 const TIDE_DAYS_MOST = 15;
-
-/** The time, to the minute: a sheet's figures age with it. */
-export function useNow() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), MINUTE_MS);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /** What a screen knows of what a query is loading, as the web's `loadable` says it. */
 export function loadable<Data>(

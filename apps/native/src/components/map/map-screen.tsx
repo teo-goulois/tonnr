@@ -26,6 +26,7 @@ import { useRecentPlaces } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -60,16 +61,6 @@ import { bboxOf, type Bounds, LOCATE_ZOOM, type LngLat, visibleBounds } from "./
 // The basemap's credits, which the map shows as it opens and folds once it is moved: its names,
 // as the style writes them, which no language changes. The sea's are the API's.
 const BASEMAP_CREDITS = "© OpenFreeMap © OpenMapTiles © OpenStreetMap";
-
-/** The time, again every minute, so that a reading ages while the map stays open. */
-function useNow() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), MINUTE_MS);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /** The layers the legend switched, kept on the phone as the browser keeps them. */
 function useMapLayers() {

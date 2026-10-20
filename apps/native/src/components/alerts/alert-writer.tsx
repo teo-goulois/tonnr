@@ -14,6 +14,7 @@ import { placeOfParam } from "@/components/sessions/session-logic";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -21,7 +22,6 @@ import { AlertEditor } from "./alert-editor";
 import { type AlertPlace, placesOfAlert, readCopy } from "./copies";
 import { PlacePicker } from "./place-picker";
 import { useAlertSettings, useSpots } from "./use-alert-editor";
-import { useNow } from "./use-now";
 
 // The two screens an alert is written on, as the web's `AlertSheet` holds its editor: a new
 // alert, at `?place=<break|spot>:<id>`, from a copy at `?copy=`, or asking where first; and an

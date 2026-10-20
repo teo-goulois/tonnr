@@ -17,13 +17,14 @@ import type { Route } from "@/lib/links";
 import { useRecentViews } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { PlaceForecast } from "./place-forecast";
 import { PlaceHeader } from "./place-header";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
 import { useLists } from "./use-lists";
-import { useNow, usePlaceConditions, usePlaceRecord } from "./use-place";
+import { usePlaceConditions, usePlaceRecord } from "./use-place";
 import { useDistanceFrom, useFoldHeight, useSheetState } from "./use-sheet";
 import { useSpotActions } from "./use-spot";
 

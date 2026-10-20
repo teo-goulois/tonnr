@@ -4,8 +4,9 @@ import { AppState } from "react-native";
 const MINUTE_MS = 60 * 1000;
 
 /**
- * The time, read again each minute and when the app comes back to the screen: what says "16 min
- * ago" or which day a window falls on follows it.
+ * The time, read again each minute and when the app comes back to the screen: a reading on the
+ * map or in a place's sheet ages with it, and what says "16 min ago" or which day a window falls
+ * on follows it. The one clock of the screens.
  */
 export function useNow() {
   const [now, setNow] = useState(() => Date.now());
