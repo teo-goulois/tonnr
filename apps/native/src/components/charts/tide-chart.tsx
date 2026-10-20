@@ -3,6 +3,7 @@ import type { TideExtremes, TideTimeline } from "@repo/client/viewer/types";
 import { Circle, Line as SkiaLine, vec } from "@shopify/react-native-skia";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, type ListViewToken, View } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
@@ -146,7 +147,9 @@ export function TideChart({
     if (first?.index != null) settle.current(first.item, first.index);
   });
 
-  const goTo = (index: number, animated = true) => {
+  // A reader who asked for no motion is taken to a day at once.
+  const reducedMotion = useReducedMotion();
+  const goTo = (index: number, animated = !reducedMotion) => {
     if (index < 0 || index >= days.length) return;
     list.current?.scrollToIndex({ index, animated });
     settle.current(days[index], index);

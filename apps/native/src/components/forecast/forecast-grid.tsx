@@ -524,7 +524,7 @@ export function ForecastGrid({
     const next = nowIndex >= 0 && Math.abs(x - home) > COLUMN * 2;
     if (next !== away.current) {
       away.current = next;
-      onAway?.(next ? () => scrollTo(home, true) : undefined);
+      onAway?.(next ? () => scrollTo(home, !reducedMotion) : undefined);
     }
     // Pulled past the start and held there, the table takes the day before. A phone that
     // bounces says how far: iOS.
