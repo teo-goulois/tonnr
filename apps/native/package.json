@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "messages": "node scripts/messages.mjs",
-    "check-types": "node scripts/messages.mjs && tsc -b ../../packages/api && tsc --noEmit",
+    "check-types": "node scripts/messages.mjs && node scripts/route-types.mjs && tsc -b ../../packages/api && tsc --noEmit",
     "test": "vitest run",
     "env:generate": "varlock codegen",
     "ios:simulator": "node scripts/ios-simulator.mjs"

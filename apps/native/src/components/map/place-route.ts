@@ -1,3 +1,5 @@
+import type { Route } from "@/lib/links";
+
 import type { PlaceKind } from "./features";
 
 // Where a place's sheet lives, `/place/<break|station|spot>/<id>` (decision 069), as the map opens
@@ -14,7 +16,7 @@ const KINDS: readonly string[] = ["station", "break", "spot"] satisfies PlaceKin
 
 /** The address of a place's sheet. */
 export function placeHref(kind: PlaceKind, id: string) {
-  return `/place/${kind}/${encodeURIComponent(id)}`;
+  return `/place/${kind}/${encodeURIComponent(id)}` as Route;
 }
 
 /** The place whose sheet an address opens, or none. */

@@ -9,7 +9,7 @@ import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 
 import { forgetPushKeys, pushKeys, setPushLabels } from "../../modules/push-keys";
-import { destinationOfAddress } from "./links";
+import { type Route, destinationOfAddress } from "./links";
 
 // The app's side of push: the channels and the categories in the app's language, the phone
 // given to the API as a device of the account, its token said again at each start, and a press
@@ -170,13 +170,13 @@ export function openNotification(response: Notifications.NotificationResponse) {
   };
   if (response.actionIdentifier === "not-today" && data.ids?.alert) {
     const until = data.pauseUntil ? `&until=${encodeURIComponent(data.pauseUntil)}` : "";
-    return router.push(`/pause-alert?alert=${encodeURIComponent(data.ids.alert)}${until}` as never);
+    return router.push(`/pause-alert?alert=${encodeURIComponent(data.ids.alert)}${until}` as Route);
   }
   if (!data.url) return;
   const destination = destinationOfAddress(data.url, ENV.EXPO_PUBLIC_SITE_URL);
   if (response.actionIdentifier === "log-session" && "route" in destination) {
     const place = /^\/place\/(break|spot)\/([^?]+)/.exec(destination.route);
-    if (place) return router.push(`/session/new?place=${place[1]}:${place[2]}` as never);
+    if (place) return router.push(`/session/new?place=${place[1]}:${place[2]}` as Route);
   }
-  if ("route" in destination) router.push(destination.route as never);
+  if ("route" in destination) router.push(destination.route);
 }
