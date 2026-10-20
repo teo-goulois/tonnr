@@ -96,14 +96,19 @@ export function PlaceRowSkeleton() {
 
 type PlaceRowProps = {
   item: PlaceItem;
-  /** What `places.now` said of it: undefined while it is on its way. */
-  told: Told | undefined;
+  /**
+   * What `places.now` said of it: null when it said nothing of it, a spot the reader may see in
+   * a list and not ask the sea of, and undefined when no answer came.
+   */
+  told: Told | null | undefined;
+  /** Whether the answer is on its way: the sea's place waits for it. */
+  pending: boolean;
   context: RowContext;
   actions: PlaceActions;
 };
 
 /** A place in a list. */
-export function PlaceRow({ item, told, context, actions }: PlaceRowProps) {
+export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProps) {
   const { colors, space } = useTheme();
   const swipeable = useRef<SwipeableMethods>(null);
   const sea = told?.sea;
@@ -141,10 +146,24 @@ export function PlaceRow({ item, told, context, actions }: PlaceRowProps) {
         <Text weight="medium" numberOfLines={1}>
           {name}
         </Text>
-        {figures ? <SeaLine figures={figures} /> : <Skeleton width="45%" height={11} />}
+        {figures ? (
+          <SeaLine figures={figures} />
+        ) : pending ? (
+          <Skeleton width="45%" height={11} />
+        ) : (
+          <Text size="s" tone="muted" dense numberOfLines={1}>
+            {kind}
+          </Text>
+        )}
       </View>
       {figures === null ? (
-        <Skeleton width={56} height={28} round />
+        pending ? (
+          <Skeleton width={56} height={28} round />
+        ) : (
+          <Text tone="muted" numeric>
+            –
+          </Text>
+        )
       ) : figures.heightMeters !== null ? (
         <HeightPill meters={figures.heightMeters} />
       ) : figures.windKnots !== null ? (

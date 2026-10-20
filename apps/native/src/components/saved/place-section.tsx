@@ -124,16 +124,22 @@ export function PlaceSection({
     reader,
     items.map((item) => item.ref),
   );
-  // A place the answer left out is no more: it leaves no row.
+  // A place the answer left out is no more, and leaves no row, unless the screen knows it by its
+  // name: a spot of a list read by its link, which the reader sees and is not told the sea of.
   const present = items.flatMap((item, index) => {
     const query = asked[index];
-    return query?.data === null ? [] : [{ item, query }];
+    return query?.data === null && !item.name ? [] : [{ item, query }];
   });
-  const failed = present.filter(({ query }) => query?.isError && query.data === undefined);
+  const unanswered = ({ query }: (typeof present)[number]) =>
+    query?.isError === true && query.data === undefined;
+  // A row with no name has nothing to show while its answer failed: the line under the rows
+  // asks again for it, and for the sea of the others.
+  const failed = present.filter(unanswered);
   const shown = present
-    .filter(({ query }) => !(query?.isError && query.data === undefined))
+    .filter((one) => !unanswered(one) || one.item.name)
     .slice(0, limit ?? present.length);
-  const rest = present.length - failed.length - shown.length;
+  const hidden = failed.filter((one) => !one.item.name).length;
+  const rest = present.length - hidden - shown.length;
 
   return (
     <View style={{ gap: space.xs }}>
@@ -150,7 +156,8 @@ export function PlaceSection({
               ) : (
                 <PlaceRow
                   item={item}
-                  told={query?.data ?? undefined}
+                  told={query?.data}
+                  pending={query?.isPending ?? true}
                   context={contextOf(item)}
                   actions={actions}
                 />
