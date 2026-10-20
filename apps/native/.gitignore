@@ -29,6 +29,9 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+# The certificate the updates are checked with, which is public: its key stays out of the
+# repository. Decision 075.
+!/certs/certificate.pem
 
 # local env files
 .env*.local

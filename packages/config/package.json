@@ -13,6 +13,7 @@
     "./names": "./src/names.ts",
     "./sea-words": "./src/sea-words.ts",
     "./unread": "./src/unread.ts",
+    "./updates": "./src/updates.ts",
     "./username": "./src/username.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"
   }

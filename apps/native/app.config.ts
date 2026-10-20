@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { APP_NAME, APP_SCHEME, APP_SLUG } from "@repo/config/app";
 import { claimedPaths } from "@repo/config/links";
 import { LOCALES } from "@repo/config/locales";
+import { UPDATES_KEY_ID, UPDATES_SIGNATURE_ALGORITHM } from "@repo/config/updates";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
@@ -13,6 +14,11 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 const site = new URL(process.env.EXPO_PUBLIC_SITE_URL ?? "https://tonnr.app");
 // Apple and Google verify a domain over HTTPS only: a build against a local site claims none.
 const claimsLinks = site.protocol === "https:";
+
+// Where the binary asks for updates of its JavaScript, which stays in it for good: the release
+// commands give the stage's to a store build, and a development build, which names none, never
+// asks (decision 075).
+const updatesUrl = process.env.UPDATES_URL || undefined;
 
 // What the phone shows when the app asks for a permission, in each language, from the web app's
 // messages, where every string a person reads is kept (decision 069).
@@ -111,6 +117,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // The notification extension of decision 072, in targets/notifications.
     "@bacons/apple-targets",
     "expo-secure-store",
+    "expo-updates",
     "expo-localization",
     "expo-web-browser",
     [
@@ -139,4 +146,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
+  // The updates of the JavaScript, from the instance's own server and signed by its key, whose
+  // certificate the binary carries: decision 075. An update goes to the binaries whose native
+  // code it was built with, which their fingerprint names. The app asks at each start, starts on
+  // what it has, and runs what it downloaded at the next start.
+  ...(updatesUrl && { runtimeVersion: { policy: "fingerprint" } }),
+  updates: updatesUrl
+    ? {
+        enabled: true,
+        url: updatesUrl,
+        checkAutomatically: "ON_LOAD",
+        fallbackToCacheTimeout: 0,
+        codeSigningCertificate: "./certs/certificate.pem",
+        codeSigningMetadata: { keyid: UPDATES_KEY_ID, alg: UPDATES_SIGNATURE_ALGORITHM },
+      }
+    : { enabled: false },
 });
