@@ -2089,5 +2089,14 @@
   "native_spot_rename_title": "Rename {name}",
   "native_spot_move": "Move",
   "native_spot_move_title": "Move {name}",
-  "native_place_sections": "Sections of {name}"
+  "native_place_sections": "Sections of {name}",
+  "native_guide_line_hint": "Opens what completes or corrects it.",
+  "native_guide_failed": "The guide couldn't be loaded.",
+  "native_guide_characters": "{count} of {most} characters",
+  "native_friends_renew_text": "The link you have now will open nothing. Your friends stay.",
+  "native_friends_remove_text": "You'll no longer read each other's contributions. Only you can make it again, by opening their link.",
+  "native_friend_hint": "Opens what they wrote that was confirmed.",
+  "native_friend_since": "Friends since {date}",
+  "native_blocked_since": "Blocked on {date}",
+  "native_contribution_open_hint": "Opens its guide on the map."
 }

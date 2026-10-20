@@ -2089,5 +2089,14 @@
   "native_spot_rename_title": "Renombrar {name}",
   "native_spot_move": "Mover",
   "native_spot_move_title": "Mover {name}",
-  "native_place_sections": "Secciones de {name}"
+  "native_place_sections": "Secciones de {name}",
+  "native_guide_line_hint": "Abre lo que la completa o la corrige.",
+  "native_guide_failed": "No se pudo cargar la guía.",
+  "native_guide_characters": "{count} de {most} caracteres",
+  "native_friends_renew_text": "El enlace que tienes ahora dejará de abrir nada. Tus amigos se quedan.",
+  "native_friends_remove_text": "Dejaréis de ver las aportaciones del otro. Solo tú podrás volver a serlo, abriendo su enlace.",
+  "native_friend_hint": "Abre lo que escribió y se confirmó.",
+  "native_friend_since": "Amigos desde {date}",
+  "native_blocked_since": "Bloqueado el {date}",
+  "native_contribution_open_hint": "Abre su guía en el mapa."
 }

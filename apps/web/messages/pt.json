@@ -2089,5 +2089,14 @@
   "native_spot_rename_title": "Mudar o nome de {name}",
   "native_spot_move": "Mover",
   "native_spot_move_title": "Mover {name}",
-  "native_place_sections": "Secções de {name}"
+  "native_place_sections": "Secções de {name}",
+  "native_guide_line_hint": "Abre o que a completa ou corrige.",
+  "native_guide_failed": "Não foi possível carregar o guia.",
+  "native_guide_characters": "{count} de {most} caracteres",
+  "native_friends_renew_text": "O link que tens agora deixa de abrir alguma coisa. Os teus amigos ficam.",
+  "native_friends_remove_text": "Deixam de ver os contributos um do outro. Só tu podes voltar a sê-lo, abrindo o link dele.",
+  "native_friend_hint": "Abre o que escreveu e foi confirmado.",
+  "native_friend_since": "Amigos desde {date}",
+  "native_blocked_since": "Bloqueado em {date}",
+  "native_contribution_open_hint": "Abre o guia no mapa."
 }

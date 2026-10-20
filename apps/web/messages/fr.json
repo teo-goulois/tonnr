@@ -2089,5 +2089,14 @@
   "native_spot_rename_title": "Renommer {name}",
   "native_spot_move": "Déplacer",
   "native_spot_move_title": "Déplacer {name}",
-  "native_place_sections": "Rubriques de {name}"
+  "native_place_sections": "Rubriques de {name}",
+  "native_guide_line_hint": "Ouvre de quoi la compléter ou la corriger.",
+  "native_guide_failed": "Le guide n'a pas pu être chargé.",
+  "native_guide_characters": "{count} caractères sur {most}",
+  "native_friends_renew_text": "Le lien que tu as maintenant n'ouvrira plus rien. Tes amis restent.",
+  "native_friends_remove_text": "Vous ne lirez plus les contributions l'un de l'autre. Toi seul pourras le redevenir, en ouvrant son lien.",
+  "native_friend_hint": "Ouvre ce qu'il a écrit et qui a été confirmé.",
+  "native_friend_since": "Amis depuis {date}",
+  "native_blocked_since": "Bloqué le {date}",
+  "native_contribution_open_hint": "Ouvre son guide sur la carte."
 }
