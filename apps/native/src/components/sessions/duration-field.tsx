@@ -1,3 +1,10 @@
+import {
+  LEAST_MINUTES,
+  MOST_MINUTES,
+  STEP_MINUTES,
+  USUAL_LENGTHS,
+  withinLengths,
+} from "@repo/client/sessions/rules";
 import { MinusIcon, PlusIcon } from "@repo/ui/icon";
 import { useState } from "react";
 import { View } from "react-native";
@@ -10,14 +17,6 @@ import { Text } from "@/components/ui/text";
 import { formatDuration } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-
-import {
-  LEAST_MINUTES,
-  MOST_MINUTES,
-  STEP_MINUTES,
-  USUAL_LENGTHS,
-  withinLengths,
-} from "./session-logic";
 
 type DurationFieldProps = {
   // In minutes.
@@ -41,7 +40,7 @@ export function DurationField({
   bleed = 0,
 }: DurationFieldProps) {
   const { space } = useTheme();
-  const isUsual = (USUAL_LENGTHS as readonly number[]).includes(value);
+  const isUsual = USUAL_LENGTHS.includes(value);
   // Whether the line of one's own length is open: always while the length is one's own.
   const [isOwn, setIsOwn] = useState(!isUsual);
   const shownOwn = isOwn || !isUsual;

@@ -1,46 +1,17 @@
 import type { SessionPlace } from "@repo/client/sessions/types";
-import type { Session } from "@repo/client/viewer/types";
+import { daysBefore, isAhead } from "@repo/client/sessions/rules";
 import { distanceKm } from "@repo/client/viewer/samples";
 
-import { formatDate, formatMonth } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages";
 
-// The rules of a session's form that read no screen: when a session written now began, how its
-// day is said, how long it may last, and where it most likely was. The web's `session-form.tsx`
-// and `duration-input.tsx` hold the same. Decision 043.
+// The rules of a session's form in the app for phones that read no screen: how its day is said,
+// its day and its hour each set by a picker of their own, when it began from its first photo,
+// and where it most likely was. What the web's form holds too, its usual start and length and how
+// far ahead it may be, is packages/client/src/sessions/rules.ts. Decision 043.
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
-/** A session is written once it has begun: a clock that runs a little ahead is forgiven. */
-export const AHEAD_MS = 15 * MINUTE_MS;
-
-/** How long a session is taken to last until its surfer says. */
-export const USUAL_MINUTES = 90;
-/** What a session's length is chosen among at a press. */
-export const USUAL_LENGTHS = [30, 60, USUAL_MINUTES, 120, 180] as const;
-/** A length of one's own: from a quarter of an hour to eight hours, five minutes at a time. */
-export const LEAST_MINUTES = 15;
-export const MOST_MINUTES = 480;
-export const STEP_MINUTES = 5;
-
-/** A length of one's own, kept within what is taken. */
-export const withinLengths = (minutes: number) =>
-  Math.min(
-    MOST_MINUTES,
-    Math.max(LEAST_MINUTES, Math.round(minutes / STEP_MINUTES) * STEP_MINUTES),
-  );
-
-/**
- * When a session that is written now is taken to have begun: as long ago as it usually lasts,
- * on a round five minutes. It is nearly always written on the way out of the water.
- */
-export function usualStart(now: number) {
-  const step = 5 * MINUTE_MS;
-  return new Date(Math.floor((now - USUAL_MINUTES * MINUTE_MS) / step) * step);
-}
-
-/** Whether a session would begin later than it may be written. */
-export const isAhead = (startedAt: Date, now: number) => startedAt.getTime() > now + AHEAD_MS;
 
 /** A moment on the round five minutes before it, as a session's start is said. */
 export function onFiveMinutes(moment: Date) {
@@ -64,10 +35,7 @@ export function withClock(day: Date, clock: Date) {
 
 /** A day as it is said beside its hour: today, yesterday, or its date. */
 export function dayWords(day: Date, now: number) {
-  const midnight = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const daysAgo = Math.round(
-    (midnight(new Date(now)).getTime() - midnight(day).getTime()) / DAY_MS,
-  );
+  const daysAgo = daysBefore(day, now);
   if (daysAgo === 0) return m.session_day_today();
   if (daysAgo === 1) return m.session_day_yesterday();
   return formatDate(day, now);
@@ -121,18 +89,3 @@ export function placeOfParam(param: string | undefined): Pick<SessionPlace, "kin
 
 /** A place as a route names it. */
 export const placeParam = (place: Pick<SessionPlace, "kind" | "id">) => `${place.kind}:${place.id}`;
-
-/** The sessions of a month, the latest first, as the list gives them. */
-export type Month = { name: string; sessions: Session[] };
-
-/** The sessions month by month, the latest month first, from a list the latest first. */
-export function byMonth(sessions: readonly Session[]): Month[] {
-  const months: Month[] = [];
-  for (const session of sessions) {
-    const name = formatMonth(session.startedAt);
-    const last = months.at(-1);
-    if (last?.name === name) last.sessions.push(session);
-    else months.push({ name, sessions: [session] });
-  }
-  return months;
-}

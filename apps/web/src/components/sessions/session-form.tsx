@@ -1,3 +1,4 @@
+import { AHEAD_MS, daysBefore, USUAL_MINUTES, usualStart } from "@repo/client/sessions/rules";
 import { SESSION_MOST_MEDIA } from "@repo/config/media";
 import { Button } from "@repo/ui/components/ui/button";
 import { Textarea } from "@repo/ui/components/ui/textarea";
@@ -9,18 +10,14 @@ import { formatClock, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 
 import type { MediaItem, Session } from "../viewer/types";
-import { DurationInput, USUAL_MINUTES } from "./duration-input";
+import { DurationInput } from "./duration-input";
 import { RatingInput, ratingWord } from "./rating";
 import { type MediaEntry, SessionMediaField } from "./session-media";
 import { SurfSizeInput } from "./surf-size";
 import type { SessionDraft, SessionMedia } from "./types";
 
-const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 // A note as the API takes it.
 const NOTE_MOST = 2000;
-// A session is written once it has begun: a clock that runs a little ahead is forgiven.
-const AHEAD_MS = 15 * MINUTE_MS;
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -38,21 +35,9 @@ export function fromFields(day: string, clock: string) {
   return day && clock && !Number.isNaN(date.getTime()) ? date : null;
 }
 
-/**
- * When a session that is written now is taken to have begun: as long ago as it usually lasts,
- * on a round five minutes. It is nearly always written on the way out of the water.
- */
-export function usualStart(now: number) {
-  const step = 5 * MINUTE_MS;
-  return new Date(Math.floor((now - USUAL_MINUTES * MINUTE_MS) / step) * step);
-}
-
 /** A day as it is said beside its hour: today, yesterday, or its date. */
 export function dayWords(day: Date, now: number) {
-  const midnight = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const daysAgo = Math.round(
-    (midnight(new Date(now)).getTime() - midnight(day).getTime()) / DAY_MS,
-  );
+  const daysAgo = daysBefore(day, now);
   if (daysAgo === 0) return m.session_day_today();
   if (daysAgo === 1) return m.session_day_yesterday();
   return formatDate(day, now);

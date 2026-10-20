@@ -1,33 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type { Session } from "@repo/client/viewer/types";
-
 import {
-  byMonth,
   dayWords,
-  isAhead,
   nearestPlace,
   placeOfParam,
   placeParam,
   startFromPhoto,
-  usualStart,
   withClock,
   withDay,
-  withinLengths,
 } from "./session-logic";
 
-describe("when a session that is written now is taken to have begun", () => {
-  it("is an hour and a half before, on a round five minutes", () => {
-    const now = new Date(2026, 9, 3, 11, 13, 40).getTime();
-    expect(usualStart(now).getTime()).toBe(new Date(2026, 9, 3, 9, 40).getTime());
-  });
-
-  it("is never later than a quarter of an hour ahead of the clock", () => {
-    const now = new Date(2026, 9, 3, 11, 0).getTime();
-    expect(isAhead(new Date(2026, 9, 3, 11, 15), now)).toBe(false);
-    expect(isAhead(new Date(2026, 9, 3, 11, 20), now)).toBe(true);
-  });
-
+describe("when a new session began, from its first photo", () => {
   it("is the first photo's moment, on five minutes, when it is of the past", () => {
     const now = new Date(2026, 9, 19, 12, 0).getTime();
     expect(startFromPhoto(new Date(2026, 9, 19, 8, 12, 33), now)?.getTime()).toBe(
@@ -55,14 +38,6 @@ describe("the day and the hour of a session, each set by its own picker", () => 
     expect(dayWords(new Date(2026, 9, 3, 0, 5), now)).toBe("Today");
     expect(dayWords(new Date(2026, 9, 2, 23, 55), now)).toBe("Yesterday");
     expect(dayWords(new Date(2026, 9, 1, 8, 0), now)).not.toBe("Yesterday");
-  });
-});
-
-describe("a length of one's own", () => {
-  it("is five minutes at a time, from a quarter of an hour to eight hours", () => {
-    expect(withinLengths(5)).toBe(15);
-    expect(withinLengths(97)).toBe(95);
-    expect(withinLengths(600)).toBe(480);
   });
 });
 
@@ -97,19 +72,5 @@ describe("a place as a route names it", () => {
     expect(placeOfParam("5b1c")).toBeNull();
     expect(placeOfParam("break:")).toBeNull();
     expect(placeOfParam(undefined)).toBeNull();
-  });
-});
-
-describe("the log, month by month", () => {
-  const session = (id: string, startedAt: Date) => ({ id, startedAt }) as unknown as Session;
-
-  it("keeps the order of the list, the latest month first", () => {
-    const months = byMonth([
-      session("c", new Date(2026, 9, 18, 8)),
-      session("b", new Date(2026, 9, 2, 8)),
-      session("a", new Date(2026, 8, 30, 8)),
-    ]);
-    expect(months.map((month) => month.sessions.map((one) => one.id))).toEqual([["c", "b"], ["a"]]);
-    expect(months[0]?.name).not.toBe(months[1]?.name);
   });
 });

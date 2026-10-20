@@ -1,3 +1,4 @@
+import { isAhead, USUAL_MINUTES, usualStart } from "@repo/client/sessions/rules";
 import type { SessionDraft, SurfSize } from "@repo/client/sessions/types";
 import type { MediaItem, Session } from "@repo/client/viewer/types";
 import { SESSION_MOST_MEDIA } from "@repo/config/media";
@@ -10,7 +11,7 @@ import { useTell } from "@/components/ui/toast";
 import { dropUpload, forgetSent, retryUpload, startUploads, useUploads } from "@/lib/uploads";
 import { m } from "@/paraglide/messages";
 
-import { isAhead, startFromPhoto, USUAL_MINUTES, usualStart } from "./session-logic";
+import { startFromPhoto } from "./session-logic";
 
 // A session as its sheet holds it while it is written, a new one or one of the log: when it
 // began, how long, how big the waves looked, its photos and videos, its rating and its note, and

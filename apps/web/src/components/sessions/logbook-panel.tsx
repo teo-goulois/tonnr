@@ -1,3 +1,4 @@
+import { byMonth } from "@repo/client/sessions/rules";
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import { PlusIcon } from "@repo/ui/icon";
@@ -52,16 +53,7 @@ export function LogbookPanel({
   onOpenPlace,
 }: LogbookPanelProps) {
   // The sessions month by month, the latest month first, as the list gives them.
-  const months = useMemo(() => {
-    const byMonth: { name: string; sessions: Session[] }[] = [];
-    for (const session of log.data ?? []) {
-      const name = formatMonth(session.startedAt);
-      const last = byMonth.at(-1);
-      if (last?.name === name) last.sessions.push(session);
-      else byMonth.push({ name, sessions: [session] });
-    }
-    return byMonth;
-  }, [log.data]);
+  const months = useMemo(() => byMonth(log.data ?? [], formatMonth), [log.data]);
 
   if (log.isError) return <p className="text-s text-neutral-7">{m.sessions_load_failed()}</p>;
   if (!log.data) {

@@ -1,3 +1,4 @@
+import type { Month } from "@repo/client/sessions/rules";
 import type { MediaItem, Session, SessionRecap } from "@repo/client/viewer/types";
 import { ChevronRightIcon } from "@repo/ui/icon";
 import { Fragment } from "react";
@@ -13,7 +14,6 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { RatingStars, ratingSaid } from "./rating";
-import type { Month } from "./session-logic";
 import { openPlaceOnMap } from "./session-place";
 import { SessionRow } from "./session-row";
 

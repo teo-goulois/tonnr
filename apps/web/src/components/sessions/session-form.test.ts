@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatDuration } from "@/lib/format";
 
-import { dayWords, fromFields, toClockField, toDayField, usualStart } from "./session-form";
+import { dayWords, fromFields, toClockField, toDayField } from "./session-form";
 
 describe("the moment a session's two fields hold", () => {
   it("is written on the device's clock, and read back as the same moment", () => {
@@ -16,14 +16,6 @@ describe("the moment a session's two fields hold", () => {
     expect(fromFields("", "07:05")).toBeNull();
     expect(fromFields("2026-10-03", "")).toBeNull();
     expect(fromFields("not a day", "07:05")).toBeNull();
-  });
-});
-
-describe("when a session that is written now is taken to have begun", () => {
-  it("is an hour and a half before, on a round five minutes", () => {
-    const now = new Date(2026, 9, 3, 11, 13, 40).getTime();
-    const begun = usualStart(now);
-    expect(`${toDayField(begun)} ${toClockField(begun)}`).toBe("2026-10-03 09:40");
   });
 });
 

@@ -1,3 +1,4 @@
+import { byMonth } from "@repo/client/sessions/rules";
 import type { Session } from "@repo/client/viewer/types";
 import { LogbookIcon, PlusIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,6 @@ import { FlatList, Pressable, RefreshControl, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
 import { MonthGroup, Recap } from "@/components/sessions/logbook";
-import { byMonth } from "@/components/sessions/session-logic";
 import { useSessionLog, useSessionWrites } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,6 +15,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { useAccount } from "@/lib/account";
+import { formatMonth } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -75,7 +76,7 @@ export default function Logbook() {
   const writes = useSessionWrites();
   const [now, setNow] = useState(Date.now);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const months = useMemo(() => byMonth(log.data ?? []), [log.data]);
+  const months = useMemo(() => byMonth(log.data ?? [], formatMonth), [log.data]);
 
   async function refresh() {
     setIsRefreshing(true);
