@@ -3,6 +3,7 @@ import { NativeTabs } from "expo-router/native-tabs";
 
 import { useAccountStart } from "@/components/account/account-start";
 import { LoginWall, useVisitorWall } from "@/components/auth/login-wall";
+import { useQuickActions } from "@/lib/quick-actions";
 import { m } from "@/paraglide/messages";
 
 /**
@@ -11,6 +12,8 @@ import { m } from "@/paraglide/messages";
  */
 export default function TabsLayout() {
   useAccountStart();
+  // The quick actions of the app's icon open their route over the tabs (decision 074).
+  useQuickActions();
   // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039).
   if (useVisitorWall()) return <LoginWall />;
   return (
