@@ -1,35 +1,21 @@
+import type { AlertCriteria } from "@repo/client/viewer/types";
+
 import {
   type Arc,
-  alertWords,
   asksOfTide,
   isSetRange,
   type RangeKey,
+  rangeWords,
   tideOf,
-} from "@repo/client/alerts/alert-words";
-import type { AlertCriteria } from "@repo/client/viewer/types";
-
-import { compassName, compassPoint, formatNumber } from "@/lib/format";
-import {
-  getUnits,
-  heightIn,
-  heightUnit,
-  knotsFrom,
-  metersFrom,
-  windIn,
-  windUnit,
-} from "@/lib/units";
+  tideWords,
+} from "@/components/alerts/words";
+import { compassName } from "@/lib/format";
 import { m } from "@/paraglide/messages";
 
 // The conditions of an alert in parts and values, in the reader's language and units, as the
-// web's `ConditionsSummary` says them: the words are packages/client's. A module that imports
-// nothing of React Native, so that a test reads it. Decision 043.
-
-const words = alertWords({
-  units: getUnits,
-  writing: { heightIn, metersFrom, heightUnit, windIn, knotsFrom, windUnit },
-  format: { formatNumber, compassPoint },
-  m,
-});
+// web's `ConditionsSummary` says them: the words are packages/client's, as the alerts' words.ts
+// writes them in the app. A module that imports nothing of React Native, so that a test reads
+// it. Decision 043.
 
 /** A value of a part: words, or a sector drawn with its two bearings. */
 export type Value = { text: string } | { arc: Arc };
@@ -40,7 +26,7 @@ export const said = (value: Value) =>
 export function valuesOf(criteria: AlertCriteria) {
   const range = (key: RangeKey & keyof NonNullable<AlertCriteria["or"]>): Value[] =>
     [criteria[key], ...(criteria.or?.[key] ?? [])].flatMap((value) =>
-      isSetRange(value) ? [{ text: words.rangeWords(key, value) }] : [],
+      isSetRange(value) ? [{ text: rangeWords(key, value) }] : [],
     );
   const sector = (
     key: "waveDirectionDegrees" | "primarySwellDirectionDegrees" | "windDirectionDegrees",
@@ -50,7 +36,7 @@ export function valuesOf(criteria: AlertCriteria) {
     );
   const tide: Value[] = [tideOf(criteria), ...(criteria.or?.tide ?? [])]
     .filter(asksOfTide)
-    .map((ask) => ({ text: words.tideWords(ask) }));
+    .map((ask) => ({ text: tideWords(ask) }));
   const groups: [string, Value[][]][] = [
     [
       m.alert_summary_waves(),
