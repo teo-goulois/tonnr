@@ -1,5 +1,16 @@
 import { X509Certificate } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { UPDATES_KEY_ID, UPDATES_SIGNATURE_ALGORITHM } from "@repo/config/updates";
 import type { ConfigContext, ExpoConfig } from "expo/config";
@@ -82,12 +93,33 @@ describe("the certificate of the updates", () => {
     expect(certificate.verify(certificate.publicKey)).toBe(true);
   });
 
-  it("is a part of the binary's fingerprint, so that a new one makes a runtime of its own", async () => {
-    const { default: fingerprint } = (await import("./fingerprint.config.js")) as {
-      default: { extraSources: { filePath: string }[] };
-    };
-    expect(fingerprint.extraSources.map((source) => source.filePath)).toContain(
-      "certs/certificate.pem",
-    );
-  });
+  it(
+    "is a part of the binary's fingerprint, so that a new one makes a runtime of its own",
+    { timeout: 60_000 },
+    async () => {
+      // The fingerprint expo-updates names a runtime by, read by Expo's own library over a
+      // project that holds the app's fingerprint config and a certificate, then another one.
+      const { createFingerprintAsync } = createRequire(from("./package.json"))(
+        "expo/fingerprint",
+      ) as typeof import("expo/fingerprint");
+      const project = mkdtempSync(join(tmpdir(), "fingerprint-"));
+      try {
+        writeFileSync(join(project, "package.json"), JSON.stringify({ name: "probe" }));
+        copyFileSync(from("./fingerprint.config.js"), join(project, "fingerprint.config.js"));
+        mkdirSync(join(project, "certs"));
+        const runtimeWith = async (certificate: string) => {
+          writeFileSync(join(project, "certs", "certificate.pem"), certificate);
+          return createFingerprintAsync(project, { platforms: ["ios"], silent: true });
+        };
+        const first = await runtimeWith(pem);
+        const second = await runtimeWith(`${pem}\n`);
+        expect(first.sources).toContainEqual(
+          expect.objectContaining({ type: "file", filePath: "certs/certificate.pem" }),
+        );
+        expect(second.hash).not.toBe(first.hash);
+      } finally {
+        rmSync(project, { recursive: true, force: true });
+      }
+    },
+  );
 });
