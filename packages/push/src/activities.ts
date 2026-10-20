@@ -1,4 +1,8 @@
+import { WINDOW_ACTIVITY } from "@repo/config/activities";
 import type { Locale } from "@repo/mail/verification";
+
+// The name of the activity of a window that begins, which the app reads there too.
+export { WINDOW_ACTIVITY };
 
 // The Live Activity that "it is on" starts on an iPhone whose switch is on, in the place of its
 // push: decision 074. Apple's pushes start it, update it and end it, and the system draws what
@@ -35,12 +39,6 @@ import type { Locale } from "@repo/mail/verification";
 
 /** The type of the attributes expo-widgets declares for every activity it draws. */
 export const ACTIVITY_ATTRIBUTES_TYPE = "LiveActivityAttributes";
-
-/**
- * The name of the activity of a window that begins, which the app gives `createLiveActivity`:
- * the content of every push of one names it, and the app finds the activity by it.
- */
-export const WINDOW_ACTIVITY = "window-begins";
 
 /**
  * What the activity of a window that begins shows, as the app's layout reads it: the figures in

@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@repo/config": "workspace:*",
     "@repo/mail": "workspace:*"
   },
   "devDependencies": {

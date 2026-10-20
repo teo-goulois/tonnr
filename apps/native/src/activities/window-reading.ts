@@ -1,4 +1,5 @@
 import { APP_SCHEME } from "@repo/config/app";
+import type { WindowShown } from "@repo/push/activities";
 
 // The Live Activity of a window that begins, on an iPhone whose switch is on: decision 074, "When
 // a window begins, on an iPhone". Apple's pushes start it, update it and end it, and the system
@@ -15,44 +16,11 @@ import { APP_SCHEME } from "@repo/config/app";
 // write with a helper of its own (a spread, a destructuring, `for…of`). A test runs it as it is.
 
 /**
- * The name of the activity, which the worker's pushes give its content and expo-widgets finds
- * its layout by: `WINDOW_ACTIVITY` in `packages/push/src/activities.ts`.
+ * What the worker's pushes carry, `WindowShown` of `packages/push/src/activities.ts`, read as a
+ * type: figures in metres, seconds, metres a second and degrees the sea or the wind comes from,
+ * times in ISO 8601, and null for what was not measured or is not known.
  */
-export const WINDOW_ACTIVITY = "window-begins";
-
-/**
- * What the worker's pushes carry, `WindowShown` in `packages/push/src/activities.ts`, which the
- * app cannot import: figures in metres, seconds, metres a second and degrees the sea or the wind
- * comes from, times in ISO 8601, and null for what was not measured or is not known.
- */
-export type WindowShown = {
-  alertId: string;
-  notificationId: string;
-  start: string;
-  end: string;
-  more: number;
-  pauseUntil: string;
-  sea: {
-    at: string;
-    heightMeters: number | null;
-    periodSeconds: number | null;
-    directionDegrees: number | null;
-  } | null;
-  wind: {
-    observedAt: string | null;
-    speedMetersPerSecond: number | null;
-    gustMetersPerSecond: number | null;
-    directionDegrees: number | null;
-    atShore: string | null;
-  } | null;
-  tide: { type: "high" | "low"; time: string; heightMeters: number } | null;
-  buoy: {
-    observedAt: string;
-    heightMeters: number | null;
-    periodSeconds: number | null;
-    directionDegrees: number | null;
-  } | null;
-};
+export type { WindowShown };
 
 /** What the app writes beside the layout: names, units and words. */
 export type WindowKept = {

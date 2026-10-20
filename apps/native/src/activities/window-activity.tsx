@@ -8,6 +8,7 @@ import {
   padding,
   rotationEffect,
 } from "@expo/ui/swift-ui/modifiers";
+import { WINDOW_ACTIVITY } from "@repo/config/activities";
 import { useQuery } from "@tanstack/react-query";
 import {
   type LiveActivity,
@@ -30,7 +31,6 @@ import { client, orpc } from "@/utils/orpc";
 
 import { onActivity, runningActivities, startsByPush } from "../../modules/live-activities";
 import {
-  WINDOW_ACTIVITY,
   type WindowKept,
   type WindowRead,
   type WindowShown,
