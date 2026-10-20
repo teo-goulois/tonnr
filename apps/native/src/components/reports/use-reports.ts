@@ -17,6 +17,8 @@ import { forgetSent } from "@/lib/uploads";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
+import { confirmDestructive } from "./report-card";
+
 // The reports of the waves at a break, as the screens of the app read and send them: decisions
 // 067 and 068. The web's `-reports.ts` asks the same of the API.
 
@@ -114,6 +116,7 @@ export function useReportWrites() {
   const create = useMutation(orpc.v1.reports.create.mutationOptions());
   const remove = useMutation(orpc.v1.reports.delete.mutationOptions());
   const flag = useMutation(orpc.v1.reports.flag.mutationOptions());
+  const block = useMutation(orpc.v1.blocks.add.mutationOptions());
   // From the press to the answer, the phone's position asked for first: the form waits.
   const [isSubmitting, setIsSubmitting] = useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.v1.reports.key() });
@@ -162,6 +165,42 @@ export function useReportWrites() {
         return true;
       } catch {
         tell({ title: m.report_delete_failed(), tone: "danger" });
+        return false;
+      }
+    },
+    /**
+     * Blocks the author of another's report, asked first: the reader then reads none of its
+     * reports, and its username nowhere. Decision 071.
+     */
+    block: async (username: string) => {
+      const sure = await confirmDestructive(
+        m.block_confirm_title({ username }),
+        m.block_confirm_text(),
+        m.block_confirm(),
+      );
+      if (!sure) return false;
+      try {
+        const blocked = await block.mutateAsync({ username });
+        // What a block hides is read again: the reports, the guides, the friends, the notices of
+        // reports and the owner of a shared list.
+        await Promise.all(
+          [
+            orpc.v1.blocks.key(),
+            orpc.v1.reports.key(),
+            orpc.v1.guides.key(),
+            orpc.v1.friends.key(),
+            orpc.v1.reportNotices.key(),
+            orpc.v1.shared.key(),
+          ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        );
+        tell({ title: m.block_done({ username: blocked.username }), tone: "success" });
+        return true;
+      } catch (error) {
+        const refused = error as { code?: string };
+        tell({
+          title: refused.code === "FORBIDDEN" ? m.block_too_many() : m.block_failed(),
+          tone: "danger",
+        });
         return false;
       }
     },

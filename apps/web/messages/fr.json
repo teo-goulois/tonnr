@@ -2045,5 +2045,7 @@
   "native_report_shoot": "Photographier les vagues",
   "native_report_position_off": "{name} n'a pas accès à ta position : une photo dont le fichier ne dit pas où elle a été prise sera refusée.",
   "native_report_far": "Tu es à {distance} du spot : une photo prise ici sera refusée.",
-  "native_report_menu_hint": "Supprimer, signaler ou bloquer"
+  "native_report_menu_hint": "Supprimer, signaler ou bloquer",
+  "native_report_delete_message": "Ses photos et vidéos sont supprimées avec lui.",
+  "native_send": "Envoyer"
 }

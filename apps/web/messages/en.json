@@ -2045,5 +2045,7 @@
   "native_report_shoot": "Shoot the waves",
   "native_report_position_off": "{name} can't read your location: a photo whose file doesn't say where it was shot will be refused.",
   "native_report_far": "You're {distance} from the spot: a photo shot here will be refused.",
-  "native_report_menu_hint": "Delete, flag or block"
+  "native_report_menu_hint": "Delete, flag or block",
+  "native_report_delete_message": "Its photos and videos are deleted with it.",
+  "native_send": "Send"
 }

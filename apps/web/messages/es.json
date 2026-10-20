@@ -2045,5 +2045,7 @@
   "native_report_shoot": "Fotografiar las olas",
   "native_report_position_off": "{name} no tiene acceso a tu ubicación: se rechazará una foto cuyo archivo no diga dónde se tomó.",
   "native_report_far": "Estás a {distance} del spot: se rechazará una foto tomada aquí.",
-  "native_report_menu_hint": "Borrar, denunciar o bloquear"
+  "native_report_menu_hint": "Borrar, denunciar o bloquear",
+  "native_report_delete_message": "Sus fotos y vídeos se eliminan con él.",
+  "native_send": "Enviar"
 }
