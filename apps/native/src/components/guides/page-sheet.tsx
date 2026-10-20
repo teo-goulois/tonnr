@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Modal, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
@@ -86,6 +87,8 @@ export function PageSheet({
   // iPhone's page sheet starts under the status bar, and its scroll keeps clear of the bottom.
   const insets = useSafeAreaInsets();
   const bars = Platform.OS === "android" ? insets : { top: 0, bottom: 0 };
+  // A reader who asked for less motion sees it come in place, without its slide.
+  const still = useReducedMotion();
 
   // Once it was shown and is hidden again, it says it is gone, once.
   const gone = useRef(true);
@@ -118,7 +121,7 @@ export function PageSheet({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={still ? "fade" : "slide"}
       presentationStyle="pageSheet"
       allowSwipeDismissal={!dirty && !saving}
       onRequestClose={leave}
