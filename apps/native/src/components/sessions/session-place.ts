@@ -5,22 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
 
+export { placeOfParam, placeParam } from "./session-logic";
+
 // Where a session is, as the app's routes name it: `place=<break|spot>:<id>`, which a place's tab
 // and a link write, and the name it is shown with, asked of the API when the route does not give
 // it. Decision 043.
-
-/** The place a route names, or null when it names none a session can be at. */
-export function placeOfParam(param: string | undefined): Pick<SessionPlace, "kind" | "id"> | null {
-  const at = param?.indexOf(":") ?? -1;
-  if (!param || at < 0) return null;
-  const kind = param.slice(0, at);
-  const id = param.slice(at + 1);
-  if ((kind === "break" || kind === "spot") && id) return { kind, id };
-  return null;
-}
-
-/** A place as a route names it. */
-export const placeParam = (place: Pick<SessionPlace, "kind" | "id">) => `${place.kind}:${place.id}`;
 
 /**
  * A place as the API knows it: its name, as the route gave it or as the API answers it, a break of

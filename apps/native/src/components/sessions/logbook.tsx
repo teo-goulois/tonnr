@@ -7,11 +7,12 @@ import { Glyph } from "@/components/shared/glyph";
 import { Separator } from "@/components/ui/separator";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
-import { formatDuration, formatMonth } from "@/lib/format";
+import { formatDuration } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { RatingStars, ratingSaid } from "./rating";
+import type { Month } from "./session-logic";
 import { openPlaceOnMap } from "./session-place";
 import { SessionRow } from "./session-row";
 
@@ -135,21 +136,6 @@ export function Recap({ recap }: { recap: SessionRecap }) {
       ) : null}
     </View>
   );
-}
-
-/** The sessions of a month, the latest first, as the list gives them. */
-export type Month = { name: string; sessions: Session[] };
-
-/** The sessions month by month, the latest month first. */
-export function byMonth(sessions: readonly Session[]): Month[] {
-  const months: Month[] = [];
-  for (const session of sessions) {
-    const name = formatMonth(session.startedAt);
-    const last = months.at(-1);
-    if (last?.name === name) last.sessions.push(session);
-    else months.push({ name, sessions: [session] });
-  }
-  return months;
 }
 
 /** A month of the log: its name, and its sessions on the lines of one group. */

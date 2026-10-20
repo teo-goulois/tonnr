@@ -1,5 +1,4 @@
 import type { Report } from "@repo/client/reports/types";
-import { REPORT_NOW_HOURS } from "@repo/config/media";
 import { CameraIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
@@ -7,6 +6,7 @@ import { RefreshControl, SectionList, type ListViewToken, View } from "react-nat
 
 import { ReportCard } from "@/components/reports/report-card";
 import { reportCounter } from "@/components/reports/report-counter";
+import { isCounted, reportParts } from "@/components/reports/report-logic";
 import { useBreakReports, useReportWrites } from "@/components/reports/use-reports";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -20,12 +20,9 @@ import { m } from "@/paraglide/messages";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
-const HOUR_MS = 60 * 60 * 1000;
-
 // Another's report that is shown is counted once this phone has had half of it in view a second
 // without a pause: decision 068. The reader's own, and one that is not shown, are not.
 const SEEN = { itemVisiblePercentThreshold: 50, minimumViewTime: 1000 };
-const isCounted = (report: Report) => report.state === "published" && !report.mine;
 
 type Part = { title: string; data: Report[] };
 
@@ -50,12 +47,10 @@ function BreakReports({ breakId }: { breakId: string }) {
 
   // The reports of the last hours first, then those of the week.
   const parts = useMemo<Part[]>(() => {
-    const all = reports.data?.reports ?? [];
-    const recent = (report: Report) =>
-      now - report.createdAt.getTime() < REPORT_NOW_HOURS * HOUR_MS;
+    const split = reportParts(reports.data?.reports ?? [], now);
     return [
-      { title: m.reports_now(), data: all.filter(recent) },
-      { title: m.reports_week(), data: all.filter((report) => !recent(report)) },
+      { title: m.reports_now(), data: split.now },
+      { title: m.reports_week(), data: split.week },
     ].filter((part) => part.data.length > 0);
   }, [reports.data, now]);
 

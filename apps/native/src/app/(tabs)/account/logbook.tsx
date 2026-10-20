@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
-import { byMonth, MonthGroup, Recap } from "@/components/sessions/logbook";
+import { MonthGroup, Recap } from "@/components/sessions/logbook";
+import { byMonth } from "@/components/sessions/session-logic";
 import { useSessionLog, useSessionWrites } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";

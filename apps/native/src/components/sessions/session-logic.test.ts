@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import type { Session } from "@repo/client/viewer/types";
+
 import {
+  byMonth,
   dayWords,
   distanceKm,
   isAhead,
   nearestPlace,
+  placeOfParam,
+  placeParam,
   startFromPhoto,
   usualStart,
   withClock,
@@ -85,5 +90,34 @@ describe("where a new session most likely was", () => {
       111.2,
       1,
     );
+  });
+});
+
+describe("a place as a route names it", () => {
+  it("is a break or a spot of the account's, by its id", () => {
+    expect(placeOfParam("break:5b1c")).toEqual({ kind: "break", id: "5b1c" });
+    expect(placeOfParam("spot:a:b")).toEqual({ kind: "spot", id: "a:b" });
+    expect(placeParam({ kind: "spot", id: "a:b" })).toBe("spot:a:b");
+  });
+
+  it("is none for a station, an id alone, or nothing", () => {
+    expect(placeOfParam("station:41")).toBeNull();
+    expect(placeOfParam("5b1c")).toBeNull();
+    expect(placeOfParam("break:")).toBeNull();
+    expect(placeOfParam(undefined)).toBeNull();
+  });
+});
+
+describe("the log, month by month", () => {
+  const session = (id: string, startedAt: Date) => ({ id, startedAt }) as unknown as Session;
+
+  it("keeps the order of the list, the latest month first", () => {
+    const months = byMonth([
+      session("c", new Date(2026, 9, 18, 8)),
+      session("b", new Date(2026, 9, 2, 8)),
+      session("a", new Date(2026, 8, 30, 8)),
+    ]);
+    expect(months.map((month) => month.sessions.map((one) => one.id))).toEqual([["c", "b"], ["a"]]);
+    expect(months[0]?.name).not.toBe(months[1]?.name);
   });
 });

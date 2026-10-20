@@ -1,4 +1,7 @@
-import { formatDate } from "@/lib/format";
+import type { SessionPlace } from "@repo/client/sessions/types";
+import type { Session } from "@repo/client/viewer/types";
+
+import { formatDate, formatMonth } from "@/lib/format";
 import { m } from "@/paraglide/messages";
 
 // The rules of a session's form that read no screen: when a session written now began, how its
@@ -116,4 +119,32 @@ export function nearestPlace<Place extends Point>(
     if (km <= NEAR_KM && (nearest === null || km < nearest.km)) nearest = { place, km };
   }
   return nearest?.place ?? null;
+}
+
+/** The place a route names, or null when it names none a session can be at. */
+export function placeOfParam(param: string | undefined): Pick<SessionPlace, "kind" | "id"> | null {
+  const at = param?.indexOf(":") ?? -1;
+  if (!param || at < 0) return null;
+  const kind = param.slice(0, at);
+  const id = param.slice(at + 1);
+  if ((kind === "break" || kind === "spot") && id) return { kind, id };
+  return null;
+}
+
+/** A place as a route names it. */
+export const placeParam = (place: Pick<SessionPlace, "kind" | "id">) => `${place.kind}:${place.id}`;
+
+/** The sessions of a month, the latest first, as the list gives them. */
+export type Month = { name: string; sessions: Session[] };
+
+/** The sessions month by month, the latest month first, from a list the latest first. */
+export function byMonth(sessions: readonly Session[]): Month[] {
+  const months: Month[] = [];
+  for (const session of sessions) {
+    const name = formatMonth(session.startedAt);
+    const last = months.at(-1);
+    if (last?.name === name) last.sessions.push(session);
+    else months.push({ name, sessions: [session] });
+  }
+  return months;
 }
