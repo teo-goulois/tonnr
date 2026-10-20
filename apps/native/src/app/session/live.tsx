@@ -84,6 +84,15 @@ function useLiveState(session: LiveSession | null) {
   return session ? state : null;
 }
 
+/** Where the sheet that signs in goes on to: this screen, with the place it was opened at. */
+function liveNext(place: string | undefined, name: string | undefined) {
+  const query = [
+    place ? `place=${encodeURIComponent(place)}` : null,
+    place && name ? `name=${encodeURIComponent(name)}` : null,
+  ].filter((part) => part !== null);
+  return query.length > 0 ? `/session/live?${query.join("&")}` : "/session/live";
+}
+
 /** Leaves the screen: back, or to the map when a link opened it with nothing under it. */
 function leave() {
   if (router.canGoBack()) router.back();
@@ -385,7 +394,11 @@ export default function LiveSessionScreen() {
               onPress: () =>
                 router.replace({
                   pathname: "/sign-in",
-                  params: { reason: m.auth_reason_add_session(), next: "/session/live" },
+                  params: {
+                    reason: m.auth_reason_add_session(),
+                    // On to the session at the place the widget or the quick action named.
+                    next: liveNext(params.place, params.name),
+                  },
                 }),
             }}
           />
