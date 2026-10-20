@@ -2,17 +2,21 @@ import { ArrowUpIcon } from "@repo/ui/icon";
 import { View } from "react-native";
 import Svg, { Line } from "react-native-svg";
 
+import { goingTo } from "@/components/map/features";
 import { Glyph } from "@/components/shared/glyph";
 import { Text, type TextProps } from "@/components/ui/text";
 import { compassName, compassPoint, formatNumber } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-// How a direction and the tide's way are written everywhere, as the web's `Bearing` and
-// `TideTrend` write them: an arrow that points the way the wind or the swell goes, then the name
-// of the point it comes from. Never a name alone: the arrow has turned it into a direction.
+// How a direction is written everywhere, as the web's `Bearing` writes it: an arrow that points
+// the way the wind or the swell goes, then the name of the point it comes from. Never a name
+// alone: the arrow has turned it into a direction.
 
-/** An arrow that points the way something goes, from the bearing it comes from. */
+/**
+ * An arrow that points the way something goes, from the bearing it comes from: on a line of its
+ * own, or in a line of text, at the text's size.
+ */
 export function DirectionArrow({
   fromDegrees,
   size = 14,
@@ -26,22 +30,9 @@ export function DirectionArrow({
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ width: size, height: size, transform: [{ rotate: `${fromDegrees + 180}deg` }] }}
+      style={{ width: size, height: size, transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}
     >
       <Glyph icon={ArrowUpIcon} size={size} color={color} />
-    </View>
-  );
-}
-
-/** An arrow in a line of text, which points the way the sea or the wind goes. */
-export function InlineArrow({ fromDegrees, color }: { fromDegrees: number; color: string }) {
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{ width: 13, height: 13, transform: [{ rotate: `${fromDegrees + 180}deg` }] }}
-    >
-      <Glyph icon={ArrowUpIcon} size={13} color={color} />
     </View>
   );
 }
@@ -83,31 +74,6 @@ export function Bearing({
       <Text size={size} numberOfLines={1} style={color ? { color } : undefined} {...text}>
         {name}
         {withDegrees ? ` ${formatNumber(degrees, 0)}°` : ""}
-      </Text>
-    </View>
-  );
-}
-
-/** Which way the tide goes, as a line of its own: an arrow up or down, then the word. */
-export function TideTrend({
-  trend,
-  size = "s",
-  color,
-}: {
-  trend: "rising" | "falling";
-  size?: TextProps["size"];
-  color?: string;
-}) {
-  const { colors } = useTheme();
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-      <DirectionArrow
-        fromDegrees={trend === "rising" ? 180 : 0}
-        size={13}
-        color={color ?? colors["neutral-10"]}
-      />
-      <Text size={size} style={color ? { color } : undefined}>
-        {trend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling()}
       </Text>
     </View>
   );

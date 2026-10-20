@@ -7,7 +7,7 @@ import { compassName, formatNumber } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { InlineArrow } from "./bearing";
+import { DirectionArrow } from "./bearing";
 import { hourNear, saidOf } from "./size-against";
 
 // How big the waves of a break run against the forecast, in one sentence of grey prose under
@@ -70,8 +70,9 @@ export function SizeAgainstForecast({
         <Text key="swell" size="s" tone="muted">
           {m.size_against_swell_before()}{" "}
           <Text size="s" style={{ color: colors["neutral-10"] }}>
-            <InlineArrow
+            <DirectionArrow
               fromDegrees={SWELL_SECTORS.indexOf(of.swell.sector) * 45}
+              size={13}
               color={colors["neutral-10"]}
             />{" "}
             {compassName(SWELL_SECTORS.indexOf(of.swell.sector) * 45)}

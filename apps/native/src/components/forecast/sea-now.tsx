@@ -11,7 +11,7 @@ import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
-import { InlineArrow } from "./bearing";
+import { DirectionArrow } from "./bearing";
 import type { SeaNowFacts } from "./now";
 
 // The sea now in one sentence, in the sheet of a break, a spot or a buoy: what the tiles read,
@@ -77,7 +77,8 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
           : undefined;
   const direction = (degrees: number) => (
     <>
-      {m.alert_from()} <InlineArrow fromDegrees={degrees} color={colors["neutral-10"]} />{" "}
+      {m.alert_from()}{" "}
+      <DirectionArrow fromDegrees={degrees} size={13} color={colors["neutral-10"]} />{" "}
       {compassName(degrees)}
     </>
   );
@@ -155,8 +156,9 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
             <>
               , {m.page_now_says_tide()}{" "}
               <Part judged={judgementOf("tide")}>
-                <InlineArrow
+                <DirectionArrow
                   fromDegrees={tide.trend === "rising" ? 180 : 0}
+                  size={13}
                   color={colors["neutral-10"]}
                 />{" "}
                 {tide.trend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling()}
