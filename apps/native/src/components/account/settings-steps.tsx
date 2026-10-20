@@ -40,7 +40,7 @@ import {
   usePalette,
 } from "./display";
 import { useSaveDensity, useSaveUnits } from "./kept-settings";
-import { LANGUAGES, MEASURES } from "./settings-words";
+import { LANGUAGES, MEASURES, THEME_WORDS } from "./settings-words";
 
 // The steps one press into the account's tab that each choose one setting among a few: a unit,
 // the theme, how much of the forecast a panel shows, the colors of the week's table and the
@@ -121,17 +121,12 @@ export function UnitStep<Measure extends keyof Units>({ measure }: { measure: Me
 /** The theme: the system's, light or dark, which the phone keeps (decision 040). */
 export function ThemeStep() {
   const { choice, choose } = useTheme();
-  const words = {
-    system: m.account_theme_system,
-    light: m.account_theme_light,
-    dark: m.account_theme_dark,
-  } as const;
   return (
     <Step title={m.account_theme()}>
       <ChoiceList
         choices={THEME_CHOICES.map((value) => ({
           value,
-          title: words[value](),
+          title: THEME_WORDS[value](),
           description: value === "system" ? m.native_theme_system_hint() : undefined,
         }))}
         value={choice}

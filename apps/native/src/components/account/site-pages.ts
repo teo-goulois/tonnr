@@ -1,4 +1,4 @@
-import type { Locale } from "@repo/config/locales";
+import { type Locale, localePrefix } from "@repo/config/locales";
 
 // The pages beside the app, which it opens in a browser inside itself (decision 069): the home
 // page, the guides to reading a forecast, the sources, the legal texts and the contact page, in
@@ -23,7 +23,7 @@ export type SitePage = keyof typeof SITE_PAGES;
 export function siteAddress(site: string, locale: Locale, page: SitePage) {
   const base = site.replace(/\/+$/, "");
   const path = SITE_PAGES[page];
-  const prefix = locale === "en" ? "" : `/${locale}`;
+  const prefix = localePrefix(locale);
   // The home page of a language is its prefix alone.
   if (path === "/") return `${base}${prefix || "/"}`;
   return `${base}${prefix}${path}`;
