@@ -8,15 +8,17 @@ import {
   tideAt,
   valueAt,
 } from "@repo/client/alerts/editing";
-import { type ShoreWind, shoreWind } from "@repo/conditions/shore-wind";
+import { shoreWind } from "@repo/conditions/shore-wind";
 import { MAX_ALTERNATIVES } from "@repo/conditions/spots/criteria";
 import { COEFFICIENT_BANDS, type TideSegment } from "@repo/config/sea-words";
 import { CirclePlusIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { TextInput, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { TextField } from "@/components/lists/text-field";
+import { shoreWord } from "@/components/saved/sea-figures";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { TARGET } from "@/components/ui/metrics";
@@ -57,14 +59,6 @@ import {
 // above its controls and added with a "+", and one of them is taken out with "remove". As a new
 // alert is said a part at a time, "next" goes on to the next part in the same sheet. The sheet
 // reads and writes the editor through `bridge.ts`. Decision 031, "The editor".
-
-const SHORE_WORDS: Record<ShoreWind, () => string> = {
-  offshore: m.wind_offshore,
-  cross_offshore: m.wind_cross_offshore,
-  cross_shore: m.wind_cross_shore,
-  cross_onshore: m.wind_cross_onshore,
-  onshore: m.wind_onshore,
-};
 
 // Where the swell or the wind comes from at this hour, by the part's own figure.
 const NOW_OF: Partial<
@@ -116,7 +110,7 @@ function DegreeField({
           backgroundColor: colors["neutral-3"],
         }}
       >
-        <TextInput
+        <TextField
           value={typed}
           keyboardType="number-pad"
           maxLength={3}
@@ -132,8 +126,7 @@ function DegreeField({
             if (text === "" || !Number.isFinite(number)) return;
             onChange(onCompass(Math.round(number)));
           }}
-          className="text-m font-normal text-neutral-10"
-          style={{ flex: 1, paddingVertical: space.xs, fontVariant: ["tabular-nums"] }}
+          style={{ fontVariant: ["tabular-nums"] }}
         />
         <Text tone="muted">°</Text>
       </View>
@@ -197,9 +190,7 @@ function SectorControls({
   const words = sectorWords(shown);
   const meets =
     offshore != null
-      ? [shoreWind(shown.from, offshore), shoreWind(shown.to, offshore)].map((one) =>
-          SHORE_WORDS[one](),
-        )
+      ? [shoreWind(shown.from, offshore), shoreWind(shown.to, offshore)].map(shoreWord)
       : [];
   return (
     <View style={{ gap: space.s }}>

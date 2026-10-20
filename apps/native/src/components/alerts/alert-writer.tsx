@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SheetHeader } from "@/components/ui/sheet";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { useTell } from "@/components/ui/toast";
+import { placeOfParam } from "@/components/sessions/session-logic";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
@@ -17,7 +18,7 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 import { AlertEditor } from "./alert-editor";
-import { type AlertPlace, placesOfAlert, readCopy, readPlace } from "./copies";
+import { type AlertPlace, placesOfAlert, readCopy } from "./copies";
 import { PlacePicker } from "./place-picker";
 import { useAlertSettings, useSpots } from "./use-alert-editor";
 import { useNow } from "./use-now";
@@ -97,7 +98,7 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
   const { signedIn, pending } = useAccount();
   const now = useNow();
   const copy = readCopy(copyKey);
-  const asked = copy ? undefined : readPlace(placeParam);
+  const asked = copy ? undefined : (placeOfParam(placeParam) ?? undefined);
   const [picked, setPicked] = useState<AlertPlace>();
   const spots = useSpots();
   const settings = useAlertSettings();
@@ -168,7 +169,6 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
       <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
         <PlacePicker
           mode="one"
-          spots={spots.data}
           onPick={setPicked}
           header={<SheetHeader title={m.create_alert_spot()} onCancel={() => router.back()} />}
         />

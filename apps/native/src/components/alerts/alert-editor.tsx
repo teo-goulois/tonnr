@@ -15,10 +15,12 @@ import type { Alert, AlertSettings, Spot } from "@repo/client/viewer/types";
 import { ChevronDownIcon, CopyIcon, PauseIcon, PlayIcon, TrashIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
-import { LayoutAnimation, Pressable, TextInput, View } from "react-native";
+import { BackHandler, LayoutAnimation, Pressable, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useReducedMotion } from "react-native-reanimated";
 
+import { TextField } from "@/components/lists/text-field";
+import { StepHeader } from "@/components/place/save-lists";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
@@ -32,7 +34,7 @@ import { useTheme } from "@/lib/theme";
 import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { confirmDelete, isPaused } from "./alert-row";
+import { askToDelete, isPaused } from "./alert-row";
 import { type PartKey, publishWriting, withdrawWriting } from "./bridge";
 import { type AlertPlace, keepCopy } from "./copies";
 import { PlacePicker } from "./place-picker";
@@ -106,7 +108,7 @@ export function AlertEditor({
   settings,
 }: AlertEditorProps) {
   const owner = useId();
-  const { colors, space, radius } = useTheme();
+  const { colors, space } = useTheme();
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
   const reduced = useReducedMotion();
@@ -405,13 +407,22 @@ export function AlertEditor({
     if (!reduced) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   };
 
+  // Android's back goes from the places to the sentence, as the button over them does.
+  useEffect(() => {
+    if (step !== "places") return;
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      setStep("sentence");
+      return true;
+    });
+    return () => listener.remove();
+  }, [step]);
+
   if (step === "places") {
     const ids = (kind: AlertPlace["kind"]) => (kind === "spot" ? draft.spotIds : draft.breakIds);
     const idsKey = (kind: AlertPlace["kind"]) => (kind === "spot" ? "spotIds" : "breakIds");
     return (
       <PlacePicker
         mode="many"
-        spots={spots}
         near={place}
         chosen={places}
         isFull={isFull}
@@ -428,29 +439,8 @@ export function AlertEditor({
           );
         }}
         header={
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingTop: space.s,
-              paddingBottom: space.xs,
-              paddingHorizontal: space.xs,
-            }}
-          >
-            <View style={{ flex: 1 }} />
-            <Text
-              weight="medium"
-              accessibilityRole="header"
-              numberOfLines={1}
-              style={{ flexShrink: 1 }}
-            >
-              {m.native_alert_label_places()}
-            </Text>
-            <View style={{ flex: 1, alignItems: "flex-end" }}>
-              <Button variant="ghost" onPress={() => setStep("sentence")}>
-                {m.alert_part_done()}
-              </Button>
-            </View>
+          <View style={{ paddingBottom: space.xs }}>
+            <StepHeader title={m.native_alert_label_places()} onBack={() => setStep("sentence")} />
           </View>
         }
       />
@@ -482,23 +472,18 @@ export function AlertEditor({
           <Text size="s" weight="medium" tone="muted" nativeID="alert-name">
             {m.alert_name_label()}
           </Text>
-          <TextInput
-            value={draft.name}
-            maxLength={80}
-            onChangeText={(name) => set("name", name)}
-            accessibilityLabel={m.alert_name_label()}
-            accessibilityLabelledBy="alert-name"
-            returnKeyType="done"
-            className="text-m font-normal text-neutral-10"
-            style={{
-              minHeight: TARGET,
-              paddingHorizontal: space.s,
-              paddingVertical: space.xs,
-              borderRadius: radius.xs,
-              borderCurve: "continuous",
-              backgroundColor: colors["neutral-3"],
-            }}
-          />
+          <Surface insetEdge style={{ paddingHorizontal: space.m }}>
+            <TextField
+              value={draft.name}
+              maxLength={80}
+              onChangeText={(name) => set("name", name)}
+              accessibilityLabel={m.alert_name_label()}
+              accessibilityLabelledBy="alert-name"
+              autoCapitalize="sentences"
+              returnKeyType="done"
+              style={{ flex: 0 }}
+            />
+          </Surface>
         </View>
 
         <View style={{ gap: space.s }}>
@@ -657,7 +642,7 @@ export function AlertEditor({
                 toggle={{ value: draft.enabled, onChange: (enabled) => set("enabled", enabled) }}
               />
               <Row
-                title={isPaused(alert) ? m.native_alert_resume() : m.native_alert_pause()}
+                title={isPaused(alert) ? m.native_alert_resume() : m.native_push_not_today()}
                 description={isPaused(alert) ? m.native_alert_paused() : undefined}
                 icon={isPaused(alert) ? PlayIcon : PauseIcon}
                 chevron={false}
@@ -690,7 +675,8 @@ export function AlertEditor({
                 destructive
                 chevron={false}
                 onPress={() =>
-                  confirmDelete(alert, () => {
+                  void askToDelete(alert).then((yes) => {
+                    if (!yes) return;
                     guard.close();
                     actions.remove(alert);
                   })

@@ -51,11 +51,3 @@ export function placesOfAlert(alert: {
     return [];
   });
 }
-
-/** Reads `<kind>:<id>`, as `?place=` writes a place. */
-export function readPlace(param: string | string[] | undefined) {
-  const text = Array.isArray(param) ? param[0] : param;
-  const [kind, id] = text?.split(":") ?? [];
-  if ((kind === "spot" || kind === "break") && id) return { kind, id } as const;
-  return undefined;
-}

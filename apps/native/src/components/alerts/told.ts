@@ -1,7 +1,7 @@
-import type { SurfSize } from "@repo/client/sessions/types";
 import type { AlertNotification, ReportNotice } from "@repo/client/viewer/types";
 import { momentOf } from "@repo/conditions/alerts/clock";
 
+import { sizeName } from "@/components/profile/profile-words";
 import {
   formatAgo,
   formatClock,
@@ -100,19 +100,6 @@ export function placeOf(notification: AlertNotification) {
     : ({ kind: "spot", id: line.spotId } as const);
 }
 
-// How big the waves of a report looked, by their name: decision 043.
-const SIZE_NAMES: Record<SurfSize, () => string> = {
-  ankle: m.surf_size_ankle,
-  knee: m.surf_size_knee,
-  waist: m.surf_size_waist,
-  chest: m.surf_size_chest,
-  shoulder: m.surf_size_shoulder,
-  head: m.surf_size_head,
-  overhead: m.surf_size_overhead,
-  double_overhead: m.surf_size_double_overhead,
-  triple_overhead: m.surf_size_triple_overhead,
-};
-
 /** What a notice of reports says: how many reports at its break, and the newest still shown. */
 export function noticeWords(notice: ReportNotice) {
   // The reports still shown, or all those it told once none is.
@@ -125,7 +112,7 @@ export function noticeWords(notice: ReportNotice) {
   const said = latest
     ? [
         latest.author ?? m.report_someone(),
-        latest.waveSize ? SIZE_NAMES[latest.waveSize]() : null,
+        latest.waveSize ? sizeName(latest.waveSize) : null,
         latest.note,
       ]
         .filter(Boolean)

@@ -1,8 +1,9 @@
 import type { Alert } from "@repo/client/viewer/types";
 import { PauseIcon, PlayIcon, TrashIcon } from "@repo/ui/icon";
 import { Link } from "expo-router";
-import { ActionSheetIOS, Alert as Dialog, Platform, Pressable, View } from "react-native";
+import { Alert as Dialog, Platform, Pressable, View } from "react-native";
 
+import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { Switch } from "@/components/ui/switch";
@@ -60,11 +61,14 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
       undefined,
       [
         { text: m.native_alert_duplicate(), onPress: duplicate },
-        { text: paused ? m.native_alert_resume() : m.native_alert_pause(), onPress: togglePause },
+        {
+          text: paused ? m.native_alert_resume() : m.native_push_not_today(),
+          onPress: togglePause,
+        },
         {
           text: m.action_delete(),
           style: "destructive",
-          onPress: () => confirmDelete(alert, remove),
+          onPress: () => void askToDelete(alert).then((yes) => yes && remove()),
         },
       ],
       { cancelable: true },
@@ -88,7 +92,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
         { name: "duplicate", label: m.native_alert_duplicate() },
         {
           name: "pause",
-          label: paused ? m.native_alert_resume() : m.native_alert_pause(),
+          label: paused ? m.native_alert_resume() : m.native_push_not_today(),
         },
         { name: "delete", label: m.action_delete() },
       ]}
@@ -96,7 +100,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
         const action = event.nativeEvent.actionName;
         if (action === "duplicate") duplicate();
         if (action === "pause") togglePause();
-        if (action === "delete") confirmDelete(alert, remove);
+        if (action === "delete") void askToDelete(alert).then((yes) => yes && remove());
       }}
       onPress={onPress}
       onLongPress={Platform.OS === "android" ? menu : undefined}
@@ -147,7 +151,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
   return (
     <SwipeRow
       leading={{
-        label: paused ? m.native_alert_resume() : m.native_alert_pause(),
+        label: paused ? m.native_alert_resume() : m.native_push_not_today(),
         icon: paused ? PlayIcon : PauseIcon,
         tone: "warning",
         onAct: togglePause,
@@ -174,7 +178,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
                 {m.native_alert_duplicate()}
               </Link.MenuAction>
               <Link.MenuAction icon={paused ? "play.circle" : "pause.circle"} onPress={togglePause}>
-                {paused ? m.native_alert_resume() : m.native_alert_pause()}
+                {paused ? m.native_alert_resume() : m.native_push_not_today()}
               </Link.MenuAction>
               <Link.MenuAction icon="trash" destructive onPress={remove}>
                 {m.action_delete()}
@@ -202,29 +206,12 @@ function PauseGlyph() {
 }
 
 /**
- * Asks before a screen reader's action deletes an alert, which has no toast to undo it from as
- * easily: the platform's own question, the destructive answer first on iOS.
+ * Asks before a screen reader's action or a menu deletes an alert, the platform's own question:
+ * the swipe and the context menu have the toast's undo instead. True when the person said to.
  */
-export function confirmDelete(alert: Alert, remove: () => void) {
-  const title = m.native_alert_delete_title({ name: alert.name });
-  const message = m.native_alert_delete_message();
-  if (Platform.OS === "ios") {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title,
-        message,
-        options: [m.action_delete(), m.action_cancel()],
-        destructiveButtonIndex: 0,
-        cancelButtonIndex: 1,
-      },
-      (index) => {
-        if (index === 0) remove();
-      },
-    );
-    return;
-  }
-  Dialog.alert(title, message, [
-    { text: m.action_cancel(), style: "cancel" },
-    { text: m.action_delete(), style: "destructive", onPress: remove },
-  ]);
-}
+export const askToDelete = (alert: Alert) =>
+  confirmDestructive({
+    title: m.native_alert_delete_title({ name: alert.name }),
+    message: m.native_alert_delete_message(),
+    confirm: m.action_delete(),
+  });

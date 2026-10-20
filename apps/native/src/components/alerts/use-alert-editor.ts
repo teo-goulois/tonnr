@@ -2,9 +2,9 @@ import type { AlertDraft } from "@repo/client/alerts/alert-words";
 import { tideAhead } from "@repo/client/alerts/tide-band";
 import type { Alert } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCalendars } from "expo-localization";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { phoneZone } from "@/components/account/use-alert-settings";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { m } from "@/paraglide/messages";
@@ -24,11 +24,6 @@ const DAY_MS = 24 * HOUR_MS;
 // How long the places must stay as they are before they are tried: a spot pressed on and off
 // asks nothing.
 const TRIAL_WAIT_MS = 300;
-
-/** The time zone of this phone, which an account that has set none takes with its first alert. */
-export function deviceZone() {
-  return getCalendars()[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
 
 /** The account's spots. */
 export function useSpots() {
@@ -210,7 +205,7 @@ export function useSaveAlert() {
           ...draft,
           // The first alert sets the account's time zone and language, as its first setting
           // does, and keeps what the account answered about mail: all are saved with it or none.
-          zoneIfNone: deviceZone(),
+          zoneIfNone: phoneZone(),
           localeIfNone: getLocale(),
           ...(byMail === undefined ? {} : { byMailIfNone: byMail }),
         });
