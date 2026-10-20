@@ -18,6 +18,12 @@
 // carries is the one a publication of the same commit would name, and once uploaded it writes
 // that runtime in the bucket of the updates, which `release:js` reads.
 //
+// What builds and writes is `main`'s own: once the checkout is installed, the layout of the
+// bucket, the manifest, the signing and the builds' rules are imported from it, so that what the
+// bucket gets is what the Worker deployed from `main` reads, whatever this checkout holds. Only
+// what refuses a release before the checkout is read from here: the arguments, the files of the
+// keys and whether the R2 token may read the bucket.
+//
 // The stage's values come from `packages/infra/.env.<stage>`, the account of Cloudflare from
 // `packages/infra/.env`, and the keys from the root `.env`, which names the files they lie in.
 // None is printed, and none goes to the install or to Expo's tools, which run code that other
@@ -27,33 +33,13 @@
 import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-import {
-  PLATFORMS,
-  readShipped,
-  shippedKey,
-  updatesBucketName,
-} from "../apps/updates/src/bucket.ts";
-import {
-  buildNumberOf,
-  exportOptionsOf,
-  runtimeDrift,
-  runtimeOf,
-  shippedOf,
-  workspaceOf,
-} from "../apps/updates/src/builds.ts";
-import { releaseToPlay, serviceAccountOf } from "../apps/updates/src/play.ts";
-import {
-  inOrder,
-  keyMatchesCertificate,
-  newUpdateId,
-  readExport,
-  rollbackWrites,
-  updateWrites,
-  writeAll,
-} from "../apps/updates/src/publish.ts";
+// What refuses a release before the checkout, read from this checkout. Nothing of it writes.
+import { PLATFORMS, shippedKey, updatesBucketName } from "../apps/updates/src/bucket.ts";
+import { serviceAccountOf } from "../apps/updates/src/play.ts";
 import { r2Client } from "../apps/updates/src/r2.ts";
-import { APP_SCHEME, APP_SLUG } from "../packages/config/src/app.ts";
+import { APP_SLUG } from "../packages/config/src/app.ts";
 import {
   checkoutMain,
   fail,
@@ -247,7 +233,6 @@ const bucketName = updatesBucketName(APP_SLUG, stage);
     );
   }
 }
-const bucket = r2Client({ ...r2Access, bucket: bucketName });
 
 /**
  * What the app's config and Expo's tools are given, the same for a store build and a
@@ -312,18 +297,44 @@ async function step(what, command, args, options) {
 
 /** The runtime that a binary of this commit carries, and a publication of it names. */
 const runtimeFor = async (platform) =>
-  runtimeOf(await output(tool("expo-updates"), ["runtimeversion:resolve", "--platform", platform]));
+  main.builds.runtimeOf(
+    await output(tool("expo-updates"), ["runtimeversion:resolve", "--platform", platform]),
+  );
 
 await step("The install", "pnpm", ["install", "--frozen-lockfile"], {
   cwd: checkout,
   env: { ...shell, NUCLEO_LICENSE_KEY: licence },
 });
 
+/** A module of the commit built, which Node runs as it is written, imports resolved there. */
+const fromMain = (file) => import(pathToFileURL(path.join(checkout, file)).href);
+// What builds and writes, from `main`: the Worker deployed from it reads what they write.
+let main;
+try {
+  main = {
+    bucket: await fromMain("apps/updates/src/bucket.ts"),
+    builds: await fromMain("apps/updates/src/builds.ts"),
+    play: await fromMain("apps/updates/src/play.ts"),
+    publish: await fromMain("apps/updates/src/publish.ts"),
+    r2: await fromMain("apps/updates/src/r2.ts"),
+    app: await fromMain("packages/config/src/app.ts"),
+  };
+} catch (error) {
+  await refuse(`main does not hold what the release reads: ${error.message}`);
+}
+if (main.bucket.updatesBucketName(main.app.APP_SLUG, stage) !== bucketName) {
+  await refuse(
+    `main names the bucket ${main.bucket.updatesBucketName(main.app.APP_SLUG, stage)} where ` +
+      `this checkout names ${bucketName}: pull, then release again.`,
+  );
+}
+const bucket = main.r2.r2Client({ ...r2Access, bucket: bucketName });
+
 async function publishJavaScript() {
   // The key signs for the certificate the binaries of `main` carry, or for nothing.
   const privateKey = readFileSync(signingKey, "utf8");
   const certificate = readFileSync(path.join(native, "certs", "certificate.pem"), "utf8");
-  if (!keyMatchesCertificate(privateKey, certificate)) {
+  if (!main.publish.keyMatchesCertificate(privateKey, certificate)) {
     await refuse(
       "The key UPDATES_SIGNING_KEY names does not sign for apps/native/certs/certificate.pem: " +
         "the binaries would refuse what it signs.",
@@ -336,8 +347,10 @@ async function publishJavaScript() {
   const unshipped = [];
   for (const platform of platforms) {
     runtimes[platform] = await runtimeFor(platform);
-    const shipped = await bucket.get(shippedKey(platform, runtimes[platform]));
-    if (!shipped || !readShipped(new TextDecoder().decode(shipped))) unshipped.push(platform);
+    const shipped = await bucket.get(main.bucket.shippedKey(platform, runtimes[platform]));
+    if (!shipped || !main.bucket.readShipped(new TextDecoder().decode(shipped))) {
+      unshipped.push(platform);
+    }
   }
   if (unshipped.length > 0) {
     const other = platforms.find((platform) => !unshipped.includes(platform));
@@ -356,9 +369,15 @@ async function publishJavaScript() {
   let writes;
   const now = new Date().toISOString();
   if (flags.has("--rollback")) {
-    writes = inOrder(
+    writes = main.publish.inOrder(
       platforms.map((platform) =>
-        rollbackWrites(platform, runtimes[platform], newUpdateId(), now, privateKey),
+        main.publish.rollbackWrites(
+          platform,
+          runtimes[platform],
+          main.publish.newUpdateId(),
+          now,
+          privateKey,
+        ),
       ),
     );
     for (const platform of platforms) {
@@ -379,15 +398,15 @@ async function publishJavaScript() {
     const expoClient = JSON.parse(
       await output(tool("expo"), ["config", "--type", "public", "--json"]),
     );
-    writes = inOrder(
+    writes = main.publish.inOrder(
       platforms.map((platform) => {
-        const { manifest, writes: platformWrites } = updateWrites(
+        const { manifest, writes: platformWrites } = main.publish.updateWrites(
           platform,
           {
-            id: newUpdateId(),
+            id: main.publish.newUpdateId(),
             createdAt: now,
             runtime: runtimes[platform],
-            exported: readExport(exported, platform),
+            exported: main.publish.readExport(exported, platform),
             filesOrigin: `https://${values.UPDATES_FILES_DOMAIN}`,
             expoClient,
             commit,
@@ -408,7 +427,7 @@ async function publishJavaScript() {
     return;
   }
   try {
-    const { sent, kept } = await writeAll(bucket, writes);
+    const { sent, kept } = await main.publish.writeAll(bucket, writes);
     console.log(
       `\nPublished: ${sent} objects written, and ${kept} files the bucket held already. ` +
         "The apps of each runtime take it at their second start.",
@@ -435,7 +454,7 @@ async function publishJavaScript() {
 
 /** The build number and the version of a store build, which its config is given. */
 async function storeBuild() {
-  const build = buildNumberOf(await git(["rev-list", "--count", commit]));
+  const build = main.builds.buildNumberOf(await git(["rev-list", "--count", commit]));
   const { version } = JSON.parse(readFileSync(path.join(native, "package.json"), "utf8"));
   const buildEnv = { ...appEnv, ...keptShell(BUILD_TOOLS), APP_BUILD_NUMBER: String(build) };
   console.log(`Build ${build} of version ${version}\n`);
@@ -444,7 +463,7 @@ async function storeBuild() {
 
 /** Stops a build whose binary carries a runtime no publication of its commit would name. */
 async function checkRuntime(platform, carried) {
-  const drift = runtimeDrift(platform, carried ?? "", await runtimeFor(platform));
+  const drift = main.builds.runtimeDrift(platform, carried ?? "", await runtimeFor(platform));
   if (drift) {
     console.error(drift);
     failKeeping(checkout, "The build");
@@ -456,7 +475,7 @@ async function checkRuntime(platform, carried) {
 async function recordShipped(platform, runtime, build, version) {
   const shipped = { build, commit, version, shippedAt: new Date().toISOString() };
   try {
-    await bucket.put(shippedKey(platform, runtime), shippedOf(shipped), {
+    await bucket.put(main.bucket.shippedKey(platform, runtime), main.builds.shippedOf(shipped), {
       contentType: "application/json",
       cacheControl: "no-store",
     });
@@ -464,7 +483,7 @@ async function recordShipped(platform, runtime, build, version) {
     // The build is in its store: what is missing is the record that lets updates reach it.
     console.error(
       `${error.message}\nThe build is uploaded, and its runtime is not written in the bucket: ` +
-        `release:js refuses ${runtime} until ${shippedKey(platform, runtime)} holds ` +
+        `release:js refuses ${runtime} until ${main.bucket.shippedKey(platform, runtime)} holds ` +
         JSON.stringify(shipped),
     );
     failKeeping(checkout, "The record of the build");
@@ -487,7 +506,7 @@ async function buildForIos() {
     env: buildEnv,
   });
   const ios = path.join(native, "ios");
-  const workspace = workspaceOf(readdirSync(ios));
+  const workspace = main.builds.workspaceOf(readdirSync(ios));
   const products = path.join(checkout, "build");
   const archive = path.join(products, `${workspace}.xcarchive`);
   // xcodebuild makes or fetches the certificates and profiles of the app and of its extensions
@@ -532,7 +551,7 @@ async function buildForIos() {
   const runtime = await checkRuntime("ios", fingerprint ? readFileSync(fingerprint, "utf8") : "");
 
   const options = path.join(products, "ExportOptions.plist");
-  writeFileSync(options, exportOptionsOf(values.APPLE_TEAM_ID));
+  writeFileSync(options, main.builds.exportOptionsOf(values.APPLE_TEAM_ID));
   const exported = path.join(products, "export");
   await step(
     "The export",
@@ -619,7 +638,7 @@ async function buildForAndroid() {
   // in the Play Console, from where this leaves it. Its runtime is written now, as Google will
   // have it once it is uploaded.
   if (flags.has("--by-hand")) {
-    const kept = path.join(os.tmpdir(), `${APP_SCHEME}-${build}.aab`);
+    const kept = path.join(os.tmpdir(), `${main.app.APP_SCHEME}-${build}.aab`);
     copyFileSync(bundle, kept);
     await recordShipped("android", runtime, build, version);
     console.log(
@@ -631,9 +650,9 @@ async function buildForAndroid() {
 
   let versionCode;
   try {
-    versionCode = await releaseToPlay({
+    versionCode = await main.play.releaseToPlay({
       account: play.account,
-      packageName: APP_SCHEME,
+      packageName: main.app.APP_SCHEME,
       bundle: new Uint8Array(readFileSync(bundle)),
       track,
       name: `${version} (${build})`,
