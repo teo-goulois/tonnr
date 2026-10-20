@@ -1999,6 +1999,5 @@
   "native_send_link": "Envoyer le lien",
   "native_copy_link": "Copier le lien",
   "native_list_missing": "Cette liste n'existe plus.",
-  "native_list_renamed": "Renommée {name}.",
-  "native_place_unknown": "Un lieu qui n'est plus là"
+  "native_list_renamed": "Renommée en {name}."
 }

@@ -1999,6 +1999,5 @@
   "native_send_link": "Send the link",
   "native_copy_link": "Copy the link",
   "native_list_missing": "This list is no longer here.",
-  "native_list_renamed": "Renamed {name}.",
-  "native_place_unknown": "A place that is gone"
+  "native_list_renamed": "Renamed to {name}."
 }
