@@ -23,30 +23,36 @@ export function placeOfParam(param: string | undefined): Pick<SessionPlace, "kin
 export const placeParam = (place: Pick<SessionPlace, "kind" | "id">) => `${place.kind}:${place.id}`;
 
 /**
- * The name of a place, as the route gave it or as the API answers it: a break of the catalogue by
- * anyone, a spot by its owner alone. Undefined while it is asked.
+ * A place as the API knows it: its name, as the route gave it or as the API answers it, a break of
+ * the catalogue by anyone and a spot by its owner alone, undefined while it is asked; and whether
+ * the API said there is none, for a spot that is another's, which a shared list shows.
  */
-export function usePlaceName(place: Pick<SessionPlace, "kind" | "id"> | null, given?: string) {
+export function usePlaceKnown(place: Pick<SessionPlace, "kind" | "id"> | null, given?: string) {
   const { signedIn } = useAccount();
-  const named = Boolean(given);
   const atBreak = useQuery(
     orpc.v1.breaks.get.queryOptions({
       input: { id: place?.id ?? "" },
-      enabled: !named && place?.kind === "break",
+      enabled: !given && place?.kind === "break",
       select: (found) => found.name,
       retry: false,
     }),
   );
+  // A spot is asked even when its name is given: whether it is the account's says what it takes.
   const atSpot = useQuery(
     orpc.v1.spots.get.queryOptions({
       input: { id: place?.id ?? "" },
-      enabled: !named && signedIn && place?.kind === "spot",
+      enabled: signedIn && place?.kind === "spot",
       select: (found) => found.name,
       retry: false,
     }),
   );
-  if (given) return given;
-  return place?.kind === "spot" ? atSpot.data : atBreak.data;
+  const asked = place?.kind === "spot" ? atSpot : atBreak;
+  return { name: given ?? asked.data, isMissing: asked.isError };
+}
+
+/** The name of a place, as the route gave it or as the API answers it. */
+export function usePlaceName(place: Pick<SessionPlace, "kind" | "id"> | null, given?: string) {
+  return usePlaceKnown(place, given).name;
 }
 
 /**

@@ -133,7 +133,8 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
   const swipe = useRef<SwipeableMethods>(null);
   const first = media?.find((item) => item.state === "ready" && item.thumb);
   const when = sessionWhen(session, now);
-  const place = placeHref(session);
+  // A list of one place has it open already.
+  const place = withPlace ? placeHref(session) : null;
   const href = `/session/${session.id}` as const;
 
   const remove = async () => {
