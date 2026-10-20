@@ -125,8 +125,9 @@ const activityStartTokenSchema = iosTokenSchema
   .describe(
     "The token iOS gave the app to start a Live Activity by a push, in hexadecimal, while the " +
       "iPhone's switch for them is on: “it is on” then starts one in the place of its push. " +
-      "`null` when the switch, or the system's own for the app's Live Activities, is off. Left " +
-      "out, the device keeps what it holds, and a new device holds none.",
+      "`null` when the switch, or the system's own for the app's Live Activities, is off: the " +
+      "activities that run on the iPhone then end. Left out, the device keeps what it holds, " +
+      "and a new device holds none.",
   );
 
 // What the app on a phone gives of itself: its kind, the token its service gave, the app it is,
@@ -293,10 +294,10 @@ async function holdCaller(tx: Transaction, userId: string, sessionId: string) {
 /**
  * Holds what `registerApp` writes after the caller and its session: the rows of `push_subscription`
  * that keep the phone's token or the token that starts its Live Activities, in the order of their
- * ids, then the Live Activities of a row that another account kept, which go: the phone becomes
- * the caller's under a new id, and what ran on it for the account before is no longer its own.
- * A row that keeps the token that starts Live Activities, and not the phone's own token, lets
- * go of it: a phone has one.
+ * ids, then the Live Activities of a row that another account kept, which it lets go of: the
+ * phone becomes the caller's under a new id, and what ran on it for the account before is no
+ * longer its own, which the worker ends on the phone. A row that keeps the token that starts
+ * Live Activities, and not the phone's own token, lets go of it: a phone has one.
  */
 async function holdTokens(
   tx: Transaction,
@@ -320,14 +321,12 @@ async function holdTokens(
     .orderBy(asc(pushSubscription.id))
     .for("update");
   const taken = held.filter((row) => row.token === token && row.userId !== userId);
-  if (taken.length > 0) {
-    await tx.delete(liveActivity).where(
-      inArray(
-        liveActivity.deviceId,
-        taken.map((row) => row.id),
-      ),
-    );
-  }
+  // Every one of them, ended or not: none may keep the id that the row gives up.
+  await letGoOfActivities(
+    tx,
+    taken.map((row) => row.id),
+    { running: false },
+  );
   const starting = held.filter((row) => row.token !== token);
   if (starting.length > 0) {
     await tx
@@ -340,6 +339,30 @@ async function holdTokens(
         ),
       );
   }
+}
+
+/**
+ * Lets go of the Live Activities of iPhones that are no longer the account's devices that start
+ * them, while those are held: another account signed in there, or the switch was turned off,
+ * which ends those that run. The worker ends them on the phone at its next pass, through what
+ * each kept of its iPhone, as it ends one whose device was forgotten, which the database's own
+ * `set null` lets go of. Decision 074.
+ */
+async function letGoOfActivities(
+  tx: Transaction,
+  deviceIds: readonly string[],
+  { running }: { running: boolean },
+) {
+  if (deviceIds.length === 0) return;
+  await tx
+    .update(liveActivity)
+    .set({ deviceId: null })
+    .where(
+      and(
+        inArray(liveActivity.deviceId, [...deviceIds]),
+        running ? isNull(liveActivity.endedAt) : undefined,
+      ),
+    );
 }
 
 // What names a Live Activity to the API: the iPhone it runs on, by the id the API gave it, and the
@@ -740,6 +763,8 @@ export const pushRouter = {
             })
             .returning(selection);
           if (!row) throw new ORPCError("INTERNAL_SERVER_ERROR");
+          // The switch was turned off: what runs on the iPhone ends.
+          if (startToken === null) await letGoOfActivities(tx, [row.id], { running: true });
           return row;
         }),
       );
@@ -844,6 +869,8 @@ export const pushRouter = {
             .where(eq(pushSubscription.id, mine.id))
             .returning(selection);
           if (!row) throw gone();
+          // The switch was turned off: what runs on the iPhone ends.
+          if (startToken === null) await letGoOfActivities(tx, [row.id], { running: true });
           return row;
         }),
       );
@@ -858,8 +885,8 @@ export const pushRouter = {
       description:
         "Takes the token the app was given, in the body. What switching push off in the app " +
         "does, and turning its notifications off in the system's settings, and signing out. " +
-        "`forgotten` is false when the caller kept no such token: nothing is said of another " +
-        "account's.",
+        "The Live Activities that run on an iPhone it forgets end. `forgotten` is false when " +
+        "the caller kept no such token: nothing is said of another account's.",
       tags: ["Push"],
     })
     .input(

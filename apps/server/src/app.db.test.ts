@@ -2269,6 +2269,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         id: crypto.randomUUID(),
         userId: owner?.userId ?? "",
         deviceId: id,
+        environment: "production",
+        appId: owner?.appId ?? "",
         notificationId,
         alertId,
         alertRevision: 0,

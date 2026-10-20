@@ -422,9 +422,10 @@ export const pushSubscription = pgTable(
 /**
  * A Live Activity that the worker started on an iPhone, in the place of the push of "it is on":
  * decision 074. One for a notification on a device, which a beginning of the same alert while it
- * runs updates. It goes with its device. Its alert is set to null when the alert is deleted, so
- * that the worker still ends it. Its token, which iOS gives the app once the activity runs, is a
- * capability, as a device's token is: it is never logged, and the API never gives it back.
+ * runs updates. Its device and its alert are set to null when they go, so that the worker still
+ * ends it on the phone: it keeps the host and the app that it is pushed through for that. Its
+ * token, which iOS gives the app once the activity runs, is a capability, as a device's token
+ * is: it is never logged, and the API never gives it back.
  */
 export const liveActivity = pgTable(
   "live_activity",
@@ -433,10 +434,14 @@ export const liveActivity = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // The iPhone it runs on.
-    deviceId: text("device_id")
-      .notNull()
-      .references(() => pushSubscription.id, { onDelete: "cascade" }),
+    // The iPhone it runs on. Null once the iPhone is no longer the account's device that starts
+    // them: it was forgotten, with its session or its push, another account signed in there, or
+    // its switch was turned off. The worker then ends the activity at its next pass.
+    deviceId: text("device_id").references(() => pushSubscription.id, { onDelete: "set null" }),
+    // The host of the iPhone's build and its app, as its device kept them when it started: what
+    // its updates and its end are pushed through, once its device is gone too.
+    environment: text("environment", { enum: APNS_ENVIRONMENTS }).notNull(),
+    appId: text("app_id").notNull(),
     // The notification of "it is on" that started it.
     notificationId: text("notification_id")
       .notNull()
@@ -469,5 +474,6 @@ export const liveActivity = pgTable(
     index("live_activity_running_idx")
       .on(table.deviceId, table.alertId)
       .where(sql`${table.endedAt} is null`),
+    check("live_activity_environment", sql`${table.environment} in ('development', 'production')`),
   ],
 );

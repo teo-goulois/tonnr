@@ -50,6 +50,8 @@ describe.skipIf(!TEST_DATABASE_URL)("a Live Activity, as the database keeps it",
       id: crypto.randomUUID(),
       userId: "ana",
       deviceId: "iphone",
+      environment: "production",
+      appId: "org.example.app",
       notificationId: "told-1",
       alertId: "alert-1",
       alertRevision: 0,
@@ -142,23 +144,19 @@ describe.skipIf(!TEST_DATABASE_URL)("a Live Activity, as the database keeps it",
     expect(kept[0]?.alertId).toBeNull();
   });
 
-  it("goes with its device, and with its account", async () => {
+  it("outlives its device, keeping what it is pushed through, and goes with its account", async () => {
     const { db } = database;
     await started();
     await db.delete(pushSubscription).where(eq(pushSubscription.id, "iphone"));
-    expect(await db.select().from(liveActivity)).toHaveLength(0);
+    expect(await db.select().from(liveActivity)).toMatchObject([
+      { deviceId: null, environment: "production", appId: "org.example.app" },
+    ]);
 
-    await db.insert(pushSubscription).values({
-      id: "iphone",
-      userId: "ana",
-      kind: "ios",
-      token: hex(),
-      environment: "production",
-      appId: "org.example.app",
-      ...keys,
-    });
-    await started();
     await db.delete(user).where(eq(user.id, "ana"));
     expect(await db.select().from(liveActivity)).toHaveLength(0);
+  });
+
+  it("is pushed through one of Apple's two hosts", async () => {
+    await expect(started({ environment: "staging" as never })).rejects.toThrow();
   });
 });

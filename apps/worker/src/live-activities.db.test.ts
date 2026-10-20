@@ -352,14 +352,12 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
         .set({ payload: { ...made.payload, lines: [reef] } })
         .where(eq(notification.id, made.id));
       const second = crypto.randomUUID();
-      await database.db
-        .insert(notification)
-        .values({
-          ...made,
-          id: second,
-          key: "second",
-          payload: { ...made.payload, lines: [home] },
-        });
+      await database.db.insert(notification).values({
+        ...made,
+        id: second,
+        key: "second",
+        payload: { ...made.payload, lines: [home] },
+      });
       await database.db.insert(notificationDelivery).values({
         ...due,
         notificationId: second,
@@ -416,6 +414,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
         id: crypto.randomUUID(),
         userId: "owner",
         deviceId: "b-iphone",
+        environment: "production",
+        appId: iphone.appId,
         notificationId: earlier,
         alertId: "bay",
         alertRevision: 0,
@@ -602,12 +602,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
             .where(eq(alertSettings.userId, "owner")),
       ],
       [
+        // As the API suspends one: its sessions are closed, and its devices go with them.
         "its account is suspended",
-        () => database.db.insert(accountSuspension).values({ userId: "owner" }),
+        async () => {
+          await database.db.insert(accountSuspension).values({ userId: "owner" });
+          await database.db.delete(pushSubscription).where(eq(pushSubscription.userId, "owner"));
+        },
       ],
       [
-        "the iPhone's switch is turned off",
-        () => database.db.update(pushSubscription).set({ activityStartToken: null }),
+        "its iPhone is forgotten, as signing out of the app forgets it",
+        () => database.db.delete(pushSubscription).where(eq(pushSubscription.id, "b-iphone")),
+      ],
+      [
+        // As the API does when the app says so, or when another account signs in there.
+        "the iPhone lets go of it, its switch turned off",
+        () => database.db.update(liveActivity).set({ deviceId: null }),
       ],
     ])("ends it when %s", async (_what, change) => {
       await begins();
@@ -619,6 +628,16 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
 
       expect(apple.activities()[1]).toMatchObject({ token, read: { event: "end" } });
       expect(await activities()).toMatchObject([{ endedAt: expect.any(Date), token: null }]);
+    });
+
+    it("goes on when the iPhone's token that starts them is let go of, which a start that Apple said was no more does", async () => {
+      await begins();
+      await tokenGiven();
+      await database.db.update(pushSubscription).set({ activityStartToken: null });
+      vi.setSystemTime(new Date(hour(8).getTime() + 7 * MINUTE_MS));
+
+      expect(await follow()).toMatchObject({ running: 1, ended: 0 });
+      expect(await activities()).toMatchObject([{ endedAt: null, deviceId: "b-iphone" }]);
     });
 
     it("ends one whose token never came, sending nothing, when its window is over", async () => {

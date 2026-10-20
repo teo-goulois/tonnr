@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "21c80734-b70e-4cab-9c3f-119c1e005bdd",
+  "id": "17f8dc2a-e494-4d05-ad46-b9ecde5ee7ba",
   "prevIds": [
     "0dd63adb-4d45-479d-b24a-f6fe26033f72"
   ],
@@ -5190,12 +5190,38 @@
     {
       "type": "text",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": null,
       "name": "device_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "live_activity"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "environment",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "live_activity"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "app_id",
       "entityType": "columns",
       "schema": "public",
       "table": "live_activity"
@@ -11988,7 +12014,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
+      "onDelete": "SET NULL",
       "name": "live_activity_device_id_push_subscription_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -13923,6 +13949,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "alert_window"
+    },
+    {
+      "value": "\"environment\" in ('development', 'production')",
+      "name": "live_activity_environment",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "live_activity"
     },
     {
       "value": "(\"kind\" = 'web' and \"endpoint\" is not null and \"token\" is null and \"environment\" is null and \"app_id\" is null and \"activity_start_token\" is null)\n        or (\"kind\" = 'ios' and \"endpoint\" is null and \"token\" is not null and \"environment\" is not null and \"environment\" in ('development', 'production') and \"app_id\" is not null)\n        or (\"kind\" = 'android' and \"endpoint\" is null and \"token\" is not null and \"environment\" is null and \"app_id\" is not null and \"activity_start_token\" is null)",

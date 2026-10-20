@@ -130,6 +130,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activities of an iPhone", () => {
       id,
       userId,
       deviceId,
+      environment: "production",
+      appId: BUNDLE,
       notificationId,
       alertId,
       alertRevision: 0,
@@ -205,16 +207,52 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activities of an iPhone", () => {
       expect(await startTokens()).toEqual([null, null, start]);
     });
 
-    it("is not the next account's on a phone, nor what ran there for the account before", async () => {
+    it("is not the next account's on a phone, which lets go of what ran there for the account before", async () => {
       const shared = iphone();
       const anas = await register({ ...shared, activityStartToken: hex() });
-      await startedOn(anas.id);
+      const running = await startedOn(anas.id);
+      const ended = await startedOn(anas.id);
+      await database.db
+        .update(liveActivity)
+        .set({ endedAt: new Date() })
+        .where(eq(liveActivity.id, ended.id));
 
       const bens = await register(shared, "ben");
 
       expect(bens.id).not.toBe(anas.id);
       expect(await startTokens()).toEqual([null]);
-      expect(await activities()).toEqual([]);
+      // Ana's are hers still, on no device: the worker ends the one that runs on the phone.
+      expect(await activities()).toMatchObject([
+        { id: running.id, userId: "ana", deviceId: null, endedAt: null, environment: "production" },
+        { id: ended.id, userId: "ana", deviceId: null },
+      ]);
+    });
+
+    it("lets go of what runs on the iPhone when it is taken back", async () => {
+      const phone = iphone();
+      const device = await register({ ...phone, activityStartToken: hex() });
+      const running = await startedOn(device.id);
+      const ended = await startedOn(device.id);
+      await database.db
+        .update(liveActivity)
+        .set({ endedAt: new Date() })
+        .where(eq(liveActivity.id, ended.id));
+
+      // Said nothing of, it keeps them.
+      await renew({ id: device.id, ...phone });
+      expect((await activities()).map((row) => row.deviceId)).toEqual([device.id, device.id]);
+
+      await renew({ id: device.id, ...phone, activityStartToken: null });
+
+      // The one that runs is let go of, for the worker to end; the one that ended stays.
+      expect(await activities()).toMatchObject([
+        { id: running.id, deviceId: null, endedAt: null },
+        { id: ended.id, deviceId: device.id },
+      ]);
+      await renew({ id: device.id, ...phone, activityStartToken: hex() });
+      const again = await startedOn(device.id);
+      await register({ ...phone, activityStartToken: null });
+      expect((await activities()).find((row) => row.id === again.id)?.deviceId).toBeNull();
     });
 
     it.each([
@@ -377,14 +415,26 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activities of an iPhone", () => {
       expect(await activities()).toMatchObject([{ token: null, endedAt: expect.any(Date) }]);
     });
 
-    it("goes with its device", async () => {
+    it("outlives its device, which lets go of it for the worker to end it on the phone", async () => {
       const phone = iphone();
       const device = await register(phone);
-      await startedOn(device.id);
+      const started = await startedOn(device.id);
+      await call(
+        v1Router.push.activityStarted,
+        { id: device.id, notification: started.notificationId, token: hex() },
+        by("ana"),
+      );
 
       await call(v1Router.push.forgetApp, { kind: "ios", token: phone.token }, by("ana"));
 
-      expect(await activities()).toEqual([]);
+      expect(await activities()).toMatchObject([
+        { deviceId: null, endedAt: null, token: expect.any(String), appId: BUNDLE },
+      ]);
+      // The app reads it as gone: the iPhone is no device of the caller's now.
+      const named = { id: device.id, notification: started.notificationId };
+      expect(await caught(call(v1Router.push.activityEnded, named, by("ana")))).toEqual(
+        refusal("NOT_FOUND"),
+      );
     });
   });
 

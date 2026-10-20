@@ -196,7 +196,7 @@ export async function windowShown(
 }
 
 /** Why an activity ends, as a run counts it. */
-type EndOf = "over" | "gone" | "alert" | "account" | "switch";
+type EndOf = "over" | "gone" | "alert" | "account" | "device";
 
 /** A running activity, as its row and its iPhone hold it. */
 type Running = typeof liveActivity.$inferSelect;
@@ -210,12 +210,13 @@ type Device = typeof pushSubscription.$inferSelect;
  * It ends when its window is over, or gone by the last look: none of its hours is found by a
  * look that is fresh, and no hours told of it still stand, which two looks that miss them call
  * off (decision 031). It ends when its alert was switched off, changed or deleted, or paused for
- * the day; when its account is suspended or away; and when the iPhone's switch was turned off.
+ * the day; when its account is suspended or away; and when its iPhone is no longer the account's
+ * device that starts them: forgotten, with its session or its push, signed in to by another
+ * account, or its switch turned off, which the API says by letting go of the activity.
  */
 export async function followed(
   tx: Transaction,
   activity: Running,
-  device: Pick<Device, "activityStartToken">,
   now: Date,
   also: readonly string[] = [],
 ): Promise<{ shown: WindowShown; until: Date; ends: EndOf | null }> {
@@ -258,7 +259,7 @@ export async function followed(
     if (!held || !held.enabled || held.revision !== activity.alertRevision || !link) return "alert";
     if (isLater(held.awayUntil)) return "alert";
     if (isLater(settings.awayUntil) || (await isSuspended(tx, activity.userId))) return "account";
-    if (device.activityStartToken === null) return "switch";
+    if (activity.deviceId === null) return "device";
     if (window.end.getTime() <= now.getTime()) return "over";
     return isGone ? "gone" : null;
   };
@@ -292,8 +293,16 @@ export async function followed(
 export type Beginning = { shown: WindowShown; placeId: string; startsAt: Date; until: Date };
 
 // An iPhone whose switch is on: it gave the token that starts its Live Activities.
-const switchedOn = (device: Device): device is Device & { activityStartToken: string } =>
-  device.kind === "ios" && device.activityStartToken !== null && device.appId !== null;
+type SwitchedOn = Device & {
+  activityStartToken: string;
+  appId: string;
+  environment: NonNullable<Device["environment"]>;
+};
+const switchedOn = (device: Device): device is SwitchedOn =>
+  device.kind === "ios" &&
+  device.activityStartToken !== null &&
+  device.appId !== null &&
+  device.environment !== null;
 
 /**
  * Whether an account has an iPhone whose switch for Live Activities is on: the first step of "it
@@ -372,7 +381,7 @@ export async function beginOn(
           .for("update");
   type Plan =
     | { kind: "push"; device: Device }
-    | { kind: "start"; device: Device & { activityStartToken: string }; beginning: Beginning }
+    | { kind: "start"; device: SwitchedOn; beginning: Beginning }
     | {
         kind: "update";
         device: Device;
@@ -388,7 +397,7 @@ export async function beginOn(
       continue;
     }
     const run = runs.find((one) => one.deviceId === device.id);
-    const next = run && (await followed(tx, run, device, now, begins.places));
+    const next = run && (await followed(tx, run, now, begins.places));
     if (run && next && !next.ends) {
       // An activity whose token has not come cannot be updated: the push tells it.
       plans.push(
@@ -412,11 +421,15 @@ export async function beginOn(
         return sending ? await sending : null;
       };
       if (plan.kind === "push") return { plan, outcome: await pushed(), activity: null };
-      const to = {
-        token: plan.kind === "start" ? plan.device.activityStartToken : plan.run.token,
-        appId: device.appId ?? "",
-        environment: device.environment,
-      };
+      // A start goes to the iPhone, and an update to its activity, through what it kept.
+      const to =
+        plan.kind === "start"
+          ? {
+              token: plan.device.activityStartToken,
+              appId: plan.device.appId,
+              environment: plan.device.environment,
+            }
+          : { token: plan.run.token, appId: plan.run.appId, environment: plan.run.environment };
       const activity = await ios.activity(
         to,
         plan.kind === "start"
@@ -458,6 +471,8 @@ export async function beginOn(
               id: crypto.randomUUID(),
               userId: begins.userId,
               deviceId: plan.device.id,
+              environment: plan.device.environment,
+              appId: plan.device.appId,
               notificationId: begins.notificationId,
               alertId: begins.alertId,
               alertRevision: begins.revision,
@@ -468,7 +483,8 @@ export async function beginOn(
             })
             .onConflictDoNothing();
         } else if (plan.kind === "start" && activity === "gone") {
-          // The token starts no more activities: the app gives another when iOS does.
+          // The token starts no more activities: the app gives another when iOS does. The
+          // activities that run on the iPhone go on: its switch was not turned off.
           await tx
             .update(pushSubscription)
             .set({ activityStartToken: null })
@@ -508,26 +524,29 @@ async function followOne(db: Database, ios: ApnsPusher | null, id: string) {
       .where(eq(liveActivity.id, id));
     if (!row) return "kept";
     await tx.select({ id: user.id }).from(user).where(eq(user.id, row.userId)).for("share");
-    const [device] = await tx
-      .select()
-      .from(pushSubscription)
-      .where(eq(pushSubscription.id, row.deviceId))
-      .for("update");
+    // Its iPhone, while it is the account's device that starts them.
+    if (row.deviceId) {
+      await tx
+        .select({ id: pushSubscription.id })
+        .from(pushSubscription)
+        .where(eq(pushSubscription.id, row.deviceId))
+        .for("update");
+    }
     const [activity] = await tx
       .select()
       .from(liveActivity)
       .where(and(eq(liveActivity.id, id), isNull(liveActivity.endedAt)))
       .for("update");
-    // Gone with its device, or ended meanwhile by the app.
-    if (!device || !activity) return "kept";
+    // Ended meanwhile by the app, or forgotten with its account.
+    if (!activity) return "kept";
     const now = new Date();
-    const { shown, until, ends } = await followed(tx, activity, device, now);
-    const to = activity.token &&
-      device.appId && {
-        token: activity.token,
-        appId: device.appId,
-        environment: device.environment,
-      };
+    const { shown, until, ends } = await followed(tx, activity, now);
+    // Reached through what it kept of its iPhone, which may be gone.
+    const to = activity.token && {
+      token: activity.token,
+      appId: activity.appId,
+      environment: activity.environment,
+    };
 
     if (ends) {
       // It leaves the screen at once: its window, or what it was of, is no more.
