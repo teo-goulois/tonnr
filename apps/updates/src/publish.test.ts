@@ -94,7 +94,8 @@ describe("the manifest of an update", () => {
       key: md5(bundle),
       contentType: "application/javascript",
       fileExtension: ".bundle",
-      url: `https://bundles.example.org/files/${sha256(bundle, "hex")}`,
+      // An extension Cloudflare's cache keeps by default.
+      url: `https://bundles.example.org/files/${sha256(bundle, "hex")}.bin`,
     });
     expect(manifest.assets.map((asset) => [asset.contentType, asset.fileExtension])).toEqual([
       ["image/png", ".png"],

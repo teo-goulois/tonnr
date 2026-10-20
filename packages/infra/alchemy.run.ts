@@ -95,8 +95,9 @@ export default Alchemy.Stack(
 
     // The updates of the app for phones, for a stage that names the Worker's host and the
     // bucket's: decision 075. The bucket's own domain serves the files of an update, each under
-    // the key of its hash, from Cloudflare's cache; the Worker answers the apps from the bucket,
-    // which it reads and never writes. It keeps no log of a request, and has no other address.
+    // the key of its hash and the extension `.bin`, which Cloudflare's cache keeps by default with
+    // no rule of the zone; the Worker answers the apps from the bucket, which it reads and never
+    // writes. It keeps no log of a request, and has no other address.
     const updates =
       updatesDomain === undefined || updatesFilesDomain === undefined
         ? undefined

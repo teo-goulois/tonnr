@@ -46,6 +46,7 @@ Expo sells all of it. EAS Build builds in Expo's cloud, EAS Submit sends the bui
 
 - The Worker reads its bucket and writes nothing. It holds no key, and keeps and logs nothing of a request. An app asks once a start, well within the 100,000 requests a day of Cloudflare's free plan.
 - The bucket's own domain serves the files of an update, not the Worker: the bundle in Hermes bytecode, the pictures and the fonts. Each lies under the key of its hash and never changes at its address. It is written with its type and `cache-control: public, max-age=31536000, immutable`, which R2 serves as written. The app checks each file against the SHA-256 that the manifest gives.
+- Cloudflare's cache keeps what a bucket's domain serves by the extension of its address alone, whatever its `cache-control`: an address with none is read from R2 at every download. Each file's address ends in `.bin`, an extension the cache keeps by default, and is served with its own type. A Cache Rule would do it too, but a ruleset of Alchemy owns the whole phase of the zone, which the web app shares, and its token would need another right. Chosen here, after the review of 2026-10-20. A setting of the zone that rewrites what it serves, such as Polish for pictures, must leave that host alone, or the files no longer match their hash.
 
 ### Signing and publishing
 

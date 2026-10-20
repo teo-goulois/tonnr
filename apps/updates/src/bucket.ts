@@ -1,7 +1,7 @@
 // What the bucket of the updates holds, and where: the Worker reads it, `pnpm run release:js`
 // writes the publications and the store builds write their runtimes. Decision 075.
 //
-// files/<sha256>                               a file of an update, at the bucket's own domain
+// files/<sha256>.bin                           a file of an update, at the bucket's own domain
 // updates/<platform>/<runtime>/<id>.json       a manifest or a directive, its signature beside it
 // runtimes/<platform>/<runtime>/latest.json    which publication the runtime's apps get
 // runtimes/<platform>/<runtime>/shipped.json   the store build that shipped the runtime
@@ -31,7 +31,13 @@ export const updatesBucketName = (slug: string, stage: string) =>
 /** The metadata of a signed object that holds its signature, the `expo-signature` it is served with. */
 export const SIGNATURE_METADATA = "signature";
 
-export const fileKey = (sha256Hex: string) => `files/${sha256Hex}`;
+/**
+ * Where a file of an update lies. Cloudflare's cache keeps what the bucket's domain serves by the
+ * extension of its address alone, and `.bin` is one it keeps by default, whatever the file's
+ * type: an address with none, or with `.hbc` or `.bundle`, would be read from R2 at every
+ * download. The type the file is served with is the one it was written with.
+ */
+export const fileKey = (sha256Hex: string) => `files/${sha256Hex}.bin`;
 
 export const signedKey = (platform: Platform, runtime: string, id: string) =>
   `updates/${platform}/${runtime}/${id}.json`;
