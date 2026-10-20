@@ -235,13 +235,14 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
     );
   }
 
-  // The next hours of one place, in columns, under its name.
+  // The next hours of one place, in columns, under its name. A column is known by its place
+  // among them: the night the clocks go back writes the same time twice.
   if (props.view === "hours" && place.hours) {
     var columns: ReactNode[] = [];
     place.hours.forEach(function (hour, index) {
       if (index > 0) columns.push(<Spacer key={"gap " + index} />);
       columns.push(
-        <VStack key={hour.time} spacing={4}>
+        <VStack key={"hour " + index} spacing={4}>
           <Line text={hour.time} size={11} faint />
           {hour.height ? <Pill pill={hour.height} size={13} /> : <Line text="–" size={13} />}
           <Line text={hour.period || "–"} size={11} />

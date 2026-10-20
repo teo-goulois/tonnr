@@ -264,6 +264,23 @@ describe("the widgets' layout", () => {
     ]);
   });
 
+  it("keeps the columns of the next hours apart the night the clocks go back", () => {
+    const props = first(WIDGET.nextHours);
+    const place = props.places!["break:b1"]!;
+    // In Paris on 2026-10-25, 00:00 and 01:00 UTC are both 02:00.
+    const hours = place.hours!.map((hour) => ({ ...hour, time: "02:00" }));
+    const root = draw(
+      WIDGET.nextHours,
+      { ...props, places: { "break:b1": { ...place, hours } } },
+      { widgetFamily: "systemMedium", colorScheme: "light", configuration: { place: "favorite" } },
+    );
+    const columns = nodes(root).filter(
+      (one) => one.type === "VStack" && textsOf(one).includes("02:00") && one !== root,
+    );
+    expect(columns).toHaveLength(hours.length);
+    expect(new Set(columns.map((one) => one.key)).size).toBe(hours.length);
+  });
+
   it("draws each favourite on its line, each opening its place", () => {
     const root = draw(WIDGET.favorites, first(WIDGET.favorites), {
       widgetFamily: "systemMedium",
