@@ -1,3 +1,7 @@
+// The React Compiler, which the app turns on, would give the layout's own components a cache of
+// its own, `_c`, which the widgets' runtime does not have: this file is not compiled by it.
+"use no memo";
+
 import {
   AccessoryWidgetBackground,
   HStack,

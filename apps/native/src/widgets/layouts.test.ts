@@ -10,9 +10,10 @@ import type { WidgetProps } from "./props";
 import { answerOf, breakSea, buoySea, now } from "./samples";
 
 // The layout of the widgets as the extension runs it: compiled by Babel as Metro compiles it for
-// iOS, into a string, then evaluated alone, with nothing in reach but what the widgets' runtime
-// gives it (expo-widgets' bundle/index.ts). A layout that reads anything else, or that the
-// compiler gave a helper of its own, fails here as it would fail on the phone. The views are
+// iOS, the React Compiler with it as the app's config turns it on, into a string, then evaluated
+// alone, with nothing in reach but what the widgets' runtime gives it (expo-widgets'
+// bundle/index.ts). A layout that reads anything else, or that a compiler gave a helper of its
+// own, such as the React Compiler's cache `_c`, fails here as it would fail on the phone. The views are
 // stood in for by their names, so what is checked is what the layout draws, not how SwiftUI
 // draws it.
 
@@ -34,7 +35,14 @@ function compiledLayouts() {
     configFile: false,
     babelrc: false,
     presets: [require.resolve("babel-preset-expo", { paths: [from("../..")] })],
-    caller: { name: "metro", bundler: "metro", platform: "ios", isDev: false, isServer: false },
+    caller: {
+      name: "metro",
+      bundler: "metro",
+      platform: "ios",
+      isDev: false,
+      isServer: false,
+      supportsReactCompiler: true,
+    },
   });
   const layouts: Record<string, string> = {};
   const modules: Record<string, unknown> = {
@@ -163,6 +171,10 @@ describe("the widgets' layout", () => {
   it("is made by every widget, from one compiled function", () => {
     expect(Object.keys(layouts).sort()).toEqual(Object.values(WIDGET).sort());
     expect(new Set(Object.values(layouts)).size).toBe(1);
+  });
+
+  it("is left alone by the React Compiler, whose cache the widgets' runtime does not have", () => {
+    for (const layout of Object.values(layouts)) expect(layout).not.toMatch(/\b_c\(/);
   });
 
   it("draws the sea's mark on the theme's ground before the app has written anything", () => {
