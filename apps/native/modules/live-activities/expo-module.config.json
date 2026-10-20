@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["LiveActivitiesModule"] },
+  "android": { "modules": ["app.tonnr.liveactivities.LiveActivitiesModule"] }
+}

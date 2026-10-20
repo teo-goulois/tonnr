@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.tonnr'
+version = '1.0.0'
+
+android {
+  namespace "app.tonnr.liveactivities"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // The notification of a session in progress asks to be promoted as Android 16 promotes a Live
+  // Update: `setRequestPromotedOngoing` and `setShortCriticalText` are NotificationCompat's from
+  // 1.17.0, the version the module push-keys takes too. Decision 074.
+  implementation 'androidx.core:core-ktx:1.17.0'
+}

@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Android 16 promotes an ongoing notification to a Live Update only for an app that holds
+       this permission, which the system grants at install: the session in progress of decision
+       074, which the person started and follows. -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+</manifest>
