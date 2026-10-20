@@ -1,8 +1,9 @@
 import type { BlockedAccount } from "@repo/client/viewer/types";
 import { PersonIcon, XIcon } from "@repo/ui/icon";
 import { Fragment, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, View } from "react-native";
 
+import { Step } from "@/components/account/settings-steps";
 import { SwipeRow } from "@/components/alerts/swipe-row";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -97,14 +98,13 @@ export function BlockedScreen() {
   };
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+    <Step
+      title={m.blocks_title()}
       refreshControl={
         signedIn ? (
           <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />
         ) : undefined
       }
-      contentContainerStyle={{ gap: space.m, padding: space.m, paddingBottom: space.xxl }}
     >
       <Text size="s" tone="muted" style={{ paddingHorizontal: space.m }}>
         {m.blocks_intro()}
@@ -138,6 +138,6 @@ export function BlockedScreen() {
           </View>
         </Loading>
       )}
-    </ScrollView>
+    </Step>
   );
 }

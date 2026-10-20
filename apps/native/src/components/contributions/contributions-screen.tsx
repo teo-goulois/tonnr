@@ -2,9 +2,10 @@ import type { Standing } from "@repo/client/viewer/types";
 import { LogbookIcon } from "@repo/ui/icon";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, View } from "react-native";
 
 import { rankInitials, RankBadge, rankName } from "@/components/account/rank-badge";
+import { Step } from "@/components/account/settings-steps";
 import { points, progressOf } from "@/components/guides/guide-words";
 import { openBreakGuide } from "@/components/guides/open-guide";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -140,7 +141,7 @@ export function ContributionsScreen() {
 
   if (!signedIn) {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic">
+      <Step title={m.contributions_title()}>
         {pending ? null : (
           <EmptyState
             icon={LogbookIcon}
@@ -152,16 +153,15 @@ export function ContributionsScreen() {
             }}
           />
         )}
-      </ScrollView>
+      </Step>
     );
   }
 
   const known = standing.data;
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+    <Step
+      title={m.contributions_title()}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
-      contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
     >
       {known ? (
         <>
@@ -201,6 +201,6 @@ export function ContributionsScreen() {
           </View>
         </Loading>
       )}
-    </ScrollView>
+    </Step>
   );
 }

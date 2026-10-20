@@ -4,9 +4,10 @@ import { ChevronRightIcon, CopyIcon, PersonIcon, ShareIcon, XIcon } from "@repo/
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
 import { Fragment, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, View } from "react-native";
 
 import { RankBadge, rankName } from "@/components/account/rank-badge";
+import { Step } from "@/components/account/settings-steps";
 import { SwipeRow } from "@/components/alerts/swipe-row";
 import { ContributionRow } from "@/components/contributions/contribution-row";
 import { openBreakGuide } from "@/components/guides/open-guide";
@@ -343,7 +344,7 @@ export function FriendsScreen() {
 
   if (!signedIn) {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic">
+      <Step title={m.friends_title()}>
         {pending ? null : (
           <EmptyState
             icon={PersonIcon}
@@ -355,15 +356,14 @@ export function FriendsScreen() {
             }}
           />
         )}
-      </ScrollView>
+      </Step>
     );
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+    <Step
+      title={m.friends_title()}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
-      contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
     >
       <View style={{ gap: space.xs }}>
         <Text
@@ -449,6 +449,6 @@ export function FriendsScreen() {
           onOpenBreak={(breakId) => sheet.dismiss(() => openBreakGuide(breakId))}
         />
       ) : null}
-    </ScrollView>
+    </Step>
   );
 }
