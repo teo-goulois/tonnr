@@ -2025,5 +2025,7 @@
   "native_language_footer": "L'app redémarre dans la langue choisie.",
   "native_profile_load_failed": "Tes réponses n'ont pas pu être chargées.",
   "native_delete_confirm_title": "Supprimer ton compte pour de bon ?",
-  "native_delete_sign_in": "Connecte-toi pour supprimer ton compte."
+  "native_delete_sign_in": "Connecte-toi pour supprimer ton compte.",
+  "native_away_back": "De retour le",
+  "native_push_later": "Les notifications sur ce téléphone arrivent avec une prochaine version de l'app."
 }
