@@ -3,8 +3,8 @@ import { APP_NAME } from "@repo/config/app";
 import { BellIcon, GlobalIcon, MapPinIcon, PenIcon, ShareIcon, TrashIcon } from "@repo/ui/icon";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Linking, Platform, ScrollView, Share, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, BackHandler, Linking, Platform, ScrollView, Share, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -55,6 +55,15 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
   const [step, setStep] = useState<Step>("menu");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
+  // Android's back goes from a second step to the menu, as the button over it does.
+  useEffect(() => {
+    if (step === "menu") return;
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      setStep("menu");
+      return true;
+    });
+    return () => listener.remove();
+  }, [step]);
   const title = record.name ?? "";
   const spot = record.isOwner ? record.spot : undefined;
   const status = spot?.publication?.status;

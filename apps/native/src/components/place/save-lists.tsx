@@ -1,8 +1,8 @@
 import type { SavedItem } from "@repo/client/viewer/types";
 import { ArrowLeftIcon, CheckIcon, CirclePlusIcon, ListsIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { BackHandler, Platform, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -112,6 +112,15 @@ export function SaveToLists({ item, name }: { item: SavedItem; name: string }) {
   const [isNaming, setIsNaming] = useState(false);
   const [listName, setListName] = useState("");
   const named = listName.trim();
+  // Android's back goes from the second step to the first, as the button over it does.
+  useEffect(() => {
+    if (!isNaming) return;
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      setIsNaming(false);
+      return true;
+    });
+    return () => listener.remove();
+  }, [isNaming]);
 
   const create = () => {
     if (!named || isCreating) return;
