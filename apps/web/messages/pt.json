@@ -1986,7 +1986,7 @@
   "native_removed_from": "{place} removido de {list}.",
   "native_undo": "Anular",
   "native_list_settings": "Abre a lista, a partilha e as definições",
-  "native_list_delete_text": "O que tem continua no mapa. Se a partilhaste, o link deixa de abrir o que quer que seja.",
+  "native_list_delete_text": "O que contém continua no mapa. Se a partilhaste, o link deixa de abrir o que quer que seja.",
   "native_list_deleted": "Lista eliminada.",
   "native_share_stop_text": "O link deixa de abrir o que quer que seja, e as contas que guardaram a lista perdem-na.",
   "native_share_renew_text": "O link anterior deixa de abrir o que quer que seja. As contas que guardaram a lista continuam com ela.",
