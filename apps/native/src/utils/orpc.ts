@@ -5,6 +5,7 @@ import type { AppRouterClient } from "@repo/api/routers/index";
 import { QueryClient } from "@tanstack/react-query";
 import { fetch as expoFetch } from "expo/fetch";
 
+import { linkHeaders } from "@/components/lists/shared-link";
 import { ENV } from "@/env";
 import { APP_ORIGIN, appHeader } from "@/lib/app-client";
 import { authClient } from "@/lib/auth-client";
@@ -37,6 +38,7 @@ export const link = new RPCLink({
     const cookie = await authClient.getCookie();
     return {
       ...(cookie && { Cookie: cookie }),
+      ...linkHeaders(cookie),
       "expo-origin": APP_ORIGIN,
       "X-App": appHeader(),
       "Accept-Language": getLocale(),
