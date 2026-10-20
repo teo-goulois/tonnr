@@ -152,17 +152,24 @@ describe("spreadOut", () => {
       }),
     );
 
+    // The pairs are counted in plain loops and checked once: an assertion for each of the 80,000
+    // pairs made the test take seconds on a machine at work.
     for (const most of [400, 100, 20]) {
       const { stations, apartKm } = spreadOut(scattered, now, most);
+      const tooClose: string[] = [];
       for (const one of stations) {
         for (const other of stations) {
-          if (one !== other) expect(kmBetween(one, other)).toBeGreaterThanOrEqual(apartKm);
+          if (one !== other && kmBetween(one, other) < apartKm)
+            tooClose.push(`${one.id}-${other.id}`);
         }
       }
+      expect(tooClose).toEqual([]);
       // Every station left out has one kept within the distance.
-      for (const left of scattered.filter((one) => !stations.includes(one))) {
-        expect(stations.some((kept) => kmBetween(kept, left) < apartKm)).toBe(true);
-      }
+      const alone = scattered
+        .filter((one) => !stations.includes(one))
+        .filter((left) => !stations.some((kept) => kmBetween(kept, left) < apartKm))
+        .map((left) => left.id);
+      expect(alone).toEqual([]);
     }
   });
 
