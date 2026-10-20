@@ -228,6 +228,30 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activities of an iPhone", () => {
       ]);
     });
 
+    it("is let go of by nothing, nor what runs on the phone, when the next account is refused it for its ten devices", async () => {
+      const shared = iphone();
+      const start = hex();
+      const anas = await register({ ...shared, activityStartToken: start });
+      const running = await startedOn(anas.id);
+      const other = hex();
+      await register({ ...iphone(), activityStartToken: other });
+      for (let one = 0; one < 10; one += 1) await register(iphone(), "ben");
+
+      const error = await caught(register({ ...shared, activityStartToken: other }, "ben"));
+
+      expect(error).toEqual(refusal("FORBIDDEN"));
+      const kept = await database.db
+        .select()
+        .from(pushSubscription)
+        .where(eq(pushSubscription.userId, "ana"))
+        .orderBy(asc(pushSubscription.createdAt));
+      expect(kept.map((row) => [row.id === anas.id, row.activityStartToken])).toEqual([
+        [true, start],
+        [false, other],
+      ]);
+      expect(await activities()).toMatchObject([{ id: running.id, deviceId: anas.id }]);
+    });
+
     it("lets go of what runs on the iPhone when it is taken back", async () => {
       const phone = iphone();
       const device = await register({ ...phone, activityStartToken: hex() });

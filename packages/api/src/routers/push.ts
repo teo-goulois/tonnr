@@ -294,18 +294,10 @@ async function holdCaller(tx: Transaction, userId: string, sessionId: string) {
 /**
  * Holds what `registerApp` writes after the caller and its session: the rows of `push_subscription`
  * that keep the phone's token or the token that starts its Live Activities, in the order of their
- * ids, then the Live Activities of a row that another account kept, which it lets go of: the
- * phone becomes the caller's under a new id, and what ran on it for the account before is no
- * longer its own, which the worker ends on the phone. A row that keeps the token that starts
- * Live Activities, and not the phone's own token, lets go of it: a phone has one.
+ * ids. It writes nothing: `letGoOfTokens` does, once the phone may be the caller's.
  */
-async function holdTokens(
-  tx: Transaction,
-  userId: string,
-  token: string,
-  startToken: string | null | undefined,
-) {
-  const held = await tx
+async function holdTokens(tx: Transaction, token: string, startToken: string | null | undefined) {
+  return tx
     .select({
       id: pushSubscription.id,
       userId: pushSubscription.userId,
@@ -320,6 +312,21 @@ async function holdTokens(
     )
     .orderBy(asc(pushSubscription.id))
     .for("update");
+}
+
+/**
+ * What `registerApp` writes of the rows `holdTokens` held, once the phone may be the caller's:
+ * the Live Activities of a row that another account kept, which it lets go of, since the phone
+ * becomes the caller's under a new id, and what ran on it for the account before is no longer its
+ * own, which the worker ends on the phone; and the token that starts Live Activities, which a row
+ * that keeps it, and not the phone's own token, lets go of: a phone has one.
+ */
+async function letGoOfTokens(
+  tx: Transaction,
+  userId: string,
+  token: string,
+  held: Awaited<ReturnType<typeof holdTokens>>,
+) {
   const taken = held.filter((row) => row.token === token && row.userId !== userId);
   // Every one of them, ended or not: none may keep the id that the row gives up.
   await letGoOfActivities(
@@ -711,9 +718,8 @@ export const pushRouter = {
         context.db.transaction(async (tx) => {
           // The account first, then the session, as a browser's subscription holds them.
           await holdCaller(tx, userId, sessionId);
-          // Then the rows of the phone's two tokens, in the order of their ids, and their Live
-          // Activities after them (decision 074).
-          await holdTokens(tx, userId, app.token, startToken);
+          // Then the rows of the phone's two tokens, in the order of their ids (decision 074).
+          const held = await holdTokens(tx, app.token, startToken);
           const [others] = await tx
             .select({ total: count() })
             .from(pushSubscription)
@@ -723,7 +729,10 @@ export const pushRouter = {
                 sql`${pushSubscription.token} is distinct from ${app.token}`,
               ),
             );
+          // Refused, it writes nothing.
           if ((others?.total ?? 0) >= MAX_DEVICES_PER_USER) return null;
+          // What the phone's two tokens let go of, and their Live Activities after them.
+          await letGoOfTokens(tx, userId, app.token, held);
 
           // A token that is kept already is this phone's: it says so again, or another account
           // is signed in there now, which gets a device of its own under a new id.
