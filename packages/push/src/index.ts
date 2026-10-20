@@ -8,7 +8,8 @@ import { vapidHeader } from "./vapid";
 
 export { isPushEndpoint } from "./endpoints";
 export { makeVapidKeys } from "./keys";
-export { type ApnsSettings, createApnsPusher } from "./apns";
+export { type ActivityTarget, type ApnsPusher, type ApnsSettings, createApnsPusher } from "./apns";
+export { type ActivityPush, type WindowShown, WINDOW_ACTIVITY } from "./activities";
 export { type FcmSettings, createFcmPusher } from "./fcm";
 
 // How the instance sends a push to a browser: decision 031, "Push". This knows the standards a

@@ -1,7 +1,16 @@
 import http2 from "node:http2";
 
-import { STAND_IN, collapseIdOf, keptFor, payloadFor, privateKeyOf, signedToken } from "./apps";
-import type { AppDevice, Pusher } from "./index";
+import { type ActivityPush, activityPayload } from "./activities";
+import {
+  APP_PAYLOAD_BYTES,
+  STAND_IN,
+  collapseIdOf,
+  keptFor,
+  payloadFor,
+  privateKeyOf,
+  signedToken,
+} from "./apps";
+import type { AppDevice, Outcome, Pusher } from "./index";
 import { kindOf } from "./request";
 
 // How the instance sends a push to its app on an iPhone: decision 072. APNs is asked over
@@ -15,6 +24,10 @@ import { kindOf } from "./request";
 // others, unless Apple had not begun to answer: the connection may then be half open, which TCP
 // tells only after minutes, and the session takes no new push. Nothing here is logged of a push
 // but how it failed, and never the token.
+//
+// Decision 074: the same sessions and the same key carry the pushes of a Live Activity, of the
+// type `liveactivity` and to the app's topic followed by `.push-type.liveactivity`, which start,
+// update and end the activity of a window that begins (`activities.ts`).
 
 /** What an instance sets to push to its iOS app: the key of its Apple team, and the app. */
 export type ApnsSettings = {
@@ -171,8 +184,22 @@ function reasonOf(body: string) {
   }
 }
 
-/** A pusher to the app on an iPhone, which closes its sessions to Apple when asked. */
-export type ApnsPusher = Pusher<AppDevice> & { close: () => void };
+/**
+ * Where a push of a Live Activity goes: the token that starts one, for a start, or the token of
+ * the activity, for its updates and its end, on the host of the environment of the iPhone's
+ * build, under the app the iPhone's device was made by.
+ */
+export type ActivityTarget = Pick<AppDevice, "token" | "appId" | "environment">;
+
+/**
+ * A pusher to the app on an iPhone, which closes its sessions to Apple when asked. `activity`
+ * sends a push of a Live Activity, once, within the ten seconds a push is given, and says what
+ * became of it as `send` does: decision 074.
+ */
+export type ApnsPusher = Pusher<AppDevice> & {
+  activity: (to: ActivityTarget, push: ActivityPush, keepSeconds: number) => Promise<Outcome>;
+  close: () => void;
+};
 
 /**
  * The pusher of an instance to its iOS app, from its settings. Null when it sets none of the
@@ -227,14 +254,95 @@ export function createApnsPusher(
     return outcome;
   };
 
+  // Gives a payload to Apple for a token, on the host of its build's environment, and reads
+  // what Apple answers.
+  const deliver = async (
+    to: ActivityTarget,
+    headers: Record<string, string>,
+    payload: Uint8Array,
+    // What the log says it was, before the reason Apple gives.
+    what = "",
+  ): Promise<Outcome> => {
+    const answer = await transport.stream(
+      to.environment === "development" ? hosts.development : hosts.production,
+      {
+        ":path": `/3/device/${to.token}`,
+        authorization: `bearer ${providerToken()}`,
+        ...headers,
+      },
+      payload,
+      AbortSignal.timeout(sendMs),
+    );
+    if ("failure" in answer) {
+      return not(
+        "failed",
+        `${what}${answer.failure === "given up" ? "no answer in time" : answer.failure}`,
+      );
+    }
+    const { status } = answer;
+    if (status === 200) return "taken";
+    const reason = reasonOf(answer.body);
+    // The token is no more, or it is not this app's on the host its build said: from the
+    // host of the environment the app said, under the app's own id.
+    if (status === 410) return "gone";
+    if (status === 400 && (reason === "BadDeviceToken" || reason === "DeviceTokenNotForTopic")) {
+      return "gone";
+    }
+    // Apple takes the instance's token for too old: another is signed for the next push,
+    // unless one was signed lately, which Apple would take for too many.
+    if (reason === "ExpiredProviderToken" && signed) {
+      if (Date.now() - signed.at >= TOKEN_RENEWED_AFTER_MS) signed = null;
+    }
+    // Apple failing does not say what it did with the push before.
+    return not(status >= 500 ? "failed" : "refused", `${what}${reason ?? `status ${status}`}`);
+  };
+
+  // What is checked again of a token as a push leaves: it goes into the path of a request.
+  const refusedTo = (to: ActivityTarget, keepSeconds: number) => {
+    if (!TOKEN.test(to.token)) return "a token APNs did not give";
+    if (to.appId !== topic) return "a device of another app";
+    if (!Number.isFinite(keepSeconds)) return "no time to keep it for";
+    return null;
+  };
+  // Kept until then for a phone that is off, or tried once now and dropped.
+  const expiration = (keepSeconds: number) => {
+    const kept = keptFor(keepSeconds);
+    return kept === 0 ? "0" : String(Math.floor(Date.now() / 1000) + kept);
+  };
+
   return {
     close: transport.close,
+    activity: async (to, push, keepSeconds) => {
+      try {
+        const refused = refusedTo(to, keepSeconds);
+        if (refused) return not("refused", `activity ${refused}`);
+        const payload = Buffer.from(JSON.stringify(activityPayload(push, new Date())));
+        if (payload.length > APP_PAYLOAD_BYTES) {
+          return not("refused", "activity too long for one push");
+        }
+        return await deliver(
+          to,
+          {
+            "apns-push-type": "liveactivity",
+            "apns-topic": `${topic}.push-type.liveactivity`,
+            // An update that tells nothing new leaves when the phone can take it, which counts
+            // for nothing against what Apple lets an app send in an hour. A start, an end and an
+            // update that tells a beginning leave now.
+            "apns-priority": push.event === "update" && !push.locale ? "5" : "10",
+            "apns-expiration": expiration(keepSeconds),
+          },
+          payload,
+          "activity ",
+        );
+      } catch (error) {
+        return not("failed", `activity ${error instanceof Error ? error.name : "unknown"}`);
+      }
+    },
     send: async (device, push, keepSeconds) => {
       try {
         // Checked again as it leaves: a token goes into the path of the request.
-        if (!TOKEN.test(device.token)) return not("refused", "a token APNs did not give");
-        if (device.appId !== topic) return not("refused", "a device of another app");
-        if (!Number.isFinite(keepSeconds)) return not("refused", "no time to keep it for");
+        const refused = refusedTo(device, keepSeconds);
+        if (refused) return not("refused", refused);
         const standIn = STAND_IN[push.locale ?? "en"] ?? STAND_IN.en;
         // An alert that the app's extension opens before it is shown: Apple shows the line
         // that stands in for it when the extension cannot.
@@ -247,49 +355,19 @@ export function createApnsPusher(
           ),
         );
         if ("refused" in made) return not("refused", made.refused);
-        const kept = keptFor(keepSeconds);
         const collapseId = collapseIdOf(push.tag, device.auth);
-        const answer = await transport.stream(
-          device.environment === "development" ? hosts.development : hosts.production,
+        return await deliver(
+          device,
           {
-            ":path": `/3/device/${device.token}`,
-            authorization: `bearer ${providerToken()}`,
             "apns-push-type": "alert",
             "apns-topic": topic,
             // The evening before may wait, and Apple may then hold it back to spare the battery.
             "apns-priority": push.level === "passive" ? "5" : "10",
-            // Kept until then for a phone that is off, or tried once now and dropped.
-            "apns-expiration": kept === 0 ? "0" : String(Math.floor(Date.now() / 1000) + kept),
+            "apns-expiration": expiration(keepSeconds),
             ...(collapseId ? { "apns-collapse-id": collapseId } : {}),
           },
           made.payload,
-          AbortSignal.timeout(sendMs),
         );
-        if ("failure" in answer) {
-          return not(
-            "failed",
-            answer.failure === "given up" ? "no answer in time" : answer.failure,
-          );
-        }
-        const { status } = answer;
-        if (status === 200) return "taken";
-        const reason = reasonOf(answer.body);
-        // The token is no more, or it is not this app's on the host its build said: from the
-        // host of the environment the app said, under the app's own id.
-        if (status === 410) return "gone";
-        if (
-          status === 400 &&
-          (reason === "BadDeviceToken" || reason === "DeviceTokenNotForTopic")
-        ) {
-          return "gone";
-        }
-        // Apple takes the instance's token for too old: another is signed for the next push,
-        // unless one was signed lately, which Apple would take for too many.
-        if (reason === "ExpiredProviderToken" && signed) {
-          if (Date.now() - signed.at >= TOKEN_RENEWED_AFTER_MS) signed = null;
-        }
-        // Apple failing does not say what it did with the push before.
-        return not(status >= 500 ? "failed" : "refused", reason ?? `status ${status}`);
       } catch (error) {
         return not("failed", error instanceof Error ? error.name : "unknown");
       }

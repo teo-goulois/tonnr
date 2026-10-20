@@ -10,6 +10,7 @@ import {
   verify,
 } from "node:crypto";
 
+import { ACTIVITY_ATTRIBUTES_TYPE, type WindowShown } from "./activities";
 import { type StreamAnswer, APNS_HOSTS, createApnsPusher } from "./apns";
 import { FCM_SCOPE, GOOGLE_TOKEN_ADDRESS, createFcmPusher, fcmAddressOf } from "./fcm";
 import { type AppDevice, type Device, type Push, createPusher } from "./index";
@@ -191,6 +192,62 @@ const apnsRefusal = (status: number, reason: string): StreamAnswer => ({
   body: JSON.stringify({ reason }),
 });
 
+/** A push of a Live Activity, as Apple was given it: what `aps` holds. */
+type ActivityAps = Record<string, unknown>;
+
+/**
+ * What the phone reads of a push of a Live Activity of the app's, as ActivityKit decodes it into
+ * the attributes expo-widgets declares, and as expo-widgets then reads its content: the event,
+ * its time, the name of the activity and its properties, which it parses from their string of
+ * JSON. It throws on what the phone could not decode: a content whose name is no text or whose
+ * properties are no text of a JSON object, a start of another type of attributes or with no line
+ * to light the screen with. Decision 074.
+ */
+export function readActivity(aps: ActivityAps | undefined) {
+  if (!aps) throw new Error("No aps");
+  const { event, timestamp } = aps;
+  if (event !== "start" && event !== "update" && event !== "end") {
+    throw new Error("An event ActivityKit does not know");
+  }
+  if (typeof timestamp !== "number") throw new Error("No timestamp");
+  const content = aps["content-state"] as { name?: unknown; props?: unknown } | undefined;
+  if (typeof content?.name !== "string") throw new Error("A content with no name");
+  if (content.props !== undefined && typeof content.props !== "string") {
+    throw new Error("Properties that are not a text");
+  }
+  const props = content.props === undefined ? null : (JSON.parse(content.props) as unknown);
+  if (props !== null && (typeof props !== "object" || Array.isArray(props))) {
+    throw new Error("Properties that are not a JSON object");
+  }
+  const alert = aps.alert as { title?: unknown; body?: unknown } | undefined;
+  if (alert !== undefined && (typeof alert.title !== "string" || typeof alert.body !== "string")) {
+    throw new Error("An alert with no title or no body");
+  }
+  if (event === "start") {
+    if (aps["attributes-type"] !== ACTIVITY_ATTRIBUTES_TYPE) {
+      throw new Error("Attributes of another type");
+    }
+    const attributes = aps.attributes as { url?: unknown } | undefined;
+    if (typeof attributes !== "object" || attributes === null) throw new Error("No attributes");
+    if (attributes.url !== undefined && typeof attributes.url !== "string") {
+      throw new Error("An address that is not a text");
+    }
+    if (!alert) throw new Error("A start that lights no screen");
+  }
+  const date = (key: string) => (typeof aps[key] === "number" ? (aps[key] as number) : null);
+  return {
+    event,
+    timestamp,
+    name: content.name,
+    shown: props as WindowShown | null,
+    attributes: (aps.attributes as { url?: string } | undefined) ?? null,
+    alert: (alert as { title: string; body: string } | undefined) ?? null,
+    staleDate: date("stale-date"),
+    dismissalDate: date("dismissal-date"),
+    inputPushToken: date("input-push-token"),
+  };
+}
+
 /**
  * What stands for APNs: a pusher to the app on an iPhone that asks no one, with a key of an
  * Apple team made for the test, and Apple's two hosts in memory. As Apple does, they take a push
@@ -199,6 +256,10 @@ const apnsRefusal = (status: number, reason: string): StreamAnswer => ({
  * with the status and the reason Apple gives. `device` makes an iPhone whose app registered,
  * whose pushes `sent` reads as its extension would. `answers` says what Apple answers for a
  * token: a status and a reason, or what a function gives, and 200 when it says nothing.
+ *
+ * They take a push of a Live Activity, of the type `liveactivity`, for the app's topic followed
+ * by `.push-type.liveactivity`, at a token that `startToken` or `activityToken` made, which
+ * `activities` reads as the phone would (decision 074).
  */
 export function testApns(topic = "org.example.app") {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -210,12 +271,17 @@ export function testApns(topic = "org.example.app") {
     APNS_TOPIC: topic,
   };
   type Payload = {
-    aps?: { alert?: { title?: string }; "mutable-content"?: number };
+    aps?: { alert?: { title?: string }; "mutable-content"?: number } & ActivityAps;
     encrypted?: string;
   };
   const phones = new Map<
     string,
     { receiver: ReturnType<typeof testReceiver>; environment: "development" | "production" }
+  >();
+  // The tokens of the Live Activities: those that start one on a phone, and those of an activity.
+  const live = new Map<
+    string,
+    { kind: "start" | "activity"; environment: "development" | "production" }
   >();
   const answers = new Map<
     string,
@@ -242,10 +308,13 @@ export function testApns(topic = "org.example.app") {
     ) {
       return apnsRefusal(403, "InvalidProviderToken");
     }
-    if (headers["apns-topic"] !== topic) return apnsRefusal(400, "DeviceTokenNotForTopic");
-    if (headers["apns-push-type"] !== "alert") return apnsRefusal(400, "InvalidPushType");
+    const type = headers["apns-push-type"];
+    if (type !== "alert" && type !== "liveactivity") return apnsRefusal(400, "InvalidPushType");
+    // A Live Activity's push goes to a topic of its own.
+    const expected = type === "liveactivity" ? `${topic}.push-type.liveactivity` : topic;
+    if (headers["apns-topic"] !== expected) return apnsRefusal(400, "DeviceTokenNotForTopic");
     if (body.length > 4096) return apnsRefusal(413, "PayloadTooLarge");
-    const phone = phones.get(token);
+    const phone = type === "alert" ? phones.get(token) : live.get(token);
     // A token is known at the host of its build's environment, and at no other.
     if (!phone || host !== APNS_HOSTS[phone.environment]) {
       return apnsRefusal(400, "BadDeviceToken");
@@ -285,12 +354,44 @@ export function testApns(topic = "org.example.app") {
       phones.set(token, { receiver, environment });
       return { token, appId: topic, environment, ...receiver.keys };
     },
+    /**
+     * The token iOS gives the app on an iPhone to start a Live Activity, as the app gives it
+     * while its switch is on, on the host of the iPhone's build.
+     */
+    startToken(environment: "development" | "production" = "production") {
+      const token = Buffer.from(randomBytes(32)).toString("hex");
+      live.set(token, { kind: "start", environment });
+      return token;
+    },
+    /** The token iOS gives a Live Activity that runs on an iPhone. */
+    activityToken(environment: "development" | "production" = "production") {
+      const token = Buffer.from(randomBytes(32)).toString("hex");
+      live.set(token, { kind: "activity", environment });
+      return token;
+    },
     /** Every request that was made, whatever it was answered. */
     asked: () => asked,
+    /**
+     * The pushes of Live Activities Apple took, as the phone reads them, with what Apple read:
+     * the token's kind, the priority and until when Apple keeps it.
+     */
+    activities: () =>
+      asked
+        .filter(
+          ({ status, headers }) => status === 200 && headers["apns-push-type"] === "liveactivity",
+        )
+        .map(({ host, token, headers, payload }) => ({
+          host,
+          token,
+          kind: live.get(token)?.kind,
+          priority: Number(headers["apns-priority"]),
+          expiration: Number(headers["apns-expiration"]),
+          read: readActivity(payload.aps),
+        })),
     /** The pushes Apple took, as the app's extension reads them, with what Apple read. */
     sent: () =>
       asked
-        .filter(({ status }) => status === 200)
+        .filter(({ status, headers }) => status === 200 && headers["apns-push-type"] === "alert")
         .map(({ host, token, headers, payload }) => ({
           host,
           token,
