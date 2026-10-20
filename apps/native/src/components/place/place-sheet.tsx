@@ -88,8 +88,6 @@ export function PlaceSheet({
     setSeen((all) => (all.includes(shown) ? all : [...all, shown]));
   }, [shown]);
 
-  // While a chart or the week's table is read, the sheet holds still under the finger.
-  const [locked, setLocked] = useState(false);
   // How tall the head and the tabs stand over what scrolls, and where the summary of the panel
   // ends under them: the low sheet is as tall as both, with a step of room under the summary.
   // Each is known by its own layout, in either order.
@@ -198,40 +196,54 @@ export function PlaceSheet({
   // view comes first, as iOS finds the scroll view that raises the sheet among the first things
   // of the screen; the others stay drawn, hidden, in the order they were seen.
   return (
+    <ChartsAtRest atRest={atRest}>
+      <View className="flex-1 bg-background">
+        {/* react-native-screens sizes a form sheet's scroll view, found down the first child
+            of each view, to the sheet: one deeper than the sheet's own children, as each tab's
+            is here, it moves to where the sheet stands on the screen, out of sight. A first
+            child of no size that is never flattened ends that search, and the scroll views
+            keep the layout the sheet already gives them. */}
+        <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
+        {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
+          <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
+            {one === "forecast" ? (
+              <ForecastScroll bottom={insets.bottom + space.xl}>
+                {one === shown ? head : <View />}
+                <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
+                  {panelOf(one)}
+                </View>
+              </ForecastScroll>
+            ) : (
+              <>
+                {one === shown ? head : null}
+                <View style={{ flex: 1 }}>{panelOf(one)}</View>
+              </>
+            )}
+          </View>
+        ))}
+      </View>
+    </ChartsAtRest>
+  );
+}
+
+/**
+ * The forecast's scroll view, with the head as its sticky header, which holds still under the
+ * finger while a chart or the week's table is read. The lock is its own state: a reading that
+ * begins or ends draws this view again, and not the head and the panel it is given.
+ */
+function ForecastScroll({ bottom, children }: { bottom: number; children: ReactNode }) {
+  const [locked, setLocked] = useState(false);
+  return (
     <ReadingLock onLock={setLocked}>
-      <ChartsAtRest atRest={atRest}>
-        <View className="flex-1 bg-background">
-          {/* react-native-screens sizes a form sheet's scroll view, found down the first child
-              of each view, to the sheet: one deeper than the sheet's own children, as each tab's
-              is here, it moves to where the sheet stands on the screen, out of sight. A first
-              child of no size that is never flattened ends that search, and the scroll views
-              keep the layout the sheet already gives them. */}
-          <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
-          {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
-            <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
-              {one === "forecast" ? (
-                <ScrollView
-                  style={{ flex: 1 }}
-                  scrollEnabled={!locked}
-                  keyboardShouldPersistTaps="handled"
-                  stickyHeaderIndices={[0]}
-                  contentContainerStyle={{ paddingBottom: insets.bottom + space.xl }}
-                >
-                  {one === shown ? head : <View />}
-                  <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
-                    {panelOf(one)}
-                  </View>
-                </ScrollView>
-              ) : (
-                <>
-                  {one === shown ? head : null}
-                  <View style={{ flex: 1 }}>{panelOf(one)}</View>
-                </>
-              )}
-            </View>
-          ))}
-        </View>
-      </ChartsAtRest>
+      <ScrollView
+        style={{ flex: 1 }}
+        scrollEnabled={!locked}
+        keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={{ paddingBottom: bottom }}
+      >
+        {children}
+      </ScrollView>
     </ReadingLock>
   );
 }
