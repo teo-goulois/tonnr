@@ -4,8 +4,9 @@ import { UNIT_CHOICES } from "@repo/client/units";
 import { scaleColor, scaleInk, WAVE_HEIGHT_SCALE, WINDGURU_SCALES } from "@repo/client/sea-scales";
 import { reloadAppAsync } from "expo";
 import { Stack } from "expo-router";
-import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import type { ReactElement, ReactNode } from "react";
+import { type RefreshControlProps, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
@@ -45,20 +46,38 @@ import { LANGUAGES, MEASURES } from "./settings-words";
 // the theme, how much of the forecast a panel shows, the colors of the week's table and the
 // language. Each says what it chooses with an example of it, and a press chooses at once.
 
-/** A step of the account's tab: its title in the bar, and what it holds under it, scrolled. */
-export function Step({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * A step of the account's tab: its title in the bar, with what the bar offers at its end, a Save,
+ * and what it holds under it, scrolled, kept clear of the keyboard as a field takes it.
+ */
+export function Step({
+  title,
+  action,
+  refreshControl,
+  children,
+}: {
+  title: string;
+  /** What stands at the end of the bar: a button that saves the step. */
+  action?: ReactNode;
+  refreshControl?: ReactElement<RefreshControlProps>;
+  children: ReactNode;
+}) {
   const { colors, space } = useTheme();
   return (
     <>
-      <Stack.Screen options={{ title }} />
-      <ScrollView
+      <Stack.Screen
+        options={{ title, headerRight: action === undefined ? undefined : () => action }}
+      />
+      <KeyboardAwareScrollView
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        bottomOffset={space.l}
+        refreshControl={refreshControl}
         style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}
         contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
       >
         {children}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </>
   );
 }

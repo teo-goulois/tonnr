@@ -8,6 +8,7 @@ import {
   isTabPath,
   NO_ANSWERS,
   pickWave,
+  sameAnswers,
   stepsOf,
   toggleBoard,
 } from "./profiling";
@@ -80,5 +81,19 @@ describe("the questions an account is asked once", () => {
     expect(isTabPath("/sign-in")).toBe(false);
     expect(isTabPath("/place/break/12")).toBe(false);
     expect(isTabPath("/onboarding")).toBe(false);
+  });
+});
+
+describe("answers that were changed", () => {
+  it("are told from those that were kept, the boards in any order", () => {
+    const kept = {
+      ...NO_ANSWERS,
+      level: "advanced" as const,
+      boards: ["fish" as const, "gun" as const],
+    };
+    expect(sameAnswers(kept, { ...kept, boards: ["gun", "fish"] })).toBe(true);
+    expect(sameAnswers(kept, { ...kept, level: "pro" })).toBe(false);
+    expect(sameAnswers(kept, { ...kept, boards: null })).toBe(false);
+    expect(sameAnswers(NO_ANSWERS, { ...NO_ANSWERS, boards: null })).toBe(true);
   });
 });

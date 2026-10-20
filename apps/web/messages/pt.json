@@ -2022,5 +2022,6 @@
   "native_palette_windguru_hint": "As cores que os surfistas conhecem do Windguru",
   "native_palette_own_hint": "As cores do mapa e da sua legenda",
   "native_palette_footer": "A semana de um local lê-se nestas cores. Este telemóvel guarda a escolha.",
-  "native_language_footer": "A app reinicia na língua que escolheres."
+  "native_language_footer": "A app reinicia na língua que escolheres.",
+  "native_profile_load_failed": "Não foi possível carregar as tuas respostas."
 }

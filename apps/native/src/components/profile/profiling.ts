@@ -47,6 +47,18 @@ export function answersOf(profile: SurferProfile | null | undefined): ProfileAns
   return { level, smallestWave, biggestWave, reading, boards };
 }
 
+/** Whether two sets of answers say the same, the boards in any order. */
+export function sameAnswers(one: ProfileAnswers, other: ProfileAnswers) {
+  const boards = (answers: ProfileAnswers) => [...(answers.boards ?? [])].sort().join(",");
+  return (
+    one.level === other.level &&
+    one.smallestWave === other.smallestWave &&
+    one.biggestWave === other.biggestWave &&
+    one.reading === other.reading &&
+    boards(one) === boards(other)
+  );
+}
+
 /**
  * The waves after a press on a size: a first press says the smallest, a second the biggest, if
  * it is no smaller, and a press after that, or on a smaller size, begins again.
