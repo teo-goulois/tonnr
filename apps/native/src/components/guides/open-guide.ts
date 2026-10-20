@@ -1,0 +1,14 @@
+import { router } from "expo-router";
+
+/**
+ * Opens the guide of a surf break on the map, from a tab: the map comes back, and the break's
+ * sheet opens on its Guide tab over it, as the web's `onOpenBreak` opens it beside the map. A
+ * phone shows one thing at a time (decision 040).
+ */
+export function openBreakGuide(breakId: string) {
+  router.navigate("/");
+  router.push({
+    pathname: "/place/[kind]/[id]",
+    params: { kind: "break", id: breakId, tab: "guide" },
+  });
+}
