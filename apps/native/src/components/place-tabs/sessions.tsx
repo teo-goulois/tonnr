@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { Fragment, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
+import { keepCopy } from "@/components/alerts/copies";
 import { ConditionsSummary } from "@/components/sessions/liked-conditions";
 import { placeParam, usePlaceKnown } from "@/components/sessions/session-place";
 import { SessionRow } from "@/components/sessions/session-row";
@@ -26,6 +27,7 @@ import { orpc } from "@/utils/orpc";
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
 type SessionAt = { kind: "break" | "spot"; id: string };
+type KnownPlace = ReturnType<typeof usePlaceKnown>;
 
 /**
  * What the account likes at the place: the conditions its best sessions there had in common, said
@@ -33,11 +35,11 @@ type SessionAt = { kind: "break" | "spot"; id: string };
  */
 function Liked({
   place,
-  name,
+  known,
   sessions,
 }: {
   place: SessionAt;
-  name: string | undefined;
+  known: KnownPlace["point"];
   sessions: readonly Session[];
 }) {
   const { space } = useTheme();
@@ -57,21 +59,27 @@ function Liked({
             {m.sessions_liked_from({ count: liked.liked, rating: LIKED_FROM })}
           </Text>
           {/* An alert of what was liked there, named after the place, to be looked over before
-              it is saved: the alert's sheet reads the conditions and the name it is given. */}
+              it is saved: the alert's sheet begins from it as from a copy, as the web's viewer
+              hands its editor the same draft. */}
           <Button
             variant="secondary"
             icon={BellIcon}
-            disabled={!name}
-            onPress={() =>
-              router.push({
-                pathname: "/alert/new",
-                params: {
-                  place: placeParam(place),
-                  name: m.sessions_liked_alert_name({ spot: name ?? "" }),
-                  criteria: JSON.stringify(criteria),
+            disabled={!known}
+            onPress={() => {
+              if (!known) return;
+              const key = keepCopy({
+                draft: {
+                  name: m.sessions_liked_alert_name({ spot: known.name }),
+                  criteria,
+                  enabled: true,
+                  shortestMinutes: 120,
+                  spotIds: place.kind === "spot" ? [place.id] : [],
+                  breakIds: place.kind === "break" ? [place.id] : [],
                 },
-              })
-            }
+                places: [{ ...place, ...known }],
+              });
+              router.push({ pathname: "/alert/new", params: { copy: key } });
+            }}
             style={{ alignSelf: "flex-start", marginTop: space.xxs }}
           >
             {m.sessions_liked_alert()}
@@ -164,7 +172,7 @@ function PlaceSessions({ place }: { place: SessionAt }) {
           {sessions.length === 0 ? (
             <Text tone="muted">{m.sessions_here_empty()}</Text>
           ) : (
-            <Liked place={place} name={known.name} sessions={sessions} />
+            <Liked place={place} known={known.point} sessions={sessions} />
           )}
           <Button
             variant="secondary"

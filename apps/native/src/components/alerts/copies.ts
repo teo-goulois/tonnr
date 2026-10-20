@@ -1,9 +1,10 @@
 import type { AlertDraft } from "@repo/client/alerts/alert-words";
 
-// What a new alert starts from when it is the copy of another: the draft as it was written, with
-// its places named, handed from the screen that copies to the sheet that writes it. An address
-// carries its key alone, so that nothing of the alert goes into it. Kept while the app runs: a
-// copy whose app was closed since starts as an alert of its own. Decision 031.
+// What a new alert starts from when it is the copy of another, or what an account likes at a
+// place, which its sessions there say: the draft as it was written, with its places named, handed
+// from the screen that copies to the sheet that writes it. An address carries its key alone, so
+// that nothing of the alert goes into it. Kept while the app runs: a copy whose app was closed
+// since starts as an alert of its own. Decisions 031 and 043.
 
 /** A place of an alert, with what the editor reads of it. */
 export type AlertPlace = {

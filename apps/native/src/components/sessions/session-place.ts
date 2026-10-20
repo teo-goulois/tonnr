@@ -13,8 +13,9 @@ export { placeOfParam, placeParam } from "./session-logic";
 
 /**
  * A place as the API knows it: its name, as the route gave it or as the API answers it, a break of
- * the catalogue by anyone and a spot by its owner alone, undefined while it is asked; and whether
- * the API said there is none, for a spot that is another's, which a shared list shows.
+ * the catalogue by anyone and a spot by its owner alone, undefined while it is asked; where it
+ * stands, once the API answered; and whether the API said there is none, for a spot that is
+ * another's, which a shared list shows.
  */
 export function usePlaceKnown(place: Pick<SessionPlace, "kind" | "id"> | null, given?: string) {
   const { signedIn } = useAccount();
@@ -22,7 +23,7 @@ export function usePlaceKnown(place: Pick<SessionPlace, "kind" | "id"> | null, g
     orpc.v1.breaks.get.queryOptions({
       input: { id: place?.id ?? "" },
       enabled: !given && place?.kind === "break",
-      select: (found) => found.name,
+      select: ({ name, latitude, longitude }) => ({ name, latitude, longitude }),
       retry: false,
     }),
   );
@@ -31,12 +32,12 @@ export function usePlaceKnown(place: Pick<SessionPlace, "kind" | "id"> | null, g
     orpc.v1.spots.get.queryOptions({
       input: { id: place?.id ?? "" },
       enabled: signedIn && place?.kind === "spot",
-      select: (found) => found.name,
+      select: ({ name, latitude, longitude }) => ({ name, latitude, longitude }),
       retry: false,
     }),
   );
   const asked = place?.kind === "spot" ? atSpot : atBreak;
-  return { name: given ?? asked.data, isMissing: asked.isError };
+  return { name: given ?? asked.data?.name, point: asked.data, isMissing: asked.isError };
 }
 
 /** The name of a place, as the route gave it or as the API answers it. */
