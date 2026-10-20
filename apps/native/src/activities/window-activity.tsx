@@ -214,6 +214,10 @@ const instancesOf = () => {
   }
 };
 
+// The API's answer for an iPhone or an activity it does not know as the caller's.
+const isGone = (error: unknown) =>
+  typeof error === "object" && error !== null && (error as { code?: unknown }).code === "NOT_FOUND";
+
 // One pass at a time: iOS may tell of several activities at once.
 let passing: Promise<void> = Promise.resolve();
 const listening = new Map<string, { remove: () => void }>();
@@ -257,16 +261,23 @@ function follow(account: string) {
         if (!answer.running) {
           await instances.find((one) => one.getId() === activity.id)?.end("immediate");
         }
-      } catch {
-        // An activity the API does not know as the caller's: it is not given again, and the
-        // worker ends it.
+      } catch (error) {
+        // An activity the API does not know as the caller's is not given again: the worker ends
+        // it. Any other failure is tried again at the next pass.
+        if (!isGone(error)) continue;
       }
       followed[activity.id] = { notificationId: activity.notificationId, token: activity.token };
     }
     for (const activity of ended) {
-      await client.v1.push
-        .activityEnded({ id: device, notification: activity.notificationId, account })
-        .catch(() => null);
+      try {
+        await client.v1.push.activityEnded({
+          id: device,
+          notification: activity.notificationId,
+          account,
+        });
+      } catch (error) {
+        if (!isGone(error)) continue;
+      }
       delete followed[activity.id];
       listening.get(activity.id)?.remove();
       listening.delete(activity.id);
