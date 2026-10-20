@@ -93,9 +93,9 @@ const jobs: Scheduled[] = [
   // What a report shown at a break tells the accounts that keep it, every minute: decision 068.
   ...(storage ? [{ name: REPORTS_QUEUE, schedule: "* * * * *" }] : []),
   // The Live Activities that "it is on" started on iPhones, updated and ended every quarter of
-  // an hour, between two passes of the moments, on an instance that pushes to its iOS app:
-  // decision 074.
-  ...(pushOut?.ios ? [{ name: ACTIVITIES_QUEUE, schedule: "7,22,37,52 * * * *" }] : []),
+  // an hour, between two passes of the moments: decision 074. On every instance, so that one
+  // whose worker no longer holds Apple's key still lets go of what ran and forgets it.
+  { name: ACTIVITIES_QUEUE, schedule: "7,22,37,52 * * * *" },
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -308,17 +308,14 @@ if (storage) {
 }
 
 // The activities follow the windows the moments started them for: decision 074.
-if (pushOut?.ios) {
-  const ios = pushOut.ios;
-  await boss.createQueue(ACTIVITIES_QUEUE, { policy: "stately", ...once });
-  await boss.updateQueue(ACTIVITIES_QUEUE, once);
-  await boss.schedule(ACTIVITIES_QUEUE, scheduled(ACTIVITIES_QUEUE).schedule);
-  await boss.work(
-    ACTIVITIES_QUEUE,
-    withStart,
-    attemptOf(ACTIVITIES_QUEUE, (db) => followActivities(db, ios), activitiesDone),
-  );
-}
+await boss.createQueue(ACTIVITIES_QUEUE, { policy: "stately", ...once });
+await boss.updateQueue(ACTIVITIES_QUEUE, once);
+await boss.schedule(ACTIVITIES_QUEUE, scheduled(ACTIVITIES_QUEUE).schedule);
+await boss.work(
+  ACTIVITIES_QUEUE,
+  withStart,
+  attemptOf(ACTIVITIES_QUEUE, (db) => followActivities(db, pushOut?.ios ?? null), activitiesDone),
+);
 
 // A queue that stayed would keep queueing runs that nothing works.
 for (const queue of retiredBreakQueues) {

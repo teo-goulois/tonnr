@@ -647,8 +647,9 @@ async function followOne(db: Database, ios: ApnsPusher | null, id: string) {
  * Updates the Live Activities that run, when what they show has changed, and ends those that
  * should end, each in a transaction of its own: one that fails does not stop the others. Then it
  * forgets those that ended a day ago. It sends nothing while no activity runs, and nothing on an
- * instance whose worker holds no key of Apple's: it ends what should end there all the same. The
- * log holds counts and kinds of failures, and never a token.
+ * instance whose worker holds no key of Apple's, where it runs all the same: what should end there
+ * is ended, with its token let go of, and forgotten a day later. The log holds counts and kinds
+ * of failures, and never a token.
  */
 export const followActivities = Effect.fn("followActivities")(function* (
   db: Database,

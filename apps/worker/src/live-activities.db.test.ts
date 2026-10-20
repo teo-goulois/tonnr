@@ -801,6 +801,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(apple.activities()).toHaveLength(1);
     });
 
+    it("ends what should end on an instance whose worker no longer holds Apple's key, sending nothing, and lets go of its token", async () => {
+      await begins();
+      await tokenGiven();
+      const asked = apple.asked().length;
+      vi.setSystemTime(hour(12));
+
+      expect(await follow(null)).toMatchObject({ running: 0, ended: 1 });
+
+      expect(apple.asked()).toHaveLength(asked);
+      expect(await activities()).toMatchObject([{ endedAt: hour(12), token: null }]);
+      vi.setSystemTime(hour(36.5));
+      await follow(null);
+      expect(await activities()).toEqual([]);
+    });
+
     it("forgets an activity a day after it ended", async () => {
       await begins();
       vi.setSystemTime(hour(12));
