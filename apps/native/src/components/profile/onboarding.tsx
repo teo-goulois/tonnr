@@ -90,7 +90,10 @@ function Progress({ at, count }: { at: number; count: number }) {
   );
 }
 
-/** The picture the questions open on, with the title over it on a shade that keeps it read. */
+/**
+ * The picture the questions open on, with the title over it on a shade that keeps it read: black
+ * under white whatever the theme, as the web draws it over the photograph.
+ */
 function WelcomePicture() {
   const { radius, space } = useTheme();
   return (
@@ -112,15 +115,20 @@ function WelcomePicture() {
       <Svg style={StyleSheet.absoluteFill} accessible={false}>
         <Defs>
           <LinearGradient id="shade" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor="#000000" stopOpacity={0.7} />
-            <Stop offset="0.5" stopColor="#000000" stopOpacity={0.2} />
-            <Stop offset="1" stopColor="#000000" stopOpacity={0} />
+            <Stop offset="0" stopColor={light["neutral-10"]} stopOpacity={0.7} />
+            <Stop offset="0.5" stopColor={light["neutral-10"]} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={light["neutral-10"]} stopOpacity={0} />
           </LinearGradient>
         </Defs>
         <Rect width="100%" height="100%" fill="url(#shade)" />
       </Svg>
       <View style={{ position: "absolute", left: space.m, right: space.m, bottom: space.s }}>
-        <Text size="xl" weight="heavy" accessibilityRole="header" style={{ color: "#ffffff" }}>
+        <Text
+          size="xl"
+          weight="heavy"
+          accessibilityRole="header"
+          style={{ color: light["neutral-1"] }}
+        >
           {m.onboarding_title({ name: APP_NAME })}
         </Text>
       </View>
@@ -158,7 +166,10 @@ function WelcomeLines() {
   );
 }
 
-/** A part of a step as it comes: from the side the step comes from, a fade alone for no motion. */
+/**
+ * A part of a step as it comes, from the side the step comes from. Reanimated holds it still for a
+ * reader who asked for no motion, as it holds every animation that comes in here.
+ */
 function Arrive({ from, children }: { from: "start" | "end"; children: ReactNode }) {
   const { motion, space } = useTheme();
   const entering = (from === "end" ? FadeInRight : FadeInLeft).duration(motion.largeDuration);
