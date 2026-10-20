@@ -1,6 +1,6 @@
 # 021. Stages of the web app, and its pre-production
 
-Status: decided by Téo on 2026-10-09 and deployed the same day. The stage `dev` serves `https://dev.tonnr.app`. Not built: a command that takes a stage down, and a deployment from CI. [Decision 052](052-production.md) made the production stage, `prod` at `tonnr.app`, on the same API, which ends `dev` as a pre-production. Not tried: a stage that asks search engines to list it. [Decision 057](057-public-pages-of-breaks.md) added a page for each surf break and hubs by country and region, listed through a sitemap index, and kept an hour in Cloudflare's cache by the Worker.
+Status: decided by Téo on 2026-10-09 and deployed the same day. The stage `dev` serves `https://dev.tonnr.app`. Not built: a command that takes a stage down, and a deployment from CI. [Decision 052](052-production.md) made the production stage, `prod` at `tonnr.app`, on the same API, which ends `dev` as a pre-production. Not tried: a stage that asks search engines to list it. [Decision 057](057-public-pages-of-breaks.md) added a page for each surf break and hubs by country and region, listed through a sitemap index, and kept an hour in Cloudflare's cache by the Worker. [Decision 075](075-building-and-updating-the-apps.md) added to the stack the Worker and the bucket of the updates of the app for phones, for a stage that names their hosts, which `pnpm run deploy:updates` deploys, and to the token its right over R2.
 
 ## Context
 

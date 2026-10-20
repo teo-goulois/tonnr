@@ -54,12 +54,13 @@ You need a Cloudflare account that holds the zone of your domain, and the web ap
 
 1. In Cloudflare, create an API token with these rights and no other:
 
-   | On                  | Right                 | What it is for                                     |
-   | ------------------- | --------------------- | -------------------------------------------------- |
-   | The account         | Workers Scripts: Edit | The web app's Worker, its files, and its host name |
-   | The account         | Secrets Store: Edit   | The token and the key of Alchemy's state store     |
-   | The zone of the app | Workers Routes: Edit  | Putting the Worker on the host name                |
-   | The zone of the app | Zone: Read            | Finding the zone by its name                       |
+   | On                  | Right                    | What it is for                                                      |
+   | ------------------- | ------------------------ | ------------------------------------------------------------------- |
+   | The account         | Workers Scripts: Edit    | The web app's Worker, its files, and its host name                  |
+   | The account         | Secrets Store: Edit      | The token and the key of Alchemy's state store                      |
+   | The account         | Workers R2 Storage: Edit | The bucket of the apps' updates and its host name, for such a stage |
+   | The zone of the app | Workers Routes: Edit     | Putting the Worker on the host name                                 |
+   | The zone of the app | Zone: Read               | Finding the zone by its name                                        |
 
 2. Copy `packages/infra/.env.example` to `packages/infra/.env` and set the token and the account's id.
 3. Write `packages/infra/.env.<stage>`, such as `.env.prod`, with the stage's two values: `WEB_DOMAIN`, the host name, and `VITE_SERVER_URL`, the public address of the API.
@@ -82,7 +83,7 @@ git pull
 docker compose up --detach --build
 ```
 
-Then `pnpm run deploy:web <stage>`, from your machine, when the instance has a web app: deploy the API first when the web app needs something new from it.
+Then `pnpm run deploy:web <stage>`, from your machine, when the instance has a web app: deploy the API first when the web app needs something new from it. The same holds for `pnpm run release:js <stage>`, when it has apps for phones of its own.
 
 A new version applies its migrations when its first container starts. A migration that fails stops the container, and none of the pending migrations is kept. Back the database up first:
 
@@ -544,6 +545,37 @@ On a phone where the app is installed, the links of the web app open it: the map
 - iPhones read Apple's file through Apple's cache, a day or more after it changes. A rule of your Cloudflare zone that challenges robots must leave both addresses alone, or no phone opens the app.
 
 Once the app is in the App Store, add its id to the stage's file, its digits alone, as `VITE_APP_STORE_ID`: the short addresses and the pages of the surf breaks then show Safari's banner on an iPhone, which offers the app, or opens it at the page.
+
+### Building the apps and updating them
+
+The apps are built, signed, sent to the stores and updated from your Mac, with Apple's tools, Google's, and Expo's open-source command line, which asks for no account. No service of Expo's is used, and no `eas` command runs: decision 075 gives the reasons. An app of yours needs your own identifiers, keys, Worker of updates and certificate.
+
+A binary takes the updates of its JavaScript from the address it was built with, for good, and checks each against the certificate it carries. Choose both before your first store build: moving either takes a new store build of each platform.
+
+1. Change `APP_SCHEME` in `packages/config/src/app.ts` to an identifier of yours, after a domain you own.
+2. Make the key of your updates and its certificate, once, for ten years. The certificate's folder must be empty, so remove the one of this repository first:
+
+   ```bash
+   cd apps/native
+   rm certs/certificate.pem
+   npx expo-updates codesigning:generate --key-output-directory ~/.config/myapp/updates \
+     --certificate-output-directory certs --certificate-validity-duration-years 10 \
+     --certificate-common-name myapp
+   ```
+
+   Commit `certs/certificate.pem`, which is public. The private key stays outside the repository: keep a copy in a password manager, and name its file in the root `.env` as `UPDATES_SIGNING_KEY`. A lost key leaves the binaries that carry its certificate without updates until their next store build, and a certificate that expires stops every update.
+
+3. Name the host names of the Worker of updates and of its bucket in the stage's file, `packages/infra/.env.<stage>`, as `UPDATES_DOMAIN` and `UPDATES_FILES_DOMAIN`, such as `updates.example.org` and `bundles.example.org`, in a zone of your Cloudflare account. Give the token of the stack the right over R2 in the table above, and run `pnpm run deploy:updates <stage>`. It makes the bucket, `<slug>-<stage>-updates` after `APP_SLUG`, with the second host name, and the Worker on the first. The Worker answers the apps from the bucket, which it reads and never writes, keeps no log of a request, and holds no key.
+4. In Cloudflare, make an R2 token with "Object Read & Write" on that bucket and no other, and put its two S3 credentials in the root `.env`, as `UPDATES_R2_ACCESS_KEY_ID` and `UPDATES_R2_SECRET_ACCESS_KEY`. The release commands write the bucket with it, through R2's S3 API, and the account's id is the one of `packages/infra/.env`.
+
+A store build reads the stage's file as the web app does: the API's address, `VITE_SERVER_URL`, the web app's domain, which the app's links name, the address of the updates, and the Apple team, `APPLE_TEAM_ID`. It builds what `main` holds on the remote, in a checkout of its own, and the install gets the licence key of the icons and no other secret. The build number is the same on both platforms: the count of commits of `main` up to the one built. Raise `version` in `apps/native/package.json` for each release in a store. A build goes to testers first, and you promote it to the store yourself: no command releases to the public.
+
+- iOS takes Xcode 26.4 or later and CocoaPods, and an App Store Connect API key of your team, named in the root `.env` as `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` and `APP_STORE_CONNECT_KEY`, the path of its file, which keeps the name Apple gives it, `AuthKey_<id>.p8`. Create the app in App Store Connect under your `APP_SCHEME` first. `pnpm run release:ios <stage>` runs `expo prebuild --clean`, `xcodebuild archive` and `-exportArchive`, which make or fetch the certificates and profiles of the app and of its extensions with the key, and `xcrun altool --upload-app`. The build then appears in TestFlight.
+- Android takes JDK 17, with `JAVA_HOME` set, and the Android SDK at the versions SDK 58 names: `platforms;android-37.0`, build tools 37.0.0 and NDK 27.1.12297006, in `ANDROID_HOME` or `~/Library/Android/sdk`. JDK 27, which Homebrew installs by default, cannot run Gradle 9.4.1. Make an upload key with `keytool -genkeypair -v -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload -keystore upload.jks`, and name it in the root `.env` as `ANDROID_UPLOAD_KEYSTORE`, with `ANDROID_UPLOAD_KEYSTORE_PASSWORD`, `ANDROID_UPLOAD_KEY_ALIAS` and `ANDROID_UPLOAD_KEY_PASSWORD`: Gradle alone gets them, in its environment, and Google signs what phones install. Google's API takes a build only for an app that has one already, so `pnpm run release:android <stage> --by-hand` builds the first and leaves it in the temporary directory, to be uploaded to internal testing in the Play Console. Then invite a Google Cloud service account with the Play Developer API turned on, with the right to release, and name its JSON key as `GOOGLE_PLAY_SERVICE_ACCOUNT`: `pnpm run release:android <stage>` then sends each build to internal testing, or to the test track `--track` names.
+- Before it uploads, a store build checks that the runtime its binary carries, its fingerprint, is the one a publication of the same commit would name, and stops otherwise. Once uploaded, it writes that runtime in the bucket, which the updates read.
+- A command that is missing a key says which, and builds nothing.
+
+`pnpm run release:js <stage>` publishes what `main` holds as an update of the JavaScript and of the pictures it draws, to every installed app of each platform's runtime, which takes it at its second start. It refuses a runtime that no store build shipped: native code changed since, and a store build is needed first. `--platform ios` publishes one platform, `--rollback` sends the apps of a runtime back to the JavaScript of their binary, and `--dry-run` does everything but write. To go back to an earlier commit's JavaScript, bring `main` back to it with a revert, and publish again. Deploy the API first when the JavaScript needs something new from it, since the apps of older runtimes keep calling it too, and raise the oldest builds of `GET /v1/clients` once they are too old.
 
 ## Signing in with Google
 
