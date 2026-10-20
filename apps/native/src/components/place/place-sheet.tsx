@@ -181,7 +181,10 @@ export function PlaceSheet({
           contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
         >
           <Segmented
-            label={m.native_place_sections({ name: name ?? "" })}
+            // A station has one tab and no row: what has tabs is a break or a spot.
+            label={m.native_place_sections({
+              name: name ?? (kind === "break" ? m.break_title() : m.spot_title()),
+            })}
             options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
             value={shown}
             onChange={setTab}
