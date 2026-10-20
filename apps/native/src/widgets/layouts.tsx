@@ -13,6 +13,9 @@ import {
   ZStack,
 } from "@expo/ui/swift-ui";
 import {
+  accessibilityElement,
+  accessibilityHidden,
+  accessibilityLabel,
   background,
   containerBackground,
   font,
@@ -26,7 +29,7 @@ import {
   widgetURL,
 } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { WIDGET } from "./names";
 import type { WidgetPill, WidgetPlace, WidgetProps } from "./props";
@@ -36,6 +39,9 @@ import type { WidgetPill, WidgetPlace, WidgetProps } from "./props";
 // itself, not even this file's constants, and draws what the app wrote for the entry
 // (`entries.ts`). So it is one function, which the three widgets share, written as plainly as
 // JavaScriptCore runs it once the bundler has compiled it alone: no spread, no optional chaining.
+// A screen reader reads a widget of one place as one element, in the words the app's rows say
+// the sea in, which the app wrote with the figures (`spoken`); a mark that only adorns, such as
+// the arrow of the waves, which iOS would read by its symbol's name, says nothing.
 // The app's config names this file as the widgets' first layout, so that the gallery shows them
 // before the app has run; the build reads it with every package but expo-widgets left empty.
 
@@ -43,6 +49,8 @@ import type { WidgetPill, WidgetPlace, WidgetProps } from "./props";
 type Chosen = { place?: string };
 /** A color, or one of the system's strengths of ink. */
 type Ink = Parameters<typeof foregroundStyle>[0];
+/** The name of an SF Symbol. */
+type SymbolName = NonNullable<ComponentProps<typeof Image>["systemName"]>;
 
 function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | undefined>) {
   "widget";
@@ -69,20 +77,25 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
     weight?: "regular" | "medium" | "semibold" | "bold";
     faint?: boolean;
     lines?: number;
+    /** A figure that stands for none, such as "–", which a screen reader passes over. */
+    silent?: boolean;
   }) {
-    return (
-      <Text
-        modifiers={[
-          font({ size: line.size, weight: line.weight || "regular" }),
-          monospacedDigit(),
-          foregroundStyle(line.faint ? muted : ink),
-          lineLimit(line.lines || 1),
-          minimumScaleFactor(0.7),
-        ]}
-      >
-        {line.text}
-      </Text>
-    );
+    var modifiers = [
+      font({ size: line.size, weight: line.weight || "regular" }),
+      monospacedDigit(),
+      foregroundStyle(line.faint ? muted : ink),
+      lineLimit(line.lines || 1),
+      minimumScaleFactor(0.7),
+    ];
+    if (line.silent) modifiers.push(accessibilityHidden(true));
+    return <Text modifiers={modifiers}>{line.text}</Text>;
+  }
+
+  /** A mark that only adorns, which a screen reader passes over. */
+  function Mark(mark: { name: SymbolName; size: number; faint?: boolean }) {
+    var modifiers = [accessibilityHidden(true)];
+    if (mark.faint) modifiers.push(foregroundStyle(muted));
+    return <Image systemName={mark.name} size={mark.size} modifiers={modifiers} />;
   }
 
   function Pill(shown: { pill: WidgetPill; size: number }) {
@@ -103,9 +116,14 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
     );
   }
 
-  function Root(root: { url?: string; spacing?: number; children: ReactNode }) {
+  function Root(root: { url?: string; spacing?: number; spoken?: string; children: ReactNode }) {
     var modifiers = [containerBackground(ground, "widget")];
     if (root.url) modifiers.push(widgetURL(root.url));
+    // The whole widget as one element, which a screen reader says in these words.
+    if (root.spoken) {
+      modifiers.push(accessibilityElement("ignore"));
+      modifiers.push(accessibilityLabel(root.spoken));
+    }
     return (
       <VStack alignment="leading" spacing={root.spacing || 4} modifiers={modifiers}>
         {root.children}
@@ -117,11 +135,7 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
   if (!props || !palette) {
     return (
       <Root>
-        <Image
-          systemName="water.waves"
-          size={onLock ? 18 : 28}
-          modifiers={[foregroundStyle(muted)]}
-        />
+        <Mark name="water.waves" size={onLock ? 18 : 28} faint />
       </Root>
     );
   }
@@ -129,10 +143,10 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
   function Notice(shown: { title: string; body: string; url: string }) {
     if (family === "accessoryCircular") {
       return (
-        <Root url={shown.url}>
+        <Root url={shown.url} spoken={shown.title}>
           <ZStack>
             <AccessoryWidgetBackground />
-            <Image systemName="water.waves" size={18} />
+            <Mark name="water.waves" size={18} />
           </ZStack>
         </Root>
       );
@@ -147,7 +161,7 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
     }
     return (
       <Root url={shown.url}>
-        <Image systemName="water.waves" size={18} modifiers={[foregroundStyle(muted)]} />
+        <Mark name="water.waves" size={18} faint />
         <Spacer />
         <Line text={shown.title} size={14} weight="semibold" lines={2} />
         <Line text={shown.body} size={12} faint lines={3} />
@@ -162,6 +176,13 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
   var places = props.places || {};
   var favorites = props.favorites || [];
   var none = props.empty || { title: "", body: "", url: "" };
+
+  /** A place in words: its name, the sea there, when the figures were fetched or measured. */
+  function spokenPlace(shown: WidgetPlace) {
+    return [shown.name, shown.figures ? shown.figures.spoken : "", shown.note]
+      .filter(Boolean)
+      .join(", ");
+  }
 
   // The widget of the favourites: the first three, one on each line, each opening its place.
   if (props.view === "favorites") {
@@ -179,7 +200,10 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
       if (index > 0) rows.push(<Spacer key={"gap " + index} />);
       rows.push(
         <Link key={one.key} destination={one.place.url}>
-          <HStack spacing={6}>
+          <HStack
+            spacing={6}
+            modifiers={[accessibilityElement("ignore"), accessibilityLabel(spokenPlace(one.place))]}
+          >
             <VStack alignment="leading" spacing={1}>
               <Line text={one.place.name} size={13} weight="semibold" />
               <Line text={one.place.note} size={10} faint />
@@ -207,12 +231,20 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
 
   if (family === "accessoryCircular") {
     return (
-      <Root url={place.url}>
+      <Root
+        url={place.url}
+        spoken={sea && sea.height ? place.name + ", " + sea.height.label : spokenPlace(place)}
+      >
         <ZStack>
           <AccessoryWidgetBackground />
           <VStack spacing={0}>
-            <Image systemName="water.waves" size={11} />
-            <Line text={sea && sea.height ? sea.height.label : "–"} size={15} weight="bold" />
+            <Mark name="water.waves" size={11} />
+            <Line
+              text={sea && sea.height ? sea.height.label : "–"}
+              size={15}
+              weight="bold"
+              silent={!(sea && sea.height)}
+            />
           </VStack>
         </ZStack>
       </Root>
@@ -227,7 +259,7 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
       sea && sea.wind ? sea.wind.label + (sea.shore ? " " + sea.shore.toLowerCase() : "") : "";
     var rest = [wind, sea && sea.tide ? sea.tide : ""].filter(Boolean).join(" · ");
     return (
-      <Root url={place.url}>
+      <Root url={place.url} spoken={spokenPlace(place)}>
         <Line text={place.name} size={13} weight="semibold" />
         <Line text={waves || place.note} size={12} />
         {rest ? <Line text={rest} size={11} faint /> : null}
@@ -242,11 +274,15 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
     place.hours.forEach(function (hour, index) {
       if (index > 0) columns.push(<Spacer key={"gap " + index} />);
       columns.push(
-        <VStack key={"hour " + index} spacing={4}>
+        <VStack key={"hour " + index} spacing={4} modifiers={[accessibilityElement("combine")]}>
           <Line text={hour.time} size={11} faint />
-          {hour.height ? <Pill pill={hour.height} size={13} /> : <Line text="–" size={13} />}
-          <Line text={hour.period || "–"} size={11} />
-          {hour.wind ? <Pill pill={hour.wind} size={10} /> : <Line text="–" size={10} faint />}
+          {hour.height ? <Pill pill={hour.height} size={13} /> : <Line text="–" size={13} silent />}
+          <Line text={hour.period || "–"} size={11} silent={!hour.period} />
+          {hour.wind ? (
+            <Pill pill={hour.wind} size={10} />
+          ) : (
+            <Line text="–" size={10} faint silent />
+          )}
         </VStack>,
       );
     });
@@ -267,7 +303,7 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
   // after an arrow that points where they go, the wind and how it meets the shore, the tide.
   var height = sea && sea.height ? sea.height : null;
   return (
-    <Root url={place.url} spacing={3}>
+    <Root url={place.url} spacing={3} spoken={spokenPlace(place)}>
       <Line text={place.name} size={13} weight="semibold" />
       <Spacer />
       {height ? (
@@ -309,7 +345,11 @@ function SeaLayout(props: WidgetProps, environment: WidgetEnvironment<Chosen | u
           <Image
             systemName="arrow.up"
             size={9}
-            modifiers={[foregroundStyle(muted), rotationEffect(sea.wavesTo)]}
+            modifiers={[
+              foregroundStyle(muted),
+              rotationEffect(sea.wavesTo),
+              accessibilityHidden(true),
+            ]}
           />
           <Line text={sea.wavesFrom} size={11} faint />
         </HStack>

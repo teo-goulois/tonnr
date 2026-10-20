@@ -148,6 +148,7 @@ describe("what a widget of one place says", () => {
       },
       shore: "Offshore",
       tide: `High tide ${formatClock(new Date("2026-10-20T14:10:00Z"))}`,
+      spoken: `1.4 m, 12 s, from west-northwest, wind 10 kn, Offshore, High tide ${formatClock(new Date("2026-10-20T14:10:00Z"))}`,
     });
     expect(shown.note).toBe(`Forecast of ${formatClock(fetchedAt)}`);
   });
@@ -157,6 +158,7 @@ describe("what a widget of one place says", () => {
     const shown = at("2026-10-20T11:00:00.000Z").places!["break:b1"]!;
     expect(shown.figures?.height?.label).toBe("4.6 ft");
     expect(shown.figures?.wind?.label).toBe("18 km/h");
+    expect(shown.figures?.spoken).toMatch(/^4\.6 ft, .*, wind 18 km\/h, /);
   });
 
   it("asks for the app to be opened once the kept forecast is over, with no figure", () => {

@@ -5,7 +5,7 @@ import type { WidgetConfigurationEnum } from "expo-widgets";
 
 import { refsOf } from "@/components/lists/items";
 import { goingTo } from "@/components/map/features";
-import { kindWord, shoreWord } from "@/components/saved/place-words";
+import { kindWord, seaWords, shoreWord } from "@/components/saved/place-words";
 import {
   PLACES_AT_ONCE,
   chunksOf,
@@ -152,6 +152,9 @@ export function goodUntil(sea: SeaNow, at: Date): number | null {
 
 function figuresOf(figures: SeaFigures, at: Date): WidgetFigures {
   const tide = figures.nextTide;
+  const tideLine =
+    tide &&
+    `${tide.type === "high" ? m.page_tide_high() : m.page_tide_low()} ${momentAt(tide.time, at)}`;
   return {
     ...(figures.heightMeters !== null && { height: heightPill(figures.heightMeters) }),
     ...(figures.periodSeconds !== null && { period: formatSeconds(figures.periodSeconds) }),
@@ -161,9 +164,8 @@ function figuresOf(figures: SeaFigures, at: Date): WidgetFigures {
     }),
     ...(figures.windKnots !== null && { wind: windPill(figures.windKnots) }),
     ...(figures.atShore !== null && { shore: shoreWord(figures.atShore) }),
-    ...(tide && {
-      tide: `${tide.type === "high" ? m.page_tide_high() : m.page_tide_low()} ${momentAt(tide.time, at)}`,
-    }),
+    ...(tideLine && { tide: tideLine }),
+    spoken: [seaWords(figures), ...(tideLine ? [tideLine] : [])].join(", "),
   };
 }
 

@@ -21,6 +21,11 @@ export type WidgetFigures = {
   shore?: string;
   /** The next high or low, such as "High tide 14:10". */
   tide?: string;
+  /**
+   * All of it for a screen reader, in the words of the app's rows: "1.1 m, 12 s, from
+   * west-northwest, wind 10 kn, Offshore, High tide 14:10".
+   */
+  spoken: string;
 };
 
 /** An hour ahead, as the widget of the next hours draws it in a column. */

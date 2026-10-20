@@ -75,6 +75,9 @@ const COMPONENTS = [
   "ZStack",
 ];
 const MODIFIERS = [
+  "accessibilityElement",
+  "accessibilityHidden",
+  "accessibilityLabel",
   "background",
   "containerBackground",
   "font",
@@ -147,6 +150,14 @@ const textsOf = (node: Node) =>
 
 const modifiersOf = (node: Node) =>
   (node.props.modifiers ?? []) as { $type: string; args: unknown[] }[];
+
+/** What a screen reader says of a node: its label, once it stands for what it holds. */
+const spokenOf = (node: Node) =>
+  modifiersOf(node).find((one) => one.$type === "accessibilityLabel")?.args[0];
+
+/** Whether a screen reader passes over a node. */
+const silentOf = (node: Node) =>
+  modifiersOf(node).some((one) => one.$type === "accessibilityHidden" && one.args[0] === true);
 
 /** What a press on the whole widget opens. */
 const urlOf = (node: Node) => modifiersOf(node).find((one) => one.$type === "widgetURL")?.args[0];
@@ -221,6 +232,68 @@ describe("the widgets' layout", () => {
     expect(arrow.props.systemName).toBe("arrow.up");
     expect(modifiersOf(arrow).find((one) => one.$type === "rotationEffect")?.args).toEqual([110]);
     expect(textsOf(root)).toContain("WNW");
+  });
+
+  it("is read as one element, in the words of the app's rows, and its arrow says nothing", () => {
+    const props = first(WIDGET.seaNow);
+    const root = draw(WIDGET.seaNow, props, small());
+    const place = props.places!["break:b1"]!;
+    expect(modifiersOf(root)).toContainEqual({ $type: "accessibilityElement", args: ["ignore"] });
+    expect(spokenOf(root)).toBe(`La Côte, ${place.figures!.spoken}, ${place.note}`);
+    expect(spokenOf(root)).toContain("from west-northwest");
+    const arrow = nodes(root).find((one) => one.props.systemName === "arrow.up")!;
+    expect(silentOf(arrow)).toBe(true);
+  });
+
+  it("says nothing of the marks that only adorn, nor of a figure that stands for none", () => {
+    const marks = nodes(draw(WIDGET.seaNow, undefined, small())).filter(
+      (one) => one.type === "Image",
+    );
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks.every(silentOf)).toBe(true);
+    const [entry] = signedOutTimelines()[WIDGET.seaNow];
+    const notice = draw(WIDGET.seaNow, entry!.props, small());
+    expect(
+      nodes(notice)
+        .filter((one) => one.type === "Image")
+        .every(silentOf),
+    ).toBe(true);
+    const circle = draw(WIDGET.seaNow, entry!.props, {
+      widgetFamily: "accessoryCircular",
+      colorScheme: "dark",
+      configuration: { place: "favorite" },
+    });
+    expect(spokenOf(circle)).toBe("Signed out");
+
+    const props = first(WIDGET.nextHours);
+    const place = props.places!["break:b1"]!;
+    const hours = place.hours!.map(({ time }) => ({ time }));
+    const root = draw(
+      WIDGET.nextHours,
+      { ...props, places: { "break:b1": { ...place, hours } } },
+      { widgetFamily: "systemMedium", colorScheme: "light", configuration: { place: "favorite" } },
+    );
+    const dashes = nodes(root).filter((one) => one.type === "Text" && one.props.children === "–");
+    expect(dashes).toHaveLength(hours.length * 3);
+    expect(dashes.every(silentOf)).toBe(true);
+  });
+
+  it("reads each column of the next hours as one element", () => {
+    const root = draw(WIDGET.nextHours, first(WIDGET.nextHours), {
+      widgetFamily: "systemMedium",
+      colorScheme: "light",
+      configuration: { place: "favorite" },
+    });
+    const columns = nodes(root).filter((one) =>
+      modifiersOf(one).some((modifier) => modifier.$type === "accessibilityElement"),
+    );
+    expect(columns).toHaveLength(4);
+    for (const column of columns) {
+      expect(modifiersOf(column)).toContainEqual({
+        $type: "accessibilityElement",
+        args: ["combine"],
+      });
+    }
   });
 
   it("shows the place its person chose, on the dark ground in the dark", () => {
@@ -313,6 +386,10 @@ describe("the widgets' layout", () => {
       placeUrl({ kind: "break", id: "b1" }),
     ]);
     expect(urlOf(root)).toBeUndefined();
+    const place = first(WIDGET.favorites).places!["break:b1"]!;
+    expect(spokenOf(nodes(links[0]!.props.children)[0]!)).toBe(
+      `La Côte, ${place.figures!.spoken}, ${place.note}`,
+    );
   });
 
   it("draws the height alone on the lock screen's circle, in the system's ink", () => {
@@ -323,6 +400,7 @@ describe("the widgets' layout", () => {
     });
     expect(nodes(root).some((one) => one.type === "AccessoryWidgetBackground")).toBe(true);
     expect(textsOf(root)).toEqual(["1.1 m"]);
+    expect(spokenOf(root)).toBe("La Côte, 1.1 m");
     expect(modifiersOf(root)[0]?.args[0]).toBe("#00000000");
   });
 
