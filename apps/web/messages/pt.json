@@ -1421,7 +1421,7 @@
   "privacy_bases_interest": "A medição de audiência, os registos de início de sessão, contagens de chamadas, o registo, os relatórios de falhas da API, cópias de segurança e moderação: o nosso interesse legítimo em manter o serviço seguro e a funcionar (artigo 6.º, n.º 1, alínea f)).",
   "privacy_bases_messages": "Mensagens que nos envias: o nosso interesse legítimo em responder-lhes (artigo 6.º, n.º 1, alínea f)).",
   "privacy_recipients_title": "Quem os recebe",
-  "privacy_does_web": "aloja a app web, e as atualizações da app do teu telemóvel, que ela pede a cada arranque sem dizer quem és",
+  "privacy_does_web": "aloja a app web, e as atualizações da app do teu telemóvel, que ela pede a cada arranque com o teu endereço IP e um número aleatório gerado ao instalá-la, que não lemos nem guardamos",
   "privacy_does_media": "guarda as fotos e vídeos das sessões",
   "privacy_does_api": "aloja o servidor da API e a sua base de dados",
   "privacy_does_mail": "envia os emails",
