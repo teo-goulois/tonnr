@@ -398,8 +398,21 @@ async function publishJavaScript() {
         "The apps of each runtime take it at their second start.",
     );
   } catch (error) {
-    // Nothing points at what was written before the fault: the apps see none of it.
+    // The pointers are written last: those written before the fault are the only part of the
+    // publication that apps follow.
     console.error(error.message);
+    const pointed = error.pointed ?? [];
+    const left = platforms.filter((platform) => !pointed.some((at) => at.platform === platform));
+    console.error(
+      pointed.length === 0
+        ? "Nothing points at what was written: the apps see none of it, and the command may run again."
+        : `The apps of ${pointed.map((at) => `${at.platform} (${at.runtime})`).join(" and ")} ` +
+            "follow the publication already. " +
+            (left.length > 0
+              ? `Publish the rest alone, with \`--platform ${left.join("` and `--platform ")}\`, ` +
+                "or the others get the same JavaScript a second time under another id."
+              : ""),
+    );
     failKeeping(checkout, "The publication");
   }
 }

@@ -16,6 +16,7 @@ import {
   type Exported,
   type ManifestInput,
   FILE_CACHE,
+  PublicationFault,
   inOrder,
   keyMatchesCertificate,
   manifestOf,
@@ -129,7 +130,7 @@ describe("the manifest of an update", () => {
 });
 
 describe("the order of a publication", () => {
-  it("writes the files of every platform, then each manifest, then what points at it", () => {
+  it("writes the files of every platform, then every manifest, then what points at them", () => {
     const writes = inOrder([
       updateWrites("ios", inputOf("ios"), signing.privateKey).writes,
       updateWrites("android", inputOf("android"), signing.privateKey).writes,
@@ -142,11 +143,41 @@ describe("the order of a publication", () => {
       "files",
       "files",
       "updates",
-      "runtimes",
       "updates",
+      "runtimes",
       "runtimes",
     ]);
     expect(writes.at(-1)?.key).toBe(latestKey("android", RUNTIME));
+  });
+
+  it("says which runtimes it pointed at the publication when a write fails", async () => {
+    const writes = inOrder([
+      updateWrites("ios", inputOf("ios"), signing.privateKey).writes,
+      updateWrites("android", inputOf("android"), signing.privateKey).writes,
+    ]);
+    /** A bucket that refuses the writes `fails` names. */
+    const failingAt = (fails: (key: string) => boolean) => ({
+      has: async () => false,
+      put: async (key: string) => {
+        if (fails(key)) throw new Error(`R2 refused to write ${key}: 500`);
+      },
+    });
+
+    // The manifest of Android fails: no app follows anything yet, iOS's included.
+    const manifest = writeAll(
+      failingAt((key) => key.startsWith("updates/android/")),
+      writes,
+    );
+    await expect(manifest).rejects.toBeInstanceOf(PublicationFault);
+    await expect(manifest).rejects.toMatchObject({ pointed: [], message: /updates\/android/ });
+
+    // The pointer of Android fails: iOS's apps follow the publication already.
+    await expect(
+      writeAll(
+        failingAt((key) => key === latestKey("android", RUNTIME)),
+        writes,
+      ),
+    ).rejects.toMatchObject({ pointed: [{ platform: "ios", runtime: RUNTIME }] });
   });
 });
 

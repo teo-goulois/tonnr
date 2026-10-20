@@ -30,6 +30,8 @@ export type Write = {
   metadata?: Record<string, string>;
   /** A file of an update, the same bytes at its key forever: one already there is left as it is. */
   immutable?: boolean;
+  /** What points a runtime's apps at a publication, which they follow once it is written. */
+  points?: { platform: Platform; runtime: string };
 };
 
 /** The JavaScript bundle of a platform and the files it draws, as `expo export` wrote them. */
@@ -177,6 +179,7 @@ const pointer = (platform: Platform, runtime: string, latest: Latest): Write => 
   body: json(latest),
   contentType: "application/json",
   cacheControl: POINTER_CACHE,
+  points: { platform, runtime },
 });
 
 /** A new id for a publication, which an app sends back once it runs it. */
@@ -230,31 +233,55 @@ export type Writer = {
   ): Promise<void>;
 };
 
+/** A publication that stopped at a write, and the runtimes whose apps already follow it. */
+export class PublicationFault extends Error {
+  readonly pointed: { platform: Platform; runtime: string }[];
+
+  constructor(cause: unknown, pointed: { platform: Platform; runtime: string }[]) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "PublicationFault";
+    this.pointed = pointed;
+  }
+}
+
 /**
  * Writes a publication in its order, one object after the other, and stops at the first that
- * fails: what was written before points at nothing yet. A file already there is not sent again.
+ * fails, saying which runtimes it already pointed at it: in the order of `inOrder`, none until
+ * every file and every signed object is written. A file already there is not sent again.
  */
 export async function writeAll(writer: Writer, writes: Write[]) {
   let sent = 0;
   let kept = 0;
+  const pointed: { platform: Platform; runtime: string }[] = [];
   for (const write of writes) {
-    if (write.immutable && (await writer.has(write.key))) {
-      kept++;
-      continue;
+    try {
+      if (write.immutable && (await writer.has(write.key))) {
+        kept++;
+        continue;
+      }
+      await writer.put(write.key, write.body, write);
+    } catch (error) {
+      throw new PublicationFault(error, pointed);
     }
-    await writer.put(write.key, write.body, write);
     sent++;
+    if (write.points) pointed.push(write.points);
   }
   return { sent, kept };
 }
 
-/** The writes of several platforms, each file once, the files of all of them first. */
+/**
+ * The writes of several platforms in the order an app never follows a pointer to what is
+ * missing: the files of all of them, each once, then every signed manifest and directive, and
+ * last every pointer. A fault before the pointers leaves every platform as it was.
+ */
 export function inOrder(writes: Write[][]): Write[] {
   const files = new Map<string, Write>();
-  const rest: Write[] = [];
+  const signed: Write[] = [];
+  const pointers: Write[] = [];
   for (const write of writes.flat()) {
     if (write.immutable) files.set(write.key, write);
-    else rest.push(write);
+    else if (write.points) pointers.push(write);
+    else signed.push(write);
   }
-  return [...files.values(), ...rest];
+  return [...files.values(), ...signed, ...pointers];
 }
