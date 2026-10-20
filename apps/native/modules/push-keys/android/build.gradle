@@ -16,7 +16,10 @@ android {
 
 dependencies {
   // The service that opens a push takes the place of expo-notifications' and passes it the rest.
-  implementation project(':expo-notifications')
+  // Expo 58 links expo-notifications as the artifact of its own local repository, which
+  // autolinking adds to every project, and not as a project: its one version there is the app's.
+  implementation 'host.exp.exponent:expo.modules.notifications:+'
+
   implementation 'com.google.firebase:firebase-messaging:24.1.2'
   implementation 'androidx.core:core-ktx:1.17.0'
 }
