@@ -56,5 +56,10 @@ describe("the lists a bookmark offers", () => {
     const lists = withAnswered(drawn, answered);
     expect(lists.map((one) => one.id)).toEqual(["default-id", "weekend"]);
     expect(withAnswered(lists, { ...lists[1]!, name: "renamed" })[1]!.name).toBe("renamed");
+    // The lists' own answer may have put the favorites last: they come first again.
+    expect(withAnswered([...drawn, answered], answered).map((one) => one.id)).toEqual([
+      "default-id",
+      "weekend",
+    ]);
   });
 });

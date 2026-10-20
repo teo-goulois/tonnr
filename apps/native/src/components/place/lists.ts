@@ -73,9 +73,18 @@ export function withSaved(
   return lists.map((list) => (isTarget(list) ? { ...list, ...withPlace(list) } : list));
 }
 
-/** The lists once the API answered one: it takes its place, or the favorites drawn before it. */
+/**
+ * The lists once the API answered one: it takes its place. The favorites come first, in place of
+ * those drawn before the account had any, wherever the answer was put before.
+ */
 export function withAnswered(lists: SavedList[], answered: SavedList): SavedList[] {
+  if (answered.isDefault) {
+    return [
+      answered,
+      ...lists.filter((other) => other.id !== FAVORITES && other.id !== answered.id),
+    ];
+  }
   return lists.some((other) => other.id === answered.id)
     ? lists.map((other) => (other.id === answered.id ? answered : other))
-    : [answered, ...lists.filter((other) => other.id !== FAVORITES)];
+    : [...lists, answered];
 }
