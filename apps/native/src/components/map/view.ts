@@ -29,6 +29,11 @@ export const VIEW_KEY = "tonnr:map-view";
 export const PLACE_ZOOM = 13;
 /** How close the map comes to where the reader is, as the web's button brings it. */
 export const LOCATE_ZOOM = 8;
+/**
+ * How close the map comes to a break or a spot it is sent to, from a search or once a spot is
+ * added, so that it is seen among its neighbours.
+ */
+export const BREAK_ZOOM = 11;
 /** How close the map comes to a spot being put, so that a beach is told from the next. */
 export const SPOT_ZOOM = 14;
 

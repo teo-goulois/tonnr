@@ -21,6 +21,8 @@ type SearchFieldProps = {
   // While the answer is on its way: the magnifier pales.
   pending?: boolean;
   onSubmit?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
   disabled?: boolean;
   ref?: Ref<ComponentRef<typeof TextInput>>;
 };
@@ -33,6 +35,8 @@ export function SearchField({
   autoFocus = false,
   pending = false,
   onSubmit,
+  onFocus,
+  onBlur,
   disabled = false,
   ref,
 }: SearchFieldProps) {
@@ -73,6 +77,8 @@ export function SearchField({
         clearButtonMode="while-editing"
         selectionColor={colors["color-1"]}
         onSubmitEditing={onSubmit}
+        onFocus={onFocus}
+        onBlur={onBlur}
         style={{
           flex: 1,
           minHeight: TARGET,

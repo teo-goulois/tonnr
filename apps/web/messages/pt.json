@@ -1956,5 +1956,10 @@
   "native_spot_move_hint": "Move o mapa, ou carrega nele, para pores o marcador onde a onda rebenta.",
   "native_spot_near_break": "{name}, um spot de surf do mapa, fica aqui.",
   "native_spot_from_break": "Partir deste",
-  "native_spot_marker": "Onde fica o spot"
+  "native_spot_marker": "Onde fica o spot",
+  "native_spot_move_north": "Mover o marcador para norte",
+  "native_spot_move_south": "Mover o marcador para sul",
+  "native_spot_move_east": "Mover o marcador para leste",
+  "native_spot_move_west": "Mover o marcador para oeste",
+  "native_spot_here": "Pôr o spot onde estou"
 }

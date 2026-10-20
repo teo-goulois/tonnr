@@ -1956,5 +1956,10 @@
   "native_spot_move_hint": "Mueve el mapa, o púlsalo, para poner el marcador donde rompe la ola.",
   "native_spot_near_break": "{name}, un pico de surf del mapa, está aquí.",
   "native_spot_from_break": "Partir de él",
-  "native_spot_marker": "Dónde va el spot"
+  "native_spot_marker": "Dónde va el spot",
+  "native_spot_move_north": "Mover el marcador hacia el norte",
+  "native_spot_move_south": "Mover el marcador hacia el sur",
+  "native_spot_move_east": "Mover el marcador hacia el este",
+  "native_spot_move_west": "Mover el marcador hacia el oeste",
+  "native_spot_here": "Poner el spot donde estoy"
 }

@@ -11,8 +11,12 @@ import {
   RasterDEMSource,
 } from "@maplibre/maplibre-react-native";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
-import { type Ref, useImperativeHandle, useMemo, useRef } from "react";
-import type { NativeSyntheticEvent } from "react-native";
+import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
+import type {
+  AccessibilityActionEvent,
+  AccessibilityActionInfo,
+  NativeSyntheticEvent,
+} from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
 import { useTheme } from "@/lib/theme";
@@ -53,6 +57,7 @@ import {
   type Bounds,
   type LngLat,
   type MapPoint,
+  type MapView,
   readView,
   STYLE_URLS,
   VIEW_KEY,
@@ -64,6 +69,8 @@ import {
 // the surf breaks and the account's own spots, each a source of GeoJSON that the map draws and
 // places itself, with the colors of the sea's scales. North stays up, so that an arrow drawn on it
 // points the right way. A press opens what is nearest the finger; a press held puts a new spot.
+// The sheet that adds a spot draws it too, with the breaks and the spots alone, and the map then
+// keeps nothing of where it rests: what the phone keeps and the other screens read is the tab's.
 
 /** The sea as the API describes its tiles. */
 export type SeaMap = {
@@ -105,8 +112,21 @@ type StationMapProps = {
   located: boolean;
   accessibilityLabel: string;
   accessibilityHint: string;
+  // What a screen reader may do with the map besides reading it, and what that does.
+  accessibilityValue?: { text: string };
+  accessibilityActions?: readonly AccessibilityActionInfo[];
+  onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
+  // The view it opens on, in place of the one the phone kept.
+  opening?: MapView;
+  // Whether where it rests is the map's own, which the phone keeps and the other screens read:
+  // the map tab's. A map of a sheet keeps nothing.
+  remembers?: boolean;
   onPress: (press: MapPress) => void;
-  onLongPress: (at: LngLat) => void;
+  // A press that met no marker.
+  onMapPress?: (at: LngLat) => void;
+  onLongPress?: (at: LngLat) => void;
+  // The map begins to move, and whether a finger moves it.
+  onMoveStart?: (byHand: boolean) => void;
   // Where the map came to rest, and whether a finger moved it there.
   onMoved: (state: MapState, byHand: boolean) => void;
 };
@@ -149,8 +169,15 @@ export function StationMap({
   located,
   accessibilityLabel,
   accessibilityHint,
+  accessibilityValue,
+  accessibilityActions,
+  onAccessibilityAction,
+  opening: openingView,
+  remembers = true,
   onPress,
+  onMapPress,
   onLongPress,
+  onMoveStart,
   onMoved,
 }: StationMapProps) {
   const { scheme, colors } = useTheme();
@@ -158,7 +185,7 @@ export function StationMap({
   const map = useRef<MapRef>(null);
   const camera = useRef<CameraRef>(null);
   // The view the map opens on, read once.
-  const opening = useMemo(storedView, []);
+  const [opening] = useState(() => openingView ?? storedView());
   const zoom = useRef(opening.zoom);
 
   const surface = colors["neutral-1"];
@@ -261,16 +288,25 @@ export function StationMap({
       accessible
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
-      onLongPress={(event) => onLongPress(event.nativeEvent.lngLat)}
+      accessibilityValue={accessibilityValue}
+      accessibilityActions={accessibilityActions}
+      onAccessibilityAction={onAccessibilityAction}
+      onPress={onMapPress && ((event) => onMapPress(event.nativeEvent.lngLat))}
+      onLongPress={onLongPress && ((event) => onLongPress(event.nativeEvent.lngLat))}
+      onRegionWillChange={
+        onMoveStart && ((event) => onMoveStart(event.nativeEvent.userInteraction))
+      }
       onRegionDidChange={(event) => {
         const { center, zoom: at, bounds, userInteraction } = event.nativeEvent;
         zoom.current = at;
         const state = { center, zoom: at, bounds: bounds as Bounds };
-        rememberMapState(state);
-        try {
-          localStorage.setItem(VIEW_KEY, writeView(state));
-        } catch {
-          // A phone that keeps nothing opens on the default view.
+        if (remembers) {
+          rememberMapState(state);
+          try {
+            localStorage.setItem(VIEW_KEY, writeView(state));
+          } catch {
+            // A phone that keeps nothing opens on the default view.
+          }
         }
         onMoved(state, userInteraction);
       }}

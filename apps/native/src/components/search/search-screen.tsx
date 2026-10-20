@@ -9,7 +9,7 @@ import { currentMapState, moveMap } from "@/components/map/map-state";
 import { placeHref } from "@/components/map/place-route";
 import { spotsQuery, wavesQuery } from "@/components/map/queries";
 import { useRecentPlaces } from "@/components/map/recents";
-import { middleOf, PLACE_ZOOM } from "@/components/map/view";
+import { BREAK_ZOOM, middleOf, PLACE_ZOOM } from "@/components/map/view";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { Section } from "@/components/ui/list";
@@ -29,9 +29,7 @@ import { usePlaceSearch } from "./use-place-search";
 // catalogue, the buoys and, for an account, the places a search service names: a place has no
 // sheet of its own, and the map goes there; anything else opens its sheet in place of this one.
 
-// How close the map comes to a break or a spot found, and to a buoy, so that it is seen among
-// its neighbours.
-const BREAK_ZOOM = 11;
+// How close the map comes to a buoy found, so that it is seen among its neighbours.
 const STATION_ZOOM = 8;
 
 export function SearchScreen() {

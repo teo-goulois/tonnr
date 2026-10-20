@@ -1956,5 +1956,10 @@
   "native_spot_move_hint": "Déplace la carte, ou appuie dessus, pour mettre le marqueur là où la vague casse.",
   "native_spot_near_break": "{name}, un spot de surf de la carte, est ici.",
   "native_spot_from_break": "Partir de celui-ci",
-  "native_spot_marker": "L'endroit du spot"
+  "native_spot_marker": "L'endroit du spot",
+  "native_spot_move_north": "Déplacer le marqueur vers le nord",
+  "native_spot_move_south": "Déplacer le marqueur vers le sud",
+  "native_spot_move_east": "Déplacer le marqueur vers l'est",
+  "native_spot_move_west": "Déplacer le marqueur vers l'ouest",
+  "native_spot_here": "Mettre le spot là où je suis"
 }
