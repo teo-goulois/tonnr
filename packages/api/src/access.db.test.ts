@@ -214,6 +214,8 @@ const ANSWERS_AN_ACCOUNT = [
   "v1.reports.flag",
   // The browsers an account's alerts are pushed to are its own: decision 031, "Push". So are
   // the phones: decision 072.
+  "v1.push.activityEnded",
+  "v1.push.activityStarted",
   "v1.push.devices",
   "v1.push.forget",
   "v1.push.forgetApp",

@@ -23,7 +23,13 @@ import {
   removedUsername,
   visitorClosure,
 } from "@repo/db/schema/access";
-import { alertSettings, pushSubscription } from "@repo/db/schema/alerts";
+import {
+  alert,
+  alertSettings,
+  liveActivity,
+  notification,
+  pushSubscription,
+} from "@repo/db/schema/alerts";
 import { oauthConsent, session, user } from "@repo/db/schema/auth";
 import { sponsorship } from "@repo/db/schema/community";
 import { stationList } from "@repo/db/schema/lists";
@@ -2111,7 +2117,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       const overRest = await send("GET", "/v1/push/key", { cookie }, pushing);
       expect([overRest.status, await bodyOf(overRest)]).toEqual([
         200,
-        { publicKey: INSTANCE_KEY, apps: { ios: false, android: false } },
+        { publicKey: INSTANCE_KEY, apps: { ios: false, android: false, liveActivities: false } },
       ]);
       const overRpc = await send(
         "POST",
@@ -2120,12 +2126,15 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         pushing,
       );
       expect(await bodyOf(overRpc)).toEqual({
-        json: { publicKey: INSTANCE_KEY, apps: { ios: false, android: false } },
+        json: {
+          publicKey: INSTANCE_KEY,
+          apps: { ios: false, android: false, liveActivities: false },
+        },
       });
 
       expect(await bodyOf(await send("GET", "/v1/push/key", { cookie }))).toEqual({
         publicKey: null,
-        apps: { ios: false, android: false },
+        apps: { ios: false, android: false, liveActivities: false },
       });
       expect((await send("GET", "/v1/push/key", {}, pushing)).status).toBe(401);
     });
@@ -2214,7 +2223,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       });
 
       expect((await ask("GET", "/v1/push/key")).body).toMatchObject({
-        apps: { ios: true, android: true },
+        apps: { ios: true, android: true, liveActivities: true },
       });
       const made = await ask("POST", "/v1/push/apps", phone());
       expect(made.status).toBe(201);
@@ -2233,6 +2242,56 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       // A browser's subscription stays apart from a phone's.
       expect((await ask("POST", "/v1/push/devices/renew", { id, ...browser() })).status).toBe(404);
       expect(await subscriptions()).toMatchObject([{ id, kind: "ios", token: TOKEN }]);
+      // The token that starts its Live Activities, and that of one the worker started, are kept
+      // as the phone's own is: decision 074.
+      const START = `${"ef".repeat(28)}6b657074`;
+      const ACTIVITY = `${"12".repeat(28)}6b657074`;
+      expect(
+        (await ask("POST", "/v1/push/apps/renew", { id, ...phone(), activityStartToken: START }))
+          .status,
+      ).toBe(200);
+      expect(await subscriptions()).toMatchObject([{ id, activityStartToken: START }]);
+      const [owner] = await subscriptions();
+      const alertId = crypto.randomUUID();
+      const notificationId = crypto.randomUUID();
+      await database.db
+        .insert(alert)
+        .values({ id: alertId, userId: owner?.userId ?? "", name: "Dawn", criteria: {} });
+      await database.db.insert(notification).values({
+        id: notificationId,
+        userId: owner?.userId ?? "",
+        alertId,
+        moment: "begins",
+        key: `begins:${alertId}`,
+        payload: { alertName: "Dawn", zone: "UTC", lines: [] },
+      });
+      await database.db.insert(liveActivity).values({
+        id: crypto.randomUUID(),
+        userId: owner?.userId ?? "",
+        deviceId: id,
+        notificationId,
+        alertId,
+        alertRevision: 0,
+        lastsUntil: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      const activity = { id, notification: notificationId };
+      expect(
+        (await ask("POST", "/v1/push/activities/started", { ...activity, token: ACTIVITY })).body,
+      ).toEqual({ running: true });
+      expect(
+        (
+          await ask("POST", "/rpc/v1/push/activityStarted", {
+            json: { ...activity, token: ACTIVITY },
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (await ask("POST", "/v1/push/activities/started", { ...activity, token: `${ACTIVITY}zz` }))
+          .status,
+      ).toBe(400);
+      expect((await ask("POST", "/v1/push/activities/ended", activity)).body).toEqual({
+        ended: true,
+      });
       expect(
         (await ask("POST", "/v1/push/apps/forget", { kind: "ios", token: TOKEN })).body,
       ).toEqual({ forgotten: true });
@@ -2330,6 +2389,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       }>(await send("GET", "/v1/openapi.json"));
       const routes = Object.entries(spec.paths).filter(([path]) => path.startsWith("/push"));
       expect(routes.map(([path]) => path).sort()).toEqual([
+        "/push/activities/ended",
+        "/push/activities/started",
         "/push/apps",
         "/push/apps/forget",
         "/push/apps/renew",

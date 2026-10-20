@@ -1,8 +1,13 @@
 import { ORPCError } from "@orpc/server";
-import { APNS_ENVIRONMENTS, PUSH_KINDS, pushSubscription } from "@repo/db/schema/alerts";
+import {
+  APNS_ENVIRONMENTS,
+  PUSH_KINDS,
+  liveActivity,
+  pushSubscription,
+} from "@repo/db/schema/alerts";
 import { session, user } from "@repo/db/schema/auth";
 import { isPushEndpoint } from "@repo/push";
-import { and, asc, count, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Transaction } from "./alerts";
@@ -19,6 +24,11 @@ import { hasControlCharacter } from "../text";
 // is kept and refused as an address is, with two keys the app made as a browser makes its own.
 // Every rule of a browser's holds for it: the session it goes with, the cap that counts every
 // kind together, the order of the locks.
+//
+// Decision 074: an iPhone whose switch is on gives the token iOS gives it to start a Live
+// Activity by a push, with which "it is on" starts one in the place of its push. The app gives
+// the token of each activity the instance started, and says when one ended. Both tokens are kept
+// as the device's own is, and neither is ever given back.
 
 const MAX_DEVICES_PER_USER = 10;
 
@@ -106,8 +116,22 @@ const appIdSchema = z
   .regex(/^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$/, "must be the bundle or the package of the app")
   .describe("The bundle or the package the app was built with, such as `app.tonnr`.");
 
+// The token iOS gives an iPhone's app to start a Live Activity, which the app gives while its
+// switch is on: hexadecimal, as the device's own is. Null takes it back, and leaving it out keeps
+// what the device holds. Decision 074.
+const activityStartTokenSchema = iosTokenSchema
+  .nullable()
+  .optional()
+  .describe(
+    "The token iOS gave the app to start a Live Activity by a push, in hexadecimal, while the " +
+      "iPhone's switch for them is on: “it is on” then starts one in the place of its push. " +
+      "`null` when the switch, or the system's own for the app's Live Activities, is off. Left " +
+      "out, the device keeps what it holds, and a new device holds none.",
+  );
+
 // What the app on a phone gives of itself: its kind, the token its service gave, the app it is,
-// for an iPhone which of Apple's hosts its build is pushed through, and its two keys.
+// for an iPhone which of Apple's hosts its build is pushed through and the token that starts its
+// Live Activities, and its two keys.
 const appFieldsOf = <Extra extends z.ZodRawShape>(extra: Extra) =>
   z.discriminatedUnion("kind", [
     z.object({
@@ -116,6 +140,7 @@ const appFieldsOf = <Extra extends z.ZodRawShape>(extra: Extra) =>
       environment: z
         .enum(APNS_ENVIRONMENTS)
         .describe("`development` for a build that APNs's sandbox pushes to, as its build says."),
+      activityStartToken: activityStartTokenSchema,
       appId: appIdSchema,
       keys: keysSchema,
       label: labelSchema,
@@ -235,6 +260,11 @@ const appColumnsOf = (input: z.infer<ReturnType<typeof appFieldsOf>>) => ({
   appId: input.appId,
 });
 
+// The token that starts the Live Activities of an iPhone, as it came: undefined when it was not
+// said, which keeps what the device holds. A phone of another kind holds none.
+const startTokenOf = (input: z.infer<ReturnType<typeof appFieldsOf>>) =>
+  input.kind === "ios" ? input.activityStartToken : null;
+
 // The refusal of a device that would pass the cap, which every kind counts together. `limit`
 // tells it from any other the API answers with 403.
 const tooMany = () =>
@@ -260,6 +290,120 @@ async function holdCaller(tx: Transaction, userId: string, sessionId: string) {
   if (!open) throw new ORPCError("UNAUTHORIZED");
 }
 
+/**
+ * Holds what `registerApp` writes after the caller and its session: the rows of `push_subscription`
+ * that keep the phone's token or the token that starts its Live Activities, in the order of their
+ * ids, then the Live Activities of a row that another account kept, which go: the phone becomes
+ * the caller's under a new id, and what ran on it for the account before is no longer its own.
+ * A row that keeps the token that starts Live Activities, and not the phone's own token, lets
+ * go of it: a phone has one.
+ */
+async function holdTokens(
+  tx: Transaction,
+  userId: string,
+  token: string,
+  startToken: string | null | undefined,
+) {
+  const held = await tx
+    .select({
+      id: pushSubscription.id,
+      userId: pushSubscription.userId,
+      token: pushSubscription.token,
+    })
+    .from(pushSubscription)
+    .where(
+      or(
+        eq(pushSubscription.token, token),
+        startToken ? eq(pushSubscription.activityStartToken, startToken) : undefined,
+      ),
+    )
+    .orderBy(asc(pushSubscription.id))
+    .for("update");
+  const taken = held.filter((row) => row.token === token && row.userId !== userId);
+  if (taken.length > 0) {
+    await tx.delete(liveActivity).where(
+      inArray(
+        liveActivity.deviceId,
+        taken.map((row) => row.id),
+      ),
+    );
+  }
+  const starting = held.filter((row) => row.token !== token);
+  if (starting.length > 0) {
+    await tx
+      .update(pushSubscription)
+      .set({ activityStartToken: null })
+      .where(
+        inArray(
+          pushSubscription.id,
+          starting.map((row) => row.id),
+        ),
+      );
+  }
+}
+
+// What names a Live Activity to the API: the iPhone it runs on, by the id the API gave it, and the
+// notification of "it is on" that started it, whose id its content holds. Decision 074.
+const activityFields = {
+  id: idSchema.describe("The id of the iPhone the activity runs on, as the API gave it."),
+  notification: z
+    .uuid()
+    .describe("The id of the notification that started the activity, which its content holds."),
+  account: accountSchema,
+};
+
+/**
+ * Holds a Live Activity of the caller's, after its account, its session and the iPhone it runs on,
+ * in the order decision 031 gives. Throws 404 when the caller has no such iPhone, or no such
+ * activity on it. `token` also holds any other activity that kept it, in the order of their ids.
+ */
+async function holdActivity(
+  tx: Transaction,
+  context: { session: { user: { id: string }; session: { id: string } } },
+  input: { id: string; notification: string },
+  token?: string,
+) {
+  await holdCaller(tx, context.session.user.id, context.session.session.id);
+  const [device] = await tx
+    .select({ id: pushSubscription.id })
+    .from(pushSubscription)
+    .where(
+      and(
+        eq(pushSubscription.id, input.id),
+        eq(pushSubscription.userId, context.session.user.id),
+        eq(pushSubscription.kind, "ios"),
+      ),
+    )
+    .for("update");
+  if (!device) throw gone();
+  const held = await tx
+    .select({
+      id: liveActivity.id,
+      deviceId: liveActivity.deviceId,
+      notificationId: liveActivity.notificationId,
+      endedAt: liveActivity.endedAt,
+    })
+    .from(liveActivity)
+    .where(
+      or(
+        and(
+          eq(liveActivity.deviceId, device.id),
+          eq(liveActivity.notificationId, input.notification),
+        ),
+        token === undefined ? undefined : eq(liveActivity.token, token),
+      ),
+    )
+    .orderBy(asc(liveActivity.id))
+    .for("update");
+  const mine = held.find(
+    (row) => row.deviceId === device.id && row.notificationId === input.notification,
+  );
+  if (!mine) {
+    throw new ORPCError("NOT_FOUND", { message: "The caller has no such Live Activity." });
+  }
+  return { mine, others: held.filter((row) => row.id !== mine.id) };
+}
+
 export const pushRouter = {
   key: protectedProcedure
     .route({
@@ -269,13 +413,15 @@ export const pushRouter = {
       description:
         "`publicKey` is what a browser gives its push service as `applicationServerKey`. It " +
         "is null on an instance that sends no push to browsers. `apps` says whether it pushes " +
-        "to its app on iOS and on Android, which then makes a device with `POST /push/apps`.",
+        "to its app on iOS and on Android, which then makes a device with `POST /push/apps`, " +
+        "and whether it starts a Live Activity on an iPhone when a window begins, with the " +
+        "same key of Apple's: the app offers its switch only then.",
       tags: ["Push"],
     })
     .output(
       z.object({
         publicKey: z.string().nullable(),
-        apps: z.object({ ios: z.boolean(), android: z.boolean() }),
+        apps: z.object({ ios: z.boolean(), android: z.boolean(), liveActivities: z.boolean() }),
       }),
     )
     .handler(({ context }) => ({
@@ -283,6 +429,8 @@ export const pushRouter = {
       apps: {
         ios: Boolean(context.server.appPush?.ios),
         android: Boolean(context.server.appPush?.android),
+        // A Live Activity is pushed with Apple's key, as the iOS app's pushes are: decision 074.
+        liveActivities: Boolean(context.server.appPush?.ios),
       },
     })),
 
@@ -522,7 +670,8 @@ export const pushRouter = {
         `account keeps ${MAX_DEVICES_PER_USER} devices at most, of every kind together: one ` +
         "more is refused with 403, whose `data` gives that `limit`. The answer is 503 for a " +
         "kind the instance does not push to, which `GET /push/key` says, and 400 for an " +
-        "iPhone of another app than the one it pushes to.",
+        "iPhone of another app than the one it pushes to. An iPhone whose switch for Live " +
+        "Activities is on gives the token that starts them, `activityStartToken`.",
       tags: ["Push"],
     })
     .input(appFieldsOf({}))
@@ -532,12 +681,16 @@ export const pushRouter = {
       const sessionId = context.session.session.id;
       await checkedApp(context, input);
       const app = appColumnsOf(input);
+      const startToken = startTokenOf(input);
       const { keys, label = null } = input;
 
       const kept = await quietly(() =>
         context.db.transaction(async (tx) => {
           // The account first, then the session, as a browser's subscription holds them.
           await holdCaller(tx, userId, sessionId);
+          // Then the rows of the phone's two tokens, in the order of their ids, and their Live
+          // Activities after them (decision 074).
+          await holdTokens(tx, userId, app.token, startToken);
           const [others] = await tx
             .select({ total: count() })
             .from(pushSubscription)
@@ -555,13 +708,28 @@ export const pushRouter = {
           const isMine = sql`${pushSubscription.userId} = ${userId}`;
           const [row] = await tx
             .insert(pushSubscription)
-            .values({ id, userId, sessionId, ...app, p256dh: keys.p256dh, auth: keys.auth, label })
+            .values({
+              id,
+              userId,
+              sessionId,
+              ...app,
+              activityStartToken: startToken ?? null,
+              p256dh: keys.p256dh,
+              auth: keys.auth,
+              label,
+            })
             .onConflictDoUpdate({
               target: pushSubscription.token,
               set: {
                 id: sql`case when ${isMine} then ${pushSubscription.id} else ${id} end`,
                 createdAt: sql`case when ${isMine} then ${pushSubscription.createdAt} else now() end`,
                 label: sql`case when ${isMine} then coalesce(${label}, ${pushSubscription.label}) else ${label} end`,
+                // What the phone did not say it keeps while it is the caller's: another account
+                // signed in there has not switched Live Activities on.
+                activityStartToken:
+                  startToken === undefined
+                    ? sql`case when ${isMine} then ${pushSubscription.activityStartToken} else null end`
+                    : startToken,
                 userId,
                 sessionId,
                 ...app,
@@ -600,25 +768,28 @@ export const pushRouter = {
       const sessionId = context.session.session.id;
       await checkedApp(context, input);
       const app = appColumnsOf(input);
+      const startToken = startTokenOf(input);
       const { id, keys, label = null } = input;
 
       return quietly(() =>
         context.db.transaction(async (tx) => {
           await holdCaller(tx, userId, sessionId);
           // Then every row this touches, in the order of their ids: the device, and whatever
-          // else kept the token.
+          // else kept the token, or the token that starts the phone's Live Activities.
           const held = await tx
             .select({
               id: pushSubscription.id,
               userId: pushSubscription.userId,
               kind: pushSubscription.kind,
               token: pushSubscription.token,
+              activityStartToken: pushSubscription.activityStartToken,
             })
             .from(pushSubscription)
             .where(
               or(
                 id === undefined ? undefined : eq(pushSubscription.id, id),
                 eq(pushSubscription.token, app.token),
+                startToken ? eq(pushSubscription.activityStartToken, startToken) : undefined,
               ),
             )
             .orderBy(asc(pushSubscription.id))
@@ -639,10 +810,30 @@ export const pushRouter = {
               ),
             );
           }
+          // And one token that starts its Live Activities, which another device lets go of.
+          const starting = held.filter(
+            (row) =>
+              startToken &&
+              row.activityStartToken === startToken &&
+              row.id !== mine.id &&
+              !others.includes(row),
+          );
+          if (starting.length > 0) {
+            await tx
+              .update(pushSubscription)
+              .set({ activityStartToken: null })
+              .where(
+                inArray(
+                  pushSubscription.id,
+                  starting.map((row) => row.id),
+                ),
+              );
+          }
           const [row] = await tx
             .update(pushSubscription)
             .set({
               ...app,
+              ...(startToken === undefined ? {} : { activityStartToken: startToken }),
               // The device is this session's from now on: the app may have signed in anew.
               sessionId,
               p256dh: keys.p256dh,
@@ -697,6 +888,84 @@ export const pushRouter = {
           .returning({ id: pushSubscription.id }),
       );
       return { forgotten: forgotten.length > 0 };
+    }),
+
+  activityStarted: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/push/activities/started",
+      summary: "Give the token of a Live Activity that the instance started on this iPhone",
+      description:
+        "What the app does as iOS starts a Live Activity of a window that begins, which the " +
+        "instance asked for by a push in the place of “it is on”, and whenever iOS gives the " +
+        "activity another token: the worker sends its updates and its end to that token. The " +
+        "activity is named by the iPhone it runs on and by the notification that started it, " +
+        "whose id its content holds. `running` is false for an activity that ended already, " +
+        "which the app then ends on the phone. The answer is 404 when the caller has no such " +
+        "iPhone, or no such activity on it. The token is never given back.",
+      tags: ["Push"],
+    })
+    .input(
+      z.object({
+        ...activityFields,
+        token: iosTokenSchema.describe("The token iOS gave the activity, in hexadecimal."),
+      }),
+    )
+    .output(z.object({ running: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      actingFor(context, input.account);
+      return quietly(() =>
+        context.db.transaction(async (tx) => {
+          const { mine, others } = await holdActivity(tx, context, input, input.token);
+          if (mine.endedAt) return { running: false };
+          // An activity has its own token: one that another kept is this one's now.
+          if (others.length > 0) {
+            await tx
+              .update(liveActivity)
+              .set({ token: null })
+              .where(
+                inArray(
+                  liveActivity.id,
+                  others.map((row) => row.id),
+                ),
+              );
+          }
+          await tx
+            .update(liveActivity)
+            .set({ token: input.token })
+            .where(eq(liveActivity.id, mine.id));
+          return { running: true };
+        }),
+      );
+    }),
+
+  activityEnded: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/push/activities/ended",
+      summary: "Say that a Live Activity on this iPhone ended",
+      description:
+        "What the app does when the account dismissed a Live Activity of a window that " +
+        "begins, or the app ended it: the worker sends it nothing more. `ended` is false for " +
+        "an activity that had ended already. The answer is 404 when the caller has no such " +
+        "iPhone, or no such activity on it.",
+      tags: ["Push"],
+    })
+    .input(z.object(activityFields))
+    .output(z.object({ ended: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      actingFor(context, input.account);
+      return quietly(() =>
+        context.db.transaction(async (tx) => {
+          const { mine } = await holdActivity(tx, context, input);
+          const ended = await tx
+            .update(liveActivity)
+            .set({ endedAt: new Date(), token: null })
+            .where(and(eq(liveActivity.id, mine.id), isNull(liveActivity.endedAt)))
+            .returning({ id: liveActivity.id });
+          return { ended: ended.length > 0 };
+        }),
+      );
     }),
 
   remove: protectedProcedure

@@ -135,11 +135,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the app on a phone, pushed to", () => {
     it("says which apps it pushes to", async () => {
       expect(await call(v1Router.push.key, undefined, by("ana"))).toEqual({
         publicKey: INSTANCE_KEY,
-        apps: { ios: true, android: true },
+        apps: { ios: true, android: true, liveActivities: true },
       });
       expect(
         await call(v1Router.push.key, undefined, by("ana", { appPush: { android: "a-project" } })),
-      ).toMatchObject({ apps: { ios: false, android: true } });
+      ).toMatchObject({ apps: { ios: false, android: true, liveActivities: false } });
     });
 
     it("takes no device of an app it does not push to", async () => {

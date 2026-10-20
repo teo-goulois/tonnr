@@ -141,6 +141,8 @@ const V1_PROCEDURES = [
   "publications.accept",
   "publications.list",
   "publications.refuse",
+  "push.activityEnded",
+  "push.activityStarted",
   "push.devices",
   "push.forget",
   "push.forgetApp",

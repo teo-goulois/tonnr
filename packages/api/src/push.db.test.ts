@@ -116,7 +116,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a browser's push subscription", () => {
     it("gives the public key of its pair, for a browser to subscribe with", async () => {
       expect(await call(v1Router.push.key, undefined, by("ana"))).toEqual({
         publicKey: INSTANCE_KEY,
-        apps: { ios: false, android: false },
+        apps: { ios: false, android: false, liveActivities: false },
       });
     });
 
@@ -125,7 +125,7 @@ describe.skipIf(!TEST_DATABASE_URL)("a browser's push subscription", () => {
 
       expect(await call(v1Router.push.key, undefined, without)).toEqual({
         publicKey: null,
-        apps: { ios: false, android: false },
+        apps: { ios: false, android: false, liveActivities: false },
       });
       await expect(call(v1Router.push.subscribe, browser(), without)).rejects.toEqual(
         refusal("SERVICE_UNAVAILABLE"),
