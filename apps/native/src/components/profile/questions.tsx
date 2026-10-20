@@ -4,6 +4,7 @@ import { Pressable, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 
 import { ChoiceList } from "@/components/account/choice-list";
+import { SurfSizePicture } from "@/components/sessions/surf-size";
 import { Chip } from "@/components/ui/chip";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
@@ -24,7 +25,6 @@ import {
   type SurfSize,
   toggleBoard,
 } from "./profiling";
-import { SurfSizePicture } from "./surf-size-picture";
 
 // The questions an account answers of itself as a surfer, as the web asks them
 // (`profile-questions.tsx`), drawn as a phone draws a choice: a list whose row in force is

@@ -16,41 +16,24 @@ import Svg, {
   Rect,
 } from "react-native-svg";
 
+import { sizeFace as faceWords, sizeName } from "@/components/profile/profile-words";
 import type { GlyphIcon } from "@/components/shared/glyph";
 import { drawTree, type SvgRenderer } from "@/components/shared/svg-tree";
+import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
-import { m } from "@/paraglide/messages";
 
 // How big the waves of a session looked, said by its surfer against a body: decision 043. The
 // pictures are the web's `SurfSizePicture`, drawn with react-native-svg from the same two icons of
-// Nucleo, to one scale.
+// Nucleo, to one scale, which the questions of decision 063 draw too; a size's name and its face
+// are said in their words (`profile-words.ts`).
 
-const NAMES: Record<SurfSize, () => string> = {
-  ankle: m.surf_size_ankle,
-  knee: m.surf_size_knee,
-  waist: m.surf_size_waist,
-  chest: m.surf_size_chest,
-  shoulder: m.surf_size_shoulder,
-  head: m.surf_size_head,
-  overhead: m.surf_size_overhead,
-  double_overhead: m.surf_size_double_overhead,
-  triple_overhead: m.surf_size_triple_overhead,
-};
-
-export const sizeName = (size: SurfSize) => NAMES[size]();
+export { sizeName };
 
 /** The height of face a size stands for, in the reader's unit: "0.6–1 m", or "13 ft+". */
-export function sizeFace(size: SurfSize) {
-  const { least, most } = SURF_FACES[size];
-  // A foot is small enough to be said whole.
-  const digits = heightUnit() === m.unit_ft() ? 0 : 1;
-  return most === null
-    ? `${heightFigure(least, digits)} ${heightUnit()}+`
-    : `${heightFigure(least, digits)}–${heightFigure(most, digits)} ${heightUnit()}`;
-}
+export const sizeFace = (size: SurfSize) => faceWords(size, heightFigure, heightUnit());
 
 /** What was said of a session's waves, in a few words: "Chest · Overhead". */
 export function sizesWords(waves: SurfSize | null, sets: SurfSize | null) {
@@ -243,17 +226,22 @@ export function SizeChoices({ label, value, least, front, onPick }: SizeChoicesP
                   feel("select");
                   onPick(size);
                 }}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  gap: space.xxs,
-                  padding: space.xs,
-                  borderRadius: radius.xs,
-                  borderCurve: "continuous",
-                  borderWidth: chosen ? border.m : border.s,
-                  borderColor: chosen ? colors["neutral-10"] : colors["neutral-4"],
-                  backgroundColor: chosen || pressed ? colors["neutral-3"] : "transparent",
-                  opacity: disabled ? 0.35 : 1,
-                })}
+                style={({ pressed }) => [
+                  {
+                    flex: 1,
+                    gap: space.xxs,
+                    padding: space.xs,
+                    borderRadius: radius.xs,
+                    borderCurve: "continuous",
+                    backgroundColor: chosen || pressed ? colors["neutral-3"] : "transparent",
+                    opacity: disabled ? 0.35 : 1,
+                  },
+                  // The line is drawn inside, so that the chosen one does not move what it holds.
+                  edge(chosen ? colors["neutral-10"] : colors["neutral-4"], {
+                    inset: true,
+                    width: chosen ? border.m : border.s,
+                  }),
+                ]}
               >
                 <SurfSizePicture size={front ?? size} behind={front ? size : null} />
                 <Text
