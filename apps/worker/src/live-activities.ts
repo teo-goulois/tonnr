@@ -54,7 +54,8 @@ import { StoreError } from "./store";
 // a name, and no id of a break or a station, whose names anyone reads from them. Its token is
 // kept as a device's is: it is never logged.
 
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 // How far ahead the next tide is looked for.
 const TIDE_AHEAD_MS = 26 * HOUR_MS;
@@ -79,6 +80,9 @@ const tenths = (value: number | null | undefined) =>
   value === null || value === undefined ? null : Math.round(value * 10) / 10;
 const whole = (value: number | null | undefined) =>
   value === null || value === undefined ? null : Math.round(value);
+// A moment the activity computes, to the minute: the next tide is computed from a timeline that
+// starts where the run does, and comes out a fraction of a second apart from one run to the next.
+const toMinute = (moment: Date) => new Date(Math.round(moment.getTime() / MINUTE_MS) * MINUTE_MS);
 
 /** A hash of what an activity shows, which its row keeps: an update leaves when it changes. */
 export const shownHash = (shown: WindowShown) =>
@@ -177,7 +181,11 @@ export async function windowShown(
         blows.direction !== null && offshore !== null ? shoreWind(blows.direction, offshore) : null,
     },
     tide: tide
-      ? { type: tide.type, time: tide.time.toISOString(), heightMeters: tide.heightMeters }
+      ? {
+          type: tide.type,
+          time: toMinute(tide.time).toISOString(),
+          heightMeters: Math.round(tide.heightMeters * 10) / 10,
+        }
       : null,
     buoy: buoy && {
       observedAt: buoy.observedAt,

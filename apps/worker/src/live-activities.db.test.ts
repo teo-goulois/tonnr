@@ -386,6 +386,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(apple.activities()).toHaveLength(1);
     });
 
+    it("sends nothing from one quarter of an hour to the next while what a person sees stays, the tide being read to the minute", async () => {
+      await begins();
+      await tokenGiven();
+
+      for (const minutes of [7, 22, 37, 52]) {
+        vi.setSystemTime(new Date(hour(8).getTime() + minutes * MINUTE_MS));
+        expect(await follow()).toMatchObject({ running: 1, updated: 0, failed: 0 });
+      }
+
+      expect(apple.activities()).toHaveLength(1);
+      const tide = apple.activities()[0]?.read.shown?.tide;
+      expect(new Date(tide!.time).getTime() % MINUTE_MS).toBe(0);
+      expect(tide!.heightMeters).toBe(Math.round(tide!.heightMeters * 10) / 10);
+    });
+
     it("updates it at the low priority when what it shows changed, once", async () => {
       await begins();
       const token = await tokenGiven();
