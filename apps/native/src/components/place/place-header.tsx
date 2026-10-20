@@ -111,8 +111,8 @@ export function PlaceHeader({
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexWrap: "wrap" }}>
         <Text size="s" tone="muted">
           {station.measures.includes("waves")
-            ? m.native_place_buoy()
-            : m.native_place_wind_station()}
+            ? m.native_kind_buoy()
+            : m.native_kind_wind_station()}
         </Text>
         <FreshnessDot freshness={freshnessOf(observedAt, now)} />
         <Text size="s" tone="muted">
@@ -143,7 +143,7 @@ export function PlaceHeader({
         ? m.break_title()
         : kind === "spot"
           ? m.spot_title()
-          : m.native_place_buoy()
+          : m.native_kind_buoy()
       : undefined);
 
   return (
