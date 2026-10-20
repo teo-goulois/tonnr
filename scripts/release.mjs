@@ -425,11 +425,21 @@ async function checkRuntime(platform, carried) {
 
 /** Writes in the bucket that a store build shipped its runtime, which `release:js` then takes. */
 async function recordShipped(platform, runtime, build, version) {
-  await bucket.put(
-    shippedKey(platform, runtime),
-    shippedOf({ build, commit, version, shippedAt: new Date().toISOString() }),
-    { contentType: "application/json", cacheControl: "no-store" },
-  );
+  const shipped = { build, commit, version, shippedAt: new Date().toISOString() };
+  try {
+    await bucket.put(shippedKey(platform, runtime), shippedOf(shipped), {
+      contentType: "application/json",
+      cacheControl: "no-store",
+    });
+  } catch (error) {
+    // The build is in its store: what is missing is the record that lets updates reach it.
+    console.error(
+      `${error.message}\nThe build is uploaded, and its runtime is not written in the bucket: ` +
+        `release:js refuses ${runtime} until ${shippedKey(platform, runtime)} holds ` +
+        JSON.stringify(shipped),
+    );
+    failKeeping(checkout, "The record of the build");
+  }
 }
 
 /** The first file under `directory` whose path ends with `ending`. */
@@ -613,7 +623,13 @@ async function buildForAndroid() {
   );
 }
 
-if (kind === "js") await publishJavaScript();
-else if (kind === "ios") await buildForIos();
-else await buildForAndroid();
+try {
+  if (kind === "js") await publishJavaScript();
+  else if (kind === "ios") await buildForIos();
+  else await buildForAndroid();
+} catch (error) {
+  // A fault of R2, of a file or of a tool's answer, which the steps above do not foresee.
+  console.error(error.message);
+  failKeeping(checkout, "The release");
+}
 await removeCheckout(checkout, "The release is done");
