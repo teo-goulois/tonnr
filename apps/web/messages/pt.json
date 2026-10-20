@@ -2010,7 +2010,7 @@
   "native_alert_wind_shore": "Em relação à costa aqui",
   "native_alert_wind_to_cross_offshore": "Offshore a cross-offshore",
   "native_alert_wind_to_cross_shore": "Offshore a cross-shore",
-  "native_alert_tide_ahead": "A maré dos próximos dois dias, a escuro as horas que a tua maré pede.",
+  "native_alert_tide_ahead": "A maré dos próximos dois dias, a cores as horas que a tua maré pede.",
   "native_alert_tide_none": "Nenhuma estação de marés está perto o suficiente para ler a maré aqui.",
   "native_alert_week_open": "Mostrar os sete dias",
   "native_alert_day_hours": "{day}: {hours}",
