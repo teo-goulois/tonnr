@@ -30,10 +30,20 @@
 // The stage's values come from `packages/infra/.env.<stage>`, the account of Cloudflare from
 // `packages/infra/.env`, and the keys from the root `.env`, which names the files they lie in.
 // None is printed, and none goes to the install or to Expo's tools, which run code that other
-// people wrote: the key of the updates signs here and the R2 token writes from here. Xcode is
-// given the key of App Store Connect, and Gradle the upload key, which their builds need. Expo
-// receives nothing, and no `eas` command runs.
-import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+// people wrote: the key of the updates signs here and the R2 token writes from here. xcodebuild
+// is given the path of the key of App Store Connect in its arguments, and altool the directory it
+// lies in. Gradle reads the upload key from a file of its own, outside the checkout and deleted
+// once it is done, which a property names: its environment, which Metro and the other tools of
+// the build inherit, holds none of it. Expo receives nothing, and no `eas` command runs.
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -331,6 +341,7 @@ try {
     publish: await fromMain("apps/updates/src/publish.ts"),
     r2: await fromMain("apps/updates/src/r2.ts"),
     app: await fromMain("packages/config/src/app.ts"),
+    uploadKey: (await fromMain("apps/native/plugins/upload-key.js")).default,
   };
 } catch (error) {
   await refuse(`main does not hold what the release reads: ${error.message}`);
@@ -638,19 +649,34 @@ async function buildForAndroid() {
     env: buildEnv,
   });
   const android = path.join(native, "android");
-  // Gradle alone gets the upload key, in its environment, which the config plugin of
-  // apps/native/plugins/release-signing.js reads. No daemon outlives the build with it.
-  await step("The build", "./gradlew", ["app:bundleRelease", "--no-daemon"], {
-    cwd: android,
-    env: {
-      ...buildEnv,
-      ANDROID_HOME: play.sdk,
-      ANDROID_UPLOAD_KEYSTORE: play.keystore,
-      ANDROID_UPLOAD_KEYSTORE_PASSWORD: play.ANDROID_UPLOAD_KEYSTORE_PASSWORD,
-      ANDROID_UPLOAD_KEY_ALIAS: play.ANDROID_UPLOAD_KEY_ALIAS,
-      ANDROID_UPLOAD_KEY_PASSWORD: play.ANDROID_UPLOAD_KEY_PASSWORD,
-    },
-  });
+  // The upload key goes to Gradle in a file of its own, in a directory that only this account
+  // reads, outside the checkout, which a project property names and which is deleted once Gradle
+  // is done: Gradle's environment, which Metro and every other tool of the build inherit, holds
+  // none of it. No daemon outlives the build with it.
+  const { UPLOAD_KEY_PROPERTY, uploadKeyProperties } = main.uploadKey;
+  const keyDirectory = mkdtempSync(path.join(os.tmpdir(), "upload-key-"));
+  const keyFile = path.join(keyDirectory, "upload-key.properties");
+  let built = false;
+  try {
+    writeFileSync(
+      keyFile,
+      uploadKeyProperties({
+        storeFile: play.keystore,
+        storePassword: play.ANDROID_UPLOAD_KEYSTORE_PASSWORD,
+        keyAlias: play.ANDROID_UPLOAD_KEY_ALIAS,
+        keyPassword: play.ANDROID_UPLOAD_KEY_PASSWORD,
+      }),
+      { mode: 0o600 },
+    );
+    built = await run(
+      "./gradlew",
+      ["app:bundleRelease", "--no-daemon", `-P${UPLOAD_KEY_PROPERTY}=${keyFile}`],
+      { cwd: android, env: { ...buildEnv, ANDROID_HOME: play.sdk } },
+    );
+  } finally {
+    rmSync(keyDirectory, { recursive: true, force: true });
+  }
+  if (!built) failKeeping(checkout, "The build");
   const bundle = path.join(
     android,
     "app",

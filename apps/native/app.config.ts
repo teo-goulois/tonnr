@@ -122,7 +122,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "@bacons/apple-targets",
     "expo-secure-store",
     "expo-updates",
-    // The upload key of a release for Google Play, from Gradle's environment: decision 075.
+    // The upload key of a release for Google Play, from the file a property of Gradle names:
+    // decision 075.
     "./plugins/release-signing.js",
     "expo-localization",
     "expo-web-browser",
