@@ -4,6 +4,7 @@ import { ArrowUpIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { goingTo } from "@/components/map/features";
 import { Glyph } from "@/components/shared/glyph";
 import { Text } from "@/components/ui/text";
 import { compassName, compassPoint, formatSeconds } from "@/lib/format";
@@ -106,7 +107,7 @@ export function Bearing({ fromDegrees, size = 12 }: { fromDegrees: number; size?
   const { colors, space } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs / 2 }}>
-      <View style={{ transform: [{ rotate: `${(fromDegrees + 180) % 360}deg` }] }}>
+      <View style={{ transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}>
         <Glyph icon={ArrowUpIcon} size={size} color={colors["neutral-7"]} />
       </View>
       <Text size="s" tone="muted" dense numberOfLines={1}>

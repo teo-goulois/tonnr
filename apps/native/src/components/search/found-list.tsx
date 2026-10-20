@@ -19,7 +19,7 @@ import type { PlaceSearching } from "./use-place-search";
 // kind, as the web's `PlaceSearch` lists them. While the first answer comes, the rows it will
 // fill pulse; what the search came to is said to a screen reader.
 
-const MARK = 28;
+export const MARK = 28;
 
 /** What says the kind of a thing found, as the lists of the saved tab draw it. */
 export function FoundMark({ kind }: { kind: Found["kind"] }) {

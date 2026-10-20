@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, View } from "react-native";
 
+import { FoundMark } from "@/components/search/found-list";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
@@ -8,7 +9,7 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { type PlaceActions } from "./place-actions";
-import { kindWord, PlaceTile } from "./place-row";
+import { kindWord } from "./place-row";
 import { SectionHeader } from "./place-section";
 import { HeightPill, WindPill, seaWords } from "./sea-figures";
 import { keyOf, seaFiguresOf } from "./sea-now";
@@ -82,7 +83,7 @@ export function RecentPlaces({
                 }}
               >
                 <View style={{ gap: space.xs }}>
-                  <PlaceTile kind={recent.kind} sea={told?.sea} />
+                  <FoundMark kind={recent.kind} />
                   <Text weight="medium" numberOfLines={2}>
                     {recent.name}
                   </Text>

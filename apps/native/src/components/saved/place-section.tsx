@@ -2,6 +2,7 @@ import { ChevronRightIcon } from "@repo/ui/icon";
 import { Fragment, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
+import { MARK } from "@/components/search/found-list";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { TARGET } from "@/components/ui/metrics";
@@ -19,10 +20,10 @@ import { type SeaReader, useSeaNows } from "./use-sea-now";
 
 // Places grouped as the platform groups a list: a title over them, which opens the list when it
 // is one, then the rows on the theme's surface, a line between two of them that starts at the
-// name. Each row asks the sea at its place, and the asks of a section leave together. A place
-// the answer left out, a spot deleted meanwhile or a break merged away, leaves no row.
-
-const LINE_INSET = 17 + 32 + 13;
+// name. Each row shown asks the sea at its place, and the asks of a section leave together; a
+// place beyond the rows shown asks nothing, since each call counts a forecast question of the
+// reader's hour (decision 074). A place the answer left out, a spot deleted meanwhile or a break
+// merged away, leaves no row.
 
 type SectionHeaderProps = {
   title: string;
@@ -120,13 +121,14 @@ export function PlaceSection({
   empty,
 }: PlaceSectionProps) {
   const { space } = useTheme();
+  const showing = items.slice(0, limit ?? items.length);
   const asked = useSeaNows(
     reader,
-    items.map((item) => item.ref),
+    showing.map((item) => item.ref),
   );
   // A place the answer left out is no more, and leaves no row, unless the screen knows it by its
   // name: a spot of a list read by its link, which the reader sees and is not told the sea of.
-  const present = items.flatMap((item, index) => {
+  const present = showing.flatMap((item, index) => {
     const query = asked[index];
     return query?.data === null && !item.name ? [] : [{ item, query }];
   });
@@ -135,22 +137,21 @@ export function PlaceSection({
   // A row with no name has nothing to show while its answer failed: the line under the rows
   // asks again for it, and for the sea of the others.
   const failed = present.filter(unanswered);
-  const shown = present
-    .filter((one) => !unanswered(one) || one.item.name)
-    .slice(0, limit ?? present.length);
-  const hidden = failed.filter((one) => !one.item.name).length;
-  const rest = present.length - hidden - shown.length;
+  const shown = present.filter((one) => !unanswered(one) || one.item.name);
+  // What the rows do not show, and the places known to be there, which the last row opens.
+  const rest = items.length - showing.length;
+  const held = items.length - (showing.length - present.length);
 
   return (
     <View style={{ gap: space.xs }}>
       {header}
-      {present.length === 0 ? (
+      {present.length === 0 && rest === 0 ? (
         (empty ?? null)
       ) : (
         <Surface insetEdge style={{ overflow: "hidden" }}>
           {shown.map(({ item, query }, index) => (
             <Fragment key={keyOf(item.ref)}>
-              {index > 0 ? <Separator inset={LINE_INSET} /> : null}
+              {index > 0 ? <Separator inset={space.m + MARK + space.s} /> : null}
               {query?.isPending && !item.name ? (
                 <PlaceRowSkeleton />
               ) : (
@@ -193,7 +194,7 @@ export function PlaceSection({
           ) : null}
           {rest > 0 && onSeeAll ? (
             <>
-              <Separator inset={space.m} />
+              {present.length > 0 ? <Separator inset={space.m} /> : null}
               <Pressable
                 accessibilityRole="button"
                 onPress={onSeeAll}
@@ -205,7 +206,7 @@ export function PlaceSection({
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <Text weight="medium">{m.native_see_all({ count: present.length })}</Text>
+                <Text weight="medium">{m.native_see_all({ count: held })}</Text>
               </Pressable>
             </>
           ) : null}

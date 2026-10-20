@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { listName } from "@/components/lists/items";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
 import { ROUND } from "@/components/ui/metrics";
@@ -36,7 +37,7 @@ import { readSeaTile } from "./map-images";
 import { useLocate } from "./locate";
 import { MapLegend } from "./map-legend";
 import { currentMapState, onMapRequest } from "./map-state";
-import { listName, MapListChips } from "./list-chips";
+import { MapListChips } from "./list-chips";
 import { LOW_SHEET, placeHref, placeOf } from "./place-route";
 import {
   BREAK_LIMIT,

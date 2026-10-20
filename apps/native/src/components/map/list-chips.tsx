@@ -3,6 +3,7 @@ import { ShareIcon } from "@repo/ui/icon";
 import { ScrollView } from "react-native";
 import Animated, { FadeInRight, FadeOutRight } from "react-native-reanimated";
 
+import { listName } from "@/components/lists/items";
 import { Chip } from "@/components/ui/chip";
 import { TARGET } from "@/components/ui/metrics";
 import { useTheme } from "@/lib/theme";
@@ -12,11 +13,6 @@ import { m } from "@/paraglide/messages";
 // unfolds beside it. A chip shows a list alone on the map and opens nothing else, and the first
 // one shows everything again. The web's `ListChips`, floating. A row shorter than its room stands
 // against the button; a longer one scrolls, cut where more follow.
-
-/** What a list is called: its own name, or the favorites'. */
-export function listName(list: Pick<SavedList, "name" | "isDefault">) {
-  return list.isDefault ? m.saved_favorites() : list.name;
-}
 
 type ListChipsProps = {
   lists: readonly SavedList[];

@@ -1,9 +1,11 @@
-import { PinIcon, TrashIcon, WaveIcon, WindIcon } from "@repo/ui/icon";
+import { TrashIcon } from "@repo/ui/icon";
 import { Link } from "expo-router";
 import { type ReactNode, useRef } from "react";
 import { type AccessibilityActionEvent, PixelRatio, Platform, Pressable, View } from "react-native";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+import { placeHref } from "@/components/map/place-route";
+import { FoundMark, MARK } from "@/components/search/found-list";
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { TARGET } from "@/components/ui/metrics";
@@ -15,7 +17,7 @@ import { light } from "@/theme/tokens";
 import { m } from "@/paraglide/messages";
 
 import { type ActionKey, actionsOf, type RowContext } from "./actions";
-import { ACTION_LOOKS, type PlaceActions, type PlaceItem, placeHref } from "./place-actions";
+import { ACTION_LOOKS, type PlaceActions, type PlaceItem } from "./place-actions";
 import { Bearing, HeightPill, SeaLine, WindPill, seaWords, shoreWord } from "./sea-figures";
 import { type SeaFigures, type SeaNow, seaFiguresOf, type Told } from "./sea-now";
 
@@ -25,7 +27,6 @@ import { type SeaFigures, type SeaNow, seaFiguresOf, type Told } from "./sea-now
 // else can be done with it: iOS's own context menu under a preview of the sea there, Android's
 // sheet. A screen reader finds the same among the row's actions.
 
-const TILE = 32;
 const ACTION_WIDTH = 88;
 
 /** What a place is, in words: a surf break, a buoy, a wind station, a spot. */
@@ -35,40 +36,6 @@ export function kindWord(place: PlaceItem["ref"]["kind"], sea?: SeaNow) {
   return sea?.place.kind === "station" && !sea.place.measures.includes("waves")
     ? m.native_kind_wind_station()
     : m.native_kind_buoy();
-}
-
-/** The mark of what a place is: a surf break dark, a spot of one's own in the accent, a station round. */
-export function PlaceTile({ kind, sea }: { kind: PlaceItem["ref"]["kind"]; sea?: SeaNow }) {
-  const { colors } = useTheme();
-  const windOnly = sea?.place.kind === "station" && !sea.place.measures.includes("waves");
-  const look =
-    kind === "break"
-      ? { ground: colors["neutral-10"], ink: colors["neutral-1"], icon: WaveIcon, round: false }
-      : kind === "spot"
-        ? { ground: colors["color-1"], ink: colors["neutral-1"], icon: PinIcon, round: false }
-        : {
-            ground: colors["neutral-3"],
-            ink: colors["neutral-10"],
-            icon: windOnly ? WindIcon : WaveIcon,
-            round: true,
-          };
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: TILE,
-        height: TILE,
-        borderRadius: look.round ? TILE / 2 : 9,
-        borderCurve: "continuous",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: look.ground,
-      }}
-    >
-      <Glyph icon={look.icon} size={16} color={look.ink} />
-    </View>
-  );
 }
 
 /** A row's place while what it says is on its way. */
@@ -84,7 +51,7 @@ export function PlaceRowSkeleton() {
         paddingHorizontal: space.m,
       }}
     >
-      <Skeleton width={TILE} height={TILE} round />
+      <Skeleton width={MARK} height={MARK} round />
       <View style={{ flex: 1, gap: space.xxs }}>
         <Skeleton width="55%" height={14} />
         <Skeleton width="35%" height={11} />
@@ -141,7 +108,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
         paddingVertical: space.xs,
       }}
     >
-      <PlaceTile kind={item.ref.kind} sea={sea} />
+      <FoundMark kind={item.ref.kind} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text weight="medium" numberOfLines={1}>
           {name}
@@ -194,7 +161,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
 
   const row =
     Platform.OS === "ios" ? (
-      <Link href={placeHref(item.ref)} asChild>
+      <Link href={placeHref(item.ref.kind, item.ref.id)} asChild>
         <Link.Trigger>{pressable()}</Link.Trigger>
         <Link.Preview
           style={{ width: 340, height: Math.round(250 * Math.min(PixelRatio.getFontScale(), 1.6)) }}
@@ -205,7 +172,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
       </Link>
     ) : (
       // Android's Link would take the press: the row opens the place itself, and holds for the sheet.
-      <Link href={placeHref(item.ref)} asChild>
+      <Link href={placeHref(item.ref.kind, item.ref.id)} asChild>
         {pressable(() => actions.showSheet(shown, context))}
       </Link>
     );
@@ -298,7 +265,7 @@ function PlacePreview({
   return (
     <View style={{ flex: 1, padding: space.m, gap: space.s, backgroundColor: colors["neutral-1"] }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
-        {sea ? <PlaceTile kind={sea.place.kind} sea={sea} /> : null}
+        {sea ? <FoundMark kind={sea.place.kind} /> : null}
         <View style={{ flex: 1 }}>
           <Text size="s" tone="muted" numberOfLines={1}>
             {kind}

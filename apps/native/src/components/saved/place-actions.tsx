@@ -7,10 +7,11 @@ import {
   ShareIcon,
   TrashIcon,
 } from "@repo/ui/icon";
-import { type Href, type Link, router } from "expo-router";
+import { type Link, router } from "expo-router";
 import { type ComponentProps, useState } from "react";
 import { Platform, Share } from "react-native";
 
+import { placeHref } from "@/components/map/place-route";
 import type { GlyphIcon } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { useTell } from "@/components/ui/toast";
@@ -34,14 +35,9 @@ import type { PlaceRef } from "./sea-now";
 /** A place as a row shows it: what it is, and the name it is read by. */
 export type PlaceItem = { ref: PlaceRef; name: string };
 
-/** Where a place opens: its sheet over the map (decisions 040 and 069). */
-export function placeHref(place: PlaceRef): Href {
-  return `/place/${place.kind}/${encodeURIComponent(place.id)}`;
-}
-
-/** Opens a place's sheet. */
-export function openPlace(place: PlaceRef) {
-  router.push(placeHref(place));
+/** Opens a place's sheet over the map (decisions 040 and 069). */
+function openPlace(place: PlaceRef) {
+  router.push(placeHref(place.kind, place.id));
 }
 
 /** Shows the map with one list alone, which the map reads from `?list=`. */
