@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   awayDay,
   awayMoment,
-  clock,
   dateOfDay,
   dateOfMinutes,
   dayOf,
@@ -11,7 +10,6 @@ import {
   hoursFrom,
   hoursTo,
   minutesOf,
-  noticeChoices,
   noticeWords,
   oneStretch,
   weekdays,
@@ -19,22 +17,8 @@ import {
 } from "./alert-settings-words";
 
 describe("the hours of the alerts' settings", () => {
-  it("are written as a clock writes them, the end of a day as 24:00", () => {
-    expect(clock(0)).toBe("00:00");
-    expect(clock(7 * 60 + 30)).toBe("07:30");
-    expect(clock(24 * 60)).toBe("24:00");
-  });
-
-  it("name the days of the week from Monday, in the reader's language", () => {
-    expect(weekdays("en")).toEqual([
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ]);
+  it("name the days of the week from Monday, each as a row's title begins", () => {
+    expect(weekdays("en")[0]).toBe("Monday");
     expect(weekdays("fr")[0]).toBe("Lundi");
   });
 
@@ -71,11 +55,6 @@ describe("the hours of the alerts' settings", () => {
 });
 
 describe("the notice before a window begins", () => {
-  it("offers four, and keeps one set elsewhere among them in order", () => {
-    expect(noticeChoices(60)).toEqual([0, 30, 60, 120]);
-    expect(noticeChoices(45)).toEqual([0, 30, 45, 60, 120]);
-  });
-
   it("is said in hours when it is whole hours", () => {
     expect(noticeWords(0)).toBe("At the start");
     expect(noticeWords(120)).toContain("2");

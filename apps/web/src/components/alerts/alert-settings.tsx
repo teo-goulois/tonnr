@@ -1,3 +1,13 @@
+import {
+  ALL_DAY,
+  type AlertSettingsChange,
+  clock,
+  DAY_MINUTES,
+  DAYS_AHEAD,
+  FIRST_QUIET,
+  noticeChoices,
+  weekdayNames,
+} from "@repo/client/alerts/settings";
 import { localTime, momentOf } from "@repo/conditions/alerts/clock";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
@@ -14,29 +24,9 @@ import { getLocale } from "@/paraglide/runtime.js";
 import type { AlertSettings, Loadable } from "../viewer/types";
 import { PushSetting } from "./push-setting";
 
-/** What a control of the settings changes: one setting, as the API takes it. */
-export type AlertSettingsChange = Partial<
-  Pick<
-    AlertSettings,
-    | "onFound"
-    | "onChange"
-    | "onEvening"
-    | "eveningMinutes"
-    | "onBegin"
-    | "onReports"
-    | "noticeMinutes"
-    | "quietFrom"
-    | "quietTo"
-    | "namesInSubject"
-    | "horizonDays"
-    | "daylightOnly"
-    | "week"
-    | "awayUntil"
-  > & {
-    zone: string;
-    byMail: boolean;
-  }
->;
+// What a control of the settings changes, and what the settings offer, are packages/client's,
+// which the app for phones reads too: decision 031.
+export type { AlertSettingsChange } from "@repo/client/alerts/settings";
 
 type AlertSettingsFormProps = {
   settings: Loadable<AlertSettings>;
@@ -48,23 +38,6 @@ type AlertSettingsFormProps = {
   push: Pushing;
   now: number;
 };
-
-const DAY_MINUTES = 24 * 60;
-// The days an account may ask to be told ahead of.
-const DAYS_AHEAD = [1, 2, 3, 4, 5];
-const ALL_DAY = [{ from: 0, to: DAY_MINUTES }];
-// How long before a window begins "it is on" may be told, in minutes.
-const NOTICES = [0, 30, 60, 120];
-
-// The end of a day is written 24:00, as the hour it ends at.
-const clock = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-
-// The days of the week by name, Monday first. The first of January 2024 was a Monday.
-function weekdays() {
-  const format = new Intl.DateTimeFormat(getLocale(), { weekday: "long", timeZone: "UTC" });
-  return Array.from({ length: 7 }, (_, index) => format.format(Date.UTC(2024, 0, 1 + index)));
-}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -232,7 +205,7 @@ export function AlertSettingsForm({
   }
 
   const zone = kept.zone ?? deviceZone;
-  const days = weekdays();
+  const days = weekdayNames(getLocale());
   // The day the account is away until, on its own calendar.
   const awayDay = kept.awayUntil ? localTime(kept.awayUntil, zone).date : "";
 
@@ -288,20 +261,18 @@ export function AlertSettingsForm({
             }}
           >
             {/* A notice set elsewhere, that is none of these, shows as it is. */}
-            {[...new Set([...NOTICES, kept.noticeMinutes])]
-              .sort((a, b) => a - b)
-              .map((minutes) => (
-                <ToggleGroupItem key={minutes} value={String(minutes)}>
-                  {minutes === 0
-                    ? m.alert_settings_notice_none()
-                    : m.alert_settings_notice_before({
-                        notice:
-                          minutes % 60 === 0
-                            ? m.alert_hours({ count: minutes / 60 })
-                            : m.alert_settings_minutes({ count: minutes }),
-                      })}
-                </ToggleGroupItem>
-              ))}
+            {noticeChoices(kept.noticeMinutes).map((minutes) => (
+              <ToggleGroupItem key={minutes} value={String(minutes)}>
+                {minutes === 0
+                  ? m.alert_settings_notice_none()
+                  : m.alert_settings_notice_before({
+                      notice:
+                        minutes % 60 === 0
+                          ? m.alert_hours({ count: minutes / 60 })
+                          : m.alert_settings_minutes({ count: minutes }),
+                    })}
+              </ToggleGroupItem>
+            ))}
           </ToggleGroup>
         )}
       </Section>
@@ -425,11 +396,7 @@ export function AlertSettingsForm({
               checked={kept.quietFrom !== null && kept.quietTo !== null}
               onCheckedChange={(quiet) =>
                 // Given whole: a beginning and an end, or neither.
-                onChange(
-                  quiet
-                    ? { quietFrom: 22 * 60, quietTo: 7 * 60 }
-                    : { quietFrom: null, quietTo: null },
-                )
+                onChange(quiet ? FIRST_QUIET : { quietFrom: null, quietTo: null })
               }
             />
             {kept.quietFrom !== null && kept.quietTo !== null && (

@@ -1,3 +1,11 @@
+import {
+  ALL_DAY,
+  type AlertSettingsChange,
+  clock,
+  DAYS_AHEAD,
+  FIRST_QUIET,
+  noticeChoices,
+} from "@repo/client/alerts/settings";
 import type { AlertSettings } from "@repo/client/viewer/types";
 import { CalendarIcon, ClockIcon, GlobalIcon, MailIcon, MoonIcon, SunIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
@@ -13,19 +21,14 @@ import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
 import {
-  ALL_DAY,
   allWeek,
   awayDay,
   awayMoment,
-  clock,
-  DAYS_AHEAD,
   dayOf,
   dayWords,
-  FIRST_QUIET,
   hoursFrom,
   hoursTo,
   moved,
-  noticeChoices,
   noticeWords,
   oneStretch,
   type Stretch,
@@ -37,7 +40,7 @@ import { DayPicker, TimePicker } from "./clock-pickers";
 import { MenuPicker } from "./menu-picker";
 import { PushSetting } from "./push-setting";
 import { Step } from "./settings-steps";
-import { type AlertSettingsChange, useAlertSettings } from "./use-alert-settings";
+import { useAlertSettings } from "./use-alert-settings";
 
 // How an account wants to be told, for all its alerts, one step into the account's tab: the
 // web's `AlertSettingsForm`, as a phone's settings group it, each switch the platform's own and

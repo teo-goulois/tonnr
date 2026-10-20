@@ -1,4 +1,4 @@
-import type { AlertSettings } from "@repo/client/viewer/types";
+import type { AlertSettingsChange } from "@repo/client/alerts/settings";
 import { writesInTurn } from "@repo/client/writes-in-turn";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCalendars } from "expo-localization";
@@ -9,27 +9,6 @@ import { useAccount } from "@/lib/account";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
-
-/** What a control of the settings changes: one setting, as the API takes it. */
-export type AlertSettingsChange = Partial<
-  Pick<
-    AlertSettings,
-    | "onFound"
-    | "onChange"
-    | "onEvening"
-    | "eveningMinutes"
-    | "onBegin"
-    | "onReports"
-    | "noticeMinutes"
-    | "quietFrom"
-    | "quietTo"
-    | "namesInSubject"
-    | "horizonDays"
-    | "daylightOnly"
-    | "week"
-    | "awayUntil"
-  > & { zone: string; byMail: boolean }
->;
 
 /** The time zone of this phone, which an account that has set none may take. */
 export function phoneZone() {

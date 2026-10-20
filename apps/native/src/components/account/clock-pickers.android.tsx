@@ -1,4 +1,5 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
+import { clock } from "@repo/client/alerts/settings";
 import { useState } from "react";
 import { Pressable } from "react-native";
 
@@ -7,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { getLocale } from "@/paraglide/runtime";
 
-import { clock, dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
+import { dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
 
 // A time of day and a day of the calendar, chosen with the platform's own pickers through Expo
 // UI, at the end of a row: on Android the value as a button that opens Material's dialog, which

@@ -1,37 +1,23 @@
+import { ALL_DAY, clock, DAY_MINUTES, weekdayNames } from "@repo/client/alerts/settings";
 import { localTime, momentOf } from "@repo/conditions/alerts/clock";
 
 import { m } from "@/paraglide/messages";
 
 // What the step of the alerts' settings reads and writes, as the web's `AlertSettingsForm` does:
 // the hours of a day, the notice before a window, the days ahead, a day the account is away
-// until. Decision 031. A module that imports nothing of React Native, so that a test reads it.
+// until. What the two offer, and how they write an hour, is packages/client's. Decision 031. A
+// module that imports nothing of React Native, so that a test reads it.
 
-export const DAY_MINUTES = 24 * 60;
-/** The days an account may ask to be told ahead of. */
-export const DAYS_AHEAD = [1, 2, 3, 4, 5] as const;
-/** How long before a window begins "it is on" may be told, in minutes. */
-export const NOTICES = [0, 30, 60, 120] as const;
-/** A day the account can go, at any hour of it. */
-export const ALL_DAY = [{ from: 0, to: DAY_MINUTES }];
 /** A week the account can go at any hour of any day, which its own hours start from. */
 export const allWeek = () => Array.from({ length: 7 }, () => [...ALL_DAY]);
-/** The quiet hours an account is given when it asks for some: from ten at night to seven. */
-export const FIRST_QUIET = { quietFrom: 22 * 60, quietTo: 7 * 60 };
 
 export type Stretch = { from: number; to: number };
 
-/** A time of day, written 24:00 at its end, as the hour it ends at: "07:30". */
-export const clock = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-
-/** The days of the week by name, Monday first, in a language. */
+/** The days of the week by name, Monday first, in a language, as a row's title begins: "Lundi". */
 export function weekdays(locale: string) {
-  const format = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
-  // The first of January 2024 was a Monday.
-  return Array.from({ length: 7 }, (_, index) => {
-    const name = format.format(Date.UTC(2024, 0, 1 + index));
-    return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
-  });
+  return weekdayNames(locale).map(
+    (name) => name.charAt(0).toLocaleUpperCase(locale) + name.slice(1),
+  );
 }
 
 /** A stretch of a day, as its row says it: "All day", or "06:00–21:00". */
@@ -77,11 +63,6 @@ export function weekWith(
   return Array.from({ length: 7 }, (_, other) =>
     other === day ? hours : [...(week?.[other] ?? [])],
   );
-}
-
-/** The notices offered: the four, and one set elsewhere that is none of them, in order. */
-export function noticeChoices(kept: number) {
-  return [...new Set<number>([...NOTICES, kept])].sort((a, b) => a - b);
 }
 
 /** A notice, as it is chosen: "At the start", "1 h before", "30 min before". */
