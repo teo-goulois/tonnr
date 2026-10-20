@@ -63,33 +63,37 @@ function digestOf(text: string) {
   return (hash >>> 0).toString(36);
 }
 
-/** Whether `what` differs from what `key` was given last, which it then becomes. */
-function changed(key: string, what: unknown) {
-  const before = writtenBefore();
-  const digest = digestOf(JSON.stringify(what));
-  if (before[key] === digest) return false;
-  before[key] = digest;
-  try {
-    localStorage.setItem(WRITTEN_KEY, JSON.stringify(before));
-  } catch {
-    // The widget is then drawn again at the app's next start, which changes nothing it shows.
-  }
-  return true;
-}
-
 /**
  * Gives each widget its timeline, and those whose place is chosen the places they offer, or none
  * but the first of the favourites, which the app's config names, when `options` is undefined.
+ * What is the same as it was last is not given again. A widget the system refuses to write is
+ * written at the next time, and never stops what called, a sign-out among them.
  */
 function write(timelines: WidgetTimelines, options: WidgetConfigurationEnum[] | undefined) {
+  const before = writtenBefore();
+  const give = (key: string, what: unknown, put: () => void) => {
+    const digest = digestOf(JSON.stringify(what ?? null));
+    if (before[key] === digest) return;
+    try {
+      put();
+      before[key] = digest;
+    } catch {
+      delete before[key];
+    }
+  };
   for (const name of Object.values(WIDGET)) {
     const entries = timelines[name];
-    if (changed(`timeline ${name}`, entries)) WIDGETS[name].updateTimeline(entries);
+    give(`timeline ${name}`, entries, () => WIDGETS[name].updateTimeline(entries));
   }
-  if (changed("options", options ?? null)) {
+  give("options", options, () => {
     for (const widget of PLACE_WIDGETS) {
       widget.setConfigurationParameterEnum(PLACE_PARAMETER, options);
     }
+  });
+  try {
+    localStorage.setItem(WRITTEN_KEY, JSON.stringify(before));
+  } catch {
+    // The widgets are then given their timelines again at the app's next start, unchanged.
   }
 }
 
@@ -105,11 +109,11 @@ function writeKept(now: Date) {
  * Writes over every widget that the account is signed out, and takes back the places a widget
  * offered, so that nothing of the account stays in the space the app shares: decision 070.
  */
-export function clearWidgets(now = new Date()) {
+export function clearWidgets() {
   if (!HAS_WIDGETS) return;
   kept = null;
   clearings += 1;
-  write(signedOutTimelines(now), undefined);
+  write(signedOutTimelines(), undefined);
 }
 
 /**
@@ -144,7 +148,7 @@ async function refreshOnce({ lists, unlessNewerThan = 0, now = new Date() }: Ref
   const asked = clearings;
   try {
     if (!(await authClient.getCookie())) {
-      clearWidgets(now);
+      clearWidgets();
       return;
     }
     const places = widgetPlaces(lists ?? (await client.v1.lists.list()).lists);
@@ -162,6 +166,6 @@ async function refreshOnce({ lists, unlessNewerThan = 0, now = new Date() }: Ref
     kept = { answer, places, at: now.getTime() };
     writeKept(now);
   } catch (error) {
-    if (codeOf(error) === "UNAUTHORIZED" && asked === clearings) clearWidgets(now);
+    if (codeOf(error) === "UNAUTHORIZED" && asked === clearings) clearWidgets();
   }
 }

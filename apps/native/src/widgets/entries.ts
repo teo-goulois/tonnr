@@ -268,10 +268,14 @@ export function signedOutNotice(): WidgetNotice {
 
 const ALL: readonly WidgetName[] = Object.values(WIDGET);
 
-/** Every widget's timeline: one entry, which says that the account is signed out. */
-export function signedOutTimelines(now: Date): WidgetTimelines {
+/**
+ * Every widget's timeline: one entry, which says that the account is signed out. It is dated
+ * at the epoch, which is past whenever it is written, so that writing it again changes nothing
+ * and the system draws the widget again only when the words do.
+ */
+export function signedOutTimelines(): WidgetTimelines {
   const entry = {
-    date: new Date(now),
+    date: new Date(0),
     props: { palette: WIDGET_PALETTE, notice: signedOutNotice() },
   };
   return Object.fromEntries(ALL.map((name) => [name, [entry]])) as WidgetTimelines;

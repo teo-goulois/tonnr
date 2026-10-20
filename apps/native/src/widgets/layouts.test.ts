@@ -174,7 +174,7 @@ describe("the widgets' layout", () => {
   });
 
   it("says that the account is signed out, and opens the sign-in", () => {
-    const [entry] = signedOutTimelines(now)[WIDGET.seaNow];
+    const [entry] = signedOutTimelines()[WIDGET.seaNow];
     const root = draw(WIDGET.seaNow, entry!.props, small());
     expect(textsOf(root)).toEqual(["Signed out", "Sign in to see the sea at your places."]);
     expect(urlOf(root)).toBe("app.tonnr://sign-in");

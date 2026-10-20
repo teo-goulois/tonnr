@@ -247,7 +247,10 @@ describe("what the widget of the favourites says", () => {
 
 describe("a signed-out phone's widgets", () => {
   it("each say so in one entry, which opens the sign-in", () => {
-    const timelines = signedOutTimelines(now);
+    const timelines = signedOutTimelines();
+    // Dated at the epoch, so that writing it again is writing the same.
+    expect(timelines).toEqual(signedOutTimelines());
+    expect(timelines[WIDGET.seaNow][0]!.date.getTime()).toBe(0);
     for (const name of Object.values(WIDGET)) {
       const entries: { props: WidgetProps }[] = timelines[name];
       expect(entries).toHaveLength(1);
