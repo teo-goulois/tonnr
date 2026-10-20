@@ -41,12 +41,12 @@ function useAllAlerts() {
   );
 }
 
-/** The sheet as it will stand, while what it writes is read. */
-function Waiting() {
+/** The sheet as it will stand, while what it writes is read: a new alert's, or a saved one's. */
+function Waiting({ title = m.alert_new() }: { title?: string }) {
   const { colors, space } = useTheme();
   return (
     <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader title={m.alert_new()} onCancel={() => router.back()} />
+      <SheetHeader title={title} onCancel={() => router.back()} />
       <Loading>
         <View style={{ gap: space.m, padding: space.m }}>
           <Skeleton width="35%" height={13} />
@@ -82,11 +82,19 @@ function SignInFirst({ next }: { next: Href }) {
   );
 }
 
-function Failed({ title, onRetry }: { title: string; onRetry: () => void }) {
+function Failed({
+  sheetTitle = m.alert_new(),
+  title,
+  onRetry,
+}: {
+  sheetTitle?: string;
+  title: string;
+  onRetry: () => void;
+}) {
   const { colors } = useTheme();
   return (
     <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader title={m.alert_new()} onCancel={() => router.back()} />
+      <SheetHeader title={sheetTitle} onCancel={() => router.back()} />
       <ErrorState title={title} onRetry={onRetry} />
     </View>
   );
@@ -235,6 +243,7 @@ export function SavedAlert({ id }: { id: string }) {
   if (alerts.isError || spots.isError) {
     return (
       <Failed
+        sheetTitle={m.alerts_tab_mine()}
         title={m.alerts_mine_load_failed()}
         onRetry={() => {
           void alerts.refetch();
@@ -244,7 +253,9 @@ export function SavedAlert({ id }: { id: string }) {
     );
   }
   const place = alert ? placesOfAlert(alert)[0] : undefined;
-  if (!alert || !place || !spots.data) return <Waiting />;
+  // An alert that is saved is no new one, while it is read too.
+  if (!alert || !place || !spots.data)
+    return <Waiting title={alert?.name ?? m.alerts_tab_mine()} />;
   return (
     <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
       <AlertEditor

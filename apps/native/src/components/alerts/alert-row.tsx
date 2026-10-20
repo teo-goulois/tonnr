@@ -128,7 +128,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 4,
+                  gap: space.xxs,
                   paddingHorizontal: space.xs,
                   paddingVertical: 2,
                   borderRadius: radius.xs,
