@@ -7,6 +7,7 @@ import { AuthForm } from "@/components/auth/auth-form";
 import { type AuthMode, signInParams } from "@/components/auth/sign-in-words";
 import { SheetHeader } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
+import type { Route } from "@/lib/links";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -21,7 +22,8 @@ export default function SignInScreen() {
   const [mode, setMode] = useState<AuthMode>(params.mode);
 
   const done = () => {
-    if (params.next) router.replace(params.next as never);
+    // A path of the app, which `insideNext` checked; the router's types read only those written.
+    if (params.next) router.replace(params.next as Route);
     else if (router.canGoBack()) router.back();
     else router.replace("/");
   };
