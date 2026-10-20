@@ -4,8 +4,9 @@ import { SESSION_MOST_MEDIA } from "@repo/config/media";
 import { SIZES } from "@repo/conditions/sessions/sizes";
 import { ChevronLeftIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
+import { TextField } from "@/components/lists/text-field";
 import { MediaStrip } from "@/components/media/media-strip";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,6 @@ import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
-import { fonts } from "@/theme/tokens";
 import { m } from "@/paraglide/messages";
 
 import { DurationField } from "./duration-field";
@@ -114,7 +114,7 @@ export function SizePill({
   );
 }
 
-/** A few words, the keyboard kept out of their way by the screen that scrolls. */
+/** A few words, on the lists' `TextField`, which the screen that scrolls keeps clear of the keyboard. */
 export function NoteField({
   value,
   onChange,
@@ -130,10 +130,10 @@ export function NoteField({
   most: number;
   disabled: boolean;
 }) {
-  const { colors, space, type } = useTheme();
+  const { space, type } = useTheme();
   return (
     <Surface insetEdge>
-      <TextInput
+      <TextField
         value={value}
         onChangeText={onChange}
         multiline
@@ -141,16 +141,13 @@ export function NoteField({
         editable={!disabled}
         accessibilityLabel={label}
         placeholder={placeholder}
-        placeholderTextColor={colors["neutral-6"]}
         textAlignVertical="top"
         style={{
+          flex: 0,
           minHeight: 96,
           paddingHorizontal: space.m,
           paddingTop: space.s,
           paddingBottom: space.s,
-          color: colors["neutral-10"],
-          fontFamily: fonts.regular,
-          fontSize: type.m.size,
           lineHeight: type.m.line,
         }}
       />
