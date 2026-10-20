@@ -570,6 +570,9 @@ export function ForecastGrid({
     const index = columns.findIndex((column) => column.time >= time);
     anchor.current = { time, offset: Math.max(0, index) * COLUMN - scrollX.current };
     feel("select");
+    // The hour a screen reader was on is another column once the step changes: it goes back to
+    // now's.
+    setFocus(undefined);
     setHourly((every) => !every);
   }
 
