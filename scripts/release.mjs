@@ -3,7 +3,7 @@
 //
 //   pnpm run release:js <stage> [--platform ios|android] [--rollback] [--dry-run]
 //   pnpm run release:ios <stage>
-//   pnpm run release:android <stage> [--track <name>]
+//   pnpm run release:android <stage> [--track <name>] [--by-hand]
 //
 // `release:js` publishes `main`'s JavaScript as an update of each platform: `expo export`, then
 // the runtime its fingerprint names, which a store build must have shipped, then the files under
@@ -24,7 +24,7 @@
 // people wrote: the key of the updates signs here and the R2 token writes from here. Xcode is
 // given the key of App Store Connect, and Gradle the upload key, which their builds need. Expo
 // receives nothing, and no `eas` command runs.
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -72,12 +72,12 @@ const HOST_NAME = /^([a-z0-9-]+\.)+[a-z]{2,}$/;
 const KINDS = {
   js: ["--platform", "--rollback", "--dry-run"],
   ios: [],
-  android: ["--track"],
+  android: ["--track", "--by-hand"],
 };
 const USAGE = [
   "Usage: release js <stage> [--platform ios|android] [--rollback] [--dry-run]",
   "       release ios <stage>",
-  "       release android <stage> [--track <name>]",
+  "       release android <stage> [--track <name>] [--by-hand]",
 ].join("\n");
 
 const [kind, stage, ...rest] = process.argv.slice(2);
@@ -198,7 +198,10 @@ if (kind === "android") {
   ]) {
     play[name] = valueNamed(name, "a part of the upload key");
   }
-  const accountFile = fileNamed("GOOGLE_PLAY_SERVICE_ACCOUNT", "the key of Google Play's account");
+  // A build uploaded by hand asks nothing of Google's API.
+  const accountFile = flags.has("--by-hand")
+    ? null
+    : fileNamed("GOOGLE_PLAY_SERVICE_ACCOUNT", "the key of Google Play's account");
   if (accountFile && existsSync(accountFile)) {
     try {
       play.account = serviceAccountOf(readFileSync(accountFile, "utf8"));
@@ -572,6 +575,20 @@ async function buildForAndroid() {
     env: shell,
   });
   const runtime = await checkRuntime("android", carried.ok ? carried.output : "");
+
+  // Google's API takes a bundle only for an app that has one already: the first goes up by hand,
+  // in the Play Console, from where this leaves it. Its runtime is written now, as Google will
+  // have it once it is uploaded.
+  if (flags.has("--by-hand")) {
+    const kept = path.join(os.tmpdir(), `${APP_SCHEME}-${build}.aab`);
+    copyFileSync(bundle, kept);
+    await recordShipped("android", runtime, build, version);
+    console.log(
+      `\nBuild ${build} of ${version}, for the runtime ${runtime}, is at ${kept}. Upload it to ` +
+        "internal testing in the Play Console, then delete it.",
+    );
+    return;
+  }
 
   let versionCode;
   try {
