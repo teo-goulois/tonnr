@@ -23,7 +23,11 @@ export function useLiveSessionOffer() {
     const session = liveSession();
     if (!session || pathname.startsWith("/session/")) return;
     void liveStateNow().then((state) => {
-      if (state === "ended" || state === "unended" || (state === "running" && session.shown === false)) {
+      if (
+        state === "ended" ||
+        state === "unended" ||
+        (state === "running" && session.shown === false)
+      ) {
         router.push("/session/live");
       }
     });
