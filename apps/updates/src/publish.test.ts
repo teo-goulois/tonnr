@@ -55,6 +55,7 @@ const COMMIT = "a".repeat(40);
 const encode = (text: string) => new TextEncoder().encode(text);
 const sha256 = (bytes: Uint8Array, encoding: "hex" | "base64url") =>
   createHash("sha256").update(bytes).digest(encoding);
+const md5 = (bytes: Uint8Array) => createHash("md5").update(bytes).digest("hex");
 
 /** An export of the app, much smaller than one: a bundle, a picture and a font both share. */
 const exportOf = (platform: string): Exported => ({
@@ -89,7 +90,7 @@ describe("the manifest of an update", () => {
     });
     expect(manifest.launchAsset).toEqual({
       hash: sha256(bundle, "base64url"),
-      key: sha256(bundle, "hex"),
+      key: md5(bundle),
       contentType: "application/javascript",
       fileExtension: ".bundle",
       url: `https://bundles.example.org/files/${sha256(bundle, "hex")}`,
@@ -100,9 +101,14 @@ describe("the manifest of an update", () => {
     ]);
     // A key goes into a file name on the phone: no separator, no padding.
     for (const asset of [manifest.launchAsset, ...manifest.assets]) {
-      expect(asset.key).toMatch(/^[0-9a-f]{64}$/);
+      expect(asset.key).toMatch(/^[0-9a-f]{32}$/);
       expect(asset.hash).not.toMatch(/[=+/]/);
     }
+    // The app finds a picture by the MD5 that Metro names it by, which is its file's name in the
+    // export: `assets/<md5>`.
+    expect(manifest.assets.map((asset) => asset.key)).toEqual(
+      input.exported.assets.map((asset) => md5(asset.bytes)),
+    );
     expect(files.every((file) => file.cacheControl === FILE_CACHE && file.immutable)).toBe(true);
   });
 
@@ -254,11 +260,16 @@ describe("an export of the app", () => {
   const directory = mkdtempSync(join(tmpdir(), "updates-export-"));
   afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
+  // `expo export` writes each picture at `assets/<fileHash>`, Metro's MD5 of its bytes, which is
+  // what the app looks a picture up by.
+  const picture = encode("a picture");
+  const pictureAt = `assets/${md5(picture)}`;
+
   it("is read as expo export describes it in metadata.json", () => {
     mkdirSync(join(directory, "_expo/static/js/ios"), { recursive: true });
     mkdirSync(join(directory, "assets"));
     writeFileSync(join(directory, "_expo/static/js/ios/entry-abc.hbc"), "bytecode");
-    writeFileSync(join(directory, "assets/0123"), "a picture");
+    writeFileSync(join(directory, pictureAt), picture);
     writeFileSync(
       join(directory, "metadata.json"),
       JSON.stringify({
@@ -267,15 +278,21 @@ describe("an export of the app", () => {
         fileMetadata: {
           ios: {
             bundle: "_expo/static/js/ios/entry-abc.hbc",
-            assets: [{ path: "assets/0123", ext: "png" }],
+            assets: [{ path: pictureAt, ext: "png" }],
           },
         },
       }),
     );
     expect(readExport(directory, "ios")).toEqual({
       bundle: encode("bytecode"),
-      assets: [{ ext: "png", bytes: encode("a picture") }],
+      assets: [{ ext: "png", bytes: picture }],
     });
     expect(() => readExport(directory, "android")).toThrow(/nothing for android/);
+  });
+
+  it("names each picture in the manifest by the name expo export gave its file", () => {
+    const { manifest } = manifestOf(inputOf("ios", { exported: readExport(directory, "ios") }));
+    expect(manifest.assets.map((asset) => asset.key)).toEqual([md5(picture)]);
+    expect(`assets/${manifest.assets[0]?.key}`).toBe(pictureAt);
   });
 });

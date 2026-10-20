@@ -98,8 +98,12 @@ function fileOf(bytes: Uint8Array, ext: string | null, filesOrigin: string) {
     asset: {
       // The client checks each file against this hash, written as base64url without padding.
       hash: createHash("sha256").update(bytes).digest("base64url"),
-      // The client keeps a file under its key and extension, which may hold no separator.
-      key: hex,
+      // The client keeps a file under its key, and the app finds a picture by the MD5 of its
+      // bytes, which Metro names it by: expo-asset looks up `localAssets[fileHash]`, which
+      // expo-updates fills from each asset's key and, for the binary's own, from their MD5. A key
+      // of another hash would leave every picture an update adds or changes blank, and make the
+      // client download again the pictures it holds already.
+      key: createHash("md5").update(bytes).digest("hex"),
       contentType,
       fileExtension: `.${ext ?? "bundle"}`,
       url: new URL(fileKey(hex), filesOrigin).toString(),
