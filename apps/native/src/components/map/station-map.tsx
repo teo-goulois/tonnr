@@ -467,7 +467,7 @@ export function StationMap({
             "icon-image": IMAGES.wave,
             // The wave fills the disc, less a margin.
             "icon-size": byBreakDisc((disc) => (disc.radius * 1.3) / DISC_ICON),
-            "icon-padding": 3,
+            "icon-padding": [3, 3, 3, 3],
             "icon-allow-overlap": true,
           }}
           paint={{
@@ -595,7 +595,7 @@ export function StationMap({
             "icon-size": byBreakDisc(
               (disc) => (Math.max(SPOT_RADIUS, disc.radius) * 1.3) / DISC_ICON,
             ),
-            "icon-padding": 3,
+            "icon-padding": [3, 3, 3, 3],
             "icon-allow-overlap": true,
           }}
         />
