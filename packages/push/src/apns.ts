@@ -11,7 +11,7 @@ import {
   signedToken,
 } from "./apps";
 import type { AppDevice, Outcome, Pusher } from "./index";
-import { kindOf } from "./request";
+import { PUSH_MS, giveUpAfter, kindOf } from "./request";
 
 // How the instance sends a push to its app on an iPhone: decision 072. APNs is asked over
 // HTTP/2, with `node:http2` and no library, on one session to each of Apple's two hosts, which
@@ -58,7 +58,6 @@ export type Stream = (
   signal: AbortSignal,
 ) => Promise<StreamAnswer>;
 
-const SEND_MS = 10_000;
 // Apple refuses a token signed more than an hour before, and one made anew more often than every
 // twenty minutes: a token is used forty minutes. Chosen in decision 072.
 const TOKEN_KEPT_MS = 40 * 60 * 1000;
@@ -193,11 +192,16 @@ export type ActivityTarget = Pick<AppDevice, "token" | "appId" | "environment">;
 
 /**
  * A pusher to the app on an iPhone, which closes its sessions to Apple when asked. `activity`
- * sends a push of a Live Activity, once, within the ten seconds a push is given, and says what
- * became of it as `send` does: decision 074.
+ * sends a push of a Live Activity, once, within the ten seconds a push is given or by `until`,
+ * and says what became of it as `send` does: decision 074.
  */
 export type ApnsPusher = Pusher<AppDevice> & {
-  activity: (to: ActivityTarget, push: ActivityPush, keepSeconds: number) => Promise<Outcome>;
+  activity: (
+    to: ActivityTarget,
+    push: ActivityPush,
+    keepSeconds: number,
+    until?: AbortSignal,
+  ) => Promise<Outcome>;
   close: () => void;
 };
 
@@ -232,7 +236,7 @@ export function createApnsPusher(
   const key = privateKeyOf("APNS_PRIVATE_KEY", text, "ec");
   const transport = options.stream ? { stream: options.stream, close: () => {} } : http2Streams();
   const hosts = options.hosts ?? APNS_HOSTS;
-  const sendMs = options.sendMs ?? SEND_MS;
+  const sendMs = options.sendMs ?? PUSH_MS;
 
   // The token that names the instance to Apple, and when it was signed.
   let signed: { token: string; at: number } | null = null;
@@ -261,8 +265,12 @@ export function createApnsPusher(
     headers: Record<string, string>,
     payload: Uint8Array,
     // What the log says it was, before the reason Apple gives.
-    what = "",
+    what: string,
+    // A moment shared among pushes, which gives it up sooner.
+    until: AbortSignal | undefined,
   ): Promise<Outcome> => {
+    // Given no time left, it is not sent.
+    if (until?.aborted) return not("refused", `${what}no time left`);
     const answer = await transport.stream(
       to.environment === "development" ? hosts.development : hosts.production,
       {
@@ -271,7 +279,7 @@ export function createApnsPusher(
         ...headers,
       },
       payload,
-      AbortSignal.timeout(sendMs),
+      giveUpAfter(sendMs, until),
     );
     if ("failure" in answer) {
       return not(
@@ -312,7 +320,7 @@ export function createApnsPusher(
 
   return {
     close: transport.close,
-    activity: async (to, push, keepSeconds) => {
+    activity: async (to, push, keepSeconds, until) => {
       try {
         const refused = refusedTo(to, keepSeconds);
         if (refused) return not("refused", `activity ${refused}`);
@@ -333,12 +341,13 @@ export function createApnsPusher(
           },
           payload,
           "activity ",
+          until,
         );
       } catch (error) {
         return not("failed", `activity ${error instanceof Error ? error.name : "unknown"}`);
       }
     },
-    send: async (device, push, keepSeconds) => {
+    send: async (device, push, keepSeconds, until) => {
       try {
         // Checked again as it leaves: a token goes into the path of the request.
         const refused = refusedTo(device, keepSeconds);
@@ -367,6 +376,8 @@ export function createApnsPusher(
             ...(collapseId ? { "apns-collapse-id": collapseId } : {}),
           },
           made.payload,
+          "",
+          until,
         );
       } catch (error) {
         return not("failed", error instanceof Error ? error.name : "unknown");

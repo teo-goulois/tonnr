@@ -269,6 +269,19 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(await activities()).toEqual([]);
     });
 
+    it("gives the push in the place of a refused start what is left of the time the start had", async () => {
+      apple.answers.set(startToken, { status: 429, reason: "TooManyRequests" });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const started = vi.spyOn(apple.pusher, "activity");
+      const pushed = vi.spyOn(apple.pusher, "send");
+
+      await begins();
+
+      const until = started.mock.calls[0]?.[3];
+      expect(until).toBeInstanceOf(AbortSignal);
+      expect(pushed.mock.calls[0]?.[3]).toBe(until);
+    });
+
     it("lets go of a token that starts no more activities, and pushes to the iPhone, which stays", async () => {
       apple.answers.set(startToken, { status: 410, reason: "ExpiredToken" });
 

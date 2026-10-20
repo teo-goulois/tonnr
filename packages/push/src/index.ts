@@ -3,7 +3,7 @@ import type { Locale } from "@repo/mail/verification";
 import { isPushEndpoint } from "./endpoints";
 import { PUSH_BYTES, encryptPush } from "./encrypt";
 import { readVapidKeys } from "./keys";
-import { type Post, post } from "./request";
+import { type Post, PUSH_MS, giveUpAfter, post } from "./request";
 import { vapidHeader } from "./vapid";
 
 export { isPushEndpoint } from "./endpoints";
@@ -11,6 +11,7 @@ export { makeVapidKeys } from "./keys";
 export { type ActivityTarget, type ApnsPusher, type ApnsSettings, createApnsPusher } from "./apns";
 export { type ActivityPush, type WindowShown, WINDOW_ACTIVITY } from "./activities";
 export { type FcmSettings, createFcmPusher } from "./fcm";
+export { PUSH_MS } from "./request";
 
 // How the instance sends a push to a browser: decision 031, "Push". This knows the standards a
 // push is written by, RFC 8030, 8291 and 8292, and nothing of an alert. They are built on
@@ -96,13 +97,11 @@ export type Pusher<To = WebDevice> = {
    * Sends a push to one device, once, and answers within ten seconds. `keepSeconds` is how
    * long the push service keeps it for a device that is off. What was sent when it gives up
    * may still arrive, and nothing more is sent after the answer: the connection is closed, or
-   * for Apple the stream.
+   * for Apple the stream. `until` gives it up sooner, at a moment shared among pushes: one
+   * given no time left is not sent, and is refused.
    */
-  send: (device: To, push: Push, keepSeconds: number) => Promise<Outcome>;
+  send: (device: To, push: Push, keepSeconds: number, until?: AbortSignal) => Promise<Outcome>;
 };
-
-// How long a push may take to leave: what holds an account's settings waits for it.
-const SEND_MS = 10_000;
 // A push service keeps a push for four weeks at most.
 const KEPT_AT_MOST_SECONDS = 28 * 24 * 60 * 60;
 // How long the token that names the instance to a push service is used before another is
@@ -135,7 +134,7 @@ export function createPusher(
   if (!URL.canParse(subject)) throw new Error("A push names its instance by an address");
   const allows = options.allows ?? isPushEndpoint;
   const give = options.post ?? post;
-  const sendMs = options.sendMs ?? SEND_MS;
+  const sendMs = options.sendMs ?? PUSH_MS;
 
   // The token for each push service, by the beginning of its address, and when it was signed.
   const tokens = new Map<string, { header: string; at: number }>();
@@ -161,8 +160,9 @@ export function createPusher(
   };
 
   return {
-    send: async (device, push, keepSeconds) => {
+    send: async (device, push, keepSeconds, until) => {
       try {
+        if (until?.aborted) return not("refused", "no time left");
         // Checked again as it leaves: an address is where a request goes.
         if (!allows(device.endpoint)) return not("refused", "an address no push service gave");
         // A push service is told a number of seconds, and takes nothing else.
@@ -190,7 +190,7 @@ export function createPusher(
             ttl: String(Math.min(Math.max(0, Math.floor(keepSeconds)), KEPT_AT_MOST_SECONDS)),
           },
           body,
-          AbortSignal.timeout(sendMs),
+          giveUpAfter(sendMs, until),
         );
         if ("failure" in answer) {
           return not(

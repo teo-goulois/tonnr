@@ -25,6 +25,17 @@ export type Post = (
   readBytes?: number,
 ) => Promise<Answer>;
 
+/** How long a push may take to leave: what holds an account's settings waits for it. */
+export const PUSH_MS = 10_000;
+
+/**
+ * What gives a push up: the time a push is given, or sooner `until`, a moment the caller shares
+ * among pushes, as a start of a Live Activity shares it with the push that leaves in its place
+ * (decision 074).
+ */
+export const giveUpAfter = (ms: number, until?: AbortSignal) =>
+  until ? AbortSignal.any([AbortSignal.timeout(ms), until]) : AbortSignal.timeout(ms);
+
 // The kind of a failure, as the system names it: its message can hold the address.
 export const kindOf = (error: unknown) => {
   const code = error instanceof Error && "code" in error ? error.code : undefined;

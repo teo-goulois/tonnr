@@ -140,6 +140,18 @@ describe("the pusher of an instance", () => {
     expect(logged.mock.calls.flat().join(" ")).toContain("no time to keep it for");
   });
 
+  it("sends nothing once the moment it shares with other pushes has come", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const service = testPusher();
+
+    expect(await service.pusher.send(service.device(), push, 60, AbortSignal.abort())).toBe(
+      "refused",
+    );
+
+    expect(service.asked()).toEqual([]);
+    expect(logged.mock.calls.flat().join(" ")).toContain("no time left");
+  });
+
   it("signs once an hour for each push service, and not once for each push", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-12T08:00:00Z"));

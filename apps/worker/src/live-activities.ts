@@ -24,7 +24,7 @@ import {
 import { user } from "@repo/db/schema/auth";
 import { spot, surfBreak } from "@repo/db/schema/spots";
 import type { Locale } from "@repo/mail/verification";
-import type { ApnsPusher, Outcome, WindowShown } from "@repo/push";
+import { type ApnsPusher, type Outcome, PUSH_MS, type WindowShown } from "@repo/push";
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { Effect, Result } from "effect";
 
@@ -353,7 +353,7 @@ export async function beginOn(
   tx: Transaction,
   ios: ApnsPusher,
   devices: readonly Device[],
-  pushOne: (device: Device) => Promise<Outcome> | null,
+  pushOne: (device: Device, until: AbortSignal) => Promise<Outcome> | null,
   begins: {
     userId: string;
     alertId: string;
@@ -449,11 +449,14 @@ export async function beginOn(
     }
   }
 
+  // Every device's together take the time one push is given, a start and the push that leaves
+  // in its place when Apple refuses it as much as any other: the account is held meanwhile.
+  const until = AbortSignal.timeout(PUSH_MS);
   const sent = await Promise.allSettled(
     plans.map(async (plan) => {
       const { device } = plan;
       const pushed = async () => {
-        const sending = pushOne(device);
+        const sending = pushOne(device, until);
         return sending ? await sending : null;
       };
       if (plan.kind === "push") return { plan, outcome: await pushed(), activity: null };
@@ -478,11 +481,13 @@ export async function beginOn(
             }
           : { event: "update", shown: plan.shown, staleAt: plan.until, locale: begins.locale },
         begins.keepSeconds,
+        until,
       );
       if (activity === "taken" || activity === "failed") {
         return { plan, outcome: activity as Outcome | null, activity };
       }
-      // Refused, or no more: the push of decision 072 leaves to the iPhone in its place.
+      // Refused, or no more: the push of decision 072 leaves to the iPhone in its place, in
+      // what is left of the time, and is refused when none is.
       return { plan, outcome: await pushed(), activity };
     }),
   );

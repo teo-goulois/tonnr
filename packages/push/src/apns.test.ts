@@ -490,6 +490,33 @@ describe("a push to a server of this machine that speaks HTTP/2 as Apple does", 
     await server.close();
   });
 
+  it("gives a push up at a moment shared among pushes, and sends none once it has come", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // Apple begins to answer, and never ends.
+    const server = await serving((stream) => {
+      stream.respond({ ":status": 200 });
+    });
+    const pusher = local(server.origin);
+    const started = Date.now();
+
+    expect(await pusher.send(phone(), push, 60, AbortSignal.timeout(100))).toBe("failed");
+    expect(Date.now() - started).toBeLessThan(1500);
+    expect(server.asked).toHaveLength(1);
+
+    expect(await pusher.send(phone(), push, 60, AbortSignal.abort())).toBe("refused");
+    expect(
+      await pusher.activity(
+        phone(),
+        { event: "end", shown: {} as never, dismissAt: new Date() },
+        60,
+        AbortSignal.abort(),
+      ),
+    ).toBe("refused");
+    expect(server.asked).toHaveLength(1);
+    pusher.close();
+    await server.close();
+  });
+
   it("reads the reason of a refusal", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const server = await serving((stream) => {

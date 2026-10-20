@@ -152,6 +152,18 @@ describe("a push to an Android phone", () => {
     ]);
   });
 
+  it("sends nothing, and asks no token, once the moment it shares with other pushes has come", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const google = testFcm();
+
+    expect(await google.pusher.send(google.device(), push, 60, AbortSignal.abort())).toBe(
+      "refused",
+    );
+
+    expect(google.asked()).toEqual([]);
+    expect(google.exchanges()).toEqual([]);
+  });
+
   it("says what became of it, by what Google answered", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const google = testFcm();

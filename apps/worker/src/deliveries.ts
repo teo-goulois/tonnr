@@ -213,18 +213,20 @@ export const kindsOf = (out: PushOut) =>
 
 /**
  * Sends a push to one device by its kind's way out. Null for a device this worker cannot reach:
- * a kind it has no way out for, or a row that does not hold what its kind is sent with.
+ * a kind it has no way out for, or a row that does not hold what its kind is sent with. `until`
+ * gives it up sooner than the time a push is given, at a moment it shares with another.
  */
 export function pushTo(
   out: PushOut,
   device: DeviceRow,
   push: Push,
   keepSeconds: number,
+  until?: AbortSignal,
 ): Promise<PushOutcome> | null {
   const { p256dh, auth } = device;
   if (device.kind === "web") {
     if (!out.web || device.endpoint === null) return null;
-    return out.web.send({ endpoint: device.endpoint, p256dh, auth }, push, keepSeconds);
+    return out.web.send({ endpoint: device.endpoint, p256dh, auth }, push, keepSeconds, until);
   }
   const way = device.kind === "ios" ? out.ios : out.android;
   if (!way || device.token === null || device.appId === null) return null;
@@ -232,6 +234,7 @@ export function pushTo(
     { token: device.token, appId: device.appId, environment: device.environment, p256dh, auth },
     push,
     keepSeconds,
+    until,
   );
 }
 
@@ -1231,7 +1234,7 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
               tx,
               out.ios,
               devices,
-              (device) => pushTo(out, device, push, keepSeconds),
+              (device, until) => pushTo(out, device, push, keepSeconds, until),
               {
                 userId: taken.userId,
                 alertId: taken.alertId,

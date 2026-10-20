@@ -1,6 +1,6 @@
 import { keptFor, payloadFor, privateKeyOf, signedToken } from "./apps";
 import type { AppDevice, Outcome, Pusher } from "./index";
-import { type Post, post } from "./request";
+import { type Post, PUSH_MS, giveUpAfter, post } from "./request";
 
 // How the instance sends a push to its app on an Android phone: decision 072. FCM's HTTP v1 API
 // is asked with `node:https`, through the same request a browser's push takes, on a connection
@@ -27,7 +27,6 @@ export const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 export const fcmAddressOf = (project: string) =>
   `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(project)}/messages:send`;
 
-const SEND_MS = 10_000;
 // An access token is asked for again five minutes before it ends.
 const RENEWED_BEFORE_MS = 5 * 60 * 1000;
 // What Google says is read this far: an access token, or why a push was not taken.
@@ -93,7 +92,7 @@ export function createFcmPusher(
   }
   const key = privateKeyOf("FCM_PRIVATE_KEY", text, "rsa");
   const give = options.post ?? post;
-  const sendMs = options.sendMs ?? SEND_MS;
+  const sendMs = options.sendMs ?? PUSH_MS;
   const sendAddress = new URL(fcmAddressOf(project));
 
   // The access token, until it is to be asked for again, and the request for one under way,
@@ -152,8 +151,9 @@ export function createFcmPusher(
   };
 
   return {
-    send: async (device, push, keepSeconds) => {
+    send: async (device, push, keepSeconds, until) => {
       try {
+        if (until?.aborted) return not("refused", "no time left");
         if (!TOKEN.test(device.token)) return not("refused", "a token FCM did not give");
         if (!Number.isFinite(keepSeconds)) return not("refused", "no time to keep it for");
         // Google's limit is on the data of a message: its one field.
@@ -174,7 +174,7 @@ export function createFcmPusher(
           },
         };
         // The access token and the push share the time a push is given.
-        const signal = AbortSignal.timeout(sendMs);
+        const signal = giveUpAfter(sendMs, until);
         const token = await accessToken(signal);
         // The push did not leave.
         if (typeof token !== "string") return not("refused", token.failure);
