@@ -2093,9 +2093,9 @@
   "native_guide_line_hint": "Ouvre de quoi la compléter ou la corriger.",
   "native_guide_failed": "Le guide n'a pas pu être chargé.",
   "native_guide_characters": "{count} caractères sur {most}",
-  "native_friends_renew_text": "Le lien que tu as maintenant n'ouvrira plus rien. Tes amis restent.",
-  "native_friends_remove_text": "Vous ne lirez plus les contributions l'un de l'autre. Toi seul pourras le redevenir, en ouvrant son lien.",
-  "native_friend_hint": "Ouvre ce qu'il a écrit et qui a été confirmé.",
+  "native_friends_renew_text": "Ton lien actuel n'ouvrira plus rien. Tu gardes tes amis.",
+  "native_friends_remove_text": "Vous ne verrez plus les contributions l'un de l'autre. Pour redevenir amis, c'est toi qui devras ouvrir son lien.",
+  "native_friend_hint": "Montre ses contributions confirmées.",
   "native_friend_since": "Amis depuis {date}",
   "native_blocked_since": "Bloqué le {date}",
   "native_contribution_open_hint": "Ouvre son guide sur la carte."
