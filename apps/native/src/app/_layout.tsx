@@ -1,3 +1,5 @@
+// Intl's plural rules and relative times, which Hermes lacks, before anything writes one.
+import "@/lib/intl";
 import "@/global.css";
 // `localStorage`, as the web has it, kept by SQLite: what the app shares with the web keeps
 // what a browser keeps in it the same way.
