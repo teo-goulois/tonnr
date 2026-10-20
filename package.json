@@ -25,6 +25,7 @@
     "db:down": "docker compose down postgres",
     "deploy:web": "node scripts/cloudflare-deploy.mjs web",
     "deploy:admin": "node scripts/cloudflare-deploy.mjs admin",
+    "deploy:updates": "node scripts/cloudflare-deploy.mjs updates",
     "deploy:api": "node --env-file-if-exists=.env scripts/easypanel-deploy.mjs api",
     "deploy:worker": "node --env-file-if-exists=.env scripts/easypanel-deploy.mjs worker",
     "deploy:status": "node --env-file-if-exists=.env scripts/easypanel-deploy.mjs status",

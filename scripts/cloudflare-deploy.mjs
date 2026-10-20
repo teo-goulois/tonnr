@@ -1,5 +1,7 @@
-// Deploys one app of the Cloudflare stack for one stage: `pnpm run deploy:web dev`, or
-// `pnpm run deploy:admin dev` for the admin app of a stage that names a host for it.
+// Deploys one app of the Cloudflare stack for one stage: `pnpm run deploy:web dev`,
+// `pnpm run deploy:admin dev` for the admin app of a stage that names a host for it, or
+// `pnpm run deploy:updates dev` for the Worker and the bucket of the updates of the app for
+// phones, of a stage that names their hosts (decision 075).
 //
 // It builds what `main` holds on the remote, in a checkout of its own, so that work in progress
 // in this checkout never goes online. The access to Cloudflare comes from `packages/infra/.env`
@@ -16,9 +18,9 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const infra = path.join(root, "packages", "infra");
 
 // The apps of the stack, by the name `packages/infra/alchemy.run.ts` gives each.
-const APPS = ["web", "admin"];
+const APPS = ["web", "admin", "updates"];
 // The value of a stage that gives each app its host name.
-const DOMAINS = { web: "WEB_DOMAIN", admin: "ADMIN_DOMAIN" };
+const DOMAINS = { web: "WEB_DOMAIN", admin: "ADMIN_DOMAIN", updates: "UPDATES_DOMAIN" };
 const HOST_NAME = /^([a-z0-9-]+\.)+[a-z]{2,}$/;
 const FLAGS = ["--yes", "--dry-run"];
 
@@ -157,6 +159,26 @@ if (app === "admin" && values.ADMIN_DOMAIN === undefined) {
 } else if (values.ADMIN_DOMAIN !== undefined && values.ADMIN_DOMAIN === values.WEB_DOMAIN) {
   faults.push(`ADMIN_DOMAIN in .env.${stage} is the web app's host name: the API tells them apart`);
 }
+// The updates of the app for phones are a part of a stage that names both their hosts: the
+// Worker's, which every binary built for the stage asks for good, and the bucket's: decision 075.
+const updatesHosts = [values.UPDATES_DOMAIN, values.UPDATES_FILES_DOMAIN];
+if (app === "updates" && updatesHosts.some((host) => host === undefined)) {
+  faults.push(
+    `UPDATES_DOMAIN and UPDATES_FILES_DOMAIN are not both set in .env.${stage}: this stage has ` +
+      "no updates",
+  );
+} else if (updatesHosts.some((host) => host !== undefined)) {
+  if (updatesHosts.some((host) => !HOST_NAME.test(host ?? ""))) {
+    faults.push(
+      `UPDATES_DOMAIN and UPDATES_FILES_DOMAIN in .env.${stage} are not both host names, such ` +
+        "as updates.example.org and bundles.example.org",
+    );
+  }
+  const named = [values.WEB_DOMAIN, values.ADMIN_DOMAIN, ...updatesHosts].filter(Boolean);
+  if (new Set(named).size !== named.length) {
+    faults.push(`The host names of .env.${stage} are not all different from one another`);
+  }
+}
 if (!URL.canParse(values.VITE_SERVER_URL ?? "") || !values.VITE_SERVER_URL.startsWith("https:")) {
   faults.push(`VITE_SERVER_URL in .env.${stage} is not an HTTPS address`);
 }
@@ -271,6 +293,12 @@ const deployed =
         // The stack declares the admin app whenever the stage has one, whichever app is
         // deployed: a deployment of the web app alone must not find the admin gone from it.
         ...(values.ADMIN_DOMAIN !== undefined && { ADMIN_DOMAIN: values.ADMIN_DOMAIN }),
+        // So are the updates of the app for phones.
+        ...(values.UPDATES_DOMAIN !== undefined &&
+          values.UPDATES_FILES_DOMAIN !== undefined && {
+            UPDATES_DOMAIN: values.UPDATES_DOMAIN,
+            UPDATES_FILES_DOMAIN: values.UPDATES_FILES_DOMAIN,
+          }),
       },
     },
   ));

@@ -1,0 +1,19 @@
+{
+  "name": "updates",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./bucket": "./src/bucket.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260906.1",
+    "@repo/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^5.0.3"
+  }
+}

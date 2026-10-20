@@ -4,6 +4,7 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { APP_SLUG } from "@repo/config/app";
+import { updatesBucketName } from "updates/bucket";
 import "varlock/auto-load";
 
 export default Alchemy.Stack(
@@ -16,6 +17,12 @@ export default Alchemy.Stack(
     const dev = yield* Alchemy.ALCHEMY_DEV;
     const domain = Option.getOrUndefined(yield* Config.option(Config.String("WEB_DOMAIN")));
     const adminDomain = Option.getOrUndefined(yield* Config.option(Config.String("ADMIN_DOMAIN")));
+    const updatesDomain = Option.getOrUndefined(
+      yield* Config.option(Config.String("UPDATES_DOMAIN")),
+    );
+    const updatesFilesDomain = Option.getOrUndefined(
+      yield* Config.option(Config.String("UPDATES_FILES_DOMAIN")),
+    );
     // Other hosts of the web app, such as `www.` before its domain, which the Worker sends on to
     // `WEB_DOMAIN`: decision 021.
     const redirects = (yield* Config.String("WEB_REDIRECTS").pipe(Config.withDefault("")))
@@ -72,26 +79,45 @@ export default Alchemy.Stack(
     // The admin app of decision 020 is a part of the stages that name a host for it, and of no
     // other: a stage without one deploys as it did before the admin existed. It is not started
     // by `alchemy dev` either: `pnpm run dev:admin` runs it.
-    if (adminDomain === undefined) {
-      return {
-        web: webWorker.url,
-      };
-    }
+    const adminWorker =
+      adminDomain === undefined
+        ? undefined
+        : yield* Cloudflare.Website.Vite("admin", {
+            rootDir: "../../apps/admin",
+            domain: adminDomain,
+            compatibility: {
+              flags: ["nodejs_compat"],
+            },
+            env: {
+              VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
+            },
+          });
 
-    const adminWorker = yield* Cloudflare.Website.Vite("admin", {
-      rootDir: "../../apps/admin",
-      domain: adminDomain,
-      compatibility: {
-        flags: ["nodejs_compat"],
-      },
-      env: {
-        VITE_SERVER_URL: Config.String("VITE_SERVER_URL"),
-      },
-    });
+    // The updates of the app for phones, for a stage that names the Worker's host and the
+    // bucket's: decision 075. The bucket's own domain serves the files of an update, each under
+    // the key of its hash, from Cloudflare's cache; the Worker answers the apps from the bucket,
+    // which it reads and never writes. It keeps no log of a request, and has no other address.
+    const updates =
+      updatesDomain === undefined || updatesFilesDomain === undefined
+        ? undefined
+        : yield* Effect.gen(function* () {
+            const files = yield* Cloudflare.R2.Bucket("updates-files", {
+              name: updatesBucketName(APP_SLUG, yield* Alchemy.Stage),
+              domains: [{ name: updatesFilesDomain }],
+            });
+            return yield* Cloudflare.Worker("updates", {
+              main: "../../apps/updates/src/worker.ts",
+              domain: updatesDomain,
+              workersDev: false,
+              observability: { enabled: false },
+              env: { BUCKET: files },
+            });
+          });
 
     return {
       web: webWorker.url,
-      admin: adminWorker.url,
+      ...(adminWorker && { admin: adminWorker.url }),
+      ...(updates && { updates: updates.url }),
     };
   }),
 );

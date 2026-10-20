@@ -706,6 +706,24 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2)(vite@8.3.3)
 
+  apps/updates:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^5.20260906.1
+        version: 5.20261007.1
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.4
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2)(vite@8.3.3)
+
   apps/web:
     dependencies:
       '@inlang/paraglide-js':
@@ -1153,6 +1171,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      updates:
+        specifier: workspace:*
+        version: link:../../apps/updates
       varlock:
         specifier: 'catalog:'
         version: 1.18.0
