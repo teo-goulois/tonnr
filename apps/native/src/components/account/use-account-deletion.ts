@@ -5,19 +5,18 @@ import { useState } from "react";
 import { type Provider, signInWith, useOfferedProviders } from "@/components/auth/provider-sign-in";
 import { feel } from "@/components/ui/haptics";
 import { useTell } from "@/components/ui/toast";
-import { appHeader } from "@/lib/app-client";
-import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 import { type DeletionRefusal, refusalOf, signsInAgainWith } from "./deletion";
-import { forgetOnPhone } from "./leave";
+import { leaveOnPhone } from "./leave";
 import { useOwnAccount } from "./use-own-account";
 
 /**
  * What deletes the account, from the step that says what goes: decision 071. The API judges
  * whether the session is fresh enough, by its own clock. Once the account is gone, the phone
- * lets go of its cookie and forgets whatever it kept for the account, as signing out does, and
+ * lets go of its push keys and its cookie and forgets whatever it kept for the account, as signing
+ * out does, and
  * the map opens again for a visitor (decision 070).
  */
 export function useAccountDeletion() {
@@ -39,13 +38,10 @@ export function useAccountDeletion() {
       setRefused(refusalOf(error));
       return;
     }
-    // The account and its sessions are gone: the keychain lets go of the cookie, and the phone
-    // of what it loaded and kept for the account. The account's tab goes back to its first
+    // The account and its sessions are gone: the phone lets go of its push keys and its cookie,
+    // and of what it loaded and kept for the account. The account's tab goes back to its first
     // screen, and the map opens for a visitor.
-    await authClient
-      .signOut({ fetchOptions: { headers: { "X-App": appHeader() } } })
-      .catch(() => null);
-    forgetOnPhone(queryClient);
+    await leaveOnPhone(queryClient, account?.id);
     tell({ title: m.delete_account_done(), tone: "success" });
     if (router.canDismiss()) router.dismissAll();
     router.replace("/");
