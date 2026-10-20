@@ -1,10 +1,9 @@
 import { PlusIcon } from "@repo/ui/icon";
 import { useState } from "react";
-import { View } from "react-native";
 
-import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
+import { RowTile } from "@/components/ui/list";
 import { Surface } from "@/components/ui/surface";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -25,7 +24,7 @@ export function NewListField({
   onCreate: (name: string) => Promise<unknown>;
   creating: boolean;
 }) {
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const [name, setName] = useState("");
   const trimmed = name.trim();
 
@@ -52,21 +51,7 @@ export function NewListField({
         paddingVertical: space.xxs,
       }}
     >
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 9,
-          borderCurve: "continuous",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors["neutral-3"],
-        }}
-      >
-        <Glyph icon={PlusIcon} size={16} color={colors["neutral-10"]} />
-      </View>
+      <RowTile icon={PlusIcon} />
       <TextField
         value={name}
         onChangeText={setName}

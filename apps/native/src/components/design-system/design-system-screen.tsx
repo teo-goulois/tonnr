@@ -25,7 +25,8 @@ import { edge } from "@/components/ui/edge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { type Feel, feel } from "@/components/ui/haptics";
-import { Row, Section } from "@/components/ui/list";
+import { Row, RowTile, Section } from "@/components/ui/list";
+import { TARGET } from "@/components/ui/metrics";
 import { Segmented } from "@/components/ui/segmented";
 import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
@@ -358,6 +359,22 @@ function Lists() {
           onPress={() => tell({ title: "Signed out", tone: "success" })}
         />
       </Section>
+      <Surface
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.s,
+          minHeight: TARGET,
+          paddingHorizontal: space.m,
+        }}
+      >
+        <RowTile icon={PlusIcon} />
+        <RowTile icon={BellIcon} tint={colors.warning} />
+        <RowTile icon={WindIcon} disabled />
+        <Text tone="muted" style={{ flex: 1 }}>
+          A row's tile alone, beside a field
+        </Text>
+      </Surface>
     </View>
   );
 }

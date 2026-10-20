@@ -25,6 +25,40 @@ const GLYPH = 16;
 
 type Icon = GlyphIcon;
 
+/**
+ * The tile a row's icon stands on, for a row the kit's `Row` cannot draw, as one that holds a
+ * field: on the theme's grey, or on a color, which makes its icon white.
+ */
+export function RowTile({
+  icon,
+  tint,
+  disabled = false,
+}: {
+  icon: Icon;
+  tint?: string | undefined;
+  disabled?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        width: TILE,
+        height: TILE,
+        borderRadius: TILE_RADIUS,
+        borderCurve: "continuous",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: tint ?? colors["neutral-3"],
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <Glyph icon={icon} size={GLYPH} color={tint ? light["neutral-1"] : colors["neutral-10"]} />
+    </View>
+  );
+}
+
 type RowProps = {
   title: string;
   /** A line under the title. */
@@ -64,28 +98,11 @@ export function Row({
     : destructive
       ? colors.error
       : colors["neutral-10"];
-  const tileGround = destructive ? colors.error : (tint ?? colors["neutral-3"]);
-  const tileIcon = destructive || tint ? light["neutral-1"] : colors["neutral-10"];
 
   const content = (
     <>
       {icon ? (
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          style={{
-            width: TILE,
-            height: TILE,
-            borderRadius: TILE_RADIUS,
-            borderCurve: "continuous",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: tileGround,
-            opacity: disabled ? 0.5 : 1,
-          }}
-        >
-          <Glyph icon={icon} size={GLYPH} color={tileIcon} />
-        </View>
+        <RowTile icon={icon} tint={destructive ? colors.error : tint} disabled={disabled} />
       ) : null}
       <View style={{ flex: 1 }}>
         <Text style={{ color: titleColor }}>{title}</Text>
