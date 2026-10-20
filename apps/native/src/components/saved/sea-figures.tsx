@@ -1,13 +1,12 @@
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@repo/client/sea-scales";
 import type { ShoreWind } from "@repo/conditions/shore-wind";
-import { ArrowUpIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
-import { goingTo } from "@/components/map/features";
-import { Glyph } from "@/components/shared/glyph";
+import { Bearing } from "@/components/forecast/bearing";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { compassName, compassPoint, formatSeconds } from "@/lib/format";
+import { compassName, formatSeconds } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -32,8 +31,8 @@ export const shoreWord = (shore: ShoreWind) => SHORE_WORDS[shore]();
 type PillSize = "row" | "large";
 
 const PILL = {
-  row: { height: 28, minWidth: 56, paddingHorizontal: 8, text: "s" },
-  large: { height: 40, minWidth: 76, paddingHorizontal: 13, text: "l" },
+  row: { height: 28, minWidth: 56, padding: "xs", text: "s" },
+  large: { height: 40, minWidth: 76, padding: "s", text: "l" },
 } as const;
 
 function Pill({
@@ -47,13 +46,14 @@ function Pill({
   label: string;
   size: PillSize;
 }) {
+  const { space } = useTheme();
   const shape = PILL[size];
   return (
     <View
       style={{
         height: shape.height,
         minWidth: shape.minWidth,
-        paddingHorizontal: shape.paddingHorizontal,
+        paddingHorizontal: space[shape.padding],
         borderRadius: shape.height / 2,
         borderCurve: "continuous",
         alignItems: "center",
@@ -73,6 +73,11 @@ function Pill({
       </Text>
     </View>
   );
+}
+
+/** The place of a pill while the sea there is on its way. */
+export function PillSkeleton() {
+  return <Skeleton width={PILL.row.minWidth} height={PILL.row.height} round />;
 }
 
 /** A wave height on its color of the sea's scale. */
@@ -102,19 +107,10 @@ export function WindPill({ knots, size = "row" }: { knots: number; size?: PillSi
   );
 }
 
-/** An arrow that points the way the sea or the wind goes, then the point it comes from. */
-export function Bearing({ fromDegrees, size = 12 }: { fromDegrees: number; size?: number }) {
-  const { colors, space } = useTheme();
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs / 2 }}>
-      <View style={{ transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}>
-        <Glyph icon={ArrowUpIcon} size={size} color={colors["neutral-7"]} />
-      </View>
-      <Text size="s" tone="muted" dense numberOfLines={1}>
-        {compassPoint(fromDegrees)}
-      </Text>
-    </View>
-  );
+/** Where the sea or the wind comes from, on a muted line: the forecast's `Bearing`, at its size. */
+export function MutedBearing({ degrees }: { degrees: number }) {
+  const { colors } = useTheme();
+  return <Bearing degrees={degrees} arrow={12} color={colors["neutral-7"]} dense />;
 }
 
 /**
@@ -148,7 +144,7 @@ export function SeaLine({ figures }: { figures: SeaFigures }) {
     );
   }
   if (figures.wavesFromDegrees !== null) {
-    parts.push(<Bearing key="waves" fromDegrees={figures.wavesFromDegrees} />);
+    parts.push(<MutedBearing key="waves" degrees={figures.wavesFromDegrees} />);
   }
   if (figures.windKnots !== null) {
     const wind = formatWind(figures.windKnots);

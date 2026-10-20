@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, View } from "react-native";
 
 import { FoundMark } from "@/components/search/found-list";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import type { Recent } from "@/lib/recents";
@@ -11,7 +10,7 @@ import { m } from "@/paraglide/messages";
 import { type PlaceActions } from "./place-actions";
 import { kindWord } from "./place-row";
 import { SectionHeader } from "./place-section";
-import { HeightPill, WindPill, seaWords } from "./sea-figures";
+import { HeightPill, PillSkeleton, WindPill, seaWords } from "./sea-figures";
 import { keyOf, seaFiguresOf } from "./sea-now";
 import { type SeaReader, useSeaNows } from "./use-sea-now";
 
@@ -90,7 +89,7 @@ export function RecentPlaces({
                 </View>
                 <View style={{ flexDirection: "row" }}>
                   {asked[index]?.isPending ? (
-                    <Skeleton width={56} height={28} round />
+                    <PillSkeleton />
                   ) : figures?.heightMeters != null ? (
                     <HeightPill meters={figures.heightMeters} />
                   ) : figures?.windKnots != null ? (

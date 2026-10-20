@@ -18,7 +18,15 @@ import { m } from "@/paraglide/messages";
 
 import { type ActionKey, actionsOf, type RowContext } from "./actions";
 import { ACTION_LOOKS, type PlaceActions, type PlaceItem } from "./place-actions";
-import { Bearing, HeightPill, SeaLine, WindPill, seaWords, shoreWord } from "./sea-figures";
+import {
+  HeightPill,
+  MutedBearing,
+  PillSkeleton,
+  SeaLine,
+  WindPill,
+  seaWords,
+  shoreWord,
+} from "./sea-figures";
 import { type SeaFigures, type SeaNow, seaFiguresOf, type Told } from "./sea-now";
 
 // A place in a list, as the saved tab, a list and a list opened by its link show it: what it is,
@@ -28,6 +36,8 @@ import { type SeaFigures, type SeaNow, seaFiguresOf, type Told } from "./sea-now
 // sheet. A screen reader finds the same among the row's actions.
 
 const ACTION_WIDTH = 88;
+/** A row's height: a finger's, and room for the name over the line of the sea. */
+const ROW_HEIGHT = Math.max(TARGET, 60);
 
 /** What a place is, in words: a surf break, a buoy, a wind station, a spot. */
 export function kindWord(place: PlaceItem["ref"]["kind"], sea?: SeaNow) {
@@ -44,7 +54,7 @@ export function PlaceRowSkeleton() {
   return (
     <View
       style={{
-        minHeight: 60,
+        minHeight: ROW_HEIGHT,
         flexDirection: "row",
         alignItems: "center",
         gap: space.s,
@@ -56,7 +66,7 @@ export function PlaceRowSkeleton() {
         <Skeleton width="55%" height={14} />
         <Skeleton width="35%" height={11} />
       </View>
-      <Skeleton width={56} height={28} round />
+      <PillSkeleton />
     </View>
   );
 }
@@ -100,7 +110,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
   const body = (
     <View
       style={{
-        minHeight: Math.max(TARGET, 60),
+        minHeight: ROW_HEIGHT,
         flexDirection: "row",
         alignItems: "center",
         gap: space.s,
@@ -109,7 +119,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
       }}
     >
       <FoundMark kind={item.ref.kind} />
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, gap: space.xxs / 2 }}>
         <Text weight="medium" numberOfLines={1}>
           {name}
         </Text>
@@ -125,7 +135,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
       </View>
       {figures === null ? (
         pending ? (
-          <Skeleton width={56} height={28} round />
+          <PillSkeleton />
         ) : (
           <Text tone="muted" numeric>
             –
@@ -293,7 +303,7 @@ function PlacePreview({
           <SeaLine figures={figures} />
           {figures.atShore && figures.windFromDegrees !== null ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-              <Bearing fromDegrees={figures.windFromDegrees} />
+              <MutedBearing degrees={figures.windFromDegrees} />
               <Text size="s" tone="muted">
                 {shoreWord(figures.atShore)}
               </Text>
