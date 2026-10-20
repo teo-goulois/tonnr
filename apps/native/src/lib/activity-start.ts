@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from "react";
-import { Platform } from "react-native";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { AppState, Platform } from "react-native";
 
 import { activitiesEnabled } from "../../modules/live-activities";
 import { type StartTokenState, startTokenChanged, startTokenField } from "./activity-tokens";
@@ -50,6 +50,21 @@ export const activitiesSwitchedOn = () => kept(ON) === "on";
 /** The switch, for a screen that is drawn again when it moves. */
 export const useActivitiesSwitch = () =>
   useSyncExternalStore(subscribe, activitiesSwitchedOn, () => false);
+
+/**
+ * The system's own switch for the app's Live Activities, which its person changes in Settings
+ * while the app is away: read again each time the app comes back to the foreground.
+ */
+export function useSystemActivities() {
+  const [isOn, setOn] = useState(activitiesEnabled);
+  useEffect(() => {
+    const watching = AppState.addEventListener("change", (state) => {
+      if (state === "active") setOn(activitiesEnabled());
+    });
+    return () => watching.remove();
+  }, []);
+  return isOn;
+}
 
 /** Turns the switch on or off. The device says it at its next renewal, which the caller asks. */
 export function setActivitiesSwitch(on: boolean) {

@@ -26,7 +26,12 @@ import { AppState } from "react-native";
 
 import { useAccount } from "@/lib/account";
 import { activityChanges, type FollowedActivity, notificationOf } from "@/lib/activity-tokens";
-import { keepStartToken, startTokenToSay, useActivitiesSwitch } from "@/lib/activity-start";
+import {
+  keepStartToken,
+  startTokenToSay,
+  useActivitiesSwitch,
+  useSystemActivities,
+} from "@/lib/activity-start";
 import { pushDeviceId, renewPush } from "@/lib/push";
 import { useUnits } from "@/lib/units";
 import { getLocale } from "@/paraglide/runtime";
@@ -350,6 +355,10 @@ async function passOnce(account: string) {
 export function useWindowActivities() {
   const { userId } = useAccount();
   const isOn = useActivitiesSwitch() && startsByPush();
+  // expo-widgets watches the token that starts one only while the system lets the app show
+  // Live Activities, from the moment it is first listened to: listened to again once the
+  // system's switch is turned back on, it is watched again.
+  const systemOn = useSystemActivities();
   const units = useUnits();
   const locale = getLocale();
   const alerts = useQuery({
@@ -377,17 +386,18 @@ export function useWindowActivities() {
     const returning = AppState.addEventListener("change", (state) => {
       if (state === "active") sayAgain();
     });
-    const given = isOn
-      ? addPushToStartTokenListener(({ activityPushToStartToken }) => {
-          keepStartToken(activityPushToStartToken);
-          sayAgain();
-        })
-      : null;
+    const given =
+      isOn && systemOn
+        ? addPushToStartTokenListener(({ activityPushToStartToken }) => {
+            keepStartToken(activityPushToStartToken);
+            sayAgain();
+          })
+        : null;
     return () => {
       returning.remove();
       given?.remove();
     };
-  }, [userId, isOn]);
+  }, [userId, isOn, systemOn]);
 
   // The activities iOS starts, and those that end.
   useEffect(() => {

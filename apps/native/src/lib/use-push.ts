@@ -5,8 +5,13 @@ import { AppState, Platform } from "react-native";
 import { feel } from "@/components/ui/haptics";
 import { orpc } from "@/utils/orpc";
 
-import { activitiesEnabled, startsByPush } from "../../modules/live-activities";
-import { activitiesSwitchedOn, setActivitiesSwitch, useActivitiesSwitch } from "./activity-start";
+import { startsByPush } from "../../modules/live-activities";
+import {
+  activitiesSwitchedOn,
+  setActivitiesSwitch,
+  useActivitiesSwitch,
+  useSystemActivities,
+} from "./activity-start";
 import { permission, pushDeviceId, pushIsOn, renewPush, switchPushOff, switchPushOn } from "./push";
 
 /** What the row "On this device" says: what stands in the way of its switch, or the switch. */
@@ -56,16 +61,14 @@ export function usePhonePush(account: string | undefined) {
   const [removing, setRemoving] = useState<string[]>([]);
   const [here, setHere] = useState(pushDeviceId);
   const activitiesOn = useActivitiesSwitch();
-  const [systemActivities, setSystemActivities] = useState(activitiesEnabled);
+  const systemActivities = useSystemActivities();
   const [activitiesBusy, setActivitiesBusy] = useState(false);
   const [activitiesFailed, setActivitiesFailed] = useState(false);
 
-  // The system's answer changes in its settings, while the app is away, and so does its own
-  // switch for the app's Live Activities.
+  // The system's answer changes in its settings, while the app is away.
   useEffect(() => {
     const read = () => {
       void permission().then(setAllowed, () => setAllowed(null));
-      setSystemActivities(activitiesEnabled());
     };
     read();
     const watching = AppState.addEventListener("change", (state) => {
