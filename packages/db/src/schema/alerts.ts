@@ -437,7 +437,7 @@ export const liveActivity = pgTable(
     deviceId: text("device_id")
       .notNull()
       .references(() => pushSubscription.id, { onDelete: "cascade" }),
-    // The notification of "it is on" that started it, whose first place it shows.
+    // The notification of "it is on" that started it.
     notificationId: text("notification_id")
       .notNull()
       .references(() => notification.id, { onDelete: "cascade" }),
@@ -445,6 +445,11 @@ export const liveActivity = pgTable(
     alertId: text("alert_id").references(() => alert.id, { onDelete: "set null" }),
     // The alert's revision when it started: an alert that is changed since ends it.
     alertRevision: integer("alert_revision").notNull(),
+    // The place of the alert it shows, the first its start told, which may be the place of
+    // another notification that began with its own, and where its window there began. The job
+    // follows that place. Never sent to Apple.
+    placeId: text("place_id").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     // The activity's own token, which its updates and its end are sent to. Null until the app
     // gives it, and once the activity ended.
     token: text("token").unique(),

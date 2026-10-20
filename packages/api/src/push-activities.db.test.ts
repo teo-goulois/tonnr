@@ -133,6 +133,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activities of an iPhone", () => {
       notificationId,
       alertId,
       alertRevision: 0,
+      placeId: "home",
+      startsAt: new Date(),
       lastsUntil: new Date(Date.now() + 2 * 60 * 60 * 1000),
     });
     return { id, notificationId };

@@ -849,7 +849,9 @@ export type Taken = About &
 /**
  * What the Live Activity of a window that begins shows as it starts, when the account has an
  * iPhone whose switch is on: the first place it tells, with its first hours, and how many more
- * places begin with it. Decision 074.
+ * places begin with it. The first place may be that of another notification of the alert that
+ * this one says in the place of: the activity's row keeps which, for the job that follows it.
+ * Decision 074.
  */
 async function beginningOf(
   tx: Transaction,
@@ -877,7 +879,7 @@ async function beginningOf(
     },
     now,
   );
-  return { shown, until: piece.end };
+  return { shown, placeId: link.place.id, startsAt: piece.start, until: piece.end };
 }
 
 // Until when what a push says is worth keeping for a browser that is off: the end of the last

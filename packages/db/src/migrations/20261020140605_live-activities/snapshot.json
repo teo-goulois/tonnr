@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e1982dd4-3fa2-4ed8-bf62-cedb349028af",
+  "id": "21c80734-b70e-4cab-9c3f-119c1e005bdd",
   "prevIds": [
     "0dd63adb-4d45-479d-b24a-f6fe26033f72"
   ],
@@ -5235,6 +5235,32 @@
       "generated": null,
       "identity": null,
       "name": "alert_revision",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "live_activity"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "place_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "live_activity"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "starts_at",
       "entityType": "columns",
       "schema": "public",
       "table": "live_activity"

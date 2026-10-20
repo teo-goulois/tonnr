@@ -19,7 +19,6 @@ import {
   alert,
   alertSettings,
   liveActivity,
-  notification,
   pushSubscription,
 } from "@repo/db/schema/alerts";
 import { user } from "@repo/db/schema/auth";
@@ -220,11 +219,6 @@ export async function followed(
   now: Date,
   also: readonly string[] = [],
 ): Promise<{ shown: WindowShown; until: Date; ends: EndOf | null }> {
-  const [told] = await tx
-    .select({ payload: notification.payload })
-    .from(notification)
-    .where(eq(notification.id, activity.notificationId));
-  const [first] = told?.payload.lines ?? [];
   const [settingsRow] = await tx
     .select()
     .from(alertSettings)
@@ -234,12 +228,11 @@ export async function followed(
     ? await tx.select().from(alert).where(eq(alert.id, activity.alertId))
     : [];
   const links = held ? await watchedOf(tx, { alertId: held.id }) : [];
-  const link = links.find((one) => one.place.id === first?.spotId);
-  // The hours it shows: from where its first place's hours began to where they last.
-  const said = {
-    start: new Date(first?.open[0]?.start ?? activity.createdAt),
-    end: activity.lastsUntil,
-  };
+  // The place it shows, which its start told first: it may be another notification's, that
+  // began with its own.
+  const link = links.find((one) => one.place.id === activity.placeId);
+  // The hours it shows: from where its window began there to where it lasts.
+  const said = { start: activity.startsAt, end: activity.lastsUntil };
   // As the last look still finds them, when it is fresh: they may have moved.
   const found = link
     ? stillOpen(now, watched(link, now), openOf(links, availabilityOf(settings)), [said])
@@ -292,8 +285,11 @@ export async function followed(
   return { shown, until: window.end, ends };
 }
 
-/** What a start of the activity shows, which the first step of "it is on" wrote. */
-export type Beginning = { shown: WindowShown; until: Date };
+/**
+ * What a start of the activity shows, which the first step of "it is on" wrote: the place it
+ * shows, where its window there begins, and until when it lasts.
+ */
+export type Beginning = { shown: WindowShown; placeId: string; startsAt: Date; until: Date };
 
 // An iPhone whose switch is on: it gave the token that starts its Live Activities.
 const switchedOn = (device: Device): device is Device & { activityStartToken: string } =>
@@ -465,6 +461,8 @@ export async function beginOn(
               notificationId: begins.notificationId,
               alertId: begins.alertId,
               alertRevision: begins.revision,
+              placeId: plan.beginning.placeId,
+              startsAt: plan.beginning.startsAt,
               lastsUntil: plan.beginning.until,
               shown: shownHash(plan.beginning.shown),
             })

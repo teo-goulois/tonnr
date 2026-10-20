@@ -2272,6 +2272,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
         notificationId,
         alertId,
         alertRevision: 0,
+        placeId: "home",
+        startsAt: new Date(),
         lastsUntil: new Date(Date.now() + 60 * 60 * 1000),
       });
       const activity = { id, notification: notificationId };

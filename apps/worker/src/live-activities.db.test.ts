@@ -241,6 +241,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
           notificationId: told?.id,
           alertId: "bay",
           alertRevision: 0,
+          placeId: "home",
+          startsAt: hour(8),
           token: null,
           lastsUntil: hour(12),
           endedAt: null,
@@ -323,6 +325,71 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(await activities()).toEqual([]);
     });
 
+    it("follows the place its start showed, which a beginning it said in the place of told", async () => {
+      // The alert has a second place, where the wind of the forecast blows onshore.
+      await database.db.insert(spot).values({
+        id: "reef",
+        userId: "owner",
+        name: "Reef",
+        latitude: 43.63,
+        longitude: -1.46,
+        characteristics: { offshoreDirectionDegrees: 270 },
+      });
+      await database.db.insert(alertSpot).values({ spotId: "reef", alertId: "bay", position: 1 });
+      await database.db
+        .update(alertSettings)
+        .set({ quietFrom: 7 * 60, quietTo: 9 * 60 })
+        .where(eq(alertSettings.userId, "owner"));
+      await begins();
+      // What waits is two beginnings: the reef's, written first, and then the home's.
+      const [made] = await database.db.select().from(notification);
+      const [due] = await database.db.select().from(notificationDelivery);
+      const lineOf = (spotId: string) => made?.payload.lines.find((one) => one.spotId === spotId);
+      const [home, reef] = [lineOf("home"), lineOf("reef")];
+      if (!made || !due || !home || !reef) throw new Error("no notification");
+      await database.db
+        .update(notification)
+        .set({ payload: { ...made.payload, lines: [reef] } })
+        .where(eq(notification.id, made.id));
+      const second = crypto.randomUUID();
+      await database.db
+        .insert(notification)
+        .values({
+          ...made,
+          id: second,
+          key: "second",
+          payload: { ...made.payload, lines: [home] },
+        });
+      await database.db.insert(notificationDelivery).values({
+        ...due,
+        notificationId: second,
+        createdAt: new Date(due.createdAt.getTime() + 1000),
+      });
+
+      // The reef's leaves first, and says the home's with it, first as the alert lists them.
+      vi.setSystemTime(hour(9));
+      expect(await pass()).toMatchObject({ pushes: 1 });
+      const [started] = apple.activities();
+      expect(started?.read.shown).toMatchObject({
+        notificationId: made.id,
+        more: 1,
+        wind: { atShore: "offshore" },
+      });
+      expect(await activities()).toMatchObject([
+        {
+          notificationId: made.id,
+          placeId: "home",
+          startsAt: new Date(started!.read.shown!.start),
+        },
+      ]);
+
+      // What follows it is the home's, not the reef's that its notification first told.
+      await tokenGiven();
+      vi.setSystemTime(new Date(hour(9).getTime() + 7 * MINUTE_MS));
+      expect(await follow()).toMatchObject({ running: 1, ended: 0, failed: 0 });
+      expect(apple.activities().at(-1)?.read.shown?.wind?.atShore).toBe("offshore");
+    });
+
     it("updates the activity of the alert that runs, and lights the screen, instead of starting another", async () => {
       // An activity of the alert runs on the iPhone, started by an earlier notification.
       const earlier = crypto.randomUUID();
@@ -352,6 +419,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
         notificationId: earlier,
         alertId: "bay",
         alertRevision: 0,
+        placeId: "home",
+        startsAt: hour(8),
         token,
         lastsUntil: hour(12),
         shown: "before",

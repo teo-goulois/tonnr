@@ -53,6 +53,8 @@ describe.skipIf(!TEST_DATABASE_URL)("a Live Activity, as the database keeps it",
       notificationId: "told-1",
       alertId: "alert-1",
       alertRevision: 0,
+      placeId: "home",
+      startsAt: new Date(UNTIL.getTime() - 60 * 60 * 1000),
       lastsUntil: UNTIL,
       ...values,
     });

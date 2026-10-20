@@ -5,6 +5,8 @@ CREATE TABLE "live_activity" (
 	"notification_id" text NOT NULL,
 	"alert_id" text,
 	"alert_revision" integer NOT NULL,
+	"place_id" text NOT NULL,
+	"starts_at" timestamp with time zone NOT NULL,
 	"token" text UNIQUE,
 	"lasts_until" timestamp with time zone NOT NULL,
 	"ended_at" timestamp with time zone,
