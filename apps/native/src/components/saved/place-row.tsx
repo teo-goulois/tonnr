@@ -161,11 +161,14 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
       onAccessibilityAction={onAccessibilityAction}
       onLongPress={onLongPress}
       delayLongPress={350}
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
-      })}
     >
-      {body}
+      {/* expo-router's Link asChild merges its child's style by spreading it, which turns a
+         style given as a function into nothing: what a press changes is drawn inside. */}
+      {({ pressed }) => (
+        <View style={{ backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"] }}>
+          {body}
+        </View>
+      )}
     </Pressable>
   );
 

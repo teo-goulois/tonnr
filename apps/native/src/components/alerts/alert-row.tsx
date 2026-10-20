@@ -104,47 +104,56 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
       }}
       onPress={onPress}
       onLongPress={Platform.OS === "android" ? menu : undefined}
-      style={({ pressed }) => ({
-        flex: 1,
-        gap: space.xxs,
-        paddingVertical: space.s,
-        paddingStart: space.m,
-        opacity: pressed ? 0.6 : 1,
-      })}
+      // expo-router's Link asChild merges its child's style by spreading it, which turns a style
+      // given as a function into nothing: what a press changes is drawn inside, by the children.
+      style={{ flex: 1 }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexWrap: "wrap" }}>
-        <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
-          {alert.name}
-        </Text>
-        {paused ? (
+      {({ pressed }) => (
+        <View
+          style={{
+            gap: space.xxs,
+            paddingVertical: space.s,
+            paddingStart: space.m,
+            opacity: pressed ? 0.6 : 1,
+          }}
+        >
           <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              paddingHorizontal: space.xs,
-              paddingVertical: 2,
-              borderRadius: radius.xs,
-              backgroundColor: colors["warning-transparent"],
-            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexWrap: "wrap" }}
           >
-            <PauseGlyph />
-            <Text size="xs" weight="medium" dense>
-              {m.native_alert_paused()}
+            <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+              {alert.name}
             </Text>
+            {paused ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  paddingHorizontal: space.xs,
+                  paddingVertical: 2,
+                  borderRadius: radius.xs,
+                  backgroundColor: colors["warning-transparent"],
+                }}
+              >
+                <PauseGlyph />
+                <Text size="xs" weight="medium" dense>
+                  {m.native_alert_paused()}
+                </Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
-      {placesLine ? (
-        <Text size="s" tone="muted" numberOfLines={1}>
-          {placesLine}
-        </Text>
-      ) : null}
-      {line.shown ? (
-        <Text size="s" tone="muted" numberOfLines={2}>
-          {line.shown}
-        </Text>
-      ) : null}
+          {placesLine ? (
+            <Text size="s" tone="muted" numberOfLines={1}>
+              {placesLine}
+            </Text>
+          ) : null}
+          {line.shown ? (
+            <Text size="s" tone="muted" numberOfLines={2}>
+              {line.shown}
+            </Text>
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 

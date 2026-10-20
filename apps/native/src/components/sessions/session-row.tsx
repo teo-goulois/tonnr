@@ -146,32 +146,39 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
         if (event.nativeEvent.actionName === "place" && place) openPlaceOnMap(place);
       }}
       onLongPress={Platform.OS === "android" ? longPress : undefined}
-      style={({ pressed }) => ({
-        minHeight: 56,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.s,
-        paddingHorizontal: space.m,
-        paddingVertical: space.xs,
-        backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
-      })}
     >
-      <View style={{ flex: 1, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-          <Text numberOfLines={1} style={{ flexShrink: 1 }}>
-            {withPlace ? session.place.name : when}
-          </Text>
-          <RatingStars rating={session.rating} />
+      {/* expo-router's Link asChild merges its child's style by spreading it, which turns a
+         style given as a function into nothing: what a press changes is drawn inside. */}
+      {({ pressed }) => (
+        <View
+          style={{
+            minHeight: 56,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.s,
+            paddingHorizontal: space.m,
+            paddingVertical: space.xs,
+            backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+              <Text numberOfLines={1} style={{ flexShrink: 1 }}>
+                {withPlace ? session.place.name : when}
+              </Text>
+              <RatingStars rating={session.rating} />
+            </View>
+            {withPlace ? (
+              <Text size="s" tone="muted" numeric numberOfLines={1}>
+                {when}
+              </Text>
+            ) : null}
+            <SessionSea session={session} />
+          </View>
+          {first?.thumb ? <Picture uri={first.thumb} size={THUMB} recyclingKey={first.id} /> : null}
+          <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
         </View>
-        {withPlace ? (
-          <Text size="s" tone="muted" numeric numberOfLines={1}>
-            {when}
-          </Text>
-        ) : null}
-        <SessionSea session={session} />
-      </View>
-      {first?.thumb ? <Picture uri={first.thumb} size={THUMB} recyclingKey={first.id} /> : null}
-      <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
+      )}
     </Pressable>
   );
 
