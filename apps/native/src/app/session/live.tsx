@@ -45,10 +45,10 @@ import { m } from "@/paraglide/messages";
 
 // A session timed while it lasts: decision 074, "A session in progress". This screen starts one,
 // shows the one that runs, and ends it, which opens the session's form. It is opened by the "+"
-// (its choice "Now"), by the widget of a place, `?place=<break|spot>:<id>`, by the quick action,
-// `?place=last` for the place looked at last (decision 042), by the session's Live Activity or
-// its notification, `?end=1` to end it, and by the app as it starts, for a session that was never
-// ended or never written.
+// (its choice "Now"), by an address that names a place, `?place=<break|spot>:<id>`, or
+// `?place=last` for the place looked at last (decision 042), which no widget or quick action
+// opens yet, by the session's Live Activity or its notification, `?end=1` to end it, and by the
+// app as it starts, for a session that was never ended or never written.
 
 type Params = {
   // Where it is: `<break|spot>:<id>`, or `last` for the place looked at last.
@@ -404,7 +404,7 @@ export default function LiveSessionScreen() {
     void startLiveSession(place).finally(() => setStarting(false));
   };
 
-  // A place the route names, from a widget or the quick action, starts the session at once.
+  // A place the route names starts the session at once.
   const named = asked !== null && asked !== "naming" ? asked : null;
   useEffect(() => {
     if (!signedIn || ending || session || !named) return;
@@ -427,7 +427,7 @@ export default function LiveSessionScreen() {
                   pathname: "/sign-in",
                   params: {
                     reason: m.auth_reason_add_session(),
-                    // On to the session at the place the widget or the quick action named.
+                    // On to the session at the place the address named.
                     next: liveNext(params.place, params.name),
                   },
                 }),
