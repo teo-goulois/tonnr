@@ -1,5 +1,81 @@
 // What the release commands read of the tools they run, as functions that run nothing, so that a
 // test reads them: decision 075.
+import type { Platform, Shipped } from "./bucket.ts";
+
+/** The highest version code Google Play takes. */
+const HIGHEST_BUILD = 2_100_000_000;
+
+/**
+ * The build number of a store build, the same on both platforms: the count of commits of `main`
+ * up to the one built, which `git rev-list --count` prints. It grows with `main`, says which
+ * commit a binary was built from, and a store takes each once.
+ */
+export function buildNumberOf(count: string): number {
+  const build = Number(count.trim());
+  if (!/^\d+$/.test(count.trim()) || build < 1 || build > HIGHEST_BUILD) {
+    throw new Error(`The count of commits is no build number: ${count.trim().slice(0, 40)}`);
+  }
+  return build;
+}
+
+/**
+ * Why a store build must not go out, or null: the runtime its binary carries is not the one a
+ * publication of the same commit would name. Such a binary would take no update, and no one
+ * would see it.
+ */
+export function runtimeDrift(platform: Platform, binary: string, published: string) {
+  const carried = binary.trim();
+  if (carried === published) return null;
+  return (
+    `The ${platform} binary carries the runtime ${carried || "(none)"}, and a publication of the ` +
+    `same commit would name ${published}: what the build installed or what its config plugins ` +
+    "wrote differs from what pnpm run release:js reads. Nothing was uploaded."
+  );
+}
+
+/** What a store build writes in the bucket once its upload succeeded: the runtime it shipped. */
+export const shippedOf = (shipped: Shipped) => new TextEncoder().encode(JSON.stringify(shipped));
+
+const xml = (text: string) =>
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+/**
+ * The options `xcodebuild -exportArchive` exports an archive with, for App Store Connect, signed
+ * by the team's own certificates and profiles, which xcodebuild makes or fetches with the key of
+ * App Store Connect. The build number is the one the app's config gave it.
+ */
+export function exportOptionsOf(teamId: string): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+    '<plist version="1.0">',
+    "<dict>",
+    "  <key>method</key>",
+    "  <string>app-store-connect</string>",
+    "  <key>destination</key>",
+    "  <string>export</string>",
+    "  <key>teamID</key>",
+    `  <string>${xml(teamId)}</string>`,
+    "  <key>signingStyle</key>",
+    "  <string>automatic</string>",
+    "  <key>manageAppVersionAndBuildNumber</key>",
+    "  <false/>",
+    "  <key>uploadSymbols</key>",
+    "  <true/>",
+    "</dict>",
+    "</plist>",
+    "",
+  ].join("\n");
+}
+
+/** The Xcode workspace `expo prebuild` wrote, from what `ios/` holds, which names its scheme too. */
+export function workspaceOf(entries: string[]): string {
+  const workspaces = entries.filter((entry) => entry.endsWith(".xcworkspace"));
+  if (workspaces.length !== 1) {
+    throw new Error(`ios/ holds ${workspaces.length} workspaces where expo prebuild writes one`);
+  }
+  return (workspaces[0] as string).slice(0, -".xcworkspace".length);
+}
 
 /**
  * The runtime that `expo-updates runtimeversion:resolve` names, from what it prints: the

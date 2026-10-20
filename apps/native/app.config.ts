@@ -19,6 +19,10 @@ const claimsLinks = site.protocol === "https:";
 // commands give the stage's to a store build, and a development build, which names none, never
 // asks (decision 075).
 const updatesUrl = process.env.UPDATES_URL || undefined;
+// The build number, the same on both platforms: the count of commits of `main` up to the one
+// built, which the release commands give. A store takes each once (decision 075).
+const build = process.env.APP_BUILD_NUMBER || "1";
+if (!/^[1-9]\d*$/.test(build)) throw new Error(`APP_BUILD_NUMBER is not a build number: ${build}`);
 
 // What the phone shows when the app asks for a permission, in each language, from the web app's
 // messages, where every string a person reads is kept (decision 069).
@@ -56,14 +60,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // widgets' data (decisions 072 and 074).
     entitlements: { "com.apple.security.application-groups": [`group.${APP_SCHEME}`] },
     associatedDomains: claimsLinks ? [`applinks:${site.host}`, `webcredentials:${site.host}`] : [],
-    buildNumber: "1",
+    buildNumber: build,
     supportsTablet: false,
     usesAppleSignIn: true,
     config: { usesNonExemptEncryption: false },
   },
   android: {
     package: APP_SCHEME,
-    versionCode: 1,
+    versionCode: Number(build),
     predictiveBackGestureEnabled: true,
     intentFilters: claimsLinks
       ? [
@@ -118,6 +122,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "@bacons/apple-targets",
     "expo-secure-store",
     "expo-updates",
+    // The upload key of a release for Google Play, from Gradle's environment: decision 075.
+    "./plugins/release-signing.js",
     "expo-localization",
     "expo-web-browser",
     [

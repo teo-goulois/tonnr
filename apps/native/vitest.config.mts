@@ -23,5 +23,5 @@ export default defineConfig({
       { find: "@", replacement: from("./src") },
     ],
   },
-  test: { include: ["src/**/*.test.ts", "*.test.ts"] },
+  test: { include: ["src/**/*.test.ts", "*.test.ts", "plugins/**/*.test.ts"] },
 });

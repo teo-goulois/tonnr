@@ -47,6 +47,20 @@ describe("the updates of the app's JavaScript", () => {
   });
 });
 
+describe("the build number", () => {
+  it("is the one the release commands give, the same on both platforms", async () => {
+    const config = await configWith({ APP_BUILD_NUMBER: "418" });
+    expect(config.ios?.buildNumber).toBe("418");
+    expect(config.android?.versionCode).toBe(418);
+  });
+
+  it("is 1 for a development build, and nothing that is no number", async () => {
+    const config = await configWith({ APP_BUILD_NUMBER: "" });
+    expect(config.ios?.buildNumber).toBe("1");
+    await expect(configWith({ APP_BUILD_NUMBER: "4.18" })).rejects.toThrow(/not a build number/);
+  });
+});
+
 describe("the certificate of the updates", () => {
   const pem = readFileSync(from("./certs/certificate.pem"), "utf8");
   const certificate = new X509Certificate(pem);
