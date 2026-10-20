@@ -14,6 +14,7 @@ import {
   placesCount,
   refsOf,
   retryUnlessGone,
+  sizeOf,
 } from "@/components/lists/items";
 import { ListNameField } from "@/components/lists/list-name-field";
 import { ShareSection } from "@/components/lists/share-section";
@@ -118,6 +119,7 @@ function ListOfTheAccount({ id }: { id: string }) {
   const size = items.length;
   const choice = { id: list.id, name };
   const others = othersOf(lists.data?.lists ?? [], list.id);
+  const nothingSaved = lists.data?.lists.every((one) => sizeOf(one) === 0) ?? false;
   const privateSpots = held.spotIds.filter(
     (spotId) =>
       spots.data?.spots.find((spot) => spot.id === spotId)?.publication?.status !== "accepted",
@@ -201,7 +203,8 @@ function ListOfTheAccount({ id }: { id: string }) {
               <EmptyState
                 icon={BookmarkIcon}
                 title={m.saved_list_empty()}
-                description={owner ? m.saved_empty() : undefined}
+                // How to save something, once nothing is saved in any of the account's lists.
+                description={owner && nothingSaved ? m.saved_empty() : undefined}
               />
             </Surface>
           }

@@ -263,7 +263,6 @@ function Saved({ lists, joined, spots, reader, actions, recentPlaces }: SavedPro
                   icon={MapIcon}
                   title={listName(list)}
                   value={String(list.size)}
-                  accessibilityHint={m.native_list_settings()}
                   onPress={() => router.push(`/list/${list.id}`)}
                 />
               ))}
@@ -362,7 +361,6 @@ function KeptList({
             title={listName(list)}
             count={items.length}
             onPress={() => router.push(`/list/${list.id}`)}
-            accessibilityHint={m.native_list_settings()}
           />
         }
         items={items}
