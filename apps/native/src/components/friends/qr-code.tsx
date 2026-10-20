@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import Svg, { Path, Rect } from "react-native-svg";
 
+import { light } from "@/theme/tokens";
+
 import { qrPath } from "./friend-words";
 
 /**
@@ -20,8 +22,8 @@ export function QrCode({ text, label, size }: { text: string; label: string; siz
       accessibilityRole="image"
       accessibilityLabel={label}
     >
-      <Rect width={code.size} height={code.size} fill="#fff" />
-      <Path d={code.path} fill="#000" />
+      <Rect width={code.size} height={code.size} fill={light["neutral-1"]} />
+      <Path d={code.path} fill={light["neutral-10"]} />
     </Svg>
   );
 }

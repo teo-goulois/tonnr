@@ -2,13 +2,12 @@ import type { BlockedAccount } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
+import { confirmDestructive } from "@/components/saved/confirm";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
-
-import { confirmAction } from "./asking";
 
 // Blocking an account, and lifting a block, as the web's `useBlocks` does (decision 071): a
 // block hides the other's reports, what it has waiting in a guide and its username, and ends a
@@ -21,7 +20,7 @@ import { confirmAction } from "./asking";
  * when the person said to.
  */
 export function confirmBlock(username: string) {
-  return confirmAction({
+  return confirmDestructive({
     title: m.block_confirm_title({ username }),
     message: m.block_confirm_text(),
     confirm: m.block_confirm(),

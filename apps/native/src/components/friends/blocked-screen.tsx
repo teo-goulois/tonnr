@@ -1,8 +1,9 @@
 import type { BlockedAccount } from "@repo/client/viewer/types";
-import { PersonIcon } from "@repo/ui/icon";
+import { PersonIcon, XIcon } from "@repo/ui/icon";
 import { Fragment, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
+import { SwipeRow } from "@/components/alerts/swipe-row";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -17,7 +18,6 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { useBlockedAccounts } from "./blocking";
-import { SwipeRow } from "./swipe-row";
 
 // The accounts the signed-in account blocked, one step into its tab, each with what lifts the
 // block, as the web's `BlockedAccounts` lists them: decision 071. A block is lifted by its own
@@ -32,14 +32,25 @@ function BlockedRow({
   lifting: string | undefined;
   onUnblock: () => void;
 }) {
-  const { space } = useTheme();
-  const actions = [{ label: m.block_unblock(), onPress: onUnblock }];
+  const { colors, space } = useTheme();
   const since = m.native_blocked_since({ date: formatDate(one.since) });
   return (
-    // The swipe does what the button beside the name does: a screen reader reaches the button.
-    <SwipeRow actions={actions}>
+    // A swipe from the trailing edge does what the button beside the name does, which a screen
+    // reader reaches.
+    <SwipeRow
+      trailing={{
+        label: m.block_unblock(),
+        icon: XIcon,
+        tone: "danger",
+        onAct: () => {
+          if (lifting === undefined) onUnblock();
+        },
+      }}
+    >
       <View
         style={{
+          // The row's own ground, over the action that the swipe uncovers behind it.
+          backgroundColor: colors["cte-surface"],
           flexDirection: "row",
           alignItems: "center",
           gap: space.s,

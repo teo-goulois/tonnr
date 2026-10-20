@@ -1,17 +1,19 @@
 import { APP_NAME } from "@repo/config/app";
 import type { Friend } from "@repo/client/viewer/types";
-import { ChevronRightIcon, CopyIcon, PersonIcon, ShareIcon } from "@repo/ui/icon";
+import { ChevronRightIcon, CopyIcon, PersonIcon, ShareIcon, XIcon } from "@repo/ui/icon";
 import { setStringAsync } from "expo-clipboard";
 import { router } from "expo-router";
 import { Fragment, useState } from "react";
-import { Platform, Pressable, RefreshControl, ScrollView, Share, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 
+import { SwipeRow } from "@/components/alerts/swipe-row";
 import { ContributionRow } from "@/components/contributions/contribution-row";
 import { openBreakGuide } from "@/components/guides/open-guide";
 import { PageSheet, usePresented } from "@/components/guides/page-sheet";
 import { RankBadge } from "@/components/guides/rank";
 import { RANKS } from "@/components/guides/guide-words";
 import { Tag } from "@/components/guides/tag";
+import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -27,13 +29,14 @@ import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { formatMonth } from "@/lib/format";
 import { useRequireAccount } from "@/lib/require-account";
+import { shareLink } from "@/lib/share";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
+import { light } from "@/theme/tokens";
 
-import { chooseAmong, confirmAction } from "./asking";
+import { type Choice, chooseAmong } from "./asking";
 import { useBlock } from "./blocking";
 import { QrCode } from "./qr-code";
-import { accessibleActions, type SwipeAction, SwipeRow } from "./swipe-row";
 import { useFriendDetail, useFriends } from "./use-friends";
 
 // The account's link and the friends it made, one step into the account's tab, as the web's
@@ -77,16 +80,13 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
     );
   }
 
-  // The phone's own sheet sends it: a message, a nearby phone, a note. Whoever closes the sheet
-  // without sending has done nothing wrong.
-  const share = () => {
-    const text = m.friends_share_text({ name: APP_NAME });
-    void Share.share(
-      Platform.OS === "ios"
-        ? { message: text, url: address }
-        : { message: `${text} ${address}`, title: APP_NAME },
-    ).catch(() => {});
-  };
+  // The phone's own sheet sends it: a message, a nearby phone, a note.
+  const share = () =>
+    void shareLink({
+      title: APP_NAME,
+      message: m.friends_share_text({ name: APP_NAME }),
+      url: address,
+    });
   const copy = async () => {
     try {
       await setStringAsync(address);
@@ -96,7 +96,7 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
     }
   };
   const renew = async () => {
-    const yes = await confirmAction({
+    const yes = await confirmDestructive({
       title: m.friends_link_renew(),
       message: m.native_friends_renew_text(),
       confirm: m.friends_link_renew(),
@@ -112,7 +112,7 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
           padding: space.s,
           borderRadius: radius.xs,
           borderCurve: "continuous",
-          backgroundColor: "#fff",
+          backgroundColor: light["neutral-1"],
         }}
       >
         <QrCode text={address} label={m.friends_qr_label()} size={QR_SIZE} />
@@ -137,18 +137,23 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
   );
 }
 
-/** One friend: who they are, and what a press, a long press or a swipe does with them. */
+/**
+ * One friend: who they are, and what a press, a long press or a swipe does with them. A swipe
+ * from the trailing edge ends the friendship, once asked; a screen reader reaches the same
+ * actions as the long press, in the row's own.
+ */
 function FriendRow({
   friend,
   actions,
   onOpen,
 }: {
   friend: Friend;
-  actions: SwipeAction[];
+  actions: Choice[];
   onOpen: () => void;
 }) {
   const { colors, space } = useTheme();
   const sponsored = sponsoredOf(friend);
+  const remove = actions.find((action) => action.name === "remove");
   const label = [
     nameOf(friend),
     friend.rank ? m.rank_label({ name: RANKS[friend.rank].name() }) : undefined,
@@ -158,12 +163,21 @@ function FriendRow({
     .join(", ");
 
   return (
-    <SwipeRow actions={actions}>
+    <SwipeRow
+      trailing={
+        remove
+          ? { label: m.native_remove(), icon: XIcon, tone: "danger", onAct: remove.onPress }
+          : undefined
+      }
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityHint={m.native_friend_hint()}
-        {...accessibleActions(actions)}
+        accessibilityActions={actions.map(({ name, label: said }) => ({ name, label: said }))}
+        onAccessibilityAction={(event) =>
+          actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress()
+        }
         onPress={onOpen}
         onLongPress={() => {
           feel("hold");
@@ -176,7 +190,8 @@ function FriendRow({
           minHeight: TARGET,
           paddingHorizontal: space.m,
           paddingVertical: space.s,
-          backgroundColor: pressed ? colors["neutral-3"] : undefined,
+          // The row's own ground, over the action that the swipe uncovers behind it.
+          backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
         })}
       >
         <View style={{ flex: 1, gap: space.xxs }}>
@@ -207,7 +222,7 @@ function FriendSheet({
   visible: boolean;
   onClose: () => void;
   onDismissed: () => void;
-  actions: SwipeAction[];
+  actions: Choice[];
   onOpenBreak: (breakId: string) => void;
 }) {
   const { space } = useTheme();
@@ -300,11 +315,12 @@ export function FriendsScreen() {
     setRefreshing(false);
   };
 
-  const actionsOf = (friend: Friend): SwipeAction[] => [
+  const actionsOf = (friend: Friend): Choice[] => [
     {
+      name: "remove",
       label: m.friends_remove(),
       onPress: () =>
-        void confirmAction({
+        void confirmDestructive({
           title: m.friends_remove(),
           message: m.native_friends_remove_text(),
           confirm: m.friends_remove_confirm(),
@@ -317,6 +333,7 @@ export function FriendsScreen() {
     ...(friend.username
       ? [
           {
+            name: "block",
             label: m.block_account({ username: friend.username }),
             destructive: true,
             onPress: () => friend.username && block(friend.username),
