@@ -34,7 +34,7 @@ import { WhenField } from "./when-field";
 export const NOTE_MOST = 2000;
 
 /** A line of the form: what is asked on the left, and what answers it on the right. */
-function FormRow({
+export function FormRow({
   label,
   labelHidden = false,
   children,
@@ -70,7 +70,7 @@ function FormRow({
 }
 
 /** What was said of the waves on a pill, which opens the step where it is said. */
-function SizePill({
+export function SizePill({
   waves,
   sets,
   onPress,
