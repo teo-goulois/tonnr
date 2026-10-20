@@ -40,12 +40,14 @@ export function useAccountDeletion() {
       return;
     }
     // The account and its sessions are gone: the keychain lets go of the cookie, and the phone
-    // of what it loaded and kept for the account.
+    // of what it loaded and kept for the account. The account's tab goes back to its first
+    // screen, and the map opens for a visitor.
     await authClient
       .signOut({ fetchOptions: { headers: { "X-App": appHeader() } } })
       .catch(() => null);
     forgetOnPhone(queryClient);
     tell({ title: m.delete_account_done(), tone: "success" });
+    if (router.canDismiss()) router.dismissAll();
     router.replace("/");
   }
 
