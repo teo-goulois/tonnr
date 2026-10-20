@@ -2051,5 +2051,8 @@
   "native_spot_rename_title": "Mudar o nome de {name}",
   "native_spot_move": "Mover",
   "native_spot_move_title": "Mover {name}",
-  "native_spot_move_map": "Mapa. O marcador fica ao centro: move o mapa por baixo dele."
+  "native_spot_move_map": "Mapa. O marcador fica ao centro: move o mapa por baixo dele.",
+  "native_place_buoy": "Boia",
+  "native_place_wind_station": "Estação de vento",
+  "native_place_sections": "Secções de {name}"
 }

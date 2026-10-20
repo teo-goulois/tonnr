@@ -2051,5 +2051,8 @@
   "native_spot_rename_title": "Rename {name}",
   "native_spot_move": "Move",
   "native_spot_move_title": "Move {name}",
-  "native_spot_move_map": "Map. The pin stays in the middle: move the map under it."
+  "native_spot_move_map": "Map. The pin stays in the middle: move the map under it.",
+  "native_place_buoy": "Buoy",
+  "native_place_wind_station": "Wind station",
+  "native_place_sections": "Sections of {name}"
 }
