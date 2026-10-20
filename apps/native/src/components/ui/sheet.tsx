@@ -1,4 +1,4 @@
-import { type NavigationAction, useNavigation, usePreventRemove } from "expo-router";
+import { type NavigationAction, router, useNavigation, usePreventRemove } from "expo-router";
 import { type ReactNode, useEffect, useState } from "react";
 import {
   ActionSheetIOS,
@@ -68,17 +68,25 @@ export function useSheetGuard(dirty: boolean, onDiscard?: () => void) {
     });
   });
 
+  // Back, or to the map for a sheet with nothing under it, which the root's anchor otherwise
+  // puts there.
+  const back = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else router.replace("/");
+  };
+
   useEffect(() => {
     if (leaving === null) return;
-    if (leaving === "back") navigation.goBack();
-    else navigation.dispatch(leaving);
+    if (leaving !== "back") navigation.dispatch(leaving);
+    else if (navigation.canGoBack()) navigation.goBack();
+    else router.replace("/");
   }, [leaving, navigation]);
 
   return {
     /** Leaves the sheet without asking. */
     close: () => setLeaving("back"),
     /** Leaves the sheet, asking first while something is held. */
-    cancel: () => navigation.goBack(),
+    cancel: back,
   };
 }
 

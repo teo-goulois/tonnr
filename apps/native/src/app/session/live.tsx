@@ -84,6 +84,12 @@ function useLiveState(session: LiveSession | null) {
   return session ? state : null;
 }
 
+/** Leaves the screen: back, or to the map when a link opened it with nothing under it. */
+function leave() {
+  if (router.canGoBack()) router.back();
+  else router.replace("/");
+}
+
 /** Opens the form of the session kept, in this screen's place. */
 function openForm() {
   const query = liveFormQuery();
@@ -98,11 +104,11 @@ async function askToForget() {
   });
   if (!sure) return;
   await forgetLiveSession();
-  router.back();
+  leave();
 }
 
 function Header({ title }: { title: string }) {
-  return <StepHeader title={title} backLabel={m.action_close()} onBack={() => router.back()} />;
+  return <StepHeader title={title} backLabel={m.action_close()} onBack={leave} />;
 }
 
 /** A session that runs: where, the time since its start, what the sea did then, and its end. */
@@ -304,7 +310,7 @@ function Where({ onPick }: { onPick: (place: SessionPlace) => void }) {
       <StepHeader
         title={m.native_live_where()}
         backLabel={near ? undefined : m.action_cancel()}
-        onBack={near ? () => setAsking(false) : () => router.back()}
+        onBack={near ? () => setAsking(false) : leave}
       />
       <KeyboardAwareScrollView
         keyboardShouldPersistTaps="handled"

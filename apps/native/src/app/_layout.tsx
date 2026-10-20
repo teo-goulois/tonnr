@@ -22,6 +22,12 @@ import { navigationTheme, useTheme } from "@/lib/theme";
 import { queryClient } from "@/utils/orpc";
 import { WidgetWriter } from "@/widgets/widget-writer";
 
+// Whatever a link opens stands over the tabs, the link that started the app too: a sheet that a
+// widget, a Live Activity, a notification or a link of decision 073 opened then has the map to go
+// back to once it is saved or closed, and the tabs mount what they run at each start (decision
+// 074).
+export const unstable_settings = { anchor: "(tabs)" };
+
 export default function RootLayout() {
   const { scheme } = useTheme();
   return (
