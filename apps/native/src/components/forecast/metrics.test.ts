@@ -1,36 +1,14 @@
-import { WINDGURU_SCALES } from "@repo/client/sea-scales";
 import { describe, expect, it } from "vitest";
 
-import {
-  cellColors,
-  formatGap,
-  formatMetric,
-  inPalette,
-  metrics,
-  nightsBetween,
-  swellMetric,
-  weatherMetrics,
-} from "./metrics";
+import { cellColors, metrics } from "./metrics";
 
-describe("how the panel writes a figure", () => {
-  it("writes a value in its unit, or bare where the unit is said beside it", () => {
-    const height = metrics().height;
-    expect(formatMetric(height, 1.26)).toBe("1.3 m");
-    expect(formatMetric(height, 1.26, false)).toBe("1.3");
-  });
-
-  it("writes a difference from the two figures as they are written, with its sign", () => {
-    const height = metrics().height;
-    expect(formatGap(height, 1.26, 0.64)).toBe("+0.7 m");
-    expect(formatGap(height, 0.64, 1.26, false)).toBe("−0.7");
-    expect(formatGap(height, 1.01, 0.98, false)).toBe("±0");
-  });
-});
+// How a figure is named, written, set in a palette and how the nights fall are packages/client's,
+// with their tests there. Here is the color of a cell as React Native and Skia read it.
 
 describe("the colors of a cell", () => {
   it("fills a cell of the waves with its color and the ink that reads on it", () => {
     const colors = cellColors(metrics().height, 2);
-    expect(colors.background).toMatch(/^rgba\(/);
+    expect(colors.background).toMatch(/^rgba\(\d+, \d+, \d+, 1\)$/);
     expect(colors.color).toBeDefined();
   });
 
@@ -41,23 +19,7 @@ describe("the colors of a cell", () => {
     expect(alpha(16)).toBeGreaterThan(alpha(6));
   });
 
-  it("takes Windguru's scales, fills every cell and writes a big sea in bold", () => {
-    const wind = inPalette(metrics().wind, "windguru");
-    expect(wind.scale).toBe(WINDGURU_SCALES.wind);
-    expect(wind.tinted).toBe(false);
-    expect(wind.strong?.(20)).toBe(true);
-    expect(wind.strong?.(5)).toBe(false);
-    expect(inPalette(swellMetric(), "windguru").scale).toBe(WINDGURU_SCALES.height);
-    expect(inPalette(weatherMetrics().air, "windguru").plain).toBe(false);
-    expect(inPalette(weatherMetrics().air, "tonnr").plain).toBe(true);
-  });
-});
-
-describe("the nights of a span", () => {
-  it("runs from dusk to dawn at the place", () => {
-    const start = Date.UTC(2026, 5, 20, 12);
-    const nights = nightsBetween(start, start + 24 * 60 * 60 * 1000, 43.5, -1.5);
-    expect(nights).toHaveLength(1);
-    expect(nights[0]!.to).toBeGreaterThan(nights[0]!.from);
+  it("names a figure in the app's language", () => {
+    expect(metrics().height.label).toBe("Waves");
   });
 });

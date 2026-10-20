@@ -2,6 +2,7 @@ import type { AlertMessages } from "./alerts/alert-words";
 import type { DensityMessages } from "./density";
 import { type FormatMessages, formatting } from "./format";
 import { DEFAULT_UNITS, type UnitMessages, type Units, unitWriting } from "./units";
+import { type MetricMessages, metricWriting } from "./viewer/metrics";
 
 /**
  * The messages the tests write with, in English as `apps/web/messages/en.json` says them: each
@@ -51,7 +52,16 @@ export const ENGLISH = {
   alert_trend_falling: () => "falling",
   alert_or: () => " or ",
   alert_or_list: ({ list, last }) => `${list} or ${last}`,
-} satisfies UnitMessages & FormatMessages & DensityMessages & AlertMessages;
+  details_waves: () => "Waves",
+  details_swell: () => "Swell",
+  details_period: () => "Period",
+  details_energy: () => "Energy",
+  details_wind: () => "Wind",
+  details_clouds: () => "Clouds",
+  details_rain: () => "Rain",
+  details_air: () => "Air",
+  unit_s: () => "s",
+} satisfies UnitMessages & FormatMessages & DensityMessages & AlertMessages & MetricMessages;
 
 /**
  * A reader of English, in the units the app starts with until a test chooses others, with what
@@ -69,5 +79,6 @@ export function testReader(start: Units = DEFAULT_UNITS) {
     },
     format,
     writing,
+    metrics: metricWriting({ writing, formatNumber: format.formatNumber, m: ENGLISH }),
   };
 }

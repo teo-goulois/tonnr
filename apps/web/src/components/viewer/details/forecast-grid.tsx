@@ -10,6 +10,13 @@ import {
   useState,
 } from "react";
 
+import {
+  type Column,
+  GRID_ROWS,
+  type GridRow,
+  STEP_HOURS,
+  gridColumns,
+} from "@repo/client/viewer/grid";
 import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 
 import { compassPoint, formatClock, formatDay } from "@/lib/format";
@@ -28,7 +35,6 @@ import {
   inPalette,
   directionAt,
   formatMetric,
-  isNight,
   metrics,
   swellMetric,
   valueAt,
@@ -66,8 +72,8 @@ type ForecastGridProps = {
   onEarlier?: () => void;
 };
 
-export type GridRow = "energy" | "swell" | "gusts" | "model";
-export const GRID_ROWS: GridRow[] = ["energy", "swell", "gusts", "model"];
+// The rows a density draws, and the columns of the grid, are the app for phones' too.
+export { GRID_ROWS, type GridRow };
 
 const COLUMN = 34;
 const LABELS = 68;
@@ -81,9 +87,6 @@ const SLOP = 6;
 // long it holds there, or a press holds on what it offers, before that day comes.
 const OVERPULL = 48;
 const EARLIER_MS = 1500;
-
-// `day` counts the days from the first one.
-type Column = { time: number; night: boolean; isNow: boolean; day: number };
 
 function RowLabel({
   children,
@@ -127,7 +130,7 @@ export function ForecastGrid({
   start,
   end,
   now,
-  stepHours = 3,
+  stepHours = STEP_HOURS,
   place,
   lead = 0,
   isLoading = false,
@@ -180,27 +183,10 @@ export function ForecastGrid({
   const holdTimer = useRef<number | undefined>(undefined);
   const holdBy = useRef<"pull" | "press">(undefined);
 
-  const columns = useMemo(() => {
-    const first = new Date(start);
-    first.setMinutes(0, 0, 0);
-    first.setHours(Math.ceil(first.getHours() / shownStep) * shownStep);
-    if (first.getTime() < start) first.setTime(first.getTime() + step);
-    const list: Column[] = [];
-    let previousDay = "";
-    let day = -1;
-    for (let time = first.getTime(); time <= end; time += step) {
-      const date = new Date(time).toDateString();
-      if (date !== previousDay) day++;
-      list.push({
-        time,
-        night: place ? isNight(time, place.latitude, place.longitude) : false,
-        isNow: Math.abs(time - now) <= step / 2,
-        day,
-      });
-      previousDay = date;
-    }
-    return list;
-  }, [start, end, now, step, shownStep, place]);
+  const columns = useMemo(
+    () => gridColumns({ start, end, now, stepHours: shownStep, place }),
+    [start, end, now, shownStep, place],
+  );
 
   const days = useMemo(() => {
     const spans: { time: number; count: number }[] = [];
