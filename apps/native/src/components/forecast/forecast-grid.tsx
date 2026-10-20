@@ -192,7 +192,7 @@ function specsOf({
       degrees: key !== "windDirection",
     });
 
-  if (measured) specs.push({ kind: "spacer", key: "measured", height: SPACER });
+  if (measured) specs.push({ kind: "spacer", key: "after-measured", height: SPACER });
   values(all.height);
   values(all.period);
   if (rows.includes("energy")) values(all.energy);
@@ -202,11 +202,11 @@ function specsOf({
     values(swell);
     direction("swellDirection");
   }
-  specs.push({ kind: "spacer", key: "sea", height: SPACER });
+  specs.push({ kind: "spacer", key: "after-sea", height: SPACER });
   values(all.wind);
   if (rows.includes("gusts")) values(all.wind, m.details_gusts(), "gust");
   direction("windDirection");
-  specs.push({ kind: "spacer", key: "wind", height: SPACER });
+  specs.push({ kind: "spacer", key: "after-wind", height: SPACER });
   values(weather.cloud);
   values(weather.rain);
   values(weather.air);
