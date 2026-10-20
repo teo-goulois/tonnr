@@ -1,11 +1,11 @@
+import { lessDense, moreDense } from "@repo/client/density";
 import { View } from "react-native";
 
+import type { Density } from "@/components/account/display";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-
-import { type Density, lessDense, moreDense } from "./density";
 
 /**
  * Where a panel's reader asks for less of the forecast or more, in place: one step down or up

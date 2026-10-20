@@ -12,6 +12,7 @@ import { ReportsTab } from "@/components/place-tabs/reports";
 import { SessionsTab } from "@/components/place-tabs/sessions";
 import { Segmented } from "@/components/ui/segmented";
 import { useAccount } from "@/lib/account";
+import { useRecentViews } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -21,7 +22,7 @@ import { PlaceHeader } from "./place-header";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
 import { useLists } from "./use-lists";
 import { useNow, usePlaceConditions, usePlaceRecord } from "./use-place";
-import { useDistanceFrom, useFoldHeight, useRecentView, useSheetState } from "./use-sheet";
+import { useDistanceFrom, useFoldHeight, useSheetState } from "./use-sheet";
 import { useSpotActions } from "./use-spot";
 
 // A place as a sheet over the map: a surf break, a station or a spot, at
@@ -63,7 +64,7 @@ export function PlaceSheet({
 
   // What is open is what was looked at last.
   const viewedKind = kind === "spot" ? (record.isOwner ? "spot" : undefined) : kind;
-  useRecentView(
+  useRecentViews(
     viewedKind && name && record.point
       ? { kind: viewedKind, id, name, ...record.point }
       : undefined,

@@ -10,6 +10,8 @@ import type { SeaWords } from "@repo/conditions/sea-now";
 import { type ReactNode, memo, useMemo, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
 
+import { type Density, useDensity } from "@/components/account/display";
+import { useSaveDensity } from "@/components/account/kept-settings";
 import { MetricLanes } from "@/components/charts/metric-lanes";
 import { TideChart } from "@/components/charts/tide-chart";
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,6 @@ import { m } from "@/paraglide/messages";
 
 import { Block } from "./block";
 import { DaysAhead } from "./days-ahead";
-import { type Density, useDensity, useSaveDensity } from "./density";
 import { DensitySwitch } from "./density-switch";
 import { ForecastGrid, GRID_ROWS, type GridRow } from "./forecast-grid";
 import {

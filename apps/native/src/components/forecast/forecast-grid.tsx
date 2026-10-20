@@ -24,6 +24,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { type Palette, usePalette } from "@/components/account/display";
 import { useReadingLock } from "@/components/charts/reading";
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
@@ -59,7 +60,6 @@ import {
   valueAt,
   weatherMetrics,
 } from "./metrics";
-import { type Palette, usePalette } from "./palette";
 
 // The days ahead as a table to scroll sideways, as the web's `ForecastGrid` draws it: a column
 // every three hours, a row for each value, each cell in the color of what it says, Windguru's or
