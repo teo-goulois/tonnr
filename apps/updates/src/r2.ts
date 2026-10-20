@@ -128,6 +128,19 @@ export function r2Client(access: R2Access, fetcher: typeof fetch = fetch, now = 
     new Error(`R2 refused to ${what} ${key}: ${response.status} ${await response.text()}`);
 
   return {
+    /**
+     * Why the token cannot read the bucket, or null when it can: R2 answers a key that is not
+     * there with 404, and a token that is wrong or limited to another bucket with 401 or 403, or a
+     * bucket that is not there with NoSuchBucket. Whether the token may write is seen at the first
+     * write.
+     */
+    async refusal(key: string): Promise<string | null> {
+      const response = await send("GET", key);
+      if (response.ok) return null;
+      const text = await response.text();
+      if (response.status === 404 && !text.includes("NoSuchBucket")) return null;
+      return `${response.status} ${text.slice(0, 300)}`;
+    },
     /** Whether an object is there. */
     async has(key: string): Promise<boolean> {
       const response = await send("HEAD", key);

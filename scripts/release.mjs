@@ -226,12 +226,28 @@ if (kind === "android") {
 }
 if (faults.length > 0) fail(`The app cannot be released to "${stage}":\n- ${faults.join("\n- ")}`);
 
-const bucket = r2Client({
+const r2Access = {
   accountId: access.CLOUDFLARE_ACCOUNT_ID,
   accessKeyId: settings.UPDATES_R2_ACCESS_KEY_ID,
   secretAccessKey: settings.UPDATES_R2_SECRET_ACCESS_KEY,
-  bucket: updatesBucketName(APP_SLUG, stage),
-});
+};
+const bucketName = updatesBucketName(APP_SLUG, stage);
+
+// Whether the R2 token reads the bucket, before anything is built: a store build that reached
+// its store and could not write its runtime would leave release:js refusing it.
+{
+  const refusal = await r2Client({ ...r2Access, bucket: bucketName })
+    .refusal(shippedKey(PLATFORMS[0], "0"))
+    .catch((error) => error.message);
+  if (refusal) {
+    fail(
+      `The R2 token of .env, UPDATES_R2_ACCESS_KEY_ID and UPDATES_R2_SECRET_ACCESS_KEY, cannot ` +
+        `read the bucket ${bucketName}: ${refusal}\nIt needs "Object Read & Write" on that ` +
+        `bucket, which \`pnpm run deploy:updates ${stage}\` makes. Nothing was built.`,
+    );
+  }
+}
+const bucket = r2Client({ ...r2Access, bucket: bucketName });
 
 /**
  * What the app's config and Expo's tools are given, the same for a store build and a

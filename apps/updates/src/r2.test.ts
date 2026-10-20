@@ -118,6 +118,20 @@ describe("the bucket through R2's S3 API", () => {
     expect(await client.has("files/b")).toBe(false);
   });
 
+  it("says whether the token may read the bucket before anything is built", async () => {
+    const answering = (status: number, body: string) =>
+      r2Client(access, (async () => new Response(body, { status })) as unknown as typeof fetch);
+    expect(await answering(404, "<Code>NoSuchKey</Code>").refusal("runtimes/probe")).toBeNull();
+    expect(await answering(200, "{}").refusal("runtimes/probe")).toBeNull();
+    expect(await answering(403, "<Code>AccessDenied</Code>").refusal("runtimes/probe")).toBe(
+      "403 <Code>AccessDenied</Code>",
+    );
+    expect(await answering(401, "Unauthorized").refusal("runtimes/probe")).toMatch(/^401/);
+    expect(await answering(404, "<Code>NoSuchBucket</Code>").refusal("runtimes/probe")).toMatch(
+      /NoSuchBucket/,
+    );
+  });
+
   it("says what R2 answered when it refuses", async () => {
     const fetcher = (async () =>
       new Response("AccessDenied", { status: 403 })) as unknown as typeof fetch;
