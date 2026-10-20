@@ -161,61 +161,64 @@ export function PlaceSheet({
     }
   };
 
+  // The sheet's scroll view is the first thing in it, as the platform finds the one that raises
+  // the sheet as it is scrolled: the head and the tabs are its sticky header.
   return (
-    <View className="flex-1 bg-background">
-      <View
-        onLayout={(event) => {
-          chrome.current = event.nativeEvent.layout.height;
-          fit();
-        }}
-      >
-        <PlaceHeader
-          record={record}
-          now={now}
-          distanceKm={distanceKm}
-          isSaved={item ? isSaved(item) : false}
-          onSave={save}
-          onCopy={copy}
-          isCopying={spots.isCopying}
-          onMenu={
-            name ? () => router.push({ pathname: "/place/menu", params: { kind, id } }) : undefined
-          }
-        />
-        {tabs.length > 1 && (
-          // Its names may be longer than a phone is wide, in some languages: the row scrolls.
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
-          >
-            <Segmented
-              label={m.native_place_sections({ name: name ?? "" })}
-              options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
-              value={shown}
-              onChange={setTab}
-            />
-          </ScrollView>
-        )}
-      </View>
-      <ReadingLock onLock={setLocked}>
-        <ChartsAtRest atRest={atRest}>
-          <ScrollView
-            scrollEnabled={!locked}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{
-              paddingHorizontal: space.m,
-              paddingTop: space.xs,
-              paddingBottom: insets.bottom + space.xl,
+    <ReadingLock onLock={setLocked}>
+      <ChartsAtRest atRest={atRest}>
+        <ScrollView
+          className="flex-1 bg-background"
+          scrollEnabled={!locked}
+          keyboardShouldPersistTaps="handled"
+          stickyHeaderIndices={[0]}
+          contentContainerStyle={{ paddingBottom: insets.bottom + space.xl }}
+        >
+          <View
+            className="bg-background"
+            onLayout={(event) => {
+              chrome.current = event.nativeEvent.layout.height;
+              fit();
             }}
           >
+            <PlaceHeader
+              record={record}
+              now={now}
+              distanceKm={distanceKm}
+              isSaved={item ? isSaved(item) : false}
+              onSave={save}
+              onCopy={copy}
+              isCopying={spots.isCopying}
+              onMenu={
+                name
+                  ? () => router.push({ pathname: "/place/menu", params: { kind, id } })
+                  : undefined
+              }
+            />
+            {tabs.length > 1 && (
+              // Its names may be longer than a phone is wide, in some languages: the row scrolls.
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
+              >
+                <Segmented
+                  label={m.native_place_sections({ name: name ?? "" })}
+                  options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
+                  value={shown}
+                  onChange={setTab}
+                />
+              </ScrollView>
+            )}
+          </View>
+          <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
             {seen.map((one) => (
               <View key={one} style={one === shown ? undefined : { display: "none" }}>
                 {panelOf(one)}
               </View>
             ))}
-          </ScrollView>
-        </ChartsAtRest>
-      </ReadingLock>
-    </View>
+          </View>
+        </ScrollView>
+      </ChartsAtRest>
+    </ReadingLock>
   );
 }
