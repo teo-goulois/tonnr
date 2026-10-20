@@ -89,7 +89,10 @@ async function send(key: string) {
   if (!asset || !upload) return;
   const stop = new AbortController();
   stops.set(key, stop);
-  patch(key, { state: "sending", progress: 0, error: null });
+  // A file sent again is a new medium: the one its last try was given belongs to nothing, and the
+  // form saves none until the API gives the new one.
+  if (upload.id) void client.v1.media.discard({ id: upload.id }).catch(() => {});
+  patch(key, { state: "sending", progress: 0, error: null, id: null });
   try {
     const durationSeconds = upload.kind === "video" ? videoSecondsOf(asset) : null;
     const asked = await client.v1.media.prepare({
