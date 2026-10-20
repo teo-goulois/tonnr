@@ -109,6 +109,11 @@ describe("a session in progress as the phone keeps it", () => {
     expect(readLiveSession(JSON.stringify(kept))).toEqual(kept);
   });
 
+  it("was not shown when the app closed before the phone said", () => {
+    const { shown: _, ...asking } = session;
+    expect(readLiveSession(JSON.stringify(asking))?.shown).toBe(false);
+  });
+
   it("is nothing for what this app did not write", () => {
     expect(readLiveSession(null)).toBeNull();
     expect(readLiveSession("not json")).toBeNull();

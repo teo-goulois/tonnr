@@ -43,8 +43,9 @@ export type LiveSession = {
   // the time alone.
   figures: LiveFigures | null;
   // Whether the phone showed it outside the app as it began: its Live Activity, or its Live
-  // Update on Android. False where the system did not let the app.
-  shown: boolean;
+  // Update on Android. False where the system did not let the app, and absent while the phone
+  // is asked, which a session read back from the phone never is.
+  shown?: boolean;
 };
 
 /**

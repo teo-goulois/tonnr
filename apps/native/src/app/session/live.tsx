@@ -193,13 +193,14 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
             )}
           </Section>
         ) : null}
-        {session.shown ? null : (
+        {/* Once the phone said it could not show the session, and not while it is asked. */}
+        {session.shown === false ? (
           <Text size="s" tone="muted">
             {Platform.OS === "ios"
               ? m.native_live_hidden_ios({ name: APP_NAME })
               : m.native_live_hidden_android({ name: APP_NAME })}
           </Text>
-        )}
+        ) : null}
         <View style={{ gap: space.s }}>
           <Button
             loading={isEnding}

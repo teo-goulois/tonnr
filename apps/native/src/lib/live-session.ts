@@ -106,7 +106,9 @@ async function readSea(session: LiveSession) {
 export async function startLiveSession(place: SessionPlace) {
   const running = read();
   if (running) return running;
-  const session: LiveSession = { place, startedAt: Date.now(), figures: null, shown: false };
+  // Whether it shows is not known until the phone answered, which may take a person's answer to
+  // whether the app may notify: the screen says nothing of it until then.
+  const session: LiveSession = { place, startedAt: Date.now(), figures: null };
   write(session);
   const shown = await showSession(sessionShown(session, sessionWriting()));
   // A session that was ended or forgotten meanwhile is not kept again.
