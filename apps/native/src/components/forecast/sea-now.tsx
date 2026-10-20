@@ -1,9 +1,9 @@
 import type { Verdict } from "@repo/conditions/sea-now";
-import { type ShoreWind } from "@repo/conditions/shore-wind";
 import { Fragment, type ReactNode } from "react";
 import { type TextStyle, View } from "react-native";
 
-import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
+import { shoreWord } from "@/components/saved/sea-figures";
+import { SkeletonText } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { compassName, formatClock, formatSeconds } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
@@ -18,15 +18,6 @@ import type { SeaNowFacts } from "./now";
 // written as the page of a break writes it (decision 059) and as the editor of an alert writes
 // its own, then what fits the place's own words and what does not, each part on a green ground
 // where it fits and a light red one where it does not. Decision 061. The web's `sea-now.tsx`.
-
-/** How a wind meets a shore, in words: for the panel of a break, and for its days ahead. */
-export const SHORE_WIND_NAMES: Record<ShoreWind, () => string> = {
-  offshore: m.wind_offshore,
-  cross_offshore: m.wind_cross_offshore,
-  cross_shore: m.wind_cross_shore,
-  cross_onshore: m.wind_cross_onshore,
-  onshore: m.wind_onshore,
-};
 
 type Judged = Verdict["fits"][number];
 type Judgement = "fits" | "off" | undefined;
@@ -112,7 +103,7 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
     );
   }
   if (wind.atShore) {
-    windParts.push(<Part judged={judgementOf("wind")}>{SHORE_WIND_NAMES[wind.atShore]()}</Part>);
+    windParts.push(<Part judged={judgementOf("wind")}>{shoreWord(wind.atShore)}</Part>);
   }
   const [first, ...waveRest] = waveParts;
   const [windFirst, ...windRest] = windParts;
@@ -196,24 +187,6 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
           {verdict.off.length > 0 && m.page_now_off({ parts: listOf(verdict.off) })}
         </Text>
       )}
-    </View>
-  );
-}
-
-/** The sentence's place while the sea is not known yet. */
-export function SeaNowSkeleton() {
-  const { colors, space, radius } = useTheme();
-  return (
-    <View
-      style={{
-        gap: space.xs,
-        padding: space.s,
-        borderRadius: radius.xs,
-        backgroundColor: colors["neutral-2"],
-      }}
-    >
-      <Skeleton height={11} width={72} />
-      <SkeletonText lines={2} />
     </View>
   );
 }

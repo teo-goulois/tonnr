@@ -11,6 +11,7 @@ import { shoreWind } from "@repo/conditions/shore-wind";
 import { type ReactNode, useMemo } from "react";
 import { View } from "react-native";
 
+import { shoreWord } from "@/components/saved/sea-figures";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { compassName, formatDay, toKnots } from "@/lib/format";
@@ -20,7 +21,7 @@ import { m } from "@/paraglide/messages";
 
 import { Bearing, DirectionArrow } from "./bearing";
 import { colorAt } from "./metrics";
-import { SHORE_WIND_NAMES, listOf } from "./sea-now";
+import { listOf } from "./sea-now";
 
 // The days ahead in words, for the essentials of a panel: one line a day, the biggest wave on
 // the color of its height and where it comes from, and the wind at noon named by how it meets the
@@ -170,7 +171,7 @@ export function DaysAhead({
           wind != null &&
             `${m.details_wind()} ${formatWind(wind)}${
               atShore
-                ? `, ${SHORE_WIND_NAMES[atShore]()}`
+                ? `, ${shoreWord(atShore)}`
                 : windFrom !== null
                   ? ` ${m.alert_from()} ${compassName(windFrom)}`
                   : ""
@@ -228,7 +229,7 @@ export function DaysAhead({
                           size={12}
                           color={colors["neutral-10"]}
                         />
-                        <Text size="s">{SHORE_WIND_NAMES[atShore]()}</Text>
+                        <Text size="s">{shoreWord(atShore)}</Text>
                       </View>
                     </Judged>
                   ) : (

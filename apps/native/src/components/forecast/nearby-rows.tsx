@@ -5,18 +5,25 @@ import { ChevronRightIcon } from "@repo/ui/icon";
 import { type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
+import { shoreWord } from "@/components/saved/sea-figures";
 import { Glyph } from "@/components/shared/glyph";
 import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { compassName, formatAgo, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
-import { formatDistance, formatHeight, formatWind, useUnits, windFigure } from "@/lib/units";
+import {
+  formatDistance,
+  formatHeight,
+  formatWind,
+  heightFigure,
+  useUnits,
+  windFigure,
+} from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
 import { Bearing, DirectionArrow } from "./bearing";
 import { colorAt } from "./metrics";
 import type { Nearby } from "./nearby";
-import { SHORE_WIND_NAMES } from "./sea-now";
 
 // What the nearest buoy and the nearest wind station measure, at a surf break or a spot, each a
 // row that opens the station's own sheet over this one. The web's `NearbyBuoy` and
@@ -123,7 +130,7 @@ export function NearbyBuoy({
       chip={
         <Chip color={colorAt(WAVE_HEIGHT_SCALE, height)}>
           <Text size="xs" weight="medium" numeric dense style={{ color: ink }}>
-            {formatNumber(height, 1)}
+            {heightFigure(height)}
           </Text>
           {from !== null && <DirectionArrow fromDegrees={from} size={11} color={ink} />}
         </Chip>
@@ -183,7 +190,7 @@ export function NearbyWindStation({
         formatWind(speed),
         gust !== null && m.details_gusts_to({ speed: windFigure(gust) }),
         from !== null && `${m.alert_from()} ${compassName(from)}`,
-        atShore && SHORE_WIND_NAMES[atShore](),
+        atShore && shoreWord(atShore),
         formatAgo(reading.observedAt, now),
       ]
         .filter(Boolean)
@@ -233,7 +240,7 @@ export function NearbyWindStation({
             }}
           >
             <Text size="xs" weight="medium" dense numberOfLines={1}>
-              {SHORE_WIND_NAMES[atShore]()}
+              {shoreWord(atShore)}
             </Text>
           </View>
         )
