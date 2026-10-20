@@ -63,8 +63,9 @@ const END_KEPT_SECONDS = 60 * 60;
 // An activity that ended is kept this long, so that an app that says it is still running is
 // told it ended, then forgotten with its token.
 const ENDED_KEPT_MS = DAY_MS;
-// How many activities a run follows at most: each may take the ten seconds a push is given.
-const FOLLOWED_AT_MOST = 200;
+// How long a run follows activities: each may take the ten seconds a push is given, and a run is
+// stopped after a quarter of an hour. What is left is followed by the next run.
+const FOLLOWED_FOR_MS = 10 * 60 * 1000;
 
 /** Where a press on the activity leads: what the alerts told, by the app's own scheme. */
 export const ACTIVITY_URL = `${APP_SCHEME}://app?panel=alerts`;
@@ -588,10 +589,11 @@ export const followActivities = Effect.fn("followActivities")(function* (
       .select({ id: liveActivity.id })
       .from(liveActivity)
       .where(isNull(liveActivity.endedAt))
-      .orderBy(asc(liveActivity.createdAt), asc(liveActivity.id))
-      .limit(FOLLOWED_AT_MOST),
+      .orderBy(asc(liveActivity.createdAt), asc(liveActivity.id)),
   );
+  const began = Date.now();
   for (const { id } of runningIds) {
+    if (Date.now() - began > FOLLOWED_FOR_MS) break;
     const result = yield* Effect.result(store(() => followOne(db, ios, id)));
     if (Result.isFailure(result)) {
       counts.failed += 1;
