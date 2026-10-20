@@ -1,17 +1,18 @@
 import type { ConnectedAgent } from "@repo/client/viewer/types";
-import { SparkleIcon } from "@repo/ui/icon";
+import { SparkleIcon, XIcon } from "@repo/ui/icon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { View } from "react-native";
 
+import { SwipeRow } from "@/components/alerts/swipe-row";
 import { confirmDestructive } from "@/components/saved/confirm";
 import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { formatDate } from "@/lib/format";
+import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
-
-import { SwipeRow } from "./swipe-row";
 
 // What an assistant says of itself: its site's host, and since when the account let it read.
 function describe(agent: ConnectedAgent) {
@@ -31,6 +32,7 @@ function describe(agent: ConnectedAgent) {
  * one from the assistant itself, which `/connect` on the web answers.
  */
 export function AgentsSection() {
+  const { colors } = useTheme();
   const { signedIn } = useAccount();
   const queryClient = useQueryClient();
   const tell = useTell();
@@ -66,18 +68,25 @@ export function AgentsSection() {
       {agents.map((agent) => (
         <SwipeRow
           key={agent.clientId}
-          actionLabel={m.account_agent_disconnect()}
-          onAction={() => void ask(agent)}
+          trailing={{
+            label: m.account_agent_disconnect(),
+            icon: XIcon,
+            tone: "danger",
+            onAct: () => void ask(agent),
+          }}
         >
-          <Row
-            icon={SparkleIcon}
-            title={agent.name ?? m.connect_client_unnamed()}
-            description={describe(agent)}
-            onPress={() => void ask(agent)}
-            chevron={false}
-            disabled={disconnect.isPending && disconnect.variables?.clientId === agent.clientId}
-            accessibilityHint={m.account_agent_disconnect()}
-          />
+          {/* The row's own ground, over the action that the swipe uncovers behind it. */}
+          <View style={{ backgroundColor: colors["cte-surface"] }}>
+            <Row
+              icon={SparkleIcon}
+              title={agent.name ?? m.connect_client_unnamed()}
+              description={describe(agent)}
+              onPress={() => void ask(agent)}
+              chevron={false}
+              disabled={disconnect.isPending && disconnect.variables?.clientId === agent.clientId}
+              accessibilityHint={m.account_agent_disconnect()}
+            />
+          </View>
         </SwipeRow>
       ))}
     </Section>
