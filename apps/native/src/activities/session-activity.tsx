@@ -8,13 +8,16 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { type LiveActivityFactory, createLiveActivity } from "expo-widgets";
 
-import { activitiesEnabled } from "../../modules/live-activities";
+import { activitiesEnabled, startQuietly } from "../../modules/live-activities";
 import type { SessionShown } from "./session-shown";
 
 // The Live Activity of a session in progress, on an iPhone: decision 074. The app starts it in
 // the foreground, as the session begins, with everything written already, and ends it as the
-// session ends: no push of Apple's carries it, and nothing of it leaves the phone. The time since
-// the start counts on the phone. Android's is a notification (session-activity.android.tsx).
+// session ends: no push of Apple's carries it, and nothing of it leaves the phone. The app's
+// module starts it, `startQuietly`, because expo-widgets asks Apple for a token of every activity
+// it starts once the app takes Apple's pushes, which would tell Apple when a session begins; the
+// library's factory draws it, finds it, updates it and ends it. The time since the start counts
+// on the phone. Android's is a notification (session-activity.android.tsx).
 
 /** The name expo-widgets keeps the layout under, and finds the activity by. */
 const SESSION_ACTIVITY = "session-in-progress";
@@ -93,8 +96,9 @@ const current = () => activities().getInstances()[0];
 export async function showSession(shown: SessionShown) {
   if (!activitiesEnabled()) return false;
   try {
+    // The factory keeps the layout the activity is drawn with, under its name, as it is made.
     for (const running of activities().getInstances()) await running.end("immediate");
-    activities().start(shown, shown.openUrl);
+    startQuietly(SESSION_ACTIVITY, JSON.stringify(shown), shown.openUrl);
     return true;
   } catch {
     return false;

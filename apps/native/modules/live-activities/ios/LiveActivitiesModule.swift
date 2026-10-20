@@ -17,9 +17,17 @@ struct LiveActivityAttributes: ActivityAttributes {
   }
 }
 
+/** The system does not let the app show Live Activities: its person turned them off for it. */
+final class ActivitiesOffException: Exception {
+  override var reason: String {
+    "Live Activities are off for the app"
+  }
+}
+
 /**
  * What the app reads of its Live Activities that expo-widgets 58 does not give: whether the
- * system lets the app show them, which run and what each shows, among them the notification an
+ * system lets the app show them, a start that asks Apple for no token, which run and what each
+ * shows, among them the notification an
  * activity of a window is of, and an event each time iOS starts one or one changes, so that the
  * app, which iOS wakes as it starts one by a push, gives the API its token. Decision 074.
  */
@@ -44,6 +52,26 @@ public class LiveActivitiesModule: Module {
         return true
       }
       return false
+    }
+
+    // Starts an activity that the app alone updates and ends, and asks Apple for no token of it:
+    // the session in progress, of which nothing goes through Apple. expo-widgets 58 asks for one
+    // for every activity it starts once the app takes Apple's pushes, as it does for the window's.
+    // Its content is expo-widgets' own, so that the library's factory of that name draws it, finds
+    // it, updates it and ends it. The activity's id, or an error where iOS refuses it.
+    Function("startQuietly") { (name: String, props: String, url: String?) throws -> String in
+      guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+        throw ActivitiesOffException()
+      }
+      let activity = try Activity.request(
+        attributes: LiveActivityAttributes(url: url),
+        content: ActivityContent(
+          state: LiveActivityAttributes.ContentState(name: name, props: props),
+          staleDate: nil
+        ),
+        pushType: nil
+      )
+      return activity.id
     }
 
     // The activities of that name that run, on the lock screen or in the Dynamic Island.

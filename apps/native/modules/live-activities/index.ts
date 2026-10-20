@@ -14,6 +14,7 @@ export type SessionNotice = {
 type NativeLiveActivities = {
   areEnabled(): boolean;
   startByPush(): boolean;
+  startQuietly(name: string, props: string, url: string | null): string;
   running(name: string): { id: string; props?: string }[];
   showSession(notice: SessionNotice): Promise<boolean>;
   hideSession(): Promise<void>;
@@ -29,6 +30,16 @@ export const activitiesEnabled = () => native?.areEnabled() ?? false;
 
 /** Whether a push of Apple's can start a Live Activity on this phone: iOS 17.2 and later. */
 export const startsByPush = () => native?.startByPush() ?? false;
+
+/**
+ * Starts a Live Activity of that name, drawn by expo-widgets' layout of that name, that asks
+ * Apple for no token: its id. Throws where the system does not let the app, or where the build
+ * has no module.
+ */
+export function startQuietly(name: string, props: string, url?: string) {
+  if (!native) throw new Error("The module live-activities is not in this build");
+  return native.startQuietly(name, props, url ?? null);
+}
 
 /** The Live Activities of that name that run, each with what it shows as a string of JSON. */
 export const runningActivities = (name: string) => native?.running(name) ?? [];
