@@ -1,6 +1,6 @@
 import { SHORE_WINDS, type ShoreWind } from "@repo/conditions/shore-wind";
 
-import { compassPoint, formatClock, formatNumber } from "@/lib/format";
+import { compassPoint, formatClock, formatNumber, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, heightIn, heightUnit, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
@@ -20,8 +20,6 @@ const SHORE_WORDS: Record<ShoreWind, () => string> = {
 
 const isShoreWind = (word: string): word is ShoreWind =>
   (SHORE_WINDS as readonly string[]).includes(word);
-
-const KNOTS_PER_MS = 3600 / 1852;
 
 /** How a session in progress is written. */
 export function sessionWriting(): SessionWriting {
@@ -44,7 +42,7 @@ export function sessionWriting(): SessionWriting {
 /** How the activity of a window is written, beside the names the app keeps. */
 export function windowWriting(): Parameters<typeof keptForWindow>[1] {
   return {
-    windPerMs: windIn(KNOTS_PER_MS),
+    windPerMs: windIn(toKnots(1)),
     wind: windUnit(),
     heightPerM: heightIn(1),
     height: heightUnit(),

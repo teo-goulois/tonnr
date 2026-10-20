@@ -8,7 +8,6 @@ import {
   formQueryOf,
   liveMinutes,
   liveStateOf,
-  placesNowInput,
   readLiveSession,
   timedOf,
 } from "./live-logic";
@@ -183,10 +182,5 @@ describe("what the sea did as a session began", () => {
     } as unknown as Parameters<typeof figuresOf>[0];
     expect(figuresOf(calm, start)).toEqual({ high: null, low: null, wind: null });
     expect(figuresOf(undefined, start)).toBeNull();
-  });
-
-  it("is asked of the place by its kind", () => {
-    expect(placesNowInput({ kind: "break", id: "b" })).toEqual({ breakIds: ["b"] });
-    expect(placesNowInput({ kind: "spot", id: "s" })).toEqual({ spotIds: ["s"] });
   });
 });

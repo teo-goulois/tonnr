@@ -9,13 +9,13 @@ import {
 } from "@/activities/session-activity";
 import { sessionShown } from "@/activities/session-shown";
 import { sessionWriting } from "@/activities/writing";
+import { inputOf } from "@/components/saved/sea-now";
 import {
   type LiveSession,
   type LiveState,
   figuresOf,
   formQueryOf,
   liveStateOf,
-  placesNowInput,
   readLiveSession,
 } from "@/components/sessions/live-logic";
 import { client } from "@/utils/orpc";
@@ -76,7 +76,7 @@ export function useLiveSession() {
 async function figuresAt(place: SessionPlace, at: number) {
   const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), ASK_MS));
   const asked = client.v1.places
-    .now(placesNowInput(place))
+    .now(inputOf([place]))
     .then((answer) => figuresOf(answer.places[0], at))
     .catch(() => null);
   return Promise.race([asked, late]);

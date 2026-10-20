@@ -1,3 +1,4 @@
+import { toKnots } from "@repo/client/format";
 import { APP_SCHEME } from "@repo/config/app";
 
 import { LONGEST_MS, type LiveSession } from "@/components/sessions/live-logic";
@@ -44,8 +45,6 @@ export type SessionWriting = {
   };
 };
 
-const KNOTS_PER_MS = 3600 / 1852;
-
 /** What the phone shows of a session in progress, as it began. */
 export function sessionShown(session: LiveSession, writing: SessionWriting): SessionShown {
   const { figures } = session;
@@ -69,9 +68,7 @@ export function sessionShown(session: LiveSession, writing: SessionWriting): Ses
   const wind = figures?.wind;
   if (wind) {
     const parts = [
-      wind.speedMetersPerSecond === null
-        ? null
-        : writing.wind(wind.speedMetersPerSecond * KNOTS_PER_MS),
+      wind.speedMetersPerSecond === null ? null : writing.wind(toKnots(wind.speedMetersPerSecond)),
       wind.directionDegrees === null ? null : writing.compass(wind.directionDegrees),
     ].filter((part) => part !== null);
     const shore = wind.atShore ? writing.shore(wind.atShore) : null;

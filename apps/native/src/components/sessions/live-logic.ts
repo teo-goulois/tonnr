@@ -1,7 +1,7 @@
 import type { AppRouterClient } from "@repo/api/routers/index";
 import type { SessionPlace } from "@repo/client/sessions/types";
 
-import { isAhead, placeOfParam, placeParam, withinLengths } from "./session-logic";
+import { MOST_MINUTES, isAhead, placeOfParam, placeParam, withinLengths } from "./session-logic";
 
 // A session timed while it lasts: decision 074, "A session in progress". The phone keeps its
 // place and its start, and nothing tells the API that it runs, until it is written as decision 043
@@ -9,13 +9,12 @@ import { isAhead, placeOfParam, placeParam, withinLengths } from "./session-logi
 // moment and what the phone kept.
 
 const MINUTE_MS = 60 * 1000;
-const HOUR_MS = 60 * MINUTE_MS;
 
 /**
- * The longest a session runs: iOS ends a Live Activity eight hours after it started, and eight
- * hours is the longest length the session form of decision 043 offers.
+ * The longest a session runs: the longest length the session form of decision 043 offers, eight
+ * hours, which is when iOS ends a Live Activity too.
  */
-export const LONGEST_MS = 8 * HOUR_MS;
+export const LONGEST_MS = MOST_MINUTES * MINUTE_MS;
 
 type PlaceNow = Awaited<ReturnType<AppRouterClient["v1"]["places"]["now"]>>["places"][number];
 
@@ -193,7 +192,3 @@ export function figuresOf(place: PlaceNow | undefined, at: number): LiveFigures 
         : null,
   };
 }
-
-/** What `places.now` is asked for a place a session is at. */
-export const placesNowInput = (place: Pick<SessionPlace, "kind" | "id">) =>
-  place.kind === "break" ? { breakIds: [place.id] } : { spotIds: [place.id] };
