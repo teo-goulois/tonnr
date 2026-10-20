@@ -1,12 +1,9 @@
-import { View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
-import { Text } from "@/components/ui/text";
+import { SavedAlert } from "@/components/alerts/alert-writer";
 
-/** Changes an alert of the account (decision 031). Built by the alerts work: decision 069. */
+/** Changes an alert of the account (decision 031). */
 export default function Screen() {
-  return (
-    <View className="flex-1 items-center justify-center bg-background p-l">
-      <Text tone="muted">alert</Text>
-    </View>
-  );
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return <SavedAlert id={id} />;
 }

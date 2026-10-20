@@ -1,12 +1,9 @@
-import { View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
-import { Text } from "@/components/ui/text";
+import { NewAlert } from "@/components/alerts/alert-writer";
 
-/** Writes a new alert, at `?place=<break|spot>:<id>` or asking where (decision 031). Built by the alerts work: decision 069. */
+/** Writes a new alert, at `?place=<break|spot>:<id>`, from a copy at `?copy=`, or asking where first (decision 031). */
 export default function Screen() {
-  return (
-    <View className="flex-1 items-center justify-center bg-background p-l">
-      <Text tone="muted">new alert</Text>
-    </View>
-  );
+  const { place, copy } = useLocalSearchParams<{ place?: string; copy?: string }>();
+  return <NewAlert placeParam={place} copyKey={copy} />;
 }

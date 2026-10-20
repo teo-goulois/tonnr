@@ -44,6 +44,7 @@ export default function RootLayout() {
                 <Stack.Screen name="search" options={formSheet({ detents: [0.94] })} />
                 <Stack.Screen name="alert/new" options={formSheet()} />
                 <Stack.Screen name="alert/[id]" options={formSheet()} />
+                <Stack.Screen name="alert/part" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="session/new" options={formSheet()} />
                 <Stack.Screen name="session/[id]" options={formSheet()} />
                 <Stack.Screen name="report/new" options={formSheet()} />
