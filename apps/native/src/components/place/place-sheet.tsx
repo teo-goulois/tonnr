@@ -31,7 +31,8 @@ import { useSpotActions } from "./use-spot";
 // `/place/<break|station|spot>/<id>?tab=`. It opens low, with the map alive over it, as tall as
 // the summary of its forecast, and rises to be read (decision 040). Its head says what the place
 // is and holds the bookmark and the menu; its tabs are those the web gives each kind, and the
-// address opens one. What a tab other than the forecast draws is drawn by its own part of the app.
+// address opens one. What a tab other than the forecast draws is drawn by its own part of the app,
+// in a scroll view of its own under the head.
 
 const TAB_NAMES: Record<PlaceTab, () => string> = {
   forecast: m.details_forecast_tab,
@@ -153,63 +154,77 @@ export function PlaceSheet({
     }
   };
 
-  // The sheet's scroll view is the first thing in it, as the platform finds the one that raises
-  // the sheet as it is scrolled: the head and the tabs are its sticky header.
+  // The head of the sheet: what the place is, its bookmark and its menu, and its tabs.
+  const head = (
+    <View
+      className="bg-background"
+      onLayout={(event) => {
+        chrome.current = event.nativeEvent.layout.height;
+        fit();
+      }}
+    >
+      <PlaceHeader
+        record={record}
+        now={now}
+        distanceKm={distanceKm}
+        isSaved={item ? isSaved(item) : false}
+        onSave={save}
+        onCopy={copy}
+        isCopying={spots.isCopying}
+        onMenu={
+          name ? () => router.push({ pathname: "/place/menu", params: { kind, id } }) : undefined
+        }
+      />
+      {tabs.length > 1 && (
+        // Its names may be longer than a phone is wide, in some languages: the row scrolls.
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
+        >
+          <Segmented
+            label={m.native_place_sections({ name: name ?? "" })}
+            options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
+            value={shown}
+            onChange={setTab}
+          />
+        </ScrollView>
+      )}
+    </View>
+  );
+
+  // Each tab is its own scroll view, with the head over it: the forecast's holds the head as its
+  // sticky header, and the others scroll, and are pulled to be read again, under it. The tab in
+  // view comes first, as iOS finds the scroll view that raises the sheet among the first things
+  // of the screen; the others stay drawn, hidden, in the order they were seen.
   return (
     <ReadingLock onLock={setLocked}>
       <ChartsAtRest atRest={atRest}>
-        <ScrollView
-          className="flex-1 bg-background"
-          scrollEnabled={!locked}
-          keyboardShouldPersistTaps="handled"
-          stickyHeaderIndices={[0]}
-          contentContainerStyle={{ paddingBottom: insets.bottom + space.xl }}
-        >
-          <View
-            className="bg-background"
-            onLayout={(event) => {
-              chrome.current = event.nativeEvent.layout.height;
-              fit();
-            }}
-          >
-            <PlaceHeader
-              record={record}
-              now={now}
-              distanceKm={distanceKm}
-              isSaved={item ? isSaved(item) : false}
-              onSave={save}
-              onCopy={copy}
-              isCopying={spots.isCopying}
-              onMenu={
-                name
-                  ? () => router.push({ pathname: "/place/menu", params: { kind, id } })
-                  : undefined
-              }
-            />
-            {tabs.length > 1 && (
-              // Its names may be longer than a phone is wide, in some languages: the row scrolls.
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
-              >
-                <Segmented
-                  label={m.native_place_sections({ name: name ?? "" })}
-                  options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
-                  value={shown}
-                  onChange={setTab}
-                />
-              </ScrollView>
-            )}
-          </View>
-          <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
-            {seen.map((one) => (
-              <View key={one} style={one === shown ? undefined : { display: "none" }}>
-                {panelOf(one)}
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+        <View className="flex-1 bg-background">
+          {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
+            <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
+              {one === "forecast" ? (
+                <ScrollView
+                  style={{ flex: 1 }}
+                  scrollEnabled={!locked}
+                  keyboardShouldPersistTaps="handled"
+                  stickyHeaderIndices={[0]}
+                  contentContainerStyle={{ paddingBottom: insets.bottom + space.xl }}
+                >
+                  {one === shown ? head : <View />}
+                  <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
+                    {panelOf(one)}
+                  </View>
+                </ScrollView>
+              ) : (
+                <>
+                  {one === shown ? head : null}
+                  <View style={{ flex: 1 }}>{panelOf(one)}</View>
+                </>
+              )}
+            </View>
+          ))}
+        </View>
       </ChartsAtRest>
     </ReadingLock>
   );
