@@ -2046,5 +2046,10 @@
   "native_report_far": "Estás a {distance} del spot: se rechazará una foto tomada aquí.",
   "native_report_menu_hint": "Borrar, denunciar o bloquear",
   "native_report_delete_message": "Sus fotos y vídeos se eliminan con él.",
-  "native_send": "Enviar"
+  "native_send": "Enviar",
+  "native_spot_rename": "Renombrar",
+  "native_spot_rename_title": "Renombrar {name}",
+  "native_spot_move": "Mover",
+  "native_spot_move_title": "Mover {name}",
+  "native_spot_move_map": "Mapa. El marcador se queda en el centro: mueve el mapa bajo él."
 }
