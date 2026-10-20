@@ -1,5 +1,4 @@
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@repo/client/sea-scales";
-import type { ShoreWind } from "@repo/conditions/shore-wind";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
@@ -11,6 +10,7 @@ import { useTheme } from "@/lib/theme";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
+import { shoreWord } from "./place-words";
 import type { SeaFigures } from "./sea-now";
 
 // The sea now at a place, as its row and its preview draw it: the height on its color of the
@@ -18,15 +18,8 @@ import type { SeaFigures } from "./sea-now";
 // so that the color is never all that says it (decision 033 and `sea-scales.ts`). A direction is
 // an arrow that points the way the sea goes, then the point it comes from, never a name alone.
 
-const SHORE_WORDS: Record<ShoreWind, () => string> = {
-  offshore: m.wind_offshore,
-  cross_offshore: m.wind_cross_offshore,
-  cross_shore: m.wind_cross_shore,
-  cross_onshore: m.wind_cross_onshore,
-  onshore: m.wind_onshore,
-};
-
-export const shoreWord = (shore: ShoreWind) => SHORE_WORDS[shore]();
+// How the wind meets the shore, in words, which the widgets write too.
+export { shoreWord };
 
 type PillSize = "row" | "large";
 

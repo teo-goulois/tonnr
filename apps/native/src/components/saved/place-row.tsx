@@ -18,6 +18,7 @@ import { m } from "@/paraglide/messages";
 
 import { type ActionKey, actionsOf, type RowContext } from "./actions";
 import { ACTION_LOOKS, type PlaceActions, type PlaceItem } from "./place-actions";
+import { kindWord } from "./place-words";
 import {
   HeightPill,
   MutedBearing,
@@ -39,14 +40,8 @@ const ACTION_WIDTH = 88;
 /** A row's height: a finger's, and room for the name over the line of the sea. */
 const ROW_HEIGHT = Math.max(TARGET, 60);
 
-/** What a place is, in words: a surf break, a buoy, a wind station, a spot. */
-export function kindWord(place: PlaceItem["ref"]["kind"], sea?: SeaNow) {
-  if (place === "break") return m.break_title();
-  if (place === "spot") return m.spot_title();
-  return sea?.place.kind === "station" && !sea.place.measures.includes("waves")
-    ? m.native_kind_wind_station()
-    : m.native_kind_buoy();
-}
+// What a place is, in words, which the widgets write too.
+export { kindWord };
 
 /** A row's place while what it says is on its way. */
 export function PlaceRowSkeleton() {
