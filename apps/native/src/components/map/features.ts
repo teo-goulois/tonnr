@@ -100,7 +100,7 @@ export const NAME_SIZE = 11;
 
 // How faded a reading is as it ages: the web's gauge empties, the map's disc pales. Its age is
 // said in words in the place's sheet.
-const FADE: Record<Freshness, number> = { fresh: 1, aging: 0.85, old: 0.6, none: 1 };
+export const FADE: Record<Freshness, number> = { fresh: 1, aging: 0.85, old: 0.6, none: 1 };
 
 /** An expression of MapLibre's style, as JSON. */
 export type Expression = Extract<

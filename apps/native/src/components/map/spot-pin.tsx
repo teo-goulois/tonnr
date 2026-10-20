@@ -11,18 +11,20 @@ import Animated, {
 
 import { Glyph } from "@/components/shared/glyph";
 import { useTheme } from "@/lib/theme";
+import { light } from "@/theme/tokens";
 
 // The marker of a spot being added, which stands in the middle of the map while the map moves
 // under it, as a phone's maps put a pin: its tip is the point, over a shadow on the ground. It
 // rises while the map moves, and comes down where it rests. It is drawn in the accent, as the
-// account's own spots are on the map. A reader who asked for no motion sees it still.
+// account's own spots are on the map. A reader who asked for no motion sees it still. Its shadow
+// is the black of the light theme in either theme: a shadow on the ground is never light.
 
 const HEAD = 34;
 const STEM = 14;
 const LIFT = 10;
 
 export function SpotPin({ lifted }: { lifted: boolean }) {
-  const { colors, motion } = useTheme();
+  const { colors, motion, border } = useTheme();
   const reduceMotion = useReducedMotion();
   const up = useSharedValue(0);
   useEffect(() => {
@@ -55,7 +57,7 @@ export function SpotPin({ lifted }: { lifted: boolean }) {
             width: 12,
             height: 5,
             borderRadius: 6,
-            backgroundColor: "#000000",
+            backgroundColor: light["neutral-10"],
           },
           shadow,
         ]}
@@ -70,9 +72,9 @@ export function SpotPin({ lifted }: { lifted: boolean }) {
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors["color-1"],
-            borderWidth: 2,
+            borderWidth: border.l,
             borderColor: colors["neutral-1"],
-            boxShadow: "0 2px 6px rgba(0, 0, 0, 0.25)",
+            boxShadow: `0 2px 6px ${light["neutral-10-transparent"]}`,
           }}
         >
           <Glyph icon={PinIcon} size={18} color={colors["neutral-1"]} />

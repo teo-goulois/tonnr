@@ -11,7 +11,7 @@ import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Glyph } from "@/components/shared/glyph";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
-import { TARGET } from "@/components/ui/metrics";
+import { ROUND, TARGET } from "@/components/ui/metrics";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { formatNumber } from "@/lib/format";
@@ -19,6 +19,7 @@ import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits, windFigure, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
+import { FADE } from "./features";
 import type { MapLayers } from "./layers";
 
 // What the map's colors mean, and the switch of each of its layers: the web's `MapLegend` as a
@@ -140,9 +141,9 @@ function LayerRow({
 function Freshness() {
   const { space, colors } = useTheme();
   const items = [
-    { label: m.map_fresh(), opacity: 1 },
-    { label: m.map_aging(), opacity: 0.85 },
-    { label: m.map_old(), opacity: 0.6 },
+    { label: m.map_fresh(), opacity: FADE.fresh },
+    { label: m.map_aging(), opacity: FADE.aging },
+    { label: m.map_old(), opacity: FADE.old },
   ];
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: space.s, rowGap: space.xxs }}>
@@ -226,7 +227,8 @@ export function MapLegend({
           onExpandedChange(!expanded);
         }}
         style={({ pressed }) => ({
-          minHeight: 48,
+          // As tall as the round buttons beside it.
+          minHeight: ROUND,
           flexDirection: "row",
           alignItems: "center",
           gap: space.xs,

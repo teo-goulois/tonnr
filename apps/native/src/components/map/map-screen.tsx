@@ -14,7 +14,9 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
+import { ROUND } from "@/components/ui/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
@@ -289,11 +291,13 @@ export function MapScreen() {
 
   function addSpot([longitude, latitude]: LngLat) {
     feel("hold");
-    requireAccount(m.auth_reason_add_spot(), () =>
-      router.push({
-        pathname: "/spot/new",
-        params: { latitude: String(latitude), longitude: String(longitude) },
-      }),
+    const href = `/spot/new?latitude=${latitude}&longitude=${longitude}` as const;
+    // One sheet at a time here too: the place that is open gives way to the new spot. A visitor
+    // goes on to it once signed in.
+    requireAccount(
+      m.auth_reason_add_spot(),
+      () => (selected ? router.replace(href) : router.push(href)),
+      href,
     );
   }
 
@@ -434,9 +438,10 @@ export function MapScreen() {
                   style={{
                     position: "absolute",
                     top: 0,
-                    right: 48 + space.xs,
-                    width: window.width - 2 * space.s - 48 - space.xs,
-                    height: 48,
+                    // Beside the lists' button, the first of the column.
+                    right: ROUND + space.xs,
+                    width: window.width - 2 * space.s - ROUND - space.xs,
+                    height: ROUND,
                     flexDirection: "row",
                   }}
                 >
@@ -485,7 +490,7 @@ function pill(
     paddingHorizontal: space.s,
     borderRadius: 16,
     backgroundColor: colors["neutral-1"],
-    boxShadow: `inset 0 0 0 0.5px ${colors["neutral-10-transparent"]}`,
+    ...edge(colors["neutral-10-transparent"], { inset: true }),
   };
 }
 
