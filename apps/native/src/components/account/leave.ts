@@ -21,18 +21,17 @@ export function forgetOnPhone(queryClient: QueryClient) {
 }
 
 /**
- * Signs the account out on this phone: the session ends at the API and its cookie leaves the
- * keychain, then the phone forgets what it kept for the account. True once it is done; a
- * sign-out that did not happen leaves everything as it was.
+ * Signs the account out on this phone: the session ends at the API, its cookie leaves the
+ * keychain, and the phone forgets what it kept for the account. The library's client lets go of
+ * the cookie before it asks the API, so the phone is signed out whatever the API answers: a
+ * session the API could not end then ends at its time, with no cookie left here to use it.
  */
 export function useSignOut() {
   const queryClient = useQueryClient();
   return useCallback(async () => {
-    const answer = await authClient
+    await authClient
       .signOut({ fetchOptions: { headers: { "X-App": appHeader() } } })
       .catch(() => null);
-    if (!answer || answer.error) return false;
     forgetOnPhone(queryClient);
-    return true;
   }, [queryClient]);
 }

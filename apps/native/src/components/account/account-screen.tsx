@@ -36,7 +36,6 @@ import { useProfile } from "@/components/profile/use-profile";
 import { profileWords } from "@/components/profile/profile-words";
 import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
-import { useTell } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme";
 import { type Units, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -81,7 +80,6 @@ const go = (href: Href) => () => router.push(href);
  */
 export function AccountScreen() {
   const { colors, space, choice } = useTheme();
-  const tell = useTell();
   const { openPage, openAddress } = useOpenPage();
   const own = useOwnAccount();
   const check = useSendVerification();
@@ -117,12 +115,9 @@ export function AccountScreen() {
       action: m.auth_sign_out(),
     });
     if (!sure) return;
-    if (await signOut()) {
-      feel("done");
-      router.replace("/");
-    } else {
-      tell({ title: m.auth_failed(), tone: "danger" });
-    }
+    await signOut();
+    feel("done");
+    router.replace("/");
   }
 
   const score = standing.data?.score ?? 0;
