@@ -1,7 +1,8 @@
 // How tall a place's sheet stands while it is low: as tall as the summary of its panel, the
-// name, the sea now and the tiles, and nothing that is cut. It stays within three and six tenths
-// of the screen, and a panel that marks nothing gets 46 hundredths. Decision 040, which the web
-// reads from `SHEET_FOLD` (`viewer-drawer.tsx`). Pure, so that a test reads it.
+// name, the sea now and the tiles, and nothing that is cut. It stays between 36 and 60
+// hundredths of the screen, and opens at 46, where a panel that marks nothing leaves it.
+// Decision 040, which the web reads from `SHEET_FOLD` (`viewer-drawer.tsx`). Pure, so that a
+// test reads it.
 
 export const FOLD_LOWEST = 0.36;
 export const FOLD_HIGHEST = 0.6;

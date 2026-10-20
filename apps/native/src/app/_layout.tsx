@@ -14,6 +14,7 @@ import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
 import { navigationTheme, useTheme } from "@/lib/theme";
@@ -36,7 +37,7 @@ export default function RootLayout() {
                     read: decision 040's two heights. */}
                 <Stack.Screen
                   name="place/[kind]/[id]"
-                  options={formSheet({ detents: [0.45, 0.94], undimmedUpTo: 0 })}
+                  options={formSheet({ detents: [FOLD_NONE, RAISED], undimmedUpTo: 0 })}
                 />
                 <Stack.Screen name="place/save" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="place/menu" options={formSheet({ detents: "fit" })} />
