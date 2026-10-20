@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from "react";
-
 import {
   type AnalyticsConsent,
   CONSENT_KEY,
@@ -7,7 +5,8 @@ import {
   consentRecord,
   ERRORS_KEY,
   errorReportsOn,
-} from "./consent";
+} from "@repo/client/consent";
+import { useSyncExternalStore } from "react";
 
 // The person's choice about analytics and error reports, as the phone keeps it: decision 044.
 

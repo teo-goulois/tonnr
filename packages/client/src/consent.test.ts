@@ -4,7 +4,7 @@ import { CONSENT_LIFETIME_MS, consentFrom, consentRecord, errorReportsOn } from 
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-describe("the choice about analytics, as the phone keeps it", () => {
+describe("the choice about analytics, as a device keeps it", () => {
   it("is none until the person says, so nothing is on by default", () => {
     expect(consentFrom(null, Date.now())).toBeNull();
   });

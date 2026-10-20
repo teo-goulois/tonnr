@@ -1,12 +1,13 @@
-// Whether the person lets the app send what it uses and what breaks, as the web asks it:
-// optional, off until said yes, refused as easily as taken, and kept on the phone 180 days, after
-// which it is asked again. The error reports go with the same yes, and may be turned off alone.
-// Decisions 044, 054 and 069. Nothing is sent yet: the app's analytics read this choice once they
-// are built. A module that imports nothing of React Native, so that a test reads it.
+// Whether the person lets the app send what it uses and what breaks: optional, off until said
+// yes, refused as easily as taken, and kept on the device 180 days, after which it is asked again,
+// the same in a browser and on a phone. The error reports go with the same yes, and may be turned
+// off alone. Decisions 044, 054 and 069. Each app keeps the choice in its own storage, under these
+// keys, and the app for phones sends nothing yet: its analytics read the choice once they are
+// built.
 
 export type AnalyticsConsent = "granted" | "denied" | null;
 
-/** Where the phone keeps the choice, as the web's browser keeps it. */
+/** Where a device keeps the choice, and that error reports were turned off alone. */
 export const CONSENT_KEY = "analytics-consent";
 export const ERRORS_KEY = "error-reports";
 
