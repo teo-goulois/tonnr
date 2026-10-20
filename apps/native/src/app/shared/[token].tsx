@@ -84,6 +84,7 @@ export default function SharedListScreen() {
             title={m.shared_failed_title()}
             description={m.shared_failed_text()}
             onRetry={() => void door.refetch()}
+            retrying={door.isFetching}
           />
         )}
       </View>

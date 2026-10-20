@@ -46,6 +46,12 @@ export function useSharedList(token: string) {
     // Read again when the reader comes back to it, not on every render.
     staleTime: 60 * 1000,
   });
+  // Who shares it, as the last answer said: a password tried since, while it is checked and once
+  // it is refused, has no answer of its own, and the door goes on saying whose list it is.
+  const [owner, setOwner] = useState<string | null>(null);
+  useEffect(() => {
+    if (opened.data) setOwner(opened.data.owner);
+  }, [opened.data]);
   const answer = opened.data && !opened.data.locked ? opened.data : undefined;
   const list = answer?.list;
   const pass = answer?.pass ?? null;
@@ -76,7 +82,7 @@ export function useSharedList(token: string) {
     list,
     pass,
     /** The username of whoever shares the list, which a locked one says too. */
-    owner: opened.data?.owner ?? null,
+    owner: opened.data ? opened.data.owner : owner,
     /** The password that opened it, which keeping the list asks for again. */
     password,
     byLink,
@@ -95,6 +101,7 @@ export function useSharedList(token: string) {
       else setPassword(given);
     },
     refetch: () => opened.refetch(),
+    isFetching: opened.isFetching,
   };
 }
 
