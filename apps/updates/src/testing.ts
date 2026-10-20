@@ -1,5 +1,5 @@
-// What the tests of the updates stand on: a bucket kept in memory, and an answer read the way the
-// client of expo-updates reads it. Nothing here asks Cloudflare.
+// What the tests of the updates stand on: a bucket kept in memory, and an answer read by the rules
+// that the client of expo-updates follows, as its source was read. Nothing here asks Cloudflare.
 import { createSign, generateKeyPairSync } from "node:crypto";
 
 import { SIGNATURE_METADATA } from "./bucket.ts";
@@ -115,9 +115,12 @@ const indexOf = (bytes: Uint8Array, needle: Uint8Array, from: number) => {
 };
 
 /**
- * The parts of a multipart answer, read as `UpdatesMultipartStreamReader` reads them: the first
- * boundary may come first, every later one follows a line break, the last ends with `--` and a
- * line break, and a part's headers end at an empty line. It throws where the client would fail.
+ * The parts of a multipart answer, read by the rules that `UpdatesMultipartStreamReader` on iOS
+ * and OkHttp's `MultipartReader` on Android follow, as their source was read for expo-updates 58:
+ * the first boundary may come first, every later one follows a line break, the last ends with
+ * `--` and a line break, and a part's headers end at an empty line. It is written here, not taken
+ * from the client, so a test that passes says that an answer follows those rules, and not that
+ * the client reads it: the first start of a store build against the Worker does.
  */
 export function readMultipart(bytes: Uint8Array, contentType: string): Part[] {
   const boundary = /boundary=([^;]+)/.exec(contentType)?.[1];

@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { amzDateOf, r2Client, signedHeaders } from "./r2.ts";
 
 // The examples of Amazon's documentation of Signature Version 4 for S3, "Signature calculations
-// for the Authorization header: transferring payload in a single chunk".
+// for the Authorization header: transferring payload in a single chunk": a GET with a range, a
+// GET with a query, and a PUT with a body, a date and a header of Amazon's.
 const AWS = {
   accessKeyId: "AKIAIOSFODNN7EXAMPLE",
   secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -52,6 +53,33 @@ describe("a request signed by Signature Version 4", () => {
     );
     expect(signatureOf(headers)).toBe(
       "34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7",
+    );
+  });
+
+  it("signs a PUT of an object with a body and headers of its own, as Amazon's example does", () => {
+    const body = "Welcome to Amazon S3.";
+    const payloadHash = createHash("sha256").update(body).digest("hex");
+    expect(payloadHash).toBe("44ce7dd67c959e0d3524ffac1771dfbba87d2b6b4b4e99e42034a8b803f8b072");
+    const headers = signedHeaders(
+      {
+        method: "PUT",
+        // A key with a character that S3 encodes in the path, as the example's does.
+        url: new URL("https://examplebucket.s3.amazonaws.com/test$file.text"),
+        headers: {
+          Date: "Fri, 24 May 2013 00:00:00 GMT",
+          "x-amz-storage-class": "REDUCED_REDUNDANCY",
+        },
+        payloadHash,
+        amzDate: "20130524T000000Z",
+      },
+      AWS,
+      "us-east-1",
+    );
+    expect(headers.authorization).toContain(
+      "SignedHeaders=date;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class",
+    );
+    expect(signatureOf(headers)).toBe(
+      "98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd",
     );
   });
 
@@ -107,6 +135,11 @@ describe("the bucket through R2's S3 API", () => {
       "x-amz-date": "19700101T000000Z",
     });
     expect(put?.headers.authorization).toContain("Credential=key/19700101/auto/s3/aws4_request");
+    // Each header it writes is signed, as the PUT of Amazon's example signs its own.
+    expect(put?.headers.authorization).toContain(
+      "SignedHeaders=cache-control;content-type;host;x-amz-content-sha256;x-amz-date;" +
+        "x-amz-meta-signature,",
+    );
     expect(put?.headers.host).toBeUndefined();
   });
 

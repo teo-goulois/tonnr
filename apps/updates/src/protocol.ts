@@ -1,6 +1,7 @@
 // The Expo Updates protocol, version 1, as the Worker of updates answers it: what an app asks in
 // its headers, which part of a publication it gets, and the multipart answer, in the form the
-// client of expo-updates 58 reads (`FileDownloader` in its iOS and Android code). Decision 075.
+// client of expo-updates 58 reads as its source says (`FileDownloader` in its iOS and Android
+// code), which no test runs. Decision 075.
 import {
   type Platform,
   isPlatform,
