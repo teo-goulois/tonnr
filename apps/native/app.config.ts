@@ -180,7 +180,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         microphonePermission: english.NSMicrophoneUsageDescription,
       },
     ],
-    "expo-notifications",
+    // Android draws a notification's small icon by its alpha alone: the app's icon, which has
+    // none, would be a white square in the status bar. This is its mark in white on nothing,
+    // which the plugin writes as the drawable notification_icon (decisions 072 and 074).
+    ["expo-notifications", { icon: "./assets/notification-icon.png" }],
     // The notification extension of decision 072, in targets/notifications.
     "@bacons/apple-targets",
     // The widgets and the Live Activities of decision 074, on iOS: their extension, in the app's

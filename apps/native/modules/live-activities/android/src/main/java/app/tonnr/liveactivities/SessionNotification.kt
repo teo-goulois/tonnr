@@ -51,7 +51,7 @@ object SessionNotification {
     val left = notice.endsBy.toLong() - System.currentTimeMillis()
     if (left <= 0) return false
     val builder = NotificationCompat.Builder(context, CHANNEL)
-      .setSmallIcon(context.applicationInfo.icon)
+      .setSmallIcon(smallIcon(context))
       .setContentTitle(notice.title)
       .setOngoing(true)
       .setOnlyAlertOnce(true)
@@ -78,6 +78,17 @@ object SessionNotification {
   fun isShown(context: Context): Boolean {
     val manager = context.getSystemService(NotificationManager::class.java) ?: return false
     return manager.activeNotifications.any { it.tag == TAG && it.id == ID }
+  }
+
+  /**
+   * The app's mark in white on nothing, which the expo-notifications plugin writes as the drawable
+   * `notification_icon`: Android draws a small icon by its alpha alone, and the app's icon, which
+   * has none, would be a white square. The app's icon in a build made before it.
+   */
+  @SuppressLint("DiscouragedApi")
+  private fun smallIcon(context: Context): Int {
+    val mark = context.resources.getIdentifier("notification_icon", "drawable", context.packageName)
+    return if (mark != 0) mark else context.applicationInfo.icon
   }
 
   /** What a press opens: the app, at a route of its own, read as a link of its scheme. */

@@ -1,5 +1,6 @@
 package app.tonnr.pushkeys
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -46,7 +47,7 @@ class TonnrMessagingService : ExpoFirebaseMessagingService() {
       else -> "alerts"
     }
     val builder = NotificationCompat.Builder(this, channel)
-      .setSmallIcon(applicationInfo.icon)
+      .setSmallIcon(smallIcon())
       .setAutoCancel(true)
       .setContentTitle(push?.optString("title") ?: labels["standIn"])
       .setContentIntent(open(push?.optString("url"), 0))
@@ -66,6 +67,17 @@ class TonnrMessagingService : ExpoFirebaseMessagingService() {
       builder.addAction(0, label, open(address, request))
     }
     runCatching { manager.notify(tag, 0, builder.build()) }
+  }
+
+  /**
+   * The app's mark in white on nothing, which the expo-notifications plugin writes as the drawable
+   * `notification_icon`: Android draws a small icon by its alpha alone, and the app's icon, which
+   * has none, would be a white square. The app's icon in a build made before it.
+   */
+  @SuppressLint("DiscouragedApi")
+  private fun smallIcon(): Int {
+    val mark = resources.getIdentifier("notification_icon", "drawable", packageName)
+    return if (mark != 0) mark else applicationInfo.icon
   }
 
   /** What a long press offers: "Not today" on an alert's push of today, "Log a session" on "it is on". */
