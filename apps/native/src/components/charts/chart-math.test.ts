@@ -5,11 +5,9 @@ import {
   colorAt,
   crossingsAt,
   curveGradient,
-  daysOf,
   floorTicks,
   heightAt,
   midnightsBetween,
-  nearestIndex,
   timeTicks,
   valueTicks,
 } from "./chart-math";
@@ -69,13 +67,6 @@ describe("the colors along a curve", () => {
 });
 
 describe("what a finger reads", () => {
-  it("finds the sample nearest a moment", () => {
-    const rows = [{ time: 0 }, { time: 10 }, { time: 20 }];
-    expect(nearestIndex(rows, 14)).toBe(1);
-    expect(nearestIndex(rows, 16)).toBe(2);
-    expect(nearestIndex([], 3)).toBeUndefined();
-  });
-
   it("finds every moment the water stands at a height, and whether it rises there", () => {
     const tide = [
       { time: 0, value: 0 },
@@ -112,12 +103,10 @@ describe("the moments a time axis names", () => {
     for (const tick of ticks) expect(new Date(tick).getHours()).toBe(12);
   });
 
-  it("rules the midnights between two moments, and counts whole days", () => {
+  it("rules the midnights between two moments", () => {
     const start = new Date(2026, 9, 20, 9).getTime();
     const midnights = midnightsBetween(start, start + 2 * 24 * HOUR);
     expect(midnights).toHaveLength(2);
     for (const midnight of midnights) expect(new Date(midnight).getHours()).toBe(0);
-    expect(daysOf(start, start + 3 * 24 * HOUR)).toBe(3);
-    expect(daysOf(start, start + HOUR)).toBe(1);
   });
 });

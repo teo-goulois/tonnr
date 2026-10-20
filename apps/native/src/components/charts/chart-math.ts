@@ -4,9 +4,6 @@ import { type ScaleStop, scaleColor } from "@repo/client/sea-scales";
 // `metric-lanes.tsx` compute it: round figures for an axis, the colors along a curve, the
 // moments the water stands at a height. Pure, so that a test reads it.
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-
 /** A point of a curve. */
 export type Row = { time: number; value: number };
 
@@ -80,20 +77,6 @@ export function colorAt(scale: ScaleStop[], value: number, alpha = 1) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-/** The index of the row nearest a moment. Undefined without rows. */
-export function nearestIndex(rows: readonly { time: number }[], time: number) {
-  let best: number | undefined;
-  for (let index = 0; index < rows.length; index++) {
-    if (
-      best === undefined ||
-      Math.abs(rows[index]!.time - time) < Math.abs(rows[best]!.time - time)
-    ) {
-      best = index;
-    }
-  }
-  return best;
-}
-
 /** A moment the water stands at a height, and whether it rises there. */
 export type Crossing = Row & { rising: boolean };
 
@@ -153,9 +136,4 @@ export function midnightsBetween(start: number, end: number) {
     days.push(midnight.getTime());
   }
   return days;
-}
-
-/** The days of a strip from its first moment, counted whole, at least one. */
-export function daysOf(start: number, end: number) {
-  return Math.max(1, Math.round((end - start) / DAY_MS));
 }
