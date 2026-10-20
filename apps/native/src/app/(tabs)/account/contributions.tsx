@@ -1,12 +1,14 @@
-import { View } from "react-native";
+import { Stack } from "expo-router";
 
-import { Text } from "@/components/ui/text";
+import { ContributionsScreen } from "@/components/contributions/contributions-screen";
+import { m } from "@/paraglide/messages";
 
-/** What the account wrote of the breaks, and its rank (decision 041). Built by the community work: decision 069. */
+/** What the account wrote of the breaks, and its rank (decision 041). */
 export default function Screen() {
   return (
-    <View className="flex-1 items-center justify-center bg-background p-l">
-      <Text tone="muted">contributions</Text>
-    </View>
+    <>
+      <Stack.Screen options={{ title: m.contributions_title() }} />
+      <ContributionsScreen />
+    </>
   );
 }
