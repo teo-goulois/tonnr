@@ -116,6 +116,20 @@ describe("the push of an alert", () => {
         thread: "alert:bay",
       });
     });
+
+    it("says when the last window that begins ends, which Android's notification goes at", () => {
+      const afternoon = [{ start: at("12T14:00"), end: at("12T17:00") }];
+      const begins = content({
+        moment: "begins",
+        lines: [
+          { ...spot, open: afternoon, sea },
+          { ...spot, spotId: "s2", spotName: "La pointe", open: morning, sea },
+        ],
+      });
+      expect(alertPush(begins).endsAt).toBe(at("12T17:00").toISOString());
+      // A window that is found is told with no end of the kind.
+      expect(alertPush(content())).not.toHaveProperty("endsAt");
+    });
   });
 
   it("is written in the account's language and units", () => {

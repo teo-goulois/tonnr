@@ -48,6 +48,8 @@ export type PushCategory = "today" | "begins";
  * was written, in ISO 8601: the app gives it back to `alerts.pauseToday`, so that a "Not today"
  * pressed after midnight pauses no day the push did not speak of.
  * `locale` is the language of the line Apple shows in its place when the app cannot open it.
+ * `endsAt`, on "it is on", is when the last of the windows it tells ends, in ISO 8601: the app on
+ * Android lets its notification go by itself then (decision 074).
  */
 export type Push = {
   title: string;
@@ -61,6 +63,7 @@ export type Push = {
   ids?: { notification?: string; alert?: string; notice?: string };
   level?: "passive" | "active" | "time-sensitive";
   pauseUntil?: string;
+  endsAt?: string;
   badge?: number;
 };
 

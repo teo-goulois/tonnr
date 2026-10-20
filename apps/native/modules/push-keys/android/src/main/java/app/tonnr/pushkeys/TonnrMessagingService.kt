@@ -10,6 +10,9 @@ import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.RemoteMessage
 import expo.modules.notifications.service.ExpoFirebaseMessagingService
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import org.json.JSONObject
 
 /**
@@ -51,6 +54,9 @@ class TonnrMessagingService : ExpoFirebaseMessagingService() {
       builder.setContentText(it).setStyle(NotificationCompat.BigTextStyle().bigText(it))
     }
     push?.optString("thread")?.takeIf { it.isNotEmpty() }?.let { builder.setGroup(it) }
+    // "It is on" goes by itself when the last window it tells ends, which the push says: Google
+    // allows no alert as a Live Update (decision 074). One that comes late still shows a minute.
+    if (channel == "begins") endsIn(push?.optString("endsAt"))?.let { builder.setTimeoutAfter(it) }
     push?.optString("image")?.takeIf { it.isNotEmpty() }?.let { address ->
       picture(address)?.let {
         builder.setStyle(NotificationCompat.BigPictureStyle().bigPicture(it)).setLargeIcon(it)
@@ -103,6 +109,19 @@ class TonnrMessagingService : ExpoFirebaseMessagingService() {
       intent,
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+  }
+
+  /**
+   * How long until a moment as the worker writes one, `Date.toISOString()` in UTC, a minute at
+   * least, or null for no moment. `java.time` waits for Android 8, which the app does not ask.
+   */
+  private fun endsIn(moment: String?): Long? {
+    if (moment.isNullOrEmpty()) return null
+    val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+      timeZone = TimeZone.getTimeZone("UTC")
+    }
+    val at = runCatching { format.parse(moment)?.time }.getOrNull() ?: return null
+    return maxOf(at - System.currentTimeMillis(), 60_000L)
   }
 
   /** The place a push's address names: `break:<id>` or `spot:<id>`. */

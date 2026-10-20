@@ -154,6 +154,10 @@ export function alertPush(content: AlertPushContent): Push {
 
   const [place] = lines;
   const category = categoryOf(content);
+  // When the last window that begins ends: Android's notification of it goes then.
+  const ends = content.lines
+    .flatMap((one) => one.open)
+    .reduce<Date | null>((last, piece) => (last && last >= piece.end ? last : piece.end), null);
   return {
     title: line(headline, TITLE_CHARACTERS),
     body: rows.join("\n"),
@@ -168,6 +172,7 @@ export function alertPush(content: AlertPushContent): Push {
     ...(category ? { category } : {}),
     // The day "Not today" pauses, which the app gives back as it is pressed.
     ...(category === "today" ? { pauseUntil: content.today.end.toISOString() } : {}),
+    ...(content.moment === "begins" && ends ? { endsAt: ends.toISOString() } : {}),
     ids: {
       notification: content.notificationId,
       ...(content.alertId === null ? {} : { alert: content.alertId }),
