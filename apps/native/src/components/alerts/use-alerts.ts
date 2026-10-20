@@ -41,13 +41,20 @@ export function useAlerts() {
     () => query.data?.filter((alert) => !deleting.has(alert.id)),
     [query.data, deleting],
   );
+  // The list pulled down turns while it is read again, and only then: a switch or a delete asks
+  // for it again too, under a list that stays still.
+  const [isPulled, setPulled] = useState(false);
   return {
     alerts,
     // A visitor's list is never asked for, and is not pending.
     isPending: query.isLoading,
     isError: query.isError,
-    isRefetching: query.isRefetching,
     refetch: () => void query.refetch(),
+    isRefreshing: isPulled,
+    refresh: () => {
+      setPulled(true);
+      void query.refetch().finally(() => setPulled(false));
+    },
   };
 }
 

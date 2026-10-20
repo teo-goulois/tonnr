@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
+import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
@@ -87,7 +88,7 @@ function RowShape({
           gap: space.s,
           paddingHorizontal: space.m,
           paddingVertical: space.s,
-          minHeight: 44,
+          minHeight: TARGET,
           backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
         })}
       >

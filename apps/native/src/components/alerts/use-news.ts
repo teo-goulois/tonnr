@@ -38,6 +38,7 @@ export function useNews(isShown: boolean) {
   const queryClient = useQueryClient();
   const tell = useTell();
   const [limit, setLimit] = useState(PAGE);
+  const [isPulled, setPulled] = useState(false);
 
   const notificationsKey = [
     ...orpc.v1.notifications.list.queryKey({ input: { limit } }),
@@ -144,10 +145,14 @@ export function useNews(isShown: boolean) {
     isPending: notifications.isLoading || notices.isLoading,
     // The notices are said when they come: what cannot be loaded of them leaves the alerts.
     isError: notifications.isError,
-    isRefreshing: notifications.isRefetching && !notifications.isPlaceholderData,
+    // The list pulled down turns while it is read again, and only then: what is marked read asks
+    // for it again too, under a list that stays still.
+    isRefreshing: isPulled,
     refresh: () => {
-      void notifications.refetch();
-      void notices.refetch();
+      setPulled(true);
+      void Promise.all([notifications.refetch(), notices.refetch()]).finally(() =>
+        setPulled(false),
+      );
     },
     unreadHere,
     readNotification,

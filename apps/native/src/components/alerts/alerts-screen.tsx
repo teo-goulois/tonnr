@@ -4,6 +4,7 @@ import { Stack, router } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { Pressable, ScrollView, SectionList, View } from "react-native";
 
+import { placeHref } from "@/components/map/place-route";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,6 +15,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
+import type { Route } from "@/lib/links";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -225,10 +227,7 @@ export function AlertsScreen() {
             onRead={() => news.readNotice(notice)}
             onOpen={() => {
               news.readNotice(notice);
-              router.push({
-                pathname: "/place/[kind]/[id]",
-                params: { kind: "break", id: notice.breakId, tab: "reports" },
-              });
+              router.push(`${placeHref("break", notice.breakId)}?tab=reports` as Route);
             }}
           />
         </GroupedCell>
@@ -245,12 +244,7 @@ export function AlertsScreen() {
             news.readNotification(notification);
             // It opens the place it speaks of, as its push does; one of several is read here.
             const place = placeOf(notification);
-            if (place) {
-              router.push({
-                pathname: "/place/[kind]/[id]",
-                params: { kind: place.kind, id: place.id },
-              });
-            }
+            if (place) router.push(placeHref(place.kind, place.id));
           }}
         />
       </GroupedCell>
@@ -311,8 +305,8 @@ export function AlertsScreen() {
         onEndReached={() => {
           if (view === "news" && news.hasMore && !news.isLoadingMore) news.loadMore();
         }}
-        refreshing={view === "news" ? news.isRefreshing : mine.isRefetching}
-        onRefresh={view === "news" ? news.refresh : mine.refetch}
+        refreshing={view === "news" ? news.isRefreshing : mine.isRefreshing}
+        onRefresh={view === "news" ? news.refresh : mine.refresh}
       />
     </>
   );
