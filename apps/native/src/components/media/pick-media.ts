@@ -8,8 +8,9 @@ import {
   requestCameraPermissionsAsync,
   UIImagePickerPreferredAssetRepresentationMode,
 } from "expo-image-picker";
-import { ActionSheetIOS, Alert, Linking, Platform } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 
+import { chooseOnIos } from "@/components/saved/confirm";
 import { m } from "@/paraglide/messages";
 
 // How the app takes photos and videos from the phone: its camera, or its library, several at once,
@@ -54,7 +55,7 @@ export async function takeWithCamera(purpose: MediaPurpose): Promise<Picked> {
 export function tellCameraDenied() {
   Alert.alert(m.native_media_camera_denied({ name: APP_NAME }), undefined, [
     { text: m.action_cancel(), style: "cancel" },
-    { text: m.native_media_open_settings(), onPress: () => void Linking.openSettings() },
+    { text: m.native_open_settings(), onPress: () => void Linking.openSettings() },
   ]);
 }
 
@@ -62,15 +63,16 @@ export function tellCameraDenied() {
  * Asks where the files come from, the camera or the library, as the platform asks it: an action
  * sheet on iOS, a dialog on Android.
  */
-export function askSource(): Promise<"camera" | "library" | null> {
+export async function askSource(): Promise<"camera" | "library" | null> {
+  const sources = ["camera", "library"] as const;
+  if (Platform.OS === "ios") {
+    const index = await chooseOnIos(m.media_add(), [
+      m.native_media_take(),
+      m.native_media_choose(),
+    ]);
+    return index === undefined ? null : (sources[index] ?? null);
+  }
   return new Promise((resolve) => {
-    const options = [m.native_media_take(), m.native_media_choose(), m.action_cancel()];
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 2 }, (index) =>
-        resolve(index === 0 ? "camera" : index === 1 ? "library" : null),
-      );
-      return;
-    }
     Alert.alert(
       m.media_add(),
       undefined,

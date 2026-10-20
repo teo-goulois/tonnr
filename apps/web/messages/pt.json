@@ -2032,7 +2032,6 @@
   "native_media_take": "Tirar uma foto ou um vídeo",
   "native_media_choose": "Escolher da tua fototeca",
   "native_media_camera_denied": "{name} não tem acesso à câmara. Autoriza-o nas definições do telemóvel.",
-  "native_media_open_settings": "Abrir as definições",
   "native_session_failed": "Não foi possível guardar a sessão.",
   "native_session_from_photo": "Dia e hora da tua primeira foto.",
   "native_session_place_near": "O mais perto de ti",

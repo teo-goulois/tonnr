@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
+import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { dark } from "@/theme/tokens";
@@ -28,7 +29,7 @@ import { m } from "@/paraglide/messages";
 // web's `MediaViewer` does the same. Decision 066.
 
 const INK = dark["neutral-10"];
-const GROUND = "#000000";
+const GROUND = dark["neutral-1"];
 
 /** A photo at its size within the screen, which two fingers bring closer on iOS. */
 function PhotoPage({ item, width, height }: { item: MediaItem; width: number; height: number }) {
@@ -198,12 +199,12 @@ export function MediaViewer({ items, initialId, label, onClose }: MediaViewerPro
           onPress={onClose}
           hitSlop={4}
           style={({ pressed }) => ({
-            width: 44,
-            height: 44,
-            borderRadius: 22,
+            width: TARGET,
+            height: TARGET,
+            borderRadius: TARGET / 2,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: pressed ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.16)",
+            backgroundColor: pressed ? dark["neutral-4"] : dark["neutral-3"],
           })}
         >
           <Glyph icon={XIcon} size={16} color={INK} />

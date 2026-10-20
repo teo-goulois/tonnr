@@ -18,9 +18,9 @@ import { videoLength } from "./media-files";
 // it is not shown yet, a ring of how much of it went, a spinner while the worker makes it, or a
 // warning. Decision 066.
 
-// What stands over a picture is white on a dark veil, in either theme.
+// What stands over a picture is the theme's white on a veil of its black at 45%, in either theme.
 const ON_VEIL = light["neutral-1"];
-const VEIL = "rgba(0, 0, 0, 0.45)";
+const VEIL = `${light["neutral-10"]}73`;
 
 /** Why the worker made nothing of a file, in a few words. */
 export function failureWords(failure: MediaItem["failure"]) {

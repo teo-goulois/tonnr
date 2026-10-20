@@ -2032,7 +2032,6 @@
   "native_media_take": "Take a photo or video",
   "native_media_choose": "Choose from your library",
   "native_media_camera_denied": "{name} can't use the camera. Allow it in your phone's settings.",
-  "native_media_open_settings": "Open settings",
   "native_session_failed": "The session couldn't be saved.",
   "native_session_from_photo": "Day and time from your first photo.",
   "native_session_place_near": "The nearest to you",
