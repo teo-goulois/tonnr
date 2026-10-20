@@ -8,6 +8,7 @@ import { Platform, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { TARGET } from "@/components/ui/metrics";
+import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { APP_ORIGIN, appHeader } from "@/lib/app-client";
 import { authClient } from "@/lib/auth-client";
@@ -212,7 +213,7 @@ export function ProviderSignIn({
   onSignedIn: () => void;
   onRefused: (refusal: string | undefined) => void;
 }) {
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const offered = useOfferedProviders();
   const [pending, setPending] = useState<Provider | null>(null);
   const sending = useRef(false);
@@ -253,11 +254,15 @@ export function ProviderSignIn({
         importantForAccessibility="no-hide-descendants"
         style={{ flexDirection: "row", alignItems: "center", gap: space.s }}
       >
-        <View style={{ flex: 1, height: 1, backgroundColor: colors["neutral-4"] }} />
+        <View style={{ flex: 1 }}>
+          <Separator />
+        </View>
         <Text size="s" tone="muted">
           {m.auth_or()}
         </Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: colors["neutral-4"] }} />
+        <View style={{ flex: 1 }}>
+          <Separator />
+        </View>
       </View>
     </View>
   );
