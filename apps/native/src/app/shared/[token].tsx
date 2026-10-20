@@ -148,19 +148,9 @@ function SharedList({
           <Text tone="muted">{m.native_shared_by({ username: door.owner })}</Text>
         ) : null}
         <PlaceSection
-          header={
-            <SectionHeader
-              title={placesCount(items.length)}
-              action={
-                items.length > 0
-                  ? {
-                      label: m.native_show_on_map(),
-                      onPress: () => router.navigate({ pathname: "/", params: { shared: token } }),
-                    }
-                  : undefined
-              }
-            />
-          }
+          // The map does not read `?shared=` yet, and leaving this screen lets go of the link:
+          // nothing here shows the list alone on the map until it does.
+          header={<SectionHeader title={placesCount(items.length)} />}
           items={items}
           reader={reader}
           // Nothing of it is the reader's: they open, send, and set an alert at a break.

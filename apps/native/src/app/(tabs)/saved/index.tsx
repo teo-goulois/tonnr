@@ -8,6 +8,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import {
   chipsOf,
+  codeOf,
   heldBy,
   listName,
   othersOf,
@@ -226,12 +227,6 @@ function Saved({ lists, joined, spots, reader, actions, recentPlaces }: SavedPro
             }
           />
 
-          {isEmpty ? (
-            <Surface style={{ padding: space.m }}>
-              <Text tone="muted">{m.saved_empty()}</Text>
-            </Surface>
-          ) : null}
-
           {lists.map((list) => (
             <PlaceSection
               key={list.id}
@@ -252,7 +247,8 @@ function Saved({ lists, joined, spots, reader, actions, recentPlaces }: SavedPro
               empty={
                 <Surface style={{ padding: space.m }}>
                   <Text size="s" tone="muted">
-                    {m.saved_list_empty()}
+                    {/* Nothing saved anywhere: the favorites say how to save something. */}
+                    {isEmpty && list.isDefault ? m.saved_empty() : m.saved_list_empty()}
                   </Text>
                 </Surface>
               }
@@ -346,7 +342,7 @@ function KeptList({
   if (view.isError) {
     return (
       <ErrorState
-        title={m.list_gone()}
+        title={codeOf(view.error) === "NOT_FOUND" ? m.list_gone() : m.saved_load_failed()}
         onRetry={() => void view.refetch()}
         retrying={view.isFetching}
       />

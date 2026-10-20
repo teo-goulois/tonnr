@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { useAccount } from "@/lib/account";
@@ -59,12 +59,7 @@ export function useAccountReader(): SeaReader {
   );
 }
 
-/** The sea now at one place. `data` is null for a place the answer left out. */
-export function useSeaNow(reader: SeaReader, ref: PlaceRef, enabled = true) {
-  return useQuery({ ...seaNowOptions(reader, ref), enabled });
-}
-
-/** The sea now at each of these places, in their order. */
+/** The sea now at each of these places, in their order. `data` is null for a place the answer left out. */
 export function useSeaNows(reader: SeaReader, refs: readonly PlaceRef[]) {
   return useQueries({ queries: refs.map((ref) => seaNowOptions(reader, ref)) });
 }

@@ -1,5 +1,6 @@
 import { BellIcon, BookmarkIcon, LogOutIcon, TrashIcon } from "@repo/ui/icon";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ListView, SavedList } from "@repo/client/viewer/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { RefreshControl, View } from "react-native";
@@ -69,21 +70,16 @@ function ListOfTheAccount({ id }: { id: string }) {
     retry: retryUnlessGone,
   });
   const lists = useQuery(orpc.v1.lists.list.queryOptions());
-  const owner = view.data?.access === "owner";
+  // The list as it was shown when it was deleted or let go of: it stays while the screen goes
+  // back, in place of the list that is no more.
+  const [leftWith, setLeftWith] = useState<{ view: ListView; own: SavedList | undefined }>();
+  const list = view.data ?? leftWith?.view;
+  const owner = list?.access === "owner";
   const spots = useQuery({ ...orpc.v1.spots.list.queryOptions(), enabled: owner });
   const [refreshing, setRefreshing] = useState(false);
 
-  // Whether the reports at its breaks are told to the reader, its owner or an account that
-  // kept it, each by its own switch: the switch moves at once, and the API's answer stands.
-  const reports = useMutation(
-    orpc.v1.lists.reports.mutationOptions({
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.lists.key() }),
-      onError: (error) => tell({ title: error.message, tone: "danger" }),
-    }),
-  );
-
-  if (view.isPending) return <Waiting />;
-  if (view.isError) {
+  if (!list && view.isPending) return <Waiting />;
+  if (!list) {
     if (codeOf(view.error) === "NOT_FOUND") {
       return (
         <View style={{ flex: 1, justifyContent: "center" }}>
@@ -91,7 +87,7 @@ function ListOfTheAccount({ id }: { id: string }) {
           <EmptyState
             icon={BookmarkIcon}
             title={m.native_list_missing()}
-            action={{ label: m.action_back(), onPress: () => router.back() }}
+            action={{ label: m.action_back(), onPress: goBack }}
           />
         </View>
       );
@@ -108,9 +104,10 @@ function ListOfTheAccount({ id }: { id: string }) {
     );
   }
 
-  const list = view.data;
   // The account's own list as the lists last read hold it, which a change answers at once.
-  const own = owner ? lists.data?.lists.find((one) => one.id === list.id) : undefined;
+  const own = owner
+    ? (lists.data?.lists.find((one) => one.id === list.id) ?? leftWith?.own)
+    : undefined;
   const held = own ?? heldBy(list);
   const name = listName(list);
   const spotNames = new Map(list.spots.map((spot) => [spot.id, spot.name]));
@@ -125,6 +122,9 @@ function ListOfTheAccount({ id }: { id: string }) {
     (spotId) =>
       spots.data?.spots.find((spot) => spot.id === spotId)?.publication?.status !== "accepted",
   ).length;
+  // Whether the reports at its breaks are told to the reader, its owner or an account that
+  // kept it, each by its own switch: the switch moves at once, and the API's answer stands.
+  const { reports } = mutations;
   const reportsOn = reports.isPending ? reports.variables.on : list.reportsOn;
 
   const refresh = async () => {
@@ -138,32 +138,36 @@ function ListOfTheAccount({ id }: { id: string }) {
     setRefreshing(false);
   };
 
-  async function deleteList() {
+  const deleteList = async () => {
     const sure = await confirmDestructive({
       title: m.saved_delete_list({ name }),
       message: m.native_list_delete_text(),
       confirm: m.action_delete(),
     });
     if (!sure) return;
+    setLeftWith({ view: list, own });
     try {
       await mutations.remove.mutateAsync({ id: list.id });
     } catch {
+      setLeftWith(undefined);
       return;
     }
     tell({ title: m.native_list_deleted(), tone: "success" });
-    router.back();
-  }
+    goBack();
+  };
 
-  async function leaveList() {
+  const leaveList = async () => {
     const sure = await confirmDestructive({ title: m.list_leave(), confirm: m.list_leave() });
     if (!sure) return;
+    setLeftWith({ view: list, own });
     try {
       await mutations.leave.mutateAsync({ id: list.id });
     } catch {
+      setLeftWith(undefined);
       return;
     }
-    router.back();
-  }
+    goBack();
+  };
 
   return (
     <>
@@ -263,6 +267,12 @@ function ListOfTheAccount({ id }: { id: string }) {
       {actions.sheet}
     </>
   );
+}
+
+/** Back where the list was opened from, or to the saved tab for a list a link opened first. */
+function goBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace("/saved");
 }
 
 /** What a list's screen shows while it is read: the place of its rows. */

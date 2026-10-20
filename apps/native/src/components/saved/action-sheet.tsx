@@ -1,10 +1,11 @@
-import { CheckIcon, ChevronLeftIcon } from "@repo/ui/icon";
+import { ChevronLeftIcon } from "@repo/ui/icon";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import Animated, { SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
+import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -22,8 +23,6 @@ export type SheetItem = {
   label: string;
   icon: GlyphIcon;
   destructive?: boolean;
-  /** Marks the choice that stands, as the list that holds the place now. */
-  checked?: boolean;
   onPress: () => void;
 };
 
@@ -97,7 +96,12 @@ export function ActionSheet({
                   accessibilityRole="button"
                   accessibilityLabel={m.action_back()}
                   onPress={content.onBack}
-                  style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+                  style={{
+                    width: TARGET,
+                    height: TARGET,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
                   <Glyph icon={ChevronLeftIcon} size={20} color={colors["neutral-10"]} />
                 </Pressable>
@@ -118,9 +122,6 @@ export function ActionSheet({
                   key={item.key}
                   accessibilityRole="button"
                   accessibilityLabel={item.label}
-                  accessibilityState={
-                    item.checked === undefined ? undefined : { checked: item.checked }
-                  }
                   android_ripple={{ color: colors["neutral-3"] }}
                   onPress={() => {
                     feel("select");
@@ -136,9 +137,6 @@ export function ActionSheet({
                 >
                   <Glyph icon={item.icon} size={20} color={color} />
                   <Text style={{ flex: 1, color }}>{item.label}</Text>
-                  {item.checked ? (
-                    <Glyph icon={CheckIcon} size={16} color={colors["neutral-7"]} />
-                  ) : null}
                 </Pressable>
               );
             })}
