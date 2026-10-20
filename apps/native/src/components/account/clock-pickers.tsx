@@ -1,48 +1,44 @@
-import { DateTimePicker } from "@expo/ui/community/datetime-picker";
-import { useState } from "react";
-import { Platform, Pressable } from "react-native";
+import { DatePicker, Host } from "@expo/ui/swift-ui";
+import { datePickerStyle, environment, labelsHidden, tint } from "@expo/ui/swift-ui/modifiers";
 
-import { TARGET } from "@/components/ui/metrics";
-import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { getLocale } from "@/paraglide/runtime";
 
-import { clock, dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
+import { dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
 
 // A time of day and a day of the calendar, chosen with the platform's own pickers through Expo
 // UI, at the end of a row: on iOS SwiftUI's compact picker, a pill that opens the system's wheel
-// or calendar over the screen; on Android the value as a button that opens Material's dialog,
-// which stands while it is open. Each is read in the phone's own clock, and kept as the API
-// takes it. Decision 069.
+// or calendar over the screen, whose label is said to a screen reader and not drawn, since the
+// row says it; Android's are in `clock-pickers.android.tsx`. Each is read in the phone's own
+// clock, and kept as the API takes it. Decision 069.
 
-/** The value at the end of a row on Android, in the accent's color, which opens its dialog. */
-function DialogValue({
-  label,
-  shown,
-  onPress,
-}: {
+type PickerProps = {
   label: string;
-  shown: string;
-  onPress: () => void;
-}) {
-  const { colors, space, radius } = useTheme();
+  value: Date;
+  hourAndMinute: boolean;
+  from?: Date;
+  onChange: (date: Date) => void;
+};
+
+function CompactPicker({ label, value, hourAndMinute, from, onChange }: PickerProps) {
+  const { colors, scheme } = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${shown}`}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: TARGET,
-        justifyContent: "center",
-        paddingHorizontal: space.s,
-        borderRadius: radius.xs,
-        backgroundColor: pressed ? colors["neutral-4"] : colors["neutral-3"],
-      })}
-    >
-      <Text numeric dense style={{ color: colors["color-1"] }}>
-        {shown}
-      </Text>
-    </Pressable>
+    // The compact picker hugs what it draws, and its host with it.
+    <Host matchContents colorScheme={scheme} ignoreSafeArea="all">
+      <DatePicker
+        title={label}
+        selection={value}
+        displayedComponents={hourAndMinute ? ["hourAndMinute"] : ["date"]}
+        {...(from && { range: { start: from } })}
+        onDateChange={onChange}
+        modifiers={[
+          datePickerStyle("compact"),
+          labelsHidden(),
+          tint(colors["color-1"]),
+          environment("locale", getLocale()),
+        ]}
+      />
+    </Host>
   );
 }
 
@@ -56,39 +52,12 @@ export function TimePicker({
   minutes: number;
   onChange: (minutes: number) => void;
 }) {
-  const { colors, scheme } = useTheme();
-  const [open, setOpen] = useState(false);
-  const value = dateOfMinutes(minutes);
-
-  if (Platform.OS === "android") {
-    return (
-      <>
-        <DialogValue label={label} shown={clock(minutes)} onPress={() => setOpen(true)} />
-        {open ? (
-          <DateTimePicker
-            value={value}
-            mode="time"
-            is24Hour
-            accentColor={colors["color-1"]}
-            onValueChange={(_event, date) => {
-              setOpen(false);
-              onChange(minutesOf(date));
-            }}
-            onDismiss={() => setOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  }
   return (
-    <DateTimePicker
-      value={value}
-      mode="time"
-      display="compact"
-      accentColor={colors["color-1"]}
-      themeVariant={scheme}
-      locale={getLocale()}
-      onValueChange={(_event, date) => {
+    <CompactPicker
+      label={label}
+      value={dateOfMinutes(minutes)}
+      hourAndMinute
+      onChange={(date) => {
         const next = minutesOf(date);
         if (next !== minutes) onChange(next);
       }}
@@ -108,41 +77,13 @@ export function DayPicker({
   from: Date;
   onChange: (day: string) => void;
 }) {
-  const { colors, scheme } = useTheme();
-  const [open, setOpen] = useState(false);
-  const value = dateOfDay(day);
-
-  if (Platform.OS === "android") {
-    const shown = new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium" }).format(value);
-    return (
-      <>
-        <DialogValue label={label} shown={shown} onPress={() => setOpen(true)} />
-        {open ? (
-          <DateTimePicker
-            value={value}
-            mode="date"
-            minimumDate={from}
-            accentColor={colors["color-1"]}
-            onValueChange={(_event, date) => {
-              setOpen(false);
-              onChange(dayOf(date));
-            }}
-            onDismiss={() => setOpen(false)}
-          />
-        ) : null}
-      </>
-    );
-  }
   return (
-    <DateTimePicker
-      value={value}
-      mode="date"
-      display="compact"
-      minimumDate={from}
-      accentColor={colors["color-1"]}
-      themeVariant={scheme}
-      locale={getLocale()}
-      onValueChange={(_event, date) => {
+    <CompactPicker
+      label={label}
+      value={dateOfDay(day)}
+      hourAndMinute={false}
+      from={from}
+      onChange={(date) => {
         const next = dayOf(date);
         if (next !== day) onChange(next);
       }}
