@@ -1,12 +1,14 @@
-import { View } from "react-native";
+import { Stack } from "expo-router";
 
-import { Text } from "@/components/ui/text";
+import { BlockedScreen } from "@/components/friends/blocked-screen";
+import { m } from "@/paraglide/messages";
 
-/** The accounts this one blocked (decision 071). Built by the community work: decision 069. */
+/** The accounts this one blocked (decision 071). */
 export default function Screen() {
   return (
-    <View className="flex-1 items-center justify-center bg-background p-l">
-      <Text tone="muted">blocked</Text>
-    </View>
+    <>
+      <Stack.Screen options={{ title: m.blocks_title() }} />
+      <BlockedScreen />
+    </>
   );
 }
