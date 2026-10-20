@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 
 import { session, user } from "./auth";
@@ -383,6 +384,10 @@ export const pushSubscription = pgTable(
     // The bundle or the package the phone's app was built with: what its pushes are sent under.
     // Null for a browser.
     appId: text("app_id"),
+    // The token iOS gives an iPhone's app to start a Live Activity by a push of Apple's, which
+    // "it is on" then starts in the place of its push: decision 074. Null while the iPhone's
+    // switch for it is off, and on every other kind. It is a capability, as the token is.
+    activityStartToken: text("activity_start_token").unique(),
     // The device's public key and its secret, in base64url: what a message is encrypted with. An
     // app makes its own pair, as a browser does, and keeps the private key on the phone.
     p256dh: text("p256dh").notNull(),
@@ -402,13 +407,62 @@ export const pushSubscription = pgTable(
     index("push_subscription_userId_idx").on(table.userId),
     index("push_subscription_sessionId_idx").on(table.sessionId),
     // A browser has its address and nothing of an app's. A phone has its token and its app,
-    // and no address, and an iPhone the host its build is pushed through. Each part is true or
-    // false, never null, which a check would take.
+    // and no address, and an iPhone the host its build is pushed through, and the token that
+    // starts its Live Activities when its switch is on. Each part is true or false, never null,
+    // which a check would take.
     check(
       "push_subscription_kind_shape",
-      sql`(${table.kind} = 'web' and ${table.endpoint} is not null and ${table.token} is null and ${table.environment} is null and ${table.appId} is null)
+      sql`(${table.kind} = 'web' and ${table.endpoint} is not null and ${table.token} is null and ${table.environment} is null and ${table.appId} is null and ${table.activityStartToken} is null)
         or (${table.kind} = 'ios' and ${table.endpoint} is null and ${table.token} is not null and ${table.environment} is not null and ${table.environment} in ('development', 'production') and ${table.appId} is not null)
-        or (${table.kind} = 'android' and ${table.endpoint} is null and ${table.token} is not null and ${table.environment} is null and ${table.appId} is not null)`,
+        or (${table.kind} = 'android' and ${table.endpoint} is null and ${table.token} is not null and ${table.environment} is null and ${table.appId} is not null and ${table.activityStartToken} is null)`,
     ),
+  ],
+);
+
+/**
+ * A Live Activity that the worker started on an iPhone, in the place of the push of "it is on":
+ * decision 074. One for a notification on a device, which a beginning of the same alert while it
+ * runs updates. It goes with its device. Its alert is set to null when the alert is deleted, so
+ * that the worker still ends it. Its token, which iOS gives the app once the activity runs, is a
+ * capability, as a device's token is: it is never logged, and the API never gives it back.
+ */
+export const liveActivity = pgTable(
+  "live_activity",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The iPhone it runs on.
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => pushSubscription.id, { onDelete: "cascade" }),
+    // The notification of "it is on" that started it, whose first place it shows.
+    notificationId: text("notification_id")
+      .notNull()
+      .references(() => notification.id, { onDelete: "cascade" }),
+    // The alert it is of. Null once the alert is deleted: the worker then ends it.
+    alertId: text("alert_id").references(() => alert.id, { onDelete: "set null" }),
+    // The alert's revision when it started: an alert that is changed since ends it.
+    alertRevision: integer("alert_revision").notNull(),
+    // The activity's own token, which its updates and its end are sent to. Null until the app
+    // gives it, and once the activity ended.
+    token: text("token").unique(),
+    // Until when its window lasts, as the last look found it.
+    lastsUntil: timestamp("lasts_until", { withTimezone: true }).notNull(),
+    // When it ended: its window is over or gone, its alert or its switch went, or the account
+    // dismissed it. The worker sends it nothing more.
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    // A hash of what it last showed: an update leaves only when what it shows has changed.
+    shown: text("shown"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("live_activity_device_notification_key").on(table.deviceId, table.notificationId),
+    index("live_activity_userId_idx").on(table.userId),
+    index("live_activity_alertId_idx").on(table.alertId),
+    index("live_activity_running_idx")
+      .on(table.deviceId, table.alertId)
+      .where(sql`${table.endedAt} is null`),
   ],
 );
