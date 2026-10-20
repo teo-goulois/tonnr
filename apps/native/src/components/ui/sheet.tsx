@@ -52,9 +52,9 @@ export function askToDiscard(): Promise<boolean> {
 
 /**
  * Holds the screen while `dirty`, and asks before it is left. `close` leaves without asking,
- * once what was written is saved.
+ * once what was written is saved. `onDiscard` is called once the person said to lose it.
  */
-export function useSheetGuard(dirty: boolean) {
+export function useSheetGuard(dirty: boolean, onDiscard?: () => void) {
   const navigation = useNavigation();
   // Where the person goes once they said to lose what was written, or once it was saved: the
   // guard is let go first, and the way out taken after, so that it is not asked about again.
@@ -62,7 +62,9 @@ export function useSheetGuard(dirty: boolean) {
 
   usePreventRemove(dirty && leaving === null, ({ data }) => {
     void askToDiscard().then((discard) => {
-      if (discard) setLeaving(data.action);
+      if (!discard) return;
+      onDiscard?.();
+      setLeaving(data.action);
     });
   });
 

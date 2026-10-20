@@ -49,6 +49,8 @@ export default function RootLayout() {
                 <Stack.Screen name="alert/[id]" options={formSheet()} />
                 <Stack.Screen name="alert/part" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="session/new" options={formSheet()} />
+                {/* A session in progress, timed while it lasts: decision 074. */}
+                <Stack.Screen name="session/live" options={formSheet()} />
                 <Stack.Screen name="session/[id]" options={formSheet()} />
                 <Stack.Screen name="report/new" options={formSheet()} />
                 <Stack.Screen name="spot/new" options={formSheet()} />

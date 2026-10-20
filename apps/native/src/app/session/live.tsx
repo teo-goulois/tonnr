@@ -1,0 +1,419 @@
+import type { SessionPlace } from "@repo/client/sessions/types";
+import { APP_NAME } from "@repo/config/app";
+import { LogbookIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Platform, ScrollView, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { sessionShown } from "@/activities/session-shown";
+import { sessionWriting } from "@/activities/writing";
+import { confirmDestructive } from "@/components/saved/confirm";
+import {
+  type LiveSession,
+  type LiveState,
+  elapsedOf,
+  liveMinutes,
+} from "@/components/sessions/live-logic";
+import { PlacePicker } from "@/components/sessions/place-picker";
+import { StepHeader } from "@/components/sessions/session-form";
+import { dayWords, placeOfParam } from "@/components/sessions/session-logic";
+import { usePlaceName } from "@/components/sessions/session-place";
+import { useNearestPlace } from "@/components/sessions/use-nearest";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Row, Section } from "@/components/ui/list";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { useAccount } from "@/lib/account";
+import { formatClock, formatDuration } from "@/lib/format";
+import {
+  endLiveSession,
+  forgetLiveSession,
+  liveFormQuery,
+  liveStateNow,
+  moveLiveSession,
+  startLiveSession,
+  useLiveSession,
+} from "@/lib/live-session";
+import { useRecents } from "@/lib/recents";
+import { useTheme } from "@/lib/theme";
+import { m } from "@/paraglide/messages";
+
+// A session timed while it lasts: decision 074, "A session in progress". This screen starts one,
+// shows the one that runs, and ends it, which opens the session's form. It is opened by the "+"
+// (its choice "Now"), by the widget of a place, `?place=<break|spot>:<id>`, by the quick action,
+// `?place=last` for the place looked at last (decision 042), by the session's Live Activity or
+// its notification, `?end=1` to end it, and by the app as it starts, for a session that was never
+// ended or never written.
+
+type Params = {
+  // Where it is: `<break|spot>:<id>`, or `last` for the place looked at last.
+  place?: string;
+  name?: string;
+  // Set by the activity's or the notification's "End".
+  end?: string;
+};
+
+const SECOND_MS = 1000;
+
+/** The time, read each second while a session runs on screen. */
+function useSecond(running: boolean) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), SECOND_MS);
+    return () => clearInterval(timer);
+  }, [running]);
+  return now;
+}
+
+/** What the session is now: running, ended or never ended, read again when it changes. */
+function useLiveState(session: LiveSession | null) {
+  const [state, setState] = useState<LiveState | null>(null);
+  useEffect(() => {
+    let isLive = true;
+    void liveStateNow().then((read) => {
+      if (isLive) setState(read);
+    });
+    return () => {
+      isLive = false;
+    };
+  }, [session]);
+  return session ? state : null;
+}
+
+/** Opens the form of the session kept, in this screen's place. */
+function openForm() {
+  const query = liveFormQuery();
+  if (query) router.replace({ pathname: "/session/new", params: query });
+}
+
+async function askToForget() {
+  const sure = await confirmDestructive({
+    title: m.native_live_forget_title(),
+    message: m.native_live_forget_message(),
+    confirm: m.native_live_forget(),
+  });
+  if (!sure) return;
+  await forgetLiveSession();
+  router.back();
+}
+
+function Header({ title }: { title: string }) {
+  return <StepHeader title={title} backLabel={m.action_close()} onBack={() => router.back()} />;
+}
+
+/** A session that runs: where, the time since its start, what the sea did then, and its end. */
+function Running({ session, asked }: { session: LiveSession; asked: SessionPlace | null }) {
+  const { colors, space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const now = useSecond(true);
+  const [isEnding, setEnding] = useState(false);
+  const [isMoving, setMoving] = useState(false);
+  const shown = sessionShown(session, sessionWriting());
+  const elsewhere =
+    asked && (asked.kind !== session.place.kind || asked.id !== session.place.id) ? asked : null;
+
+  if (isMoving) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <StepHeader title={m.native_live_where()} onBack={() => setMoving(false)} />
+        <KeyboardAwareScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: space.m, paddingBottom: insets.bottom + space.xl }}
+        >
+          <PlacePicker
+            onPick={(place) => {
+              setMoving(false);
+              void moveLiveSession(place);
+            }}
+          />
+        </KeyboardAwareScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <Header title={m.native_live_title()} />
+      <ScrollView
+        contentContainerStyle={{
+          gap: space.l,
+          padding: space.m,
+          paddingBottom: insets.bottom + space.xl,
+        }}
+      >
+        {elsewhere ? (
+          <Text tone="muted">{m.native_live_other({ place: session.place.name })}</Text>
+        ) : null}
+        <Section>
+          <Row
+            icon={session.place.kind === "spot" ? PinIcon : WaveIcon}
+            title={session.place.name}
+            accessibilityHint={m.native_session_place_change()}
+            onPress={() => setMoving(true)}
+          />
+        </Section>
+        <View style={{ alignItems: "center", gap: space.xs }}>
+          <Text
+            size="xxl"
+            weight="medium"
+            numeric
+            accessibilityRole="timer"
+            accessibilityLabel={formatDuration(Math.floor((now - session.startedAt) / 60_000))}
+          >
+            {elapsedOf(session.startedAt, now)}
+          </Text>
+          <Text tone="muted">{shown.since}</Text>
+        </View>
+        {/* The sea, once `places.now` answered, which it may never do. */}
+        {session.figures ? (
+          <Section title={m.native_live_sea_at_start()}>
+            {shown.lines.length > 0 ? (
+              shown.lines.map((line) => <Row key={line} title={line} chevron={false} />)
+            ) : (
+              <Row title={m.native_live_nothing()} chevron={false} />
+            )}
+          </Section>
+        ) : null}
+        {session.shown ? null : (
+          <Text size="s" tone="muted">
+            {Platform.OS === "ios"
+              ? m.native_live_hidden_ios({ name: APP_NAME })
+              : m.native_live_hidden_android({ name: APP_NAME })}
+          </Text>
+        )}
+        <View style={{ gap: space.s }}>
+          <Button
+            loading={isEnding}
+            onPress={() => {
+              setEnding(true);
+              void endLiveSession().then(openForm);
+            }}
+          >
+            {m.native_live_end_write()}
+          </Button>
+          <Button variant="ghost" onPress={() => void askToForget()}>
+            {m.native_live_forget()}
+          </Button>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/** A session that ended and was not written, or that was never ended: offered to be written. */
+function Unwritten({ session, state }: { session: LiveSession; state: "ended" | "unended" }) {
+  const { colors, space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [now] = useState(Date.now);
+  const start = new Date(session.startedAt);
+  return (
+    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <Header
+        title={state === "ended" ? m.native_live_ended_title() : m.native_live_unended_title()}
+      />
+      <ScrollView
+        contentContainerStyle={{
+          gap: space.l,
+          padding: space.m,
+          paddingBottom: insets.bottom + space.xl,
+        }}
+      >
+        <Text tone="muted">
+          {state === "ended" ? m.native_live_ended() : m.native_live_unended()}
+        </Text>
+        <Section>
+          <Row
+            icon={session.place.kind === "spot" ? PinIcon : WaveIcon}
+            title={session.place.name}
+            chevron={false}
+          />
+          <Row
+            title={m.session_when()}
+            value={`${dayWords(start, now)} ${formatClock(start)}`}
+            chevron={false}
+          />
+          {session.endedAt === undefined ? null : (
+            <Row
+              title={m.session_duration()}
+              value={formatDuration(liveMinutes(session.startedAt, session.endedAt))}
+              chevron={false}
+            />
+          )}
+        </Section>
+        <View style={{ gap: space.s }}>
+          <Button onPress={openForm}>{m.native_live_write()}</Button>
+          <Button variant="ghost" onPress={() => void askToForget()}>
+            {m.native_live_forget()}
+          </Button>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Where a session that begins now is: the place the phone stands near, or asked. */
+function Where({ onPick }: { onPick: (place: SessionPlace) => void }) {
+  const { colors, space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const nearest = useNearestPlace(true);
+  const [isAsking, setAsking] = useState(false);
+
+  if (!nearest.settled) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <Header title={m.native_live_title()} />
+        <Loading>
+          <View style={{ gap: space.l, padding: space.m }}>
+            <Skeleton height={56} />
+            <Skeleton height={48} />
+          </View>
+        </Loading>
+      </View>
+    );
+  }
+
+  const near = nearest.place;
+  if (near && !isAsking) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <Header title={m.native_live_title()} />
+        <View style={{ gap: space.l, padding: space.m, paddingBottom: insets.bottom + space.xl }}>
+          <Section>
+            <Row
+              icon={near.kind === "spot" ? PinIcon : WaveIcon}
+              title={near.name}
+              description={m.native_session_place_near()}
+              accessibilityHint={m.native_session_place_change()}
+              onPress={() => setAsking(true)}
+            />
+          </Section>
+          <Button onPress={() => onPick({ kind: near.kind, id: near.id, name: near.name })}>
+            {m.native_live_start()}
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <StepHeader
+        title={m.native_live_where()}
+        backLabel={near ? undefined : m.action_cancel()}
+        onBack={near ? () => setAsking(false) : () => router.back()}
+      />
+      <KeyboardAwareScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: space.m, paddingBottom: insets.bottom + space.xl }}
+      >
+        <PlacePicker near={nearest.phone} onPick={onPick} />
+      </KeyboardAwareScrollView>
+    </View>
+  );
+}
+
+/** The place a route names, as a session takes it: given, the place looked at last, or none. */
+function useAskedPlace(param: string | undefined, name: string | undefined) {
+  const recents = useRecents();
+  const last = recents.find((recent) => recent.kind === "break" || recent.kind === "spot");
+  const given = param === "last" ? null : placeOfParam(param);
+  const givenName = usePlaceName(given, name);
+  if (param === "last") {
+    return last && (last.kind === "break" || last.kind === "spot")
+      ? { kind: last.kind, id: last.id, name: last.name }
+      : null;
+  }
+  if (!given) return null;
+  return givenName ? { ...given, name: givenName } : "naming";
+}
+
+export default function LiveSessionScreen() {
+  const params = useLocalSearchParams<Params>();
+  const { colors } = useTheme();
+  const { signedIn, pending } = useAccount();
+  const session = useLiveSession();
+  const state = useLiveState(session);
+  const asked = useAskedPlace(params.place, params.name);
+  const ending = params.end === "1";
+  const [isStarting, setStarting] = useState(false);
+  const started = useRef(false);
+  const ended = useRef(false);
+
+  // "End", from the activity or the notification: the session ends, and its form opens, once.
+  useEffect(() => {
+    if (!ending || !session || ended.current) return;
+    ended.current = true;
+    void endLiveSession().then(openForm);
+  }, [ending, session]);
+
+  const start = (place: SessionPlace) => {
+    if (started.current) return;
+    started.current = true;
+    setStarting(true);
+    void startLiveSession(place).finally(() => setStarting(false));
+  };
+
+  // A place the route names, from a widget or the quick action, starts the session at once.
+  const named = asked !== null && asked !== "naming" ? asked : null;
+  useEffect(() => {
+    if (!signedIn || ending || session || !named) return;
+    start(named);
+  }, [signedIn, ending, session, named]);
+
+  if (!signedIn) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <Header title={m.native_live_title()} />
+        {pending ? null : (
+          <EmptyState
+            icon={LogbookIcon}
+            title={m.auth_reason_add_session()}
+            description={m.session_sign_in_prompt()}
+            action={{
+              label: m.auth_sign_in(),
+              onPress: () =>
+                router.replace({
+                  pathname: "/sign-in",
+                  params: { reason: m.auth_reason_add_session(), next: "/session/live" },
+                }),
+            }}
+          />
+        )}
+      </View>
+    );
+  }
+
+  if (session) {
+    if (ending || state === null) {
+      return <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }} />;
+    }
+    if (state === "running") {
+      return <Running session={session} asked={named} />;
+    }
+    return <Unwritten session={session} state={state} />;
+  }
+
+  if (ending) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <Header title={m.native_live_title()} />
+        <EmptyState icon={LogbookIcon} title={m.native_live_none()} />
+      </View>
+    );
+  }
+
+  if (isStarting || asked === "naming" || named) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+        <Header title={m.native_live_title()} />
+        <EmptyState icon={LogbookIcon} title={m.native_live_starting()} />
+      </View>
+    );
+  }
+
+  return <Where onPick={start} />;
+}

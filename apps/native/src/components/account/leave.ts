@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useAccount } from "@/lib/account";
 import { appHeader } from "@/lib/app-client";
 import { authClient } from "@/lib/auth-client";
+import { forgetLiveSession } from "@/lib/live-session";
 import { pushIsOn, switchPushOff } from "@/lib/push";
 import { clearRecents } from "@/lib/recents";
 import { clearWidgets } from "@/widgets/write";
@@ -12,14 +13,15 @@ import { forgetPushKeys } from "../../../modules/push-keys";
 
 /**
  * Forgets on the phone what was kept for an account that is no longer signed in here: what was
- * loaded for it, what it looked at last, and what its widgets show, which the space the app
- * shares with its extensions kept (decision 074). The units, the theme and the language stay:
- * they are the phone's, as a browser keeps them. Decision 070.
+ * loaded for it, what it looked at last, its session in progress, and what its widgets show,
+ * which the space the app shares with its extensions kept (decision 074). The units, the theme
+ * and the language stay: they are the phone's, as a browser keeps them. Decision 070.
  */
 export function forgetOnPhone(queryClient: QueryClient) {
   queryClient.clear();
   clearRecents();
   clearWidgets();
+  void forgetLiveSession().catch(() => {});
 }
 
 /**

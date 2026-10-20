@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { useOnboardingOnce } from "@/components/profile/use-profile";
+import { useLiveSessionOffer } from "@/components/sessions/use-live-offer";
 import { useAccount } from "@/lib/account";
 
 import { useKeptSettings } from "./kept-settings";
@@ -25,11 +26,13 @@ function useForgetWhenLeft() {
 
 /**
  * What the app does with the account as it runs, whatever screen is open: the units and the
- * density in force, the phone's kept things forgotten when the account leaves, and the questions
- * of decision 063 asked once. The tabs mount it; it draws nothing.
+ * density in force, the phone's kept things forgotten when the account leaves, the questions
+ * of decision 063 asked once, and a session that was timed and not written offered once
+ * (decision 074). The tabs mount it; it draws nothing.
  */
 export function useAccountStart() {
   useKeptSettings();
   useForgetWhenLeft();
   useOnboardingOnce();
+  useLiveSessionOffer();
 }

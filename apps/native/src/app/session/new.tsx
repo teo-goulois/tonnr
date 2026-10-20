@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlacePicker } from "@/components/sessions/place-picker";
 import { useSessionDraft } from "@/components/sessions/session-draft";
 import { SessionFields, SizesStep, StepHeader } from "@/components/sessions/session-form";
+import { timedOf } from "@/components/sessions/live-logic";
 import { placeOfParam, usePlaceName } from "@/components/sessions/session-place";
 import { useNearestPlace } from "@/components/sessions/use-nearest";
 import { useMediaStatus, useSessionWrites } from "@/components/sessions/use-sessions";
@@ -17,6 +18,7 @@ import { Row, Section } from "@/components/ui/list";
 import { SheetHeader, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { useAccount } from "@/lib/account";
+import { forgetLiveSession } from "@/lib/live-session";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -25,6 +27,11 @@ type Params = {
   place?: string;
   // The place's name, when whoever opened the sheet knew it: else the API is asked.
   name?: string;
+  // A session timed while it lasted (decision 074): its start, its length once it was ended,
+  // and `live`, which forgets it on the phone once it is written or dropped.
+  start?: string;
+  minutes?: string;
+  live?: string;
 };
 
 type Step = "form" | "where" | "sizes";
@@ -47,7 +54,9 @@ function FormSkeleton() {
  * Logs a session: where, at `?place=` or the place nearest the phone among the account's spots and
  * the breaks it looked at last, else asked by a search; then when, how long, how big, how it was,
  * its photos and videos and a few words. Its sheet has Cancel and Save, and asks before what was
- * written is lost. The web's `SessionSheet` does the same. Decisions 040 and 043.
+ * written is lost. The web's `SessionSheet` does the same. Decisions 040 and 043. A session timed
+ * while it lasted opens it with its start and its length, `?start=` and `?minutes=`, and is
+ * forgotten on the phone once it is saved or dropped (decision 074).
  */
 export default function NewSession() {
   const params = useLocalSearchParams<Params>();
@@ -71,10 +80,14 @@ export default function NewSession() {
   const step: Step | "waiting" =
     chosenStep ?? (place ? "form" : nearest.settled ? "where" : "waiting");
 
-  const drafting = useSessionDraft(undefined, undefined, now);
+  const isLive = params.live === "1";
+  const [timed] = useState(() => timedOf(params, now));
+  const drafting = useSessionDraft(undefined, undefined, now, timed);
   const mediaStatus = useMediaStatus();
   const writes = useSessionWrites();
-  const { close, cancel } = useSheetGuard(drafting.isDirty);
+  const { close, cancel } = useSheetGuard(drafting.isDirty, () => {
+    if (isLive) void forgetLiveSession();
+  });
   const canSave = place !== null && !drafting.isAhead && !drafting.isAsking;
 
   async function save() {
@@ -83,7 +96,9 @@ export default function NewSession() {
       { kind: place.kind, id: place.id, name: place.name ?? "" },
       drafting.draft,
     );
-    if (kept) close();
+    if (!kept) return;
+    if (isLive) await forgetLiveSession();
+    close();
   }
 
   if (!signedIn) {

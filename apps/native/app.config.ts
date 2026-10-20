@@ -183,13 +183,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-notifications",
     // The notification extension of decision 072, in targets/notifications.
     "@bacons/apple-targets",
-    // The widgets of decision 074, on iOS: their extension, in the app's group, whose space
-    // keeps what the app writes for them.
+    // The widgets and the Live Activities of decision 074, on iOS: their extension, in the app's
+    // group, whose space keeps what the app writes for them, the layouts of the activities, of a
+    // session in progress and of a window that begins, among it; Apple's pushes start, update and
+    // end those of a window, so the app asks for their tokens.
     [
       "expo-widgets",
       {
         bundleIdentifier: `${APP_SCHEME}.widgets`,
         groupIdentifier: `group.${APP_SCHEME}`,
+        enablePushNotifications: true,
         widgets: widgetsOf(messagesOf("en")),
       },
     ],

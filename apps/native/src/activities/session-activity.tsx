@@ -1,0 +1,129 @@
+import { HStack, Image, Link, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import {
+  font,
+  foregroundStyle,
+  lineLimit,
+  monospacedDigit,
+  padding,
+} from "@expo/ui/swift-ui/modifiers";
+import { type LiveActivityFactory, createLiveActivity } from "expo-widgets";
+
+import { activitiesEnabled } from "../../modules/live-activities";
+import type { SessionShown } from "./session-shown";
+
+// The Live Activity of a session in progress, on an iPhone: decision 074. The app starts it in
+// the foreground, as the session begins, with everything written already, and ends it as the
+// session ends: no push of Apple's carries it, and nothing of it leaves the phone. The time since
+// the start counts on the phone. Android's is a notification (session-activity.android.tsx).
+
+/** The name expo-widgets keeps the layout under, and finds the activity by. */
+const SESSION_ACTIVITY = "session-in-progress";
+
+/**
+ * The layout, which the build writes out as a string for the widget's runtime: it names nothing
+ * outside itself but the components and modifiers of `@expo/ui/swift-ui`, which that runtime
+ * holds under the same names.
+ */
+function SessionActivity(props: SessionShown) {
+  "widget";
+  const range = { lower: new Date(props.startedAt), upper: new Date(props.endsBy) };
+  const muted = foregroundStyle({ type: "hierarchical", style: "secondary" });
+  const small = font({ textStyle: "footnote" });
+  const lines = props.lines.map((line, index) => (
+    <Text key={`line-${index}`} modifiers={[small, muted, lineLimit(1)]}>
+      {line}
+    </Text>
+  ));
+  return {
+    banner: (
+      <HStack alignment="center" spacing={12} modifiers={[padding({ all: 16 })]}>
+        <VStack alignment="leading" spacing={2}>
+          <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1)]}>{props.place}</Text>
+          <Text
+            timerInterval={range}
+            countsDown={false}
+            modifiers={[font({ size: 30, weight: "semibold" }), monospacedDigit()]}
+          />
+          <Text modifiers={[small, muted]}>{props.since}</Text>
+          {lines}
+        </VStack>
+        <Spacer />
+        <Link destination={props.endUrl} label={props.end} />
+      </HStack>
+    ),
+    compactLeading: <Image systemName="figure.surfing" />,
+    compactTrailing: (
+      <Text timerInterval={range} countsDown={false} modifiers={[monospacedDigit()]} />
+    ),
+    minimal: <Image systemName="figure.surfing" />,
+    expandedLeading: (
+      <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1)]}>{props.place}</Text>
+    ),
+    expandedTrailing: (
+      <Text
+        timerInterval={range}
+        countsDown={false}
+        modifiers={[font({ weight: "semibold" }), monospacedDigit()]}
+      />
+    ),
+    expandedBottom: (
+      <HStack alignment="center" spacing={12}>
+        <VStack alignment="leading" spacing={2}>
+          {lines}
+        </VStack>
+        <Spacer />
+        <Link destination={props.endUrl} label={props.end} />
+      </HStack>
+    ),
+  };
+}
+
+// Made once the app runs: expo-widgets keeps the layout an activity is drawn with once its
+// factory was made.
+let factory: LiveActivityFactory<SessionShown> | null = null;
+const activities = () => (factory ??= createLiveActivity(SESSION_ACTIVITY, SessionActivity));
+
+/** The activity of the session that runs, if iOS shows it. */
+const current = () => activities().getInstances()[0];
+
+/**
+ * Shows the session in progress on the lock screen and in the Dynamic Island. False where the
+ * system does not let the app, whose person turned Live Activities off for it.
+ */
+export async function showSession(shown: SessionShown) {
+  if (!activitiesEnabled()) return false;
+  try {
+    for (const running of activities().getInstances()) await running.end("immediate");
+    activities().start(shown, shown.openUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Shows what the session's activity says anew: the sea once it was read, another place. */
+export async function updateSession(shown: SessionShown) {
+  try {
+    await current()?.update(shown);
+  } catch {
+    // An activity iOS ended already.
+  }
+}
+
+/** Takes the session's activity away, as the session ends or is forgotten. */
+export async function hideSession() {
+  try {
+    for (const running of activities().getInstances()) await running.end("immediate");
+  } catch {
+    // An activity iOS ended already.
+  }
+}
+
+/** Whether iOS still shows the session's activity: its person may have swiped it away. */
+export async function sessionShownNow(): Promise<boolean | undefined> {
+  try {
+    return current() !== undefined;
+  } catch {
+    return undefined;
+  }
+}

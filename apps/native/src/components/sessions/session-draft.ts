@@ -23,20 +23,27 @@ const NO_MEDIA: readonly MediaItem[] = [];
 /**
  * The draft of a session. `session` is the one that is changed, left out for a new one; `kept` is
  * what it keeps of photos and videos, undefined while they are asked for, when nothing is added
- * or taken out until they come.
+ * or taken out until they come. `timed` is the start and the length of a session that was timed
+ * while it lasted (decision 074), which a new one begins with, its length left to its surfer when
+ * it was never ended.
  */
 export function useSessionDraft(
   session: Session | undefined,
   kept: readonly MediaItem[] | undefined,
   now: number,
+  timed?: { startedAt: Date; minutes: number | null } | null,
 ) {
   const tell = useTell();
   const uploads = useUploads();
-  const [startedAt, setStartedAt] = useState(() => session?.startedAt ?? usualStart(now));
-  // Whether the start was set by hand, and whether it came from a photo.
-  const [isStartSet, setIsStartSet] = useState(false);
+  const [startedAt, setStartedAt] = useState(
+    () => timed?.startedAt ?? session?.startedAt ?? usualStart(now),
+  );
+  // Whether the start was set by hand, or timed, and whether it came from a photo.
+  const [isStartSet, setIsStartSet] = useState(Boolean(timed));
   const [isFromPhoto, setIsFromPhoto] = useState(false);
-  const [minutes, setMinutes] = useState(session?.durationMinutes ?? USUAL_MINUTES);
+  const [minutes, setMinutes] = useState(
+    timed?.minutes ?? session?.durationMinutes ?? USUAL_MINUTES,
+  );
   const [rating, setRating] = useState<number | null>(session?.rating ?? null);
   const [note, setNote] = useState(session?.note ?? "");
   const [waveSize, setWaveSize] = useState<SurfSize | null>(session?.waveSize ?? null);
