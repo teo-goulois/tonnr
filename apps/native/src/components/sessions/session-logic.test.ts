@@ -5,7 +5,6 @@ import type { Session } from "@repo/client/viewer/types";
 import {
   byMonth,
   dayWords,
-  distanceKm,
   isAhead,
   nearestPlace,
   placeOfParam,
@@ -83,13 +82,6 @@ describe("where a new session most likely was", () => {
     expect(nearestPlace(places, { latitude: 48.85, longitude: 2.35 })).toBeNull();
     expect(nearestPlace(places, null)).toBeNull();
     expect(nearestPlace([], { latitude: 43.4, longitude: -1.6 })).toBeNull();
-  });
-
-  it("is measured on the earth", () => {
-    expect(distanceKm({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 1 })).toBeCloseTo(
-      111.2,
-      1,
-    );
   });
 });
 

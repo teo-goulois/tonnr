@@ -11,13 +11,12 @@ import {
 } from "expo-location";
 import { useState } from "react";
 
+import { confirmDestructive } from "@/components/saved/confirm";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { forgetSent } from "@/lib/uploads";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
-
-import { confirmDestructive } from "./report-card";
 
 // The reports of the waves at a break, as the screens of the app read and send them: decisions
 // 067 and 068. The web's `-reports.ts` asks the same of the API.
@@ -173,11 +172,11 @@ export function useReportWrites() {
      * reports, and its username nowhere. Decision 071.
      */
     block: async (username: string) => {
-      const sure = await confirmDestructive(
-        m.block_confirm_title({ username }),
-        m.block_confirm_text(),
-        m.block_confirm(),
-      );
+      const sure = await confirmDestructive({
+        title: m.block_confirm_title({ username }),
+        message: m.block_confirm_text(),
+        confirm: m.block_confirm(),
+      });
       if (!sure) return false;
       try {
         const blocked = await block.mutateAsync({ username });

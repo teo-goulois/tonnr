@@ -1,5 +1,6 @@
 import type { SessionPlace } from "@repo/client/sessions/types";
 import type { Session } from "@repo/client/viewer/types";
+import { distanceKm } from "@repo/client/viewer/samples";
 
 import { formatDate, formatMonth } from "@/lib/format";
 import { m } from "@/paraglide/messages";
@@ -86,19 +87,6 @@ export function startFromPhoto(taken: Date | null, now: number) {
 }
 
 type Point = { latitude: number; longitude: number };
-
-/** How far two points are, in kilometres, on the earth's mean radius. */
-export function distanceKm(from: Point, to: Point) {
-  const radians = (degrees: number) => (degrees * Math.PI) / 180;
-  const dLatitude = radians(to.latitude - from.latitude);
-  const dLongitude = radians(to.longitude - from.longitude);
-  const a =
-    Math.sin(dLatitude / 2) ** 2 +
-    Math.cos(radians(from.latitude)) *
-      Math.cos(radians(to.latitude)) *
-      Math.sin(dLongitude / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
-}
 
 /** How near the phone must stand to a place for a new session to be taken to be there. */
 export const NEAR_KM = 20;

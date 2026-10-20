@@ -1,10 +1,11 @@
 import type { Session, SessionDetail } from "@repo/client/viewer/types";
 import { forecastSource, type WaveModelId } from "@repo/conditions/forecasts/wave-models";
-import type { ShoreWind } from "@repo/conditions/shore-wind";
 import { ArrowUpIcon } from "@repo/ui/icon";
 import { Fragment } from "react";
 import { View } from "react-native";
 
+import { goingTo } from "@/components/map/features";
+import { shoreWord } from "@/components/saved/sea-figures";
 import { Glyph } from "@/components/shared/glyph";
 import { Text, type TextStep } from "@/components/ui/text";
 import { compassName, compassPoint, formatSeconds, toKnots } from "@/lib/format";
@@ -15,14 +16,6 @@ import { m } from "@/paraglide/messages";
 // What the sea did during a session, as the web's `session-sea.tsx` says it: on a line in a list,
 // and in full where the session is read. A direction is an arrow that points the way the sea or
 // the wind goes, then the point it comes from: never a name alone. Decision 043.
-
-const SHORE_WIND_NAMES: Record<ShoreWind, () => string> = {
-  offshore: m.wind_offshore,
-  cross_offshore: m.wind_cross_offshore,
-  cross_shore: m.wind_cross_shore,
-  cross_onshore: m.wind_cross_onshore,
-  onshore: m.wind_onshore,
-};
 
 // Why a session has nothing of the models, in words.
 const MISSING: Record<NonNullable<Session["modelMissing"]>, () => string> = {
@@ -54,7 +47,7 @@ export function Bearing({
       accessibilityLabel={compassName(degrees)}
       style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
     >
-      <View style={{ transform: [{ rotate: `${degrees + 180}deg` }] }}>
+      <View style={{ transform: [{ rotate: `${goingTo(degrees)}deg` }] }}>
         <Glyph icon={ArrowUpIcon} size={Math.round(type[size].size * 0.9)} color={ink} />
       </View>
       <Text size={size} numeric dense style={{ color: ink }}>
@@ -109,7 +102,7 @@ function windOf(figures: Figures): Part[] {
   return [
     { text: formatWind(toKnots(figures.windSpeedMetersPerSecond)) },
     ...(figures.windDirectionDegrees === null ? [] : [{ from: figures.windDirectionDegrees }]),
-    ...(figures.shoreWind ? [{ text: SHORE_WIND_NAMES[figures.shoreWind]() }] : []),
+    ...(figures.shoreWind ? [{ text: shoreWord(figures.shoreWind) }] : []),
   ];
 }
 

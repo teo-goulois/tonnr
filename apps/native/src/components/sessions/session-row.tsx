@@ -3,10 +3,12 @@ import { ChevronRightIcon, TrashIcon } from "@repo/ui/icon";
 import { Image } from "expo-image";
 import { Link } from "expo-router";
 import { useRef } from "react";
-import { ActionSheetIOS, Alert, Platform, Pressable, View } from "react-native";
+import { Alert, Platform, Pressable, View } from "react-native";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+import { placeHref } from "@/components/map/place-route";
 import { Picture } from "@/components/media/media-tile";
+import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
@@ -33,42 +35,21 @@ export function sessionWhen(session: Pick<Session, "startedAt" | "durationMinute
   ].join(" · ");
 }
 
-/** The page of a session's place, while the place is there. */
-export function placeHref(session: Pick<Session, "place">) {
+/** The sheet of a session's place, while the place is there. */
+export function sessionPlaceHref(session: Pick<Session, "place">) {
   const { spotId, breakId } = session.place;
-  if (spotId) return `/place/spot/${spotId}` as const;
-  if (breakId) return `/place/break/${breakId}` as const;
+  if (spotId) return placeHref("spot", spotId);
+  if (breakId) return placeHref("break", breakId);
   return null;
 }
 
 /** Asks whether to delete a session, the platform's way. True when the person said to. */
-export function askToDelete(): Promise<boolean> {
-  feel("warn");
-  return new Promise((resolve) => {
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: m.native_session_delete_title(),
-          message: m.native_session_delete_message(),
-          options: [m.session_delete_confirm(), m.action_cancel()],
-          destructiveButtonIndex: 0,
-          cancelButtonIndex: 1,
-        },
-        (index) => resolve(index === 0),
-      );
-      return;
-    }
-    Alert.alert(
-      m.native_session_delete_title(),
-      m.native_session_delete_message(),
-      [
-        { text: m.action_cancel(), style: "cancel", onPress: () => resolve(false) },
-        { text: m.action_delete(), style: "destructive", onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
+export const askToDelete = () =>
+  confirmDestructive({
+    title: m.native_session_delete_title(),
+    message: m.native_session_delete_message(),
+    confirm: m.session_delete_confirm(),
   });
-}
 
 type SessionRowProps = {
   session: Session;
@@ -134,7 +115,7 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
   const first = media?.find((item) => item.state === "ready" && item.thumb);
   const when = sessionWhen(session, now);
   // A list of one place has it open already.
-  const place = withPlace ? placeHref(session) : null;
+  const place = withPlace ? sessionPlaceHref(session) : null;
   const href = `/session/${session.id}` as const;
 
   const remove = async () => {

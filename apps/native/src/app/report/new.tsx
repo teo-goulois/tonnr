@@ -1,18 +1,19 @@
 import type { SurfSize } from "@repo/client/sessions/types";
+import { distanceKm } from "@repo/client/viewer/samples";
 import { APP_NAME } from "@repo/config/app";
 import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST } from "@repo/config/media";
 import { CameraIcon, TriangleAlertIcon } from "@repo/ui/icon";
 import { useQuery } from "@tanstack/react-query";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import { openBrowserAsync } from "expo-web-browser";
 import { Spinner } from "heroui-native";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ENV } from "@/env";
+import { useOpenPage } from "@/components/account/open-page";
+import { UsernameForm } from "@/components/account/username-form";
 import { MediaStrip } from "@/components/media/media-strip";
 import { pickFromLibrary, takeWithCamera, tellCameraDenied } from "@/components/media/pick-media";
 import {
@@ -22,9 +23,7 @@ import {
   useReportWrites,
   whereThePhoneIs,
 } from "@/components/reports/use-reports";
-import { UsernameStep } from "@/components/reports/username-step";
 import { FormRow, NoteField, SizePill, SizesStep } from "@/components/sessions/session-form";
-import { distanceKm } from "@/components/sessions/session-logic";
 import { useMediaStatus } from "@/components/sessions/use-sessions";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
@@ -39,18 +38,11 @@ import { useTheme } from "@/lib/theme";
 import { dropUpload, retryUpload, startUploads, useUploads } from "@/lib/uploads";
 import { formatDistance } from "@/lib/units";
 import { m } from "@/paraglide/messages";
-import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
 
 // How long the sheet waits, once it is up, before the camera takes its place: a picker asked for
 // while the sheet still rises would not open.
 const CAMERA_AFTER_MS = 450;
-
-/** The terms of use on the web, in the reader's language: English has no prefix. */
-function termsAddress() {
-  const locale = getLocale();
-  return `${ENV.EXPO_PUBLIC_SITE_URL}${locale === "en" ? "" : `/${locale}`}/terms`;
-}
 
 /** What the phone says of where it stands against the break, before a photo is taken there. */
 function usePositionWarning(point: { latitude: number; longitude: number } | undefined) {
@@ -89,6 +81,7 @@ function ReportForm({ breakId }: { breakId: string }) {
   const status = useMediaStatus();
   const reports = useBreakReports(breakId);
   const writes = useReportWrites();
+  const { openPage } = useOpenPage();
   const found = useQuery(orpc.v1.breaks.get.queryOptions({ input: { id: breakId }, retry: false }));
   const warning = usePositionWarning(found.data);
 
@@ -102,10 +95,17 @@ function ReportForm({ breakId }: { breakId: string }) {
   const isDirty = entries.length > 0 || note.trim() !== "" || waveSize !== null;
   const { close, cancel } = useSheetGuard(isDirty);
 
-  // What was sent from this form and not sent with a report is let go as it closes.
+  // What was sent from this form and not sent with a report is let go as it closes: once the
+  // report took them, they are no longer the form's.
   const owned = useRef<string[]>([]);
+  const isSent = useRef(false);
   owned.current = entries;
-  useEffect(() => () => owned.current.forEach((key) => dropUpload(key, true)), []);
+  useEffect(
+    () => () => {
+      if (!isSent.current) for (const key of owned.current) dropUpload(key, true);
+    },
+    [],
+  );
 
   const shown = entries.map((key) => uploads.get(key));
   const isGoing = shown.some((upload) => upload?.state === "sending");
@@ -164,8 +164,7 @@ function ReportForm({ breakId }: { breakId: string }) {
     if (isGoing || sent === 0 || writes.isSending) return;
     const done = await writes.send(breakId, { uploads: entries, waveSize, setSize, note }, uploads);
     if (!done) return;
-    // The report took them: they are no longer this form's to let go.
-    owned.current = [];
+    isSent.current = true;
     close();
   }
 
@@ -298,7 +297,7 @@ function ReportForm({ breakId }: { breakId: string }) {
           </Text>
           <Button
             variant="ghost"
-            onPress={() => void openBrowserAsync(termsAddress())}
+            onPress={() => void openPage("terms")}
             style={{ alignSelf: "flex-start", marginHorizontal: -space.m }}
           >
             {m.report_rights_link()}
@@ -325,7 +324,14 @@ export default function NewReport() {
   const breakId = params.break;
   const ground = { flex: 1, backgroundColor: colors["neutral-1"] };
 
-  if (!breakId) return null;
+  // An address that names no break has nothing to report on: only the way out.
+  if (!breakId) {
+    return (
+      <View style={ground}>
+        <SheetHeader title={m.report_new()} onCancel={() => router.back()} />
+      </View>
+    );
+  }
   if (signedIn && (username || isNamed)) {
     return (
       <View style={ground}>
@@ -337,8 +343,9 @@ export default function NewReport() {
     <View style={ground}>
       <SheetHeader title={m.report_new()} onCancel={() => router.back()} />
       {pending ? null : signedIn ? (
-        <View style={{ padding: space.m }}>
-          <UsernameStep why={m.report_username_first()} onSaved={() => setIsNamed(true)} />
+        <View style={{ gap: space.m, padding: space.m }}>
+          <Text tone="muted">{m.report_username_first()}</Text>
+          <UsernameForm current={null} autoFocus onSaved={() => setIsNamed(true)} />
         </View>
       ) : (
         <EmptyState

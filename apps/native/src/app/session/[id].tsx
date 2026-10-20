@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSessionDraft } from "@/components/sessions/session-draft";
 import { SessionFields, SizesStep } from "@/components/sessions/session-form";
 import { openPlaceOnMap } from "@/components/sessions/session-place";
-import { askToDelete, placeHref, sessionWhen } from "@/components/sessions/session-row";
+import { askToDelete, sessionPlaceHref, sessionWhen } from "@/components/sessions/session-row";
 import { SessionConditions, SessionCredits } from "@/components/sessions/session-sea";
 import {
   useMediaStatus,
@@ -41,7 +41,7 @@ function SessionSheet({ session, kept }: Props) {
   const writes = useSessionWrites();
   const { close, cancel } = useSheetGuard(drafting.isDirty);
   const [isSizing, setIsSizing] = useState(false);
-  const place = placeHref(session);
+  const place = sessionPlaceHref(session);
   const busy = writes.isSaving || writes.isDeleting;
 
   async function save() {

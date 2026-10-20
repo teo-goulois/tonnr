@@ -3,6 +3,7 @@ import { ChevronRightIcon } from "@repo/ui/icon";
 import { Fragment } from "react";
 import { Pressable, View } from "react-native";
 
+import { placeHref } from "@/components/map/place-route";
 import { Glyph } from "@/components/shared/glyph";
 import { Separator } from "@/components/ui/separator";
 import { Surface } from "@/components/ui/surface";
@@ -52,11 +53,7 @@ type Place = SessionRecap["places"][number];
 function PlaceRow({ place }: { place: Place }) {
   const { colors, space } = useTheme();
   const { spotId, breakId } = place;
-  const href = spotId
-    ? (`/place/spot/${spotId}` as const)
-    : breakId
-      ? (`/place/break/${breakId}` as const)
-      : null;
+  const href = spotId ? placeHref("spot", spotId) : breakId ? placeHref("break", breakId) : null;
   const said = [
     place.name,
     place.averageRating === null ? null : ratingSaid(Math.round(place.averageRating * 2) / 2),

@@ -8,12 +8,12 @@ import type { MediaItem } from "@repo/client/viewer/types";
 import { MoreHorizontalIcon } from "@repo/ui/icon";
 import MenuView, { type MenuAction } from "@expo/ui/community/menu";
 import { Spinner } from "heroui-native";
-import { ActionSheetIOS, Alert, Platform, ScrollView, View } from "react-native";
+import { Alert, Platform, ScrollView, View } from "react-native";
 
 import { MediaTile } from "@/components/media/media-tile";
+import { chooseOnIos, confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
 import { sizesWords } from "@/components/sessions/surf-size";
-import { feel } from "@/components/ui/haptics";
 import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { formatAgo } from "@/lib/format";
@@ -64,50 +64,14 @@ const FLAG_WORDS: Record<FlagReason, () => string> = {
   other: m.report_flag_other,
 };
 
-/** Asks one question the platform's way, with one destructive answer. True when it was given. */
-export function confirmDestructive(title: string, message: string, confirm: string) {
-  feel("warn");
-  return new Promise<boolean>((resolve) => {
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title,
-          message,
-          options: [confirm, m.action_cancel()],
-          destructiveButtonIndex: 0,
-          cancelButtonIndex: 1,
-        },
-        (index) => resolve(index === 0),
-      );
-      return;
-    }
-    Alert.alert(
-      title,
-      message,
-      [
-        { text: m.action_cancel(), style: "cancel", onPress: () => resolve(false) },
-        { text: confirm, style: "destructive", onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    );
-  });
-}
-
 /** Asks why a report should not be shown, among the reasons the API takes. */
-export function askFlagReason() {
-  return new Promise<FlagReason | null>((resolve) => {
-    const words = FLAG_REASONS.map((reason) => FLAG_WORDS[reason]());
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: m.report_flag(),
-          options: [...words, m.action_cancel()],
-          cancelButtonIndex: words.length,
-        },
-        (index) => resolve(FLAG_REASONS[index] ?? null),
-      );
-      return;
-    }
+export async function askFlagReason(): Promise<FlagReason | null> {
+  const words = FLAG_REASONS.map((reason) => FLAG_WORDS[reason]());
+  if (Platform.OS === "ios") {
+    const index = await chooseOnIos(m.report_flag(), words);
+    return index === undefined ? null : (FLAG_REASONS[index] ?? null);
+  }
+  return new Promise((resolve) => {
     Alert.alert(
       m.report_flag(),
       undefined,
@@ -260,15 +224,12 @@ export function ReportCard({
 
   const act = async (id: string) => {
     if (id === "delete") {
-      if (
-        await confirmDestructive(
-          m.report_delete(),
-          m.native_report_delete_message(),
-          m.action_delete(),
-        )
-      ) {
-        onDelete(report);
-      }
+      const sure = await confirmDestructive({
+        title: m.report_delete(),
+        message: m.native_report_delete_message(),
+        confirm: m.action_delete(),
+      });
+      if (sure) onDelete(report);
       return;
     }
     if (id === "flag") {
