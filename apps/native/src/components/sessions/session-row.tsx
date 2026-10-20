@@ -202,23 +202,31 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
         </Pressable>
       )}
     >
-      <Link href={href} asChild>
-        <Link.Trigger>{row}</Link.Trigger>
-        {/* A long press on iOS lifts the session out of its list, larger, over its menu. */}
-        <Link.Preview style={{ width: PREVIEW_WIDTH }}>
-          <SessionPreview session={session} when={when} photo={first ?? null} />
-        </Link.Preview>
-        <Link.Menu>
-          {place ? (
-            <Link.MenuAction icon="mappin.and.ellipse" onPress={() => openPlaceOnMap(place)}>
-              {m.session_open_place()}
+      {Platform.OS === "ios" ? (
+        <Link href={href} asChild>
+          <Link.Trigger>{row}</Link.Trigger>
+          {/* A long press on iOS lifts the session out of its list, larger, over its menu. */}
+          <Link.Preview style={{ width: PREVIEW_WIDTH }}>
+            <SessionPreview session={session} when={when} photo={first ?? null} />
+          </Link.Preview>
+          <Link.Menu>
+            {place ? (
+              <Link.MenuAction icon="mappin.and.ellipse" onPress={() => openPlaceOnMap(place)}>
+                {m.session_open_place()}
+              </Link.MenuAction>
+            ) : null}
+            <Link.MenuAction icon="trash" destructive onPress={() => void remove()}>
+              {m.session_delete_confirm()}
             </Link.MenuAction>
-          ) : null}
-          <Link.MenuAction icon="trash" destructive onPress={() => void remove()}>
-            {m.session_delete_confirm()}
-          </Link.MenuAction>
-        </Link.Menu>
-      </Link>
+          </Link.Menu>
+        </Link>
+      ) : (
+        // Android has no preview: the row opens the session, and its long press the dialog, as
+        // the saved tab's rows do.
+        <Link href={href} asChild>
+          {row}
+        </Link>
+      )}
     </Swipeable>
   );
 }
