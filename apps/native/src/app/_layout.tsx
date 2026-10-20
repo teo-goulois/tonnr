@@ -12,6 +12,7 @@ import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
 import { navigationTheme, useTheme } from "@/lib/theme";
 import { queryClient } from "@/utils/orpc";
@@ -24,9 +25,11 @@ export default function RootLayout() {
         <KeyboardProvider>
           <HeroUINativeProvider>
             <ThemeProvider value={navigationTheme(scheme)}>
+              <PushListener />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
+                <Stack.Screen name="pause-alert" options={formSheet({ detents: "fit" })} />
                 {/* A place opens low, over the map that stays alive under it, and rises to be
                     read: decision 040's two heights. */}
                 <Stack.Screen

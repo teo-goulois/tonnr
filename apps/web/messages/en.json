@@ -1961,5 +1961,18 @@
   "native_spot_move_south": "Move the marker south",
   "native_spot_move_east": "Move the marker east",
   "native_spot_move_west": "Move the marker west",
-  "native_spot_here": "Put the spot where I am"
+  "native_spot_here": "Put the spot where I am",
+  "native_channel_alerts": "Alerts",
+  "native_channel_begins": "It's on",
+  "native_channel_evening": "The evening before",
+  "native_channel_reports": "Reports",
+  "native_channel_sessions": "Session in progress",
+  "native_push_stand_in": "One of your alerts has news",
+  "native_push_not_today": "Not today",
+  "native_push_log_session": "Log a session",
+  "native_pause_title": "Not today",
+  "native_pause_done": "This alert is paused until the end of the day. It tells nothing more until tomorrow.",
+  "native_pause_over": "The day this notification spoke of is over: nothing was paused.",
+  "native_pause_failed": "The alert could not be paused. Try again from the alerts.",
+  "native_pause_back": "Back to the alerts"
 }

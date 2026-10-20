@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.tonnr'
+version = '1.0.0'
+
+android {
+  namespace "app.tonnr.pushkeys"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // The service that opens a push takes the place of expo-notifications' and passes it the rest.
+  implementation project(':expo-notifications')
+  implementation 'com.google.firebase:firebase-messaging:24.1.2'
+  implementation 'androidx.core:core-ktx:1.17.0'
+}

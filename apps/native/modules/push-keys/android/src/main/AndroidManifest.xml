@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Above expo-notifications' service, whose priority is -1: it receives every message of
+         Firebase, opens those of the instance and passes the others on. Decision 072. -->
+    <service
+      android:name="app.tonnr.pushkeys.TonnrMessagingService"
+      android:exported="false">
+      <intent-filter android:priority="10">
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

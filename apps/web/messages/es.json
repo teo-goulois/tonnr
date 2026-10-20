@@ -1961,5 +1961,18 @@
   "native_spot_move_south": "Mover el marcador hacia el sur",
   "native_spot_move_east": "Mover el marcador hacia el este",
   "native_spot_move_west": "Mover el marcador hacia el oeste",
-  "native_spot_here": "Poner el spot donde estoy"
+  "native_spot_here": "Poner el spot donde estoy",
+  "native_channel_alerts": "Alertas",
+  "native_channel_begins": "Está funcionando",
+  "native_channel_evening": "La víspera",
+  "native_channel_reports": "Reportes",
+  "native_channel_sessions": "Sesión en curso",
+  "native_push_stand_in": "Una de tus alertas tiene novedades",
+  "native_push_not_today": "Hoy no",
+  "native_push_log_session": "Anotar una sesión",
+  "native_pause_title": "Hoy no",
+  "native_pause_done": "Esta alerta está en pausa hasta el final del día. No te dice nada más hasta mañana.",
+  "native_pause_over": "El día del que hablaba esta notificación ha terminado: no se ha pausado nada.",
+  "native_pause_failed": "No se ha podido pausar la alerta. Vuelve a intentarlo desde las alertas.",
+  "native_pause_back": "Volver a las alertas"
 }

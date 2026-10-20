@@ -41,8 +41,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/icon.png",
   ios: {
     bundleIdentifier: APP_SCHEME,
+    // The team that signs the app and its extensions: from the shell that builds, never written
+    // here (decision 075).
+    appleTeamId: process.env.APPLE_TEAM_ID,
     infoPlist: { ...english, CFBundleAllowMixedLocalizations: true },
     // The site's links open the app, and the keychain fills its passwords: decision 073.
+    // What the app shares with its extensions: the keys a push is opened with, and later the
+    // widgets' data (decisions 072 and 074).
+    entitlements: { "com.apple.security.application-groups": [`group.${APP_SCHEME}`] },
     associatedDomains: claimsLinks ? [`applinks:${site.host}`, `webcredentials:${site.host}`] : [],
     buildNumber: "1",
     supportsTablet: false,
@@ -101,6 +107,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "expo-notifications",
+    // The notification extension of decision 072, in targets/notifications.
+    "@bacons/apple-targets",
     "expo-secure-store",
     "expo-localization",
     "expo-web-browser",
