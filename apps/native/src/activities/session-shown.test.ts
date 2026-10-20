@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LiveSession } from "@/components/sessions/live-logic";
 
-import { END_URL, OPEN_URL, type SessionWriting, sessionShown } from "./session-shown";
+import { END_URL, OPEN_URL, type SessionWriting, arrowToward, sessionShown } from "./session-shown";
 
 const start = Date.UTC(2026, 9, 20, 7, 5);
 const HOUR_MS = 60 * 60 * 1000;
@@ -12,12 +12,15 @@ const writing: SessionWriting = {
   height: (meters) => `${meters.toFixed(1)} m`,
   wind: (knots) => `${Math.round(knots)} kn`,
   compass: (degrees) => (degrees === 100 ? "E" : "?"),
+  compassName: (degrees) => (degrees === 100 ? "east" : "?"),
   shore: (atShore) => (atShore === "offshore" ? "offshore" : null),
   m: {
+    title: () => "Session in progress",
     since: ({ time }) => `Since ${time}`,
     high: ({ time, height }) => `High tide ${time} · ${height}`,
     low: ({ time, height }) => `Low tide ${time} · ${height}`,
     wind: ({ wind, time }) => `Wind ${wind} at ${time}`,
+    from: () => "from",
     end: () => "End",
   },
 };
@@ -44,11 +47,28 @@ describe("what the phone shows of a session in progress", () => {
     const shown = sessionShown(session, writing);
     expect(shown.place).toBe("Chez moi");
     expect(shown.since).toBe("Since 7:05");
-    expect(shown.lines).toEqual([
-      "High tide 10:32 · 3.1 m",
-      "Low tide 16:50 · 1.0 m",
-      "Wind 10 kn E, offshore at 7:00",
-    ]);
+    expect(shown.title).toBe("Session in progress");
+    expect(shown.lines).toEqual(["High tide 10:32 · 3.1 m", "Low tide 16:50 · 1.0 m"]);
+  });
+
+  it("draws where the wind comes from as an arrow, then the point, never the point alone", () => {
+    const { wind } = sessionShown(session, writing);
+    expect(wind).toEqual({
+      before: "Wind 10 kn",
+      // From 100°, the east by south: it goes toward 280°.
+      bearing: { from: 100, toward: 280, point: "E" },
+      after: ", offshore at 7:00",
+      text: "Wind 10 kn \u2190 E, offshore at 7:00",
+      spoken: "Wind 10 kn from east, offshore at 7:00",
+    });
+  });
+
+  it("writes in a notification's text the arrow nearest the way it goes", () => {
+    expect(arrowToward(0)).toBe("\u2191");
+    expect(arrowToward(280)).toBe("\u2190");
+    expect(arrowToward(337)).toBe("\u2196");
+    expect(arrowToward(350)).toBe("\u2191");
+    expect(arrowToward(-90)).toBe("\u2190");
   });
 
   it("counts for eight hours at most, the time iOS keeps an activity", () => {
@@ -63,7 +83,9 @@ describe("what the phone shows of a session in progress", () => {
   });
 
   it("says the place and the time alone when the API did not answer", () => {
-    expect(sessionShown({ ...session, figures: null }, writing).lines).toEqual([]);
+    const shown = sessionShown({ ...session, figures: null }, writing);
+    expect(shown.lines).toEqual([]);
+    expect(shown.wind).toBeNull();
   });
 
   it("says what of the wind was measured, and nothing when nothing was", () => {
@@ -73,10 +95,27 @@ describe("what the phone shows of a session in progress", () => {
       sessionShown(
         { ...session, figures: { high: null, low: null, wind: { ...wind, ...part } } },
         writing,
-      ).lines;
-    expect(without({ atShore: null })).toEqual(["Wind 10 kn E at 7:00"]);
-    expect(without({ speedMetersPerSecond: null, directionDegrees: null, atShore: null })).toEqual(
-      [],
-    );
+      ).wind;
+    expect(without({ atShore: null })).toMatchObject({
+      before: "Wind 10 kn",
+      after: " at 7:00",
+      text: "Wind 10 kn \u2190 E at 7:00",
+    });
+    expect(without({ speedMetersPerSecond: null })).toMatchObject({
+      before: "Wind",
+      after: ", offshore at 7:00",
+      text: "Wind \u2190 E, offshore at 7:00",
+      spoken: "Wind from east, offshore at 7:00",
+    });
+    expect(without({ directionDegrees: null })).toEqual({
+      before: "Wind 10 kn, offshore at 7:00",
+      bearing: null,
+      after: "",
+      text: "Wind 10 kn, offshore at 7:00",
+      spoken: "Wind 10 kn, offshore at 7:00",
+    });
+    expect(
+      without({ speedMetersPerSecond: null, directionDegrees: null, atShore: null }),
+    ).toBeNull();
   });
 });

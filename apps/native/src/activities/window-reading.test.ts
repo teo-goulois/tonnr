@@ -57,7 +57,12 @@ const writing = {
     notToday: "Pas aujourd’hui",
     logSession: "Noter une session",
     compass: "N,NNE,NE,ENE,E,ESE,SE,SSE,S,SSO,SO,OSO,O,ONO,NO,NNO",
+    names:
+      "nord,nord-nord-est,nord-est,est-nord-est,est,est-sud-est,sud-est,sud-sud-est,sud,sud-sud-ouest,sud-ouest,ouest-sud-ouest,ouest,ouest-nord-ouest,nord-ouest,nord-nord-ouest",
+    from: "de secteur",
     shore: { offshore: "offshore", onshore: "onshore" },
+    progress: "Avancée du créneau",
+    label: "C’est le moment",
   },
 };
 
@@ -91,6 +96,7 @@ describe("what the app writes beside the layout", () => {
 
   it("holds the sixteen points of the compass and the app's scheme", () => {
     expect(kept.words.compass).toHaveLength(16);
+    expect(kept.words.names).toHaveLength(16);
     expect(kept.scheme).toBe("app.tonnr");
   });
 });
@@ -108,7 +114,12 @@ describe("what the activity of a window writes of a push", () => {
     expect(read.sea).toBe("1,8 m · 12 s");
     expect(read.height).toBe("1,8 m");
     // 5.1 m/s is 9.9 knots, and the gusts 15.
-    expect(read.wind).toBe("10 kn · E · rafales 15 kn · offshore");
+    expect(read.wind).toEqual({
+      speed: "10 kn",
+      from: { toward: 280, point: "E", spoken: "de secteur est" },
+      rest: "· rafales 15 kn · offshore",
+      spoken: "10 kn, de secteur est, rafales 15 kn, offshore",
+    });
     expect(read.tide).toEqual({
       word: "Pleine mer",
       at: Date.parse("2026-10-20T10:32:00.000Z"),
@@ -120,8 +131,39 @@ describe("what the activity of a window writes of a push", () => {
     });
   });
 
-  it("turns the arrow toward where the sea goes", () => {
-    expect(read.seaToward).toBe(110);
+  it("draws where the sea comes from as an arrow toward where it goes, then the point", () => {
+    expect(read.seaFrom).toEqual({
+      toward: 110,
+      point: "ONO",
+      spoken: "de secteur ouest-nord-ouest",
+    });
+  });
+
+  it("writes what of the wind was measured, and nothing when nothing was", () => {
+    const measured = shown.wind;
+    if (!measured) throw new Error("the sample has a wind");
+    const calm = (wind: Partial<typeof measured>) =>
+      readWindow({ ...shown, wind: { ...measured, ...wind } }, kept).wind;
+    expect(calm({ speedMetersPerSecond: null })).toEqual({
+      speed: null,
+      from: { toward: 280, point: "E", spoken: "de secteur est" },
+      rest: "· rafales 15 kn · offshore",
+      spoken: "de secteur est, rafales 15 kn, offshore",
+    });
+    expect(calm({ speedMetersPerSecond: null, directionDegrees: null })).toEqual({
+      speed: null,
+      from: null,
+      rest: "rafales 15 kn · offshore",
+      spoken: "rafales 15 kn, offshore",
+    });
+    expect(
+      calm({
+        speedMetersPerSecond: null,
+        gustMetersPerSecond: null,
+        directionDegrees: null,
+        atShore: null,
+      }),
+    ).toBeNull();
   });
 
   it("writes heights in feet for an account that reads them so", () => {

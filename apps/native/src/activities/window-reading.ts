@@ -48,25 +48,44 @@ export type WindowKept = {
     more: string;
     notToday: string;
     logSession: string;
-    // The sixteen points of the compass, from the north, as the app writes a bearing.
+    // The sixteen points of the compass, from the north, as the app writes a bearing, and their
+    // whole names, as a screen reader says them after `from`.
     compass: string[];
+    names: string[];
+    from: string;
     // How the wind meets the shore, by the worker's word for it.
     shore: Record<string, string>;
+    // What a screen reader says of the bar that fills as the window goes by, and of the waves
+    // drawn where the alert's name is not known.
+    progress: string;
+    label: string;
   };
   scheme: string;
 };
+
+/**
+ * Where the sea or the wind comes from, as everywhere in the app: an arrow toward where it goes,
+ * turned by `toward` in degrees, then the point it comes from, and what a screen reader says.
+ */
+export type WindowDirection = { toward: number; point: string; spoken: string };
 
 /** What the activity writes of a push, each part null when the push says nothing of it. */
 export type WindowRead = {
   title: string | null;
   place: string | null;
   more: string | null;
+  // "1,8 m · 12 s", and where the sea comes from.
   sea: string | null;
+  seaFrom: WindowDirection | null;
   // The height alone, where there is room for one figure.
   height: string | null;
-  // Where the sea goes, in degrees: the arrow turns by it.
-  seaToward: number | null;
-  wind: string | null;
+  // "10 kn", where it comes from, then "· rafales 15 kn · offshore", and the line as it is said.
+  wind: {
+    speed: string | null;
+    from: WindowDirection | null;
+    rest: string | null;
+    spoken: string;
+  } | null;
   tide: { word: string; at: number; height: string | null } | null;
   buoy: { text: string; at: number } | null;
   start: number;
@@ -93,38 +112,48 @@ export function readWindow(shown: WindowShown, kept: WindowKept): WindowRead {
   function speed(metersPerSecond: number | null) {
     return metersPerSecond === null ? null : figure(metersPerSecond * units.windPerMs, 0);
   }
-  function compass(degrees: number | null) {
+  function direction(degrees: number | null): WindowDirection | null {
     if (degrees === null || words.compass.length === 0) return null;
-    const step = 360 / words.compass.length;
-    const index = Math.round((((degrees % 360) + 360) % 360) / step) % words.compass.length;
-    return words.compass[index] ?? null;
+    const around = ((degrees % 360) + 360) % 360;
+    const index = Math.round(around / (360 / words.compass.length)) % words.compass.length;
+    const point = words.compass[index];
+    if (point === undefined) return null;
+    const name = words.names[index] ?? point;
+    return { toward: (around + 180) % 360, point: point, spoken: `${words.from} ${name}` };
   }
-  // The parts that are known, between dots.
-  function joined(parts: (string | null)[]) {
+  // The parts that are known, between `between`.
+  function joined(parts: (string | null)[], between: string) {
     const known = parts.filter((part) => part !== null && part !== "");
-    return known.length > 0 ? known.join(" · ") : null;
+    return known.length > 0 ? known.join(between) : null;
   }
   function sea(at: { heightMeters: number | null; periodSeconds: number | null }) {
-    return joined([height(at.heightMeters), period(at.periodSeconds)]);
+    return joined([height(at.heightMeters), period(at.periodSeconds)], " · ");
   }
 
   const alert = kept.alerts[shown.alertId] ?? null;
   const wind = shown.wind;
-  let blows: string | null = null;
+  let blows: WindowRead["wind"] = null;
   if (wind) {
     const strength = speed(wind.speedMetersPerSecond);
     const gust = speed(wind.gustMetersPerSecond);
-    blows = joined([
-      strength === null ? null : `${strength} ${units.wind}`,
-      compass(wind.directionDegrees),
-      gust === null ? null : words.gusts.replace("{speed}", `${gust} ${units.wind}`),
-      wind.atShore === null ? null : (words.shore[wind.atShore] ?? null),
-    ]);
+    const force = strength === null ? null : `${strength} ${units.wind}`;
+    const from = direction(wind.directionDegrees);
+    const gusts = gust === null ? null : words.gusts.replace("{speed}", `${gust} ${units.wind}`);
+    const shore = wind.atShore === null ? null : (words.shore[wind.atShore] ?? null);
+    const rest = joined([gusts, shore], " · ");
+    const spoken = joined([force, from === null ? null : from.spoken, gusts, shore], ", ");
+    if (spoken !== null) {
+      blows = {
+        speed: force,
+        from: from,
+        rest: rest === null ? null : force === null && from === null ? rest : `· ${rest}`,
+        spoken: spoken,
+      };
+    }
   }
   const tide = shown.tide;
   const buoy = shown.buoy;
   const buoySea = buoy ? sea(buoy) : null;
-  const toward = shown.sea ? shown.sea.directionDegrees : null;
   return {
     title: alert ? alert.name : null,
     place: alert ? alert.place : null,
@@ -135,8 +164,8 @@ export function readWindow(shown: WindowShown, kept: WindowKept): WindowRead {
           : words.more.replace("{count}", String(shown.more))
         : null,
     sea: shown.sea ? sea(shown.sea) : null,
+    seaFrom: shown.sea ? direction(shown.sea.directionDegrees) : null,
     height: shown.sea ? height(shown.sea.heightMeters) : null,
-    seaToward: toward === null ? null : (toward + 180) % 360,
     wind: blows,
     tide: tide
       ? {
@@ -176,7 +205,8 @@ export function keptForWindow(
     height: string;
     period: string;
     decimal: string;
-    words: Omit<WindowKept["words"], "compass"> & { compass: string };
+    // The points and their names as the messages hold them, between commas.
+    words: Omit<WindowKept["words"], "compass" | "names"> & { compass: string; names: string };
   },
 ): WindowKept {
   const named: WindowKept["alerts"] = {};
@@ -193,7 +223,7 @@ export function keptForWindow(
   return {
     alerts: named,
     units,
-    words: { ...words, compass: words.compass.split(",") },
+    words: { ...words, compass: words.compass.split(","), names: words.names.split(",") },
     scheme: APP_SCHEME,
   };
 }

@@ -1,10 +1,14 @@
 import { HStack, Image, Link, Spacer, Text, VStack } from "@expo/ui/swift-ui";
 import {
+  accessibilityElement,
+  accessibilityHidden,
+  accessibilityLabel,
   font,
   foregroundStyle,
   lineLimit,
   monospacedDigit,
   padding,
+  rotationEffect,
 } from "@expo/ui/swift-ui/modifiers";
 import { type LiveActivityFactory, createLiveActivity } from "expo-widgets";
 
@@ -32,11 +36,44 @@ function SessionActivity(props: SessionShown) {
   const range = { lower: new Date(props.startedAt), upper: new Date(props.endsBy) };
   const muted = foregroundStyle({ type: "hierarchical", style: "secondary" });
   const small = font({ textStyle: "footnote" });
-  const lines = props.lines.map((line, index) => (
+  const tides = props.lines.map((line, index) => (
     <Text key={`line-${index}`} modifiers={[small, muted, lineLimit(1)]}>
       {line}
     </Text>
   ));
+  // The wind's line, with where it comes from as everywhere in the app: an arrow toward where it
+  // goes, then the point. A screen reader hears the line as it is said, the arrow left out.
+  const blows = props.wind;
+  const wind =
+    blows === null ? null : (
+      <HStack
+        key="wind"
+        spacing={0}
+        modifiers={[accessibilityElement("ignore"), accessibilityLabel(blows.spoken)]}
+      >
+        <Text modifiers={[small, muted, lineLimit(1)]}>{blows.before}</Text>
+        {blows.bearing === null ? null : (
+          <Image
+            systemName="arrow.up"
+            size={10}
+            modifiers={[
+              padding({ horizontal: 3 }),
+              muted,
+              rotationEffect(blows.bearing.toward),
+              accessibilityHidden(),
+            ]}
+          />
+        )}
+        <Text modifiers={[small, muted, lineLimit(1)]}>
+          {blows.bearing === null ? blows.after : `${blows.bearing.point}${blows.after}`}
+        </Text>
+      </HStack>
+    );
+  // No spread: the build would write it with a helper of its own, which the runtime has not.
+  const lines = wind === null ? tides : tides.concat([wind]);
+  const surfer = (
+    <Image systemName="figure.surfing" modifiers={[accessibilityLabel(props.title)]} />
+  );
   return {
     banner: (
       <HStack alignment="center" spacing={12} modifiers={[padding({ all: 16 })]}>
@@ -54,11 +91,11 @@ function SessionActivity(props: SessionShown) {
         <Link destination={props.endUrl} label={props.end} />
       </HStack>
     ),
-    compactLeading: <Image systemName="figure.surfing" />,
+    compactLeading: surfer,
     compactTrailing: (
       <Text timerInterval={range} countsDown={false} modifiers={[monospacedDigit()]} />
     ),
-    minimal: <Image systemName="figure.surfing" />,
+    minimal: surfer,
     expandedLeading: (
       <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1)]}>{props.place}</Text>
     ),

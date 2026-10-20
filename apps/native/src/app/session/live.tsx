@@ -7,8 +7,9 @@ import { Platform, ScrollView, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { sessionShown } from "@/activities/session-shown";
+import { type SessionWind, sessionShown } from "@/activities/session-shown";
 import { sessionWriting } from "@/activities/writing";
+import { Bearing } from "@/components/forecast/bearing";
 import { confirmDestructive } from "@/components/saved/confirm";
 import {
   type LiveSession,
@@ -24,6 +25,7 @@ import { useNearestPlace } from "@/components/sessions/use-nearest";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Row, Section } from "@/components/ui/list";
+import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
@@ -120,6 +122,32 @@ function Header({ title }: { title: string }) {
   return <StepHeader title={title} backLabel={m.action_close()} onBack={leave} />;
 }
 
+/**
+ * The wind measured as the session began, a line of the list: where it comes from as everywhere
+ * in the app, with `Bearing`, and the line as it is said to a screen reader.
+ */
+function WindRow({ wind }: { wind: SessionWind }) {
+  const { space } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={wind.spoken}
+      style={{
+        minHeight: TARGET,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        paddingHorizontal: space.m,
+        paddingVertical: space.xs,
+      }}
+    >
+      <Text style={wind.bearing ? { marginRight: space.xxs } : undefined}>{wind.before}</Text>
+      {wind.bearing ? <Bearing degrees={wind.bearing.from} size="m" /> : null}
+      {wind.after ? <Text>{wind.after}</Text> : null}
+    </View>
+  );
+}
+
 /** A session that runs: where, the time since its start, what the sea did then, and its end. */
 function Running({ session, asked }: { session: LiveSession; asked: SessionPlace | null }) {
   const { colors, space } = useTheme();
@@ -186,11 +214,13 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
         {/* The sea, once `places.now` answered, which it may never do. */}
         {session.figures ? (
           <Section title={m.native_live_sea_at_start()}>
-            {shown.lines.length > 0 ? (
-              shown.lines.map((line) => <Row key={line} title={line} chevron={false} />)
-            ) : (
+            {shown.lines.map((line) => (
+              <Row key={line} title={line} chevron={false} />
+            ))}
+            {shown.wind ? <WindRow key="wind" wind={shown.wind} /> : null}
+            {shown.lines.length === 0 && !shown.wind ? (
               <Row title={m.native_live_nothing()} chevron={false} />
-            )}
+            ) : null}
           </Section>
         ) : null}
         {/* Once the phone said it could not show the session, and not while it is asked. */}

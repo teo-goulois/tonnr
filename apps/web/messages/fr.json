@@ -2156,6 +2156,7 @@
   "native_window_until": "jusqu'à",
   "native_window_more_one": "et 1 autre spot",
   "native_window_more": "et {count} autres spots",
+  "native_window_progress": "Avancée du créneau",
   "native_live_none": "Aucune session en cours.",
   "native_live_start": "Commencer la session"
 }

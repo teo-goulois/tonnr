@@ -1,6 +1,6 @@
 import { SHORE_WINDS, type ShoreWind } from "@repo/conditions/shore-wind";
 
-import { compassPoint, formatClock, formatNumber, toKnots } from "@/lib/format";
+import { compassName, compassPoint, formatClock, formatNumber, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, heightIn, heightUnit, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
@@ -28,12 +28,15 @@ export function sessionWriting(): SessionWriting {
     height: (meters) => formatHeight(meters),
     wind: (knots) => formatWind(knots),
     compass: (degrees) => compassPoint(degrees),
+    compassName: (degrees) => compassName(degrees),
     shore: (atShore) => (isShoreWind(atShore) ? SHORE_WORDS[atShore]() : null),
     m: {
+      title: m.native_live_title,
       since: m.native_live_since,
       high: m.native_live_high,
       low: m.native_live_low,
       wind: m.native_live_wind,
+      from: m.alert_from,
       end: m.native_live_end,
     },
   };
@@ -60,7 +63,11 @@ export function windowWriting(): Parameters<typeof keptForWindow>[1] {
       notToday: m.native_push_not_today(),
       logSession: m.native_push_log_session(),
       compass: m.compass_points(),
+      names: m.compass_names(),
+      from: m.alert_from(),
       shore: Object.fromEntries(SHORE_WINDS.map((word) => [word, SHORE_WORDS[word]()])),
+      progress: m.native_window_progress(),
+      label: m.native_channel_begins(),
     },
   };
 }

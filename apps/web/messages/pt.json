@@ -2156,6 +2156,7 @@
   "native_window_until": "até às",
   "native_window_more_one": "e mais 1 spot",
   "native_window_more": "e mais {count} spots",
+  "native_window_progress": "Avanço da janela",
   "native_live_none": "Nenhuma sessão em curso.",
   "native_live_start": "Começar a sessão"
 }

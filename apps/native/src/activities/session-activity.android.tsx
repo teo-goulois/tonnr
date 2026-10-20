@@ -38,7 +38,8 @@ export async function updateSession(shown: SessionShown) {
 const post = (shown: SessionShown) =>
   showSessionNotice({
     title: shown.place,
-    text: [shown.since, ...shown.lines].join(" · "),
+    // A notification's text draws no picture: the wind's arrow is one of text there.
+    text: [shown.since, ...shown.lines, ...(shown.wind ? [shown.wind.text] : [])].join(" · "),
     startedAt: shown.startedAt,
     endsBy: shown.endsBy,
     endLabel: shown.end,

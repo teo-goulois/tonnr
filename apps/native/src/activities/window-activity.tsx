@@ -1,5 +1,8 @@
 import { HStack, Image, Link, ProgressView, Spacer, Text, VStack } from "@expo/ui/swift-ui";
 import {
+  accessibilityElement,
+  accessibilityHidden,
+  accessibilityLabel,
   font,
   foregroundStyle,
   lineLimit,
@@ -83,17 +86,66 @@ function WindowActivity(
           : (said.place ?? said.more ?? "")}
       </Text>
     );
+  // Where the sea and the wind come from, as everywhere in the app: an arrow toward where they
+  // go, then the point. A screen reader hears the point by its name, the arrow left out.
+  const seaFrom = said.seaFrom;
   const sea =
-    said.sea === null ? null : (
+    said.sea === null && seaFrom === null ? null : (
       <HStack spacing={4}>
-        {said.seaToward === null ? null : (
-          <Image systemName="arrow.up" size={12} modifiers={[rotationEffect(said.seaToward)]} />
+        {said.sea === null ? null : (
+          <Text modifiers={[font({ weight: "semibold" }), monospacedDigit()]}>{said.sea}</Text>
         )}
-        <Text modifiers={[font({ weight: "semibold" }), monospacedDigit()]}>{said.sea}</Text>
+        {seaFrom === null ? null : (
+          <HStack
+            spacing={2}
+            modifiers={[accessibilityElement("ignore"), accessibilityLabel(seaFrom.spoken)]}
+          >
+            <Image
+              systemName="arrow.up"
+              size={12}
+              modifiers={[rotationEffect(seaFrom.toward), accessibilityHidden()]}
+            />
+            <Text modifiers={[font({ weight: "semibold" })]}>{seaFrom.point}</Text>
+          </HStack>
+        )}
       </HStack>
     );
+  const blows = said.wind;
   const wind =
-    said.wind === null ? null : <Text modifiers={[small, lineLimit(1)]}>{said.wind}</Text>;
+    blows === null ? null : (
+      <HStack
+        spacing={4}
+        modifiers={[accessibilityElement("ignore"), accessibilityLabel(blows.spoken)]}
+      >
+        {blows.speed === null ? null : <Text modifiers={[small, lineLimit(1)]}>{blows.speed}</Text>}
+        {blows.from === null ? null : (
+          <HStack spacing={2}>
+            <Image
+              systemName="arrow.up"
+              size={10}
+              modifiers={[rotationEffect(blows.from.toward), accessibilityHidden()]}
+            />
+            <Text modifiers={[small, lineLimit(1)]}>{blows.from.point}</Text>
+          </HStack>
+        )}
+        {blows.rest === null ? null : <Text modifiers={[small, lineLimit(1)]}>{blows.rest}</Text>}
+      </HStack>
+    );
+  // The waves drawn in the Dynamic Island, said by the alert's name or the notice's own words.
+  const waves = (size: number) => (
+    <Image
+      systemName="water.waves"
+      size={size}
+      modifiers={[accessibilityLabel(said.title ?? kept.words.label)]}
+    />
+  );
+  const progress = (
+    <ProgressView
+      timerInterval={range}
+      countsDown={false}
+      modifiers={[accessibilityLabel(kept.words.progress)]}
+    />
+  );
   const tide =
     said.tide === null ? null : (
       <HStack spacing={4}>
@@ -127,7 +179,7 @@ function WindowActivity(
           {until}
         </HStack>
         {where}
-        <ProgressView timerInterval={range} countsDown={false} />
+        {progress}
         <HStack spacing={12}>
           {sea}
           {wind}
@@ -139,20 +191,20 @@ function WindowActivity(
         {links}
       </VStack>
     ),
-    compactLeading: <Image systemName="water.waves" size={16} />,
+    compactLeading: waves(16),
     compactTrailing:
       said.height === null ? (
         <Text date={new Date(said.end)} dateStyle="time" modifiers={[monospacedDigit()]} />
       ) : (
         <Text modifiers={[monospacedDigit()]}>{said.height}</Text>
       ),
-    minimal: <Image systemName="water.waves" size={16} />,
-    expandedLeading: name ?? <Image systemName="water.waves" size={20} />,
+    minimal: waves(16),
+    expandedLeading: name ?? waves(20),
     expandedTrailing: until,
     expandedBottom: (
       <VStack alignment="leading" spacing={4}>
         {where}
-        <ProgressView timerInterval={range} countsDown={false} />
+        {progress}
         <HStack spacing={12}>
           {sea}
           {wind}
