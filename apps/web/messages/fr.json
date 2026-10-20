@@ -2027,5 +2027,6 @@
   "native_delete_confirm_title": "Supprimer ton compte pour de bon ?",
   "native_delete_sign_in": "Connecte-toi pour supprimer ton compte.",
   "native_away_back": "De retour le",
-  "native_push_later": "Les notifications sur ce téléphone arrivent avec une prochaine version de l'app."
+  "native_push_refused": "Les notifications sont bloquées pour {name}. Autorise-les dans les Réglages, puis active-les ici.",
+  "native_push_device_phone": "Un téléphone"
 }

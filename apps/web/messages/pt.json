@@ -2027,5 +2027,6 @@
   "native_delete_confirm_title": "Eliminar a tua conta de vez?",
   "native_delete_sign_in": "Inicia sessão para eliminares a tua conta.",
   "native_away_back": "De volta a",
-  "native_push_later": "As notificações neste telemóvel chegam numa próxima versão da app."
+  "native_push_refused": "As notificações estão bloqueadas para {name}. Permite-as nas Definições e ativa-as aqui.",
+  "native_push_device_phone": "Um telemóvel"
 }

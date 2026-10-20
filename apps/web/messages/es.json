@@ -2027,5 +2027,6 @@
   "native_delete_confirm_title": "¿Eliminar tu cuenta para siempre?",
   "native_delete_sign_in": "Inicia sesión para eliminar tu cuenta.",
   "native_away_back": "De vuelta el",
-  "native_push_later": "Las notificaciones en este teléfono llegarán con una próxima versión de la app."
+  "native_push_refused": "Las notificaciones están bloqueadas para {name}. Permítelas en Ajustes y actívalas aquí.",
+  "native_push_device_phone": "Un teléfono"
 }

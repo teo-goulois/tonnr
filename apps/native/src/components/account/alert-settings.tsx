@@ -1,13 +1,5 @@
 import type { AlertSettings } from "@repo/client/viewer/types";
-import {
-  BellIcon,
-  CalendarIcon,
-  ClockIcon,
-  GlobalIcon,
-  MailIcon,
-  MoonIcon,
-  SunIcon,
-} from "@repo/ui/icon";
+import { CalendarIcon, ClockIcon, GlobalIcon, MailIcon, MoonIcon, SunIcon } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 import { RefreshControl, View } from "react-native";
 
@@ -43,6 +35,7 @@ import {
 } from "./alert-settings-words";
 import { DayPicker, TimePicker } from "./clock-pickers";
 import { MenuPicker } from "./menu-picker";
+import { PushSetting } from "./push-setting";
 import { Step } from "./settings-steps";
 import { type AlertSettingsChange, useAlertSettings } from "./use-alert-settings";
 
@@ -377,9 +370,9 @@ function SettingsForm({
             />
           </PickerRow>
         ) : null}
-        {/* Push to this phone comes with the push of decision 072, built apart. */}
-        <Row icon={BellIcon} title={m.push_title()} description={m.native_push_later()} disabled />
       </Section>
+
+      <PushSetting />
 
       <Section title={m.alert_settings_zone()}>
         <Row icon={GlobalIcon} title={kept.zone ?? m.alert_settings_zone_unset()} />

@@ -2027,5 +2027,6 @@
   "native_delete_confirm_title": "Delete your account for good?",
   "native_delete_sign_in": "Sign in to delete your account.",
   "native_away_back": "Back on",
-  "native_push_later": "Notifications on this phone come in a later version of the app."
+  "native_push_refused": "Notifications are blocked for {name}. Allow them in Settings, then switch them on here.",
+  "native_push_device_phone": "A phone"
 }

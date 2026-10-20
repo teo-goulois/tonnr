@@ -22,6 +22,9 @@ const TOKEN = "tonnr:push-token";
 /** Whether the person switched push on in this app, which a start says again to the API. */
 export const pushIsOn = () => localStorage.getItem(ON) === "on";
 
+/** The id the API gave this phone as a device, while push is on. */
+export const pushDeviceId = () => localStorage.getItem(DEVICE);
+
 /** What the system lets the app do: asked, granted, refused or not yet asked. */
 export async function permission() {
   const settings = await Notifications.getPermissionsAsync();
