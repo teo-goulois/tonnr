@@ -5,12 +5,12 @@ import { View } from "react-native";
 import { Bearing } from "@/components/forecast/bearing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { compassName, formatSeconds } from "@/lib/format";
+import { formatSeconds } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { shoreWord } from "./place-words";
+import { seaWords, shoreWord } from "./place-words";
 import type { SeaFigures } from "./sea-now";
 
 // The sea now at a place, as its row and its preview draw it: the height on its color of the
@@ -18,8 +18,9 @@ import type { SeaFigures } from "./sea-now";
 // so that the color is never all that says it (decision 033 and `sea-scales.ts`). A direction is
 // an arrow that points the way the sea goes, then the point it comes from, never a name alone.
 
-// How the wind meets the shore, in words, which the widgets write too.
-export { shoreWord };
+// How the wind meets the shore, and the sea now for a screen reader, in words, which the widgets
+// write too.
+export { seaWords, shoreWord };
 
 type PillSize = "row" | "large";
 
@@ -104,24 +105,6 @@ export function WindPill({ knots, size = "row" }: { knots: number; size?: PillSi
 export function MutedBearing({ degrees }: { degrees: number }) {
   const { colors } = useTheme();
   return <Bearing degrees={degrees} arrow={12} color={colors["neutral-7"]} dense />;
-}
-
-/**
- * The sea now in words, for a screen reader: the height, the period, where the waves come from,
- * then the wind and how it meets the shore. Empty when nothing says the sea.
- */
-export function seaWords(figures: SeaFigures | null) {
-  if (!figures) return "";
-  const words: string[] = [];
-  if (figures.heightMeters !== null) words.push(formatHeight(figures.heightMeters));
-  if (figures.periodSeconds !== null) words.push(formatSeconds(figures.periodSeconds));
-  if (figures.wavesFromDegrees !== null) {
-    words.push(m.map_from({ direction: compassName(figures.wavesFromDegrees) }));
-  }
-  if (figures.windKnots !== null)
-    words.push(m.map_wind_speed({ speed: formatWind(figures.windKnots) }));
-  if (figures.atShore !== null) words.push(shoreWord(figures.atShore));
-  return words.length > 0 ? words.join(", ") : m.station_no_recent_reading();
 }
 
 /** The line under a place's name: the period, where the waves come from, the wind at the shore. */
