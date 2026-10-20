@@ -1,82 +1,57 @@
-import { readRecents, RECENTS_KEY } from "@repo/client/recents";
 import type { SessionPlace } from "@repo/client/sessions/types";
-import { fold } from "@repo/config/names";
-import { PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { TextInput, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { View } from "react-native";
 
-import { Glyph } from "@/components/shared/glyph";
-import { Row, Section } from "@/components/ui/list";
-import { Skeleton } from "@/components/ui/skeleton";
+import { spotsQuery } from "@/components/map/queries";
+import type { Found } from "@/components/search/found";
+import { FoundList, FoundRow } from "@/components/search/found-list";
+import { SearchField } from "@/components/search/search-field";
+import { usePlaceSearch } from "@/components/search/use-place-search";
+import { Section } from "@/components/ui/list";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
+import { useRecentPlaces } from "@/lib/recents";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-import { orpc } from "@/utils/orpc";
 
 // Where a session was: the account's own spots and the breaks it looked at last before a name is
 // typed, then the spots and the breaks of that name, as the web's `SessionSheet` asks it with
-// `PlaceSearch`. A name is read whatever its case and its marks. Decisions 040 and 043.
-
-// How long typing must have stopped before the API is asked.
-const ASK_WAIT_MS = 250;
+// `PlaceSearch`. The search is the map's (`usePlaceSearch`), drawn as its sheet draws it, and what
+// was looked at last is the list in force of src/lib/recents.ts. Decisions 040, 042 and 043.
 
 /** A place a session may be at, with its point: what is offered before a name is typed. */
 export type OfferedPlace = SessionPlace & { latitude: number; longitude: number };
 
-/** What the device kept of what was looked at last, for an account the API has not answered yet. */
-function deviceRecents() {
-  try {
-    const kept = localStorage.getItem(RECENTS_KEY);
-    return readRecents(kept ? JSON.parse(kept) : null);
-  } catch {
-    return [];
-  }
-}
-
 /** The account's own spots, then the breaks it looked at last: where a session most likely was. */
 export function useOfferedPlaces() {
   const { signedIn } = useAccount();
-  const spots = useQuery(
-    orpc.v1.spots.list.queryOptions({
-      enabled: signedIn,
-      select: (answer) => answer.spots,
-      retry: false,
-    }),
-  );
-  const recents = useQuery(
-    orpc.v1.preferences.getRecents.queryOptions({ enabled: signedIn, retry: false }),
-  );
+  const spots = useQuery(spotsQuery(signedIn));
+  const { recents } = useRecentPlaces();
   return useMemo(() => {
-    const own: OfferedPlace[] = (spots.data ?? []).map((spot) => ({
+    const own = (spots.data ?? []).map((spot): OfferedPlace => ({
       kind: "spot",
       id: spot.id,
       name: spot.name,
       latitude: spot.latitude,
       longitude: spot.longitude,
     }));
-    const looked: OfferedPlace[] = (recents.data ?? deviceRecents())
-      .filter((recent) => recent.kind === "break")
-      .map((recent) => ({
-        kind: "break",
-        id: recent.id,
-        name: recent.name,
-        latitude: recent.latitude,
-        longitude: recent.longitude,
-      }));
+    const looked = recents.flatMap((recent): OfferedPlace[] =>
+      recent.kind === "break"
+        ? [
+            {
+              kind: "break",
+              id: recent.id,
+              name: recent.name,
+              latitude: recent.latitude,
+              longitude: recent.longitude,
+            },
+          ]
+        : [],
+    );
     return { spots: own, breaks: looked, isPending: spots.isLoading };
-  }, [spots.data, spots.isLoading, recents.data]);
-}
-
-/** What is typed, once typing has stopped for a moment. */
-function useSettled(text: string) {
-  const [settled, setSettled] = useState(text);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(text), ASK_WAIT_MS);
-    return () => clearTimeout(timer);
-  }, [text]);
-  return settled;
+  }, [spots.data, spots.isLoading, recents]);
 }
 
 type PlacePickerProps = {
@@ -86,102 +61,61 @@ type PlacePickerProps = {
 };
 
 export function PlacePicker({ onPick, near }: PlacePickerProps) {
-  const { colors, space, radius, type } = useTheme();
+  const { space } = useTheme();
   const offered = useOfferedPlaces();
-  const [typed, setTyped] = useState("");
-  const asked = useSettled(typed.trim());
-  const isAsking = asked.length >= 2;
+  // A session is at a break or at a spot: no buoy, and no place without a sheet, is looked for.
+  const search = usePlaceSearch({
+    near: near ?? undefined,
+    spots: offered.spots,
+    withPlaces: false,
+  });
 
-  const found = useQuery(
-    orpc.v1.breaks.search.queryOptions({
-      input: {
-        q: asked,
-        limit: 12,
-        ...(near && { latitude: near.latitude, longitude: near.longitude }),
-      },
-      enabled: isAsking,
-      // What the search before found stays until the next answer comes, as the web's does.
-      placeholderData: keepPreviousData,
-      retry: false,
-    }),
-  );
-  const folded = fold(asked);
-  const spots = isAsking
-    ? offered.spots.filter((spot) => fold(spot.name).includes(folded))
-    : offered.spots;
-  const breaks: SessionPlace[] = isAsking
-    ? (found.data?.breaks ?? []).map((one) => ({ kind: "break", id: one.id, name: one.name }))
-    : offered.breaks;
-  const nothing = isAsking && found.data !== undefined && spots.length === 0 && breaks.length === 0;
-
-  const row = (place: SessionPlace) => (
-    <Row
-      key={`${place.kind}:${place.id}`}
-      icon={place.kind === "spot" ? PinIcon : WaveIcon}
-      title={place.name}
-      chevron={false}
-      onPress={() => onPick(place)}
-    />
-  );
+  const pick = (found: Found) => {
+    if ((found.kind === "spot" || found.kind === "break") && found.id) {
+      onPick({ kind: found.kind, id: found.id, name: found.name });
+    }
+  };
+  const groups = [
+    { title: m.spots_title(), places: offered.spots },
+    { title: m.recents_title(), places: offered.breaks },
+  ].filter((group) => group.places.length > 0);
 
   return (
     <View style={{ gap: space.l }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.xs,
-          minHeight: 44,
-          paddingHorizontal: space.s,
-          borderRadius: radius.xs,
-          borderCurve: "continuous",
-          backgroundColor: colors["neutral-3"],
-        }}
-      >
-        <Glyph icon={SearchIcon} size={16} color={colors["neutral-7"]} />
-        <TextInput
-          value={typed}
-          onChangeText={setTyped}
-          autoFocus
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-          accessibilityLabel={m.session_where()}
-          placeholder={m.session_where_placeholder()}
-          placeholderTextColor={colors["neutral-6"]}
-          style={{
-            flex: 1,
-            paddingVertical: space.xs,
-            color: colors["neutral-10"],
-            fontSize: type.m.size,
-          }}
-        />
-      </View>
-
-      {offered.isPending && !isAsking ? (
-        <View style={{ gap: space.s }}>
-          <Skeleton height={44} />
-          <Skeleton height={44} />
-        </View>
-      ) : null}
-      {spots.length > 0 ? <Section title={m.spots_title()}>{spots.map(row)}</Section> : null}
-      {breaks.length > 0 ? (
-        <Section title={isAsking ? m.break_title() : m.recents_title()}>{breaks.map(row)}</Section>
-      ) : null}
-      {nothing ? (
-        <Text tone="muted" style={{ paddingHorizontal: space.m }}>
-          {m.search_empty()}
-        </Text>
-      ) : found.isError && isAsking ? (
-        <Text tone="muted" style={{ paddingHorizontal: space.m }}>
-          {m.search_failed()}
-        </Text>
-      ) : !isAsking && !offered.isPending && spots.length === 0 && breaks.length === 0 ? (
+      <SearchField
+        value={search.query}
+        onChange={search.onQueryChange}
+        label={m.session_where()}
+        placeholder={m.session_where_placeholder()}
+        pending={search.isPending}
+        autoFocus
+      />
+      {search.isSearching ? (
+        <FoundList search={search} onPick={pick} />
+      ) : offered.isPending ? (
+        <Loading>
+          <View style={{ gap: space.s }}>
+            <Skeleton height={44} />
+            <Skeleton height={44} />
+          </View>
+        </Loading>
+      ) : groups.length === 0 ? (
         <Text tone="muted" style={{ paddingHorizontal: space.m }}>
           {m.session_where_hint()}
         </Text>
-      ) : null}
+      ) : (
+        groups.map((group) => (
+          <Section key={group.title} title={group.title}>
+            {group.places.map((place) => (
+              <FoundRow
+                key={`${place.kind}:${place.id}`}
+                found={place}
+                onPress={() => onPick(place)}
+              />
+            ))}
+          </Section>
+        ))
+      )}
     </View>
   );
 }
