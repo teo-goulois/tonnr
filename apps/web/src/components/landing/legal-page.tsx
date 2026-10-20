@@ -10,7 +10,7 @@ import { LandingHeader } from "./landing-header";
 export const linked = "focus-ring rounded-xs underline underline-offset-2";
 
 /** The date the three legal texts were last changed: change it with any of them. */
-export const LEGAL_UPDATED = "2026-10-19";
+export const LEGAL_UPDATED = "2026-10-20";
 
 /** A page of the three legal texts, terms, privacy and legal notice, each linking the others. */
 export function LegalPage({ title, children }: { title: string; children: ReactNode }) {

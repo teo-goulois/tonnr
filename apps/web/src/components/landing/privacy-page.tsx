@@ -72,6 +72,9 @@ export function PrivacyPage() {
         <p>{m.privacy_alerts_mail()}</p>
         <p>{m.privacy_alerts_push()}</p>
         <p>{m.privacy_alerts_apps()}</p>
+        {/* What Apple reads of a Live Activity, which is not encrypted for the phone, and that
+            its switch is off until it is turned on: decision 074. */}
+        <p>{m.privacy_alerts_activities()}</p>
       </LegalSection>
 
       <LegalSection title={m.privacy_search_title()}>
@@ -132,6 +135,7 @@ export function PrivacyPage() {
             m.privacy_keep_reports(),
             m.privacy_keep_notices(),
             m.privacy_keep_sent(),
+            m.privacy_keep_activities(),
             m.privacy_keep_counts(),
             m.privacy_keep_mails(),
             m.privacy_keep_consent(),
