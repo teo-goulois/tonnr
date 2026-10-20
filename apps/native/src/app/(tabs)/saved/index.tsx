@@ -29,7 +29,6 @@ import {
 import { PlaceRowSkeleton } from "@/components/saved/place-row";
 import { PlaceSection, SectionHeader } from "@/components/saved/place-section";
 import { RecentPlaces } from "@/components/saved/recent-places";
-import { useRecentPlaces } from "@/components/saved/recents";
 import { SEA_NOW_KEY, type SeaReader, useAccountReader } from "@/components/saved/use-sea-now";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
@@ -38,6 +37,7 @@ import { Row, Section } from "@/components/ui/list";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
+import { useRecentPlaces } from "@/lib/recents";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";

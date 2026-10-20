@@ -3,13 +3,13 @@ import { Pressable, ScrollView, View } from "react-native";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
+import type { Recent } from "@/lib/recents";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { type PlaceActions } from "./place-actions";
 import { kindWord, PlaceTile } from "./place-row";
 import { SectionHeader } from "./place-section";
-import type { Recent } from "./recents";
 import { HeightPill, WindPill, seaWords } from "./sea-figures";
 import { keyOf, seaFiguresOf } from "./sea-now";
 import { type SeaReader, useSeaNows } from "./use-sea-now";

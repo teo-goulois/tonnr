@@ -8,15 +8,18 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
+
+import { useAccount } from "./account";
 
 // What the reader looked at last, a station, a break or a spot of their own: decision 042. How
 // a list of it changes lives in packages/client, which the web app reads too. The phone keeps
-// the list in force here, in the localStorage that expo-sqlite gives the app, so that a screen
-// opens with it and a visitor has one; an account keeps it too, so that it is the same on every
-// device. The place's sheet says what was opened with `useRecentViews`, and the saved tab reads
-// the list with `useRecentPlaces`.
+// the list in force here, in the localStorage that expo-sqlite gives the app, as the web's
+// apps/web/src/lib/recents.ts keeps it in the browser, so that every screen shows the same one
+// at once and a visitor has one; an account keeps it too, so that it is the same on every
+// device. The place's sheet says what was opened with `useRecentViews`; the saved tab, the map,
+// which names those breaks from afar, and the search read the list with `useRecentPlaces`. What
+// signs an account out calls `clearRecents`, as the web's does.
 
 export { RECENTS_MOST, type Recent } from "@repo/client/recents";
 
@@ -87,8 +90,8 @@ function useKeptRecents(signedIn: boolean) {
 }
 
 /**
- * What the saved tab shows of what was looked at last, and what clears it, on the phone and in
- * the account. `refresh` reads the account's list again.
+ * What was looked at last, the last first, and what clears it, on the phone and in the account.
+ * `refresh` reads the account's list again.
  */
 export function useRecentPlaces() {
   const { signedIn } = useAccount();

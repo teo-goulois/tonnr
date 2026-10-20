@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
+import { useRecentPlaces } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
@@ -45,7 +46,6 @@ import {
   WIND_LIMIT,
   wavesQuery,
 } from "./queries";
-import { useRecentPlaces } from "./recents";
 import { seaTimeOf } from "./sea";
 import { type SeaArrow, seaArrowsReader } from "./sea-arrows";
 import { type MapPress, StationMap, type StationMapHandle } from "./station-map";

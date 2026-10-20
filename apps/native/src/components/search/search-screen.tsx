@@ -8,13 +8,13 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { currentMapState, moveMap } from "@/components/map/map-state";
 import { placeHref } from "@/components/map/place-route";
 import { spotsQuery, wavesQuery } from "@/components/map/queries";
-import { useRecentPlaces } from "@/components/map/recents";
 import { BREAK_ZOOM, middleOf, PLACE_ZOOM } from "@/components/map/view";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { Section } from "@/components/ui/list";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
+import { useRecentPlaces } from "@/lib/recents";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
