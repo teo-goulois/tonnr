@@ -1,4 +1,20 @@
-import { MAX_ALTERNATIVES, type Part, tideSegmentAt } from "@repo/conditions/spots/criteria";
+import {
+  PLACES_MOST,
+  SHORTEST_HOURS,
+  STEPS,
+  type ValuePart,
+  askedFiguresOf,
+  isSetValue as isSetValueOf,
+  longestFitting,
+  othersOf as othersIn,
+  tideAsksOf,
+  tideAt as tideAtOf,
+  tideLastsOf,
+  valueAt as valueAtOf,
+  weekStateOf,
+  withValue,
+} from "@repo/client/alerts/editing";
+import { MAX_ALTERNATIVES, type Part } from "@repo/conditions/spots/criteria";
 import { COEFFICIENT_BANDS, type CoefficientBand, type TideSegment } from "@repo/config/sea-words";
 import { Button } from "@repo/ui/components/ui/button";
 import {
@@ -73,9 +89,7 @@ import {
   setPart,
   sliderEnds,
   thumbsOf,
-  tideOf,
   tideWords,
-  withTide,
 } from "./alert-words";
 import { CompassDial } from "./compass-dial";
 import { CycleDial } from "./cycle-dial";
@@ -109,24 +123,10 @@ const WIDE = "(min-width: 1024px)";
 // An arrow and its name stand as one box in the sentence, which the underline of the part does
 // not reach: they are underlined as the part is.
 const underlined = "underline decoration-dotted underline-offset-4";
-// The shortest windows an alert may ask for, in hours.
-const SHORTEST_HOURS = [1, 2, 3, 4, 6];
-// The most spots an alert holds: decision 031.
-export const SPOTS_MOST = 12;
+// The most places an alert holds: decisions 031 and 064.
+export const SPOTS_MOST = PLACES_MOST;
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-
-// The parts of the sentence, in the order it says them: a new alert says them one at a time.
-const STEPS = [
-  "waveHeightMeters",
-  "wavePeakPeriodSeconds",
-  "waveDirectionDegrees",
-  "windSpeedMetersPerSecond",
-  "windDirectionDegrees",
-  "tide",
-  "shortest",
-] as const;
-type ValuePart = Exclude<Part, "tide">;
 
 type AlertEditorProps = {
   now: number;
@@ -499,56 +499,19 @@ export function AlertEditor({
   const hasCoefficients = extremes.some((one) => one.coefficient !== null);
 
   // The asks of the tide, its own and its others.
-  const tideAsks = useMemo(
-    () => [tideOf(sent), ...(sent.or?.tide ?? [])].filter(asksOfTide),
-    [sent],
-  );
+  const tideAsks = useMemo(() => tideAsksOf(sent), [sent]);
   // How long the parts of the cycle asked last, at their longest over the curve drawn, to the
   // quarter hour: a window cannot be longer, so a shortest window above it never comes.
-  const tideLasts = useMemo(() => {
-    const cycles = tideAsks.flatMap((ask) => (ask.tideCycle ? [ask.tideCycle] : []));
-    if (cycles.length === 0 || tide.length < 2) return null;
-    let longest = 0;
-    let start: number | null = null;
-    for (const point of tide) {
-      const segment = tideSegmentAt(point.time, point.value, extremes);
-      const meets = segment !== null && cycles.some((cycle) => cycle.includes(segment));
-      const at = point.time.getTime();
-      if (meets && start === null) start = at;
-      if (!meets && start !== null) {
-        longest = Math.max(longest, at - start);
-        start = null;
-      }
-    }
-    return longest > 0 ? Math.round(longest / (15 * 60 * 1000)) * 15 : null;
-  }, [tideAsks, tide, extremes]);
+  const tideLasts = useMemo(
+    () => tideLastsOf(tideAsks, tide, extremes),
+    [tideAsks, tide, extremes],
+  );
   const tooShort = tideLasts !== null && tideLasts < draft.shortestMinutes;
   // The longest of the shortest windows offered that the tide leaves room for.
-  const fits = [...SHORTEST_HOURS]
-    .reverse()
-    .find((hours) => tideLasts !== null && hours * 60 <= tideLasts);
+  const fits = longestFitting(tideLasts);
 
-  const valuesOf = (key: ValuePart) =>
-    [sent[key], ...(sent.or?.[key] ?? [])].filter((value) => value !== undefined);
-  const askedFigures: Asked = {
-    waves: valuesOf("waveHeightMeters").length > 0,
-    period: valuesOf("wavePeakPeriodSeconds").length > 0,
-    swell: valuesOf("primarySwellHeightMeters").length > 0,
-    wind: valuesOf("windSpeedMetersPerSecond").length > 0,
-    tide: tideAsks.some(
-      (ask) => ask.tideCycle || ask.tideHeightMeters || ask.tideTrend !== undefined,
-    ),
-    coefficient: tideAsks.some((ask) => ask.tideCoefficients),
-  };
-  const weekState: WeekState = !asksSomething
-    ? "nothing"
-    : preview.isError
-      ? "failed"
-      : tried.length === 0
-        ? "pending"
-        : !tried.some((one) => one.hasSea)
-          ? "noSea"
-          : "ready";
+  const askedFigures: Asked = askedFiguresOf(sent);
+  const weekState: WeekState = weekStateOf({ asksSomething, failed: preview.isError, tried });
   const week = useMemo(
     () => ({
       count: weekState === "ready" ? pieces.length : null,
@@ -596,53 +559,19 @@ export function AlertEditor({
   const [adding, setAdding] = useState<Part | null>(null);
 
   // The values of a part: its own first, then its others, as they are written.
-  const valueAt = (key: ValuePart, index: number) =>
-    index === 0 ? criteria[key] : criteria.or?.[key]?.[index - 1];
-  const tideAt = (index: number): TideAsk =>
-    index === 0 ? tideOf(criteria) : (criteria.or?.tide?.[index - 1] ?? {});
-  const othersOf = (key: Part) => (criteria.or?.[key] ?? []).length;
+  const valueAt = (key: ValuePart, index: number) => valueAtOf(criteria, key, index);
+  const tideAt = (index: number): TideAsk => tideAtOf(criteria, index);
+  const othersOf = (key: Part) => othersIn(criteria, key);
   // Sets a value of a part. Its own value set to nothing leaves the whole part asking nothing:
   // "any size" is no size, whatever else was said. An other value set to nothing goes. A value
   // that is being moved keeps its place, the part's others with it, whatever it says meanwhile:
   // `moving`, which a slider and the dial pass.
   function setValue(key: Part, index: number, value: unknown, moving = false) {
-    const others = [...((criteria.or?.[key] ?? []) as unknown[])];
-    if (moving && value === undefined) {
-      if (index > 0) value = {};
-      else {
-        setCriteria(key === "tide" ? withTide(criteria, {}) : { ...criteria, [key]: undefined });
-        return;
-      }
-    }
-    if (index === 0 && value === undefined) {
-      const { [key]: _gone, ...rest } = criteria.or ?? {};
-      setCriteria({
-        ...(key === "tide" ? withTide(criteria, {}) : { ...criteria, [key]: undefined }),
-        or: rest,
-      });
-      return;
-    }
-    if (index === 0) {
-      setCriteria(
-        key === "tide"
-          ? withTide(criteria, value as TideAsk)
-          : { ...criteria, [key]: value as never },
-      );
-      return;
-    }
-    if (value === undefined) others.splice(index - 1, 1);
-    else others[index - 1] = value;
-    setCriteria({ ...criteria, or: { ...criteria.or, [key]: others } });
-    if (key === adding) setAdding(null);
+    setCriteria(withValue(criteria, key, index, value, moving));
+    // An other value that is set or taken away is no longer one to add.
+    if (index > 0 && key === adding) setAdding(null);
   }
-  const isSetValue = (key: Part, index: number) =>
-    key === "tide"
-      ? asksOfTide(tideAt(index))
-      : key === "waveDirectionDegrees" ||
-          key === "primarySwellDirectionDegrees" ||
-          key === "windDirectionDegrees"
-        ? valueAt(key, index) !== undefined
-        : isSetRange(valueAt(key, index) as { min?: number; max?: number } | undefined);
+  const isSetValue = (key: Part, index: number) => isSetValueOf(criteria, key, index);
 
   function range(
     key: RangeKey & ValuePart,

@@ -1,3 +1,11 @@
+import {
+  type Asked,
+  type WeekPiece,
+  type WeekState,
+  hourIn,
+  pieceFigures,
+  weekDays as weekDaysIn,
+} from "@repo/client/alerts/editing";
 import type { TideSegment } from "@repo/config/sea-words";
 import { ChevronDownIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
@@ -7,43 +15,17 @@ import { formatClock, formatDay, formatNumber, formatSeconds, toKnots } from "@/
 import { formatHeight, formatWind } from "@/lib/units";
 import { m } from "@/paraglide/messages.js";
 
-import type { AlertPreview } from "../viewer/types";
 import { SEGMENT_WORDS } from "./alert-words";
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAYS = 7;
+// Which day a window falls on and what it is said in live in packages/client, which the app for
+// phones reads too: decision 069.
+export type { Asked, WeekPiece, WeekState };
 
-type Hour = AlertPreview["spots"][number]["hours"][number];
-/** A window an account would be told of, at one of the alert's places. */
-export type WeekPiece = { start: Date; end: Date; spotId: string; hours: Hour[] };
+const HOUR_MS = 60 * 60 * 1000;
 
 /** The week as the editor judges it, for what changes a part to say as it moves. */
 export type WeekOf = { count: number | null; days: boolean[] };
 export const Week = createContext<WeekOf>({ count: null, days: [] });
-
-/** What an alert asks, so that a window says those figures and no other. */
-export type Asked = {
-  waves: boolean;
-  period: boolean;
-  swell: boolean;
-  wind: boolean;
-  tide: boolean;
-  coefficient: boolean;
-};
-
-export type WeekState = "nothing" | "failed" | "noSea" | "pending" | "ready";
-
-/** The hour of a moment in a zone, from 0 to 24, with its minutes as a fraction. */
-function hourIn(time: Date, zone: string | undefined) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: zone,
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  }).formatToParts(time);
-  const of = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
-  return of("hour") + of("minute") / 60;
-}
 
 /** How many windows, in words. */
 export function countWords(count: number) {
@@ -53,14 +35,7 @@ export function countWords(count: number) {
 
 /** The seven days from today, each with the windows that start on it. */
 export function weekDays(pieces: WeekPiece[], now: number, zone: string | undefined) {
-  const days: { key: string; pieces: WeekPiece[] }[] = [];
-  for (let at = 0; at < DAYS; at++) {
-    days.push({ key: formatDay(new Date(now + at * 24 * HOUR_MS), zone), pieces: [] });
-  }
-  for (const piece of pieces) {
-    days.find((day) => day.key === formatDay(piece.start, zone))?.pieces.push(piece);
-  }
-  return days;
+  return weekDaysIn(pieces, now, zone, formatDay);
 }
 
 /** A row of seven dots, filled for a day that has a window. */
@@ -110,55 +85,15 @@ export function LiveCount({ since }: { since: number | null }) {
   );
 }
 
-const spread = (values: number[], say: (value: number) => string) => {
-  if (values.length === 0) return undefined;
-  const least = Math.min(...values);
-  const most = Math.max(...values);
-  return least === most ? say(least) : `${say(least)} → ${say(most)}`;
+// How each figure of a window is written here.
+const WRITERS = {
+  height: formatHeight,
+  seconds: formatSeconds,
+  swell: (height: number) => m.alert_preview_swell({ height: formatHeight(height) }),
+  wind: (speed: number) => formatWind(toKnots(speed)),
+  segment: (segment: TideSegment) => SEGMENT_WORDS[segment](),
+  coefficient: (value: number) => m.alert_week_coefficient({ value: formatNumber(value, 0) }),
 };
-
-/** What a window was, in the figures the alert asks and no other. */
-function pieceFigures(piece: WeekPiece, asked: Asked) {
-  const inside = piece.hours.filter((hour) => hour.time >= piece.start && hour.time < piece.end);
-  const of = (read: (hour: Hour) => number | null | undefined) =>
-    inside.flatMap((hour) => read(hour) ?? []);
-  const segments = [
-    ...new Set(
-      inside.flatMap((hour): TideSegment[] => (hour.tideSegment ? [hour.tideSegment] : [])),
-    ),
-  ];
-  const coefficient = inside.find((hour) => hour.tideCoefficient !== null)?.tideCoefficient;
-  return [
-    asked.waves &&
-      spread(
-        of((hour) => hour.waveHeightMeters),
-        formatHeight,
-      ),
-    asked.period &&
-      spread(
-        of((hour) => hour.wavePeakPeriodSeconds),
-        formatSeconds,
-      ),
-    asked.swell &&
-      spread(
-        of((hour) => hour.primarySwellHeightMeters),
-        (height) => m.alert_preview_swell({ height: formatHeight(height) }),
-      ),
-    asked.wind &&
-      spread(
-        of((hour) => hour.windSpeedMetersPerSecond),
-        (speed) => formatWind(toKnots(speed)),
-      ),
-    asked.tide &&
-      segments.length > 0 &&
-      (segments.length === 1
-        ? SEGMENT_WORDS[segments[0]!]()
-        : `${SEGMENT_WORDS[segments[0]!]()} → ${SEGMENT_WORDS[segments.at(-1)!]()}`),
-    asked.coefficient &&
-      coefficient != null &&
-      m.alert_week_coefficient({ value: formatNumber(coefficient, 0) }),
-  ].filter((figure): figure is string => typeof figure === "string" && figure !== "");
-}
 
 /**
  * What an alert would tell over the week ahead: a line under its sentence, with a dot for each
@@ -306,7 +241,7 @@ export function WeekPreview({
                           <span className="font-medium tabular-nums">
                             {formatClock(piece.start, zone)} – {formatClock(piece.end, zone)}
                           </span>
-                          {pieceFigures(piece, asked).map((figure) => (
+                          {pieceFigures(piece, asked, WRITERS).map((figure) => (
                             <span key={figure} className="text-neutral-8">
                               {" · "}
                               {figure}
