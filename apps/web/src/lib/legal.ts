@@ -38,6 +38,8 @@ export const RECIPIENTS: {
   does: () => string;
   where?: () => string;
 }[] = [
+  // The web app, and the Worker and the bucket of the updates of the app for phones, which keep
+  // nothing of a request: decision 075.
   { name: "Cloudflare", does: m.privacy_does_web, where: m.privacy_where_us },
   { name: "Cloudflare R2", does: m.privacy_does_media, where: m.privacy_where_us },
   { name: "Scaleway", does: m.privacy_does_api, where: m.privacy_where_france },

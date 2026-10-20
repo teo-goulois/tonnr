@@ -1421,7 +1421,7 @@
   "privacy_bases_interest": "Audience counts, sign-in records, call counts, the log, the API's fault reports, backups and moderation: our legitimate interest in keeping the service secure and running (article 6(1)(f)).",
   "privacy_bases_messages": "Messages you send us: our legitimate interest in answering them (article 6(1)(f)).",
   "privacy_recipients_title": "Who receives it",
-  "privacy_does_web": "hosts the web app",
+  "privacy_does_web": "hosts the web app, and the updates of the app on your phone, which it asks for at each start without saying who you are",
   "privacy_does_media": "keeps the photos and videos of the sessions",
   "privacy_does_api": "hosts the server of the API and its database",
   "privacy_does_mail": "sends the mails",

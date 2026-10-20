@@ -1421,7 +1421,7 @@
   "privacy_bases_interest": "La medición de audiencia, los registros de inicio de sesión, recuentos de llamadas, el registro, los informes de fallos de la API, las copias de seguridad y la moderación: nuestro interés legítimo en mantener el servicio seguro y en marcha (artículo 6.1.f).",
   "privacy_bases_messages": "Los mensajes que nos envías: nuestro interés legítimo en responderlos (artículo 6.1.f).",
   "privacy_recipients_title": "Quién los recibe",
-  "privacy_does_web": "aloja la app web",
+  "privacy_does_web": "aloja la app web, y las actualizaciones de la app de tu móvil, que pide en cada arranque sin decir quién eres",
   "privacy_does_media": "guarda las fotos y vídeos de las sesiones",
   "privacy_does_api": "aloja el servidor de la API y su base de datos",
   "privacy_does_mail": "envía los correos",

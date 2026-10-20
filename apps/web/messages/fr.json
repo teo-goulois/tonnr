@@ -1421,7 +1421,7 @@
   "privacy_bases_interest": "La mesure d'audience, les connexions gardées, les comptes d'appels, le journal, les rapports de pannes de l'API, les sauvegardes et la modération : notre intérêt légitime à garder le service sûr et en marche (article 6.1.f).",
   "privacy_bases_messages": "Les messages que tu nous envoies : notre intérêt légitime à y répondre (article 6.1.f).",
   "privacy_recipients_title": "Qui les reçoit",
-  "privacy_does_web": "héberge l'application web",
+  "privacy_does_web": "héberge l'application web, et les mises à jour de l'app sur ton téléphone, qu'elle demande à chaque lancement sans dire qui tu es",
   "privacy_does_media": "garde les photos et vidéos des sessions",
   "privacy_does_api": "héberge le serveur de l'API et sa base de données",
   "privacy_does_mail": "envoie les mails",
