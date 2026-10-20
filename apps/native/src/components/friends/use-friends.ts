@@ -21,7 +21,7 @@ const localeNow = () => {
   return isLocale(locale) ? locale : LOCALES[0];
 };
 
-/** What friends change is read again: the friends, and the guides that name them. */
+/** What a friendship changes is read again: the friends, their link and what they wrote. */
 export function useFriendsChanged() {
   const queryClient = useQueryClient();
   return useCallback(

@@ -1,19 +1,18 @@
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
 import type { Guide, GuideLine, GuideOwn, SurfBreak } from "@repo/client/viewer/types";
 import { ChevronRightIcon, PenIcon, PlusIcon } from "@repo/ui/icon";
-import { router } from "expo-router";
-import { Children, Fragment, isValidElement, type ReactNode, useEffect, useRef } from "react";
+import { Children, isValidElement, type ReactNode, useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 
+import { Bearing } from "@/components/forecast/bearing";
 import { useBlock } from "@/components/friends/blocking";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ErrorState } from "@/components/ui/error-state";
+import { Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
-import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
-import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
@@ -27,7 +26,6 @@ import {
   wordsText,
 } from "./characteristic-words";
 import {
-  Bearing,
   BreakDescription,
   CharacteristicIcon,
   CharacteristicRow,
@@ -50,7 +48,7 @@ import {
 } from "./guide-words";
 import { ContestSheet, TextSheet, WordsSheet } from "./line-sheets";
 import { usePresented } from "./page-sheet";
-import { Author } from "./rank";
+import { Author } from "./author";
 import { Tag } from "./tag";
 import type { GuideActions } from "./use-guiding";
 
@@ -66,32 +64,10 @@ type Proposed = GuideLine["proposed"][number];
 // What a sheet over the guide holds: the editor of a line, or the reason of a contest on one.
 type Shown = { line: GuideLineName; contest?: string };
 
-/** Rows on the theme's surface, a line between two of them, past the glyphs. */
+/** Rows of the guide in the kit's grouped list, which draws nothing while it has no row. */
 function Group({ title, children }: { title: string; children: ReactNode }) {
-  const { space } = useTheme();
   const rows = Children.toArray(children).filter(isValidElement);
-  if (rows.length === 0) return null;
-  return (
-    <View style={{ gap: space.xs }}>
-      <Text
-        size="s"
-        weight="medium"
-        tone="muted"
-        accessibilityRole="header"
-        style={{ paddingHorizontal: space.m }}
-      >
-        {title}
-      </Text>
-      <Surface insetEdge style={{ overflow: "hidden" }}>
-        {rows.map((row, index) => (
-          <Fragment key={row.key ?? index}>
-            {index > 0 ? <Separator inset={space.m} /> : null}
-            {row}
-          </Fragment>
-        ))}
-      </Surface>
-    </View>
-  );
+  return rows.length === 0 ? null : <Section title={title}>{rows}</Section>;
 }
 
 /** A row of the guide that says something and opens nothing. */
@@ -569,10 +545,6 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
         })
       : undefined;
 
-  // An account with no username chooses one in the account's tab, where it is kept: the sheet
-  // closes first.
-  const chooseUsername = () => sheet.dismiss(() => router.dismissTo("/account/username"));
-
   const shown = sheet.shown;
   const shownLine = shown ? lineOf(shown.line) : undefined;
   const shownField = shown ? fieldOf(shown.line) : undefined;
@@ -642,7 +614,6 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
             }
             own={own}
             actions={actions}
-            onChooseUsername={chooseUsername}
             {...presenting}
           />
         ) : shownField ? (
@@ -653,7 +624,6 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
             saved={Array.isArray(shownLine.value) ? shownLine.value : []}
             own={own}
             actions={actions}
-            onChooseUsername={chooseUsername}
             {...presenting}
           />
         ) : null

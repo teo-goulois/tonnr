@@ -15,6 +15,8 @@ const RANKS: Record<Rank, { short: () => string; name: () => string }> = {
 
 /** The name of a rank: "Qualifying Series". */
 export const rankName = (rank: Rank) => RANKS[rank].name();
+/** A rank by its initials, as its badge writes it: "QS". */
+export const rankInitials = (rank: Rank) => RANKS[rank].short();
 
 /** The rank an account reached, by its initials on the theme's muted ground; its name is said. */
 export function RankBadge({ rank }: { rank: Rank }) {

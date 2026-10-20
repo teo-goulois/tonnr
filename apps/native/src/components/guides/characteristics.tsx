@@ -1,5 +1,4 @@
 import {
-  ArrowUpIcon,
   BoardIcon,
   BottomIcon,
   type BottomKind,
@@ -19,9 +18,9 @@ import {
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { Bearing } from "@/components/forecast/bearing";
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Text } from "@/components/ui/text";
-import { compassPoint } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -183,29 +182,6 @@ export function useSizeReading(size: WaveSize | null) {
 }
 
 /**
- * Where a wind or a swell comes from, as it is written everywhere: an arrow that points the way
- * it goes, then the name of the point it comes from. Never a name alone (the web's `Bearing`).
- */
-export function Bearing({ degrees, tone }: { degrees: number; tone?: "muted" }) {
-  const { colors, space } = useTheme();
-  const color = tone === "muted" ? colors["neutral-7"] : colors["neutral-10"];
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{ transform: [{ rotate: `${degrees + 180}deg` }] }}
-      >
-        <Glyph icon={ArrowUpIcon} size={12} color={color} strokeWidth={2.25} />
-      </View>
-      <Text size="s" dense tone={tone}>
-        {compassPoint(degrees)}
-      </Text>
-    </View>
-  );
-}
-
-/**
  * The words of one characteristic as they read: its points each with its arrow, in the compass's
  * order, or its words. A screen reader hears the same words a line of text would say.
  */
@@ -218,7 +194,7 @@ export function WordsReading({
   given: readonly string[];
   tone?: "muted";
 }) {
-  const { space } = useTheme();
+  const { colors, space } = useTheme();
   if (isCompassField(field)) {
     return (
       <View
@@ -227,7 +203,11 @@ export function WordsReading({
         style={{ flexDirection: "row", flexWrap: "wrap", columnGap: space.xs, rowGap: space.xxs }}
       >
         {COMPASS.filter((point) => given.includes(point)).map((point) => (
-          <Bearing key={point} degrees={bearingOf(point)} tone={tone} />
+          <Bearing
+            key={point}
+            degrees={bearingOf(point)}
+            color={tone === "muted" ? colors["neutral-7"] : undefined}
+          />
         ))}
       </View>
     );

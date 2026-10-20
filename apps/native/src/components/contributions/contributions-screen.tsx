@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
-import { points, progressOf, RANKS } from "@/components/guides/guide-words";
+import { rankInitials, RankBadge, rankName } from "@/components/account/rank-badge";
+import { points, progressOf } from "@/components/guides/guide-words";
 import { openBreakGuide } from "@/components/guides/open-guide";
-import { RankBadge } from "@/components/guides/rank";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Separator } from "@/components/ui/separator";
@@ -37,7 +37,7 @@ function Progress({ standing }: { standing: Standing }) {
       </Text>
     );
   }
-  const rank = RANKS[next.rank].short();
+  const rank = rankInitials(next.rank);
   const lacking = m.contributions_next({ points: points(progress.lacking), rank });
   return (
     <View
@@ -92,7 +92,7 @@ function StandingCard({ standing }: { standing: Standing }) {
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
             <RankBadge rank={standing.rank} />
             <Text size="s" tone="muted">
-              {RANKS[standing.rank].name()}
+              {rankName(standing.rank)}
             </Text>
           </View>
         ) : (

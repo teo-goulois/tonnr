@@ -25,7 +25,7 @@ const WAITING_MS = 30 * 1000;
 const drafts = new Map<string, string>();
 
 /** Why the API refused a line, in the reader's language. Its own words are English. */
-export function refusalOf(error: unknown) {
+function refusalOf(error: unknown) {
   const code = (error as { code?: unknown } | null)?.code;
   if (code === "CONFLICT") return m.guide_same();
   if (code === "FORBIDDEN") return m.guide_full();

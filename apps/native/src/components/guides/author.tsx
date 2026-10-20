@@ -1,20 +1,13 @@
 import type { Rank } from "@repo/client/viewer/types";
 import { Pressable, View } from "react-native";
 
+import { RankBadge } from "@/components/account/rank-badge";
 import { Text } from "@/components/ui/text";
 import { TARGET } from "@/components/ui/metrics";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { authorName, RANKS } from "./guide-words";
-import { Tag } from "./tag";
-
-/** The rank an account reached, by the initials of its tour. A screen reader hears its name. */
-export function RankBadge({ rank }: { rank: Rank }) {
-  return (
-    <Tag accessibilityLabel={m.rank_label({ name: RANKS[rank].name() })}>{RANKS[rank].short()}</Tag>
-  );
-}
+import { authorName } from "./guide-words";
 
 /**
  * Who wrote a line of a guide: a username and a rank, and nothing else of the account. A line

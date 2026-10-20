@@ -1,19 +1,21 @@
-import { localePrefix } from "@repo/config/locales";
 import type { GuideLineName } from "@repo/client/guides/types";
 import type { GuideOwn } from "@repo/client/viewer/types";
-import { openBrowserAsync } from "expo-web-browser";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { TextInput, View } from "react-native";
+import { View } from "react-native";
 
+import { useOpenPage } from "@/components/account/open-page";
+import { UsernameForm } from "@/components/account/username-form";
+import { TextField } from "@/components/lists/text-field";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { feel } from "@/components/ui/haptics";
 import { Loading, SkeletonText } from "@/components/ui/skeleton";
+import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
-import { ENV } from "@/env";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-import { getLocale } from "@/paraglide/runtime";
+import { orpc } from "@/utils/orpc";
 
 import type { CharacteristicField } from "./characteristic-words";
 import { wordsText } from "./characteristic-words";
@@ -35,8 +37,11 @@ import type { GuideActions } from "./use-guiding";
 // place: the catalogue's words to choose from, or a short text; and the reason of a contest, which
 // a moderator alone reads. Decision 041.
 
-/** A field of text in the theme: what is typed stays in view over the keyboard. */
-export function GuideField({
+/**
+ * A few lines of text, on the lists' `TextField` as a session's note is written: what is typed
+ * stays in view over the keyboard, which the sheet's scroll keeps clear of it.
+ */
+function GuideField({
   label,
   value,
   onChangeText,
@@ -53,42 +58,37 @@ export function GuideField({
   disabled?: boolean;
   hint?: string;
 }) {
-  const { colors, space, radius, type, fonts } = useTheme();
+  const { space, type } = useTheme();
   return (
-    <TextInput
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={colors["neutral-6"]}
-      selectionColor={colors["color-1"]}
-      cursorColor={colors["color-1"]}
-      maxLength={maxLength}
-      editable={!disabled}
-      multiline
-      autoFocus
-      textAlignVertical="top"
-      style={{
-        minHeight: type.m.line * 5 + 2 * space.s,
-        paddingHorizontal: space.m,
-        paddingTop: space.s,
-        paddingBottom: space.s,
-        borderRadius: radius.xs,
-        borderCurve: "continuous",
-        backgroundColor: colors["neutral-3"],
-        color: colors["neutral-10"],
-        fontFamily: fonts.regular,
-        fontSize: type.m.size,
-        lineHeight: type.m.line,
-      }}
-    />
+    <Surface insetEdge>
+      <TextField
+        accessibilityLabel={label}
+        accessibilityHint={hint}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        editable={!disabled}
+        multiline
+        autoFocus
+        textAlignVertical="top"
+        style={{
+          flex: 0,
+          minHeight: type.m.line * 5 + 2 * space.s,
+          paddingHorizontal: space.m,
+          paddingTop: space.s,
+          paddingBottom: space.s,
+          lineHeight: type.m.line,
+        }}
+      />
+    </Surface>
   );
 }
 
 /** What sending means, and where it is said in full. */
 function License() {
   const { space } = useTheme();
+  const { openPage } = useOpenPage();
   return (
     <View style={{ gap: space.xxs }}>
       <Text size="s" tone="muted">
@@ -97,9 +97,7 @@ function License() {
       <Button
         variant="ghost"
         style={{ alignSelf: "flex-start", marginStart: -space.m }}
-        onPress={() =>
-          void openBrowserAsync(`${ENV.EXPO_PUBLIC_SITE_URL}${localePrefix(getLocale())}/terms`)
-        }
+        onPress={() => void openPage("terms")}
       >
         {m.guide_license_terms()}
       </Button>
@@ -118,19 +116,37 @@ function Refusal({ why }: { why: string | undefined }) {
 }
 
 /**
- * What an account goes through before it writes: one with no username chooses it first, since
- * what it writes is read under it, in the step of the account's tab that chooses one.
+ * Whether the signed-in account may write here: it needs a username, since what it writes is
+ * read under it. One with none chooses it in the sheet, as the web's guide asks for it, and goes
+ * on writing once it is kept.
  */
+function useWriter(own: GuideOwn | undefined) {
+  const queryClient = useQueryClient();
+  // A username kept here, before what the account wrote of the break is read again.
+  const [isNamed, setIsNamed] = useState(false);
+  return {
+    canWrite: own?.username != null || isNamed,
+    onNamed: () => {
+      setIsNamed(true);
+      void queryClient.invalidateQueries({ queryKey: orpc.v1.guides.mine.key() });
+    },
+  };
+}
+
+/** What an account goes through before it writes: one with no username chooses it first. */
 function Writer({
   own,
-  onChooseUsername,
+  canWrite,
+  onNamed,
   children,
 }: {
   own: GuideOwn | undefined;
-  onChooseUsername: () => void;
+  canWrite: boolean;
+  onNamed: () => void;
   children: ReactNode;
 }) {
   const { space } = useTheme();
+  if (canWrite) return children;
   if (!own) {
     return (
       <Loading>
@@ -138,17 +154,12 @@ function Writer({
       </Loading>
     );
   }
-  if (own.username === null) {
-    return (
-      <View style={{ gap: space.s }}>
-        <Text>{m.guide_username_first()}</Text>
-        <Button onPress={onChooseUsername} fill>
-          {m.username_choose()}
-        </Button>
-      </View>
-    );
-  }
-  return children;
+  return (
+    <View style={{ gap: space.s }}>
+      <Text>{m.guide_username_first()}</Text>
+      <UsernameForm current={null} autoFocus onSaved={onNamed} />
+    </View>
+  );
 }
 
 // How a sheet is shown, as `usePresented` keeps it: it stays drawn while it leaves.
@@ -157,7 +168,6 @@ type Presenting = { visible: boolean; onClose: () => void; onDismissed: () => vo
 type SheetProps = Presenting & {
   own: GuideOwn | undefined;
   actions: GuideActions;
-  onChooseUsername: () => void;
 };
 
 /** A line said in the catalogue's words: its glyph drawn from what is pressed, and the words. */
@@ -170,12 +180,11 @@ export function WordsSheet({
   visible,
   onClose,
   onDismissed,
-  onChooseUsername,
 }: SheetProps & { line: GuideLineName; field: CharacteristicField; saved: readonly string[] }) {
   const { space } = useTheme();
   const [pressed, setPressed] = useState<string[]>([...saved]);
   const [refused, setRefused] = useState<string>();
-  const canWrite = own?.username != null;
+  const { canWrite, onNamed } = useWriter(own);
   const sendable = canWrite && isSendableWords(pressed, saved);
 
   const send = () => {
@@ -202,7 +211,7 @@ export function WordsSheet({
       canSave={sendable}
       saving={actions.isSending}
     >
-      <Writer own={own} onChooseUsername={onChooseUsername}>
+      <Writer own={own} canWrite={canWrite} onNamed={onNamed}>
         {/* What the line will say, drawn as it is chosen. */}
         <View
           accessibilityElementsHidden
@@ -254,14 +263,13 @@ export function TextSheet({
   visible,
   onClose,
   onDismissed,
-  onChooseUsername,
 }: SheetProps & { line: TextLineName; saved: string }) {
   const { space } = useTheme();
   const most = textMostOf(line);
   // What was typed here before the sheet last closed is here again.
   const [text, setText] = useState(actions.draftOf(line) ?? saved);
   const [refused, setRefused] = useState<string>();
-  const canWrite = own?.username != null;
+  const { canWrite, onNamed } = useWriter(own);
   const sendable = canWrite && isSendableText(text, saved);
 
   const write = (next: string) => {
@@ -297,7 +305,7 @@ export function TextSheet({
       canSave={sendable}
       saving={actions.isSending}
     >
-      <Writer own={own} onChooseUsername={onChooseUsername}>
+      <Writer own={own} canWrite={canWrite} onNamed={onNamed}>
         <View style={{ gap: space.xs }}>
           <GuideField
             label={TEXT_LINES[line].label()}

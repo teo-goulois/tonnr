@@ -6,12 +6,11 @@ import { router } from "expo-router";
 import { Fragment, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 
+import { RankBadge, rankName } from "@/components/account/rank-badge";
 import { SwipeRow } from "@/components/alerts/swipe-row";
 import { ContributionRow } from "@/components/contributions/contribution-row";
 import { openBreakGuide } from "@/components/guides/open-guide";
 import { PageSheet, usePresented } from "@/components/guides/page-sheet";
-import { RankBadge } from "@/components/guides/rank";
-import { RANKS } from "@/components/guides/guide-words";
 import { Tag } from "@/components/guides/tag";
 import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
@@ -156,7 +155,7 @@ function FriendRow({
   const remove = actions.find((action) => action.name === "remove");
   const label = [
     nameOf(friend),
-    friend.rank ? m.rank_label({ name: RANKS[friend.rank].name() }) : undefined,
+    friend.rank ? m.rank_label({ name: rankName(friend.rank) }) : undefined,
     sponsored?.label,
   ]
     .filter(Boolean)
@@ -240,7 +239,7 @@ function FriendSheet({
             <>
               <RankBadge rank={friend.rank} />
               <Text size="s" tone="muted">
-                {RANKS[friend.rank].name()}
+                {rankName(friend.rank)}
               </Text>
             </>
           ) : (

@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { PageSheet } from "@/components/guides/page-sheet";
-import { RankBadge } from "@/components/guides/rank";
+import { RankBadge } from "@/components/account/rank-badge";
+import { UsernameForm } from "@/components/account/username-form";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
@@ -36,7 +37,7 @@ const REFUSALS = {
 /**
  * The invitation of a link, for the map tab to show while its address names one. `onDone` takes
  * the link out of the address once it made what it makes, or was left. The sheet steps aside
- * while the person signs in, signs up or chooses a username, and comes back once they do.
+ * while the person signs in or signs up, and comes back once they do.
  */
 export function InviteSheet({ token, onDone }: { token: string; onDone: () => void }) {
   const { space } = useTheme();
@@ -44,6 +45,8 @@ export function InviteSheet({ token, onDone }: { token: string; onDone: () => vo
   const { signedIn, userId, username } = useAccount();
   const changed = useFriendsChanged();
   const focused = useIsFocused();
+  // A username chosen here, before the session the sign-in library holds is read again.
+  const [isNamed, setIsNamed] = useState(false);
 
   // Shown until it is done with; hidden a while to let another screen come, and back after.
   const [open, setOpen] = useState(true);
@@ -176,13 +179,12 @@ export function InviteSheet({ token, onDone }: { token: string; onDone: () => vo
 
       {found && !isOwn ? (
         signedIn ? (
-          username === null ? (
-            // A friend is read by a name: an account that has none chooses it first.
+          username === null && !isNamed ? (
+            // A friend is read by a name: an account that has none chooses it here, as the web's
+            // invitation asks for it, and becomes a friend after.
             <View style={{ gap: space.s }}>
               <Text style={{ textAlign: "center" }}>{m.invite_username_first()}</Text>
-              <Button fill onPress={() => stepAside(() => router.push("/account/username"))}>
-                {m.username_choose()}
-              </Button>
+              <UsernameForm current={null} onSaved={() => setIsNamed(true)} />
             </View>
           ) : (
             <View style={{ gap: space.xs }}>

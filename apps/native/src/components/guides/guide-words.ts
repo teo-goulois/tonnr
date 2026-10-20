@@ -1,5 +1,5 @@
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
-import type { Contribution, Guide, Rank } from "@repo/client/viewer/types";
+import type { Contribution, Guide } from "@repo/client/viewer/types";
 
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -112,13 +112,6 @@ export function spreadText(spread: Guide["answers"][number], listed?: string) {
 /** The answer an account gives once it pressed one: none when it pressed the one it had. */
 export const answerAfter = (mine: string | undefined, pressed: string) =>
   mine === pressed ? null : pressed;
-
-// A rank as it is written on a badge, and its name in full: those of surfing's tours.
-export const RANKS: Record<Rank, { short: () => string; name: () => string }> = {
-  qs: { short: m.rank_qs, name: m.rank_qs_name },
-  cs: { short: m.rank_cs, name: m.rank_cs_name },
-  ct: { short: m.rank_ct, name: m.rank_ct_name },
-};
 
 type Language = NonNullable<Guide["lines"][number]["language"]>;
 
