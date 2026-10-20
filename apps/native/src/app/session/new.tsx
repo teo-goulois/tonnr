@@ -102,7 +102,13 @@ export default function NewSession() {
               onPress: () =>
                 router.replace({
                   pathname: "/sign-in",
-                  params: { reason: m.auth_reason_add_session(), next: "/session/new" },
+                  params: {
+                    reason: m.auth_reason_add_session(),
+                    // On to the session where it was begun: its name is asked again.
+                    next: params.place
+                      ? `/session/new?place=${encodeURIComponent(params.place)}`
+                      : "/session/new",
+                  },
                 }),
             }}
           />
