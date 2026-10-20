@@ -12,7 +12,7 @@ import { m } from "@/paraglide/messages";
 import { TextField } from "./text-field";
 
 /** As long as a list's name may be: the API takes sixty characters. */
-const NAME_MOST = 60;
+export const NAME_MOST = 60;
 
 /**
  * A new list, named where it is made: the last row of the saved tab. The keyboard's own key

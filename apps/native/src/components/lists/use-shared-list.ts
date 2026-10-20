@@ -7,6 +7,7 @@ import { orpc } from "@/utils/orpc";
 import type { PlacesNowInput } from "@/components/saved/sea-now";
 import { type SeaReader, useAccountReader } from "@/components/saved/use-sea-now";
 
+import { codeOf } from "./items";
 import { isListToken } from "./links";
 import { holdLink, keepPass, keptPass } from "./shared-link";
 
@@ -15,8 +16,6 @@ import { holdLink, keepPass, keptPass } from "./shared-link";
 // visitor with the link itself. The first answer says whether a password is asked, and the phone
 // keeps what stands for it once it was given, so that the list opens again without it. Decision
 // 035.
-
-const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
 
 async function open(token: string, password: string | undefined) {
   // What stood for the password before, on this phone, whoever is signed in now.

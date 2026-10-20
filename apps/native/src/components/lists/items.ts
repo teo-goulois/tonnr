@@ -72,3 +72,13 @@ export function chipsOf(lists: readonly SavedList[], joined: readonly JoinedList
     ...joined.map((list) => ({ id: list.id, name: listName(list), shared: true })),
   ];
 }
+
+/** The code of the API's refusal, as oRPC gives it: `NOT_FOUND`, `FORBIDDEN`. */
+export const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
+
+/**
+ * Whether a list's read is tried again after it failed: once, unless the API said the list is
+ * not there, which a second ask would only say again.
+ */
+export const retryUnlessGone = (failures: number, error: unknown) =>
+  failures < 1 && codeOf(error) !== "NOT_FOUND";

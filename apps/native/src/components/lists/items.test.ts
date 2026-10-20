@@ -3,7 +3,16 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { baseLocale, setLocale } from "@/paraglide/runtime.js";
 
-import { chipsOf, holds, listName, othersOf, placesCount, refsOf, sizeOf } from "./items";
+import {
+  chipsOf,
+  holds,
+  listName,
+  othersOf,
+  placesCount,
+  refsOf,
+  retryUnlessGone,
+  sizeOf,
+} from "./items";
 
 const list = (overrides: Partial<SavedList>): SavedList => ({
   id: "l",
@@ -62,5 +71,11 @@ describe("what a list holds, as the screens read it", () => {
   it("counts places in words", () => {
     expect(placesCount(1)).toBe("1 place");
     expect(placesCount(4)).toBe("4 places");
+  });
+
+  it("asks again once for a list that failed, and never for one the API says is not there", () => {
+    expect(retryUnlessGone(0, new Error("offline"))).toBe(true);
+    expect(retryUnlessGone(1, new Error("offline"))).toBe(false);
+    expect(retryUnlessGone(0, { code: "NOT_FOUND" })).toBe(false);
   });
 });

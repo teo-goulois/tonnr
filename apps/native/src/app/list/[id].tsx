@@ -1,12 +1,285 @@
-import { View } from "react-native";
+import { BellIcon, BookmarkIcon, LogOutIcon, TrashIcon } from "@repo/ui/icon";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Stack, router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { RefreshControl, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { Text } from "@/components/ui/text";
+import {
+  codeOf,
+  heldBy,
+  listName,
+  othersOf,
+  placesCount,
+  refsOf,
+  retryUnlessGone,
+} from "@/components/lists/items";
+import { ListNameField } from "@/components/lists/list-name-field";
+import { ShareSection } from "@/components/lists/share-section";
+import { useListMutations } from "@/components/lists/use-list-mutations";
+import { AccountPrompt } from "@/components/saved/account-prompt";
+import { confirmDestructive } from "@/components/saved/confirm";
+import { type PlaceItem, showListOnMap, usePlaceActions } from "@/components/saved/place-actions";
+import { PlaceRowSkeleton } from "@/components/saved/place-row";
+import { PlaceSection, SectionHeader } from "@/components/saved/place-section";
+import { SEA_NOW_KEY, useAccountReader } from "@/components/saved/use-sea-now";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Row, Section } from "@/components/ui/list";
+import { Surface } from "@/components/ui/surface";
+import { useTell } from "@/components/ui/toast";
+import { useAccount } from "@/lib/account";
+import { useTheme } from "@/lib/theme";
+import { m } from "@/paraglide/messages";
+import { orpc } from "@/utils/orpc";
 
-/** A list of the account's, with what it holds (decision 017). Built by the saved work: decision 069. */
-export default function Screen() {
+/**
+ * A list of the account's, or one of someone else's that it kept, read alone (decisions 017 and
+ * 035): what it holds, each place with the sea now, and what its reader may do with it. Its owner
+ * renames it, shares it by its link, says whether the reports at its breaks are told (decision
+ * 068), and deletes it, asked first. An account that kept it lets go of it. Both show it alone on
+ * the map.
+ */
+export default function ListScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { signedIn, pending } = useAccount();
+  const { space } = useTheme();
+
+  if (pending) return <Waiting />;
+  if (!signedIn) {
+    return (
+      <View style={{ flex: 1, padding: space.m }}>
+        <Stack.Screen options={{ title: m.saved_title() }} />
+        <AccountPrompt text={m.saved_sign_in_prompt()} next={`/list/${id}`} />
+      </View>
+    );
+  }
+  return <ListOfTheAccount id={id} />;
+}
+
+function ListOfTheAccount({ id }: { id: string }) {
+  const { space } = useTheme();
+  const tell = useTell();
+  const queryClient = useQueryClient();
+  const reader = useAccountReader();
+  const actions = usePlaceActions();
+  const mutations = useListMutations();
+  const view = useQuery({
+    ...orpc.v1.lists.view.queryOptions({ input: { id } }),
+    retry: retryUnlessGone,
+  });
+  const lists = useQuery(orpc.v1.lists.list.queryOptions());
+  const owner = view.data?.access === "owner";
+  const spots = useQuery({ ...orpc.v1.spots.list.queryOptions(), enabled: owner });
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Whether the reports at its breaks are told to the reader, its owner or an account that
+  // kept it, each by its own switch: the switch moves at once, and the API's answer stands.
+  const reports = useMutation(
+    orpc.v1.lists.reports.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.v1.lists.key() }),
+      onError: (error) => tell({ title: error.message, tone: "danger" }),
+    }),
+  );
+
+  if (view.isPending) return <Waiting />;
+  if (view.isError) {
+    if (codeOf(view.error) === "NOT_FOUND") {
+      return (
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <Stack.Screen options={{ title: "" }} />
+          <EmptyState
+            icon={BookmarkIcon}
+            title={m.native_list_missing()}
+            action={{ label: m.action_back(), onPress: () => router.back() }}
+          />
+        </View>
+      );
+    }
+    return (
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <Stack.Screen options={{ title: "" }} />
+        <ErrorState
+          title={m.saved_load_failed()}
+          onRetry={() => void view.refetch()}
+          retrying={view.isFetching}
+        />
+      </View>
+    );
+  }
+
+  const list = view.data;
+  // The account's own list as the lists last read hold it, which a change answers at once.
+  const own = owner ? lists.data?.lists.find((one) => one.id === list.id) : undefined;
+  const held = own ?? heldBy(list);
+  const name = listName(list);
+  const spotNames = new Map(list.spots.map((spot) => [spot.id, spot.name]));
+  const items: PlaceItem[] = refsOf(held).map((ref) => ({
+    ref,
+    name: ref.kind === "spot" ? (spotNames.get(ref.id) ?? "") : "",
+  }));
+  const size = items.length;
+  const choice = { id: list.id, name };
+  const others = othersOf(lists.data?.lists ?? [], list.id);
+  const privateSpots = held.spotIds.filter(
+    (spotId) =>
+      spots.data?.spots.find((spot) => spot.id === spotId)?.publication?.status !== "accepted",
+  ).length;
+  const reportsOn = reports.isPending ? reports.variables.on : list.reportsOn;
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      view.refetch(),
+      lists.refetch(),
+      owner ? spots.refetch() : undefined,
+      queryClient.invalidateQueries({ queryKey: [SEA_NOW_KEY] }),
+    ]);
+    setRefreshing(false);
+  };
+
+  async function deleteList() {
+    const sure = await confirmDestructive({
+      title: m.saved_delete_list({ name }),
+      message: m.native_list_delete_text(),
+      confirm: m.action_delete(),
+    });
+    if (!sure) return;
+    try {
+      await mutations.remove.mutateAsync({ id: list.id });
+    } catch {
+      return;
+    }
+    tell({ title: m.native_list_deleted(), tone: "success" });
+    router.back();
+  }
+
+  async function leaveList() {
+    const sure = await confirmDestructive({ title: m.list_leave(), confirm: m.list_leave() });
+    if (!sure) return;
+    try {
+      await mutations.leave.mutateAsync({ id: list.id });
+    } catch {
+      return;
+    }
+    router.back();
+  }
+
   return (
-    <View className="flex-1 items-center justify-center bg-background p-l">
-      <Text tone="muted">list</Text>
+    <>
+      <Stack.Screen options={{ title: name, headerLargeTitle: true }} />
+      <KeyboardAwareScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={space.m}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+        contentContainerStyle={{ padding: space.m, gap: space.l }}
+      >
+        <PlaceSection
+          header={
+            <SectionHeader
+              title={placesCount(size)}
+              action={
+                size > 0
+                  ? { label: m.native_show_on_map(), onPress: () => showListOnMap(list.id) }
+                  : undefined
+              }
+            />
+          }
+          items={items}
+          reader={reader}
+          contextOf={(item) =>
+            owner ? { list: choice, others, ownSpot: item.ref.kind === "spot" } : { ownSpot: false }
+          }
+          actions={actions}
+          empty={
+            <Surface>
+              <EmptyState
+                icon={BookmarkIcon}
+                title={m.saved_list_empty()}
+                description={owner ? m.saved_empty() : undefined}
+              />
+            </Surface>
+          }
+        />
+
+        {owner && !list.isDefault ? (
+          <ListNameField
+            key={list.name}
+            name={list.name}
+            saving={mutations.rename.isPending}
+            onRename={(renamed) =>
+              mutations.rename
+                .mutateAsync({ id: list.id, name: renamed })
+                .then(() =>
+                  tell({ title: m.native_list_renamed({ name: renamed }), tone: "success" }),
+                )
+            }
+          />
+        ) : null}
+
+        {own ? <ShareSection list={own} privateSpots={privateSpots} mutations={mutations} /> : null}
+
+        {reportsOn !== null ? (
+          <Section>
+            <Row
+              icon={BellIcon}
+              title={m.list_reports()}
+              description={m.list_reports_hint()}
+              toggle={{
+                value: reportsOn,
+                onChange: (on) => reports.mutate({ id: list.id, on }),
+              }}
+            />
+          </Section>
+        ) : null}
+
+        {owner && !list.isDefault ? (
+          <Section>
+            <Row
+              icon={TrashIcon}
+              title={m.saved_delete_list({ name })}
+              destructive
+              chevron={false}
+              disabled={mutations.remove.isPending}
+              onPress={() => void deleteList()}
+            />
+          </Section>
+        ) : null}
+
+        {list.access === "member" ? (
+          <Section footer={m.list_kept()}>
+            <Row
+              icon={LogOutIcon}
+              title={m.list_leave()}
+              destructive
+              chevron={false}
+              disabled={mutations.leave.isPending}
+              onPress={() => void leaveList()}
+            />
+          </Section>
+        ) : null}
+      </KeyboardAwareScrollView>
+      {actions.sheet}
+    </>
+  );
+}
+
+/** What a list's screen shows while it is read: the place of its rows. */
+function Waiting() {
+  const { space } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={m.native_loading()}
+      style={{ flex: 1, padding: space.m, paddingTop: space.xxl, gap: space.xs }}
+    >
+      <Stack.Screen options={{ title: "" }} />
+      <Surface style={{ overflow: "hidden" }}>
+        <PlaceRowSkeleton />
+        <PlaceRowSkeleton />
+        <PlaceRowSkeleton />
+      </Surface>
     </View>
   );
 }
