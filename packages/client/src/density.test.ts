@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_DENSITY, densityName, isDensity, lessDense, moreDense } from "./density";
+import {
+  DEFAULT_DENSITY,
+  DENSITY_OF_READING,
+  densityName,
+  isDensity,
+  lessDense,
+  moreDense,
+} from "./density";
 import { ENGLISH } from "./testing";
 
 describe("how much of the forecast a panel shows", () => {
@@ -10,6 +17,14 @@ describe("how much of the forecast a panel shows", () => {
     expect(moreDense("details")).toBe("everything");
     expect(lessDense("essentials")).toBeUndefined();
     expect(moreDense("everything")).toBeUndefined();
+  });
+
+  it("follows how the surfer said they read a forecast", () => {
+    expect(DENSITY_OF_READING).toEqual({
+      glance: "essentials",
+      basics: "details",
+      everything: "everything",
+    });
   });
 
   it("is read back only when it is one the app knows", () => {

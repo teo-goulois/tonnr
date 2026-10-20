@@ -1,5 +1,7 @@
 import type { AppRouterClient } from "@repo/api/routers/index";
 
+import type { ProfileAnswers } from "./viewer/types";
+
 /**
  * How much of the forecast a panel shows: the essentials, in words; the details, which is the
  * panel as it was without the expert's figures; or everything, the energy, the swell apart, the
@@ -18,6 +20,16 @@ export const DENSITIES = [
   "everything",
 ] as const satisfies readonly Density[];
 export const DEFAULT_DENSITY: Density = "everything";
+
+/**
+ * How much of the forecast a panel shows for what a surfer said of their reading, which saving the
+ * answer puts in force, on a page and on a phone: decision 063.
+ */
+export const DENSITY_OF_READING: Record<NonNullable<ProfileAnswers["reading"]>, Density> = {
+  glance: "essentials",
+  basics: "details",
+  everything: "everything",
+};
 
 /** What a device keeps the density under. */
 export const DENSITY_KEY = "tonnr:density";

@@ -1,4 +1,3 @@
-import type { Density } from "@repo/client/density";
 import type { ProfileAnswers, SurferProfile } from "@repo/client/viewer/types";
 
 // What the onboarding and the account's answers run on, as functions that read no React and no
@@ -24,13 +23,6 @@ export const ASKED_BOARDS = [
   "foil",
   "sup",
 ] as const satisfies Board[];
-
-/** How much of the forecast a panel shows for what a surfer said of their reading. */
-export const DENSITY_OF: Record<Reading, Density> = {
-  glance: "essentials",
-  basics: "details",
-  everything: "everything",
-};
 
 export const NO_ANSWERS: ProfileAnswers = {
   level: null,

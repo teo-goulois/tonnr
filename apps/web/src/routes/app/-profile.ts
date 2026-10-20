@@ -1,17 +1,10 @@
+import { DENSITY_OF_READING } from "@repo/client/density";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useSaveDensity } from "@/components/shared/density-account";
-import type { ProfileAnswers, Profiling, SurferProfile } from "@/components/viewer/types";
-import type { Density } from "@/lib/density";
+import type { Profiling, SurferProfile } from "@/components/viewer/types";
 import { orpc } from "@/utils/orpc";
-
-// How much of the forecast a panel shows for what a surfer said of their reading: decision 063.
-const DENSITY_OF: Record<NonNullable<ProfileAnswers["reading"]>, Density> = {
-  glance: "essentials",
-  basics: "details",
-  everything: "everything",
-};
 
 /**
  * What the account said of itself as a surfer: the questions it is asked once, as it comes, and
@@ -57,7 +50,8 @@ export function useProfile({
       }
       setLeft(true);
       // What the surfer reads of a forecast sets how much a panel shows, when it changes.
-      if (answers.reading && answers.reading !== before) saveDensity(DENSITY_OF[answers.reading]);
+      if (answers.reading && answers.reading !== before)
+        saveDensity(DENSITY_OF_READING[answers.reading]);
       return true;
     },
     onPutOff: () => {

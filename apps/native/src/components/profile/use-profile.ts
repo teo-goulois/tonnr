@@ -1,3 +1,4 @@
+import { DENSITY_OF_READING } from "@repo/client/density";
 import type { ProfileAnswers, SurferProfile } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, usePathname } from "expo-router";
@@ -7,7 +8,7 @@ import { useSaveDensity } from "@/components/account/kept-settings";
 import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
 
-import { DENSITY_OF, isTabPath } from "./profiling";
+import { isTabPath } from "./profiling";
 
 /**
  * What the account said of itself as a surfer, and what keeps or puts off its answers: decision
@@ -47,7 +48,8 @@ export function useProfile() {
         return false;
       }
       // What the surfer reads of a forecast sets how much a panel shows, when it changes.
-      if (answers.reading && answers.reading !== before) saveDensity(DENSITY_OF[answers.reading]);
+      if (answers.reading && answers.reading !== before)
+        saveDensity(DENSITY_OF_READING[answers.reading]);
       return true;
     },
     /** Leaves the questions without answering: they are not asked again. */

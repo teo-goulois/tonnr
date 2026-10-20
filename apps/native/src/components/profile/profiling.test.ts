@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   answersOf,
-  DENSITY_OF,
   hasAnswer,
   isTabPath,
   NO_ANSWERS,
@@ -47,14 +46,6 @@ describe("the questions an account is asked once", () => {
     expect(toggleBoard(null, "fish")).toEqual(["fish"]);
     expect(toggleBoard(["fish"], "longboard")).toEqual(["fish", "longboard"]);
     expect(toggleBoard(["fish"], "fish")).toBeNull();
-  });
-
-  it("set how much of the forecast a panel shows from how the surfer reads one", () => {
-    expect(DENSITY_OF).toEqual({
-      glance: "essentials",
-      basics: "details",
-      everything: "everything",
-    });
   });
 
   it("start from what the account answered before", () => {
