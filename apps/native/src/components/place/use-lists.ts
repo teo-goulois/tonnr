@@ -1,12 +1,14 @@
-import type { SavedItem, SavedList } from "@repo/client/viewer/types";
+import type { SavedList } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { holds } from "@/components/lists/items";
+import type { PlaceRef } from "@/components/saved/sea-now";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-import { FAVORITES, holds, withAnswered, withSaved } from "./lists";
+import { FAVORITES, withAnswered, withSaved } from "./lists";
 
 // The account's lists, as the bookmark of a place reads and changes them: the list changes on the
 // screen at once, then the API confirms it, and a list the API refused is asked for again. The
@@ -51,31 +53,31 @@ export function useLists() {
   );
 
   /** Adds a place to a list, or takes it out, at once: the row that asks it plays its touch. */
-  function save(listId: string, item: SavedItem, add: boolean) {
+  function save(listId: string, place: PlaceRef, add: boolean) {
     // An answer on its way would bring back the lists as they were.
     void queryClient.cancelQueries({ queryKey: key });
-    setLists((all) => withSaved(all, listId, item, add));
-    if ("spotId" in item) {
-      (add ? addSpot : removeSpot).mutate({ id: listId, spotId: item.spotId });
-    } else if ("breakId" in item) {
-      (add ? addBreak : removeBreak).mutate({ id: listId, breakId: item.breakId });
+    setLists((all) => withSaved(all, listId, place, add));
+    if (place.kind === "spot") {
+      (add ? addSpot : removeSpot).mutate({ id: listId, spotId: place.id });
+    } else if (place.kind === "break") {
+      (add ? addBreak : removeBreak).mutate({ id: listId, breakId: place.id });
     } else {
-      (add ? addStation : removeStation).mutate({ id: listId, stationId: item.stationId });
+      (add ? addStation : removeStation).mutate({ id: listId, stationId: place.id });
     }
     if (listId === FAVORITES && add) tell({ title: m.saved_added_to_favorites(), tone: "success" });
   }
 
   return {
     lists,
-    isSaved: (item: SavedItem) => lists.data?.some((list) => holds(list, item)) ?? false,
+    isSaved: (place: PlaceRef) => lists.data?.some((list) => holds(list, place)) ?? false,
     save,
     /** Makes a list by that name, with the place in it from the start. */
-    createWith: (name: string, item: SavedItem, done: () => void) =>
+    createWith: (name: string, place: PlaceRef, done: () => void) =>
       create.mutate(
         { name },
         {
           onSuccess: (list) => {
-            save(list.id, item, true);
+            save(list.id, place, true);
             done();
           },
         },

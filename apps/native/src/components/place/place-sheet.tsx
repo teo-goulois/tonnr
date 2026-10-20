@@ -1,4 +1,3 @@
-import type { SavedItem } from "@repo/client/viewer/types";
 import { router } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
@@ -6,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChartsAtRest } from "@/components/charts/chart-turn";
 import { placeHref } from "@/components/map/place-route";
+import type { PlaceRef } from "@/components/saved/sea-now";
 import { ReadingLock } from "@/components/charts/reading";
 import { AlertsTab } from "@/components/place-tabs/alerts";
 import { GuideTab } from "@/components/place-tabs/guide";
@@ -100,14 +100,10 @@ export function PlaceSheet({
     }
   };
 
-  const item: SavedItem | undefined =
-    kind === "station"
-      ? record.station && { stationId: id }
-      : kind === "break"
-        ? record.found && { breakId: id }
-        : record.isOwner
-          ? { spotId: id }
-          : undefined;
+  // What the bookmark keeps, once it is known to be there: a spot of someone else's is copied.
+  const known =
+    kind === "station" ? record.station : kind === "break" ? record.found : record.isOwner;
+  const item: PlaceRef | undefined = known ? { kind, id } : undefined;
   const sharedSpot = kind === "spot" && record.spot && !record.isOwner ? record.spot : undefined;
 
   const save = item
