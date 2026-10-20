@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -30,27 +30,25 @@ export function usePresented<Shown>() {
   const [shown, setShown] = useState<Shown | null>(null);
   const [visible, setVisible] = useState(false);
   const after = useRef<(() => void) | null>(null);
-  return {
-    shown,
-    visible,
-    present: (what: Shown) => {
-      after.current = null;
-      setShown(what);
-      setVisible(true);
-    },
-    /** Closes the sheet, then does `then` once it is gone. */
-    dismiss: (then?: () => void) => {
-      after.current = then ?? null;
-      setVisible(false);
-    },
-    /** What the sheet calls once it is gone. */
-    dismissed: () => {
-      setShown(null);
-      const then = after.current;
-      after.current = null;
-      then?.();
-    },
-  };
+  // The same functions at every drawing, so that what waits on them runs when it should.
+  const present = useCallback((what: Shown) => {
+    after.current = null;
+    setShown(what);
+    setVisible(true);
+  }, []);
+  /** Closes the sheet, then does `then` once it is gone. */
+  const dismiss = useCallback((then?: () => void) => {
+    after.current = then ?? null;
+    setVisible(false);
+  }, []);
+  /** What the sheet calls once it is gone. */
+  const dismissed = useCallback(() => {
+    setShown(null);
+    const then = after.current;
+    after.current = null;
+    then?.();
+  }, []);
+  return { shown, visible, present, dismiss, dismissed };
 }
 
 type PageSheetProps = {

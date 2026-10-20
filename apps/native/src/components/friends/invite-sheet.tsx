@@ -1,6 +1,6 @@
 import { ShakaHandFillDuoIcon } from "@repo/ui/icon";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { router, useIsFocused } from "expo-router";
+import { router, useIsFocused, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
@@ -35,11 +35,27 @@ const REFUSALS = {
 };
 
 /**
+ * Someone's link, as the map's address names it, `?invite=`: whose it is, said over the map while
+ * the address names one. The map tab draws it.
+ */
+export function Invitation() {
+  const { invite } = useLocalSearchParams<{ invite?: string }>();
+  if (typeof invite !== "string" || invite.length === 0) return null;
+  return (
+    <InviteSheet
+      key={invite}
+      token={invite}
+      onDone={() => router.setParams({ invite: undefined })}
+    />
+  );
+}
+
+/**
  * The invitation of a link, for the map tab to show while its address names one. `onDone` takes
  * the link out of the address once it made what it makes, or was left. The sheet steps aside
  * while the person signs in or signs up, and comes back once they do.
  */
-export function InviteSheet({ token, onDone }: { token: string; onDone: () => void }) {
+function InviteSheet({ token, onDone }: { token: string; onDone: () => void }) {
   const { space } = useTheme();
   const tell = useTell();
   const { signedIn, userId, username } = useAccount();
