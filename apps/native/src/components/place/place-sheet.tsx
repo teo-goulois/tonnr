@@ -201,6 +201,12 @@ export function PlaceSheet({
     <ReadingLock onLock={setLocked}>
       <ChartsAtRest atRest={atRest}>
         <View className="flex-1 bg-background">
+          {/* react-native-screens sizes a form sheet's scroll view, found down the first child
+              of each view, to the sheet: one deeper than the sheet's own children, as each tab's
+              is here, it moves to where the sheet stands on the screen, out of sight. A first
+              child of no size that is never flattened ends that search, and the scroll views
+              keep the layout the sheet already gives them. */}
+          <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
           {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
             <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
               {one === "forecast" ? (
