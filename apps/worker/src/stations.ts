@@ -117,3 +117,61 @@ export async function wavesNear(db: Database | Transaction, place: Place, now: D
   }
   return null;
 }
+
+// The wind is read on a station this near, whose latest reading is this recent: as the API's
+// `nearestStation` reads it for the page of a break (decision 059).
+const WIND_KM = 50;
+const WIND_FRESH_MS = 24 * 60 * MINUTE_MS;
+
+/**
+ * The latest wind of the nearest station that measured it lately, within 50 km of a place and
+ * within a day, as the API's `nearestStation` reads it: the worker does not import the API. Null
+ * when none near has. A Live Activity of a window that begins shows it: decision 074.
+ */
+export async function windNear(
+  db: Database | Transaction,
+  place: { latitude: number; longitude: number },
+  now: Date,
+) {
+  const since = new Date(now.getTime() - WIND_FRESH_MS);
+  const latitudes = WIND_KM / KM_PER_DEGREE;
+  const longitudes = longitudesNear(place, WIND_KM);
+  const near = await db
+    .select({
+      latitude: station.latitude,
+      longitude: station.longitude,
+      observedAt: reading.observedAt,
+      speed: reading.windSpeedMs,
+      gust: reading.windGustMs,
+      direction: reading.windDirectionDeg,
+    })
+    .from(station)
+    // Its latest reading, which measured the wind: one dated after now is a clock that is wrong.
+    .innerJoin(
+      reading,
+      and(eq(reading.stationId, station.id), eq(reading.observedAt, station.latestObservedAt)),
+    )
+    .where(
+      and(
+        eq(station.reportsWind, true),
+        gte(station.latestObservedAt, since),
+        lte(station.latestObservedAt, now),
+        isNotNull(reading.windSpeedMs),
+        between(station.latitude, place.latitude - latitudes, place.latitude + latitudes),
+        longitudes
+          ? or(...longitudes.map(([west, east]) => between(station.longitude, west, east)))
+          : undefined,
+      ),
+    );
+  const [nearest] = near
+    .map((one) => ({ ...one, distanceKm: distanceKm(place, one) }))
+    .filter((one) => one.distanceKm <= WIND_KM)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+  if (!nearest) return null;
+  return {
+    observedAt: nearest.observedAt,
+    speedMetersPerSecond: nearest.speed,
+    gustMetersPerSecond: nearest.gust,
+    directionDegrees: nearest.direction,
+  };
+}

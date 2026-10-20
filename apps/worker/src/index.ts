@@ -10,6 +10,7 @@ import { mailOutOf, pushOutOf } from "./deliveries";
 import { forgetUsernames } from "./deletion";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
+import { activitiesDone, followActivities } from "./live-activities";
 import { momentsDone, tellMoments } from "./moments";
 import { keepListedForecasts, pagesDone } from "./pages";
 import { listenForUploads, mediaDone, processMedia } from "./media";
@@ -59,6 +60,7 @@ const MOMENTS_QUEUE = "tell-alert-moments";
 const PAGES_QUEUE = "keep-listed-forecasts";
 const MEDIA_QUEUE = "process-media";
 const REPORTS_QUEUE = "tell-reports";
+const ACTIVITIES_QUEUE = "follow-live-activities";
 // The bucket of the photos and the videos. Null on an instance that keeps none: the job that
 // makes them is then not run, and not listed. Decision 066.
 const storage = createStorage(ENV);
@@ -90,6 +92,10 @@ const jobs: Scheduled[] = [
   ...(storage ? [{ name: MEDIA_QUEUE, schedule: "* * * * *" }] : []),
   // What a report shown at a break tells the accounts that keep it, every minute: decision 068.
   ...(storage ? [{ name: REPORTS_QUEUE, schedule: "* * * * *" }] : []),
+  // The Live Activities that "it is on" started on iPhones, updated and ended every quarter of
+  // an hour, between two passes of the moments, on an instance that pushes to its iOS app:
+  // decision 074.
+  ...(pushOut?.ios ? [{ name: ACTIVITIES_QUEUE, schedule: "7,22,37,52 * * * *" }] : []),
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -298,6 +304,19 @@ if (storage) {
       (db) => tellReports(db, { push: pushOut, storage }),
       reportNoticesDone,
     ),
+  );
+}
+
+// The activities follow the windows the moments started them for: decision 074.
+if (pushOut?.ios) {
+  const ios = pushOut.ios;
+  await boss.createQueue(ACTIVITIES_QUEUE, { policy: "stately", ...once });
+  await boss.updateQueue(ACTIVITIES_QUEUE, once);
+  await boss.schedule(ACTIVITIES_QUEUE, scheduled(ACTIVITIES_QUEUE).schedule);
+  await boss.work(
+    ACTIVITIES_QUEUE,
+    withStart,
+    attemptOf(ACTIVITIES_QUEUE, (db) => followActivities(db, ios), activitiesDone),
   );
 }
 

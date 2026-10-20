@@ -43,6 +43,7 @@ import { type Mail, type MailSettings, type Mailer, MAIL_PROVIDER, createMailer 
 import type { AlertLine, AlertMoment } from "@repo/mail/alert-words";
 import { STARTING_UNITS, alertMail } from "@repo/mail/alerts";
 import {
+  type ApnsPusher,
   type ApnsSettings,
   type AppDevice,
   type FcmSettings,
@@ -75,6 +76,7 @@ import {
   watchedOf,
   windowOf,
 } from "./kept";
+import { type Beginning, beginOn, hasSwitchOn, windowShown } from "./live-activities";
 import { WRITE_SECONDS } from "./runs";
 import { wavesNear } from "./stations";
 import { StoreError } from "./store";
@@ -89,6 +91,10 @@ import { StoreError } from "./store";
 // The two ways out follow the same rules and leave apart: each keeps what it told at a spot,
 // each has its claims and its count for the day, and neither waits for the other. In what
 // follows a "message" is a mail or a push.
+//
+// On an iPhone whose switch is on, "it is on" starts a Live Activity in the place of its push,
+// by the rules of that push: decision 074, and `live-activities.ts`. A mail has nothing of it,
+// since a Live Activity is a phone's.
 //
 // A message leaves in two steps. The first decides what it says, counts it, and writes that it
 // is leaving, with what it tells: its claim. The second holds the account, its alerts and its
@@ -165,7 +171,8 @@ export function mailOutOf(
  */
 export type PushOut = {
   web: Pusher<WebDevice> | null;
-  ios?: Pusher<AppDevice> | null;
+  // Apple's way out also starts, updates and ends the Live Activities: decision 074.
+  ios?: ApnsPusher | null;
   android?: Pusher<AppDevice> | null;
   webOrigin: string;
 };
@@ -825,9 +832,11 @@ async function writtenFrom(
 type Outcome = "sent" | "failed" | "held" | "expired" | "skipped";
 // What a delivery that is leaving hands over: a mail with the key of its link, or a push with
 // the moment until which its push service is to keep it.
+// A push of "it is on" also holds what the Live Activity that it starts on an iPhone shows, when
+// the account had an iPhone whose switch was on as it was written: decision 074.
 type Written =
   | { channel: "mail"; mail: Mail; key: string }
-  | { channel: "push"; push: Push; keepUntil: Date };
+  | { channel: "push"; push: Push; keepUntil: Date; beginning?: Beginning | null };
 export type Taken = About &
   Written & {
     day: string | undefined;
@@ -836,6 +845,40 @@ export type Taken = About &
     // not on yet. It stays on its way after this message, until then and no longer than that.
     later: { dueAt: Date; expiresAt?: Date } | null;
   };
+
+/**
+ * What the Live Activity of a window that begins shows as it starts, when the account has an
+ * iPhone whose switch is on: the first place it tells, with its first hours, and how many more
+ * places begin with it. Decision 074.
+ */
+async function beginningOf(
+  tx: Transaction,
+  made: typeof notification.$inferSelect,
+  said: Said,
+  links: Link[],
+  settings: AlertSettings,
+  now: Date,
+): Promise<Beginning | null> {
+  const [line] = said.lines;
+  const [place] = said.places;
+  const piece = line?.open[0];
+  const link = links.find((one) => one.place.id === place?.id);
+  if (!made.alertId || !piece || !link || !(await hasSwitchOn(tx, made.userId))) return null;
+  const shown = await windowShown(
+    tx,
+    {
+      alertId: made.alertId,
+      notificationId: made.id,
+      place: link.place,
+      windows: link.windows,
+      window: piece,
+      more: said.lines.length - 1,
+      settings,
+    },
+    now,
+  );
+  return { shown, until: piece.end };
+}
 
 // Until when what a push says is worth keeping for a browser that is off: the end of the last
 // hours it speaks of, where they are now or, for hours that went, where they were told. An
@@ -1053,6 +1096,11 @@ async function takeBy(
         ...about,
         channel: "push",
         keepUntil: worthUntil(said, made.payload.day, settings),
+        // What the Live Activity of the window shows, on an iPhone whose switch is on.
+        beginning:
+          made.moment === "begins" && made.alertId && "web" in out && out.ios
+            ? await beginningOf(tx, made, said, links, settings, now)
+            : null,
         push: alertPush({
           ...saidAs,
           notificationId: made.id,
@@ -1172,7 +1220,30 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
       // once the account is let go.
       const keepSeconds = (taken.keepUntil.getTime() - now.getTime()) / 1000;
       const push = await counted(tx, taken.userId, devices, taken.push);
-      const results = await pushToAll(out, devices, push, keepSeconds);
+      // "It is on" starts a Live Activity on an iPhone whose switch is on, in the place of its
+      // push, and the push leaves to every other device: decision 074.
+      const [alertHeld] = alerts;
+      const begins =
+        taken.moment === "begins" && taken.alertId && alertHeld && out.ios
+          ? await beginOn(
+              tx,
+              out.ios,
+              devices,
+              (device) => pushTo(out, device, push, keepSeconds),
+              {
+                userId: taken.userId,
+                alertId: taken.alertId,
+                revision: alertHeld.revision,
+                notificationId,
+                locale: taken.push.locale ?? "en",
+                keepSeconds,
+                beginning: taken.beginning ?? null,
+                places: Object.keys(mine.claim.begun ?? {}),
+              },
+              now,
+            )
+          : null;
+      const results = begins?.results ?? (await pushToAll(out, devices, push, keepSeconds));
       const answers = results.map((one) => one.outcome);
       // A device whose service says that its subscription or its token is no more is forgotten.
       const gone = results.filter((one) => one.outcome === "gone").map((one) => one.device);
@@ -1184,6 +1255,8 @@ async function handBy(db: Database, out: MailOut | PushOut, notificationId: stri
           ),
         );
       }
+      // The activities it started or updated, after the devices.
+      await begins?.write(gone.map((device) => device.id));
       // None is left: the account has no device any more, and nothing was told.
       if (gone.length === results.length) return giveUp("expired");
       isTaken = answers.includes("taken");
