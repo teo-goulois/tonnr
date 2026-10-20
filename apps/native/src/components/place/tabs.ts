@@ -1,11 +1,13 @@
+import type { PlaceKind } from "@/components/map/features";
+
 // The tabs of a place's sheet, as the web's `Details` gives them to each kind: a station has its
 // forecast alone; a surf break its forecast, the reports of its waves, its guide, the account's
 // alerts there and the sessions surfed there; a spot of the account's own its forecast, its
 // guide, its alerts and its sessions, and a spot read in a shared list its forecast and its
 // guide. Decisions 041, 043, 064 and 067. Pure, so that a test reads it.
 
-export type PlaceKind = "break" | "station" | "spot";
-export const PLACE_KINDS: readonly PlaceKind[] = ["break", "station", "spot"];
+export type { PlaceKind };
+const PLACE_KINDS: readonly PlaceKind[] = ["break", "station", "spot"];
 
 export type PlaceTab = "forecast" | "reports" | "guide" | "alerts" | "sessions";
 
