@@ -50,7 +50,7 @@ export function useLists() {
     }),
   );
 
-  /** Adds a place to a list, or takes it out, at once: the switch that asks it plays its touch. */
+  /** Adds a place to a list, or takes it out, at once: the row that asks it plays its touch. */
   function save(listId: string, item: SavedItem, add: boolean) {
     // An answer on its way would bring back the lists as they were.
     void queryClient.cancelQueries({ queryKey: key });

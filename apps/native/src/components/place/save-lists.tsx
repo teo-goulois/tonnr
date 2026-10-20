@@ -1,14 +1,17 @@
 import type { SavedItem } from "@repo/client/viewer/types";
-import { ArrowLeftIcon, CirclePlusIcon, ListsIcon } from "@repo/ui/icon";
+import { ArrowLeftIcon, CheckIcon, CirclePlusIcon, ListsIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { Platform, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Glyph } from "@/components/shared/glyph";
 import { Button, IconButton } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
+import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
+import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
@@ -18,8 +21,8 @@ import { choicesOf } from "./lists";
 import { TextField } from "./text-field";
 import { useLists } from "./use-lists";
 
-// What the bookmark of a place opens: the account's lists, the favorites first, each with a
-// switch that says whether it holds the place, which changes at once; then a new list, named in
+// What the bookmark of a place opens: the account's lists, the favorites first, each with the
+// platform's check while it holds the place, which a press changes at once; then a new list, named in
 // a second step of the same sheet rather than in a sheet over it, and the way to the lists
 // themselves. The web's `StationActions` on a phone. Decision 017.
 
@@ -61,6 +64,44 @@ export function StepHeader({
         </Button>
       )}
     </View>
+  );
+}
+
+/** A list of the sheet: its name, and a check while it holds the place. */
+function ListRow({
+  title,
+  checked,
+  onPress,
+}: {
+  title: string;
+  checked: boolean;
+  onPress: () => void;
+}) {
+  const { colors, space } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={title}
+      accessibilityState={{ checked }}
+      onPress={() => {
+        feel("select");
+        onPress();
+      }}
+      style={({ pressed }) => ({
+        minHeight: TARGET,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.s,
+        paddingHorizontal: space.m,
+        paddingVertical: space.xs,
+        backgroundColor: pressed ? colors["neutral-3"] : undefined,
+      })}
+    >
+      <Text style={{ flex: 1 }}>{title}</Text>
+      <View style={{ width: 20, alignItems: "center" }}>
+        {checked && <Glyph icon={CheckIcon} size={18} color={colors["color-1"]} />}
+      </View>
+    </Pressable>
   );
 }
 
@@ -143,13 +184,11 @@ export function SaveToLists({ item, name }: { item: SavedItem; name: string }) {
         ) : (
           <Section>
             {choices.map((choice) => (
-              <Row
+              <ListRow
                 key={choice.id}
                 title={choice.name}
-                toggle={{
-                  value: choice.checked,
-                  onChange: (checked) => save(choice.id, item, checked),
-                }}
+                checked={choice.checked}
+                onPress={() => save(choice.id, item, !choice.checked)}
               />
             ))}
           </Section>
