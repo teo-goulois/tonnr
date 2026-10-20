@@ -7,6 +7,7 @@ import { refsOf } from "@/components/lists/items";
 import { goingTo } from "@/components/map/features";
 import { kindWord, shoreWord } from "@/components/saved/place-words";
 import {
+  PLACES_AT_ONCE,
   chunksOf,
   keyOf,
   type PlaceRef,
@@ -242,16 +243,19 @@ export function timelineHours(seas: readonly SeaNow[], now: Date) {
   return { hours, end: Math.max(end, start) };
 }
 
-function notices(): Pick<WidgetProps, "empty" | "missing"> {
+/**
+ * What a widget says in the place of a place. The favourites' widget has nothing to choose, and
+ * asks for a favourite alone. A widget whose place is chosen says, of a place it was given none
+ * of, what the widgets are given: the place may be saved still, past the first twelve.
+ */
+function notices(view: WidgetView): Pick<WidgetProps, "empty" | "missing"> {
+  const empty = (body: string) => ({ title: m.native_widget_empty_title(), body, url: SAVED_URL });
+  if (view === "favorites") return { empty: empty(m.native_widget_empty_favorites_body()) };
   return {
-    empty: {
-      title: m.native_widget_empty_title(),
-      body: m.native_widget_empty_body(),
-      url: SAVED_URL,
-    },
+    empty: empty(m.native_widget_empty_body()),
     missing: {
       title: m.native_widget_missing_title(),
-      body: m.native_widget_missing_body(),
+      body: m.native_widget_missing_body({ count: PLACES_AT_ONCE }),
       url: SAVED_URL,
     },
   };
@@ -314,7 +318,7 @@ export function timelinesOf({
         shown.map(({ ref, sea }) => [keyOf(ref), placeAt(sea, ref, at, end, view === "hours")]),
       ),
       favorites,
-      ...notices(),
+      ...notices(view),
     };
   };
   const timeline = (view: WidgetView) =>

@@ -196,7 +196,11 @@ describe("what a widget of one place says", () => {
     expect(props.favorites).toEqual(["break:b1"]);
     expect(props.view).toBe("sea");
     expect(props.empty?.title).toBe("No favorites yet");
-    expect(props.missing?.title).toBe("No longer saved");
+    expect(props.missing).toEqual({
+      title: "Can't show this place",
+      body: "Widgets show your first 12 saved places, favorites first. Hold the widget to choose another.",
+      url: "app.tonnr://app?panel=saved",
+    });
   });
 
   it("holds no null and no undefined, which a property list cannot keep", () => {
@@ -242,6 +246,17 @@ describe("what the widget of the favourites says", () => {
     const [first] = timelinesOf({ answer, places, now })[WIDGET.favorites];
     expect(Object.keys(first!.props.places!)).toEqual(["break:b2"]);
     expect(first!.props.view).toBe("favorites");
+  });
+
+  it("asks for a favourite without the widget's settings, which it has none of", () => {
+    const places = { places: [{ kind: "break" as const, id: "b1" }], favorites: [] };
+    const [first] = timelinesOf({ answer: answerOf(breakSea()), places, now })[WIDGET.favorites];
+    expect(first!.props.empty).toEqual({
+      title: "No favorites yet",
+      body: "Save a place to your favorites to see it here.",
+      url: "app.tonnr://app?panel=saved",
+    });
+    expect(first!.props.missing).toBeUndefined();
   });
 });
 

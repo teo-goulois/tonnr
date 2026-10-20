@@ -69,6 +69,9 @@ export type WidgetProps = {
   favorites?: string[];
   /** What a widget shows when the favourites are empty. */
   empty?: WidgetNotice;
-  /** What a widget shows when its chosen place is no longer among those saved. */
+  /**
+   * What a widget whose place is chosen shows when that place is not among those it was given: no
+   * longer saved, or past the first twelve, which are all it is given.
+   */
   missing?: WidgetNotice;
 };

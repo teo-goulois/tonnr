@@ -2113,8 +2113,9 @@
   "native_widget_signed_out_body": "Inicia sessão para veres o mar nos teus lugares.",
   "native_widget_empty_title": "Ainda sem favoritos",
   "native_widget_empty_body": "Guarda um lugar nos teus favoritos, ou mantém o widget premido para escolheres um.",
-  "native_widget_missing_title": "Já não está guardado",
-  "native_widget_missing_body": "Mantém o widget premido para escolheres outro lugar.",
+  "native_widget_empty_favorites_body": "Guarda um lugar nos teus favoritos para o veres aqui.",
+  "native_widget_missing_title": "Não é possível mostrar este lugar",
+  "native_widget_missing_body": "Os widgets mostram os teus {count} primeiros lugares guardados, a começar pelos favoritos. Mantém o widget premido para escolheres outro.",
   "native_widget_open_app": "Abre {name} para veres o mar",
   "native_widget_forecast_at": "Previsão: {time}",
   "native_widget_measured_at": "Medido: {time}"

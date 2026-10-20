@@ -2113,8 +2113,9 @@
   "native_widget_signed_out_body": "Connecte-toi pour voir la mer à tes lieux.",
   "native_widget_empty_title": "Pas encore de favoris",
   "native_widget_empty_body": "Enregistre un lieu dans tes favoris, ou garde le doigt sur le widget pour en choisir un.",
-  "native_widget_missing_title": "N'est plus enregistré",
-  "native_widget_missing_body": "Garde le doigt sur le widget pour choisir un autre lieu.",
+  "native_widget_empty_favorites_body": "Enregistre un lieu dans tes favoris pour le voir ici.",
+  "native_widget_missing_title": "Ce lieu ne peut pas s'afficher",
+  "native_widget_missing_body": "Les widgets montrent tes {count} premiers lieux enregistrés, tes favoris en tête. Garde le doigt sur le widget pour en choisir un autre.",
   "native_widget_open_app": "Ouvre {name} pour voir la mer",
   "native_widget_forecast_at": "Prévision de {time}",
   "native_widget_measured_at": "Mesuré à {time}"

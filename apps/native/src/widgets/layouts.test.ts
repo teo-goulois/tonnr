@@ -233,9 +233,12 @@ describe("the widgets' layout", () => {
     expect(modifiersOf(root)[0]?.args[0]).toBe(first(WIDGET.seaNow).palette.dark.ground);
   });
 
-  it("says that a chosen place is no longer saved", () => {
+  it("says of a chosen place it was given none of what the widgets are given", () => {
     const root = draw(WIDGET.seaNow, first(WIDGET.seaNow), small("spot:gone"));
-    expect(textsOf(root)[0]).toBe("No longer saved");
+    expect(textsOf(root)).toEqual([
+      "Can't show this place",
+      "Widgets show your first 12 saved places, favorites first. Hold the widget to choose another.",
+    ]);
     expect(urlOf(root)).toBe("app.tonnr://app?panel=saved");
   });
 
@@ -245,7 +248,26 @@ describe("the widgets' layout", () => {
       places: { ...places, favorites: [] },
       now,
     })[WIDGET.seaNow][0]!.props;
-    expect(textsOf(draw(WIDGET.seaNow, props, small()))[0]).toBe("No favorites yet");
+    expect(textsOf(draw(WIDGET.seaNow, props, small()))).toEqual([
+      "No favorites yet",
+      "Save a place to your favorites, or hold the widget to choose one.",
+    ]);
+  });
+
+  it("asks the widget of the favourites for a favourite, without its settings", () => {
+    const props = timelinesOf({
+      answer: answerOf(buoySea()),
+      places: { ...places, favorites: [] },
+      now,
+    })[WIDGET.favorites][0]!.props;
+    const root = draw(WIDGET.favorites, props, {
+      widgetFamily: "systemMedium",
+      colorScheme: "light",
+    });
+    expect(textsOf(root)).toEqual([
+      "No favorites yet",
+      "Save a place to your favorites to see it here.",
+    ]);
   });
 
   it("draws the next hours in columns", () => {

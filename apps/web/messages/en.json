@@ -2113,8 +2113,9 @@
   "native_widget_signed_out_body": "Sign in to see the sea at your places.",
   "native_widget_empty_title": "No favorites yet",
   "native_widget_empty_body": "Save a place to your favorites, or hold the widget to choose one.",
-  "native_widget_missing_title": "No longer saved",
-  "native_widget_missing_body": "Hold the widget to choose another place.",
+  "native_widget_empty_favorites_body": "Save a place to your favorites to see it here.",
+  "native_widget_missing_title": "Can't show this place",
+  "native_widget_missing_body": "Widgets show your first {count} saved places, favorites first. Hold the widget to choose another.",
   "native_widget_open_app": "Open {name} to see the sea",
   "native_widget_forecast_at": "Forecast of {time}",
   "native_widget_measured_at": "Measured at {time}"
