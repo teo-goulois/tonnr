@@ -1,6 +1,9 @@
+import { distanceKm } from "@repo/client/viewer/samples";
+
 // Where the map stands and what part of the world it reads, as the web's `StationMap` and its
 // route say it: what the phone keeps of the view, the area the API is asked about, and the middle
-// a search ranks what is near by. A module that imports nothing at run time, so that a test reads it.
+// a search ranks what is near by. A module that imports nothing of React Native, so that a test
+// reads it.
 
 /** A point as MapLibre takes it: longitude first. */
 export type LngLat = [longitude: number, latitude: number];
@@ -112,17 +115,10 @@ export function middleOf(bounds: Bounds | null | undefined) {
   };
 }
 
-/** The distance between two points near one another, in meters, on a flat earth. */
-export function metersBetween(one: MapPoint, other: MapPoint) {
-  const perDegree = 111_320;
-  const north = (one.latitude - other.latitude) * perDegree;
-  // The short way round: 179.999 and -179.999 are neighbours.
-  const turned = wrapLongitude(one.longitude - other.longitude);
-  const east = turned * perDegree * Math.cos((one.latitude * Math.PI) / 180);
-  return Math.hypot(north, east);
-}
-
-/** The first of `places` within `meters` of `point`, the nearest first. */
+/**
+ * The first of `places` within `meters` of `point`, the nearest first, measured as the web's
+ * panels measure a distance (packages/client), the short way round the antimeridian.
+ */
 export function nearestWithin<Place extends MapPoint>(
   places: readonly Place[] | undefined,
   point: MapPoint,
@@ -131,7 +127,7 @@ export function nearestWithin<Place extends MapPoint>(
   let nearest: Place | undefined;
   let shortest = meters;
   for (const place of places ?? []) {
-    const distance = metersBetween(place, point);
+    const distance = distanceKm(place, point) * 1000;
     if (distance < shortest) {
       shortest = distance;
       nearest = place;

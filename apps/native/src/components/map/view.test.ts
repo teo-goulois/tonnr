@@ -4,7 +4,6 @@ import { DEFAULT_LAYERS, layersForList, layersFrom } from "./layers";
 import {
   boundsAround,
   DEFAULT_VIEW,
-  metersBetween,
   middleOf,
   nearestWithin,
   readView,
@@ -52,12 +51,10 @@ describe("the area the API is asked about", () => {
 describe("what stands near a point", () => {
   const guethary = { latitude: 43.4245, longitude: -1.6125 };
 
-  it("measures a beach's length on a flat earth", () => {
-    const north = { latitude: guethary.latitude + 0.001, longitude: guethary.longitude };
-    expect(metersBetween(guethary, north)).toBeCloseTo(111.3, 0);
-    expect(
-      metersBetween({ latitude: 0, longitude: 179.9995 }, { latitude: 0, longitude: -179.9995 }),
-    ).toBeCloseTo(111.3, 0);
+  it("finds a neighbour the short way round the antimeridian", () => {
+    const east = { id: "east", latitude: 0, longitude: 179.9995 };
+    expect(nearestWithin([east], { latitude: 0, longitude: -179.9995 }, 150)?.id).toBe("east");
+    expect(nearestWithin([east], { latitude: 0, longitude: -179.998 }, 150)).toBeUndefined();
   });
 
   it("finds the nearest within the distance, and none beyond", () => {
