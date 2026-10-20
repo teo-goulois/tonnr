@@ -277,66 +277,68 @@ const listening = new Map<string, { remove: () => void }>();
 /**
  * Gives the API the token of each activity that runs and whose token it does not hold, and says
  * that those it was given and that no longer run ended. An activity the API says is over is ended
- * on the phone.
+ * on the phone. A pass that fails is tried again at the next, and never stops those after it.
  */
 function follow(account: string) {
-  passing = passing.then(async () => {
-    const device = pushDeviceId();
-    if (!device) return;
-    const instances = instancesOf();
-    const shows = new Map(
-      runningActivities(WINDOW_ACTIVITY).map((one) => [one.id, notificationOf(one.props)]),
-    );
-    const running = await Promise.all(
-      instances.map(async (instance) => {
-        const id = instance.getId();
-        if (!listening.has(id)) {
-          listening.set(
-            id,
-            instance.addPushTokenListener(() => follow(account)),
-          );
-        }
-        const token = await instance.getPushToken().catch(() => null);
-        return { id, notificationId: shows.get(id) ?? null, token };
-      }),
-    );
-    const followed = keptJson<Record<string, FollowedActivity>>(FOLLOWED, {});
-    const { started, ended } = activityChanges(followed, running);
-    for (const activity of started) {
-      try {
-        const answer = await client.v1.push.activityStarted({
-          id: device,
-          notification: activity.notificationId,
-          token: activity.token,
-          account,
-        });
-        if (!answer.running) {
-          await instances.find((one) => one.getId() === activity.id)?.end("immediate");
-        }
-      } catch (error) {
-        // An activity the API does not know as the caller's is not given again: the worker ends
-        // it. Any other failure is tried again at the next pass.
-        if (!isGone(error)) continue;
-      }
-      followed[activity.id] = { notificationId: activity.notificationId, token: activity.token };
-    }
-    for (const activity of ended) {
-      try {
-        await client.v1.push.activityEnded({
-          id: device,
-          notification: activity.notificationId,
-          account,
-        });
-      } catch (error) {
-        if (!isGone(error)) continue;
-      }
-      delete followed[activity.id];
-      listening.get(activity.id)?.remove();
-      listening.delete(activity.id);
-    }
-    keepJson(FOLLOWED, followed);
-  });
+  passing = passing.then(() => passOnce(account)).catch(() => {});
   return passing;
+}
+
+async function passOnce(account: string) {
+  const device = pushDeviceId();
+  if (!device) return;
+  const instances = instancesOf();
+  const shows = new Map(
+    runningActivities(WINDOW_ACTIVITY).map((one) => [one.id, notificationOf(one.props)]),
+  );
+  const running = await Promise.all(
+    instances.map(async (instance) => {
+      const id = instance.getId();
+      if (!listening.has(id)) {
+        listening.set(
+          id,
+          instance.addPushTokenListener(() => follow(account)),
+        );
+      }
+      const token = await instance.getPushToken().catch(() => null);
+      return { id, notificationId: shows.get(id) ?? null, token };
+    }),
+  );
+  const followed = keptJson<Record<string, FollowedActivity>>(FOLLOWED, {});
+  const { started, ended } = activityChanges(followed, running);
+  for (const activity of started) {
+    try {
+      const answer = await client.v1.push.activityStarted({
+        id: device,
+        notification: activity.notificationId,
+        token: activity.token,
+        account,
+      });
+      if (!answer.running) {
+        await instances.find((one) => one.getId() === activity.id)?.end("immediate");
+      }
+    } catch (error) {
+      // An activity the API does not know as the caller's is not given again: the worker ends
+      // it. Any other failure is tried again at the next pass.
+      if (!isGone(error)) continue;
+    }
+    followed[activity.id] = { notificationId: activity.notificationId, token: activity.token };
+  }
+  for (const activity of ended) {
+    try {
+      await client.v1.push.activityEnded({
+        id: device,
+        notification: activity.notificationId,
+        account,
+      });
+    } catch (error) {
+      if (!isGone(error)) continue;
+    }
+    delete followed[activity.id];
+    listening.get(activity.id)?.remove();
+    listening.delete(activity.id);
+  }
+  keepJson(FOLLOWED, followed);
 }
 
 /**
