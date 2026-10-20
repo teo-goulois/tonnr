@@ -19,6 +19,7 @@ import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
 import { navigationTheme, useTheme } from "@/lib/theme";
 import { queryClient } from "@/utils/orpc";
+import { WidgetWriter } from "@/widgets/widget-writer";
 
 export default function RootLayout() {
   const { scheme } = useTheme();
@@ -29,6 +30,7 @@ export default function RootLayout() {
           <HeroUINativeProvider>
             <ThemeProvider value={navigationTheme(scheme)}>
               <PushListener />
+              <WidgetWriter />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />

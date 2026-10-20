@@ -38,6 +38,66 @@ const permissionsOf = (messages: Messages) => ({
 });
 const english = permissionsOf(messagesOf("en"));
 
+// The widgets of decision 074, which expo-widgets builds into an extension of their own,
+// `<bundle>.widgets`, sharing the app's group. Their names are those of src/widgets/names.ts,
+// which this file cannot import and which `src/widgets/config.test.ts` holds them to. Their words
+// are written in English, and the extension's own strings say them in each other language.
+const LAYOUTS = "./src/widgets/layouts.tsx";
+const placeChoice = (messages: Messages) => ({
+  title: messages.native_widget_choose_title ?? "",
+  description: messages.native_widget_choose_description ?? "",
+  parameters: {
+    place: {
+      title: messages.native_widget_place_parameter ?? "",
+      type: "enum",
+      // The account's saved places, which the app gives as it writes the widgets.
+      dynamic: true,
+      default: "favorite",
+      values: [{ name: messages.native_widget_first_favorite ?? "", value: "favorite" }],
+    },
+  },
+});
+const widgetsOf = (messages: Messages) => {
+  const widget = (name: string, words: string, families: string[], chosen: boolean) => ({
+    name,
+    displayName: messages[`native_widget_${words}_name`] ?? "",
+    description: messages[`native_widget_${words}_description`] ?? "",
+    ios: {
+      supportedFamilies: families,
+      initialLayout: LAYOUTS,
+      ...(chosen && { configuration: placeChoice(messages) }),
+    },
+    // Android's widgets wait: expo-widgets 58 opens nothing from a press there (decision 074).
+    android: null,
+  });
+  return [
+    // On the Home Screen, and on the lock screen: the height alone, or with the wind and the tide.
+    widget("SeaNow", "sea_now", ["systemSmall", "accessoryCircular", "accessoryRectangular"], true),
+    widget("NextHours", "next_hours", ["systemMedium"], true),
+    widget("Favorites", "favorites", ["systemMedium"], false),
+  ];
+};
+// What the extension says in a language, keyed by the English it is written in. The system
+// names a configuration by its title followed by " Configuration", which is said as the title.
+const WIDGET_WORDS = [
+  ...["sea_now", "next_hours", "favorites"].flatMap((words) => [
+    `native_widget_${words}_name`,
+    `native_widget_${words}_description`,
+  ]),
+  "native_widget_choose_title",
+  "native_widget_choose_description",
+  "native_widget_place_parameter",
+  "native_widget_first_favorite",
+];
+const widgetStringsOf = (messages: Messages) => {
+  const en = messagesOf("en");
+  const said = (key: string) => messages[key] ?? en[key] ?? "";
+  return {
+    ...Object.fromEntries(WIDGET_WORDS.map((key) => [en[key] ?? key, said(key)])),
+    [`${en.native_widget_choose_title} Configuration`]: said("native_widget_choose_title"),
+  };
+};
+
 // The app for phones: decision 069. Its identifiers stay once it is in a store, whatever the
 // name becomes, so they come from `APP_SCHEME` and never from `APP_NAME`.
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -86,9 +146,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       : [],
   },
   locales: Object.fromEntries(
-    LOCALES.filter((locale) => locale !== "en").map((locale) => [
+    LOCALES.map((locale) => [
       locale,
-      permissionsOf(messagesOf(locale)),
+      {
+        ...(locale !== "en" && permissionsOf(messagesOf(locale))),
+        ios: { "Localizable.strings": widgetStringsOf(messagesOf(locale)) },
+      },
     ]),
   ),
   plugins: [
@@ -120,6 +183,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-notifications",
     // The notification extension of decision 072, in targets/notifications.
     "@bacons/apple-targets",
+    // The widgets of decision 074, on iOS: their extension, in the app's group, whose space
+    // keeps what the app writes for them.
+    [
+      "expo-widgets",
+      {
+        bundleIdentifier: `${APP_SCHEME}.widgets`,
+        groupIdentifier: `group.${APP_SCHEME}`,
+        widgets: widgetsOf(messagesOf("en")),
+      },
+    ],
     "expo-secure-store",
     "expo-updates",
     // The upload key of a release for Google Play, from the file a property of Gradle names:
