@@ -1,12 +1,13 @@
-import type { Report } from "@repo/client/reports/types";
 import { REPORT_NOW_HOURS } from "@repo/config/media";
 
-// The rules of the reports' tab that read no screen: which reports a phone counts, and which are
-// the sea of now. Decisions 067 and 068.
+import type { Report } from "./types";
+
+// What a break's reports are read as, on the web and on a phone alike: which a device counts,
+// and which are the sea of now. Decisions 067 and 068.
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/** Whether a report is counted seen and opened by this phone: another's that is shown. */
+/** Whether a device counts a report seen and opened: another's that is shown. Decision 068. */
 export const isCounted = (report: Pick<Report, "state" | "mine">) =>
   report.state === "published" && !report.mine;
 

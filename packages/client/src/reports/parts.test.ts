@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isCounted, reportParts } from "./report-logic";
+import { isCounted, reportParts } from "./parts";
 
 const HOUR = 60 * 60 * 1000;
 
-describe("the reports a phone counts", () => {
+describe("the reports a device counts", () => {
   it("are another's that are shown, and never the reader's own or one that is checked", () => {
     expect(isCounted({ state: "published", mine: false })).toBe(true);
     expect(isCounted({ state: "published", mine: true })).toBe(false);

@@ -1,4 +1,4 @@
-import { REPORT_NOW_HOURS } from "@repo/config/media";
+import { isCounted, reportParts } from "@repo/client/reports/parts";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Menu,
@@ -28,8 +28,6 @@ import { FLAG_REASONS, type FlagReason, type Report, type ReportReason } from ".
 
 // The reports of the waves at a break: what accounts showed of it lately, in photos and videos
 // checked to have been taken there and of the sea. The tab after the forecast. Decision 067.
-
-const HOUR_MS = 60 * 60 * 1000;
 
 /** Why a medium of a report is not shown, in the words of its author. */
 export function reasonWords(reason: ReportReason, distanceKm: number | null) {
@@ -171,7 +169,7 @@ export function ReportCard({
 }: ReportCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   // Another's report that is shown is counted once this browser has seen it: decision 068.
-  const counted = report.state === "published" && !report.mine ? report.id : null;
+  const counted = isCounted(report) ? report.id : null;
   const seenRef = useCountWhenSeen<HTMLLIElement>(counted);
   const sizes = sizesWords(report.waveSize, report.setSize);
   const when =
@@ -303,9 +301,7 @@ export function ReportsPanel({
 }: ReportsPanelProps) {
   const [shown, setShown] = useState<{ reportId: string; mediaId: string } | null>(null);
   const viewed = reports.data?.find((report) => report.id === shown?.reportId);
-  const recent = (report: Report) => now - report.createdAt.getTime() < REPORT_NOW_HOURS * HOUR_MS;
-  const fresh = reports.data?.filter(recent) ?? [];
-  const older = reports.data?.filter((report) => !recent(report)) ?? [];
+  const { now: fresh, week: older } = reportParts(reports.data ?? [], now);
 
   const card = (report: Report) => (
     <ReportCard
