@@ -49,12 +49,15 @@ export function InviteSheet({ token, onDone }: { token: string; onDone: () => vo
   const [open, setOpen] = useState(true);
   const [stepping, setStepping] = useState(false);
   const next = useRef<(() => void) | null>(null);
+  // Once it closes for good, nothing more is told: a friendship just made is not told twice.
+  const closing = useRef(false);
   useEffect(() => {
     if (!focused) setStepping(false);
   }, [focused]);
   const visible = open && focused && !stepping;
 
   const close = () => {
+    closing.current = true;
     next.current = onDone;
     setOpen(false);
   };
@@ -107,10 +110,9 @@ export function InviteSheet({ token, onDone }: { token: string; onDone: () => vo
     signedIn && found !== undefined
       ? (friends.data?.some((friend) => friend.username === found.username) ?? false)
       : false;
-  const toldFriend = useRef(false);
   useEffect(() => {
-    if (!isFriend || !found || toldFriend.current) return;
-    toldFriend.current = true;
+    if (!isFriend || !found || closing.current) return;
+    closing.current = true;
     tell({ title: m.invite_accepted({ username: found.username }), tone: "success" });
     next.current = onDone;
     setOpen(false);
