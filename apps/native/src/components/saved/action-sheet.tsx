@@ -14,7 +14,7 @@ import { m } from "@/paraglide/messages";
 // a row of 56 points with its icon, over a dimmed screen that a press or the back button
 // closes. iOS opens the system's context menu instead, with the place's preview over it. The
 // sheet rises on the theme's larger motion, which Reanimated holds still for a reader who asked
-// for no motion; the dimmed screen fades.
+// for no motion; the dimmed screen fades, in the theme's veil, which the web's drawer draws too.
 
 const ITEM = 56;
 
@@ -57,7 +57,7 @@ export function ActionSheet({
           accessibilityRole="button"
           accessibilityLabel={m.action_close()}
           onPress={onClose}
-          style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0 0 0 / 0.4)" }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors["neutral-10-transparent"] }]}
         />
         {content ? (
           <Animated.View
