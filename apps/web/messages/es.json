@@ -2023,5 +2023,7 @@
   "native_palette_own_hint": "Los colores del mapa y de su leyenda",
   "native_palette_footer": "La semana de un lugar se lee con estos colores. Este teléfono guarda la elección.",
   "native_language_footer": "La app se reinicia en el idioma que elijas.",
-  "native_profile_load_failed": "No se han podido cargar tus respuestas."
+  "native_profile_load_failed": "No se han podido cargar tus respuestas.",
+  "native_delete_confirm_title": "¿Eliminar tu cuenta para siempre?",
+  "native_delete_sign_in": "Inicia sesión para eliminar tu cuenta."
 }
