@@ -5,6 +5,7 @@ import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChartsAtRest } from "@/components/charts/chart-turn";
+import { placeHref } from "@/components/map/place-route";
 import { ReadingLock } from "@/components/charts/reading";
 import { AlertsTab } from "@/components/place-tabs/alerts";
 import { GuideTab } from "@/components/place-tabs/guide";
@@ -12,6 +13,7 @@ import { ReportsTab } from "@/components/place-tabs/reports";
 import { SessionsTab } from "@/components/place-tabs/sessions";
 import { Segmented } from "@/components/ui/segmented";
 import { useAccount } from "@/lib/account";
+import type { Route } from "@/lib/links";
 import { useRecentViews } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
@@ -107,11 +109,11 @@ export function PlaceSheet({
           ? { spotId: id }
           : undefined;
   const sharedSpot = kind === "spot" && record.spot && !record.isOwner ? record.spot : undefined;
-  const placeHref = `/place/${kind}/${encodeURIComponent(id)}`;
 
   const save = item
     ? () => {
-        const next = `/place/save?kind=${kind}&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name ?? "")}`;
+        const next =
+          `/place/save?kind=${kind}&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name ?? "")}` as Route;
         requireAccount(
           m.auth_reason_save({ name: name ?? m.auth_reason_this_station() }),
           () => router.push(next),
@@ -123,18 +125,11 @@ export function PlaceSheet({
     ? () =>
         requireAccount(
           m.auth_reason_copy_spot({ name: sharedSpot.name }),
-          () =>
-            spots.copy(sharedSpot, (made) =>
-              router.replace({
-                pathname: "/place/[kind]/[id]",
-                params: { kind: "spot", id: made.id },
-              }),
-            ),
-          placeHref,
+          () => spots.copy(sharedSpot, (made) => router.replace(placeHref("spot", made.id))),
+          placeHref(kind, id),
         )
     : undefined;
-  const openStation = (stationId: string) =>
-    router.push({ pathname: "/place/[kind]/[id]", params: { kind: "station", id: stationId } });
+  const openStation = (stationId: string) => router.push(placeHref("station", stationId));
 
   const panelOf = (one: PlaceTab): ReactNode => {
     switch (one) {

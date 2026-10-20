@@ -1,8 +1,8 @@
 import type { Forecast, TideTimeline } from "@repo/client/viewer/types";
-import * as WebBrowser from "expo-web-browser";
 import { Fragment } from "react";
 import { View } from "react-native";
 
+import { useOpenPage } from "@/components/account/open-page";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { formatDayAndClock, formatNumber } from "@/lib/format";
@@ -11,7 +11,7 @@ import { m } from "@/paraglide/messages";
 
 // Where a panel's figures come from: what stands at the point, with its licence, then the
 // forecast's credits and its models, and the tide's source. The licences ask for them, so every
-// density draws them (decision 061). A link opens in a browser inside the app. The web's
+// density draws them (decision 061). A link opens in the browser the system draws over the app. The web's
 // `Sources` (`point-conditions.tsx`).
 
 // The models the waves come from, in the order of the hours: the first, then each one after it
@@ -45,11 +45,12 @@ function waveModelLines({ waveModels, swellModels, hours }: Forecast) {
 /** A word of a credit that opens its page. */
 function Link({ url, children }: { url: string; children: string }) {
   const { colors } = useTheme();
+  const { openAddress } = useOpenPage();
   return (
     <Text
       size="xs"
       accessibilityRole="link"
-      onPress={() => void WebBrowser.openBrowserAsync(url)}
+      onPress={() => void openAddress(url)}
       style={{ color: colors["neutral-8"], textDecorationLine: "underline" }}
       suppressHighlighting={false}
     >

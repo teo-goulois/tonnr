@@ -1,27 +1,30 @@
 import { DIRECTIONS_APPS, type DirectionsApp, directionsUrl } from "@repo/client/directions";
 import { APP_NAME } from "@repo/config/app";
 import { BellIcon, GlobalIcon, MapPinIcon, PenIcon, ShareIcon, TrashIcon } from "@repo/ui/icon";
-import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, BackHandler, Linking, Platform, ScrollView, Share, View } from "react-native";
+import { BackHandler, Linking, Platform, ScrollView, Share, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useOpenPage } from "@/components/account/open-page";
+import { placeLinkOf } from "@/components/lists/links";
+import { TextField } from "@/components/lists/text-field";
+import { NAME_MOST } from "@/components/map/new-spot";
+import { confirmDestructive } from "@/components/saved/confirm";
 import { Button } from "@/components/ui/button";
-import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
+import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { ENV } from "@/env";
+import type { Route } from "@/lib/links";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-import { baseLocale, getLocale } from "@/paraglide/runtime";
+import { getLocale } from "@/paraglide/runtime";
 
-import { placeLink, shareContent, siteLink } from "./place-link";
 import { StepHeader } from "./save-lists";
 import type { PlaceKind } from "./tabs";
-import { TextField } from "./text-field";
 import { usePlaceRecord } from "./use-place";
 import { useSpotActions } from "./use-spot";
 
@@ -40,16 +43,16 @@ const APP_NAMES: Record<DirectionsApp, () => string> = {
 // Apple's maps live on Apple's phones: elsewhere their address opens a page.
 const APPS = DIRECTIONS_APPS.filter((app) => app !== "apple" || Platform.OS === "ios");
 
-// A spot's name, and the word for the moderator, as long as the API takes them.
-const NAME_MOST = 80;
+// The word for the moderator, as long as the API takes it.
 const NOTE_MOST = 280;
 
 type Step = "menu" | "rename" | "publish";
 
 export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   const insets = useSafeAreaInsets();
   const requireAccount = useRequireAccount();
+  const { openPage } = useOpenPage();
   const record = usePlaceRecord(kind, id);
   const actions = useSpotActions();
   const [step, setStep] = useState<Step>("menu");
@@ -67,24 +70,23 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
   const title = record.name ?? "";
   const spot = record.isOwner ? record.spot : undefined;
   const status = spot?.publication?.status;
-  const languages = { site: ENV.EXPO_PUBLIC_SITE_URL, locale: getLocale(), baseLocale };
 
   const close = () => router.back();
   // What an alert is set on: a surf break of the catalogue, or a spot of the account's own.
   const alertPlace =
     kind === "break" && record.found ? `break:${id}` : spot ? `spot:${id}` : undefined;
-  const shared =
-    kind === "break" ? { breakId: id } : kind === "station" ? { stationId: id } : undefined;
+  // A spot of an account's own is sent in a shared list, never by an address of its own.
+  const url = placeLinkOf(ENV.EXPO_PUBLIC_SITE_URL, getLocale(), { kind, id });
 
   async function share() {
-    if (!shared) return;
-    const url = placeLink(shared, languages);
+    if (!url) return;
+    const text = m.place_share_text({ name: title, app: APP_NAME });
     try {
+      // iOS shows the address apart, as a link. Android takes one text, which ends with it.
       await Share.share(
-        shareContent(
-          { title, text: m.place_share_text({ name: title, app: APP_NAME }), url },
-          Platform.OS,
-        ),
+        Platform.OS === "ios"
+          ? { title, message: text, url }
+          : { title, message: `${text}\n${url}` },
       );
       close();
     } catch {
@@ -98,22 +100,15 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
     Linking.openURL(directionsUrl(app, record.point)).then(close, () => {});
   }
 
-  function askDelete() {
+  async function askDelete() {
     if (!spot) return;
-    feel("warn");
-    Alert.alert(
-      m.spot_delete_title({ name: spot.name }),
-      status === "accepted" ? m.spot_delete_text_public() : m.spot_delete_text(),
-      [
-        { text: m.action_cancel(), style: "cancel" },
-        {
-          text: m.action_delete(),
-          style: "destructive",
-          // The spot's sheet goes with it.
-          onPress: () => actions.remove(spot, () => router.dismissAll()),
-        },
-      ],
-    );
+    const sure = await confirmDestructive({
+      title: m.spot_delete_title({ name: spot.name }),
+      message: status === "accepted" ? m.spot_delete_text_public() : m.spot_delete_text(),
+      confirm: m.action_delete(),
+    });
+    // The spot's sheet goes with it.
+    if (sure) actions.remove(spot, () => router.dismissAll());
   }
 
   const padding = { paddingHorizontal: space.m, paddingBottom: insets.bottom + space.m };
@@ -131,17 +126,23 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
           onBack={() => setStep("menu")}
         />
         <View style={{ gap: space.m, paddingTop: space.s, ...padding }}>
-          <TextField
-            label={m.spot_name_label()}
-            value={name}
-            onChangeText={setName}
-            maxLength={NAME_MOST}
-            autoFocus
-            selectTextOnFocus
-            autoComplete="off"
-            returnKeyType="done"
-            onSubmitEditing={save}
-          />
+          <Surface insetEdge style={{ paddingHorizontal: space.m }}>
+            <TextField
+              accessibilityLabel={m.spot_name_label()}
+              placeholder={m.spot_name_placeholder()}
+              value={name}
+              onChangeText={setName}
+              maxLength={NAME_MOST}
+              autoFocus
+              selectTextOnFocus
+              autoComplete="off"
+              autoCapitalize="words"
+              returnKeyType="done"
+              submitBehavior="blurAndSubmit"
+              onSubmitEditing={save}
+              style={{ flex: 0 }}
+            />
+          </Surface>
           <Button
             fill
             onPress={save}
@@ -174,15 +175,25 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
             <Text size="s" weight="medium">
               {m.spot_publish_note()}
             </Text>
-            <TextField
-              label={m.spot_publish_note()}
-              placeholder={m.spot_publish_note_placeholder()}
-              value={note}
-              onChangeText={setNote}
-              maxLength={NOTE_MOST}
-              multiline
-              editable={!actions.isPublishing}
-            />
+            <Surface insetEdge>
+              <TextField
+                accessibilityLabel={m.spot_publish_note()}
+                placeholder={m.spot_publish_note_placeholder()}
+                value={note}
+                onChangeText={setNote}
+                maxLength={NOTE_MOST}
+                multiline
+                textAlignVertical="top"
+                editable={!actions.isPublishing}
+                style={{
+                  flex: 0,
+                  minHeight: 96,
+                  paddingHorizontal: space.m,
+                  paddingVertical: space.s,
+                  lineHeight: type.m.line,
+                }}
+              />
+            </Surface>
           </View>
           <Text size="s" tone="muted">
             {m.spot_publish_license()}{" "}
@@ -190,7 +201,7 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
               size="s"
               tone="muted"
               accessibilityRole="link"
-              onPress={() => void WebBrowser.openBrowserAsync(siteLink("/terms", languages))}
+              onPress={() => void openPage("terms")}
               style={{ textDecorationLine: "underline" }}
             >
               {m.terms_title()}
@@ -212,19 +223,19 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
     <View>
       <StepHeader title={title} onClose={close} />
       <ScrollView contentContainerStyle={{ gap: space.l, paddingTop: space.s, ...padding }}>
-        {(alertPlace || shared) && (
+        {(alertPlace || url) && (
           <Section>
             {alertPlace ? (
               <Row
                 title={m.alert_create()}
                 icon={BellIcon}
                 onPress={() => {
-                  const next = `/alert/new?place=${encodeURIComponent(alertPlace)}`;
+                  const next = `/alert/new?place=${encodeURIComponent(alertPlace)}` as Route;
                   requireAccount(m.auth_reason_add_alert(), () => router.replace(next), next);
                 }}
               />
             ) : null}
-            {shared ? (
+            {url ? (
               <Row title={m.place_share()} icon={ShareIcon} chevron={false} onPress={share} />
             ) : null}
           </Section>
@@ -282,7 +293,7 @@ export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
               destructive
               chevron={false}
               disabled={actions.isRemoving}
-              onPress={askDelete}
+              onPress={() => void askDelete()}
             />
           </Section>
         )}

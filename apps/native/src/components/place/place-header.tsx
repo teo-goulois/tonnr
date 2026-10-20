@@ -6,10 +6,10 @@ import {
   MoreHorizontalIcon,
   PinPlusIcon,
 } from "@repo/ui/icon";
-import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { useOpenPage } from "@/components/account/open-page";
 import { Glyph } from "@/components/shared/glyph";
 import { IconButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +81,7 @@ export function PlaceHeader({
 }) {
   useUnits();
   const { colors, space } = useTheme();
+  const { openAddress } = useOpenPage();
   const { kind, name, found, station, spot, isPending, isError } = record;
 
   const away =
@@ -93,7 +94,7 @@ export function PlaceHeader({
         size="s"
         tone="muted"
         accessibilityRole="link"
-        onPress={() => void WebBrowser.openBrowserAsync(source)}
+        onPress={() => void openAddress(source)}
         style={{ textDecorationLine: "underline" }}
       >
         {m.break_from_catalogue()}
