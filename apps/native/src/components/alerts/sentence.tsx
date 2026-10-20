@@ -39,8 +39,9 @@ export type SentencePiece =
 const SPACE = 6;
 
 function Part({ part, size }: { part: SentencePart; size: TextStep }) {
-  const { colors, space } = useTheme();
-  const slop = Math.max(0, Math.ceil((TARGET - 31) / 2));
+  const { colors, space, type } = useTheme();
+  // A finger's height, whatever the line of the sentence.
+  const slop = Math.max(0, Math.ceil((TARGET - type[size].line) / 2));
   return (
     <Pressable
       accessibilityRole="button"
@@ -49,7 +50,8 @@ function Part({ part, size }: { part: SentencePart; size: TextStep }) {
         words: part.spoken ?? part.words,
       })}
       accessibilityHint={m.native_alert_part_hint()}
-      hitSlop={{ top: slop, bottom: slop, left: 2, right: 2 }}
+      // A short part, "2 h", is reached past its ends too: half a space on each side.
+      hitSlop={{ top: slop, bottom: slop, left: SPACE / 2, right: SPACE / 2 }}
       onPress={() => {
         feel("select");
         part.onPress();
