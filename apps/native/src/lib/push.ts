@@ -9,6 +9,7 @@ import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
 
 import { forgetPushKeys, pushKeys, setPushLabels } from "../../modules/push-keys";
+import { forgetActivityStart, saidStartToken, startTokenNow } from "./activity-start";
 import { type Route, destinationOfAddress } from "./links";
 
 // The app's side of push: the channels and the categories in the app's language, the phone
@@ -101,6 +102,8 @@ async function deviceOf(account: string, known?: string) {
       keys,
       label,
       account,
+      // The token that starts its Live Activities while their switch is on, or null: decision 074.
+      ...startTokenNow(),
     };
   }
   return { kind: "android" as const, token, appId, keys, label, account };
@@ -119,6 +122,7 @@ export async function switchPushOn(account: string) {
   const made = await client.v1.push.registerApp(device);
   localStorage.setItem(DEVICE, made.id);
   localStorage.setItem(ON, "on");
+  saidStartToken(device);
   return true;
 }
 
@@ -139,6 +143,7 @@ export async function renewPush(account: string, known?: string) {
     const made = await client.v1.push.registerApp(device);
     localStorage.setItem(DEVICE, made.id);
   }
+  saidStartToken(device);
 }
 
 /** Switches push off for this phone, as switching it off or signing out does (decision 070). */
@@ -147,6 +152,8 @@ export async function switchPushOff(account?: string) {
   localStorage.removeItem(ON);
   localStorage.removeItem(DEVICE);
   localStorage.removeItem(TOKEN);
+  // Live Activities go off with push: their switch is on a device that is forgotten (decision 074).
+  forgetActivityStart();
   try {
     const token = kept ?? String((await Notifications.getDevicePushTokenAsync()).data);
     await client.v1.push.forgetApp({

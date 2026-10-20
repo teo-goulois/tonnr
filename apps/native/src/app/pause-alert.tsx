@@ -3,15 +3,16 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
 
+import { endWindowActivitiesOf } from "@/activities/window-activity";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 /**
- * What "Not today" on a push does when the app opens for it: pauses that alert until the end of
- * the account's day, no later than the day the push spoke of, and says what came of it.
- * Decision 072.
+ * What "Not today" on a push, or on the Live Activity of a window, does when the app opens for
+ * it: pauses that alert until the end of the account's day, no later than the day the push spoke
+ * of, and says what came of it. Decisions 072 and 074.
  */
 export default function PauseAlert() {
   const { alert, until } = useLocalSearchParams<{ alert?: string; until?: string }>();
@@ -19,7 +20,13 @@ export default function PauseAlert() {
   const { mutate } = pause;
 
   useEffect(() => {
-    if (alert && until) mutate({ id: alert, until: new Date(until) });
+    if (!alert || !until) return;
+    // The Live Activity of the alert's window goes from the phone at once: the worker would end it
+    // at its next pass (decision 074).
+    mutate(
+      { id: alert, until: new Date(until) },
+      { onSuccess: () => void endWindowActivitiesOf(alert).catch(() => {}) },
+    );
   }, [alert, until, mutate]);
 
   const over = pause.error && "status" in pause.error && pause.error.status === 409;

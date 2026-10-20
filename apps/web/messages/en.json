@@ -2148,6 +2148,14 @@
   "native_create_session_running": "Session in progress",
   "native_create_session_running_hint": "Since {time}. End it to log it.",
   "native_create_session_when": "When's your session?",
+  "native_activities_title": "Live Activities",
+  "native_activities_hint": "When a window starts, show it on your lock screen and in the Dynamic Island instead of a notification. Apple can then read its times and figures, never the name of an alert or a spot.",
+  "native_activities_system_off": "Live Activities are off for {name} in Settings.",
+  "native_activities_failed": "Live Activities couldn't be switched. Try again.",
+  "native_window_buoy": "Buoy",
+  "native_window_until": "until",
+  "native_window_more_one": "and 1 more spot",
+  "native_window_more": "and {count} more spots",
   "native_live_none": "No session in progress.",
   "native_live_start": "Start the session"
 }

@@ -1,5 +1,5 @@
 import { APP_NAME } from "@repo/config/app";
-import { BellIcon } from "@repo/ui/icon";
+import { BellIcon, SmartphoneIcon } from "@repo/ui/icon";
 import { useEffect, useState } from "react";
 import { Linking, View } from "react-native";
 
@@ -32,7 +32,8 @@ function wordsOf(state: PhonePushState) {
 
 /**
  * The row "On this device" of the alerts' settings, and the account's devices under it: push on
- * this phone, switched by the person and never asked as the app opens (decision 072).
+ * this phone, switched by the person and never asked as the app opens (decision 072), and on an
+ * iPhone whose instance starts them, the switch of its Live Activities (decision 074).
  */
 export function PushSetting() {
   const { userId } = useAccount();
@@ -91,6 +92,32 @@ export function PushSetting() {
         ) : null}
         {state.kind === "unknown" ? (
           <Row key="retry" title={m.push_retry()} chevron={false} onPress={push.retry} />
+        ) : null}
+        {/* The iPhone's Live Activities, whose words say what Apple reads before the switch is
+            turned on: decision 074. */}
+        {push.activities.kind === "on" || push.activities.kind === "off" ? (
+          <Row
+            key="activities"
+            icon={SmartphoneIcon}
+            title={m.native_activities_title()}
+            description={
+              push.activities.failed ? m.native_activities_failed() : m.native_activities_hint()
+            }
+            disabled={push.activities.isBusy}
+            toggle={{
+              value: push.activities.kind === "on",
+              onChange: (on) => void push.flipActivities(on),
+            }}
+          />
+        ) : null}
+        {push.activities.kind === "system-off" ? (
+          <Row
+            key="activities-off"
+            icon={SmartphoneIcon}
+            title={m.native_activities_title()}
+            description={m.native_activities_system_off({ name: APP_NAME })}
+            onPress={() => void Linking.openSettings()}
+          />
         ) : null}
       </Section>
       {push.devicesFailed ? (

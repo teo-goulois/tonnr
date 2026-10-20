@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
+import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
 import { navigationTheme, useTheme } from "@/lib/theme";
@@ -31,6 +32,7 @@ export default function RootLayout() {
             <ThemeProvider value={navigationTheme(scheme)}>
               <PushListener />
               <WidgetWriter />
+              <ActivitiesListener />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />

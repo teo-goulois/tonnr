@@ -2148,6 +2148,14 @@
   "native_create_session_running": "Sessão em curso",
   "native_create_session_running_hint": "Desde as {time}. Termina-a para a registar.",
   "native_create_session_when": "Quando é a tua sessão?",
+  "native_activities_title": "Atividades em direto",
+  "native_activities_hint": "Quando uma janela começa, mostrá-la no teu ecrã bloqueado e na Dynamic Island em vez de uma notificação. A Apple pode então ler as suas horas e os seus números, nunca o nome de um alerta ou de um spot.",
+  "native_activities_system_off": "As Atividades em direto estão desativadas para {name} nas Definições.",
+  "native_activities_failed": "Não foi possível mudar as Atividades em direto. Tenta outra vez.",
+  "native_window_buoy": "Boia",
+  "native_window_until": "até às",
+  "native_window_more_one": "e mais 1 spot",
+  "native_window_more": "e mais {count} spots",
   "native_live_none": "Nenhuma sessão em curso.",
   "native_live_start": "Começar a sessão"
 }

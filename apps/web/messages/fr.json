@@ -2148,6 +2148,14 @@
   "native_create_session_running": "Session en cours",
   "native_create_session_running_hint": "Depuis {time}. Termine-la pour la noter.",
   "native_create_session_when": "Ta session, c'est quand ?",
+  "native_activities_title": "Activités en direct",
+  "native_activities_hint": "Quand un créneau commence, l'afficher sur ton écran verrouillé et dans la Dynamic Island au lieu d'une notification. Apple peut alors lire ses heures et ses chiffres, jamais le nom d'une alerte ou d'un spot.",
+  "native_activities_system_off": "Les activités en direct sont désactivées pour {name} dans Réglages.",
+  "native_activities_failed": "Les activités en direct n'ont pas pu être changées. Réessaie.",
+  "native_window_buoy": "Bouée",
+  "native_window_until": "jusqu'à",
+  "native_window_more_one": "et 1 autre spot",
+  "native_window_more": "et {count} autres spots",
   "native_live_none": "Aucune session en cours.",
   "native_live_start": "Commencer la session"
 }
