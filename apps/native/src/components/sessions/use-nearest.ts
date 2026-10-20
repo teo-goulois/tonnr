@@ -44,23 +44,26 @@ async function roughPosition(): Promise<Point | null> {
  */
 export function useNearestPlace(wanted: boolean) {
   const offered = useOfferedPlaces();
-  const [phone, setPhone] = useState<Point | null | undefined>(wanted ? undefined : null);
+  // What the phone said, once it was asked: nothing is asked while no place is wanted.
+  const [found, setFound] = useState<{ phone: Point | null } | undefined>(undefined);
 
   useEffect(() => {
     if (!wanted) return;
     let isLive = true;
-    void roughPosition().then((found) => {
-      if (isLive) setPhone(found ? { latitude: found.latitude, longitude: found.longitude } : null);
+    void roughPosition().then((at) => {
+      if (!isLive) return;
+      setFound({ phone: at ? { latitude: at.latitude, longitude: at.longitude } : null });
     });
     return () => {
       isLive = false;
     };
   }, [wanted]);
 
-  const settled = phone === null || (phone !== undefined && !offered.isPending);
+  const phone = wanted ? (found?.phone ?? null) : null;
+  const settled = !wanted || (found !== undefined && (found.phone === null || !offered.isPending));
   const place = useMemo<OfferedPlace | null>(
-    () => (settled ? nearestPlace([...offered.spots, ...offered.breaks], phone ?? null) : null),
-    [settled, offered.spots, offered.breaks, phone],
+    () => (wanted && settled ? nearestPlace([...offered.spots, ...offered.breaks], phone) : null),
+    [wanted, settled, offered.spots, offered.breaks, phone],
   );
-  return { place, settled, phone: phone ?? null };
+  return { place, settled, phone };
 }
