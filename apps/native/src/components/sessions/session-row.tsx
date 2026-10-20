@@ -2,10 +2,9 @@ import type { MediaItem, Session } from "@repo/client/viewer/types";
 import { ChevronRightIcon, TrashIcon } from "@repo/ui/icon";
 import { Image } from "expo-image";
 import { Link } from "expo-router";
-import { useRef } from "react";
 import { Alert, Platform, Pressable, View } from "react-native";
-import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
+import { SwipeRow } from "@/components/alerts/swipe-row";
 import { placeHref } from "@/components/map/place-route";
 import { Picture } from "@/components/media/media-tile";
 import { confirmDestructive } from "@/components/saved/confirm";
@@ -14,7 +13,6 @@ import { feel } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { formatClock, formatDate, formatDuration } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
-import { light } from "@/theme/tokens";
 import { m } from "@/paraglide/messages";
 
 import { RatingStars } from "./rating";
@@ -24,7 +22,7 @@ import { SessionSea } from "./session-sea";
 // A session on a line of a list, the log or a place's: where or when it was, its rating, what the
 // sea did, and its first photo small. A press opens it; a long press opens its menu, the
 // platform's own on iOS, with what a press on its place and its deletion do; a swipe to the left
-// offers to delete it. Decisions 043 and 066.
+// asks to delete it. Decisions 043 and 066.
 
 /** When a session was and how long it lasted, as "Sat 10 Oct · 09:00 · 1 h 30". */
 export function sessionWhen(session: Pick<Session, "startedAt" | "durationMinutes">, now: number) {
@@ -62,7 +60,6 @@ type SessionRowProps = {
 };
 
 const THUMB = 44;
-const ACTION_WIDTH = 88;
 const PREVIEW_WIDTH = 320;
 
 /** What a long press lifts out of the list: the session larger, its first photo over it. */
@@ -111,7 +108,6 @@ function SessionPreview({
 
 export function SessionRow({ session, now, withPlace = false, media, onDelete }: SessionRowProps) {
   const { colors, space } = useTheme();
-  const swipe = useRef<SwipeableMethods>(null);
   const first = media?.find((item) => item.state === "ready" && item.thumb);
   const when = sessionWhen(session, now);
   // A list of one place has it open already.
@@ -119,7 +115,6 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
   const href = `/session/${session.id}` as const;
 
   const remove = async () => {
-    swipe.current?.close();
     if (await askToDelete()) onDelete(session);
   };
 
@@ -182,32 +177,15 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
     </Pressable>
   );
 
+  // A swipe from the trailing edge asks to delete it, as the alerts' rows and the assistants'.
   return (
-    <Swipeable
-      ref={swipe}
-      friction={2}
-      rightThreshold={ACTION_WIDTH / 2}
-      overshootRight={false}
-      renderRightActions={() => (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={m.action_delete()}
-          onPress={() => void remove()}
-          style={({ pressed }) => ({
-            width: ACTION_WIDTH,
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-            backgroundColor: colors.error,
-            opacity: pressed ? 0.8 : 1,
-          })}
-        >
-          <Glyph icon={TrashIcon} size={18} color={light["neutral-1"]} />
-          <Text size="xs" weight="medium" dense style={{ color: light["neutral-1"] }}>
-            {m.action_delete()}
-          </Text>
-        </Pressable>
-      )}
+    <SwipeRow
+      trailing={{
+        label: m.action_delete(),
+        icon: TrashIcon,
+        tone: "danger",
+        onAct: () => void remove(),
+      }}
     >
       {Platform.OS === "ios" ? (
         <Link href={href} asChild>
@@ -234,6 +212,6 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
           {row}
         </Link>
       )}
-    </Swipeable>
+    </SwipeRow>
   );
 }
