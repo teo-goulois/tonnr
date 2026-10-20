@@ -14,7 +14,7 @@ import { useNearestPlace } from "@/components/sessions/use-nearest";
 import { useMediaStatus, useSessionWrites } from "@/components/sessions/use-sessions";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Row, Section } from "@/components/ui/list";
-import { SheetHeader, useSheetGuard } from "@/components/ui/sheet";
+import { SheetHeader, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { useAccount } from "@/lib/account";
 import { useTheme } from "@/lib/theme";
@@ -119,7 +119,7 @@ export default function NewSession() {
 
   if (step === "where") {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
         <StepHeader
           title={m.session_where()}
           // With no place yet, the way back leaves the sheet; else it goes back to the form.
@@ -138,13 +138,13 @@ export default function NewSession() {
             }}
           />
         </KeyboardAwareScrollView>
-      </View>
+      </SheetRoot>
     );
   }
 
   if (step === "sizes") {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
         <SizesStep
           waves={drafting.waveSize}
           sets={drafting.setSize}
@@ -154,12 +154,12 @@ export default function NewSession() {
             setChosenStep("form");
           }}
         />
-      </View>
+      </SheetRoot>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+    <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
       <SheetHeader
         title={m.session_new()}
         onCancel={cancel}
@@ -204,6 +204,6 @@ export default function NewSession() {
           />
         </KeyboardAwareScrollView>
       )}
-    </View>
+    </SheetRoot>
   );
 }

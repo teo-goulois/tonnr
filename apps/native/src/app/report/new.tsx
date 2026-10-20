@@ -29,7 +29,7 @@ import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { feel } from "@/components/ui/haptics";
-import { SheetHeader, useSheetGuard } from "@/components/ui/sheet";
+import { SheetHeader, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
@@ -334,9 +334,9 @@ export default function NewReport() {
   }
   if (signedIn && (username || isNamed)) {
     return (
-      <View style={ground}>
+      <SheetRoot style={ground}>
         <ReportForm key={breakId} breakId={breakId} />
-      </View>
+      </SheetRoot>
     );
   }
   return (

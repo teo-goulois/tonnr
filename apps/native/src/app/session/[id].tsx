@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Row, Section } from "@/components/ui/list";
-import { SheetHeader, useSheetGuard } from "@/components/ui/sheet";
+import { SheetHeader, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
@@ -56,7 +56,7 @@ function SessionSheet({ session, kept }: Props) {
 
   if (isSizing) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
         <SizesStep
           waves={drafting.waveSize}
           sets={drafting.setSize}
@@ -66,12 +66,12 @@ function SessionSheet({ session, kept }: Props) {
             setIsSizing(false);
           }}
         />
-      </View>
+      </SheetRoot>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+    <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
       <SheetHeader
         title={session.place.name}
         onCancel={cancel}
@@ -143,7 +143,7 @@ function SessionSheet({ session, kept }: Props) {
 
         <SessionCredits session={session} />
       </KeyboardAwareScrollView>
-    </View>
+    </SheetRoot>
   );
 }
 
