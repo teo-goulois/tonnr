@@ -1,5 +1,4 @@
 import { SearchIcon, XIcon } from "@repo/ui/icon";
-import type { ComponentRef, Ref } from "react";
 import { Platform, Pressable, TextInput, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
@@ -23,8 +22,6 @@ type SearchFieldProps = {
   onSubmit?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
-  disabled?: boolean;
-  ref?: Ref<ComponentRef<typeof TextInput>>;
 };
 
 export function SearchField({
@@ -37,8 +34,6 @@ export function SearchField({
   onSubmit,
   onFocus,
   onBlur,
-  disabled = false,
-  ref,
 }: SearchFieldProps) {
   const { colors, space, type, fonts } = useTheme();
   return (
@@ -52,21 +47,18 @@ export function SearchField({
         borderRadius: TARGET / 2,
         borderCurve: "continuous",
         backgroundColor: colors["neutral-3"],
-        opacity: disabled ? 0.6 : 1,
       }}
     >
       <View style={{ opacity: pending ? 0.4 : 1 }}>
         <Glyph icon={SearchIcon} size={16} color={colors["neutral-7"]} />
       </View>
       <TextInput
-        ref={ref}
         value={value}
         onChangeText={onChange}
         accessibilityLabel={label}
         placeholder={placeholder}
         placeholderTextColor={colors["neutral-6"]}
         autoFocus={autoFocus}
-        editable={!disabled}
         returnKeyType="search"
         enterKeyHint="search"
         autoCorrect={false}

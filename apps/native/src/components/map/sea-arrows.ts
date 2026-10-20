@@ -1,8 +1,10 @@
+import { goingTo } from "./features";
+
 // Arrows on the sea, which point the way the waves go (decision 018): the web's `seaArrows`, on a
 // grid that holds still while the map moves and tightens as it comes closer, read from the tiles
 // of the mean wave direction the API describes. What reads a tile's pixels is given to it, since
-// a phone decodes a picture with other tools than a browser: `sea-tile-reader.ts` does, with
-// Skia. A module that imports nothing of React Native, so that a test reads it.
+// a phone decodes a picture with other tools than a browser: `readSeaTile`, in `map-images.ts`,
+// does, with Skia. A module that imports nothing of React Native, so that a test reads it.
 
 /** Tiles of where the waves come from, as the API describes them. */
 export type DirectionTiles = {
@@ -135,7 +137,7 @@ export function arrowFeatures(arrows: readonly SeaArrow[]): GeoJSON.FeatureColle
     features: arrows.map((arrow) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [arrow.longitude, arrow.latitude] },
-      properties: { rotate: Math.round(arrow.fromDegrees + 180) % 360 },
+      properties: { rotate: goingTo(arrow.fromDegrees) },
     })),
   };
 }

@@ -1,7 +1,7 @@
 import { LocateIcon, LockIcon, PinIcon } from "@repo/ui/icon";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { type ComponentRef, type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Keyboard, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
@@ -433,11 +433,10 @@ type NameFieldProps = {
   onChange: (value: string) => void;
   onSubmit: () => void;
   disabled: boolean;
-  ref?: Ref<ComponentRef<typeof TextInput>>;
 };
 
 /** The spot's name, on the surface of a grouped list, its label over it. */
-function NameField({ value, onChange, onSubmit, disabled, ref }: NameFieldProps) {
+function NameField({ value, onChange, onSubmit, disabled }: NameFieldProps) {
   const { colors, space, type, fonts } = useTheme();
   return (
     <View style={{ gap: space.xxs }}>
@@ -446,7 +445,6 @@ function NameField({ value, onChange, onSubmit, disabled, ref }: NameFieldProps)
       </Text>
       <Surface insetEdge style={{ paddingHorizontal: space.m }}>
         <TextInput
-          ref={ref}
           value={value}
           onChangeText={onChange}
           accessibilityLabel={m.spot_name_label()}
