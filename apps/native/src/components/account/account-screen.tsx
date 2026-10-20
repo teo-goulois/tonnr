@@ -34,6 +34,7 @@ import { RefreshControl, ScrollView, View } from "react-native";
 
 import { useProfile } from "@/components/profile/use-profile";
 import { profileWords } from "@/components/profile/profile-words";
+import { confirmDestructive } from "@/components/saved/confirm";
 import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { useTheme } from "@/lib/theme";
@@ -44,7 +45,6 @@ import { orpc } from "@/utils/orpc";
 
 import { AccountHeader } from "./account-header";
 import { AgentsSection } from "./agents";
-import { confirm } from "./confirm";
 import { densityName, useDensity, usePalette } from "./display";
 import { useSignOut } from "./leave";
 import { useOpenPage } from "./open-page";
@@ -109,10 +109,10 @@ export function AccountScreen() {
   };
 
   async function askSignOut() {
-    const sure = await confirm({
+    const sure = await confirmDestructive({
       title: m.native_sign_out_title(),
-      message: account?.email,
-      action: m.auth_sign_out(),
+      ...(account && { message: account.email }),
+      confirm: m.auth_sign_out(),
     });
     if (!sure) return;
     await signOut();

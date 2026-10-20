@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { Field } from "@/components/auth/field";
 import { PASSWORD_MAX } from "@/components/auth/sign-in-words";
 import { ProviderButton } from "@/components/auth/provider-sign-in";
+import { confirmDestructive } from "@/components/saved/confirm";
 import { Button } from "@/components/ui/button";
 import { Loading, SkeletonText } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/surface";
@@ -13,7 +14,6 @@ import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { confirm } from "./confirm";
 import { accountNamed, deleteLabel, refusalWords } from "./deletion";
 import { Step } from "./settings-steps";
 import { useAccountDeletion } from "./use-account-deletion";
@@ -35,10 +35,10 @@ export function DeleteAccountStep() {
 
   async function ask(given: string | undefined) {
     if (deletion.isDeleting) return;
-    const sure = await confirm({
+    const sure = await confirmDestructive({
       title: m.native_delete_confirm_title(),
       message: m.delete_account_intro(),
-      action: label,
+      confirm: label,
     });
     if (sure) deletion.onDelete(given);
   }

@@ -2,6 +2,7 @@ import type { ConnectedAgent } from "@repo/client/viewer/types";
 import { SparkleIcon } from "@repo/ui/icon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { confirmDestructive } from "@/components/saved/confirm";
 import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { useTell } from "@/components/ui/toast";
@@ -10,7 +11,6 @@ import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-import { confirm } from "./confirm";
 import { SwipeRow } from "./swipe-row";
 
 // What an assistant says of itself: its site's host, and since when the account let it read.
@@ -53,10 +53,10 @@ export function AgentsSection() {
 
   async function ask(agent: ConnectedAgent) {
     const name = agent.name ?? m.connect_client_unnamed();
-    const sure = await confirm({
+    const sure = await confirmDestructive({
       title: m.native_agent_disconnect_title({ name }),
       message: m.native_agent_disconnect_message(),
-      action: m.account_agent_disconnect(),
+      confirm: m.account_agent_disconnect(),
     });
     if (sure) disconnect.mutate({ clientId: agent.clientId });
   }
