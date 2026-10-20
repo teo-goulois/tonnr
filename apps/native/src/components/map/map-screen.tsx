@@ -1,7 +1,5 @@
-import { APP_NAME } from "@repo/config/app";
 import type { Station } from "@repo/client/viewer/types";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import * as Location from "expo-location";
 import { router, useLocalSearchParams, usePathname } from "expo-router";
 import {
   type ComponentRef,
@@ -12,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Linking, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -32,6 +30,7 @@ import { type MapPlace, withRecents } from "./features";
 import { DEFAULT_LAYERS, layersForList, layersFrom, LAYERS_KEY, type MapLayers } from "./layers";
 import { MapButtons } from "./map-buttons";
 import { readSeaTile } from "./map-images";
+import { useLocate } from "./locate";
 import { MapLegend } from "./map-legend";
 import { currentMapState, onMapRequest } from "./map-state";
 import { listName, MapListChips } from "./list-chips";
@@ -258,40 +257,10 @@ export function MapScreen() {
   }, [drawn.arrows, sea.data, seaTime, view, readArrows, tilesRead]);
 
   // Where the reader is: the phone's own dot, once they allowed it, and the button that goes there.
-  const [located, setLocated] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
-  useEffect(() => {
-    void Location.getForegroundPermissionsAsync()
-      .then((permission) => {
-        if (permission.granted) setLocated(true);
-      })
-      .catch(() => {});
-  }, []);
-  async function locate() {
-    setIsLocating(true);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        tell({
-          title: m.native_locate_denied({ name: APP_NAME }),
-          tone: "danger",
-          action: { label: m.native_open_settings(), onPress: () => void Linking.openSettings() },
-        });
-        return;
-      }
-      const position =
-        (await Location.getLastKnownPositionAsync({ maxAge: 5 * MINUTE_MS })) ??
-        (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
-      setLocated(true);
-      map.current?.focus(
-        { latitude: position.coords.latitude, longitude: position.coords.longitude },
-        LOCATE_ZOOM,
-      );
-    } catch {
-      tell({ title: m.locate_failed(), tone: "danger" });
-    } finally {
-      setIsLocating(false);
-    }
+  const { located, isLocating, locate } = useLocate();
+  async function findMe() {
+    const point = await locate();
+    if (point) map.current?.focus(point, LOCATE_ZOOM);
   }
 
   // What another screen asks of the map: the search, for a place that has no sheet.
@@ -482,7 +451,7 @@ export function MapScreen() {
               <MapButtons
                 isLocating={isLocating}
                 located={located}
-                onLocate={() => void locate()}
+                onLocate={() => void findMe()}
                 onSearch={() => router.push("/search")}
                 {...(hasLists && {
                   lists: {
