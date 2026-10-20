@@ -1,7 +1,7 @@
 import type { MediaItem, Session } from "@repo/client/viewer/types";
 import { ChevronRightIcon, TrashIcon } from "@repo/ui/icon";
 import { Image } from "expo-image";
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { useRef } from "react";
 import { ActionSheetIOS, Alert, Platform, Pressable, View } from "react-native";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -16,6 +16,7 @@ import { light } from "@/theme/tokens";
 import { m } from "@/paraglide/messages";
 
 import { RatingStars } from "./rating";
+import { openPlaceOnMap } from "./session-place";
 import { SessionSea } from "./session-sea";
 
 // A session on a line of a list, the log or a place's: where or when it was, its rating, what the
@@ -144,7 +145,7 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
   const longPress = () => {
     feel("hold");
     Alert.alert(withPlace ? session.place.name : when, undefined, [
-      ...(place ? [{ text: m.session_open_place(), onPress: () => router.navigate(place) }] : []),
+      ...(place ? [{ text: m.session_open_place(), onPress: () => openPlaceOnMap(place) }] : []),
       { text: m.action_delete(), style: "destructive" as const, onPress: () => void remove() },
       { text: m.action_cancel(), style: "cancel" as const },
     ]);
@@ -160,7 +161,7 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
       ]}
       onAccessibilityAction={(event) => {
         if (event.nativeEvent.actionName === "delete") void remove();
-        if (event.nativeEvent.actionName === "place" && place) router.navigate(place);
+        if (event.nativeEvent.actionName === "place" && place) openPlaceOnMap(place);
       }}
       onLongPress={Platform.OS === "android" ? longPress : undefined}
       style={({ pressed }) => ({
@@ -227,7 +228,7 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
         </Link.Preview>
         <Link.Menu>
           {place ? (
-            <Link.MenuAction icon="mappin.and.ellipse" onPress={() => router.navigate(place)}>
+            <Link.MenuAction icon="mappin.and.ellipse" onPress={() => openPlaceOnMap(place)}>
               {m.session_open_place()}
             </Link.MenuAction>
           ) : null}
