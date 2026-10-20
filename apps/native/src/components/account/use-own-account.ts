@@ -28,14 +28,15 @@ export function useOwnAccount() {
   );
   const account = asked.data?.id === userId ? asked.data : undefined;
   const unchecked = account?.checksAddresses === true && !account.emailVerified;
+  const { refetch } = asked;
 
   useEffect(() => {
     if (!unchecked) return;
     const listening = AppState.addEventListener("change", (state) => {
-      if (state === "active") void asked.refetch();
+      if (state === "active") void refetch();
     });
     return () => listening.remove();
-  }, [unchecked, asked]);
+  }, [unchecked, refetch]);
 
   return {
     // Undefined while the phone's session is not known.
@@ -43,7 +44,7 @@ export function useOwnAccount() {
     account,
     isPending: pending || (userId !== undefined && asked.isPending),
     isError: asked.isError,
-    refetch: () => asked.refetch(),
+    refetch,
     isRefetching: asked.isRefetching,
   };
 }

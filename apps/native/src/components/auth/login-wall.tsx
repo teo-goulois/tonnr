@@ -28,7 +28,6 @@ const MINUTE_MS = 60 * 1000;
 export function useVisitorWall() {
   const { signedIn, pending } = useAccount();
   const queryClient = useQueryClient();
-  const key = orpc.v1.visitors.get.queryKey();
   const visitors = useQuery(
     orpc.v1.visitors.get.queryOptions({
       enabled: !pending && !signedIn,
@@ -38,27 +37,27 @@ export function useVisitorWall() {
     }),
   );
   const closed = visitors.data?.open === false;
+  const { refetch } = visitors;
 
   // Whatever a visitor was reading, a refusal that says the instance closed puts up the wall.
-  useEffect(
-    () =>
-      queryClient.getQueryCache().subscribe((event) => {
-        if (event.type !== "updated" || event.action.type !== "error") return;
-        if (!isClosedToVisitors(event.action.error)) return;
-        if (queryClient.getQueryData(key)?.open === false) return;
-        queryClient.setQueryData(key, { open: false });
-      }),
-    [queryClient, key],
-  );
+  useEffect(() => {
+    const key = orpc.v1.visitors.get.queryKey();
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== "updated" || event.action.type !== "error") return;
+      if (!isClosedToVisitors(event.action.error)) return;
+      if (queryClient.getQueryData(key)?.open === false) return;
+      queryClient.setQueryData(key, { open: false });
+    });
+  }, [queryClient]);
 
   // Closed, it asks again as the app comes back to the screen.
   useEffect(() => {
     if (!closed) return;
     const listening = AppState.addEventListener("change", (state) => {
-      if (state === "active") void visitors.refetch();
+      if (state === "active") void refetch();
     });
     return () => listening.remove();
-  }, [closed, visitors]);
+  }, [closed, refetch]);
 
   return !pending && !signedIn && closed;
 }
