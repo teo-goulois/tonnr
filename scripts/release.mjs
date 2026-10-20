@@ -1,15 +1,18 @@
 // Releases the app for phones of one stage, from what `main` holds on the remote, in a checkout
 // of its own: decision 075.
 //
-//   pnpm run release:js <stage> [--platform ios|android] [--rollback] [--dry-run]
+//   pnpm run release:js <stage> [--platform ios|android] [--rollback [--runtime <fingerprint>]]
+//                               [--dry-run]
 //   pnpm run release:ios <stage>
 //   pnpm run release:android <stage> [--track <name>] [--by-hand]
 //
 // `release:js` publishes `main`'s JavaScript as an update of each platform: `expo export`, then
 // the runtime its fingerprint names, which a store build must have shipped, then the files under
-// the key of their hash, the signed manifest, and last what points the runtime's apps at it.
-// `--rollback` sends the apps of the runtime back to the JavaScript of their binary instead, and
-// `--dry-run` builds and signs everything and writes nothing.
+// the key of their hash, every signed manifest, and last what points each runtime's apps at its
+// own. `--rollback` sends the apps of the runtime back to the JavaScript of their binary instead,
+// of the runtime `--runtime` names with `--platform` when it is not `main`'s, and `--dry-run`
+// builds and signs everything and writes nothing. The key must sign for the certificate that the
+// store build of each runtime carries, read from the commit it was built from.
 //
 // `release:ios` and `release:android` make a store build: `expo prebuild --clean`, then Xcode or
 // Gradle, signed with the keys of this Mac, then the upload to TestFlight or to a test track of
@@ -56,12 +59,13 @@ import {
 
 const HOST_NAME = /^([a-z0-9-]+\.)+[a-z]{2,}$/;
 const KINDS = {
-  js: ["--platform", "--rollback", "--dry-run"],
+  js: ["--platform", "--rollback", "--runtime", "--dry-run"],
   ios: [],
   android: ["--track", "--by-hand"],
 };
 const USAGE = [
-  "Usage: release js <stage> [--platform ios|android] [--rollback] [--dry-run]",
+  "Usage: release js <stage> [--platform ios|android] [--rollback [--runtime <fingerprint>]] " +
+    "[--dry-run]",
   "       release ios <stage>",
   "       release android <stage> [--track <name>] [--by-hand]",
 ].join("\n");
@@ -70,6 +74,9 @@ const [kind, stage, ...rest] = process.argv.slice(2);
 if (!(kind in KINDS) || !/^[a-z0-9][a-z0-9_-]*$/.test(stage ?? "")) fail(USAGE);
 const flags = new Set();
 let only = null;
+// The runtime a rollback sends back, when it is not the one `main` builds: one a store build
+// shipped before native code changed.
+let rolledRuntime = null;
 // A test track of Google Play: internal testing, unless another is named.
 let track = "internal";
 for (let at = 0; at < rest.length; at++) {
@@ -81,7 +88,13 @@ for (let at = 0; at < rest.length; at++) {
   } else if (flag === "--track") {
     track = rest[++at];
     if (!/^[a-z0-9:_-]+$/i.test(track ?? "")) fail(USAGE);
+  } else if (flag === "--runtime") {
+    rolledRuntime = rest[++at];
+    if (!/^[0-9a-f]{40}$/.test(rolledRuntime ?? "")) fail(USAGE);
   } else flags.add(flag);
+}
+if (rolledRuntime && (!flags.has("--rollback") || !only)) {
+  fail(`--runtime names the runtime of one platform that a rollback sends back:\n${USAGE}`);
 }
 const platforms = kind === "js" ? (only ? [only] : [...PLATFORMS]) : [kind];
 
@@ -330,40 +343,63 @@ if (main.bucket.updatesBucketName(main.app.APP_SLUG, stage) !== bucketName) {
 }
 const bucket = main.r2.r2Client({ ...r2Access, bucket: bucketName });
 
-async function publishJavaScript() {
-  // The key signs for the certificate the binaries of `main` carry, or for nothing.
-  const privateKey = readFileSync(signingKey, "utf8");
-  const certificate = readFileSync(path.join(native, "certs", "certificate.pem"), "utf8");
-  if (!main.publish.keyMatchesCertificate(privateKey, certificate)) {
-    await refuse(
-      "The key UPDATES_SIGNING_KEY names does not sign for apps/native/certs/certificate.pem: " +
-        "the binaries would refuse what it signs.",
+/**
+ * The certificate that the store build of a runtime carries, from the commit it was built from:
+ * the binaries of a runtime refuse what another key signed, those of an older certificate too.
+ */
+async function certificateOf(shipped) {
+  try {
+    return await git(["show", `${shipped.commit}:apps/native/certs/certificate.pem`]);
+  } catch (error) {
+    throw new Error(
+      `The certificate of build ${shipped.build}, of commit ${shipped.commit}, cannot be read: ` +
+        error.message,
     );
   }
+}
+
+async function publishJavaScript() {
+  const privateKey = readFileSync(signingKey, "utf8");
 
   // Each platform's runtime, which a store build must have shipped: an update built for native
-  // code that no binary has would reach none, or crash those it reached.
+  // code that no binary has would reach none, or crash those it reached. A rollback may name an
+  // older one, which phones run while `main` builds another.
   const runtimes = {};
+  const builds = {};
   const unshipped = [];
   for (const platform of platforms) {
-    runtimes[platform] = await runtimeFor(platform);
+    runtimes[platform] = rolledRuntime ?? (await runtimeFor(platform));
     const shipped = await bucket.get(main.bucket.shippedKey(platform, runtimes[platform]));
-    if (!shipped || !main.bucket.readShipped(new TextDecoder().decode(shipped))) {
-      unshipped.push(platform);
-    }
+    builds[platform] = shipped && main.bucket.readShipped(new TextDecoder().decode(shipped));
+    if (!builds[platform]) unshipped.push(platform);
   }
   if (unshipped.length > 0) {
     const other = platforms.find((platform) => !unshipped.includes(platform));
     await refuse(
       unshipped
-        .map(
-          (platform) =>
-            `No store build of ${platform} shipped the runtime ${runtimes[platform]}: native ` +
-            "code changed since the last one, and a store build is needed, " +
-            `\`pnpm run release:${platform} ${stage}\`.`,
+        .map((platform) =>
+          rolledRuntime
+            ? `No store build of ${platform} shipped the runtime ${rolledRuntime}: no phone runs it.`
+            : `No store build of ${platform} shipped the runtime ${runtimes[platform]}: native ` +
+              "code changed since the last one, and a store build is needed, " +
+              `\`pnpm run release:${platform} ${stage}\`.`,
         )
         .join("\n") + (other ? `\n\`--platform ${other}\` publishes the other alone.` : ""),
     );
+  }
+
+  // The key signs for the certificate the binaries of each runtime carry, or for nothing. After a
+  // new certificate, a rollback of an older runtime takes the older key.
+  for (const platform of platforms) {
+    const shipped = builds[platform];
+    if (!main.publish.keyMatchesCertificate(privateKey, await certificateOf(shipped))) {
+      await refuse(
+        `The key UPDATES_SIGNING_KEY names does not sign for the certificate that build ` +
+          `${shipped.build} of ${platform}, of commit ${shipped.commit.slice(0, 12)}, carries: ` +
+          `the binaries of ${runtimes[platform]} would refuse what it signs. Name that ` +
+          "certificate's key in UPDATES_SIGNING_KEY.",
+      );
+    }
   }
 
   let writes;
