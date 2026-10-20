@@ -1,3 +1,10 @@
+import {
+  type Nearby,
+  WIND_NEARBY_KM,
+  boxAround,
+  nearestBuoy,
+  nearestWindStation,
+} from "@repo/client/viewer/nearby";
 import type {
   Forecast,
   Loadable,
@@ -16,13 +23,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  type Nearby,
-  WIND_NEARBY_KM,
-  boxAround,
-  nearestBuoy,
-  nearestWindStation,
-} from "@/components/forecast/nearby";
+import { wavesQuery } from "@/components/map/queries";
 import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
 
@@ -212,16 +213,12 @@ export function usePlaceConditions(record: PlaceRecord, now: number) {
   // At a surf break or a spot, the sea is read on the nearest buoy that still reports, and the
   // wind on the nearest station that measured it lately.
   const around = kind === "station" ? undefined : point;
-  const buoys = useQuery(
-    orpc.v1.stations.list.queryOptions({
-      input: { measures: "waves", limit: 500 },
-      enabled: around !== undefined,
-      // The worker fetches the buoys every few minutes.
-      refetchInterval: 10 * MINUTE_MS,
-      meta: { quiet: true },
-      select: (answer) => answer.stations,
-    }),
-  );
+  // The map's own question, so that the buoys it drew are the ones read here.
+  const buoys = useQuery({
+    ...wavesQuery(),
+    enabled: around !== undefined,
+    meta: { quiet: true },
+  });
   const windAround = useQuery(
     orpc.v1.stations.list.queryOptions({
       input: {

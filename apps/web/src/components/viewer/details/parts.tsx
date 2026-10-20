@@ -1,3 +1,5 @@
+import type { Nearby } from "@repo/client/viewer/nearby";
+import { nowOf } from "@repo/client/viewer/now";
 import { type ShoreWind, shoreWind } from "@repo/conditions/shore-wind";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
@@ -7,7 +9,7 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useState } from "react";
 
-import { formatAgo, formatNumber, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
+import { formatAgo, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import {
   formatDistance,
   formatHeight,
@@ -25,22 +27,25 @@ import { type Reading, type Station, periodOf } from "../types";
 import { LineGlyph } from "./line-glyph";
 import {
   DAY_MS,
-  HOUR_MS,
   METRIC_KEYS,
-  type Metric,
   type MetricKey,
   type Sample,
   bias,
-  directionAt,
-  distanceKm,
   formatMetric,
   metricColor,
   metrics,
-  valueAt,
 } from "./metrics";
 
-/** The buoy a surf break's sea is read on, and how far it floats. */
-export type Nearby = { station: Station; distanceKm: number };
+// Which stations a surf break reads the sea and the wind on, and what a metric reads now, live in
+// packages/client, which the app for phones reads too.
+export {
+  type Nearby,
+  WIND_NEARBY_KM,
+  boxAround,
+  nearestBuoy,
+  nearestWindStation,
+} from "@repo/client/viewer/nearby";
+export { nowOf } from "@repo/client/viewer/now";
 /** The station a surf break's wind is read on, and how far it stands. */
 export type NearbyWind = Nearby;
 
@@ -69,29 +74,6 @@ export type DetailsProps = PointConditionsProps & {
   // What credits the data.
   footer: ReactNode;
 };
-
-// A reading older than this no longer stands for the sea now.
-const LIVE_REACH = 3 * HOUR_MS;
-// A buoy further than this says little of the sea at a spot.
-const NEARBY_KM = 150;
-
-/** What a metric reads now: the buoy's last reading when it is recent, and the model at that time. */
-export function nowOf(metric: Metric, { measured, model, now }: DetailsProps) {
-  const last = measured.filter((sample) => sample[metric.key] !== null).at(-1);
-  const live = last && now - last.time <= LIVE_REACH ? last : undefined;
-  const at = live?.time ?? now;
-  const measuredValue = live?.[metric.key] ?? undefined;
-  const modelValue = valueAt(model, metric.key, at);
-  const measuredBearing = live && metric.direction ? live[metric.direction] : null;
-  const bearing =
-    measuredBearing ?? (metric.direction ? directionAt(model, metric.direction, at) : undefined);
-  return {
-    measured: measuredValue,
-    model: modelValue,
-    shown: measuredValue ?? modelValue,
-    bearing,
-  };
-}
 
 /** A title with, on its right, the controls of what it heads. */
 export function Block({
@@ -319,25 +301,6 @@ export function About(props: DetailsProps) {
   );
 }
 
-/** The buoy nearest a surf break that still reports, among those the sea reaches freely. */
-export function nearestBuoy(
-  stations: Station[],
-  place: { latitude: number; longitude: number },
-  now: number,
-) {
-  let nearest: Nearby | undefined;
-  for (const station of stations) {
-    const reading = station.latestReading;
-    if (station.exposure === "sheltered" || reading?.significantHeightMeters == null) continue;
-    if (freshnessOf(reading.observedAt, now) === "none") continue;
-    const distance = distanceKm(place, station);
-    if (distance <= NEARBY_KM && (!nearest || distance < nearest.distanceKm)) {
-      nearest = { station, distanceKm: distance };
-    }
-  }
-  return nearest;
-}
-
 /** What the nearest buoy measures, at a surf break. It opens the buoy's own panel. */
 export function NearbyBuoy({
   nearby,
@@ -390,48 +353,6 @@ export function NearbyBuoy({
       <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 text-neutral-7" />
     </button>
   );
-}
-
-// The wind is a local thing: a station further than this says little of it at a spot.
-export const WIND_NEARBY_KM = 30;
-// A wind measured longer ago than this is not the wind now. The map draws no badge for it either.
-const LIVE_WIND = 2 * HOUR_MS;
-
-/**
- * The box around a point that holds everything within a distance of it, as the API takes a box:
- * "west,south,east,north". Its sides are rounded so that the same point asks the same question.
- */
-export function boxAround(place: { latitude: number; longitude: number }, km: number) {
-  const north = km / 111.2;
-  const east = north / Math.max(0.1, Math.cos((place.latitude * Math.PI) / 180));
-  const within = (value: number, most: number) => Math.min(most, Math.max(-most, value));
-  return [
-    within(place.longitude - east, 180),
-    within(place.latitude - north, 90),
-    within(place.longitude + east, 180),
-    within(place.latitude + north, 90),
-  ]
-    .map((side) => side.toFixed(3))
-    .join(",");
-}
-
-/** The station nearest a surf break among those that measured the wind lately. */
-export function nearestWindStation(
-  stations: Station[],
-  place: { latitude: number; longitude: number },
-  now: number,
-) {
-  let nearest: NearbyWind | undefined;
-  for (const station of stations) {
-    const reading = station.latestReading;
-    if (reading?.windSpeedMetersPerSecond == null) continue;
-    if (now - reading.observedAt.getTime() > LIVE_WIND) continue;
-    const distance = distanceKm(place, station);
-    if (distance <= WIND_NEARBY_KM && (!nearest || distance < nearest.distanceKm)) {
-      nearest = { station, distanceKm: distance };
-    }
-  }
-  return nearest;
 }
 
 /** How a wind meets a shore, in words: for the panel of a break, and for its public page. */

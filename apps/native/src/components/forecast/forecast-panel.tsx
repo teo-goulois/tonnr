@@ -35,7 +35,7 @@ import {
   nightsBetween,
   periodKindOf,
 } from "./metrics";
-import type { Nearby } from "./nearby";
+import type { Nearby } from "@repo/client/viewer/nearby";
 import { NearbyBuoy, NearbyWindStation } from "./nearby-rows";
 import { type SeaRead, seaNowOf } from "./now";
 import { About, NowTiles, ReadingMore } from "./now-tiles";

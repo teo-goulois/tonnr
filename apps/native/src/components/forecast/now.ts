@@ -1,3 +1,4 @@
+import { type SeaRead, nowOf } from "@repo/client/viewer/now";
 import type { TideExtremes, TideTimeline } from "@repo/client/viewer/types";
 import type { ShoreWind } from "@repo/conditions/shore-wind";
 import {
@@ -8,37 +9,11 @@ import {
   windAtShoreOf,
 } from "@repo/conditions/sea-now";
 
-import { HOUR_MS, type Metric, type Sample, directionAt, valueAt } from "./metrics";
+// What the panel reads of the sea now, as the web's `nowOf` reads it, lives in packages/client:
+// a buoy's last reading while it is recent, and the model at that time. Here is the sentence it
+// is said in, as the web's details say it. Pure, so that a test reads it.
 
-// What the panel reads of the sea now, as the web's `nowOf` and `seaNowOf` read it: a buoy's last
-// reading while it is recent, and the model at that time. Pure, so that a test reads it.
-
-// A reading older than this no longer stands for the sea now.
-export const LIVE_REACH = 3 * HOUR_MS;
-
-/** What the panel reads the sea from: the buoy's readings and the model's hours, oldest first. */
-export type SeaRead = { measured: Sample[]; model: Sample[]; now: number };
-
-/** What a metric reads now: the buoy's last reading when it is recent, and the model at that time. */
-export function nowOf(
-  metric: Pick<Metric, "key" | "direction">,
-  { measured, model, now }: SeaRead,
-) {
-  const last = measured.filter((sample) => sample[metric.key] !== null).at(-1);
-  const live = last && now - last.time <= LIVE_REACH ? last : undefined;
-  const at = live?.time ?? now;
-  const measuredValue = live?.[metric.key] ?? undefined;
-  const modelValue = valueAt(model, metric.key, at);
-  const measuredBearing = live && metric.direction ? live[metric.direction] : null;
-  const bearing =
-    measuredBearing ?? (metric.direction ? directionAt(model, metric.direction, at) : undefined);
-  return {
-    measured: measuredValue,
-    model: modelValue,
-    shown: measuredValue ?? modelValue,
-    bearing,
-  };
-}
+export { LIVE_REACH, type SeaRead, nowOf } from "@repo/client/viewer/now";
 
 /** What the sentence of the sea now is given: each figure as the tiles read it. */
 export type SeaNowFacts = {

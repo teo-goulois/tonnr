@@ -23,7 +23,7 @@ import { m } from "@/paraglide/messages";
 
 import { Bearing, DirectionArrow } from "./bearing";
 import { colorAt } from "./metrics";
-import type { Nearby } from "./nearby";
+import type { Nearby } from "@repo/client/viewer/nearby";
 
 // What the nearest buoy and the nearest wind station measure, at a surf break or a spot, each a
 // row that opens the station's own sheet over this one. The web's `NearbyBuoy` and
