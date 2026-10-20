@@ -12,6 +12,7 @@ import { GuideTab } from "@/components/place-tabs/guide";
 import { ReportsTab } from "@/components/place-tabs/reports";
 import { SessionsTab } from "@/components/place-tabs/sessions";
 import { Segmented } from "@/components/ui/segmented";
+import { SheetRoot } from "@/components/ui/sheet";
 import { useAccount } from "@/lib/account";
 import type { Route } from "@/lib/links";
 import { useRecentViews } from "@/lib/recents";
@@ -201,14 +202,9 @@ export function PlaceSheet({
   // of the screen; the others stay drawn, hidden, in the order they were seen.
   return (
     <ChartsAtRest atRest={atRest}>
-      {/* react-native-screens gives a form sheet's scroll view the sheet's frame when it finds
-          one among the sheet's own children or down their first children: Fabric flattens views
-          that only lay out, which made the row of tabs or a tab's scroll view one of those
-          children, moved to the top of the sheet or out of sight. A root that is never
-          flattened, with a first child of no size, leaves it nothing to find, and the scroll
-          views keep the layout the sheet gives them. */}
-      <View collapsable={false} className="flex-1 bg-background">
-        <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
+      {/* The row of tabs and each tab's scroll view stand under the head: SheetRoot keeps
+          react-native-screens from moving them. */}
+      <SheetRoot className="flex-1 bg-background">
         {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
           <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
             {one === "forecast" ? (
@@ -226,7 +222,7 @@ export function PlaceSheet({
             )}
           </View>
         ))}
-      </View>
+      </SheetRoot>
     </ChartsAtRest>
   );
 }

@@ -17,6 +17,7 @@ import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
+import { SheetRoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -170,7 +171,9 @@ export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) 
   const choices = lists.data ? choicesOf(lists.data, place) : undefined;
 
   return (
-    <View>
+    // The lists' scroll view stands under the header and the place's name: SheetRoot keeps
+    // react-native-screens from moving it over them.
+    <SheetRoot>
       <StepHeader title={m.saved_add_to_list()} onClose={() => router.back()} />
       <Text size="s" tone="muted" numberOfLines={1} style={{ paddingHorizontal: space.m }}>
         {name}
@@ -225,6 +228,6 @@ export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) 
           />
         </Section>
       </ScrollView>
-    </View>
+    </SheetRoot>
   );
 }

@@ -1,6 +1,13 @@
 import { type NavigationAction, useNavigation, usePreventRemove } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActionSheetIOS, Alert, Platform, View } from "react-native";
+import { type ReactNode, useEffect, useState } from "react";
+import {
+  ActionSheetIOS,
+  Alert,
+  Platform,
+  type StyleProp,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -127,6 +134,32 @@ export function SheetHeader({
           </Button>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+/**
+ * The root of a form sheet that holds a scroll view under something else: a header, a title, a
+ * row of tabs. react-native-screens gives a sheet's scroll view the sheet's whole frame when it
+ * finds one among the sheet's own children, or down their first children, and Fabric flattens the
+ * views that only lay out, so that a scroll view under a header became such a child and was moved
+ * to the top of the sheet, over the header, or out of sight. This root is never flattened, and its
+ * first child, of no size, ends that search: the scroll view keeps the layout the sheet gives it.
+ * A sheet whose scroll view is its only content needs none. Decision 069.
+ */
+export function SheetRoot({
+  style,
+  className,
+  children,
+}: {
+  style?: StyleProp<ViewStyle>;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <View collapsable={false} style={style} className={className}>
+      <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
+      {children}
     </View>
   );
 }
