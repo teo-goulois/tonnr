@@ -707,13 +707,17 @@ importers:
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.4)(jsdom@30.1.2)(vite@8.3.3)
 
   apps/updates:
+    dependencies:
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../../packages/config
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260906.1
         version: 5.20261007.1
-      '@repo/config':
-        specifier: workspace:*
-        version: link:../../packages/config
+      '@expo/code-signing-certificates':
+        specifier: 0.0.7
+        version: 0.0.7
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.4

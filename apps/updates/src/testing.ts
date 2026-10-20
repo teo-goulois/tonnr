@@ -33,7 +33,47 @@ export function standInBucket() {
       metadata: {},
       ...kept,
     });
-  return { objects, calls, binding: binding as unknown as R2Bucket, put };
+
+  // The same bucket through R2's S3 API, as the release commands write it: the path names the
+  // bucket, then the key; `x-amz-meta-` headers become the binding's custom metadata.
+  const s3 = (async (url: URL, init: RequestInit = {}) => {
+    const key = url.pathname.split("/").slice(2).map(decodeURIComponent).join("/");
+    const headers = new Headers(init.headers);
+    calls.push(`${init.method ?? "GET"} ${key}`);
+    if (!headers.get("authorization")?.startsWith("AWS4-HMAC-SHA256 ")) {
+      return new Response("Unsigned", { status: 403 });
+    }
+    if (init.method === "PUT") {
+      const metadata: Record<string, string> = {};
+      for (const [name, value] of headers) {
+        if (name.startsWith("x-amz-meta-")) metadata[name.slice("x-amz-meta-".length)] = value;
+      }
+      objects.set(key, {
+        body: new Uint8Array(init.body as Uint8Array),
+        contentType: headers.get("content-type") ?? undefined,
+        cacheControl: headers.get("cache-control") ?? undefined,
+        metadata,
+      });
+      return new Response(null, { status: 200 });
+    }
+    const kept = objects.get(key);
+    if (!kept) return new Response(null, { status: 404 });
+    return new Response(init.method === "HEAD" ? null : kept.body.slice(), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  // The bucket's own domain, which serves the files of an update to the apps.
+  const files = async (url: string) => {
+    const kept = objects.get(new URL(url).pathname.slice(1));
+    if (!kept) return new Response(null, { status: 404 });
+    return new Response(kept.body.slice(), {
+      headers: {
+        ...(kept.contentType && { "content-type": kept.contentType }),
+        ...(kept.cacheControl && { "cache-control": kept.cacheControl }),
+      },
+    });
+  };
+
+  return { objects, calls, binding: binding as unknown as R2Bucket, put, s3, files };
 }
 
 /** A key pair made for a test, as the one that signs the updates. */
