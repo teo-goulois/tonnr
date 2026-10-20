@@ -6,6 +6,7 @@
     ".agents/**",
     "apps/native/src/theme/tonnr.css",
     "apps/native/src/theme/tokens.ts",
+    "apps/native/src/uniwind-types.d.ts",
     "apps/native/ios/**",
     "apps/native/android/**"
   ]
