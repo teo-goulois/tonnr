@@ -640,6 +640,38 @@ describe.skipIf(!TEST_DATABASE_URL)("the Live Activity of a window that begins",
       expect(await activities()).toMatchObject([{ endedAt: null, deviceId: "b-iphone" }]);
     });
 
+    it("sends its end again at the next run when Apple did not take it, and keeps its token until then", async () => {
+      await begins();
+      const token = await tokenGiven();
+      apple.answers.set(token, { status: 429, reason: "TooManyRequests" });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.setSystemTime(hour(12));
+
+      expect(await follow()).toMatchObject({ ended: 0, failed: 1 });
+      expect(await activities()).toMatchObject([{ endedAt: null, token }]);
+
+      apple.answers.delete(token);
+      vi.setSystemTime(new Date(hour(12).getTime() + 15 * MINUTE_MS));
+      expect(await follow()).toMatchObject({ ended: 1, failed: 0 });
+      expect(apple.activities().map((one) => one.read.event)).toEqual(["start", "end"]);
+      expect(await activities()).toMatchObject([{ endedAt: expect.any(Date), token: null }]);
+    });
+
+    it("ends with nothing sent one that iOS took off the phone itself, twelve hours after it started", async () => {
+      await begins();
+      const token = await tokenGiven();
+      apple.answers.set(token, { status: 429, reason: "TooManyRequests" });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.setSystemTime(hour(12));
+      expect(await follow()).toMatchObject({ failed: 1 });
+      const asked = apple.asked().length;
+
+      vi.setSystemTime(hour(7.75 + 12));
+      expect(await follow()).toMatchObject({ ended: 1, failed: 0 });
+      expect(apple.asked()).toHaveLength(asked);
+      expect(await activities()).toMatchObject([{ endedAt: hour(19.75), token: null }]);
+    });
+
     it("ends one whose token never came, sending nothing, when its window is over", async () => {
       await begins();
       vi.setSystemTime(hour(12));

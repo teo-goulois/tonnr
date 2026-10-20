@@ -60,6 +60,9 @@ const DAY_MS = 24 * HOUR_MS;
 const TIDE_AHEAD_MS = 26 * HOUR_MS;
 // How long Apple keeps the end of an activity for a phone that is off.
 const END_KEPT_SECONDS = 60 * 60;
+// iOS ends an activity eight hours after it started, and takes it off the lock screen four hours
+// later at most: what is sent to it after that shows nothing.
+const IOS_SHOWS_MS = 12 * HOUR_MS;
 // An activity that ended is kept this long, so that an app that says it is still running is
 // told it ended, then forgotten with its token.
 const ENDED_KEPT_MS = DAY_MS;
@@ -195,8 +198,11 @@ export async function windowShown(
   };
 }
 
-/** Why an activity ends, as a run counts it. */
-type EndOf = "over" | "gone" | "alert" | "account" | "device";
+/**
+ * Why an activity ends, as a run counts it. `system` is one that iOS has taken off the phone
+ * already, which is sent nothing.
+ */
+type EndOf = "over" | "gone" | "alert" | "account" | "device" | "system";
 
 /** A running activity, as its row and its iPhone hold it. */
 type Running = typeof liveActivity.$inferSelect;
@@ -212,7 +218,8 @@ type Device = typeof pushSubscription.$inferSelect;
  * off (decision 031). It ends when its alert was switched off, changed or deleted, or paused for
  * the day; when its account is suspended or away; and when its iPhone is no longer the account's
  * device that starts them: forgotten, with its session or its push, signed in to by another
- * account, or its switch turned off, which the API says by letting go of the activity.
+ * account, or its switch turned off, which the API says by letting go of the activity. One that
+ * iOS has taken off the phone itself, twelve hours after it started, ends with nothing sent.
  */
 export async function followed(
   tx: Transaction,
@@ -255,6 +262,7 @@ export async function followed(
   const isGone = link !== undefined && isFresh(link.link, now) && found.length === 0 && !standing;
   const isLater = (moment: Date | null) => moment !== null && moment.getTime() > now.getTime();
   const endOf = async (): Promise<EndOf | null> => {
+    if (now.getTime() - activity.createdAt.getTime() >= IOS_SHOWS_MS) return "system";
     // Switched off, changed, deleted, its place taken out of it, or paused for the day.
     if (!held || !held.enabled || held.revision !== activity.alertRevision || !link) return "alert";
     if (isLater(held.awayUntil)) return "alert";
@@ -469,6 +477,8 @@ export async function beginOn(
             .insert(liveActivity)
             .values({
               id: crypto.randomUUID(),
+              // By the worker's clock, which the job counts how long iOS shows it by.
+              createdAt: now,
               userId: begins.userId,
               deviceId: plan.device.id,
               environment: plan.device.environment,
@@ -549,9 +559,17 @@ async function followOne(db: Database, ios: ApnsPusher | null, id: string) {
     };
 
     if (ends) {
-      // It leaves the screen at once: its window, or what it was of, is no more.
-      if (to && ios)
-        await ios.activity(to, { event: "end", shown, dismissAt: now }, END_KEPT_SECONDS);
+      // It leaves the screen at once: its window, or what it was of, is no more. An end that
+      // Apple did not take, or may not have, is sent again at the next run, until iOS has taken
+      // the activity off the phone itself: two ends do no harm.
+      if (to && ios && ends !== "system") {
+        const outcome = await ios.activity(
+          to,
+          { event: "end", shown, dismissAt: now },
+          END_KEPT_SECONDS,
+        );
+        if (outcome === "refused" || outcome === "failed") return "failed";
+      }
       await tx
         .update(liveActivity)
         .set({ endedAt: now, token: null })
