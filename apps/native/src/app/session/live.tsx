@@ -19,7 +19,7 @@ import {
 import { PlacePicker } from "@/components/sessions/place-picker";
 import { StepHeader } from "@/components/sessions/session-form";
 import { dayWords, placeOfParam } from "@/components/sessions/session-logic";
-import { usePlaceName } from "@/components/sessions/session-place";
+import { usePlaceKnown } from "@/components/sessions/session-place";
 import { useNearestPlace } from "@/components/sessions/use-nearest";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -321,14 +321,15 @@ function useAskedPlace(param: string | undefined, name: string | undefined) {
   const recents = useRecents();
   const last = recents.find((recent) => recent.kind === "break" || recent.kind === "spot");
   const given = param === "last" ? null : placeOfParam(param);
-  const givenName = usePlaceName(given, name);
+  const known = usePlaceKnown(given, name);
   if (param === "last") {
     return last && (last.kind === "break" || last.kind === "spot")
       ? { kind: last.kind, id: last.id, name: last.name }
       : null;
   }
-  if (!given) return null;
-  return givenName ? { ...given, name: givenName } : "naming";
+  // A place the API does not answer, a spot that is not the account's, is asked for instead.
+  if (!given || known.isMissing) return null;
+  return known.name ? { ...given, name: known.name } : "naming";
 }
 
 export default function LiveSessionScreen() {

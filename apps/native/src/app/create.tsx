@@ -148,7 +148,7 @@ export default function CreateSheet() {
   // The sheet gives its place to what was chosen, or to the sign-in that goes on there. A session
   // that does not run yet asks when first, in the same sheet.
   const choose = (choice: Choice) => {
-    if (signedIn && !isWhen && choice === session && !running) return setWhen(true);
+    if (signedIn && !isWhen && !running && choice.to === "/session/new") return setWhen(true);
     if (signedIn) router.replace(choice.to);
     else
       router.replace({ pathname: "/sign-in", params: { reason: choice.reason, next: choice.to } });
