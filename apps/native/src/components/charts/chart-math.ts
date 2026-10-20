@@ -65,16 +65,19 @@ export function curveGradient(rows: Row[], scale: ScaleStop[], steps = 24) {
     const ratio =
       after.time === before.time ? 0 : (time - before.time) / (after.time - before.time);
     const value = before.value + (after.value - before.value) * Math.min(1, Math.max(0, ratio));
-    colors.push(commaRgb(scaleColor(scale, value)));
+    colors.push(colorAt(scale, value));
     positions.push(part);
   }
   return { colors, positions, from: first.time, to: last.time };
 }
 
-/** `rgb(r g b)`, as the scales write a color, written `rgb(r, g, b)`, which Skia reads too. */
-export function commaRgb(color: string) {
-  const figures = color.match(/\d+(\.\d+)?/g) ?? [];
-  return `rgb(${figures.slice(0, 3).join(", ")})`;
+/**
+ * A color of a scale at a value, as both React Native and Skia read it: `rgba(r, g, b, a)`. The
+ * scales write `rgb(r g b)`, which Skia does not take.
+ */
+export function colorAt(scale: ScaleStop[], value: number, alpha = 1) {
+  const [red = 0, green = 0, blue = 0] = scaleColor(scale, value).match(/\d+(\.\d+)?/g) ?? [];
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 /** The index of the row nearest a moment. Undefined without rows. */

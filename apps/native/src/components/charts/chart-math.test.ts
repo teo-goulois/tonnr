@@ -2,7 +2,7 @@ import { WAVE_HEIGHT_SCALE } from "@repo/client/sea-scales";
 import { describe, expect, it } from "vitest";
 
 import {
-  commaRgb,
+  colorAt,
   crossingsAt,
   curveGradient,
   daysOf,
@@ -54,15 +54,17 @@ describe("the colors along a curve", () => {
     expect(gradient?.positions).toEqual([0, 0.25, 0.5, 0.75, 1]);
     expect(gradient?.from).toBe(0);
     expect(gradient?.to).toBe(10 * HOUR);
-    for (const color of gradient?.colors ?? []) expect(color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+    for (const color of gradient?.colors ?? []) {
+      expect(color).toMatch(/^rgba\(\d+, \d+, \d+, 1\)$/);
+    }
   });
 
   it("draws no gradient for a curve of one point", () => {
     expect(curveGradient([{ time: 0, value: 1 }], WAVE_HEIGHT_SCALE)).toBeUndefined();
   });
 
-  it("writes a scale's color with commas, which Skia reads", () => {
-    expect(commaRgb("rgb(12 34 56)")).toBe("rgb(12, 34, 56)");
+  it("writes a scale's color as Skia and React Native both read it", () => {
+    expect(colorAt(WAVE_HEIGHT_SCALE, 1, 0.5)).toMatch(/^rgba\(\d+, \d+, \d+, 0\.5\)$/);
   });
 });
 

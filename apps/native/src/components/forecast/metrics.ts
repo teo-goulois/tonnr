@@ -9,13 +9,13 @@ import {
   WINDGURU_INK,
   WINDGURU_SCALES,
   WIND_SPEED_SCALE,
-  scaleColor,
   scaleInk,
   windguruWindInk,
 } from "@repo/client/sea-scales";
 import type { MetricKey, NumericKey, WeatherKey } from "@repo/client/viewer/samples";
 import { isNight } from "@repo/conditions/sun";
 
+import { colorAt } from "@/components/charts/chart-math";
 import { formatNumber } from "@/lib/format";
 import {
   heightIn,
@@ -206,20 +206,8 @@ export function inPalette(metric: Metric, palette: Palette): Metric {
   };
 }
 
-/** The red, green and blue of a color as `scaleColor` writes it, `rgb(r g b)`. */
-export function channelsOf(color: string): [number, number, number] {
-  const figures = color.match(/\d+(\.\d+)?/g)?.map(Number) ?? [];
-  return [figures[0] ?? 0, figures[1] ?? 0, figures[2] ?? 0];
-}
-
-/**
- * A color of a scale at a value, as both React Native and Skia read it: `rgba(r, g, b, a)`. The
- * web writes `rgb(r g b)`, which Skia does not take.
- */
-export function colorAt(scale: ScaleStop[], value: number, alpha = 1) {
-  const [red, green, blue] = channelsOf(scaleColor(scale, value));
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
+// A color of a scale as both React Native and Skia read it, which the charts write too.
+export { colorAt };
 
 /**
  * The ground of a value's cell, and the ink to write on it. A tinted scale lets the theme show

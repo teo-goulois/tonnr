@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   cellColors,
-  channelsOf,
-  colorAt,
   formatGap,
   formatMetric,
   inPalette,
@@ -30,11 +28,6 @@ describe("how the panel writes a figure", () => {
 });
 
 describe("the colors of a cell", () => {
-  it("writes a scale's color as Skia and React Native both read it", () => {
-    expect(channelsOf("rgb(10 20 30)")).toEqual([10, 20, 30]);
-    expect(colorAt(metrics().height.scale, 1, 0.5)).toMatch(/^rgba\(\d+, \d+, \d+, 0\.5\)$/);
-  });
-
   it("fills a cell of the waves with its color and the ink that reads on it", () => {
     const colors = cellColors(metrics().height, 2);
     expect(colors.background).toMatch(/^rgba\(/);
