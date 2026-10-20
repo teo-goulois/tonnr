@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { View } from "react-native";
 
 import { BreakGuide, GuideSkeleton } from "@/components/guides/break-guide";
+import { SpotGuide } from "@/components/guides/spot-guide";
 import { useGuiding } from "@/components/guides/use-guiding";
 import { ErrorState } from "@/components/ui/error-state";
 import { useTheme } from "@/lib/theme";
@@ -11,13 +12,23 @@ import { orpc } from "@/utils/orpc";
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
 /**
- * The guide of a surf break, written by the accounts (decision 041): the tab of a break's sheet
- * that reads and completes it. Only a break of the catalogue has one. It is drawn in the sheet's
- * own scroll, and scrolls with it.
+ * The guide of a place, drawn in the sheet's own scroll: of a surf break, what the accounts
+ * write of it (decision 041), which this tab reads and completes; of a spot, what its owner says
+ * it is like (decision 006). A station has none.
  */
 export function GuideTab({ kind, id }: PlaceTabProps) {
-  if (kind !== "break") return null;
-  return <BreakGuideTab id={id} />;
+  if (kind === "break") return <BreakGuideTab id={id} />;
+  if (kind === "spot") return <SpotGuideTab id={id} />;
+  return null;
+}
+
+function SpotGuideTab({ id }: { id: string }) {
+  const { space } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: space.m, paddingVertical: space.l }}>
+      <SpotGuide id={id} />
+    </View>
+  );
 }
 
 function BreakGuideTab({ id }: { id: string }) {

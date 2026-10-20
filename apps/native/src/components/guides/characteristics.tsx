@@ -15,11 +15,12 @@ import {
   WaveSizeIcon,
   WindWindowIcon,
 } from "@repo/ui/icon";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 
 import { Bearing } from "@/components/forecast/bearing";
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
+import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
@@ -31,6 +32,7 @@ import {
   BREAK_TYPES,
   bearingOf,
   bearingsOf,
+  CHARACTERISTIC_FIELDS,
   type Characteristics,
   COMPASS,
   isCompassField,
@@ -250,6 +252,72 @@ export function CharacteristicRow({
       </View>
     </View>
   );
+}
+
+/** A row of a guide that says something and opens nothing. */
+export function StillRow({ children }: { children: ReactNode }) {
+  const { space } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: space.m, paddingVertical: space.xs, minHeight: TARGET }}>
+      {children}
+    </View>
+  );
+}
+
+/**
+ * What is known of a place in the catalogue's words, as rows of a grouped list: each list of
+ * words that says something, with its glyph, in the order a guide gives them.
+ */
+export function listedRows(known: Characteristics): ReactElement[] {
+  return CHARACTERISTIC_FIELDS.flatMap(({ key, label }) => {
+    const given = known[key];
+    return given && given.length > 0
+      ? [
+          <StillRow key={key}>
+            <CharacteristicRow
+              icon={<CharacteristicIcon field={key} given={given} />}
+              label={label()}
+            >
+              <WordsReading field={key} given={given} />
+            </CharacteristicRow>
+          </StillRow>,
+        ]
+      : [];
+  });
+}
+
+/**
+ * The rows of what is measured of a place: where its wind blows offshore from, and the size it
+ * works at, which `size` says as `useSizeReading` reads it.
+ */
+export function measuredRows(known: Characteristics, size: string | null): ReactElement[] {
+  const offshore = known.offshoreDirectionDegrees;
+  return [
+    ...(offshore == null
+      ? []
+      : [
+          <StillRow key="offshore">
+            <CharacteristicRow
+              icon={<OffshoreIcon degrees={offshore} />}
+              label={m.break_offshore_wind()}
+            >
+              <Bearing degrees={offshore} />
+            </CharacteristicRow>
+          </StillRow>,
+        ]),
+    ...(known.waveSizeMeters && size
+      ? [
+          <StillRow key="size">
+            <CharacteristicRow
+              icon={<SizeIcon size={known.waveSizeMeters} />}
+              label={m.break_wave_size()}
+            >
+              {size}
+            </CharacteristicRow>
+          </StillRow>,
+        ]
+      : []),
+  ];
 }
 
 /**

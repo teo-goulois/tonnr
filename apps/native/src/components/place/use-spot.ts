@@ -98,6 +98,8 @@ export function useSpotActions() {
       change.mutate({ id: spot.id, name }, { onSuccess: done }),
     move: (spot: Spot, point: { latitude: number; longitude: number }, done: () => void) =>
       change.mutate({ id: spot.id, ...point }, { onSuccess: done }),
+    describe: (spot: Spot, characteristics: Spot["characteristics"], done: () => void) =>
+      change.mutate({ id: spot.id, characteristics }, { onSuccess: done }),
     isChanging: change.isPending,
     publish: (spot: Spot, note: string, done: () => void) =>
       publish.mutate({ id: spot.id, ...(note && { note }) }, { onSuccess: done }),

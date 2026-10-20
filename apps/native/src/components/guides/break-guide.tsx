@@ -4,7 +4,6 @@ import { ChevronRightIcon, PenIcon, PlusIcon } from "@repo/ui/icon";
 import { Children, isValidElement, type ReactNode, useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 
-import { Bearing } from "@/components/forecast/bearing";
 import { useBlock } from "@/components/friends/blocking";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
@@ -30,8 +29,9 @@ import {
   CharacteristicIcon,
   CharacteristicRow,
   GLYPH_SIZE,
-  OffshoreIcon,
-  SizeIcon,
+  listedRows,
+  measuredRows,
+  StillRow,
   useSizeReading,
   WordsReading,
 } from "./characteristics";
@@ -68,16 +68,6 @@ type Shown = { line: GuideLineName; contest?: string };
 function Group({ title, children }: { title: string; children: ReactNode }) {
   const rows = Children.toArray(children).filter(isValidElement);
   return rows.length === 0 ? null : <Section title={title}>{rows}</Section>;
-}
-
-/** A row of the guide that says something and opens nothing. */
-function StillRow({ children }: { children: ReactNode }) {
-  const { space } = useTheme();
-  return (
-    <View style={{ paddingHorizontal: space.m, paddingVertical: space.xs, minHeight: TARGET }}>
-      {children}
-    </View>
-  );
 }
 
 /** What a line says it lacks: a plus, and "Add". */
@@ -414,7 +404,6 @@ function About({
   lines?: ReactNode[];
 }) {
   const known = found.characteristics;
-  const offshore = known.offshoreDirectionDegrees;
   const size = useSizeReading(known.waveSizeMeters);
   return (
     <Group title={m.break_about()}>
@@ -431,42 +420,8 @@ function About({
           </CharacteristicRow>
         </StillRow>
       ) : null}
-      {lines ??
-        CHARACTERISTIC_FIELDS.flatMap(({ key, label }) => {
-          const given = known[key];
-          return given && given.length > 0
-            ? [
-                <StillRow key={key}>
-                  <CharacteristicRow
-                    icon={<CharacteristicIcon field={key} given={given} />}
-                    label={label()}
-                  >
-                    <WordsReading field={key} given={given} />
-                  </CharacteristicRow>
-                </StillRow>,
-              ]
-            : [];
-        })}
-      {offshore != null ? (
-        <StillRow key="offshore">
-          <CharacteristicRow
-            icon={<OffshoreIcon degrees={offshore} />}
-            label={m.break_offshore_wind()}
-          >
-            <Bearing degrees={offshore} />
-          </CharacteristicRow>
-        </StillRow>
-      ) : null}
-      {known.waveSizeMeters && size ? (
-        <StillRow key="size">
-          <CharacteristicRow
-            icon={<SizeIcon size={known.waveSizeMeters} />}
-            label={m.break_wave_size()}
-          >
-            {size}
-          </CharacteristicRow>
-        </StillRow>
-      ) : null}
+      {lines ?? listedRows(known)}
+      {measuredRows(known, size)}
     </Group>
   );
 }
