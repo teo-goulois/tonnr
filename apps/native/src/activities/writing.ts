@@ -1,5 +1,6 @@
 import { SHORE_WINDS, type ShoreWind } from "@repo/conditions/shore-wind";
 
+import { shoreWord } from "@/components/saved/place-words";
 import { compassName, compassPoint, formatClock, formatNumber, toKnots } from "@/lib/format";
 import { formatHeight, formatWind, heightIn, heightUnit, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -9,14 +10,6 @@ import type { keptForWindow } from "./window-reading";
 
 // How the activities are written, in the account's units and the app's language as they are in
 // force when the app writes them: a Live Activity reads no message and no setting of the app.
-
-const SHORE_WORDS: Record<ShoreWind, () => string> = {
-  offshore: m.wind_offshore,
-  cross_offshore: m.wind_cross_offshore,
-  cross_shore: m.wind_cross_shore,
-  cross_onshore: m.wind_cross_onshore,
-  onshore: m.wind_onshore,
-};
 
 const isShoreWind = (word: string): word is ShoreWind =>
   (SHORE_WINDS as readonly string[]).includes(word);
@@ -29,7 +22,7 @@ export function sessionWriting(): SessionWriting {
     wind: (knots) => formatWind(knots),
     compass: (degrees) => compassPoint(degrees),
     compassName: (degrees) => compassName(degrees),
-    shore: (atShore) => (isShoreWind(atShore) ? SHORE_WORDS[atShore]() : null),
+    shore: (atShore) => (isShoreWind(atShore) ? shoreWord(atShore) : null),
     m: {
       title: m.native_live_title,
       since: m.native_live_since,
@@ -65,7 +58,7 @@ export function windowWriting(): Parameters<typeof keptForWindow>[1] {
       compass: m.compass_points(),
       names: m.compass_names(),
       from: m.alert_from(),
-      shore: Object.fromEntries(SHORE_WINDS.map((word) => [word, SHORE_WORDS[word]()])),
+      shore: Object.fromEntries(SHORE_WINDS.map((word) => [word, shoreWord(word)])),
       progress: m.native_window_progress(),
       label: m.native_channel_begins(),
     },
