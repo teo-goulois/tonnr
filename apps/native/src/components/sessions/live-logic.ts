@@ -1,7 +1,8 @@
 import type { AppRouterClient } from "@repo/api/routers/index";
+import { isAhead, MOST_MINUTES, withinLengths } from "@repo/client/sessions/rules";
 import type { SessionPlace } from "@repo/client/sessions/types";
 
-import { MOST_MINUTES, isAhead, placeOfParam, placeParam, withinLengths } from "./session-logic";
+import { placeOfParam, placeParam } from "./session-logic";
 
 // A session timed while it lasts: decision 074, "A session in progress". The phone keeps its
 // place and its start, and nothing tells the API that it runs, until it is written as decision 043
