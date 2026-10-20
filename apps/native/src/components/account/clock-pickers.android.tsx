@@ -1,10 +1,11 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
-import { clock } from "@repo/client/alerts/settings";
+import { getCalendars } from "expo-localization";
 import { useState } from "react";
 import { Pressable } from "react-native";
 
 import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
+import { formatClock } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { getLocale } from "@/paraglide/runtime";
 
@@ -61,12 +62,16 @@ export function TimePicker({
 
   return (
     <>
-      <DialogValue label={label} shown={clock(minutes)} onPress={() => setOpen(true)} />
+      <DialogValue
+        label={label}
+        shown={formatClock(dateOfMinutes(minutes))}
+        onPress={() => setOpen(true)}
+      />
       {open ? (
         <DateTimePicker
           value={dateOfMinutes(minutes)}
           mode="time"
-          is24Hour
+          is24Hour={getCalendars()[0]?.uses24hourClock ?? true}
           accentColor={colors["color-1"]}
           onValueChange={(_event, date) => {
             setOpen(false);
