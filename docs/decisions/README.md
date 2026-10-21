@@ -79,3 +79,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [073. Links that open the app](073-links-that-open-the-app.md)
 - [074. Widgets, Live Activities and Live Updates](074-widgets-and-live-activities.md)
 - [075. Building and updating the apps, with no service of Expo's](075-building-and-updating-the-apps.md)
+- [076. Forms](076-forms.md)

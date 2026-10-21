@@ -126,6 +126,40 @@
           }
         ]
       }
+    },
+    {
+      "files": ["apps/web/src/**", "apps/admin/src/**"],
+      "plugins": ["react"],
+      "rules": {
+        "react/forbid-elements": [
+          "error",
+          {
+            "forbid": [
+              {
+                "element": "form",
+                "message": "A form is made with useAppForm and sent through form.Form, from @repo/ui/hooks/form/form (decision 076)."
+              }
+            ]
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@tanstack/react-form",
+                "allowTypeImports": true,
+                "message": "A form is made with useAppForm, from @repo/ui/hooks/form/form, and its fields with its adapters (decision 076)."
+              }
+            ]
+          }
+        ],
+        "react/refs": "off",
+        "react/set-state-in-effect": "off",
+        "react/jsx-key": "off",
+        "react/purity": "off",
+        "react-hooks/exhaustive-deps": "off"
+      }
     }
   ]
 }
