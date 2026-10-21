@@ -73,6 +73,7 @@ import { BlockSamples, DeletionSamples } from "@/components/design-system/accoun
 import { FriendSamples } from "@/components/design-system/friend-samples";
 import { GuideSamples } from "@/components/design-system/guide-samples";
 import { LearnSamples } from "@/components/design-system/learn-samples";
+import { FormSamples } from "@/components/design-system/form-samples";
 import { ProfileSamples, SAMPLE_PROFILE } from "@/components/design-system/profile-samples";
 import { SessionSamples } from "@/components/design-system/session-samples";
 import { SpotPageSamples } from "@/components/design-system/spot-page-samples";
@@ -581,6 +582,10 @@ export function DesignSystemPage() {
           <Input aria-label="Large" size="lg" placeholder="Large" />
           <Textarea aria-label="Notes" placeholder="Notes" />
         </div>
+      </Section>
+
+      <Section title="Form">
+        <FormSamples />
       </Section>
 
       <Section title="Menu">
