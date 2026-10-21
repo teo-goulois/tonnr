@@ -1220,6 +1220,7 @@
   "session_sign_in_prompt": "With an account, keep a log of your sessions: what the sea did is kept with each, and your best ones tell the conditions you like at a spot.",
   "session_when": "Start",
   "session_when_ahead": "A session is written once it has begun.",
+  "session_when_missing": "Pick the day and the time you paddled out.",
   "session_duration": "Duration",
   "session_rating": "Rating",
   "session_rating_of": "{rating} out of 5: {word}",

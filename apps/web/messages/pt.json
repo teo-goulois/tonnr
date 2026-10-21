@@ -1220,6 +1220,7 @@
   "session_sign_in_prompt": "Com uma conta, tens um diário das tuas sessões: o que o mar fez fica guardado com cada uma, e as melhores dizem as condições de que gostas num spot.",
   "session_when": "Início",
   "session_when_ahead": "Uma sessão regista-se depois de começar.",
+  "session_when_missing": "Escolhe o dia e a hora em que entraste na água.",
   "session_duration": "Duração",
   "session_rating": "Avaliação",
   "session_rating_of": "{rating} em 5: {word}",

@@ -1220,6 +1220,7 @@
   "session_sign_in_prompt": "Avec un compte, tiens le journal de tes sessions : ce qu'a fait la mer est gardé avec chacune, et tes meilleures disent les conditions que tu aimes sur un spot.",
   "session_when": "Début",
   "session_when_ahead": "Une session se note une fois commencée.",
+  "session_when_missing": "Choisis le jour et l'heure de ta mise à l'eau.",
   "session_duration": "Durée",
   "session_rating": "Note",
   "session_rating_of": "{rating} sur 5 : {word}",

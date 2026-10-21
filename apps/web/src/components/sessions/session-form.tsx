@@ -1,10 +1,10 @@
 import { AHEAD_MS, daysBefore, USUAL_MINUTES, usualStart } from "@repo/client/sessions/rules";
 import { SESSION_MOST_MEDIA } from "@repo/config/media";
-import { Button } from "@repo/ui/components/ui/button";
-import { Textarea } from "@repo/ui/components/ui/textarea";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { cn } from "@repo/ui/lib/utils";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { formatClock, formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -14,7 +14,7 @@ import { DurationInput } from "./duration-input";
 import { RatingInput, ratingWord } from "./rating";
 import { type MediaEntry, SessionMediaField } from "./session-media";
 import { SurfSizeInput } from "./surf-size";
-import type { SessionDraft, SessionMedia } from "./types";
+import type { SessionDraft, SessionMedia, SurfSize } from "./types";
 
 // A note as the API takes it.
 const NOTE_MOST = 2000;
@@ -76,14 +76,15 @@ function Pill({ shown, children }: { shown: string; children: ReactNode }) {
   );
 }
 
-/** A line of the form: what is asked on the left, and what answers it on the right. */
-function Row({ name, children }: { name: ReactNode; children: ReactNode }) {
-  return (
-    <div className="flex min-h-14 items-center justify-between gap-s px-s py-xs">
-      <span className="shrink-0">{name}</span>
-      <span className="flex min-w-0 items-center justify-end gap-xs">{children}</span>
-    </div>
-  );
+/**
+ * A line of the form, as its field's adapter lays it out: what is asked on the left, what answers
+ * it on the right, and what is wrong with it under both.
+ */
+export const ROW = "grid min-h-14 content-center gap-xxs px-s py-xs";
+
+/** What answers a line, at its right. */
+export function Answer({ children }: { children: ReactNode }) {
+  return <span className="flex min-w-0 items-center justify-end gap-xs">{children}</span>;
 }
 
 type SessionFormProps = {
@@ -105,12 +106,36 @@ type SessionFormProps = {
 
 const NO_MEDIA: readonly MediaItem[] = [];
 
+/** When a session began, as its two pills hold it: a day and an hour on the device's clock. */
+type Start = { day: string; clock: string };
+
+/** How big most of the waves and the sets looked. */
+type Sizes = { waves: SurfSize | null; sets: SurfSize | null };
+
+/** What the form holds. `media` is null until a photo or a video is added or taken out. */
+type SessionValues = {
+  start: Start;
+  minutes: number;
+  sizes: Sizes;
+  media: MediaEntry[] | null;
+  rating: number | null;
+  note: string;
+};
+
+/** Why a start is not one a session may have, or nothing for one it may. */
+function startFault(start: Start, now: number) {
+  const startedAt = fromFields(start.day, start.clock);
+  if (!startedAt) return m.session_when_missing();
+  if (startedAt.getTime() > now + AHEAD_MS) return m.session_when_ahead();
+  return undefined;
+}
+
 /**
  * A session as it is written: when it began, how long it lasted, how big the waves looked, how
  * it was, and a few words.
  * The day and the hour are each on a pill, which opens what the device has for them, the length
  * is a choice among the usual ones or one's own, and the rating is five stars. Only when it began
- * is asked for: the rest has a usual answer, or may wait.
+ * is asked for: the rest has a usual answer, or may wait. Decision 076 says how the form is made.
  */
 export function SessionForm({
   session,
@@ -122,91 +147,92 @@ export function SessionForm({
   kept,
   onOpenMedia,
 }: SessionFormProps) {
-  const [begun] = useState(() => session?.startedAt ?? usualStart(now));
-  const [day, setDay] = useState(() => toDayField(begun));
-  const [clock, setClock] = useState(() => toClockField(begun));
-  const [minutes, setMinutes] = useState(session?.durationMinutes ?? USUAL_MINUTES);
-  const [rating, setRating] = useState(session?.rating ?? null);
-  const [note, setNote] = useState(session?.note ?? "");
-  const [waveSize, setWaveSize] = useState(session?.waveSize ?? null);
-  const [setSize, setSetSize] = useState(session?.setSize ?? null);
+  // What the form opens with, kept as it was: the usual start of a new session moves with the
+  // clock, and the form does not follow it.
+  const [opening] = useState<SessionValues>(() => {
+    const begun = session?.startedAt ?? usualStart(now);
+    return {
+      start: { day: toDayField(begun), clock: toClockField(begun) },
+      minutes: session?.durationMinutes ?? USUAL_MINUTES,
+      sizes: { waves: session?.waveSize ?? null, sets: session?.setSize ?? null },
+      media: null,
+      rating: session?.rating ?? null,
+      note: session?.note ?? "",
+    };
+  });
 
   // The photos and the videos as the form holds them, once one is added or taken out: until then,
   // what the session keeps, as the API says it.
   const keptItems = kept ?? NO_MEDIA;
   const isKeptAsked = session !== undefined && kept === undefined;
   const keptIds = keptItems.map((item) => item.id);
-  const [touched, setTouched] = useState<MediaEntry[] | null>(null);
-  const entries: MediaEntry[] = touched ?? keptIds.map((id) => ({ kept: id }));
+  const entriesOf = (held: MediaEntry[] | null): MediaEntry[] =>
+    held ?? keptIds.map((id) => ({ kept: id }));
   // What was sent from this form is forgotten as it closes: the session shows it from the API.
   const sentHere = useRef<string[]>([]);
   const { onForget } = media;
   useEffect(() => () => onForget(sentHere.current), [onForget]);
 
-  const mediaIds = entries.flatMap((entry) => {
-    if ("kept" in entry) return [entry.kept];
-    const upload = media.uploads.get(entry.upload);
-    return upload?.id && upload.state !== "failed" ? [upload.id] : [];
-  });
+  const mediaIdsOf = (entries: MediaEntry[]) =>
+    entries.flatMap((entry) => {
+      if ("kept" in entry) return [entry.kept];
+      const upload = media.uploads.get(entry.upload);
+      return upload?.id && upload.state !== "failed" ? [upload.id] : [];
+    });
   // A file the API has not yet given an id: a moment, before the form can be saved.
-  const isAsking = entries.some((entry) => {
-    if ("kept" in entry) return false;
-    const upload = media.uploads.get(entry.upload);
-    return upload?.state === "sending" && upload.id === null;
-  });
+  const isAskingOf = (entries: MediaEntry[]) =>
+    entries.some((entry) => {
+      if ("kept" in entry) return false;
+      const upload = media.uploads.get(entry.upload);
+      return upload?.state === "sending" && upload.id === null;
+    });
   const showsMedia = media.status?.offered === true || keptIds.length > 0;
 
-  function addMedia(files: File[]) {
-    const room = SESSION_MOST_MEDIA - entries.length;
-    if (files.length > room) toast.error(m.media_too_many({ count: SESSION_MOST_MEDIA }));
-    const keys = media.onStart(files.slice(0, Math.max(0, room)));
-    sentHere.current.push(...keys);
-    setTouched([...entries, ...keys.map((key) => ({ upload: key }))]);
-  }
-
-  function removeMedia(index: number) {
-    const entry = entries[index];
-    if (!entry) return;
-    // A file being sent belongs to no session yet: it goes from the API too. One the session
-    // keeps goes once the form is saved without it.
-    if ("upload" in entry) media.onDrop(entry.upload, true);
-    setTouched(entries.filter((_, at) => at !== index));
-  }
-
-  const startedAt = fromFields(day, clock);
-  const isAhead = startedAt !== null && startedAt.getTime() > now + AHEAD_MS;
-
-  function save() {
-    if (!startedAt || isAhead || isSaving || isAsking) return;
-    const draft = {
-      startedAt,
-      durationMinutes: minutes,
-      rating,
-      note: note.trim(),
-      waveSize,
-      setSize,
-      mediaIds,
-    };
-    onSave(draft, {
-      ...(mediaIds.join() !== keptIds.join() && { mediaIds }),
-      ...(startedAt.getTime() !== session?.startedAt.getTime() && { startedAt }),
-      ...(minutes !== session?.durationMinutes && { durationMinutes: minutes }),
-      ...(rating !== (session?.rating ?? null) && { rating }),
-      ...(draft.note !== (session?.note ?? "") && { note: draft.note }),
-      ...(waveSize !== (session?.waveSize ?? null) && { waveSize }),
-      ...(setSize !== (session?.setSize ?? null) && { setSize }),
-    });
-  }
+  const form = useAppForm({
+    defaultValues: opening,
+    validators: {
+      onSubmit: z.object({
+        start: z.custom<Start>().superRefine((start, issues) => {
+          const fault = startFault(start, now);
+          if (fault) issues.addIssue({ code: "custom", message: fault });
+        }),
+        minutes: z.number(),
+        sizes: z.custom<Sizes>(),
+        media: z.custom<MediaEntry[] | null>(),
+        rating: z.number().nullable(),
+        note: z.string().max(NOTE_MOST),
+      }),
+    },
+    onSubmit: ({ value }) => {
+      const startedAt = fromFields(value.start.day, value.start.clock);
+      const entries = entriesOf(value.media);
+      if (!startedAt || isSaving || isAskingOf(entries)) return;
+      const mediaIds = mediaIdsOf(entries);
+      const { minutes, rating, sizes } = value;
+      const draft = {
+        startedAt,
+        durationMinutes: minutes,
+        rating,
+        note: value.note.trim(),
+        waveSize: sizes.waves,
+        setSize: sizes.sets,
+        mediaIds,
+      };
+      onSave(draft, {
+        ...(mediaIds.join() !== keptIds.join() && { mediaIds }),
+        ...(startedAt.getTime() !== session?.startedAt.getTime() && { startedAt }),
+        ...(minutes !== session?.durationMinutes && { durationMinutes: minutes }),
+        ...(rating !== (session?.rating ?? null) && { rating }),
+        ...(draft.note !== (session?.note ?? "") && { note: draft.note }),
+        ...(sizes.waves !== (session?.waveSize ?? null) && { waveSize: sizes.waves }),
+        ...(sizes.sets !== (session?.setSize ?? null) && { setSize: sizes.sets }),
+      });
+    },
+  });
 
   return (
-    <form
-      className="grid gap-m"
-      onSubmit={(event) => {
-        event.preventDefault();
-        save();
-      }}
-    >
-      <div className="grid gap-xs">
+    <form.AppForm>
+      <form.Form className="grid gap-m">
         <div
           className={cn(
             "edge rounded-(--radius-xs) [--edge-color:var(--neutral-4)]",
@@ -214,102 +240,188 @@ export function SessionForm({
             "[&>*+*]:shadow-[inset_0_var(--border-s)_0_var(--neutral-4)]",
           )}
         >
-          <Row name={m.session_when()}>
-            <Pill shown={startedAt ? dayWords(startedAt, now) : m.session_day_none()}>
-              <input
-                type="date"
-                aria-label={m.session_day()}
-                className={NATIVE}
-                value={day}
-                max={toDayField(new Date(now))}
-                required
-                disabled={isSaving}
-                onChange={(event) => setDay(event.target.value)}
-                onClick={(event) => showPicker(event.currentTarget)}
-              />
-            </Pill>
-            <Pill shown={startedAt ? formatClock(startedAt) : "–"}>
-              <input
-                type="time"
-                aria-label={m.session_clock()}
-                className={NATIVE}
-                value={clock}
-                required
-                disabled={isSaving}
-                aria-invalid={isAhead || undefined}
-                onChange={(event) => setClock(event.target.value)}
-                onClick={(event) => showPicker(event.currentTarget)}
-              />
-            </Pill>
-          </Row>
+          {/* A start ahead of now is said as soon as it is chosen: the form would refuse it. */}
+          <form.AppField
+            name="start"
+            validators={{
+              onChange: ({ value }) =>
+                fromFields(value.day, value.clock) ? startFault(value, now) : undefined,
+            }}
+          >
+            {(field) => (
+              <field.Control<Start> label={m.session_when()} layout="inline" className={ROW}>
+                {(control) => {
+                  const startedAt = fromFields(control.value.day, control.value.clock);
+                  const native = {
+                    className: NATIVE,
+                    required: true,
+                    disabled: isSaving,
+                    "aria-describedby": control["aria-describedby"],
+                    "aria-invalid": control["aria-invalid"],
+                    onBlur: control.onBlur,
+                    onClick: (event: { currentTarget: HTMLInputElement }) =>
+                      showPicker(event.currentTarget),
+                  };
+                  return (
+                    <Answer>
+                      <Pill shown={startedAt ? dayWords(startedAt, now) : m.session_day_none()}>
+                        <input
+                          {...native}
+                          type="date"
+                          name={`${control.name}.day`}
+                          aria-label={m.session_day()}
+                          value={control.value.day}
+                          max={toDayField(new Date(now))}
+                          onChange={(event) =>
+                            control.onChange({ ...control.value, day: event.target.value })
+                          }
+                        />
+                      </Pill>
+                      <Pill shown={startedAt ? formatClock(startedAt) : "–"}>
+                        <input
+                          {...native}
+                          type="time"
+                          name={`${control.name}.clock`}
+                          aria-label={m.session_clock()}
+                          value={control.value.clock}
+                          onChange={(event) =>
+                            control.onChange({ ...control.value, clock: event.target.value })
+                          }
+                        />
+                      </Pill>
+                    </Answer>
+                  );
+                }}
+              </field.Control>
+            )}
+          </form.AppField>
           {/* The choices take the line's whole width, under its name. */}
-          <div className="grid gap-xs px-xs py-s">
-            <span className="px-xxs">{m.session_duration()}</span>
-            <DurationInput
-              label={m.session_duration()}
-              value={minutes}
-              onChange={setMinutes}
-              wide={wide}
-              disabled={isSaving}
-            />
-          </div>
-          <Row name={m.surf_size_title()}>
-            <SurfSizeInput
-              waves={waveSize}
-              sets={setSize}
-              onChange={(waves, sets) => {
-                setWaveSize(waves);
-                setSetSize(sets);
-              }}
-              wide={wide}
-              disabled={isSaving}
-            />
-          </Row>
+          <form.AppField name="minutes">
+            {(field) => (
+              <field.Control<number> className="px-xs py-s">
+                {(control) => (
+                  <div className="grid gap-xs">
+                    <span className="px-xxs">{m.session_duration()}</span>
+                    <DurationInput
+                      label={m.session_duration()}
+                      value={control.value}
+                      onChange={control.onChange}
+                      wide={wide}
+                      disabled={isSaving}
+                    />
+                  </div>
+                )}
+              </field.Control>
+            )}
+          </form.AppField>
+          <form.AppField name="sizes">
+            {(field) => (
+              <field.Control<Sizes> label={m.surf_size_title()} layout="inline" className={ROW}>
+                {(control) => (
+                  <Answer>
+                    <SurfSizeInput
+                      waves={control.value.waves}
+                      sets={control.value.sets}
+                      onChange={(waves, sets) => control.onChange({ waves, sets })}
+                      wide={wide}
+                      disabled={isSaving}
+                    />
+                  </Answer>
+                )}
+              </field.Control>
+            )}
+          </form.AppField>
           {showsMedia && (
-            <SessionMediaField
-              entries={entries}
-              kept={keptItems}
-              uploads={media.uploads}
-              disabled={isSaving || isKeptAsked}
-              paused={media.status?.paused === true || media.status?.offered === false}
-              onAdd={addMedia}
-              onRemove={removeMedia}
-              onRetry={media.onRetry}
-              onOpen={onOpenMedia}
+            <form.AppField name="media">
+              {(field) => (
+                <field.Control<MediaEntry[] | null>>
+                  {(control) => {
+                    const entries = entriesOf(control.value);
+                    return (
+                      <SessionMediaField
+                        entries={entries}
+                        kept={keptItems}
+                        uploads={media.uploads}
+                        disabled={isSaving || isKeptAsked}
+                        paused={media.status?.paused === true || media.status?.offered === false}
+                        onAdd={(files) => {
+                          const room = SESSION_MOST_MEDIA - entries.length;
+                          if (files.length > room) {
+                            toast.error(m.media_too_many({ count: SESSION_MOST_MEDIA }));
+                          }
+                          const keys = media.onStart(files.slice(0, Math.max(0, room)));
+                          sentHere.current.push(...keys);
+                          control.onChange([...entries, ...keys.map((key) => ({ upload: key }))]);
+                        }}
+                        onRemove={(index) => {
+                          const entry = entries[index];
+                          if (!entry) return;
+                          // A file being sent belongs to no session yet: it goes from the API
+                          // too. One the session keeps goes once the form is saved without it.
+                          if ("upload" in entry) media.onDrop(entry.upload, true);
+                          control.onChange(entries.filter((_, at) => at !== index));
+                        }}
+                        onRetry={media.onRetry}
+                        onOpen={onOpenMedia}
+                      />
+                    );
+                  }}
+                </field.Control>
+              )}
+            </form.AppField>
+          )}
+          <form.AppField name="rating">
+            {(field) => (
+              <field.Control<number | null>
+                // The line says the rating in a word once it is given.
+                label={
+                  field.state.value === null ? (
+                    m.session_rating()
+                  ) : (
+                    <span aria-hidden>{ratingWord(field.state.value)}</span>
+                  )
+                }
+                layout="inline"
+                className={ROW}
+              >
+                {(control) => (
+                  <Answer>
+                    <RatingInput
+                      label={m.session_rating()}
+                      value={control.value}
+                      onChange={control.onChange}
+                      disabled={isSaving}
+                      // The last star ends where the pills of the lines above do.
+                      className="-mr-0.75"
+                    />
+                  </Answer>
+                )}
+              </field.Control>
+            )}
+          </form.AppField>
+        </div>
+
+        <form.AppField name="note">
+          {(field) => (
+            <field.Textarea
+              aria-label={m.session_note()}
+              rows={2}
+              maxLength={NOTE_MOST}
+              placeholder={m.session_note_placeholder()}
+              disabled={isSaving}
             />
           )}
-          {/* The line says the rating in a word once it is given. */}
-          <Row
-            name={
-              rating === null ? m.session_rating() : <span aria-hidden>{ratingWord(rating)}</span>
-            }
-          >
-            <RatingInput
-              label={m.session_rating()}
-              value={rating}
-              onChange={setRating}
-              disabled={isSaving}
-              // The last star ends where the pills of the lines above do.
-              className="-mr-0.75"
-            />
-          </Row>
-        </div>
-        {isAhead && <p className="px-s text-s text-neutral-7">{m.session_when_ahead()}</p>}
-      </div>
+        </form.AppField>
 
-      <Textarea
-        aria-label={m.session_note()}
-        value={note}
-        rows={2}
-        maxLength={NOTE_MOST}
-        placeholder={m.session_note_placeholder()}
-        disabled={isSaving}
-        onChange={(event) => setNote(event.target.value)}
-      />
-
-      <Button type="submit" disabled={!startedAt || isAhead || isAsking} isPending={isSaving}>
-        {session ? m.session_save_changes() : m.session_save()}
-      </Button>
-    </form>
+        {/* The form waits a moment for a file the API has not yet given an id. */}
+        <form.Subscribe selector={(state) => isAskingOf(entriesOf(state.values.media))}>
+          {(isAsking) => (
+            <form.SubmitButton disabled={isAsking} isPending={isSaving}>
+              {session ? m.session_save_changes() : m.session_save()}
+            </form.SubmitButton>
+          )}
+        </form.Subscribe>
+      </form.Form>
+    </form.AppForm>
   );
 }
