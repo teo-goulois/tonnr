@@ -357,13 +357,8 @@ function WordsEditor({
       <form.Form className="grid gap-s">
         <form.AppField name="words">
           {(choice) => (
-            // The line's name stands over the editor already: the group says it to a screen
-            // reader alone.
-            <choice.Choice
-              multiple
-              label={<span className="sr-only">{field.label()}</span>}
-              disabled={guiding.isSending}
-            >
+            // The line's name stands over the editor already: the group is named by it alone.
+            <choice.Choice multiple aria-label={field.label()} disabled={guiding.isSending}>
               {field.words.map(({ word, reading }) => (
                 <ToggleGroupItem key={word} value={word}>
                   {reading()}

@@ -14,6 +14,8 @@ import { FormFieldMessage } from "./form-field-message";
 
 export type FormChoiceProps = VariantProps<typeof toggleVariants> & {
   label?: ReactNode;
+  // The group's name where no label stands over it, as when the line it edits names it already.
+  "aria-label"?: string;
   description?: ReactNode;
   // Several toggles pressed at once: the field holds them all. Otherwise it holds the one pressed,
   // or none.
@@ -25,6 +27,7 @@ export type FormChoiceProps = VariantProps<typeof toggleVariants> & {
 };
 
 export function FormChoice({
+  "aria-label": ariaLabel,
   description,
   label,
   multiple = false,
@@ -66,6 +69,7 @@ export function FormChoice({
           size={size}
           disabled={disabled}
           className={className}
+          aria-label={labelId ? undefined : ariaLabel}
           aria-labelledby={labelId}
           aria-describedby={describedBy || undefined}
           aria-invalid={isInvalid || undefined}
