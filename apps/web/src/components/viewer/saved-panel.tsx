@@ -1,5 +1,4 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
   LockIcon,
@@ -12,7 +11,9 @@ import {
   WaveIcon,
   XIcon,
 } from "@repo/ui/icon";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { useState } from "react";
+import { z } from "zod";
 
 import { formatSeconds, freshnessOf } from "@/lib/format";
 import type { Recent } from "@/lib/recents";
@@ -21,7 +22,7 @@ import { m } from "@/paraglide/messages.js";
 
 import { FreshnessDot, HeightChip } from "./map-markers";
 import { ListChips } from "../lists/list-chips";
-import { listName, sizeOf } from "./station-actions";
+import { listName, listNameSchema, sizeOf } from "./station-actions";
 import {
   type JoinedList,
   type Loadable,
@@ -313,7 +314,6 @@ export function SavedPanel({
   recents,
   onClearRecents,
 }: SavedPanelProps) {
-  const [newName, setNewName] = useState("");
   // Deleting a list takes two presses: the trash, then the button that takes its place.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
@@ -540,27 +540,39 @@ export function SavedPanel({
         </section>
       )}
 
-      <form
-        className="flex items-center gap-xs"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const name = newName.trim();
-          if (!name) return;
-          onCreateList(name);
-          setNewName("");
-        }}
-      >
-        <Input
-          aria-label={m.saved_new_list()}
-          placeholder={m.saved_new_list()}
-          maxLength={60}
-          value={newName}
-          onChange={(event) => setNewName(event.target.value)}
-        />
-        <Button type="submit" variant="secondary" size="icon" aria-label={m.saved_create_list()}>
-          <PlusIcon data-slot="icon" aria-hidden />
-        </Button>
-      </form>
+      <NewListForm onCreate={onCreateList} />
     </div>
+  );
+}
+
+/** A list made by its name alone, at the foot of the lists: the field is emptied once it is made. */
+function NewListForm({ onCreate }: { onCreate: (name: string) => void }) {
+  const form = useAppForm({
+    defaultValues: { name: "" },
+    validators: { onSubmit: z.object({ name: listNameSchema() }) },
+    onSubmit: ({ value, formApi }) => {
+      onCreate(value.name.trim());
+      formApi.reset();
+    },
+  });
+  return (
+    <form.AppForm>
+      <form.Form className="flex items-start gap-xs">
+        <div className="min-w-0 flex-1">
+          <form.AppField name="name">
+            {(field) => (
+              <field.Input
+                aria-label={m.saved_new_list()}
+                placeholder={m.saved_new_list()}
+                maxLength={60}
+              />
+            )}
+          </form.AppField>
+        </div>
+        <form.SubmitButton variant="secondary" size="icon" aria-label={m.saved_create_list()}>
+          <PlusIcon data-slot="icon" aria-hidden />
+        </form.SubmitButton>
+      </form.Form>
+    </form.AppForm>
   );
 }

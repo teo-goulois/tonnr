@@ -11,7 +11,6 @@ import {
   DrawerPanel,
   DrawerTitle,
 } from "@repo/ui/components/ui/drawer";
-import { Input } from "@repo/ui/components/ui/input";
 import {
   Menu,
   MenuCheckboxItem,
@@ -22,8 +21,10 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@repo/ui/components/ui/menu";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { ArrowLeftIcon, BookmarkFillIcon, BookmarkIcon, PlusIcon } from "@repo/ui/icon";
 import { useState } from "react";
+import { z } from "zod";
 
 import { type Freshness, formatAgo } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
@@ -258,6 +259,10 @@ export function StationActions({
   );
 }
 
+/** What a list's name must be, said in the reader's language: the saved panel says it too. */
+export const listNameSchema = () =>
+  z.string().trim().min(1, m.saved_list_name_missing()).max(NAME_MOST);
+
 /** The name of a new list, which is made with the item in it. */
 function ListNameForm({
   onCreate,
@@ -267,34 +272,28 @@ function ListNameForm({
   // A dialog has a button to cancel. A sheet goes back, or is swiped away.
   onCancel?: () => void;
 }) {
-  const [name, setName] = useState("");
+  const form = useAppForm({
+    defaultValues: { name: "" },
+    validators: { onSubmit: z.object({ name: listNameSchema() }) },
+    onSubmit: ({ value }) => onCreate(value.name.trim()),
+  });
   return (
-    <form
-      className="grid gap-l"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const named = name.trim();
-        if (named) onCreate(named);
-      }}
-    >
-      <Input
-        aria-label={m.saved_list_name()}
-        placeholder={m.saved_list_name()}
-        maxLength={NAME_MOST}
-        autoFocus
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <div className="flex justify-end gap-xs">
-        {onCancel && (
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            {m.action_cancel()}
-          </Button>
-        )}
-        <Button type="submit" disabled={!name.trim()} className={onCancel ? undefined : "w-full"}>
-          {m.saved_create_list()}
-        </Button>
-      </div>
-    </form>
+    <form.AppForm>
+      <form.Form className="grid gap-l">
+        <form.AppField name="name">
+          {(field) => <field.Input label={m.saved_list_name()} maxLength={NAME_MOST} autoFocus />}
+        </form.AppField>
+        <div className="flex justify-end gap-xs">
+          {onCancel && (
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              {m.action_cancel()}
+            </Button>
+          )}
+          <form.SubmitButton className={onCancel ? undefined : "w-full"}>
+            {m.saved_create_list()}
+          </form.SubmitButton>
+        </div>
+      </form.Form>
+    </form.AppForm>
   );
 }

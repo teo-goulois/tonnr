@@ -1127,6 +1127,7 @@
   "saved_new_list_here": "Nueva lista…",
   "saved_new_list_text": "Se crea con esto dentro.",
   "saved_list_name": "Nombre de la lista",
+  "saved_list_name_missing": "Ponle un nombre a tu lista.",
   "lists_filter": "Ver una sola lista",
   "lists_all": "Todo",
   "command_group_lists": "Listas",

@@ -1127,6 +1127,7 @@
   "saved_new_list_here": "New list…",
   "saved_new_list_text": "It is made with this in it.",
   "saved_list_name": "Name of the list",
+  "saved_list_name_missing": "Give your list a name.",
   "lists_filter": "Show one list alone",
   "lists_all": "All",
   "command_group_lists": "Lists",
