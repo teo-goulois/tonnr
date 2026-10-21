@@ -26,7 +26,6 @@ import {
   DrawerTitle,
 } from "@repo/ui/components/ui/drawer";
 import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
 import {
   Popover,
   PopoverPopup,
@@ -36,6 +35,7 @@ import {
 import { Slider } from "@repo/ui/components/ui/slider";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { CirclePlusIcon, CircleXIcon, CopyIcon, TrashIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -51,6 +51,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { z } from "zod";
 
 import { MorphText } from "@/components/shared/morph-text";
 import { formatHeight, useUnits } from "@/lib/units";
@@ -182,6 +183,12 @@ type GuideOf = {
 const Guide = createContext<GuideOf | null>(null);
 // An other value that is still to choose: the sentence says nothing of it until it is.
 const Unsaid = createContext(false);
+// The sentence asks nothing while the alert is being sent: each of its parts says so, to a screen
+// reader with the error under the sentence, and the first takes the focus.
+const Wrong = createContext<{ invalid: boolean; describedBy: string | undefined }>({
+  invalid: false,
+  describedBy: undefined,
+});
 
 /** Stops a press on what stands inside a part from opening the part. */
 const apart = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -217,6 +224,7 @@ function Slot({
 }) {
   const wide = useMediaQuery(WIDE);
   const unsaid = useContext(Unsaid);
+  const wrong = useContext(Wrong);
   const after = useContext(After);
   const guide = useContext(Guide);
   const week = useContext(Week);
@@ -280,6 +288,8 @@ function Slot({
             role="button"
             tabIndex={0}
             aria-label={name}
+            aria-invalid={wrong.invalid || undefined}
+            aria-describedby={wrong.describedBy}
             className={triggerClass}
             onClick={() => change(true)}
             onKeyDown={(event) => {
@@ -312,7 +322,15 @@ function Slot({
     <Popover open={isOpen} onOpenChange={(next) => change(next)}>
       <PopoverTrigger
         nativeButton={false}
-        render={<span ref={triggerRef} aria-label={name} className={triggerClass} />}
+        render={
+          <span
+            ref={triggerRef}
+            aria-label={name}
+            aria-invalid={wrong.invalid || undefined}
+            aria-describedby={wrong.describedBy}
+            className={triggerClass}
+          />
+        }
       >
         {/* A value still to choose stands as an empty mark, for its popover to hold to. */}
         {unsaid ? null : withAfter(shown, after)}
@@ -918,7 +936,49 @@ export function AlertEditor({
   const isDirty = !alert || Object.keys(parts).length > 0;
   // Saving and deleting take turns: neither is asked while the other is on its way.
   const isBusy = isSaving || isDeleting;
-  const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isBusy;
+
+  function save() {
+    if (isBusy) return;
+    const name = draft.name.trim();
+    const whole = { ...draft, name, criteria: sent };
+    const patch = {
+      ...parts,
+      ...(parts.name === undefined ? {} : { name }),
+      ...(parts.criteria === undefined ? {} : { criteria: sent }),
+    };
+    // A new alert is sent whole, and one that is saved by the parts that were changed.
+    const sending = alert ? patch : whole;
+    setDrafting((current) => ({ ...current, sending }));
+    void onSave(whole, patch, asksMail ? wantsMail : undefined).then((answer) =>
+      setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer))),
+    );
+  }
+
+  // The form checks the alert as it is sent: a name, and a sentence that asks something. What is
+  // written lives in the draft, whose rules packages/client keeps for the phone's editor too: the
+  // form holds the name and the conditions as the draft says them, and the name typed here goes
+  // to the draft. Decision 076.
+  const form = useAppForm({
+    defaultValues: { name: draft.name, criteria: sent },
+    validators: {
+      onSubmit: z.object({
+        name: z.string().trim().min(1, m.alert_name_needed()),
+        criteria: z.custom<AlertCriteria>(
+          (criteria) => Object.keys(asked(criteria as AlertCriteria)).length > 0,
+          m.alert_asks_nothing(),
+        ),
+      }),
+    },
+    onSubmit: save,
+  });
+  useEffect(() => {
+    if (form.getFieldValue("name") !== draft.name) {
+      form.setFieldValue("name", draft.name, { dontUpdateMeta: true });
+    }
+  }, [form, draft.name]);
+  useEffect(() => {
+    form.setFieldValue("criteria", sent, { dontUpdateMeta: true });
+  }, [form, sent]);
   // Something is written here that leaving would lose: a part that was changed, a save that
   // has not answered, or a new alert that asks something already, as a copy does before it is
   // touched. Whatever is about to leave asks `lib/unsaved`.
@@ -929,273 +989,274 @@ export function AlertEditor({
   return (
     <Week.Provider value={week}>
       {/* What is written scrolls, and the buttons stay at the bottom of the sheet. */}
-      <form
-        className="flex min-h-0 flex-1 flex-col"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!canSave) return;
-          const name = draft.name.trim();
-          const whole = { ...draft, name, criteria: sent };
-          const patch = {
-            ...parts,
-            ...(parts.name === undefined ? {} : { name }),
-            ...(parts.criteria === undefined ? {} : { criteria: sent }),
-          };
-          // A new alert is sent whole, and one that is saved by the parts that were changed.
-          const sending = alert ? patch : whole;
-          setDrafting((current) => ({ ...current, sending }));
-          void onSave(whole, patch, asksMail ? wantsMail : undefined).then((answer) =>
-            setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer))),
-          );
-        }}
-      >
-        <div className="-mx-xs -mt-xs grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain px-xs pt-xs pb-m">
-          <div className="grid gap-xs">
-            <Label htmlFor={`${id}-name`}>{m.alert_name_label()}</Label>
-            <Input
-              id={`${id}-name`}
-              value={draft.name}
-              maxLength={80}
-              onChange={(event) => set("name", event.currentTarget.value)}
-            />
-          </div>
+      <form.AppForm>
+        <form.Form className="flex min-h-0 flex-1 flex-col">
+          <div className="-mx-xs -mt-xs grid min-h-0 flex-1 content-start gap-l overflow-y-auto overscroll-contain px-xs pt-xs pb-m">
+            <form.AppField name="name" listeners={{ onChange: ({ value }) => set("name", value) }}>
+              {(field) => <field.Input label={m.alert_name_label()} maxLength={80} />}
+            </form.AppField>
 
-          {/* The alert, said. Every underlined part opens what changes it. */}
-          <div className="grid gap-s">
-            <p className="text-l text-pretty">
-              {m.alert_says_waves()} {said("waveHeightMeters", shows(1) ? "," : "", 0)}
-              {shows(1) && <> {said("wavePeakPeriodSeconds", shows(2) ? "," : "", 1)}</>}
-              {shows(2) && <> {said("waveDirectionDegrees", shows(3) ? "," : "", 2)}</>}
-              {shows(3) && (
-                <>
-                  {" "}
-                  {m.alert_says_wind()} {said("windSpeedMetersPerSecond", shows(4) ? "," : "", 3)}
-                </>
-              )}
-              {shows(4) && <> {said("windDirectionDegrees", shows(5) ? "," : "", 4)}</>}
-              {shows(5) && (
-                <>
-                  {" "}
-                  {m.alert_says_tide()} {said("tide", shows(6) ? "," : "", 5)}
-                </>
-              )}
-              {shows(6) && (
-                <>
-                  {" "}
-                  {m.alert_says_lasts()} {shortestSlot}.
-                </>
-              )}
-            </p>
-            {tooShort && shows(5) && tideLasts !== null && (
-              <div className="flex flex-wrap items-center gap-xs text-s text-neutral-8">
-                <span className="text-pretty">
-                  {m.alert_tide_short({
-                    lasts: durationWords(tideLasts),
-                    shortest: durationWords(draft.shortestMinutes),
-                  })}
-                </span>
-                {fits !== undefined && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => set("shortestMinutes", fits * 60)}
-                  >
-                    {m.alert_tide_short_fit({ hours: m.alert_hours({ count: fits }) })}
-                  </Button>
+            {/* The alert, said. Every underlined part opens what changes it. */}
+            <div className="grid gap-s">
+              {/* The sentence is the field of the conditions: what is wrong with it is said under it. */}
+              <form.AppField name="criteria">
+                {(field) => (
+                  <field.Control<AlertCriteria>>
+                    {(control) => (
+                      <Wrong.Provider
+                        value={{
+                          invalid: control.invalid,
+                          describedBy: control["aria-describedby"],
+                        }}
+                      >
+                        <p className="text-l text-pretty">
+                          {m.alert_says_waves()} {said("waveHeightMeters", shows(1) ? "," : "", 0)}
+                          {shows(1) && (
+                            <> {said("wavePeakPeriodSeconds", shows(2) ? "," : "", 1)}</>
+                          )}
+                          {shows(2) && <> {said("waveDirectionDegrees", shows(3) ? "," : "", 2)}</>}
+                          {shows(3) && (
+                            <>
+                              {" "}
+                              {m.alert_says_wind()}{" "}
+                              {said("windSpeedMetersPerSecond", shows(4) ? "," : "", 3)}
+                            </>
+                          )}
+                          {shows(4) && <> {said("windDirectionDegrees", shows(5) ? "," : "", 4)}</>}
+                          {shows(5) && (
+                            <>
+                              {" "}
+                              {m.alert_says_tide()} {said("tide", shows(6) ? "," : "", 5)}
+                            </>
+                          )}
+                          {shows(6) && (
+                            <>
+                              {" "}
+                              {m.alert_says_lasts()} {shortestSlot}.
+                            </>
+                          )}
+                        </p>
+                      </Wrong.Provider>
+                    )}
+                  </field.Control>
                 )}
+              </form.AppField>
+              {tooShort && shows(5) && tideLasts !== null && (
+                <div className="flex flex-wrap items-center gap-xs text-s text-neutral-8">
+                  <span className="text-pretty">
+                    {m.alert_tide_short({
+                      lasts: durationWords(tideLasts),
+                      shortest: durationWords(draft.shortestMinutes),
+                    })}
+                  </span>
+                  {fits !== undefined && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => set("shortestMinutes", fits * 60)}
+                    >
+                      {m.alert_tide_short_fit({ hours: m.alert_hours({ count: fits }) })}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* The swell apart from the wind sea, for whoever wants to ask about it. It opens by
+            itself on an alert that already asks something of the swell. */}
+            {revealed >= STEPS.length && (
+              <details
+                className="group grid gap-xs"
+                open={isAdvancedOpen}
+                onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
+              >
+                <summary className="focus-ring w-fit cursor-pointer rounded-(--radius-xs) text-s text-neutral-8 outline-none hover:text-neutral-10">
+                  {m.alert_advanced()}
+                </summary>
+                <p className="text-s text-pretty text-neutral-7">
+                  {m.alert_advanced_about()}
+                  {current &&
+                    current.waveHeightMeters !== null &&
+                    current.primarySwellHeightMeters != null && (
+                      <>
+                        {" "}
+                        {m.alert_advanced_now({
+                          waves: formatHeight(current.waveHeightMeters),
+                          swell: formatHeight(current.primarySwellHeightMeters),
+                        })}
+                      </>
+                    )}
+                </p>
+                <p className="text-l text-pretty">
+                  {m.alert_says_swell()} {said("primarySwellHeightMeters", ",")}{" "}
+                  {said("primarySwellDirectionDegrees", "")}.
+                </p>
+              </details>
+            )}
+
+            {/* What the sentence would tell over the week ahead. */}
+            <WeekPreview
+              state={weekState}
+              pieces={pieces}
+              asked={askedFigures}
+              now={now}
+              zone={zone}
+              nameOf={tried.length > 1 ? nameOf : undefined}
+              notes={notes}
+            />
+
+            {asksSomething && held.length > 0 && (
+              <div className="grid gap-xs">
+                <h3 className="text-s font-medium">{m.alert_held_title()}</h3>
+                {held.map(([key, hours]) => (
+                  <div key={key} className="flex items-center justify-between gap-s text-s">
+                    <span>
+                      {CRITERION_LABELS[key]()}{" "}
+                      <span className="text-neutral-7">{m.alert_held_alone({ hours })}</span>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCriteria(loosened(criteria, key))}
+                    >
+                      {m.alert_loosen()}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {neighbours.length > 0 && (
+              <div className="grid gap-xs">
+                <p id={`${id}-also`} className="text-s font-medium">
+                  {m.alert_also_on()}
+                </p>
+                <ToggleGroup
+                  multiple
+                  variant="outline"
+                  size="sm"
+                  aria-labelledby={`${id}-also`}
+                  value={draft.spotIds.filter((spotId) => spotId !== place.id)}
+                  onValueChange={(pressed) =>
+                    set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed)
+                  }
+                >
+                  {neighbours.map((one) => (
+                    <ToggleGroupItem
+                      key={one.id}
+                      value={one.id}
+                      // A spot can still be taken out of an alert that is full.
+                      disabled={isFull && !draft.spotIds.includes(one.id)}
+                    >
+                      {one.name}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                {isFull && (
+                  <p className="text-xs text-neutral-7">
+                    {m.alert_spots_most({ count: SPOTS_MOST })}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {asksMail && (
+              <div className="flex items-start justify-between gap-m">
+                <div className="grid gap-xxs">
+                  <span id={`${id}-mail`}>{m.alert_mail_ask()}</span>
+                  <span className="text-s text-neutral-7">
+                    {mailWaits ? m.alert_mail_ask_hint_unchecked() : m.alert_mail_ask_hint()}
+                  </span>
+                </div>
+                <Switch
+                  aria-labelledby={`${id}-mail`}
+                  checked={wantsMail}
+                  onCheckedChange={setWantsMail}
+                />
+              </div>
+            )}
+
+            {/* An alert that is saved may be turned off without being deleted. A new one is on. */}
+            {alert && (
+              <div className="flex items-center justify-between gap-m">
+                <span id={`${id}-enabled`}>{m.alert_enabled_label()}</span>
+                <Switch
+                  aria-labelledby={`${id}-enabled`}
+                  checked={draft.enabled}
+                  onCheckedChange={(enabled) => set("enabled", enabled)}
+                />
               </div>
             )}
           </div>
 
-          {/* The swell apart from the wind sea, for whoever wants to ask about it. It opens by
-            itself on an alert that already asks something of the swell. */}
-          {revealed >= STEPS.length && (
-            <details
-              className="group grid gap-xs"
-              open={isAdvancedOpen}
-              onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
-            >
-              <summary className="focus-ring w-fit cursor-pointer rounded-(--radius-xs) text-s text-neutral-8 outline-none hover:text-neutral-10">
-                {m.alert_advanced()}
-              </summary>
-              <p className="text-s text-pretty text-neutral-7">
-                {m.alert_advanced_about()}
-                {current &&
-                  current.waveHeightMeters !== null &&
-                  current.primarySwellHeightMeters != null && (
-                    <>
-                      {" "}
-                      {m.alert_advanced_now({
-                        waves: formatHeight(current.waveHeightMeters),
-                        swell: formatHeight(current.primarySwellHeightMeters),
-                      })}
-                    </>
-                  )}
-              </p>
-              <p className="text-l text-pretty">
-                {m.alert_says_swell()} {said("primarySwellHeightMeters", ",")}{" "}
-                {said("primarySwellDirectionDegrees", "")}.
-              </p>
-            </details>
-          )}
-
-          {/* What the sentence would tell over the week ahead. */}
-          <WeekPreview
-            state={weekState}
-            pieces={pieces}
-            asked={askedFigures}
-            now={now}
-            zone={zone}
-            nameOf={tried.length > 1 ? nameOf : undefined}
-            notes={notes}
-          />
-
-          {asksSomething && held.length > 0 && (
-            <div className="grid gap-xs">
-              <h3 className="text-s font-medium">{m.alert_held_title()}</h3>
-              {held.map(([key, hours]) => (
-                <div key={key} className="flex items-center justify-between gap-s text-s">
-                  <span>
-                    {CRITERION_LABELS[key]()}{" "}
-                    <span className="text-neutral-7">{m.alert_held_alone({ hours })}</span>
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setCriteria(loosened(criteria, key))}
-                  >
-                    {m.alert_loosen()}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {neighbours.length > 0 && (
-            <div className="grid gap-xs">
-              <p id={`${id}-also`} className="text-s font-medium">
-                {m.alert_also_on()}
-              </p>
-              <ToggleGroup
-                multiple
-                variant="outline"
-                size="sm"
-                aria-labelledby={`${id}-also`}
-                value={draft.spotIds.filter((spotId) => spotId !== place.id)}
-                onValueChange={(pressed) =>
-                  set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed)
-                }
-              >
-                {neighbours.map((one) => (
-                  <ToggleGroupItem
-                    key={one.id}
-                    value={one.id}
-                    // A spot can still be taken out of an alert that is full.
-                    disabled={isFull && !draft.spotIds.includes(one.id)}
-                  >
-                    {one.name}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              {isFull && (
-                <p className="text-xs text-neutral-7">
-                  {m.alert_spots_most({ count: SPOTS_MOST })}
-                </p>
-              )}
-            </div>
-          )}
-
-          {asksMail && (
-            <div className="flex items-start justify-between gap-m">
-              <div className="grid gap-xxs">
-                <span id={`${id}-mail`}>{m.alert_mail_ask()}</span>
-                <span className="text-s text-neutral-7">
-                  {mailWaits ? m.alert_mail_ask_hint_unchecked() : m.alert_mail_ask_hint()}
-                </span>
-              </div>
-              <Switch
-                aria-labelledby={`${id}-mail`}
-                checked={wantsMail}
-                onCheckedChange={setWantsMail}
-              />
-            </div>
-          )}
-
-          {/* An alert that is saved may be turned off without being deleted. A new one is on. */}
-          {alert && (
-            <div className="flex items-center justify-between gap-m">
-              <span id={`${id}-enabled`}>{m.alert_enabled_label()}</span>
-              <Switch
-                aria-labelledby={`${id}-enabled`}
-                checked={draft.enabled}
-                onCheckedChange={(enabled) => set("enabled", enabled)}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-xs pt-s pb-[var(--drawer-keyboard-inset,0px)]">
-          {alert && isConfirming ? (
-            <>
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setIsConfirming(false)}
-              >
-                {m.action_cancel()}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                className="flex-1"
-                aria-label={m.alert_delete({ name: alert.name })}
-                disabled={isBusy}
-                onClick={() => {
-                  setIsConfirming(false);
-                  onDelete(alert);
-                }}
-              >
-                {m.action_delete()}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button type="submit" className="flex-1" isPending={isSaving} disabled={!canSave}>
-                {m.alert_save()}
-              </Button>
-              {/* A saved alert may be copied into another, and deleted. */}
-              {alert && (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={m.alert_copy({ name: draft.name })}
-                    disabled={isBusy || !asksSomething}
-                    onClick={() => onCopy({ ...draft, criteria: sent })}
-                  >
-                    <CopyIcon data-slot="icon" aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={m.alert_delete({ name: alert.name })}
-                    isPending={isDeleting}
-                    disabled={isBusy}
-                    onClick={() => setIsConfirming(true)}
-                  >
-                    <TrashIcon data-slot="icon" aria-hidden />
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </form>
+          <div className="flex shrink-0 items-center gap-xs pt-s pb-[var(--drawer-keyboard-inset,0px)]">
+            {alert && isConfirming ? (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => setIsConfirming(false)}
+                >
+                  {m.action_cancel()}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="flex-1"
+                  aria-label={m.alert_delete({ name: alert.name })}
+                  disabled={isBusy}
+                  onClick={() => {
+                    setIsConfirming(false);
+                    onDelete(alert);
+                  }}
+                >
+                  {m.action_delete()}
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* An alert that is saved and was not changed has nothing to send. */}
+                <form.SubmitButton
+                  className="flex-1"
+                  isPending={isSaving}
+                  disabled={!isDirty || isDeleting}
+                >
+                  {m.alert_save()}
+                </form.SubmitButton>
+                {/* A saved alert may be copied into another, and deleted. */}
+                {alert && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={m.alert_copy({ name: draft.name })}
+                      disabled={isBusy || !asksSomething}
+                      onClick={() => onCopy({ ...draft, criteria: sent })}
+                    >
+                      <CopyIcon data-slot="icon" aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={m.alert_delete({ name: alert.name })}
+                      isPending={isDeleting}
+                      disabled={isBusy}
+                      onClick={() => setIsConfirming(true)}
+                    >
+                      <TrashIcon data-slot="icon" aria-hidden />
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </form.Form>
+      </form.AppForm>
     </Week.Provider>
   );
 }

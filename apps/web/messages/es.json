@@ -879,6 +879,8 @@
   "alert_create": "Crear una alerta",
   "alert_offer": "¿Quieres que te avisemos cuando funcione este spot?",
   "alert_name_label": "Nombre de la alerta",
+  "alert_name_needed": "Ponle un nombre a la alerta.",
+  "alert_asks_nothing": "Elige al menos una condición.",
   "alert_enabled_label": "Alerta activa",
   "alert_says_waves": "Avísame cuando las olas",
   "alert_says_wind": "el viento sople",
