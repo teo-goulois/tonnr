@@ -1,14 +1,12 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
-import { Input } from "@repo/ui/components/ui/input";
-import { useForm } from "@tanstack/react-form";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { CopyButton } from "@/components/shared/copy-button";
-import { Field } from "@/components/shared/field";
 import type { MadeKey } from "@/lib/api";
 import { m } from "@/paraglide/messages.js";
 import { client, refreshLists } from "@/utils/orpc";
@@ -68,7 +66,7 @@ function NewKey({ developer, onHeld, onDone }: NewKeyProps) {
   const held = make.isPending || made !== null;
   useEffect(() => onHeld(held), [held, onHeld]);
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { name: "" },
     onSubmit: async ({ value }) => {
       // The mutation says what went wrong.
@@ -105,47 +103,30 @@ function NewKey({ developer, onHeld, onDone }: NewKeyProps) {
         <DialogTitle>{m.key_new()}</DialogTitle>
         <DialogDescription>{m.key_new_body({ developer: developer.name })}</DialogDescription>
       </div>
-      <form
-        noValidate
-        className="flex flex-col gap-m"
-        onSubmit={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void form.handleSubmit();
-        }}
-      >
-        <form.Field name="name">
-          {(field) => (
-            <Field label={m.key_name()} hint={m.key_name_hint()} errors={field.state.meta.errors}>
-              {(invalid) => (
-                <Input
-                  name={field.name}
-                  autoComplete="off"
-                  autoFocus
-                  aria-invalid={invalid || undefined}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                />
-              )}
-            </Field>
-          )}
-        </form.Field>
-        <div className="flex justify-end gap-xs">
-          <form.Subscribe selector={(state) => state.isSubmitting}>
-            {(isSubmitting) => (
-              <>
+      <form.AppForm>
+        <form.Form className="flex flex-col gap-m">
+          <form.AppField name="name">
+            {(field) => (
+              <field.Input
+                label={m.key_name()}
+                description={m.key_name_hint()}
+                autoComplete="off"
+                autoFocus
+              />
+            )}
+          </form.AppField>
+          <div className="flex justify-end gap-xs">
+            <form.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
                 <Button type="button" variant="ghost" disabled={isSubmitting} onClick={onDone}>
                   {m.cancel()}
                 </Button>
-                <Button type="submit" isPending={isSubmitting}>
-                  {m.key_make()}
-                </Button>
-              </>
-            )}
-          </form.Subscribe>
-        </div>
-      </form>
+              )}
+            </form.Subscribe>
+            <form.SubmitButton>{m.key_make()}</form.SubmitButton>
+          </div>
+        </form.Form>
+      </form.AppForm>
     </>
   );
 }

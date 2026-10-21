@@ -1,13 +1,10 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
-import { Input } from "@repo/ui/components/ui/input";
-import { Textarea } from "@repo/ui/components/ui/textarea";
-import { useForm } from "@tanstack/react-form";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { Field } from "@/components/shared/field";
 import type { Developer } from "@/lib/api";
 import { m } from "@/paraglide/messages.js";
 import { client, refreshLists } from "@/utils/orpc";
@@ -56,7 +53,7 @@ function DeveloperForm({ onOpenChange, developer, onSaved }: DeveloperFormDialog
     onError: (error) => toast.error(error.message),
   });
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: {
       name: developer?.name ?? "",
       contact: developer?.contact ?? "",
@@ -85,102 +82,41 @@ function DeveloperForm({ onOpenChange, developer, onSaved }: DeveloperFormDialog
   });
 
   return (
-    <form
-      noValidate
-      className="flex flex-col gap-m"
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void form.handleSubmit();
-      }}
-    >
-      <form.Field name="name">
-        {(field) => (
-          <Field label={m.developer_name()} errors={field.state.meta.errors}>
-            {(invalid) => (
-              <Input
-                name={field.name}
-                autoComplete="off"
-                autoFocus
-                aria-invalid={invalid || undefined}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-            )}
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="contact">
-        {(field) => (
-          <Field
-            label={m.developer_contact()}
-            hint={m.developer_contact_hint()}
-            errors={field.state.meta.errors}
-          >
-            {(invalid) => (
-              <Input
-                name={field.name}
-                autoComplete="off"
-                aria-invalid={invalid || undefined}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-            )}
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="limit">
-        {(field) => (
-          <Field
-            label={m.developer_limit()}
-            hint={m.developer_limit_hint()}
-            errors={field.state.meta.errors}
-          >
-            {(invalid) => (
-              <Input
-                name={field.name}
-                inputMode="numeric"
-                autoComplete="off"
-                aria-invalid={invalid || undefined}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-            )}
-          </Field>
-        )}
-      </form.Field>
-      <form.Field name="note">
-        {(field) => (
-          <Field label={m.developer_note()} errors={field.state.meta.errors}>
-            {(invalid) => (
-              <Textarea
-                name={field.name}
-                rows={3}
-                aria-invalid={invalid || undefined}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-              />
-            )}
-          </Field>
-        )}
-      </form.Field>
-
-      <div className="flex justify-end gap-xs">
-        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-          {m.cancel()}
-        </Button>
-        <form.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
-            <Button type="submit" isPending={isSubmitting}>
-              {developer ? m.save() : m.developer_create()}
-            </Button>
+    <form.AppForm>
+      <form.Form className="flex flex-col gap-m">
+        <form.AppField name="name">
+          {(field) => <field.Input label={m.developer_name()} autoComplete="off" autoFocus />}
+        </form.AppField>
+        <form.AppField name="contact">
+          {(field) => (
+            <field.Input
+              label={m.developer_contact()}
+              description={m.developer_contact_hint()}
+              autoComplete="off"
+            />
           )}
-        </form.Subscribe>
-      </div>
-    </form>
+        </form.AppField>
+        <form.AppField name="limit">
+          {(field) => (
+            <field.Input
+              label={m.developer_limit()}
+              description={m.developer_limit_hint()}
+              inputMode="numeric"
+              autoComplete="off"
+            />
+          )}
+        </form.AppField>
+        <form.AppField name="note">
+          {(field) => <field.Textarea label={m.developer_note()} rows={3} />}
+        </form.AppField>
+
+        <div className="flex justify-end gap-xs">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            {m.cancel()}
+          </Button>
+          <form.SubmitButton>{developer ? m.save() : m.developer_create()}</form.SubmitButton>
+        </div>
+      </form.Form>
+    </form.AppForm>
   );
 }
