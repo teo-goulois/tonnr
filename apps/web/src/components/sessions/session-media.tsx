@@ -240,6 +240,9 @@ type SessionMediaFieldProps = {
   onRetry: (key: string) => void;
   // Opens a photo or a video the session keeps, in the viewer.
   onOpen: (item: MediaItem) => void;
+  // What says why the strip is wrong, given to what adds to it, which then takes the focus.
+  "aria-describedby"?: string | undefined;
+  "aria-invalid"?: true | undefined;
 };
 
 /**
@@ -257,6 +260,8 @@ export function SessionMediaField({
   onRemove,
   onRetry,
   onOpen,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
 }: SessionMediaFieldProps) {
   const full = entries.length >= most;
   return (
@@ -294,6 +299,8 @@ export function SessionMediaField({
                 accept="image/*,video/*,.heic,.heif"
                 multiple
                 aria-label={m.media_add()}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
                 className="sr-only"
                 disabled={disabled}
                 onChange={(event) => {

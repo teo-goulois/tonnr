@@ -1305,6 +1305,7 @@
   "report_rights": "En envoyant, tu confirmes les avoir prises toi-même et tu acceptes qu'elles soient montrées à tous sous ton pseudo.",
   "report_rights_link": "Conditions d'utilisation",
   "report_waiting_uploads": "Envoi des fichiers…",
+  "report_media_missing": "Ajoute une photo ou une vidéo des vagues.",
   "report_send_now": "Envoyer le report",
   "report_needs_username": "Choisis d'abord un pseudo : un report s'affiche sous ce nom.",
   "report_one_an_hour": "Un report par heure et par spot. Réessaie un peu plus tard.",
