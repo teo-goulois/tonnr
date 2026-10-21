@@ -40,7 +40,7 @@ The Worker of the web app, `apps/web/src/server.ts`, answers some addresses befo
 - The Worker answers `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` itself, beside `robots.txt`: after `movedHost`, and before `paraglideMiddleware` and the router. It answers GET and HEAD with `200`, as `application/json`, with no redirect.
 - It writes them from values of the stage, kept in `packages/infra/.env.<stage>` as `WEB_INDEXED` is:
   - `APPLE_TEAM_ID`, the team of the Apple developer account that signs the app. The file names the app by its team then its bundle: `<team>.app.tonnr`.
-  - `ANDROID_CERT_SHA256`, the fingerprints of the keys that sign the Android app, separated by commas. One is the key of Play App Signing, with which Google signs the app the store gives out. The other is Téo's upload key, which signs a build installed from his Mac.
+  - `ANDROID_CERT_SHA256`, the fingerprints of the keys that sign the Android app, separated by commas. The first are the keys of Play App Signing, with which Google signs the app the store gives out: three for an app Google signs in its hybrid way, as it does every new app. The other is Téo's upload key, which signs a build installed from his Mac.
 
   The names are chosen here. None of them is a secret: every copy of the app carries them.
 
