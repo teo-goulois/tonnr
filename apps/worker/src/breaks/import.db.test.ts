@@ -154,7 +154,8 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue's import", () => {
     expect(await records()).toEqual([]);
   });
 
-  it("adds more breaks than one statement takes", async () => {
+  // 2,500 breaks take from three to five seconds on CI's runner, beside the other packages.
+  it("adds more breaks than one statement takes", { timeout: 30_000 }, async () => {
     const many = Array.from({ length: 2500 }, (_, index) =>
       listed(`a${index}`, { details: { index } }),
     );
