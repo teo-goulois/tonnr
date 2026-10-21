@@ -9,12 +9,19 @@ import { useEffect, useRef } from "react";
 export const { fieldContext, formContext, useFieldContext, useFormContext } =
   createFormHookContexts();
 
+/**
+ * Whether the reader asked for no motion. A place with no media queries, as a test's document,
+ * is told it did: nothing there moves.
+ */
+export function prefersNoMotion() {
+  return (
+    typeof window.matchMedia !== "function" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export function shakeInvalidElement(element: HTMLElement | null) {
-  if (
-    !element ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-    typeof element.animate !== "function"
-  ) {
+  if (!element || prefersNoMotion() || typeof element.animate !== "function") {
     return;
   }
 

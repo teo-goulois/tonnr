@@ -4,13 +4,18 @@
 // TanStack Form, then focuses the first invalid control, scrolls to it only when it is out of
 // view, and shakes it again when it was already the first. Decision 076.
 //
-// Two things differ from the registry. The form does not let the browser check it, since the
-// schema does: `noValidate` is the default. And a group of toggles that is invalid gives its
-// first toggle the focus, as no control of its own takes it.
+// Three things differ from the registry. The form does not let the browser check it, since the
+// schema does: `noValidate` is the default. A group of toggles that is invalid gives its first
+// toggle the focus, as no control of its own takes it. And a document with no media queries, as
+// a test's, is taken to ask for no motion.
 
 import type { ComponentProps } from "react";
 
-import { shakeInvalidElement, useFormContext } from "../../hooks/form/form-context";
+import {
+  prefersNoMotion,
+  shakeInvalidElement,
+  useFormContext,
+} from "../../hooks/form/form-context";
 
 export type FormFormProps = Omit<ComponentProps<"form">, "onSubmit">;
 
@@ -53,7 +58,7 @@ function focusFirstInvalidControl(form: HTMLFormElement, previousInvalidControlK
 
   if (!isFullyVisible(field)) {
     field.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      behavior: prefersNoMotion() ? "auto" : "smooth",
       block: "center",
       inline: "nearest",
     });
