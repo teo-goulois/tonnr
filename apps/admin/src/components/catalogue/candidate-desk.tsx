@@ -2,15 +2,16 @@ import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Input } from "@repo/ui/components/ui/input";
-import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { fold } from "@repo/config/names";
+import { useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
-import { Field } from "@/components/shared/field";
 import { ShortcutKeys } from "@/components/shared/shortcut-keys";
 import type { CandidatePage, MapBreak } from "@/lib/api";
 import { formatCount, formatDayAndHour } from "@/lib/format";
@@ -21,11 +22,14 @@ import { client, orpc } from "@/utils/orpc";
 
 import {
   BreakFields,
-  type BreakDraft,
+  DESCRIPTION_MOST,
   type DescriptionLanguage,
-  faultsOf,
+  linesInOrder,
+  offshoreDraftOf,
+  offshoreOf,
   pointOfDraft,
   sizeDraftOf,
+  useBreakForm,
   valuesOf,
 } from "./break-fields";
 import { CatalogueMap } from "./catalogue-map";
@@ -78,6 +82,56 @@ function BreakChoice({
         </Button>
       )}
     </li>
+  );
+}
+
+/**
+ * The buttons of a decision, at the foot of the form in view: what accepts it, which sends the
+ * form, then what puts it off and what ignores it, which decide without it.
+ */
+function DecisionBar({
+  accept,
+  status,
+  isPending,
+  onDecide,
+  onIgnore,
+  bindings,
+}: {
+  accept: ReactNode;
+  status: CandidatePage["candidate"]["status"];
+  isPending: (decision: "later" | "reopen") => boolean;
+  onDecide: (decision: "later" | "reopen") => void;
+  onIgnore: () => void;
+  bindings: ReturnType<typeof useShortcuts>;
+}) {
+  return (
+    <div className="sticky bottom-0 flex flex-wrap gap-xs bg-neutral-1 py-xs">
+      {accept}
+      {status === "waiting" ? (
+        <Button
+          type="button"
+          variant="outline"
+          isPending={isPending("later")}
+          onClick={() => onDecide("later")}
+        >
+          {m.catalogue_later()}
+          <ShortcutKeys hotkey={bindings["candidate-later"]} className="max-md:hidden" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          isPending={isPending("reopen")}
+          onClick={() => onDecide("reopen")}
+        >
+          {m.catalogue_wait_again()}
+        </Button>
+      )}
+      <Button type="button" variant="ghost" onClick={onIgnore}>
+        {m.catalogue_ignore()}
+        <ShortcutKeys hotkey={bindings["candidate-ignore"]} className="max-md:hidden" />
+      </Button>
+    </div>
   );
 }
 
@@ -140,64 +194,107 @@ export function CandidateDesk({
     }),
   );
 
-  const [draft, setDraft] = useState<BreakDraft>(() => ({
-    name: candidate.proposal?.name ?? candidate.name,
-    latitude: candidate.latitude?.toFixed(5) ?? "",
-    longitude: candidate.longitude?.toFixed(5) ?? "",
-    characteristics: candidate.characteristics ?? NOTHING_SAID,
-    size: sizeDraftOf(candidate.characteristics ?? NOTHING_SAID),
-    description: "",
-    language,
-  }));
+  // The break as it would be added, which the map beside it moves, and the form that adds it. A
+  // decision is taken once its form is sent, whether by its button or by the shortcut.
+  const formRef = useRef<HTMLFormElement>(null);
+  const listed = candidate.characteristics ?? NOTHING_SAID;
+  const addForm = useBreakForm({
+    defaultValues: {
+      name: candidate.proposal?.name ?? candidate.name,
+      latitude: candidate.latitude?.toFixed(5) ?? "",
+      longitude: candidate.longitude?.toFixed(5) ?? "",
+      characteristics: listed,
+      offshore: offshoreDraftOf(listed),
+      size: sizeDraftOf(listed),
+      description: "",
+      language,
+    },
+    onSubmit: async () => {
+      // The mutation said what went wrong.
+      await decide.mutateAsync("add").catch(() => {});
+    },
+  });
+  const draft = useSelector(addForm.store, (state) => state.values);
   const point = pointOfDraft(draft);
   const side: Side = {
     name: draft.name,
     latitude: point?.latitude ?? target.data?.break.latitude ?? 0,
     longitude: point?.longitude ?? target.data?.break.longitude ?? 0,
-    characteristics: draft.characteristics,
+    characteristics: {
+      ...linesInOrder(draft.characteristics),
+      offshoreDirectionDegrees: offshoreOf(draft.offshore),
+    },
     description: null,
   };
   const [choices, setChoices] = useState<{ id: string; choices: Choices } | null>(null);
   const kept = target.data?.break;
   const chosen =
     kept && choices?.id === kept.id ? choices.choices : kept ? fillBlanks(kept, side) : null;
-  const [description, setDescription] = useState<{
-    id: string;
-    text: string;
-    language: DescriptionLanguage;
-  } | null>(null);
-  const keptDescription =
-    kept && description?.id === kept.id
-      ? description
-      : {
-          id: kept?.id ?? "",
-          text: kept?.description?.text ?? "",
-          language: kept?.description?.language ?? language,
-        };
+  // The description of the break it goes into, which the merge writes: the break's own, until the
+  // operator changes it. Another break chosen starts from its own.
+  const mergeForm = useAppForm({
+    defaultValues: {
+      text: kept?.description?.text ?? "",
+      language: kept?.description?.language ?? language,
+    },
+    onSubmit: async () => {
+      // The mutation said what went wrong.
+      await decide.mutateAsync("merge").catch(() => {});
+    },
+    validators: {
+      onSubmit: z.object({
+        text: z.string().refine(
+          (typed) => {
+            const text = typed.trim();
+            return text === "" || (text.length >= 3 && text.length <= DESCRIPTION_MOST);
+          },
+          m.catalogue_fault_description({ most: DESCRIPTION_MOST }),
+        ),
+        language: z.enum(["en", "fr"]),
+      }),
+    },
+  });
+  useEffect(() => {
+    if (kept) {
+      mergeForm.reset({
+        text: kept.description?.text ?? "",
+        language: kept.description?.language ?? language,
+      });
+    }
+  }, [kept?.id]);
 
   const [ignoring, setIgnoring] = useState(false);
-  const [note, setNote] = useState("");
+  const ignoreForm = useAppForm({
+    defaultValues: { note: "" },
+    onSubmit: async () => {
+      // The mutation said what went wrong.
+      await decide.mutateAsync("ignore").catch(() => {});
+    },
+  });
 
   const decide = useMutation({
     mutationFn: async (decision: "add" | "merge" | "later" | "ignore" | "reopen") => {
       const version = { id: candidate.id, updatedAt: candidate.updatedAt };
       if (decision === "add")
-        return client.v1.candidates.add({ ...version, values: valuesOf(draft) });
+        return client.v1.candidates.add({ ...version, values: valuesOf(addForm.state.values) });
       if (decision === "merge") {
         if (!kept || !chosen) throw new Error(m.catalogue_merge_pick());
-        const text = keptDescription.text.trim();
+        const description = mergeForm.state.values;
+        const text = description.text.trim();
         return client.v1.candidates.merge({
           ...version,
           breakId: kept.id,
           breakUpdatedAt: kept.updatedAt,
           values: {
             ...mergedValues(kept, side, chosen),
-            description: text === "" ? null : { text, language: keptDescription.language },
+            description: text === "" ? null : { text, language: description.language },
           },
         });
       }
       if (decision === "later") return client.v1.candidates.later(version);
-      if (decision === "ignore") return client.v1.candidates.ignore({ ...version, note });
+      if (decision === "ignore") {
+        return client.v1.candidates.ignore({ ...version, note: ignoreForm.state.values.note });
+      }
       return client.v1.candidates.reopen(version);
     },
     onSuccess: (next, decision) => {
@@ -210,18 +307,18 @@ export function CandidateDesk({
       }[decision];
       toast.success(said({ name: next.candidate.name }));
       setIgnoring(false);
-      setNote("");
+      ignoreForm.reset();
       onDecided(next);
     },
     onError: (error) => toast.error(error.message),
   });
 
-  const canAdd = Object.keys(faultsOf(draft)).length === 0;
   const canMerge = Boolean(kept && chosen);
+  // The shortcut sends the form in view, as its button does: what is wrong is said, and focused.
   const accept = () => {
     if (!isOpen || decide.isPending) return;
-    if (mode === "add" && canAdd) decide.mutate("add");
-    if (mode === "merge" && canMerge) decide.mutate("merge");
+    if (mode === "merge" && !canMerge) return;
+    formRef.current?.requestSubmit();
   };
   useShortcut("candidate-accept", bindings, accept);
   useShortcut("candidate-later", bindings, () => {
@@ -230,6 +327,14 @@ export function CandidateDesk({
   useShortcut("candidate-ignore", bindings, () => isOpen && setIgnoring(true));
   useShortcut("candidate-next", bindings, () => nextId && onOpen(nextId));
   useShortcut("candidate-previous", bindings, () => previousId && onOpen(previousId));
+
+  const barProps = {
+    status: candidate.status,
+    isPending: (decision: "later" | "reopen") => decide.isPending && decide.variables === decision,
+    onDecide: (decision: "later" | "reopen") => decide.mutate(decision),
+    onIgnore: () => setIgnoring(true),
+    bindings,
+  };
 
   const proposal = candidate.proposal;
   const decidedBreak = candidate.breakId;
@@ -386,12 +491,10 @@ export function CandidateDesk({
               marker={point}
               onMarkerMove={
                 isOpen
-                  ? (moved) =>
-                      setDraft({
-                        ...draft,
-                        latitude: moved.latitude.toFixed(5),
-                        longitude: moved.longitude.toFixed(5),
-                      })
+                  ? (moved) => {
+                      addForm.setFieldValue("latitude", moved.latitude.toFixed(5));
+                      addForm.setFieldValue("longitude", moved.longitude.toFixed(5));
+                    }
                   : undefined
               }
               onSelect={(id) => chooseTarget?.(id)}
@@ -506,85 +609,102 @@ export function CandidateDesk({
           </ToggleGroup>
 
           {mode === "add" ? (
-            <BreakFields
-              draft={draft}
-              onChange={setDraft}
-              descriptionHint={m.catalogue_description_own()}
-            />
-          ) : kept && chosen ? (
-            <div className="grid gap-m">
-              <MergeChoices
-                kept={kept}
-                other={side}
-                keptLabel={kept.name}
-                otherLabel={candidate.list}
-                choices={chosen}
-                onChange={(next) => setChoices({ id: kept.id, choices: next })}
-                without={["description"]}
-                confirmed={kept.confirmed}
-              />
-              <Field label={m.catalogue_description()} hint={m.catalogue_description_own()}>
-                {() => (
-                  <Textarea
-                    rows={4}
-                    lang={keptDescription.language}
-                    value={keptDescription.text}
-                    onChange={(event) =>
-                      setDescription({ ...keptDescription, text: event.target.value })
-                    }
-                  />
-                )}
-              </Field>
-              <ToggleGroup
-                size="sm"
-                variant="outline"
-                aria-label={m.catalogue_description_language()}
-                value={[keptDescription.language]}
-                onValueChange={(picked) => {
-                  const [next] = picked as DescriptionLanguage[];
-                  if (next) setDescription({ ...keptDescription, language: next });
-                }}
-              >
-                <ToggleGroupItem value="fr">{m.catalogue_language_fr()}</ToggleGroupItem>
-                <ToggleGroupItem value="en">{m.catalogue_language_en()}</ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+            <addForm.AppForm>
+              <addForm.Form ref={formRef} className="grid gap-m">
+                <BreakFields form={addForm} descriptionHint={m.catalogue_description_own()} />
+                <DecisionBar
+                  accept={
+                    <addForm.SubmitButton
+                      isPending={decide.isPending && decide.variables === "add"}
+                    >
+                      {m.catalogue_add()}
+                      <ShortcutKeys
+                        hotkey={bindings["candidate-accept"]}
+                        className="max-md:hidden"
+                      />
+                    </addForm.SubmitButton>
+                  }
+                  {...barProps}
+                />
+              </addForm.Form>
+            </addForm.AppForm>
           ) : (
-            <p className="text-neutral-7">{m.catalogue_merge_pick()}</p>
+            <mergeForm.AppForm>
+              <mergeForm.Form ref={formRef} className="grid gap-m">
+                {kept && chosen ? (
+                  <div className="grid gap-m">
+                    <MergeChoices
+                      kept={kept}
+                      other={side}
+                      keptLabel={kept.name}
+                      otherLabel={candidate.list}
+                      choices={chosen}
+                      onChange={(next) => setChoices({ id: kept.id, choices: next })}
+                      without={["description"]}
+                      confirmed={kept.confirmed}
+                    />
+                    <mergeForm.Subscribe selector={(state) => state.values.language}>
+                      {(written) => (
+                        <mergeForm.AppField name="text">
+                          {(field) => (
+                            <field.Textarea
+                              label={m.catalogue_description()}
+                              description={m.catalogue_description_own()}
+                              rows={4}
+                              lang={written}
+                            />
+                          )}
+                        </mergeForm.AppField>
+                      )}
+                    </mergeForm.Subscribe>
+                    <mergeForm.AppField name="language">
+                      {(field) => (
+                        <field.Control<DescriptionLanguage>>
+                          {(control) => (
+                            <ToggleGroup
+                              size="sm"
+                              variant="outline"
+                              aria-label={m.catalogue_description_language()}
+                              value={[control.value]}
+                              onValueChange={(picked) => {
+                                // A language is always chosen: pressing the one chosen keeps it.
+                                const [next] = picked as DescriptionLanguage[];
+                                if (next) control.onChange(next);
+                              }}
+                            >
+                              <ToggleGroupItem value="fr">
+                                {m.catalogue_language_fr()}
+                              </ToggleGroupItem>
+                              <ToggleGroupItem value="en">
+                                {m.catalogue_language_en()}
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                          )}
+                        </field.Control>
+                      )}
+                    </mergeForm.AppField>
+                  </div>
+                ) : (
+                  <p className="text-neutral-7">{m.catalogue_merge_pick()}</p>
+                )}
+                <DecisionBar
+                  accept={
+                    <mergeForm.SubmitButton
+                      isPending={decide.isPending && decide.variables === "merge"}
+                      disabled={!canMerge}
+                    >
+                      {m.catalogue_merge()}
+                      <ShortcutKeys
+                        hotkey={bindings["candidate-accept"]}
+                        className="max-md:hidden"
+                      />
+                    </mergeForm.SubmitButton>
+                  }
+                  {...barProps}
+                />
+              </mergeForm.Form>
+            </mergeForm.AppForm>
           )}
-
-          <div className="sticky bottom-0 flex flex-wrap gap-xs bg-neutral-1 py-xs">
-            <Button
-              isPending={decide.isPending && decide.variables === mode}
-              disabled={mode === "add" ? !canAdd : !canMerge}
-              onClick={accept}
-            >
-              {mode === "add" ? m.catalogue_add() : m.catalogue_merge()}
-              <ShortcutKeys hotkey={bindings["candidate-accept"]} className="max-md:hidden" />
-            </Button>
-            {candidate.status === "waiting" ? (
-              <Button
-                variant="outline"
-                isPending={decide.isPending && decide.variables === "later"}
-                onClick={() => decide.mutate("later")}
-              >
-                {m.catalogue_later()}
-                <ShortcutKeys hotkey={bindings["candidate-later"]} className="max-md:hidden" />
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                isPending={decide.isPending && decide.variables === "reopen"}
-                onClick={() => decide.mutate("reopen")}
-              >
-                {m.catalogue_wait_again()}
-              </Button>
-            )}
-            <Button variant="ghost" onClick={() => setIgnoring(true)}>
-              {m.catalogue_ignore()}
-              <ShortcutKeys hotkey={bindings["candidate-ignore"]} className="max-md:hidden" />
-            </Button>
-          </div>
         </section>
       ) : (
         <section className="grid gap-xs">
@@ -617,22 +737,23 @@ export function CandidateDesk({
       <Dialog open={ignoring} onOpenChange={setIgnoring}>
         <DialogPopup className="w-full max-w-md gap-l p-l">
           <DialogTitle>{m.catalogue_ignore_title({ name: candidate.name })}</DialogTitle>
-          <Field label={m.catalogue_ignore_note()}>
-            {() => (
-              <Textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} />
-            )}
-          </Field>
-          <div className="flex justify-end gap-xs">
-            <Button variant="ghost" onClick={() => setIgnoring(false)}>
-              {m.cancel()}
-            </Button>
-            <Button
-              isPending={decide.isPending && decide.variables === "ignore"}
-              onClick={() => decide.mutate("ignore")}
-            >
-              {m.catalogue_ignore()}
-            </Button>
-          </div>
+          <ignoreForm.AppForm>
+            <ignoreForm.Form className="grid gap-l">
+              <ignoreForm.AppField name="note">
+                {(field) => <field.Textarea label={m.catalogue_ignore_note()} rows={3} />}
+              </ignoreForm.AppField>
+              <div className="flex justify-end gap-xs">
+                <Button type="button" variant="ghost" onClick={() => setIgnoring(false)}>
+                  {m.cancel()}
+                </Button>
+                <ignoreForm.SubmitButton
+                  isPending={decide.isPending && decide.variables === "ignore"}
+                >
+                  {m.catalogue_ignore()}
+                </ignoreForm.SubmitButton>
+              </div>
+            </ignoreForm.Form>
+          </ignoreForm.AppForm>
         </DialogPopup>
       </Dialog>
     </div>

@@ -2,6 +2,7 @@ import { fold } from "@repo/config/names";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useSelector } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -14,10 +15,18 @@ import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { client, orpc } from "@/utils/orpc";
 
-import { type BreakDraft, draftOf, type DescriptionLanguage, pointOfDraft } from "./break-fields";
+import {
+  type BreakDraft,
+  draftOf,
+  type DescriptionLanguage,
+  pointOfDraft,
+  useBreakForm,
+  valuesOf,
+} from "./break-fields";
 import { BreakPanel } from "./break-panel";
 import { CatalogueMap } from "./catalogue-map";
 import { MergeDialog } from "./merge-dialog";
+import { NOTHING_SAID } from "./words";
 
 export const BREAK_FILTERS = ["all", "unknown", "close"] as const;
 export type BreakFilter = (typeof BREAK_FILTERS)[number];
@@ -106,14 +115,50 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
     return breaks.filter((one) => fold(one.name).includes(typed)).slice(0, FOUND_MOST);
   }, [breaks, query]);
 
-  // What the operator writes of the break in view, from the version the API gave.
+  // What the operator writes of the break in view, from the version the API gave. The form is
+  // held here, beside the map, which moves its marker.
   const page = selected.data;
   const language: DescriptionLanguage = getLocale() === "fr" ? "fr" : "en";
-  const [draft, setDraft] = useState<BreakDraft | null>(null);
+  const save = useMutation({
+    mutationFn: ({ found, draft }: { found: BreakPage["break"]; draft: BreakDraft }) =>
+      client.v1.catalogue.update({
+        id: found.id,
+        updatedAt: found.updatedAt,
+        values: valuesOf(draft),
+      }),
+    onError: (error) => toast.error(error.message),
+  });
+  const form = useBreakForm({
+    defaultValues: {
+      name: "",
+      latitude: "",
+      longitude: "",
+      characteristics: NOTHING_SAID,
+      offshore: "",
+      size: { min: "", max: "" },
+      description: "",
+      language,
+    },
+    onSubmit: async (draft) => {
+      if (!page) return;
+      // The mutation said what went wrong.
+      const next = await save.mutateAsync({ found: page.break, draft }).catch(() => null);
+      if (!next) return;
+      toast.success(m.catalogue_saved({ name: next.break.name }));
+      // A save that changed nothing keeps the version: the draft is the break again all the same.
+      form.reset(draftOf(next.break, draft.language));
+      void refresh(next);
+    },
+  });
+  // The version of the break the form holds: the form starts again from each one the API gives.
   const version = page ? `${page.break.id}:${page.break.updatedAt.getTime()}` : "";
+  const [held, setHeld] = useState("");
   useEffect(() => {
-    setDraft(page ? draftOf(page.break, language) : null);
+    if (page) form.reset(draftOf(page.break, language));
+    setHeld(version);
   }, [version]);
+  const isHeld = page !== undefined && held === version;
+  const typed = useSelector(form.store, (state) => pointOfDraft(state.values));
 
   // A break opened by its address, the page's first: the map goes to it once.
   const opened = page?.break;
@@ -150,7 +195,7 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
     onError: (error) => toast.error(error.message),
   });
 
-  const marker = draft ? pointOfDraft(draft) : null;
+  const marker = isHeld ? typed : null;
 
   return (
     <div className="grid gap-m lg:h-[calc(100svh-12rem)] lg:min-h-[36rem] lg:grid-cols-[minmax(0,1fr)_28rem]">
@@ -162,13 +207,11 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
             markedIds={page?.nearby.map((near) => near.id) ?? []}
             marker={marker}
             onMarkerMove={
-              draft
-                ? (point) =>
-                    setDraft({
-                      ...draft,
-                      latitude: point.latitude.toFixed(5),
-                      longitude: point.longitude.toFixed(5),
-                    })
+              isHeld
+                ? (point) => {
+                    form.setFieldValue("latitude", point.latitude.toFixed(5));
+                    form.setFieldValue("longitude", point.longitude.toFixed(5));
+                  }
                 : undefined
             }
             onSelect={onSelect}
@@ -232,13 +275,11 @@ export function BreaksPage({ selectedId, filter, onSelect, onFilterChange }: Bre
           </div>
         </div>
 
-        {page && draft ? (
+        {page && isHeld ? (
           <BreakPanel
             key={page.break.id}
             page={page}
-            draft={draft}
-            onDraftChange={setDraft}
-            onSaved={(next) => void refresh(next)}
+            form={form}
             onSelect={choose}
             onMerge={setMerging}
             onDelete={() => setDeleting(true)}

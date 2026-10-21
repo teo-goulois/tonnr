@@ -1,16 +1,14 @@
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-form";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { toast } from "sonner";
 
 import type { BreakPage, BreakUses } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
-import { client } from "@/utils/orpc";
 
-import { BreakFields, type BreakDraft, draftOf, faultsOf, valuesOf } from "./break-fields";
+import { BreakFields, type BreakForm, draftOf, sameDraft } from "./break-fields";
 import { ListTexts } from "./list-texts";
 import { PlaceLinks } from "./place-links";
 
@@ -40,46 +38,22 @@ export function usesOf(uses: BreakUses) {
 
 type BreakPanelProps = {
   page: BreakPage;
-  draft: BreakDraft;
-  onDraftChange: (draft: BreakDraft) => void;
-  // The break as it is once saved.
-  onSaved: (page: BreakPage) => void;
+  // The form of the break, which the page holds, since the map beside it moves its marker. It
+  // saves the break when it is sent.
+  form: BreakForm;
   onSelect: (id: string) => void;
   onMerge: (otherId: string) => void;
   onDelete: () => void;
 };
 
 /** One break of the catalogue: what it is, what uses it, and what its operator changes of it. */
-export function BreakPanel({
-  page,
-  draft,
-  onDraftChange,
-  onSaved,
-  onSelect,
-  onMerge,
-  onDelete,
-}: BreakPanelProps) {
+export function BreakPanel({ page, form, onSelect, onMerge, onDelete }: BreakPanelProps) {
   const found = page.break;
-  const saved = draftOf(found, draft.language);
-  const isChanged = JSON.stringify(saved) !== JSON.stringify(draft);
-  const faults = faultsOf(draft);
+  const isChanged = useSelector(
+    form.store,
+    (state) => !sameDraft(state.values, draftOf(found, state.values.language)),
+  );
   const used = usesOf(page.uses);
-
-  const save = useMutation({
-    mutationFn: () =>
-      client.v1.catalogue.update({
-        id: found.id,
-        updatedAt: found.updatedAt,
-        values: valuesOf(draft),
-      }),
-    onSuccess: (next) => {
-      toast.success(m.catalogue_saved({ name: next.break.name }));
-      // A save that changed nothing keeps the version: the draft is the break again all the same.
-      onDraftChange(draftOf(next.break, draft.language));
-      onSaved(next);
-    },
-    onError: (error) => toast.error(error.message),
-  });
 
   return (
     <div className="grid gap-l">
@@ -100,32 +74,22 @@ export function BreakPanel({
         </p>
       </div>
 
-      <form
-        className="grid gap-m"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (Object.keys(faults).length === 0 && isChanged) save.mutate();
-        }}
-      >
-        <BreakFields draft={draft} onChange={onDraftChange} confirmed={found.confirmed} />
-        <div className="sticky bottom-0 flex flex-wrap gap-xs bg-neutral-1 py-xs">
-          <Button
-            type="submit"
-            isPending={save.isPending}
-            disabled={!isChanged || Object.keys(faults).length > 0}
-          >
-            {m.catalogue_save()}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!isChanged}
-            onClick={() => onDraftChange(saved)}
-          >
-            {m.catalogue_reset()}
-          </Button>
-        </div>
-      </form>
+      <form.AppForm>
+        <form.Form className="grid gap-m">
+          <BreakFields form={form} confirmed={found.confirmed} />
+          <div className="sticky bottom-0 flex flex-wrap gap-xs bg-neutral-1 py-xs">
+            <form.SubmitButton disabled={!isChanged}>{m.catalogue_save()}</form.SubmitButton>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!isChanged}
+              onClick={() => form.reset(draftOf(found, form.state.values.language))}
+            >
+              {m.catalogue_reset()}
+            </Button>
+          </div>
+        </form.Form>
+      </form.AppForm>
 
       <Part title={m.catalogue_nearby()}>
         {page.nearby.length > 0 ? (
