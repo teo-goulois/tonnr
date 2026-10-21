@@ -224,6 +224,8 @@
   "landing_idea_text": "Uma funcionalidade, uma melhoria, uma boia que falta. Chega-me por email, e respondo-te para o teu endereço.",
   "landing_idea_name": "Nome",
   "landing_idea_email": "Email",
+  "landing_idea_name_missing": "Diz-me o teu nome.",
+  "landing_idea_text_missing": "Escreve umas palavras primeiro.",
   "landing_idea_idea": "A tua ideia",
   "landing_idea_placeholder": "O que gostavas que o {name} fizesse?",
   "landing_idea_send": "Enviar",

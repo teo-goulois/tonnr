@@ -8,32 +8,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@repo/ui/components/ui/dialog";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
-import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { SendIcon, XIcon } from "@repo/ui/icon";
-import { type FormEvent, type ReactNode, type Ref, useRef, useState } from "react";
+import { type Ref, useRef, useState } from "react";
+import { z } from "zod";
 
 import { m } from "@/paraglide/messages.js";
 import { getLocale } from "@/paraglide/runtime.js";
 import { client } from "@/utils/orpc";
 
-// Where a message stands while it is written: being written, on its way, or kept back for the
-// reason the API gave, or for none when the API did not answer.
-type State =
-  | { at: "writing" }
-  | { at: "sending" }
-  | { at: "refused"; why: "off" | "full" | "failed" | "unanswered" };
+// Why a message was kept back: for the reason the API gave, or for none when it did not answer.
+type Refusal = "off" | "full" | "failed" | "unanswered";
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Label className="grid gap-xxs">
-      {label}
-      {children}
-    </Label>
-  );
-}
+// A message as the API takes it.
+const NAME_MOST = 60;
+const EMAIL_MOST = 254;
+const TEXT_MOST = 4000;
 
 /** What a message is about, chosen above it: its words, and how the text then starts. */
 export type Topic = { id: string; label: string; start: string };
@@ -49,7 +40,8 @@ export type MessageWords = {
 
 /**
  * The form that sends whoever makes the product an idea, or a message: a first name, an address
- * and the text, by mail, to be answered at the address given. Decision 026.
+ * and the text, by mail, to be answered at the address given. Decision 026, made with the form
+ * kit of decision 076: what is missing or wrong is said under its field once the form is sent.
  */
 export function MessageForm({
   about,
@@ -70,99 +62,127 @@ export function MessageForm({
   topic?: string;
   onSent: (name: string) => void;
 }) {
-  const [state, setState] = useState<State>({ at: "writing" });
+  const [refusal, setRefusal] = useState<Refusal>();
   const [topic, setTopic] = useState(firstTopic ?? topics?.[0]?.id);
   const text = useRef<HTMLTextAreaElement>(null);
   const startOf = (id: string | undefined) => topics?.find((each) => each.id === id)?.start ?? "";
   // The text the form opens with, kept as it was: a topic chosen later writes the text itself.
-  const [opening] = useState(() => start ?? startOf(topic));
+  const [opening] = useState(() => ({ name: "", email: "", text: start ?? startOf(topic) }));
+
+  const form = useAppForm({
+    defaultValues: opening,
+    validators: {
+      onSubmit: z.object({
+        name: z.string().trim().min(1, m.landing_idea_name_missing()).max(NAME_MOST),
+        email: z.string().trim().pipe(z.email(m.auth_email_invalid())),
+        text: z.string().trim().min(1, m.landing_idea_text_missing()).max(TEXT_MOST),
+      }),
+    },
+    onSubmit: async ({ value }) => {
+      setRefusal(undefined);
+      const name = value.name.trim();
+      try {
+        const answer = await client.v1.ideas.send({
+          name,
+          email: value.email.trim(),
+          idea: value.text.trim(),
+          locale: getLocale(),
+          about,
+        });
+        if (answer.sent) onSent(name);
+        else setRefusal(answer.why);
+      } catch {
+        setRefusal("unanswered");
+      }
+    },
+  });
 
   // A topic chosen starts the text its way, unless the reader has written something of their own.
   function choose(id: string) {
     setTopic(id);
-    const area = text.current;
-    if (!area) return;
-    const written = area.value.trim();
+    const written = form.getFieldValue("text").trim();
     if (written !== "" && !topics?.some((each) => each.start.trim() === written)) return;
-    area.value = startOf(id);
-    area.focus();
-    area.setSelectionRange(area.value.length, area.value.length);
-  }
-
-  async function send(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const read = (name: string) => String(form.get(name) ?? "").trim();
-    const name = read("name");
-    setState({ at: "sending" });
-    try {
-      const answer = await client.v1.ideas.send({
-        name,
-        email: read("email"),
-        idea: read("text"),
-        locale: getLocale(),
-        about,
-      });
-      if (answer.sent) {
-        setState({ at: "writing" });
-        onSent(name);
-      } else setState({ at: "refused", why: answer.why });
-    } catch {
-      setState({ at: "refused", why: "unanswered" });
-    }
+    const next = startOf(id);
+    form.setFieldValue("text", next);
+    // The text is written once the form draws it again: the caret then goes to its end.
+    requestAnimationFrame(() => {
+      const area = text.current;
+      if (!area) return;
+      area.focus();
+      area.setSelectionRange(next.length, next.length);
+    });
   }
 
   return (
-    <form className="grid gap-m" onSubmit={send}>
-      <div className="grid gap-m sm:grid-cols-2">
-        <Field label={m.landing_idea_name()}>
-          <Input ref={first} name="name" required maxLength={60} autoComplete="given-name" />
-        </Field>
-        <Field label={m.landing_idea_email()}>
-          <Input name="email" type="email" required maxLength={254} autoComplete="email" />
-        </Field>
-      </div>
-      {topics && (
-        <ToggleGroup
-          variant="outline"
-          size="sm"
-          aria-label={m.contact_topic()}
-          value={topic ? [topic] : []}
-          onValueChange={([pressed]) => {
-            if (pressed) choose(pressed);
-          }}
-        >
-          {topics.map((each) => (
-            <ToggleGroupItem key={each.id} value={each.id}>
-              {each.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      )}
-      <Field label={words.text}>
-        <Textarea
-          ref={text}
-          name="text"
-          required
-          maxLength={4000}
-          rows={5}
-          placeholder={words.placeholder}
-          defaultValue={opening}
-        />
-      </Field>
-      {state.at === "refused" && (
-        <p role="alert" className="text-s text-error">
-          {state.why === "full" ? words.full : words.failed}{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-4">
-            {CONTACT_EMAIL}
-          </a>
-        </p>
-      )}
-      <Button type="submit" className="justify-self-end" isPending={state.at === "sending"}>
-        <SendIcon aria-hidden />
-        {m.landing_idea_send()}
-      </Button>
-    </form>
+    <form.AppForm>
+      <form.Form className="grid gap-m">
+        <div className="grid gap-m sm:grid-cols-2">
+          <form.AppField name="name">
+            {(field) => (
+              <field.Input
+                ref={first}
+                label={m.landing_idea_name()}
+                required
+                maxLength={NAME_MOST}
+                autoComplete="given-name"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="email">
+            {(field) => (
+              <field.Input
+                label={m.landing_idea_email()}
+                type="email"
+                required
+                maxLength={EMAIL_MOST}
+                autoComplete="email"
+              />
+            )}
+          </form.AppField>
+        </div>
+        {topics && (
+          <ToggleGroup
+            variant="outline"
+            size="sm"
+            aria-label={m.contact_topic()}
+            value={topic ? [topic] : []}
+            onValueChange={([pressed]) => {
+              if (pressed) choose(pressed);
+            }}
+          >
+            {topics.map((each) => (
+              <ToggleGroupItem key={each.id} value={each.id}>
+                {each.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        )}
+        <form.AppField name="text">
+          {(field) => (
+            <field.Textarea
+              ref={text}
+              label={words.text}
+              required
+              maxLength={TEXT_MOST}
+              rows={5}
+              placeholder={words.placeholder}
+            />
+          )}
+        </form.AppField>
+        {refusal && (
+          <p role="alert" className="text-s text-error">
+            {refusal === "full" ? words.full : words.failed}{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-4">
+              {CONTACT_EMAIL}
+            </a>
+          </p>
+        )}
+        <form.SubmitButton className="justify-self-end">
+          <SendIcon aria-hidden />
+          {m.landing_idea_send()}
+        </form.SubmitButton>
+      </form.Form>
+    </form.AppForm>
   );
 }
 

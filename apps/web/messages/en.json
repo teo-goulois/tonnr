@@ -224,6 +224,8 @@
   "landing_idea_text": "A feature, an improvement, a buoy that's missing. It reaches me by email, and I'll reply to the address you give.",
   "landing_idea_name": "First name",
   "landing_idea_email": "Email",
+  "landing_idea_name_missing": "Tell me your first name.",
+  "landing_idea_text_missing": "Write a few words first.",
   "landing_idea_idea": "Your idea",
   "landing_idea_placeholder": "What would you like {name} to do?",
   "landing_idea_send": "Send",
