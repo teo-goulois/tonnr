@@ -77,6 +77,7 @@ import {
   arcWords,
   asked,
   asksOfTide,
+  conditionsKey,
   NOTHING_DRAFTED,
   afterAnswer,
   afterRead,
@@ -976,8 +977,12 @@ export function AlertEditor({
       form.setFieldValue("name", draft.name, { dontUpdateMeta: true });
     }
   }, [form, draft.name]);
+  // Only conditions that say something else change the field: a draft drawn again says the same,
+  // and what the form said of it stays.
   useEffect(() => {
-    form.setFieldValue("criteria", sent, { dontUpdateMeta: true });
+    if (conditionsKey(form.getFieldValue("criteria")) !== conditionsKey(sent)) {
+      form.setFieldValue("criteria", sent, { dontUpdateMeta: true });
+    }
   }, [form, sent]);
   // Something is written here that leaving would lose: a part that was changed, a save that
   // has not answered, or a new alert that asks something already, as a copy does before it is
