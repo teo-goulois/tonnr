@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@repo/ui/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import {
   BellOnFillDuoIcon,
   BookBookmarkFillDuoIcon,
@@ -96,20 +97,34 @@ function answersOf(profile: SurferProfile | null | undefined): ProfileAnswers {
 const pressable =
   "transition-[background-color,translate] duration-(--motion-duration) ease-theme hover:bg-neutral-3-transparent active:translate-y-(--motion-press-distance)";
 
+/**
+ * What names a control of the questions and says more of it, by the ids of what does, where they
+ * stand beside it: in a form, its field. Left out, the control names itself.
+ */
+type Named = { labelledBy?: string | undefined; describedBy?: string | undefined };
+
 /** One choice among a few, each a line that says its name and, under it, what it means. */
 function Choices<Value extends string>({
   label,
   options,
   value,
   onPick,
-}: {
+  labelledBy,
+  describedBy,
+}: Named & {
   label: string;
   options: { value: Value; name: string; hint?: string }[];
   value: Value | null;
   onPick: (value: Value) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="grid gap-xs">
+    <div
+      role="group"
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      className="grid gap-xs"
+    >
       {options.map((option) => {
         const isChosen = option.value === value;
         return (
@@ -135,9 +150,14 @@ function Choices<Value extends string>({
   );
 }
 
-function LevelChoice({ value, onPick }: { value: Level | null; onPick: (level: Level) => void }) {
+function LevelChoice({
+  value,
+  onPick,
+  ...named
+}: Named & { value: Level | null; onPick: (level: Level) => void }) {
   return (
     <Choices
+      {...named}
       label={m.profile_level_title()}
       options={(Object.keys(LEVELS) as Level[]).map((level) => ({
         value: level,
@@ -153,12 +173,14 @@ function LevelChoice({ value, onPick }: { value: Level | null; onPick: (level: L
 function ReadingChoice({
   value,
   onPick,
-}: {
+  ...named
+}: Named & {
   value: Reading | null;
   onPick: (reading: Reading) => void;
 }) {
   return (
     <Choices
+      {...named}
       label={m.profile_reading_title()}
       options={(Object.keys(READINGS) as Reading[]).map((reading) => ({
         value: reading,
@@ -185,13 +207,18 @@ function BoardChoice({
       value={value ?? []}
       onValueChange={(pressed) => onChange(pressed.length > 0 ? (pressed as Board[]) : null)}
     >
-      {(Object.keys(BOARDS) as AskedBoard[]).map((board) => (
-        <ToggleGroupItem key={board} value={board}>
-          {BOARDS[board]()}
-        </ToggleGroupItem>
-      ))}
+      {boardToggles()}
     </ToggleGroup>
   );
+}
+
+/** A toggle for each board a surfer is asked about. */
+function boardToggles() {
+  return (Object.keys(BOARDS) as AskedBoard[]).map((board) => (
+    <ToggleGroupItem key={board} value={board}>
+      {BOARDS[board]()}
+    </ToggleGroupItem>
+  ));
 }
 
 /**
@@ -203,7 +230,9 @@ export function WaveRange({
   smallest,
   biggest,
   onChange,
-}: {
+  labelledBy,
+  describedBy,
+}: Named & {
   smallest: SurfSize | null;
   biggest: SurfSize | null;
   onChange: (smallest: SurfSize | null, biggest: SurfSize | null) => void;
@@ -224,7 +253,13 @@ export function WaveRange({
       <p aria-live="polite" className="text-s text-neutral-7">
         {isHalf ? m.profile_waves_second() : m.profile_waves_first()}
       </p>
-      <div role="group" aria-label={m.profile_waves_title()} className="grid grid-cols-3 gap-xs">
+      <div
+        role="group"
+        aria-label={labelledBy ? undefined : m.profile_waves_title()}
+        aria-labelledby={labelledBy}
+        aria-describedby={describedBy}
+        className="grid grid-cols-3 gap-xs"
+      >
         {SIZES.map((size) => {
           const rank = sizeRank(size);
           const isEnd = size === smallest || size === biggest;
@@ -274,70 +309,121 @@ export function WaveRange({
   );
 }
 
-function Question({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="grid gap-s">
-      <div className="grid gap-xxs">
-        <h3 className="font-medium">{title}</h3>
-        {hint && <p className="text-s text-neutral-7">{hint}</p>}
-      </div>
-      {children}
-    </section>
-  );
+/** The waves a surfer surfs, from the smallest to the biggest, as the form holds them. */
+type Waves = { smallest: SurfSize | null; biggest: SurfSize | null };
+
+/** Every answer, as the form holds it: the boards as the toggles hold them, none for no answer. */
+type ProfileValues = {
+  level: Level | null;
+  waves: Waves;
+  reading: Reading | null;
+  boards: string[];
+};
+
+function valuesOf(answers: ProfileAnswers): ProfileValues {
+  return {
+    level: answers.level,
+    waves: { smallest: answers.smallestWave, biggest: answers.biggestWave },
+    reading: answers.reading,
+    boards: answers.boards ?? [],
+  };
 }
+
+// A question's title, its control and what it says more, as each field's adapter lays them out.
+const QUESTION = "grid min-w-0 gap-s";
 
 /**
  * Every question on one page, one step into the account's panel: what the account said, to
- * change. Saving replaces every answer at once.
+ * change. Saving replaces every answer at once. Decision 076 says how the form is made: nothing
+ * here can be wrong, so the form only binds each control to its answer.
  */
 export function ProfileForm({ profiling, onSaved }: { profiling: Profiling; onSaved: () => void }) {
-  const [answers, setAnswers] = useState<ProfileAnswers>(() => answersOf(profiling.profile));
-  const change = (part: Partial<ProfileAnswers>) =>
-    setAnswers((current) => ({ ...current, ...part }));
+  // What the form opens with: the answers as they were when it opened.
+  const [opening] = useState(() => valuesOf(answersOf(profiling.profile)));
+  const form = useAppForm({
+    defaultValues: opening,
+    onSubmit: async ({ value }) => {
+      const kept = await profiling.onSave({
+        level: value.level,
+        smallestWave: value.waves.smallest,
+        biggestWave: value.waves.biggest,
+        reading: value.reading,
+        boards: value.boards.length > 0 ? (value.boards as Board[]) : null,
+      });
+      if (!kept) return;
+      toast.success(m.profile_saved());
+      onSaved();
+    },
+  });
 
   return (
-    <form
-      className="grid gap-l"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void profiling.onSave(answers).then((kept) => {
-          if (!kept) return;
-          toast.success(m.profile_saved());
-          onSaved();
-        });
-      }}
-    >
-      <p className="text-s text-neutral-7">{m.profile_hint()}</p>
-      <Question title={m.profile_level_title()}>
-        <LevelChoice value={answers.level} onPick={(level) => change({ level })} />
-      </Question>
-      <Question title={m.profile_waves_title()}>
-        <WaveRange
-          smallest={answers.smallestWave}
-          biggest={answers.biggestWave}
-          onChange={(smallestWave, biggestWave) => change({ smallestWave, biggestWave })}
-        />
-      </Question>
-      <Question title={m.profile_reading_title()} hint={m.profile_reading_hint()}>
-        <ReadingChoice value={answers.reading} onPick={(reading) => change({ reading })} />
-      </Question>
-      <Question title={m.profile_boards_title()} hint={m.profile_boards_hint()}>
-        <BoardChoice value={answers.boards} onChange={(boards) => change({ boards })} />
-      </Question>
-      <div>
-        <Button type="submit" isPending={profiling.isSaving}>
-          {m.profile_save()}
-        </Button>
-      </div>
-    </form>
+    <form.AppForm>
+      <form.Form className="grid gap-l">
+        <p className="text-s text-neutral-7">{m.profile_hint()}</p>
+        <form.AppField name="level">
+          {(field) => (
+            <field.Control<Level | null> label={m.profile_level_title()} className={QUESTION}>
+              {(control) => (
+                <LevelChoice
+                  value={control.value}
+                  onPick={control.onChange}
+                  labelledBy={control["aria-labelledby"]}
+                  describedBy={control["aria-describedby"]}
+                />
+              )}
+            </field.Control>
+          )}
+        </form.AppField>
+        <form.AppField name="waves">
+          {(field) => (
+            <field.Control<Waves> label={m.profile_waves_title()} className={QUESTION}>
+              {(control) => (
+                <WaveRange
+                  smallest={control.value.smallest}
+                  biggest={control.value.biggest}
+                  onChange={(smallest, biggest) => control.onChange({ smallest, biggest })}
+                  labelledBy={control["aria-labelledby"]}
+                  describedBy={control["aria-describedby"]}
+                />
+              )}
+            </field.Control>
+          )}
+        </form.AppField>
+        <form.AppField name="reading">
+          {(field) => (
+            <field.Control<Reading | null>
+              label={m.profile_reading_title()}
+              description={m.profile_reading_hint()}
+              className={QUESTION}
+            >
+              {(control) => (
+                <ReadingChoice
+                  value={control.value}
+                  onPick={control.onChange}
+                  labelledBy={control["aria-labelledby"]}
+                  describedBy={control["aria-describedby"]}
+                />
+              )}
+            </field.Control>
+          )}
+        </form.AppField>
+        <form.AppField name="boards">
+          {(field) => (
+            <field.Choice
+              label={m.profile_boards_title()}
+              description={m.profile_boards_hint()}
+              multiple
+              size="default"
+            >
+              {boardToggles()}
+            </field.Choice>
+          )}
+        </form.AppField>
+        <div>
+          <form.SubmitButton isPending={profiling.isSaving}>{m.profile_save()}</form.SubmitButton>
+        </div>
+      </form.Form>
+    </form.AppForm>
   );
 }
 
