@@ -6,16 +6,21 @@ const { wrapWithReanimatedMetroConfig } = require("react-native-reanimated/metro
 const { withUniwindConfig } = require("uniwind/metro");
 
 // The app's messages are the web app's, compiled into src/paraglide, which Git ignores: compiled
-// as Metro starts, and again when a file of apps/web/messages changes, a pull included, so that a
-// screen never reads a message the compiled files do not have yet. The watcher keeps no process
-// alive that would otherwise end, such as an export.
-const { execFile } = require("node:child_process");
+// before Metro resolves a module, since a fresh checkout, as a store build's, has none, and again
+// when a file of apps/web/messages changes, a pull included, so that a screen never reads a
+// message the compiled files do not have yet. The watcher keeps no process alive that would
+// otherwise end, such as an export.
+const { execFile, execFileSync } = require("node:child_process");
 const { watch } = require("node:fs");
 const path = require("node:path");
 
-const compileMessages = () =>
-  execFile(process.execPath, [path.join(__dirname, "scripts/messages.mjs")], () => {});
-compileMessages();
+// The script names its paths from the app's folder, wherever Metro was started from.
+const script = path.join(__dirname, "scripts/messages.mjs");
+const compileMessages = () => execFile(process.execPath, [script], { cwd: __dirname }, () => {});
+execFileSync(process.execPath, [script], {
+  cwd: __dirname,
+  stdio: ["ignore", "ignore", "inherit"],
+});
 let pending;
 try {
   watch(path.join(__dirname, "../web/messages"), () => {
