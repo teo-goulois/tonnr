@@ -2,7 +2,6 @@ import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
-import { Textarea } from "@repo/ui/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
@@ -10,17 +9,15 @@ import { toast } from "sonner";
 
 import { readSize } from "@/components/catalogue/words";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Field } from "@/components/shared/field";
 import { Loader } from "@/components/shared/loader";
 import type { Publication } from "@/lib/api";
 import { formatAgo, formatCount, formatDayAndHour } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 import { client, orpc, refreshLists } from "@/utils/orpc";
 
-export type PublicationStatus = Publication["status"];
+import { ReasonForm } from "./reason-form";
 
-// A reason as the API takes it.
-const REASON_MOST = 280;
+export type PublicationStatus = Publication["status"];
 
 const linked = "focus-ring rounded-xs underline underline-offset-2 hover:text-neutral-10";
 
@@ -230,7 +227,6 @@ export function SpotRequests({ status, onStatusChange, publications, now }: Spot
   const queryClient = useQueryClient();
   const [accepting, setAccepting] = useState<Publication | null>(null);
   const [refusing, setRefusing] = useState<Publication | null>(null);
-  const [reason, setReason] = useState("");
 
   const answered = () =>
     Promise.all([
@@ -251,11 +247,11 @@ export function SpotRequests({ status, onStatusChange, publications, now }: Spot
     },
   });
   const refuse = useMutation({
-    mutationFn: (one: Publication) => client.v1.publications.refuse({ id: one.id, reason }),
+    mutationFn: ({ one, reason }: { one: Publication; reason: string }) =>
+      client.v1.publications.refuse({ id: one.id, reason }),
     onSuccess: async (done) => {
       toast.success(m.moderation_refused({ name: done.spot.name }));
       setRefusing(null);
-      setReason("");
       await answered();
     },
     onError: (error) => toast.error(error.message),
@@ -316,33 +312,13 @@ export function SpotRequests({ status, onStatusChange, publications, now }: Spot
             </DialogTitle>
             <DialogDescription>{m.moderation_refuse_body()}</DialogDescription>
           </div>
-          <form
-            className="grid gap-l"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (refusing && reason.trim() && !refuse.isPending) refuse.mutate(refusing);
-            }}
-          >
-            <Field label={m.moderation_reason()}>
-              {() => (
-                <Textarea
-                  value={reason}
-                  maxLength={REASON_MOST}
-                  rows={2}
-                  disabled={refuse.isPending}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              )}
-            </Field>
-            <div className="flex justify-end gap-xs">
-              <Button type="button" variant="ghost" onClick={() => setRefusing(null)}>
-                {m.cancel()}
-              </Button>
-              <Button type="submit" disabled={!reason.trim()} isPending={refuse.isPending}>
-                {m.moderation_refuse()}
-              </Button>
-            </div>
-          </form>
+          <ReasonForm
+            isPending={refuse.isPending}
+            onRefuse={(reason) =>
+              refusing ? refuse.mutateAsync({ one: refusing, reason }) : Promise.resolve()
+            }
+            onCancel={() => setRefusing(null)}
+          />
         </DialogPopup>
       </Dialog>
     </>

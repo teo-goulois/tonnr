@@ -389,6 +389,7 @@
   "moderation_others_one": "Un autre compte a un spot à lui à moins de 150 m",
   "moderation_others_some": "{count} autres comptes ont un spot à eux à moins de 150 m",
   "moderation_reason": "Motif",
+  "moderation_reason_missing": "Dis pourquoi tu refuses.",
   "moderation_accept": "Accepter",
   "moderation_refuse": "Refuser",
   "moderation_accept_title": "Rendre {name} public ?",

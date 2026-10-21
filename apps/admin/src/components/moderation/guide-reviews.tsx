@@ -2,24 +2,21 @@ import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Tabs, TabsList, TabsTab } from "@repo/ui/components/ui/tabs";
-import { Textarea } from "@repo/ui/components/ui/textarea";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
-import { Field } from "@/components/shared/field";
 import { Loader } from "@/components/shared/loader";
 import type { Review } from "@/lib/api";
 import { formatAgo, formatCount, formatDayAndHour } from "@/lib/format";
 import { m } from "@/paraglide/messages.js";
 import { client, orpc, refreshLists } from "@/utils/orpc";
 
+import { ReasonForm } from "./reason-form";
+
 export const REVIEW_QUEUES = ["pending", "contested", "shown", "confirmed", "refused"] as const;
 export type ReviewQueue = (typeof REVIEW_QUEUES)[number];
-
-// A reason as the API takes it.
-const REASON_MOST = 280;
 
 const linked = "focus-ring rounded-xs underline underline-offset-2 hover:text-neutral-10";
 
@@ -218,7 +215,6 @@ type GuideReviewsProps = {
 export function GuideReviews({ queue, onQueueChange, reviews, total, now }: GuideReviewsProps) {
   const queryClient = useQueryClient();
   const [refusing, setRefusing] = useState<Review | null>(null);
-  const [reason, setReason] = useState("");
 
   const answered = () =>
     Promise.all([
@@ -249,11 +245,11 @@ export function GuideReviews({ queue, onQueueChange, reviews, total, now }: Guid
     onError: failed,
   });
   const refuse = useMutation({
-    mutationFn: (one: Review) => client.v1.reviews.refuse({ id: one.id, reason }),
+    mutationFn: ({ one, reason }: { one: Review; reason: string }) =>
+      client.v1.reviews.refuse({ id: one.id, reason }),
     onSuccess: async () => {
       toast.success(m.reviews_refused_done());
       setRefusing(null);
-      setReason("");
       await answered();
     },
     onError: failed,
@@ -311,33 +307,13 @@ export function GuideReviews({ queue, onQueueChange, reviews, total, now }: Guid
             <DialogTitle>{m.reviews_refuse_title()}</DialogTitle>
             <DialogDescription>{m.reviews_refuse_body()}</DialogDescription>
           </div>
-          <form
-            className="grid gap-l"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (refusing && reason.trim() && !refuse.isPending) refuse.mutate(refusing);
-            }}
-          >
-            <Field label={m.moderation_reason()}>
-              {() => (
-                <Textarea
-                  value={reason}
-                  maxLength={REASON_MOST}
-                  rows={2}
-                  disabled={refuse.isPending}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              )}
-            </Field>
-            <div className="flex justify-end gap-xs">
-              <Button type="button" variant="ghost" onClick={() => setRefusing(null)}>
-                {m.cancel()}
-              </Button>
-              <Button type="submit" disabled={!reason.trim()} isPending={refuse.isPending}>
-                {m.moderation_refuse()}
-              </Button>
-            </div>
-          </form>
+          <ReasonForm
+            isPending={refuse.isPending}
+            onRefuse={(reason) =>
+              refusing ? refuse.mutateAsync({ one: refusing, reason }) : Promise.resolve()
+            }
+            onCancel={() => setRefusing(null)}
+          />
         </DialogPopup>
       </Dialog>
     </>

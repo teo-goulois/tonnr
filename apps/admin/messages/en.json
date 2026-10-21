@@ -389,6 +389,7 @@
   "moderation_others_one": "One other account has a spot of its own within 150 m",
   "moderation_others_some": "{count} other accounts have a spot of their own within 150 m",
   "moderation_reason": "Reason",
+  "moderation_reason_missing": "Say why it is refused.",
   "moderation_accept": "Accept",
   "moderation_refuse": "Refuse",
   "moderation_accept_title": "Make {name} public?",
