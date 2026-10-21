@@ -2,9 +2,11 @@ import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { CopyIcon, LockIcon } from "@repo/ui/icon";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { m } from "@/paraglide/messages.js";
 import { localizeHref } from "@/paraglide/runtime.js";
@@ -48,9 +50,24 @@ export function ShareListDialog({
   onRenew,
   onStop,
 }: ShareListDialogProps) {
-  const [password, setPassword] = useState("");
   const linkId = useId();
-  const passwordId = useId();
+  // The password the link will ask for, which the list's owner gives here, then forgets.
+  const passwording = useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({
+        password: z
+          .string()
+          .min(PASSWORD_LEAST, m.share_password_short({ least: PASSWORD_LEAST }))
+          .max(PASSWORD_MOST),
+      }),
+    },
+    onSubmit: ({ value, formApi }) => {
+      if (isSaving) return;
+      onShare(value.password);
+      formApi.reset();
+    },
+  });
   const share = list?.share;
   const link = share ? linkOf(share.token) : "";
 
@@ -75,7 +92,7 @@ export function ShareListDialog({
       open={list !== undefined}
       onOpenChange={(open) => {
         if (open) return;
-        setPassword("");
+        passwording.reset();
         onClose();
       }}
     >
@@ -135,37 +152,31 @@ export function ShareListDialog({
                 </Button>
               </div>
             ) : (
-              <form
-                className="grid gap-xs"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (password.length < PASSWORD_LEAST || isSaving) return;
-                  onShare(password);
-                  setPassword("");
-                }}
-              >
-                <Label htmlFor={passwordId}>{m.share_password()}</Label>
-                <div className="flex items-center gap-xs">
-                  <Input
-                    id={passwordId}
-                    value={password}
-                    minLength={PASSWORD_LEAST}
-                    maxLength={PASSWORD_MOST}
-                    placeholder={m.share_password_placeholder()}
-                    autoComplete="off"
-                    disabled={isSaving}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                  <Button
-                    type="submit"
+              <passwording.AppForm>
+                <passwording.Form className="flex items-start gap-xs">
+                  <div className="min-w-0 flex-1">
+                    <passwording.AppField name="password">
+                      {(field) => (
+                        <field.Input
+                          label={m.share_password()}
+                          maxLength={PASSWORD_MOST}
+                          placeholder={m.share_password_placeholder()}
+                          autoComplete="off"
+                          disabled={isSaving}
+                        />
+                      )}
+                    </passwording.AppField>
+                  </div>
+                  {/* The button stands beside the field, under its label. */}
+                  <passwording.SubmitButton
                     variant="secondary"
-                    disabled={password.length < PASSWORD_LEAST}
+                    className="mt-[calc(var(--line-m)+var(--spacing-xs))]"
                     isPending={isSaving}
                   >
                     {m.share_password_add()}
-                  </Button>
-                </div>
-              </form>
+                  </passwording.SubmitButton>
+                </passwording.Form>
+              </passwording.AppForm>
             )}
 
             <div className="flex flex-wrap justify-between gap-xs">

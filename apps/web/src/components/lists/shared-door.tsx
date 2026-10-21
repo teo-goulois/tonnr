@@ -1,9 +1,10 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
+import { useAppForm } from "@repo/ui/hooks/form/form";
+import { refuseField } from "@repo/ui/hooks/form/form-context";
 import { LockIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { z } from "zod";
 
 import { ViewerSkeleton } from "@/components/viewer/viewer-skeleton";
 import { m } from "@/paraglide/messages.js";
@@ -21,8 +22,32 @@ type SharedDoorProps = {
 
 /** What a shared list's link shows before the list: its password, or that it opens none. */
 export function SharedDoor({ state, refusal, isChecking, onPassword, onRetry }: SharedDoorProps) {
-  const [password, setPassword] = useState("");
   const passwordId = useId();
+  // How many times a password was given: the API's answer to each is said under the field, even
+  // when it is the same as the last.
+  const [tries, setTries] = useState(0);
+  const form = useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({ password: z.string().min(1, m.shared_password_missing()) }),
+    },
+    onSubmit: ({ value }) => {
+      if (isChecking) return;
+      setTries((count) => count + 1);
+      onPassword(value.password);
+    },
+  });
+  // The field was set aside while the password was checked: it takes the keyboard back with what
+  // the API said of it.
+  useEffect(() => {
+    if (tries === 0 || isChecking || !refusal) return;
+    refuseField(
+      form,
+      "password",
+      refusal === "wrong" ? m.shared_password_wrong() : m.shared_password_closed(),
+    );
+    document.getElementById(passwordId)?.focus();
+  }, [form, passwordId, tries, isChecking, refusal]);
 
   // The map is what comes, so its place is what waits.
   if (state === "opening") return <ViewerSkeleton />;
@@ -31,43 +56,31 @@ export function SharedDoor({ state, refusal, isChecking, onPassword, onRetry }: 
     <div className="grid min-h-0 place-items-center p-m">
       <div className="grid w-full max-w-sm gap-l">
         {state === "locked" ? (
-          <form
-            className="grid gap-m"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (password && !isChecking) onPassword(password);
-            }}
-          >
-            <div className="grid gap-xs">
-              <h1 className="flex items-center gap-xs text-l font-medium">
-                <LockIcon aria-hidden className="size-4.5" />
-                {m.shared_locked_title()}
-              </h1>
-              <p className="text-neutral-7">{m.shared_locked_text()}</p>
-            </div>
-            <div className="grid gap-xs">
-              <Label htmlFor={passwordId}>{m.shared_password()}</Label>
-              <Input
-                id={passwordId}
-                type="password"
-                value={password}
-                maxLength={72}
-                autoComplete="off"
-                autoFocus
-                disabled={isChecking}
-                aria-invalid={refusal !== undefined}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              {refusal && (
-                <p role="alert" className="text-s text-error">
-                  {refusal === "wrong" ? m.shared_password_wrong() : m.shared_password_closed()}
-                </p>
-              )}
-            </div>
-            <Button type="submit" disabled={!password} isPending={isChecking}>
-              {m.shared_open()}
-            </Button>
-          </form>
+          <form.AppForm>
+            <form.Form className="grid gap-m">
+              <div className="grid gap-xs">
+                <h1 className="flex items-center gap-xs text-l font-medium">
+                  <LockIcon aria-hidden className="size-4.5" />
+                  {m.shared_locked_title()}
+                </h1>
+                <p className="text-neutral-7">{m.shared_locked_text()}</p>
+              </div>
+              <form.AppField name="password">
+                {(field) => (
+                  <field.Input
+                    id={passwordId}
+                    label={m.shared_password()}
+                    type="password"
+                    maxLength={72}
+                    autoComplete="off"
+                    autoFocus
+                    disabled={isChecking}
+                  />
+                )}
+              </form.AppField>
+              <form.SubmitButton isPending={isChecking}>{m.shared_open()}</form.SubmitButton>
+            </form.Form>
+          </form.AppForm>
         ) : (
           <div className="grid justify-items-start gap-m">
             <div className="grid gap-xs">
