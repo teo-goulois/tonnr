@@ -32,9 +32,12 @@
 // None is printed, and none goes to the install or to Expo's tools, which run code that other
 // people wrote: the key of the updates signs here and the R2 token writes from here. xcodebuild
 // is given the path of the key of App Store Connect in its arguments, and altool the directory it
-// lies in. Gradle reads the upload key from a file of its own, outside the checkout and deleted
+// lies in, and the export finds the team's distribution key in a keychain of the run's own, which
+// goes once it is done. Gradle reads the upload key from a file of its own, outside the checkout and deleted
 // once it is done, which a property names: its environment, which Metro and the other tools of
 // the build inherit, holds none of it. Expo receives nothing, and no `eas` command runs.
+import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -188,6 +191,18 @@ if (kind === "ios") {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   );
   appStore.key = fileNamed("APP_STORE_CONNECT_KEY", "the key of App Store Connect");
+  // The team's distribution certificate and its key, which sign the build on this Mac. Without
+  // them xcodebuild signs through Apple's cloud, which writes a name outside ASCII, as Téo's,
+  // decomposed in the designated requirement of each piece of the app while the certificate
+  // holds it composed, and App Store Connect refuses every piece (ITMS-90035).
+  appStore.distributionKey = fileNamed(
+    "APPLE_DISTRIBUTION_KEY",
+    "the key of the team's distribution certificate",
+  );
+  appStore.distributionCertificate = fileNamed(
+    "APPLE_DISTRIBUTION_CERTIFICATE",
+    "the team's distribution certificate",
+  );
   if (appStore.key && appStore.id && path.basename(appStore.key) !== `AuthKey_${appStore.id}.p8`) {
     faults.push(
       `APP_STORE_CONNECT_KEY in .env names a file that is not AuthKey_${appStore.id}.p8, the name ` +
@@ -553,6 +568,59 @@ function findFile(directory, ending) {
   return null;
 }
 
+/** Runs `security`, which keeps the keychains, and says whether it succeeded. */
+function security(args) {
+  return spawnSync("security", args, { stdio: ["ignore", "ignore", "inherit"] }).status === 0;
+}
+
+/** The keychains this account searches, as `security` lists them. */
+function searchedKeychains() {
+  const listed = spawnSync("security", ["list-keychains", "-d", "user"], { encoding: "utf8" });
+  return [...(listed.stdout ?? "").matchAll(/"(.+)"/g)].map((found) => found[1]);
+}
+
+/**
+ * Runs `work` with the team's distribution certificate and its key in a keychain of the run's
+ * own, which the account searches meanwhile and which goes once `work` is done, whatever came of
+ * it. Says whether it succeeded.
+ */
+async function withDistributionKey(work) {
+  const searched = searchedKeychains();
+  // The search list is given back as it was read: one read wrong would be given back empty.
+  if (searched.length === 0) {
+    console.error("The keychains this account searches could not be read.");
+    return false;
+  }
+  const directory = mkdtempSync(path.join(os.tmpdir(), "distribution-"));
+  const keychain = path.join(directory, "release.keychain-db");
+  const password = randomBytes(24).toString("hex");
+  try {
+    const ready =
+      security(["create-keychain", "-p", password, keychain]) &&
+      // It stays unlocked while the build lasts.
+      security(["set-keychain-settings", keychain]) &&
+      security(["unlock-keychain", "-p", password, keychain]) &&
+      security(["import", appStore.distributionKey, "-k", keychain, "-T", "/usr/bin/codesign"]) &&
+      security(["import", appStore.distributionCertificate, "-k", keychain]) &&
+      // codesign reads the key without asking anyone.
+      security([
+        "set-key-partition-list",
+        "-S",
+        "apple-tool:,apple:,codesign:",
+        "-s",
+        "-k",
+        password,
+        keychain,
+      ]) &&
+      security(["list-keychains", "-d", "user", "-s", keychain, ...searched]);
+    return ready && (await work());
+  } finally {
+    security(["list-keychains", "-d", "user", "-s", ...searched]);
+    security(["delete-keychain", keychain]);
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 async function buildForIos() {
   const { build, version, buildEnv } = await storeBuild();
   // Xcode gives its scripts the project's folder through macOS's link, /var/folders, and Metro,
@@ -566,8 +634,8 @@ async function buildForIos() {
   const workspace = main.builds.workspaceOf(readdirSync(ios));
   const products = path.join(checkout, "build");
   const archive = path.join(products, `${workspace}.xcarchive`);
-  // xcodebuild makes or fetches the certificates and profiles of the app and of its extensions
-  // in the team, with the key of App Store Connect: the repository keeps none.
+  // xcodebuild makes or fetches the profiles of the app and of its extensions in the team, with
+  // the key of App Store Connect: the repository keeps none.
   const signing = [
     "-allowProvisioningUpdates",
     "-authenticationKeyPath",
@@ -610,21 +678,24 @@ async function buildForIos() {
   const options = path.join(products, "ExportOptions.plist");
   writeFileSync(options, main.builds.exportOptionsOf(values.APPLE_TEAM_ID));
   const exported = path.join(products, "export");
-  await step(
-    "The export",
-    "xcodebuild",
-    [
-      "-exportArchive",
-      "-archivePath",
-      archive,
-      "-exportPath",
-      exported,
-      "-exportOptionsPlist",
-      options,
-      ...signing,
-    ],
-    { cwd: native, env: buildEnv },
+  // The export signs every piece of the app again, with the team's distribution key, here.
+  const signed = await withDistributionKey(() =>
+    run(
+      "xcodebuild",
+      [
+        "-exportArchive",
+        "-archivePath",
+        archive,
+        "-exportPath",
+        exported,
+        "-exportOptionsPlist",
+        options,
+        ...signing,
+      ],
+      { cwd: native, env: buildEnv },
+    ),
   );
+  if (!signed) failKeeping(checkout, "The export");
   const ipa = findFile(exported, ".ipa");
   if (!ipa) failKeeping(checkout, "The export, which wrote no .ipa,");
 
