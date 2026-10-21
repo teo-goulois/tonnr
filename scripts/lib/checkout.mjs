@@ -142,8 +142,7 @@ export async function checkoutMain(prefix) {
   // between two commands. The ref holds the commit until the checkout does.
   const fetched = `refs/${prefix}/${process.pid}`;
   // By its real path: macOS's temporary folder, /var/folders, is a link to /private/var/folders,
-  // where Metro works from, and Metro refuses a module that a plugin named through the link, as
-  // expo-widgets names the layouts of the widgets as the app is prebuilt.
+  // where Metro works from, and Metro refuses a module named through the link.
   const checkout = realpathSync(mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
   let refused = null;
   let commit = null;

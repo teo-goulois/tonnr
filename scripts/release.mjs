@@ -598,7 +598,10 @@ async function buildForIos() {
       ...signing,
       "archive",
     ],
-    { cwd: native, env: buildEnv },
+    // Xcode gives its scripts the project's folder through macOS's link, /var/folders, and the
+    // bundle of the widgets' layouts then names files that Metro, at the real path, refuses: the
+    // scripts that bundle read PROJECT_ROOT first.
+    { cwd: native, env: { ...buildEnv, PROJECT_ROOT: native } },
   );
 
   const fingerprint = findFile(path.join(archive, "Products"), "EXUpdates.bundle/fingerprint");
