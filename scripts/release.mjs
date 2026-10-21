@@ -196,6 +196,12 @@ if (kind === "ios") {
   }
 }
 
+// Firebase's file of the Android app, which it registers for push with (decision 072). The
+// fingerprint of its runtime hashes the file, so a store build and a publication read the same.
+const googleServices = platforms.includes("android")
+  ? fileNamed("GOOGLE_SERVICES_FILE", "Firebase's google-services.json of the Android app")
+  : null;
+
 // The upload key, which proves that a build is Téo's, and the service account that sends it.
 const play = {};
 if (kind === "android") {
@@ -268,6 +274,7 @@ const appValues = {
   EXPO_PUBLIC_SITE_URL: `https://${values.WEB_DOMAIN}`,
   UPDATES_URL: `https://${values.UPDATES_DOMAIN}`,
   ...(values.APPLE_TEAM_ID && { APPLE_TEAM_ID: values.APPLE_TEAM_ID }),
+  ...(googleServices && { GOOGLE_SERVICES_FILE: googleServices }),
   EXPO_NO_TELEMETRY: "1",
   EXPO_OFFLINE: "1",
 };

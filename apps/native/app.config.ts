@@ -23,6 +23,10 @@ const updatesUrl = process.env.UPDATES_URL || undefined;
 // built, which the release commands give. A store takes each once (decision 075).
 const build = process.env.APP_BUILD_NUMBER || "1";
 if (!/^[1-9]\d*$/.test(build)) throw new Error(`APP_BUILD_NUMBER is not a build number: ${build}`);
+// Firebase's file of the instance's project, which the Android app registers for push with, by
+// its path, from the shell that builds and never written here: the store's builds take Téo's
+// (decision 072). A build without it registers no Android phone.
+const googleServices = process.env.GOOGLE_SERVICES_FILE || undefined;
 
 // What the phone shows when the app asks for a permission, in each language, from the web app's
 // messages, where every string a person reads is kept (decision 069).
@@ -127,6 +131,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: APP_SCHEME,
+    ...(googleServices && { googleServicesFile: googleServices }),
     versionCode: Number(build),
     predictiveBackGestureEnabled: true,
     intentFilters: claimsLinks

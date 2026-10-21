@@ -72,6 +72,17 @@ describe("the build number", () => {
   });
 });
 
+describe("Firebase's file", () => {
+  it("is given to the Android app by the path a build names, and to none that names none", async () => {
+    const file = "/home/someone/.config/app/google-services.json";
+    expect((await configWith({ GOOGLE_SERVICES_FILE: file })).android?.googleServicesFile).toBe(
+      file,
+    );
+    const without = await configWith({ GOOGLE_SERVICES_FILE: "" });
+    expect(without.android).not.toHaveProperty("googleServicesFile");
+  });
+});
+
 describe("the certificate of the updates", () => {
   const pem = readFileSync(from("./certs/certificate.pem"), "utf8");
   const certificate = new X509Certificate(pem);
