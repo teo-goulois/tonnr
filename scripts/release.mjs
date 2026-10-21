@@ -33,7 +33,7 @@
 // people wrote: the key of the updates signs here and the R2 token writes from here. xcodebuild
 // is given the path of the key of App Store Connect in its arguments, and altool the directory it
 // lies in, and the export finds the team's distribution key in a keychain of the run's own, which
-// goes once it is done. Gradle reads the upload key from a file of its own, outside the checkout and deleted
+// goes once it is done, and its profiles, which the same key of App Store Connect makes. Gradle reads the upload key from a file of its own, outside the checkout and deleted
 // once it is done, which a property names: its environment, which Metro and the other tools of
 // the build inherit, holds none of it. Expo receives nothing, and no `eas` command runs.
 import { spawnSync } from "node:child_process";
@@ -41,6 +41,7 @@ import { randomBytes } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -359,6 +360,7 @@ try {
   main = {
     bucket: await fromMain("apps/updates/src/bucket.ts"),
     builds: await fromMain("apps/updates/src/builds.ts"),
+    appStore: await fromMain("apps/updates/src/app-store.ts"),
     play: await fromMain("apps/updates/src/play.ts"),
     publish: await fromMain("apps/updates/src/publish.ts"),
     r2: await fromMain("apps/updates/src/r2.ts"),
@@ -621,6 +623,35 @@ async function withDistributionKey(work) {
   }
 }
 
+/** The bundle identifiers of the app an archive holds and of its extensions. */
+function identifiersOf(archive) {
+  const applications = path.join(archive, "Products", "Applications");
+  const app = readdirSync(applications).find((name) => name.endsWith(".app"));
+  if (!app) return [];
+  const plugIns = path.join(applications, app, "PlugIns");
+  const extensions = existsSync(plugIns)
+    ? readdirSync(plugIns).filter((name) => name.endsWith(".appex"))
+    : [];
+  return [path.join(applications, app), ...extensions.map((name) => path.join(plugIns, name))].map(
+    (bundle) =>
+      spawnSync(
+        "plutil",
+        ["-extract", "CFBundleIdentifier", "raw", "-o", "-", path.join(bundle, "Info.plist")],
+        { encoding: "utf8" },
+      ).stdout.trim(),
+  );
+}
+
+// Where Xcode finds the profiles installed on this Mac.
+const PROFILES = path.join(
+  os.homedir(),
+  "Library",
+  "Developer",
+  "Xcode",
+  "UserData",
+  "Provisioning Profiles",
+);
+
 async function buildForIos() {
   const { build, version, buildEnv } = await storeBuild();
   // Xcode gives its scripts the project's folder through macOS's link, /var/folders, and Metro,
@@ -675,26 +706,66 @@ async function buildForIos() {
   const fingerprint = findFile(path.join(archive, "Products"), "EXUpdates.bundle/fingerprint");
   const runtime = await checkRuntime("ios", fingerprint ? readFileSync(fingerprint, "utf8") : "");
 
+  // A profile of the App Store for the app and for each extension, made for this release with
+  // the distribution certificate alone, which the export signs with by hand: left to choose,
+  // xcodebuild signed a release through Apple's cloud with the key on this Mac all the same.
+  const identifiers = identifiersOf(archive);
+  if (identifiers.length === 0 || identifiers.some((identifier) => !identifier)) {
+    failKeeping(checkout, "The archive, whose identifiers could not be read,");
+  }
+  const certificate = readFileSync(appStore.distributionCertificate);
+  let profiles;
+  try {
+    profiles = await main.appStore.storeProfiles({
+      key: {
+        id: appStore.id,
+        issuer: appStore.issuer,
+        privateKey: readFileSync(appStore.key, "utf8"),
+      },
+      certificate,
+      identifiers,
+    });
+  } catch (error) {
+    console.error(error.message);
+    failKeeping(checkout, "The profiles");
+  }
   const options = path.join(products, "ExportOptions.plist");
-  writeFileSync(options, main.builds.exportOptionsOf(values.APPLE_TEAM_ID));
-  const exported = path.join(products, "export");
-  // The export signs every piece of the app again, with the team's distribution key, here.
-  const signed = await withDistributionKey(() =>
-    run(
-      "xcodebuild",
-      [
-        "-exportArchive",
-        "-archivePath",
-        archive,
-        "-exportPath",
-        exported,
-        "-exportOptionsPlist",
-        options,
-        ...signing,
-      ],
-      { cwd: native, env: buildEnv },
-    ),
+  writeFileSync(
+    options,
+    main.builds.exportOptionsOf(values.APPLE_TEAM_ID, {
+      certificate: main.appStore.certificateHashOf(certificate),
+      profiles: Object.fromEntries(profiles.map(({ identifier, uuid }) => [identifier, uuid])),
+    }),
   );
+  const exported = path.join(products, "export");
+  // The profiles are installed where Xcode reads them while the export lasts, and the export signs
+  // every piece of the app again, with the team's distribution key, here.
+  mkdirSync(PROFILES, { recursive: true });
+  const installed = profiles.map(({ uuid, content }) => {
+    const file = path.join(PROFILES, `${uuid}.mobileprovision`);
+    writeFileSync(file, content);
+    return file;
+  });
+  let signed = false;
+  try {
+    signed = await withDistributionKey(() =>
+      run(
+        "xcodebuild",
+        [
+          "-exportArchive",
+          "-archivePath",
+          archive,
+          "-exportPath",
+          exported,
+          "-exportOptionsPlist",
+          options,
+        ],
+        { cwd: native, env: buildEnv },
+      ),
+    );
+  } finally {
+    for (const file of installed) rmSync(file, { force: true });
+  }
   if (!signed) failKeeping(checkout, "The export");
   const ipa = findFile(exported, ".ipa");
   if (!ipa) failKeeping(checkout, "The export, which wrote no .ipa,");

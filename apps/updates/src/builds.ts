@@ -39,12 +39,20 @@ export const shippedOf = (shipped: Shipped) => new TextEncoder().encode(JSON.str
 const xml = (text: string) =>
   text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
+/** How the export signs: the certificate on this Mac by its SHA-1, and each profile by its UUID. */
+export type ExportSigning = { certificate: string; profiles: Record<string, string> };
+
 /**
  * The options `xcodebuild -exportArchive` exports an archive with, for App Store Connect, signed
- * by the team's own certificates and profiles, which xcodebuild makes or fetches with the key of
- * App Store Connect. The build number is the one the app's config gave it.
+ * by hand with the team's distribution certificate on this Mac and the profiles a release made
+ * for it, so that xcodebuild never signs through Apple's cloud. The build number is the one the
+ * app's config gave it.
  */
-export function exportOptionsOf(teamId: string): string {
+export function exportOptionsOf(teamId: string, signing: ExportSigning): string {
+  const profiles = Object.entries(signing.profiles).flatMap(([identifier, uuid]) => [
+    `    <key>${xml(identifier)}</key>`,
+    `    <string>${xml(uuid)}</string>`,
+  ]);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -57,7 +65,13 @@ export function exportOptionsOf(teamId: string): string {
     "  <key>teamID</key>",
     `  <string>${xml(teamId)}</string>`,
     "  <key>signingStyle</key>",
-    "  <string>automatic</string>",
+    "  <string>manual</string>",
+    "  <key>signingCertificate</key>",
+    `  <string>${xml(signing.certificate)}</string>`,
+    "  <key>provisioningProfiles</key>",
+    "  <dict>",
+    ...profiles,
+    "  </dict>",
     "  <key>manageAppVersionAndBuildNumber</key>",
     "  <false/>",
     "  <key>uploadSymbols</key>",

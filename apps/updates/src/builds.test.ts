@@ -97,10 +97,26 @@ describe("the runtime a store build carries", () => {
 
 describe("what xcodebuild is given", () => {
   it("exports for App Store Connect, signed by the team, keeping the build number", () => {
-    const plist = exportOptionsOf("A1B2C3D4E5");
+    const plist = exportOptionsOf("A1B2C3D4E5", { certificate: "E0CE", profiles: {} });
     expect(plist).toContain("<key>method</key>\n  <string>app-store-connect</string>");
     expect(plist).toContain("<key>teamID</key>\n  <string>A1B2C3D4E5</string>");
     expect(plist).toContain("<key>manageAppVersionAndBuildNumber</key>\n  <false/>");
+  });
+
+  it("signs by hand, with the certificate on this Mac and a profile for each identifier", () => {
+    const plist = exportOptionsOf("A1B2C3D4E5", {
+      certificate: "E0CE90E44CB0C9B3F21527645A251558301DAB26",
+      profiles: { "app.example": "uuid-1", "app.example.widgets": "uuid-2" },
+    });
+    expect(plist).toContain("<key>signingStyle</key>\n  <string>manual</string>");
+    expect(plist).toContain(
+      "<key>signingCertificate</key>\n  <string>E0CE90E44CB0C9B3F21527645A251558301DAB26</string>",
+    );
+    expect(plist).toContain(
+      "<key>provisioningProfiles</key>\n  <dict>\n" +
+        "    <key>app.example</key>\n    <string>uuid-1</string>\n" +
+        "    <key>app.example.widgets</key>\n    <string>uuid-2</string>\n  </dict>",
+    );
   });
 
   it("builds the workspace expo prebuild wrote, and no other", () => {
