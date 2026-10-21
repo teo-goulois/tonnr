@@ -10,15 +10,16 @@ import {
 } from "@repo/ui/components/ui/autocomplete";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
 import { Spinner } from "@repo/ui/components/ui/spinner";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { LockIcon, PinIcon, SearchIcon, WaveIcon } from "@repo/ui/icon";
-import { useId } from "react";
+import { useEffect } from "react";
+import { z } from "zod";
 
 import { m } from "@/paraglide/messages.js";
 
 import type { Loadable } from "../viewer/types";
+import { spotNameSchema } from "./spot-editor";
 
 /** Somewhere the search found: a surf break of the catalogue, or a place by its name. */
 export type FoundPlace = {
@@ -68,6 +69,7 @@ type NewSpotPanelProps = {
   // Puts the marker on what the search found.
   onPick: (found: FoundPlace) => void;
   draft: SpotDraft;
+  // The name as it is typed: the draft keeps it with the marker.
   onNameChange: (name: string) => void;
   // A spot the account already has where the marker stands.
   near: { id: string; name: string } | undefined;
@@ -75,7 +77,7 @@ type NewSpotPanelProps = {
   // True when the account holds all the spots it may.
   isFull: boolean;
   isSaving: boolean;
-  onSave: () => void;
+  onSave: (name: string) => void;
 };
 
 /**
@@ -95,7 +97,6 @@ export function NewSpotPanel({
   isSaving,
   onSave,
 }: NewSpotPanelProps) {
-  const nameId = useId();
   const isSearching = query.trim().length >= SEARCH_FROM;
   const groups: Group[] = isSearching
     ? [
@@ -121,7 +122,6 @@ export function NewSpotPanel({
         : isSearching
           ? m.spot_search_count({ count: found })
           : null;
-  const name = draft.name.trim();
 
   if (isFull) return <p className="text-neutral-7">{m.spot_full()}</p>;
 
@@ -209,54 +209,94 @@ export function NewSpotPanel({
       </div>
 
       {draft.point && (
-        <form
-          className="grid gap-m"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (name && !isSaving) onSave();
-          }}
-        >
-          <div className="grid gap-xxs">
-            <p className="text-s text-neutral-7">{m.spot_marker_hint()}</p>
-            <p className="text-xs text-neutral-7 tabular-nums">
-              {draft.point.latitude.toFixed(5)}, {draft.point.longitude.toFixed(5)}
-            </p>
-          </div>
+        <NewSpotForm
+          draft={draft}
+          point={draft.point}
+          onNameChange={onNameChange}
+          near={near}
+          onOpenSpot={onOpenSpot}
+          isSaving={isSaving}
+          onSave={onSave}
+        />
+      )}
+    </div>
+  );
+}
 
-          {near && (
-            <p className="flex flex-wrap items-center gap-xs text-s">
-              {m.spot_near({ name: near.name })}
-              <Button type="button" variant="outline" size="sm" onClick={() => onOpenSpot(near.id)}>
-                {m.spot_near_open()}
-              </Button>
-            </p>
-          )}
+/**
+ * Naming the spot once its marker is down, and saving it. The form holds the name as it is
+ * typed and tells the draft, which keeps it with the marker: a place found or pressed on the map
+ * gives the draft a name of its own until the reader writes one, and the field follows it.
+ */
+function NewSpotForm({
+  draft,
+  point,
+  onNameChange,
+  near,
+  onOpenSpot,
+  isSaving,
+  onSave,
+}: Pick<
+  NewSpotPanelProps,
+  "draft" | "onNameChange" | "near" | "onOpenSpot" | "isSaving" | "onSave"
+> & {
+  point: NonNullable<SpotDraft["point"]>;
+}) {
+  const form = useAppForm({
+    defaultValues: { name: draft.name },
+    validators: { onSubmit: z.object({ name: spotNameSchema() }) },
+    onSubmit: ({ value }) => {
+      if (!isSaving) onSave(value.name.trim());
+    },
+  });
+  // The name the draft was given by what the marker was put on. It is not what the reader
+  // typed: the field is not marked as changed, and the draft is not told again.
+  useEffect(() => {
+    if (form.getFieldValue("name") !== draft.name) {
+      form.setFieldValue("name", draft.name, { dontUpdateMeta: true, dontRunListeners: true });
+    }
+  }, [form, draft.name]);
 
-          <div className="grid gap-xs">
-            <Label htmlFor={nameId}>{m.spot_name_label()}</Label>
-            <Input
-              id={nameId}
-              value={draft.name}
+  return (
+    <form.AppForm>
+      <form.Form className="grid gap-m">
+        <div className="grid gap-xxs">
+          <p className="text-s text-neutral-7">{m.spot_marker_hint()}</p>
+          <p className="text-xs text-neutral-7 tabular-nums">
+            {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
+          </p>
+        </div>
+
+        {near && (
+          <p className="flex flex-wrap items-center gap-xs text-s">
+            {m.spot_near({ name: near.name })}
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenSpot(near.id)}>
+              {m.spot_near_open()}
+            </Button>
+          </p>
+        )}
+
+        <form.AppField name="name" listeners={{ onChange: ({ value }) => onNameChange(value) }}>
+          {(field) => (
+            <field.Input
+              label={m.spot_name_label()}
               maxLength={NAME_MOST}
               placeholder={m.spot_name_placeholder()}
               autoComplete="off"
               disabled={isSaving}
-              onChange={(event) => onNameChange(event.target.value)}
             />
-          </div>
+          )}
+        </form.AppField>
 
-          <div className="grid gap-xs">
-            <Button type="submit" disabled={!name} isPending={isSaving}>
-              {m.spot_save()}
-            </Button>
-            {/* Said before the spot is saved: nobody publishes a secret spot by accident. */}
-            <p className="flex items-start gap-xxs text-s text-neutral-7">
-              <LockIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-              {m.spot_private_hint()}
-            </p>
-          </div>
-        </form>
-      )}
-    </div>
+        <div className="grid gap-xs">
+          <form.SubmitButton isPending={isSaving}>{m.spot_save()}</form.SubmitButton>
+          {/* Said before the spot is saved: nobody publishes a secret spot by accident. */}
+          <p className="flex items-start gap-xxs text-s text-neutral-7">
+            <LockIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            {m.spot_private_hint()}
+          </p>
+        </div>
+      </form.Form>
+    </form.AppForm>
   );
 }

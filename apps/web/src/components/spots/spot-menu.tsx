@@ -1,11 +1,11 @@
 import { Button } from "@repo/ui/components/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
-import { Label } from "@repo/ui/components/ui/label";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@repo/ui/components/ui/menu";
-import { Textarea } from "@repo/ui/components/ui/textarea";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { MoreHorizontalIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useState } from "react";
+import { z } from "zod";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -44,8 +44,18 @@ export function SpotActions({
   children,
 }: SpotActionsProps) {
   const [dialog, setDialog] = useState<"publish" | "delete" | null>(null);
-  const [note, setNote] = useState("");
-  const noteId = useId();
+  // The word for the moderator stays while the dialog is closed, until the request is made.
+  const publishing = useAppForm({
+    defaultValues: { note: "" },
+    validators: { onSubmit: z.object({ note: z.string().max(NOTE_MOST) }) },
+    onSubmit: ({ value, formApi }) => {
+      if (isAsking) return;
+      onPublish(value.note.trim(), () => {
+        setDialog(null);
+        formApi.reset();
+      });
+    },
+  });
   const status = spot.publication?.status;
 
   return (
@@ -95,49 +105,40 @@ export function SpotActions({
             <DialogTitle>{m.spot_publish_title({ name: spot.name })}</DialogTitle>
             <DialogDescription>{m.spot_publish_what()}</DialogDescription>
           </div>
-          <form
-            className="grid gap-l"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (isAsking) return;
-              onPublish(note.trim(), () => {
-                setDialog(null);
-                setNote("");
-              });
-            }}
-          >
-            <p className="text-s text-neutral-7">{m.spot_publish_then()}</p>
-            <div className="grid gap-xs">
-              <Label htmlFor={noteId}>{m.spot_publish_note()}</Label>
-              <Textarea
-                id={noteId}
-                value={note}
-                maxLength={NOTE_MOST}
-                rows={2}
-                placeholder={m.spot_publish_note_placeholder()}
-                disabled={isAsking}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </div>
-            <p className="text-s text-neutral-7">
-              {m.spot_publish_license()}{" "}
-              <Link
-                to="/terms"
-                target="_blank"
-                className="focus-ring rounded-xs underline underline-offset-2 hover:text-neutral-10"
-              >
-                {m.terms_title()}
-              </Link>
-            </p>
-            <div className="flex flex-wrap justify-end gap-xs">
-              <Button type="button" variant="ghost" onClick={() => setDialog(null)}>
-                {m.action_cancel()}
-              </Button>
-              <Button type="submit" isPending={isAsking}>
-                {m.spot_publish_send()}
-              </Button>
-            </div>
-          </form>
+          <publishing.AppForm>
+            <publishing.Form className="grid gap-l">
+              <p className="text-s text-neutral-7">{m.spot_publish_then()}</p>
+              <publishing.AppField name="note">
+                {(field) => (
+                  <field.Textarea
+                    label={m.spot_publish_note()}
+                    maxLength={NOTE_MOST}
+                    rows={2}
+                    placeholder={m.spot_publish_note_placeholder()}
+                    disabled={isAsking}
+                  />
+                )}
+              </publishing.AppField>
+              <p className="text-s text-neutral-7">
+                {m.spot_publish_license()}{" "}
+                <Link
+                  to="/terms"
+                  target="_blank"
+                  className="focus-ring rounded-xs underline underline-offset-2 hover:text-neutral-10"
+                >
+                  {m.terms_title()}
+                </Link>
+              </p>
+              <div className="flex flex-wrap justify-end gap-xs">
+                <Button type="button" variant="ghost" onClick={() => setDialog(null)}>
+                  {m.action_cancel()}
+                </Button>
+                <publishing.SubmitButton isPending={isAsking}>
+                  {m.spot_publish_send()}
+                </publishing.SubmitButton>
+              </div>
+            </publishing.Form>
+          </publishing.AppForm>
         </DialogPopup>
       </Dialog>
 

@@ -855,6 +855,7 @@
   "spot_marker_label": "El marcador del nuevo spot. Las flechas lo mueven.",
   "spot_name_label": "Nombre",
   "spot_name_placeholder": "El nombre que le pongas",
+  "spot_name_missing": "Ponle un nombre a tu spot.",
   "spot_save": "Guardar el spot",
   "spot_private_hint": "Un spot es privado: solo lo ves tú.",
   "spot_saved": "{name} está en tus spots.",

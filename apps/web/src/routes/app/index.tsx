@@ -1175,8 +1175,7 @@ function ViewerRoute({ shared }: { shared?: SharedList }) {
     }),
   );
 
-  function saveSpot() {
-    const name = draft.name.trim();
+  function saveSpot(name: string) {
     if (!draft.point || !name || createSpot.isPending) return;
     // A marker left on the break it was put on makes a spot from that break, which the API then
     // places itself. Moved, it is a point of the user's own.

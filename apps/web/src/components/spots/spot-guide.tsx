@@ -1,6 +1,7 @@
 import { Button } from "@repo/ui/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
-import { useEffect, useId, useRef, useState } from "react";
+import { ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
+import { useEffect, useId, useRef } from "react";
 
 import { m } from "@/paraglide/messages.js";
 
@@ -75,64 +76,60 @@ function SpotGuideForm({
   onCancel: () => void;
 }) {
   const id = useId();
-  // What was pressed here, characteristic by characteristic. The rest is what the spot holds,
-  // now: a characteristic left alone follows the spot if it changes elsewhere meanwhile, and so
-  // does what this form does not ask for.
-  const [changed, setChanged] = useState<Partial<SpotDescription>>({});
-  const said = { ...saved, ...changed };
+  // What was pressed here, characteristic by characteristic, is what the form changed. The rest is
+  // what the spot holds, now: a characteristic left alone follows the spot if it changes
+  // elsewhere meanwhile, and so does what this form does not ask for.
+  const form = useAppForm({
+    defaultValues: saved,
+    onSubmit: ({ value, formApi }) => {
+      if (isSaving) return;
+      const pressed = Object.fromEntries(
+        CHARACTERISTIC_FIELDS.flatMap(({ key }) => {
+          if (!formApi.getFieldMeta(key)?.isDirty) return [];
+          const words = value[key];
+          // A characteristic with nothing pressed is one that is not said.
+          return [[key, words && words.length > 0 ? words : null]];
+        }),
+      );
+      onSave({ ...saved, ...pressed });
+    },
+  });
+  useEffect(() => {
+    for (const { key } of CHARACTERISTIC_FIELDS) {
+      if (form.getFieldMeta(key)?.isDirty) continue;
+      form.setFieldValue(key, saved[key], { dontUpdateMeta: true, dontRunListeners: true });
+    }
+  }, [form, saved]);
   // The form takes the keyboard when it opens.
   const top = useRef<HTMLParagraphElement>(null);
   useEffect(() => top.current?.focus(), []);
 
   return (
-    <form
-      className="grid gap-l"
-      aria-labelledby={`${id}-hint`}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!isSaving) onSave(said);
-      }}
-    >
-      <p ref={top} id={`${id}-hint`} tabIndex={-1} className="text-s text-neutral-7 outline-none">
-        {m.spot_guide_hint()}
-      </p>
-      {CHARACTERISTIC_FIELDS.map((field) => (
-        <div key={field.key} className="grid gap-xs">
-          <p id={`${id}-${field.key}`} className="text-s font-medium">
-            {field.label()}
-          </p>
-          <ToggleGroup
-            multiple
-            variant="outline"
-            size="sm"
-            aria-labelledby={`${id}-${field.key}`}
-            disabled={isSaving}
-            value={said[field.key] ?? []}
-            onValueChange={(pressed) =>
-              // A characteristic with nothing pressed is one that is not said. Each press adds
-              // to what the others left, however close together they come.
-              setChanged((current) => ({
-                ...current,
-                [field.key]: pressed.length > 0 ? pressed : null,
-              }))
-            }
-          >
-            {field.words.map(({ word, reading }) => (
-              <ToggleGroupItem key={word} value={word}>
-                {reading()}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+    <form.AppForm>
+      <form.Form className="grid gap-l" aria-labelledby={`${id}-hint`}>
+        <p ref={top} id={`${id}-hint`} tabIndex={-1} className="text-s text-neutral-7 outline-none">
+          {m.spot_guide_hint()}
+        </p>
+        {CHARACTERISTIC_FIELDS.map((characteristic) => (
+          <form.AppField key={characteristic.key} name={characteristic.key}>
+            {(field) => (
+              <field.Choice label={characteristic.label()} multiple disabled={isSaving}>
+                {characteristic.words.map(({ word, reading }) => (
+                  <ToggleGroupItem key={word} value={word}>
+                    {reading()}
+                  </ToggleGroupItem>
+                ))}
+              </field.Choice>
+            )}
+          </form.AppField>
+        ))}
+        <div className="flex flex-wrap gap-xs">
+          <form.SubmitButton isPending={isSaving}>{m.spot_guide_save()}</form.SubmitButton>
+          <Button type="button" variant="ghost" disabled={isSaving} onClick={onCancel}>
+            {m.action_cancel()}
+          </Button>
         </div>
-      ))}
-      <div className="flex flex-wrap gap-xs">
-        <Button type="submit" isPending={isSaving}>
-          {m.spot_guide_save()}
-        </Button>
-        <Button type="button" variant="ghost" disabled={isSaving} onClick={onCancel}>
-          {m.action_cancel()}
-        </Button>
-      </div>
-    </form>
+      </form.Form>
+    </form.AppForm>
   );
 }

@@ -183,8 +183,10 @@ export type AddingSpot = {
   // The marker was put somewhere on the map, on a break of the catalogue or not. A break the
   // map has not loaded gives its name with it.
   onPlace: (point: MapPoint, breakId?: string, name?: string) => void;
+  // The name as it is typed. It is kept with the marker: a place found or pressed names the
+  // spot until a name of the reader's own is typed.
   onNameChange: (name: string) => void;
-  onSave: () => void;
+  onSave: (name: string) => void;
 };
 
 /** The sea's wave height as map tiles, and the instants the model has a field for. */
@@ -1815,13 +1817,11 @@ export function Viewer({
       >
         {editing && ownSpot && (
           <SpotEditor
+            key={editing.id}
             edit={editing}
-            onNameChange={(name) => setEdit({ ...editing, name })}
             isSaving={isChangingSpot}
-            onSave={() =>
-              onChangeSpot(ownSpot, { name: editing.name.trim(), ...editing.point }, () =>
-                setEdit(null),
-              )
+            onSave={(name) =>
+              onChangeSpot(ownSpot, { name, ...editing.point }, () => setEdit(null))
             }
             onCancel={() => setEdit(null)}
           />

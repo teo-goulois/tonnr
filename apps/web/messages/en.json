@@ -855,6 +855,7 @@
   "spot_marker_label": "The marker of the new spot. The arrow keys move it.",
   "spot_name_label": "Name",
   "spot_name_placeholder": "The name you give it",
+  "spot_name_missing": "Give your spot a name.",
   "spot_save": "Save the spot",
   "spot_private_hint": "A spot is private: only you see it.",
   "spot_saved": "{name} is in your spots.",
