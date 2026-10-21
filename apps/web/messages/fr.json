@@ -365,6 +365,7 @@
   "delete_account_stays_title": "Ce qui reste",
   "delete_account_stays": "Ce que tu as écrit dans une fiche et qui a été confirmé reste, sous « Un contributeur ». Un spot à toi devenu public reste dans le catalogue, sans nom dessus. Personne ne peut prendre ton pseudo pendant {days} jours.",
   "delete_account_password": "Ton mot de passe",
+  "delete_account_password_missing": "Saisis ton mot de passe.",
   "delete_account_confirm": "Supprimer mon compte",
   "delete_account_confirm_named": "Supprimer @{username}",
   "delete_account_sign_in_again": "Ta session est trop ancienne pour supprimer ton compte. Reconnecte-toi comme d'habitude, et tu reviens ici.",

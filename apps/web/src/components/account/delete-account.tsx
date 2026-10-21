@@ -1,9 +1,10 @@
 import { DELETED_USERNAME_DAYS } from "@repo/config/account";
 import { Button } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
-import { Label } from "@repo/ui/components/ui/label";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { useId, useState } from "react";
+import { refuseField } from "@repo/ui/hooks/form/form-context";
+import { useAppForm } from "@repo/ui/hooks/form/form";
+import { useEffect } from "react";
+import { z } from "zod";
 
 import { ProviderButton } from "@/components/auth/provider-sign-in";
 import type { Provider } from "@/lib/provider-auth";
@@ -28,7 +29,9 @@ export type AccountDeletion = {
   // The provider being signed in with again, while it is.
   signingIn: Provider | undefined;
   refused: DeletionRefusal | undefined;
-  onDelete: (password: string | undefined) => void;
+  // Deletes the account with its password, or without for one that has none. It answers why the
+  // API refused once it has answered, and nothing once the account is gone or the person stayed.
+  onDelete: (password: string | undefined) => Promise<DeletionRefusal | undefined>;
   // Signs in again with that provider, and comes back to this step.
   onSignInAgain: (provider: Provider) => void;
 };
@@ -58,9 +61,27 @@ const REFUSALS: Record<DeletionRefusal, () => string> = {
  * so the step says it before it asks. Decision 071.
  */
 export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
-  const id = useId();
-  const [password, setPassword] = useState("");
   const { account, hasPassword, refused } = deletion;
+  const form = useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({
+        password: z.string().min(1, m.delete_account_password_missing()),
+      }),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      const refusal = await deletion.onDelete(value.password);
+      if (refusal === "password") {
+        refuseField(formApi, "password", m.delete_account_wrong_password());
+      }
+    },
+  });
+  // A wrong password the step is shown with is said under its field, as after a press.
+  useEffect(() => {
+    if (refused === "password") {
+      refuseField(form, "password", m.delete_account_wrong_password());
+    }
+  }, [form, refused]);
   // An account without a password signs in again once the API says its session is too old.
   const signsInFirst = hasPassword === false && refused === "session";
   const offered = deletion.signsInAgainWith;
@@ -92,44 +113,36 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
       {hasPassword === undefined ? (
         <Skeleton className="h-20 w-full" />
       ) : hasPassword ? (
-        <form
-          className="grid gap-s"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (password && !deletion.isDeleting) deletion.onDelete(password);
-          }}
-        >
-          <div className="grid gap-xxs">
-            <Label htmlFor={id}>{m.delete_account_password()}</Label>
-            <Input
-              id={id}
-              type="password"
-              autoComplete="current-password"
-              maxLength={128}
-              value={password}
-              disabled={deletion.isDeleting}
-              aria-invalid={refused === "password" || undefined}
-              aria-describedby={refused ? `${id}-refused` : undefined}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-          {refused && (
-            <p id={`${id}-refused`} role="alert" className="text-s text-error">
-              {REFUSALS[refused]()}
-            </p>
-          )}
-          <div>
-            <Button
-              type="submit"
-              variant="destructive"
-              className="max-w-full"
-              isPending={deletion.isDeleting}
-              disabled={!password}
-            >
-              <span className="truncate">{confirm}</span>
-            </Button>
-          </div>
-        </form>
+        <form.AppForm>
+          <form.Form className="grid gap-s">
+            <form.AppField name="password">
+              {(field) => (
+                <field.Input
+                  label={m.delete_account_password()}
+                  type="password"
+                  autoComplete="current-password"
+                  maxLength={128}
+                  disabled={deletion.isDeleting}
+                />
+              )}
+            </form.AppField>
+            {/* A wrong password is said under its field: another refusal is said here. */}
+            {refused && refused !== "password" && (
+              <p role="alert" className="text-s text-error">
+                {REFUSALS[refused]()}
+              </p>
+            )}
+            <div>
+              <form.SubmitButton
+                variant="destructive"
+                className="max-w-full"
+                isPending={deletion.isDeleting}
+              >
+                <span className="truncate">{confirm}</span>
+              </form.SubmitButton>
+            </div>
+          </form.Form>
+        </form.AppForm>
       ) : signsInFirst ? (
         <div className="grid justify-items-start gap-s">
           <p role="alert" className="text-s text-pretty">
@@ -156,7 +169,7 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
             variant="destructive"
             className="max-w-full"
             isPending={deletion.isDeleting}
-            onClick={() => deletion.onDelete(undefined)}
+            onClick={() => void deletion.onDelete(undefined)}
           >
             <span className="truncate">{confirm}</span>
           </Button>

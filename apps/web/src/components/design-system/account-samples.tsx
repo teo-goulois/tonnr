@@ -13,7 +13,7 @@ const sampleDeletion = (given: Partial<AccountDeletion>): AccountDeletion => ({
   isDeleting: false,
   signingIn: undefined,
   refused: undefined,
-  onDelete: () => {},
+  onDelete: async () => undefined,
   onSignInAgain: () => {},
   ...given,
 });

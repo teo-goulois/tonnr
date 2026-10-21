@@ -365,6 +365,7 @@
   "delete_account_stays_title": "Lo que se queda",
   "delete_account_stays": "Lo que escribiste en una guía y se confirmó se queda, como «Un colaborador». Un spot tuyo que se hizo público se queda en el catálogo, sin ningún nombre. Nadie puede usar tu nombre de usuario durante {days} días.",
   "delete_account_password": "Tu contraseña",
+  "delete_account_password_missing": "Introduce tu contraseña.",
   "delete_account_confirm": "Eliminar mi cuenta",
   "delete_account_confirm_named": "Eliminar @{username}",
   "delete_account_sign_in_again": "Tu sesión es demasiado antigua para eliminar tu cuenta. Vuelve a iniciar sesión como sueles hacerlo, y volverás aquí.",

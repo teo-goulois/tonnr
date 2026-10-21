@@ -1,13 +1,10 @@
-import { Button, buttonVariants } from "@repo/ui/components/ui/button";
-import { Input } from "@repo/ui/components/ui/input";
-import { useForm } from "@tanstack/react-form";
+import { buttonVariants } from "@repo/ui/components/ui/button";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { m } from "@/paraglide/messages.js";
-
-import { Field } from "./auth-form";
 import { PageColumn } from "@/components/shared/page-column";
+import { m } from "@/paraglide/messages.js";
 
 // The lengths the sign-in library takes a password of, as a sign-up checks them.
 const PASSWORD_MIN = 8;
@@ -26,7 +23,7 @@ type ResetPasswordPageProps = {
  * everywhere. The link signs no one in. Decision 026.
  */
 export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) {
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: { password: "" },
     onSubmit: ({ value }) => onReset(value.password),
     validators: {
@@ -55,45 +52,22 @@ export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) 
   return (
     <PageColumn>
       <h1 className="text-l font-medium">{m.reset_title()}</h1>
-      <form
-        noValidate
-        className="flex flex-col gap-m"
-        onSubmit={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void form.handleSubmit();
-        }}
-      >
-        <form.Field name="password">
-          {(field) => (
-            <Field
-              label={m.reset_new_password()}
-              errors={field.state.meta.errors}
-              hint={m.reset_signs_out()}
-            >
-              {(invalid) => (
-                <Input
-                  name={field.name}
-                  type="password"
-                  autoComplete="new-password"
-                  maxLength={PASSWORD_MAX}
-                  aria-invalid={invalid || undefined}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                />
-              )}
-            </Field>
-          )}
-        </form.Field>
-        <form.Subscribe selector={(formState) => formState.isSubmitting}>
-          {(isSubmitting) => (
-            <Button type="submit" isPending={isSubmitting}>
-              {m.reset_save()}
-            </Button>
-          )}
-        </form.Subscribe>
-      </form>
+      <form.AppForm>
+        <form.Form className="flex flex-col gap-m">
+          <form.AppField name="password">
+            {(field) => (
+              <field.Input
+                label={m.reset_new_password()}
+                description={m.reset_signs_out()}
+                type="password"
+                autoComplete="new-password"
+                maxLength={PASSWORD_MAX}
+              />
+            )}
+          </form.AppField>
+          <form.SubmitButton>{m.reset_save()}</form.SubmitButton>
+        </form.Form>
+      </form.AppForm>
     </PageColumn>
   );
 }

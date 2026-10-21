@@ -365,6 +365,7 @@
   "delete_account_stays_title": "What stays",
   "delete_account_stays": "What you wrote in a guide and was confirmed stays, under “A contributor”. A spot of yours that was made public stays in the catalogue, with no name on it. Nobody can take your username for {days} days.",
   "delete_account_password": "Your password",
+  "delete_account_password_missing": "Enter your password.",
   "delete_account_confirm": "Delete my account",
   "delete_account_confirm_named": "Delete @{username}",
   "delete_account_sign_in_again": "Your session is too old to delete your account from. Sign in again the way you usually do, and you'll come back here.",

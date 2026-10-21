@@ -50,8 +50,9 @@ export function useAccountDeletion({ account }: Asked): AccountDeletion {
     try {
       await remove.mutateAsync(password === undefined ? {} : { password });
     } catch (error) {
-      setRefused(refusalOf(error));
-      return;
+      const refusal = refusalOf(error);
+      setRefused(refusal);
+      return refusal;
     }
     // The account and its sessions are gone: the browser lets go of its cookie, of its push
     // and of what it kept for the account.
@@ -62,6 +63,7 @@ export function useAccountDeletion({ account }: Asked): AccountDeletion {
     clearRecents();
     toast.success(m.delete_account_done());
     void navigate({ to: "/app", ignoreBlocker: true });
+    return undefined;
   };
 
   return {
@@ -78,7 +80,13 @@ export function useAccountDeletion({ account }: Asked): AccountDeletion {
     refused,
     // Whatever was written and not saved is asked about first: once the account goes, there is
     // no staying.
-    onDelete: (password) => leaveWith(() => void deleteAccount(password)),
+    onDelete: (password) =>
+      new Promise((answered) =>
+        leaveWith(
+          () => void deleteAccount(password).then(answered, () => answered(undefined)),
+          () => answered(undefined),
+        ),
+      ),
     onSignInAgain: (provider) => {
       setSigningIn(provider);
       void signInWith(provider)

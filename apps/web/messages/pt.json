@@ -365,6 +365,7 @@
   "delete_account_stays_title": "O que fica",
   "delete_account_stays": "O que escreveste num guia e foi confirmado fica, como «Um contribuidor». Um spot teu que foi tornado público fica no catálogo, sem nome nenhum. Ninguém pode ficar com o teu nome de utilizador durante {days} dias.",
   "delete_account_password": "A tua palavra-passe",
+  "delete_account_password_missing": "Introduz a tua palavra-passe.",
   "delete_account_confirm": "Eliminar a minha conta",
   "delete_account_confirm_named": "Eliminar @{username}",
   "delete_account_sign_in_again": "A tua sessão é demasiado antiga para eliminar a tua conta. Inicia sessão outra vez como costumas fazer, e voltas aqui.",
