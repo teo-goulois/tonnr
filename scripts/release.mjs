@@ -555,9 +555,12 @@ function findFile(directory, ending) {
 
 async function buildForIos() {
   const { build, version, buildEnv } = await storeBuild();
+  // Xcode gives its scripts the project's folder through macOS's link, /var/folders, and Metro,
+  // which works from the real path, refuses the widgets' layouts named through it: CocoaPods
+  // writes the real folder into the phase that bundles them, from PROJECT_ROOT as it installs.
   await step("The prebuild", tool("expo"), ["prebuild", "--platform", "ios", "--clean"], {
     cwd: native,
-    env: buildEnv,
+    env: { ...buildEnv, PROJECT_ROOT: native },
   });
   const ios = path.join(native, "ios");
   const workspace = main.builds.workspaceOf(readdirSync(ios));
@@ -598,10 +601,7 @@ async function buildForIos() {
       ...signing,
       "archive",
     ],
-    // Xcode gives its scripts the project's folder through macOS's link, /var/folders, and the
-    // bundle of the widgets' layouts then names files that Metro, at the real path, refuses: the
-    // scripts that bundle read PROJECT_ROOT first.
-    { cwd: native, env: { ...buildEnv, PROJECT_ROOT: native } },
+    { cwd: native, env: buildEnv },
   );
 
   const fingerprint = findFile(path.join(archive, "Products"), "EXUpdates.bundle/fingerprint");
