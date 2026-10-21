@@ -79,10 +79,10 @@ export const isNewToken = (token: Notifications.DevicePushToken) => String(token
 
 /**
  * The device as the API takes it: its token, its kind, its keys. `known` is a token the system
- * just gave, which is not read again. Null where push cannot be.
+ * just gave, which is not read again. An Android emulator with Google Play's services is given a
+ * token as a phone is, and one without them fails here.
  */
 async function deviceOf(account: string, known?: string) {
-  if (!Device.isDevice && Platform.OS === "android") return null;
   const token = known ?? String((await Notifications.getDevicePushTokenAsync()).data);
   localStorage.setItem(TOKEN, token);
   const keys = await pushKeys();
@@ -118,7 +118,6 @@ export async function switchPushOn(account: string) {
   const asked = await Notifications.requestPermissionsAsync();
   if (!asked.granted) return false;
   const device = await deviceOf(account);
-  if (!device) return false;
   const made = await client.v1.push.registerApp(device);
   localStorage.setItem(DEVICE, made.id);
   localStorage.setItem(ON, "on");
@@ -133,7 +132,6 @@ export async function switchPushOn(account: string) {
 export async function renewPush(account: string, known?: string) {
   if (!pushIsOn() || (await permission()) !== "granted") return;
   const device = await deviceOf(account, known);
-  if (!device) return;
   const id = localStorage.getItem(DEVICE) ?? undefined;
   try {
     const renewed = await client.v1.push.renewApp({ ...device, ...(id && { id }) });
