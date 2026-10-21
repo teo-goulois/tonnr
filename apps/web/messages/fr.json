@@ -699,6 +699,8 @@
   "guide_correct": "Corriger",
   "guide_nothing_yet": "Personne ne l'a encore dit.",
   "guide_send": "Envoyer",
+  "guide_too_short": "Écris au moins {count} caractères.",
+  "guide_words_none": "Choisis-en au moins un.",
   "guide_license": "Ce que tu envoies est lu par tous, sous ton pseudo, et publié sous licence ouverte. Pour garder ce que tu sais pour toi, crée plutôt ton propre spot ici : il reste privé.",
   "guide_license_terms": "Conditions",
   "guide_sent_waiting": "Merci ! Ta contribution attend d'être lue.",

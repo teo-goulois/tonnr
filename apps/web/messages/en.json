@@ -699,6 +699,8 @@
   "guide_correct": "Correct",
   "guide_nothing_yet": "Nobody has said yet.",
   "guide_send": "Send",
+  "guide_too_short": "Write at least {count} characters.",
+  "guide_words_none": "Pick at least one.",
   "guide_license": "What you send is read by everyone, under your username, and published under an open licence. To keep what you know to yourself, add your own spot here instead: it stays private.",
   "guide_license_terms": "Terms",
   "guide_sent_waiting": "Thanks! Your contribution waits to be read.",

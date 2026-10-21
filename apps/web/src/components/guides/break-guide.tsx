@@ -1,11 +1,12 @@
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
-import { Textarea } from "@repo/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@repo/ui/components/ui/toggle-group";
+import { useAppForm } from "@repo/ui/hooks/form/form";
 import { PenIcon, PlusIcon } from "@repo/ui/icon";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { z } from "zod";
 
 import { UsernameForm } from "@/components/account/username-form";
 import { m } from "@/paraglide/messages.js";
@@ -73,6 +74,12 @@ function read(line: GuideLineName, value: string[] | string): ReactNode {
   return readCharacteristic(line, value);
 }
 
+/** A text as it is sent: its spaces, and its lines, folded into one each. */
+const folded = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/** Why a text is too short to send, in the reader's language. */
+const tooShort = () => m.guide_too_short({ count: TEXT_LEAST });
+
 /** Why a contest is given, in a few words that only a moderator reads. */
 function ContestForm({
   isSending,
@@ -83,42 +90,40 @@ function ContestForm({
   onSend: (reason: string) => void;
   onCancel: () => void;
 }) {
-  const id = useId();
-  const [reason, setReason] = useState("");
-  const said = reason.trim();
+  const form = useAppForm({
+    defaultValues: { reason: "" },
+    validators: {
+      onSubmit: z.object({ reason: z.string().trim().min(TEXT_LEAST, tooShort()) }),
+    },
+    onSubmit: ({ value }) => {
+      if (!isSending) onSend(value.reason.trim());
+    },
+  });
   return (
-    <form
-      className="grid gap-xs"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (said.length >= TEXT_LEAST && !isSending) onSend(said);
-      }}
-    >
-      <label htmlFor={id} className="text-s font-medium">
-        {m.guide_contest_title()}
-      </label>
-      <Textarea
-        id={id}
-        rows={2}
-        autoFocus
-        maxLength={REASON_MOST}
-        disabled={isSending}
-        value={reason}
-        aria-describedby={`${id}-hint`}
-        onChange={(event) => setReason(event.target.value)}
-      />
-      <p id={`${id}-hint`} className="text-s text-neutral-7">
-        {m.guide_contest_hint()}
-      </p>
-      <div className="flex flex-wrap gap-xs">
-        <Button type="submit" size="sm" isPending={isSending} disabled={said.length < TEXT_LEAST}>
-          {m.guide_send()}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" disabled={isSending} onClick={onCancel}>
-          {m.action_cancel()}
-        </Button>
-      </div>
-    </form>
+    <form.AppForm>
+      <form.Form className="grid gap-xs">
+        <form.AppField name="reason">
+          {(field) => (
+            <field.Textarea
+              label={m.guide_contest_title()}
+              description={m.guide_contest_hint()}
+              rows={2}
+              autoFocus
+              maxLength={REASON_MOST}
+              disabled={isSending}
+            />
+          )}
+        </form.AppField>
+        <div className="flex flex-wrap gap-xs">
+          <form.SubmitButton size="sm" isPending={isSending}>
+            {m.guide_send()}
+          </form.SubmitButton>
+          <Button type="button" variant="ghost" size="sm" disabled={isSending} onClick={onCancel}>
+            {m.action_cancel()}
+          </Button>
+        </div>
+      </form.Form>
+    </form.AppForm>
   );
 }
 
@@ -331,58 +336,59 @@ function WordsEditor({
   guiding: Guiding;
   onDone: () => void;
 }) {
-  const id = useId();
-  const [pressed, setPressed] = useState<string[]>([...saved]);
-  const isSame = pressed.length === saved.length && pressed.every((word) => saved.includes(word));
+  const isSaved = (pressed: readonly string[]) =>
+    pressed.length === saved.length && pressed.every((word) => saved.includes(word));
+  const form = useAppForm({
+    defaultValues: { words: [...saved] },
+    validators: {
+      onSubmit: z.object({
+        words: z
+          .array(z.string())
+          .min(1, m.guide_words_none())
+          .refine((pressed) => !isSaved(pressed), m.guide_same()),
+      }),
+    },
+    onSubmit: ({ value }) => {
+      if (!guiding.isSending) guiding.onPropose(line, value.words, onDone);
+    },
+  });
   return (
-    <form
-      className="grid gap-s"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (pressed.length > 0 && !isSame && !guiding.isSending) {
-          guiding.onPropose(line, pressed, onDone);
-        }
-      }}
-    >
-      <span id={id} className="sr-only">
-        {field.label()}
-      </span>
-      <ToggleGroup
-        multiple
-        variant="outline"
-        size="sm"
-        aria-labelledby={id}
-        disabled={guiding.isSending}
-        value={pressed}
-        onValueChange={(next) => setPressed(next as string[])}
-      >
-        {field.words.map(({ word, reading }) => (
-          <ToggleGroupItem key={word} value={word}>
-            {reading()}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <div className="flex flex-wrap gap-xs">
-        <Button
-          type="submit"
-          size="sm"
-          isPending={guiding.isSending}
-          disabled={pressed.length === 0 || isSame}
-        >
-          {m.guide_send()}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={guiding.isSending}
-          onClick={onDone}
-        >
-          {m.action_cancel()}
-        </Button>
-      </div>
-      <License />
-    </form>
+    <form.AppForm>
+      <form.Form className="grid gap-s">
+        <form.AppField name="words">
+          {(choice) => (
+            // The line's name stands over the editor already: the group says it to a screen
+            // reader alone.
+            <choice.Choice
+              multiple
+              label={<span className="sr-only">{field.label()}</span>}
+              disabled={guiding.isSending}
+            >
+              {field.words.map(({ word, reading }) => (
+                <ToggleGroupItem key={word} value={word}>
+                  {reading()}
+                </ToggleGroupItem>
+              ))}
+            </choice.Choice>
+          )}
+        </form.AppField>
+        <div className="flex flex-wrap gap-xs">
+          <form.SubmitButton size="sm" isPending={guiding.isSending}>
+            {m.guide_send()}
+          </form.SubmitButton>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={guiding.isSending}
+            onClick={onDone}
+          >
+            {m.action_cancel()}
+          </Button>
+        </div>
+        <License />
+      </form.Form>
+    </form.AppForm>
   );
 }
 
@@ -397,60 +403,74 @@ function TextEditor({
   guiding: Guiding;
   onDone: () => void;
 }) {
-  const id = useId();
+  const countId = useId();
   const most = textMostOf(line);
-  // What was typed here before the panel last closed is here again.
-  const [text, setText] = useState(guiding.draftOf(line) ?? saved);
-  const said = text.replace(/\s+/g, " ").trim();
-  const isSendable = said.length >= TEXT_LEAST && said !== saved;
-  const write = (next: string) => {
-    setText(next);
-    guiding.onDraft(line, next === saved ? undefined : next);
-  };
   const leave = () => {
     guiding.onDraft(line, undefined);
     onDone();
   };
+  const form = useAppForm({
+    // What was typed here before the panel last closed is here again.
+    defaultValues: { text: guiding.draftOf(line) ?? saved },
+    validators: {
+      onSubmit: z.object({
+        text: z
+          .string()
+          .refine((text) => folded(text).length >= TEXT_LEAST, tooShort())
+          .refine((text) => folded(text) !== saved, m.guide_same()),
+      }),
+    },
+    onSubmit: ({ value }) => {
+      if (!guiding.isSending) guiding.onPropose(line, folded(value.text), leave);
+    },
+  });
   return (
-    <form
-      className="grid gap-s"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (isSendable && !guiding.isSending) guiding.onPropose(line, said, leave);
-      }}
-    >
-      <Textarea
-        rows={most < 200 ? 2 : 4}
-        autoFocus
-        maxLength={most}
-        disabled={guiding.isSending}
-        placeholder={TEXT_LINES[line].placeholder()}
-        aria-label={TEXT_LINES[line].label()}
-        aria-describedby={`${id}-count`}
-        value={text}
-        onChange={(event) => write(event.target.value)}
-      />
-      <div className="flex flex-wrap items-center justify-between gap-xs">
-        <div className="flex flex-wrap gap-xs">
-          <Button type="submit" size="sm" isPending={guiding.isSending} disabled={!isSendable}>
-            {m.guide_send()}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={guiding.isSending}
-            onClick={leave}
-          >
-            {m.action_cancel()}
-          </Button>
+    <form.AppForm>
+      <form.Form className="grid gap-s">
+        <form.AppField
+          name="text"
+          listeners={{
+            onChange: ({ value }) => guiding.onDraft(line, value === saved ? undefined : value),
+          }}
+        >
+          {(field) => (
+            <field.Textarea
+              rows={most < 200 ? 2 : 4}
+              autoFocus
+              maxLength={most}
+              disabled={guiding.isSending}
+              placeholder={TEXT_LINES[line].placeholder()}
+              aria-label={TEXT_LINES[line].label()}
+              aria-describedby={countId}
+            />
+          )}
+        </form.AppField>
+        <div className="flex flex-wrap items-center justify-between gap-xs">
+          <div className="flex flex-wrap gap-xs">
+            <form.SubmitButton size="sm" isPending={guiding.isSending}>
+              {m.guide_send()}
+            </form.SubmitButton>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={guiding.isSending}
+              onClick={leave}
+            >
+              {m.action_cancel()}
+            </Button>
+          </div>
+          <form.Subscribe selector={(state) => state.values.text.length}>
+            {(length) => (
+              <span id={countId} className="text-s text-neutral-7 tabular-nums">
+                {length} / {most}
+              </span>
+            )}
+          </form.Subscribe>
         </div>
-        <span id={`${id}-count`} className="text-s text-neutral-7 tabular-nums">
-          {text.length} / {most}
-        </span>
-      </div>
-      <License />
-    </form>
+        <License />
+      </form.Form>
+    </form.AppForm>
   );
 }
 
