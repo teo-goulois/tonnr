@@ -3,7 +3,7 @@
 // in a checkout of its own, so that work in progress in this checkout never goes online, and
 // runs the code of other people with what their tools need of the shell and no secret of it.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -141,7 +141,10 @@ export async function checkoutMain(prefix) {
   // Into a ref of this run's own: FETCH_HEAD is shared, and someone else's fetch may write it
   // between two commands. The ref holds the commit until the checkout does.
   const fetched = `refs/${prefix}/${process.pid}`;
-  const checkout = mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+  // By its real path: macOS's temporary folder, /var/folders, is a link to /private/var/folders,
+  // where Metro works from, and Metro refuses a module that a plugin named through the link, as
+  // expo-widgets names the layouts of the widgets as the app is prebuilt.
+  const checkout = realpathSync(mkdtempSync(path.join(os.tmpdir(), `${prefix}-`)));
   let refused = null;
   let commit = null;
   let summary = null;
