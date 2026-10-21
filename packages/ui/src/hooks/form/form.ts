@@ -35,3 +35,7 @@ export const { useAppForm, withForm, extendForm } = createFormHook({
 });
 
 export type AppForm = ReturnType<typeof useAppForm>;
+
+// What reads a form's state outside its fields, as a panel that says whether anything changed.
+// The apps take it from here, with the rest of the kit, and not from TanStack Form itself.
+export { useSelector } from "@tanstack/react-form";

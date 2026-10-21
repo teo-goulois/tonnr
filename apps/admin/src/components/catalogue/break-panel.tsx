@@ -1,6 +1,6 @@
+import { useSelector } from "@repo/ui/hooks/form/form";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Button } from "@repo/ui/components/ui/button";
-import { useSelector } from "@tanstack/react-form";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
