@@ -10,6 +10,8 @@ const compiled = "./node_modules/.cache/paraglide";
 const from = (path: string) => new URL(path, import.meta.url).pathname;
 
 export default defineConfig({
+  // A test reads no `.env` of the checkout, as in CI, which has none.
+  envDir: false,
   plugins: [paraglideVitePlugin({ ...messages, outdir: compiled })],
   resolve: {
     // The first that matches wins: the messages before everything else under `src`.
@@ -21,5 +23,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],
+    // What a module reads as it loads, such as the API's address in `utils/orpc.ts`, which a test
+    // never calls.
+    env: { VITE_SERVER_URL: "https://api.example.test" },
   },
 });
