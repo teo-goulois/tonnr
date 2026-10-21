@@ -1,4 +1,5 @@
 import { useAppForm } from "@repo/ui/hooks/form/form";
+import { refuseField } from "@repo/ui/hooks/form/form-context";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement as h } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,11 +14,22 @@ const schema = z.object({
   note: z.string().min(3, "Write a little more."),
 });
 
-function Sample({ onSend }: { onSend: (value: z.input<typeof schema>) => void }) {
+function Sample({
+  onSend,
+  refusal,
+}: {
+  onSend: (value: z.input<typeof schema>) => void;
+  // What the API answers of the name, when it refuses it.
+  refusal?: string;
+}) {
   const form = useAppForm({
     defaultValues: { name: "", note: "" },
     validators: { onSubmit: schema },
-    onSubmit: ({ value }) => onSend(value),
+    onSubmit: async ({ value, formApi }) => {
+      await Promise.resolve();
+      if (refusal) refuseField(formApi, "name", refusal);
+      else onSend(value);
+    },
   });
   return h(
     form.AppForm,
@@ -99,5 +111,24 @@ describe("the form kit", () => {
     });
     await send();
     expect(onSend).toHaveBeenCalledWith({ name: "La Torche", note: "Low tide" });
+  });
+
+  it("says under its field why the API refused it, until the field changes", async () => {
+    render(h(Sample, { onSend: () => {}, refusal: "That name is taken." }));
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "La Torche" } });
+      fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Low tide" } });
+    });
+    await send();
+
+    const name = screen.getByLabelText("Name");
+    expect(screen.getByText("That name is taken.")).toBeTruthy();
+    expect(name.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(name);
+
+    await act(async () => {
+      fireEvent.change(name, { target: { value: "La Torche Nord" } });
+    });
+    expect(screen.queryByText("That name is taken.")).toBeNull();
   });
 });

@@ -3,7 +3,7 @@
 // From the teogoulois registry (`form`), as it is: the contexts every adapter reads, the light
 // shake of a field that becomes invalid, and how an error is read. Decision 076.
 
-import { createFormHookContexts } from "@tanstack/react-form";
+import { type AnyFormApi, createFormHookContexts } from "@tanstack/react-form";
 import { useEffect, useRef } from "react";
 
 export const { fieldContext, formContext, useFieldContext, useFormContext } =
@@ -59,4 +59,17 @@ export function getFieldError(error: unknown): string | undefined {
   }
 
   return error == null ? undefined : String(error);
+}
+
+/**
+ * Says under a field why the API refused what it holds, as the schema says why it is wrong: the
+ * field is invalid, the form gives it the focus once sent, and the error goes as soon as the field
+ * changes. What refuses is the feature's to word (decision 076).
+ */
+export function refuseField(form: AnyFormApi, name: string, message: string) {
+  form.setFieldMeta(name, (meta) => ({
+    ...meta,
+    isTouched: true,
+    errorMap: { ...meta.errorMap, onSubmit: message },
+  }));
 }
