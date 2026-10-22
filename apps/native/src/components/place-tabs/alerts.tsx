@@ -5,6 +5,7 @@ import { RefreshControl, ScrollView, View } from "react-native";
 
 import { AlertRow } from "@/components/alerts/alert-row";
 import { useAlertActions, useAlerts } from "@/components/alerts/use-alerts";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { placeParam } from "@/components/sessions/session-logic";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -14,7 +15,6 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { LinesLoading, TabFailure } from "./tab-states";
-import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -53,9 +53,11 @@ export function AlertsTab({ kind, id }: PlaceTabProps) {
   } else if (pending || isPending) {
     // As the web's panel of a spot: two lines to come, and what failed in a line with a retry.
     content = <LinesLoading />;
-  } else if (isError) {
-    content = <TabFailure text={m.alerts_mine_load_failed()} onRetry={refetch} />;
-  } else if (!here?.length) {
+  } else if (!here) {
+    // Only when nothing is known: a pull that fails keeps the alerts it had, as the web's panel
+    // keeps them.
+    content = isError ? <TabFailure text={m.alerts_mine_load_failed()} onRetry={refetch} /> : null;
+  } else if (here.length === 0) {
     content = (
       <View style={{ gap: space.s, alignItems: "flex-start" }}>
         <Text size="s" tone="muted">
