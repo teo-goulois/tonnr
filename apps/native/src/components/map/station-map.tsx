@@ -152,8 +152,10 @@ type StationMapProps = {
   // selected is shown clear of it, and what the map is sent to is brought to its middle. Unknown
   // while the sheet of what is selected has not said how tall it stands, and the place waits.
   padding?: Padding | undefined;
-  // The break or the spot a sheet is open on, which its pill stands for: one of those drawn, or
-  // one that is not, opened by its address or with the breaks switched off.
+  // The place a sheet is open on, wherever it is: a break or a spot, which its pill stands for,
+  // one of those drawn or one that is not, opened by its address or with the breaks switched off,
+  // and a station, which is brought into view when it is not on the map, as a wind station that
+  // a link names far from the view, whose markers are loaded only for the view.
   selectedPlace?: MapPlace | undefined;
   layers: MapLayers;
   sea: SeaMap | undefined;
@@ -269,6 +271,8 @@ export function StationMap({
   if (!basemap.isPending && !drawn) setDrawn(true);
   // A list fitted before the map was drawn, which is fitted once it is.
   const waitingFit = useRef<(() => void) | undefined>(undefined);
+  // Whether the map has loaded, and can be moved.
+  const [loaded, setLoaded] = useState(false);
   // Written once as JSON, which the map reads as a style, so that it is not written again each
   // time the map is drawn again.
   const mapStyle = useMemo(
@@ -386,18 +390,17 @@ export function StationMap({
   // The place selected comes into view when it is off the map, close to an edge or under the
   // sheet, as on the web: one that is already in view stays where it is, and the map does not
   // move under the finger that pressed it. It is brought to the middle of what is not covered, at
-  // the zoom the map is at, once, when its point and the sheet's height are both known.
+  // the zoom the map is at, once, when its point and the sheet's height are both known and the
+  // map has loaded, which a link that starts the app may come before.
   const revealed = useRef<string | undefined>(undefined);
   const selectedKey = selected && `${selected.kind}:${selected.id}`;
   useEffect(() => {
     if (!selected) revealed.current = undefined;
-    if (!drawn || !selected || !padding || revealed.current === selectedKey) return;
+    if (!loaded || !selected || !padding || revealed.current === selectedKey) return;
     const place =
-      selected.kind === "station"
+      (selected.kind === "station"
         ? (stationsById.get(selected.id) ?? windById.get(selected.id))
-        : selectedPlace?.id === selected.id
-          ? selectedPlace
-          : undefined;
+        : undefined) ?? (selectedPlace?.id === selected.id ? selectedPlace : undefined);
     const { width, height } = size.current;
     if (!place || width === 0 || height === 0) return;
     revealed.current = selectedKey;
@@ -410,7 +413,7 @@ export function StationMap({
     });
     // The point and the room are read as they are when the place is selected or becomes known.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawn, selectedKey, selectedPlace, stationsById, windById, padding]);
+  }, [loaded, selectedKey, selectedPlace, stationsById, windById, padding]);
 
   // The arrows on the sea where the map draws water, as the web keeps them: an island smaller than
   // a cell of the model is sea to it, and land on the map. They are read again where the map rests,
@@ -561,6 +564,7 @@ export function StationMap({
         revealSea(awaited.moment);
       }}
       onDidFinishLoadingMap={() => {
+        setLoaded(true);
         waitingFit.current?.();
         waitingFit.current = undefined;
       }}

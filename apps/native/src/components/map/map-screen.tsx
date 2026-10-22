@@ -266,14 +266,19 @@ export function MapScreen() {
   );
   const mapSpots = useMemo(() => list?.spots ?? spots.data ?? [], [list, spots.data]);
 
-  // The break or the spot a sheet is open on, which the map draws as a pill: among those drawn,
-  // or as its sheet read it, opened by its address or with the breaks switched off.
+  // The place a sheet is open on, which the map brings into view and, a break or a spot, draws as
+  // a pill: among those drawn, or as its sheet read it, opened by its address or with the breaks
+  // switched off.
+  // A station is among those loaded, or asked for on its own: a wind station far from the view,
+  // which a link names, is not loaded, and the map is brought to it all the same.
   const drawnPlace =
     selected?.kind === "break"
       ? mapBreaks.find((one) => one.id === selected.id)
       : selected?.kind === "spot"
         ? mapSpots.find((one) => one.id === selected.id)
-        : undefined;
+        : selected?.kind === "station"
+          ? loaded.get(selected.id)
+          : undefined;
   const quiet = { retry: false, meta: { quiet: true } } as const;
   const selectedBreak = useQuery(
     orpc.v1.breaks.get.queryOptions({
@@ -289,7 +294,20 @@ export function MapScreen() {
       ...quiet,
     }),
   );
-  const asked = selected?.kind === "break" ? selectedBreak.data : selectedSpot.data;
+  const selectedStation = useQuery(
+    orpc.v1.stations.get.queryOptions({
+      input: { id: selected?.id ?? "" },
+      // The buoys come all at once: one that is not among them is asked for once they have come.
+      enabled: selected?.kind === "station" && !drawnPlace && !waves.isPending,
+      ...quiet,
+    }),
+  );
+  const asked =
+    selected?.kind === "break"
+      ? selectedBreak.data
+      : selected?.kind === "spot"
+        ? selectedSpot.data
+        : selectedStation.data;
   const selectedPlace: MapPlace | undefined =
     drawnPlace ?? (asked && asked.id === selected?.id ? asked : undefined);
 
