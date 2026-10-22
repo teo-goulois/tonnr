@@ -1,25 +1,26 @@
 import type { ProfileAnswers } from "@repo/client/viewer/types";
 import { useState } from "react";
-import { RefreshControl } from "react-native";
+import { RefreshControl, View } from "react-native";
 
 import { Step } from "@/components/account/settings-steps";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { useSheetGuard } from "@/components/ui/sheet";
-import { Loading, SkeletonText } from "@/components/ui/skeleton";
+import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { answersOf, sameAnswers } from "./profiling";
+import { answersOf, LEVELS, sameAnswers } from "./profiling";
 import { BoardChoice, LevelChoice, Question, ReadingChoice, WaveRange } from "./questions";
 import { useProfile } from "./use-profile";
 
 /**
- * Every question on one step of the account's tab, to change what the account said of itself:
- * Save in the bar replaces every answer at once, and leaving with answers not saved asks first,
- * as a phone's form does. Decision 063.
+ * Every question on one step of the account's tab, to change what the account said of itself,
+ * as the web's form lays them out: what the step is for, each question with what it means under
+ * it, and Save at the end, which replaces every answer at once, whatever changed. Leaving with
+ * answers not saved asks first, since a swipe back would lose them. Decision 063.
  */
 function ProfileForm({
   initial,
@@ -47,15 +48,10 @@ function ProfileForm({
   }
 
   return (
-    <Step
-      title={m.profile_title()}
-      action={
-        <Button variant="ghost" loading={isSaving} disabled={!dirty} onPress={() => void save()}>
-          {m.profile_save()}
-        </Button>
-      }
-    >
-      <Text tone="muted">{m.profile_hint()}</Text>
+    <Step title={m.profile_title()}>
+      <Text size="s" tone="muted">
+        {m.profile_hint()}
+      </Text>
       <Question title={m.profile_level_title()}>
         <LevelChoice value={answers.level} onPick={(level) => change({ level })} />
       </Question>
@@ -69,10 +65,34 @@ function ProfileForm({
       <Question title={m.profile_reading_title()} hint={m.profile_reading_hint()}>
         <ReadingChoice value={answers.reading} onPick={(reading) => change({ reading })} />
       </Question>
-      <Question title={m.profile_boards_title()} hint={m.profile_boards_hint()}>
+      <Question title={m.profile_boards_title()} hint={m.profile_boards_hint()} close>
         <BoardChoice value={answers.boards} onChange={(boards) => change({ boards })} />
       </Question>
+      <Button loading={isSaving} onPress={() => void save()} style={{ alignSelf: "flex-start" }}>
+        {m.profile_save()}
+      </Button>
     </Step>
+  );
+}
+
+/** The place of the form while its answers come: what it is for, and its first question. */
+function ProfileSkeleton() {
+  const { space, type } = useTheme();
+  return (
+    <Loading>
+      <View style={{ gap: space.l }}>
+        <SkeletonText size="s" lines={2} />
+        <View style={{ gap: space.s }}>
+          <Skeleton height={type.m.size} width="40%" />
+          <View style={{ gap: space.xs }}>
+            {LEVELS.map((level) => (
+              // A card's height: its name over what it means.
+              <Skeleton key={level} height={2 * space.xs + space.xxs + type.m.line + type.s.line} />
+            ))}
+          </View>
+        </View>
+      </View>
+    </Loading>
   );
 }
 
@@ -84,9 +104,7 @@ export function ProfileStep() {
   if (profiling.isPending) {
     return (
       <Step title={m.profile_title()}>
-        <Loading>
-          <SkeletonText lines={6} />
-        </Loading>
+        <ProfileSkeleton />
       </Step>
     );
   }
@@ -103,6 +121,7 @@ export function ProfileStep() {
         }
       >
         <ErrorState
+          plain
           title={m.native_profile_load_failed()}
           onRetry={profiling.retry}
           retrying={profiling.isRefetching}

@@ -112,7 +112,11 @@ export default function RootLayout() {
                 <Stack.Screen name="sign-in" options={formSheet()} />
                 <Stack.Screen name="forgot-password" options={formSheet()} />
                 <Stack.Screen name="reset-password" options={formSheet()} />
-                <Stack.Screen name="onboarding" options={{ presentation: "fullScreenModal" }} />
+                {/* The web's dialog over the map, which stays under it, dimmed. */}
+                <Stack.Screen
+                  name="onboarding"
+                  options={{ presentation: "transparentModal", animation: "fade" }}
+                />
                 <Stack.Screen
                   name="media/[id]"
                   options={{ presentation: "fullScreenModal", animation: "fade" }}

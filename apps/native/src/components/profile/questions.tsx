@@ -1,14 +1,21 @@
 import { SIZES, sizeRank } from "@repo/conditions/sessions/sizes";
-import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
+import { type ReactNode, useEffect } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import Animated, {
+  Easing,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 
-import { ChoiceList } from "@/components/account/choice-list";
 import { SurfSizePicture } from "@/components/sessions/surf-size";
-import { Chip } from "@/components/ui/chip";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
+import { OptionCard, OptionCards, PRESS_DISTANCE } from "@/components/ui/option-card";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -26,35 +33,38 @@ import {
   toggleBoard,
 } from "./profiling";
 
-// The questions an account answers of itself as a surfer, as the web asks them
-// (`profile-questions.tsx`), drawn as a phone draws a choice: a list whose row in force is
-// checked, the nine sizes as pictures to press, and the boards as chips. Each is felt as it is
-// chosen, and says its state to a screen reader as well as to the eye. Decision 063.
+// The questions an account answers of itself as a surfer, drawn as the web draws them
+// (`profile-questions.tsx`): the level and the reading as cards, one under the other, the nine
+// sizes as pictures to press, and the boards as outlined toggles. Each is felt as it is chosen,
+// and says its state to a screen reader as well as to the eye. Decision 063.
 
-/** A question's title, and what it means, over its choices. */
+/**
+ * A question of the form: its title, its control, and what it means under it, as the web's
+ * field lays them out. The boards' stand closer, as the web's group of toggles does.
+ */
 export function Question({
   title,
   hint,
+  close = false,
   children,
 }: {
   title: string;
   hint?: string | undefined;
+  close?: boolean;
   children: ReactNode;
 }) {
   const { space } = useTheme();
   return (
-    <View style={{ gap: space.s }}>
-      <View style={{ gap: space.xxs, paddingHorizontal: space.m }}>
-        <Text weight="medium" accessibilityRole="header">
-          {title}
-        </Text>
-        {hint ? (
-          <Text size="s" tone="muted">
-            {hint}
-          </Text>
-        ) : null}
-      </View>
+    <View style={{ gap: close ? space.xs : space.s }}>
+      <Text weight="medium" accessibilityRole="header">
+        {title}
+      </Text>
       {children}
+      {hint ? (
+        <Text size="s" tone="muted">
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -68,15 +78,17 @@ export function LevelChoice({
   onPick: (level: Level) => void;
 }) {
   return (
-    <ChoiceList
-      choices={LEVELS.map((level) => ({
-        value: level,
-        title: LEVEL_WORDS[level].name(),
-        description: LEVEL_WORDS[level].hint(),
-      }))}
-      value={value}
-      onChoose={onPick}
-    />
+    <OptionCards label={m.profile_level_title()}>
+      {LEVELS.map((level) => (
+        <OptionCard
+          key={level}
+          title={LEVEL_WORDS[level].name()}
+          description={LEVEL_WORDS[level].hint()}
+          selected={level === value}
+          onPress={() => onPick(level)}
+        />
+      ))}
+    </OptionCards>
   );
 }
 
@@ -89,15 +101,20 @@ export function ReadingChoice({
   onPick: (reading: Reading) => void;
 }) {
   return (
-    <ChoiceList
-      choices={READINGS.map((reading) => ({ value: reading, title: READING_WORDS[reading]() }))}
-      value={value}
-      onChoose={onPick}
-    />
+    <OptionCards label={m.profile_reading_title()}>
+      {READINGS.map((reading) => (
+        <OptionCard
+          key={reading}
+          title={READING_WORDS[reading]()}
+          selected={reading === value}
+          onPress={() => onPick(reading)}
+        />
+      ))}
+    </OptionCards>
   );
 }
 
-/** The boards ridden, as many as the surfer says, each a chip that is pressed in or out. */
+/** The boards ridden, as many as the surfer says, each a toggle that is pressed in or out. */
 export function BoardChoice({
   value,
   onChange,
@@ -105,39 +122,54 @@ export function BoardChoice({
   value: Board[] | null;
   onChange: (boards: Board[] | null) => void;
 }) {
-  const { space } = useTheme();
   return (
-    <View
-      role="group"
-      accessibilityLabel={m.profile_boards_title()}
-      style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}
-    >
+    <ToggleGroup label={m.profile_boards_title()}>
       {ASKED_BOARDS.map((board) => (
-        <Chip
+        <Toggle
           key={board}
           label={BOARD_WORDS[board]?.() ?? board}
-          selected={value?.includes(board) ?? false}
+          pressed={value?.includes(board) ?? false}
           onPress={() => onChange(toggleBoard(value, board))}
+          size="m"
         />
       ))}
-    </View>
+    </ToggleGroup>
   );
 }
 
-/** One size to press: its picture, its name and the height of face it stands for. */
+/**
+ * One size to press: its picture, its name and the height of face it stands for. An end of the
+ * range stands on the theme's third grey with a line of its ink around it, a size between on the
+ * grey alone, and the others on nothing but their line. The grey comes on the theme's motion,
+ * `order` steps of 40 ms after a press, so that a range fills from its smallest as it is said.
+ */
 function SizeTile({
   size,
   state,
+  order,
   onPress,
 }: {
   size: SurfSize;
   // An end of the range, a size inside it, one under the smallest once it is said, or none.
   state: "end" | "between" | "below" | "none";
+  order: number;
   onPress: () => void;
 }) {
-  const { colors, space, radius, border } = useTheme();
+  const { colors, space, radius, border, motion } = useTheme();
   const face = sizeFace(size, heightFigure, heightUnit());
   const isIn = state === "end" || state === "between";
+  const filled = useSharedValue(isIn ? 1 : 0);
+
+  useEffect(() => {
+    const timing = withTiming(isIn ? 1 : 0, {
+      duration: motion.duration,
+      easing: Easing.bezier(motion.easing[0], motion.easing[1], motion.easing[2], motion.easing[3]),
+    });
+    filled.set(isIn ? withDelay(order * 40, timing) : timing);
+  }, [isIn, order, filled, motion]);
+
+  const ground = useAnimatedStyle(() => ({ opacity: filled.get() }));
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -153,15 +185,24 @@ function SizeTile({
           alignItems: "center",
           borderRadius: radius.xs,
           borderCurve: "continuous",
-          backgroundColor: isIn || pressed ? colors["neutral-3"] : colors["cte-surface"],
+          backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
           opacity: state === "below" ? 0.35 : 1,
+          transform: [{ translateY: pressed ? PRESS_DISTANCE : 0 }],
         },
         edge(state === "end" ? colors["neutral-10"] : colors["neutral-4"], {
-          inset: true,
           width: state === "end" ? border.m : border.s,
         }),
       ]}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { borderRadius: radius.xs, borderCurve: "continuous" },
+          { backgroundColor: colors["neutral-3"] },
+          ground,
+        ]}
+      />
       <SurfSizePicture size={size} />
       <Text size="s" weight="medium" dense numberOfLines={2} style={{ textAlign: "center" }}>
         {sizeName(size)}
@@ -200,14 +241,13 @@ export function WaveRange({
     return "none" as const;
   };
 
+  // Once the biggest is said, the sizes up to it fill one after the other, from the smallest.
+  const orderOf = (size: SurfSize) =>
+    smallest !== null && biggest !== null ? sizeRank(size) - sizeRank(smallest) : 0;
+
   return (
     <View style={{ gap: space.s }}>
-      <Text
-        size="s"
-        tone="muted"
-        accessibilityLiveRegion="polite"
-        style={{ paddingHorizontal: space.m }}
-      >
+      <Text size="s" tone="muted" accessibilityLiveRegion="polite">
         {isHalf ? m.profile_waves_second() : m.profile_waves_first()}
       </Text>
       <Animated.View
@@ -221,6 +261,7 @@ export function WaveRange({
             key={size}
             size={size}
             state={stateOf(size)}
+            order={orderOf(size)}
             onPress={() => {
               feel("select");
               const next = pickWave(SIZES, { smallest, biggest }, size);
