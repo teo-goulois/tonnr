@@ -17,7 +17,6 @@ import {
   sameMarkers,
   WIND_LIFT,
 } from "./markers";
-import { projector } from "./view";
 
 const NOW = Date.UTC(2026, 9, 22, 12);
 const MINUTE = 60 * 1000;
@@ -199,14 +198,6 @@ describe("where the markers stand", () => {
     });
     expect(placed).toHaveLength(MAX_MARKERS + 1);
     expect(placed.at(-1)?.id).toBe("selected");
-  });
-
-  it("projects as MapLibre does, on the copy of the world nearest the middle", () => {
-    const project = projector({ center: [0, 0], zoom: 0 }, { width: 512, height: 512 });
-    expect(project(0, 0)).toEqual({ x: 256, y: 256 });
-    expect(project(90, 0).x).toBeCloseTo(384);
-    const across = projector({ center: [179, 0], zoom: 2 }, size);
-    expect(across(-179, 0).x).toBeCloseTo(size.width / 2 + (2 / 360) * 2048);
   });
 
   it("knows when two layouts draw the same markers", () => {

@@ -12,6 +12,7 @@ import {
   latitudeOf,
   MAX_ZOOM,
   mercatorY,
+  projector,
   readView,
   wrapLongitude,
   writeView,
@@ -117,5 +118,37 @@ describe("a list fitted on the map", () => {
     for (const latitude of [-60, 0, 43.5, 70]) {
       expect(latitudeOf(mercatorY(latitude))).toBeCloseTo(latitude, 9);
     }
+  });
+});
+
+describe("a point on the map", () => {
+  const phone = { width: 390, height: 844 };
+
+  it("stands where MapLibre projects it, on the copy of the world nearest the middle", () => {
+    const project = projector({ center: [0, 0], zoom: 0 }, { width: 512, height: 512 });
+    expect(project(0, 0)).toEqual({ x: 256, y: 256 });
+    expect(project(90, 0).x).toBeCloseTo(384);
+    const across = projector({ center: [179, 0], zoom: 2 }, phone);
+    expect(across(-179, 0).x).toBeCloseTo(phone.width / 2 + (2 / 360) * 2048);
+  });
+
+  it("stands in the same place when the map was dragged a turn or more past an edge", () => {
+    const view = { center: [-4.25, 48] as [number, number], zoom: 7.38 };
+    const at = projector(view, phone)(-4.5, 48);
+    for (const turns of [720, 360, -360, -720]) {
+      const dragged = { ...view, center: [-4.25 + turns, 48] as [number, number] };
+      const there = projector(dragged, phone)(-4.5, 48);
+      expect(there.x).toBeCloseTo(at.x, 6);
+      expect(there.y).toBeCloseTo(at.y, 6);
+    }
+    const fiji = projector({ center: [178, -17], zoom: 6 }, phone)(-179, -17);
+    expect(projector({ center: [178 + 720, -17], zoom: 6 }, phone)(-179, -17).x).toBeCloseTo(
+      fiji.x,
+      6,
+    );
+    expect(projector({ center: [-541, -17], zoom: 6 }, phone)(-179, -17).x).toBeCloseTo(
+      projector({ center: [179, -17], zoom: 6 }, phone)(-179, -17).x,
+      6,
+    );
   });
 });

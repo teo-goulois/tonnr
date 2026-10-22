@@ -135,8 +135,10 @@ export const latitudeOf = (y: number) =>
 export function projector(view: MapView, size: { width: number; height: number }) {
   const world = WORLD_SIZE * 2 ** view.zoom;
   const middleY = mercatorY(view.center[1]) * world;
+  // MapLibre says the middle as the map was dragged, past either edge as many turns as it went.
+  const middleX = wrapLongitude(view.center[0]);
   return (longitude: number, latitude: number) => ({
-    x: size.width / 2 + ((((longitude - view.center[0] + 540) % 360) - 180) / 360) * world,
+    x: size.width / 2 + (wrapLongitude(longitude - middleX) / 360) * world,
     y: size.height / 2 + mercatorY(latitude) * world - middleY,
   });
 }

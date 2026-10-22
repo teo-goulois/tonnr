@@ -157,7 +157,9 @@ export function gaugeDashes(freshness: Freshness, slot = 1) {
 /** How much larger a selected marker is drawn, from the point it stands on. */
 export const SELECTED_SCALE = 1.1;
 
-/** More markers than this hide the map, and the dots under them still say where the stations are. */
+/**
+ * More markers than this hide the map, and the dots under them still say where the stations are.
+ */
 export const MAX_MARKERS = 140;
 /** The room a buoy's pill and a wind badge take, a little more than they are drawn. */
 export const BUOY_BOX = { width: 104, height: 32 } as const;
