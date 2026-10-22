@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Keyboard, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,7 +8,7 @@ import { Field } from "@/components/auth/field";
 import { DEFAULT_LAYERS } from "@/components/map/layers";
 import { type Heading, NAME_MOST, nudged, writePoint } from "@/components/map/new-spot";
 import { BREAK_LIMIT, MINUTE_MS, spotsQuery } from "@/components/map/queries";
-import { StationMap, type StationMapHandle } from "@/components/map/station-map";
+import { StationMap } from "@/components/map/station-map";
 import {
   bboxOf,
   type Bounds,
@@ -54,7 +54,6 @@ export function MoveSpot({ id }: { id: string }) {
   const { signedIn } = useAccount();
   const { spot, isOwner } = usePlaceRecord("spot", id);
   const actions = useSpotActions();
-  const map = useRef<StationMapHandle>(null);
   // The name once the person typed it. Until then, the spot's.
   const [name, setName] = useState<string>();
   const [missing, setMissing] = useState(false);
@@ -118,7 +117,6 @@ export function MoveSpot({ id }: { id: string }) {
         {spot ? (
           <View style={{ flex: 1, overflow: "hidden" }}>
             <StationMap
-              ref={map}
               stations={[]}
               wind={[]}
               breaks={breaks.data?.breaks ?? []}
@@ -130,7 +128,6 @@ export function MoveSpot({ id }: { id: string }) {
               arrows={[]}
               userLocation={null}
               draft={at}
-              draftLabel={m.native_spot_marker()}
               onDraftMoved={putAt}
               opening={{ center: [spot.longitude, spot.latitude], zoom: SPOT_ZOOM }}
               remembers={false}

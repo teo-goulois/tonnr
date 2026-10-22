@@ -154,10 +154,9 @@ type StationMapProps = {
   arrows: readonly SeaArrow[];
   // Where the reader was found, once they asked.
   userLocation: MapPoint | null;
-  // The spot being added, whose marker stands there and is dragged elsewhere, and what a screen
-  // reader says of it.
+  // The spot being added, whose marker stands there and is dragged elsewhere. A screen reader
+  // reads it and moves it through the map's own label, value and actions.
   draft?: MapPoint | null;
-  draftLabel?: string;
   onDraftMoved?: (point: MapPoint) => void;
   accessibilityLabel: string;
   accessibilityHint: string;
@@ -225,7 +224,6 @@ export function StationMap({
   arrows,
   userLocation,
   draft = null,
-  draftLabel,
   onDraftMoved,
   accessibilityLabel,
   accessibilityHint,
@@ -926,7 +924,7 @@ export function StationMap({
             onDraftMoved?.({ latitude, longitude: wrapLongitude(longitude) });
           }}
         >
-          <SpotPin label={draftLabel} />
+          <SpotPin />
         </ViewAnnotation>
       ) : null}
       {userLocation ? (

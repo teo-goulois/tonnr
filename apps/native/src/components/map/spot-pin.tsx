@@ -7,20 +7,20 @@ import { useTheme } from "@/lib/theme";
 
 // The marker of a spot being added, as the web's `SpotPin` draws it: a head to take hold of, on a
 // stem whose foot is the point, in the accent as the account's own spots are on the map. The map
-// holds it at its point, and a finger drags it from there.
+// holds it at its point, and a finger drags it from there. A screen reader reads and moves it on
+// the map, which says where it stands and takes the steps: the pin itself says nothing.
 
 const HEAD = 36;
 const STEM = 12;
 /** How wide the foot of the marker is, in points. The point is its middle. */
 export const SPOT_PIN_FOOT = 6;
 
-export function SpotPin({ label }: { label?: string | undefined }) {
+export function SpotPin() {
   const { colors, border } = useTheme();
   return (
     <View
-      accessible={label !== undefined}
-      accessibilityRole="adjustable"
-      accessibilityLabel={label}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
       style={{ alignItems: "center" }}
     >
       <View

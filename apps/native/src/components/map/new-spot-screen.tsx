@@ -286,7 +286,6 @@ export function NewSpotScreen() {
             // Drawn once it was put: by a press, a place found or the press held that opened the
             // sheet.
             draft={draft.placed ? draft.point : null}
-            draftLabel={m.native_spot_marker()}
             onDraftMoved={(point) => putAt(point)}
             opening={opening.view}
             remembers={false}
