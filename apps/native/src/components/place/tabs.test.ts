@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { FOLD_HIGHEST, FOLD_LOWEST, FOLD_NONE, isWorthMoving, lowDetent } from "./fold";
+import {
+  FOLD_HIGHEST,
+  FOLD_LOWEST,
+  FOLD_NONE,
+  isWorthMoving,
+  largestSheet,
+  lowDetent,
+  RAISED,
+} from "./fold";
 import { isPlaceKind, tabFrom, tabsOf } from "./tabs";
 
 describe("the tabs of a place", () => {
@@ -60,11 +68,27 @@ describe("the tabs of a place", () => {
 
 describe("the low height of a place's sheet", () => {
   it("is as tall as its summary, within the screen's bounds", () => {
-    expect(lowDetent(400, 1000)).toBe(0.4);
-    expect(lowDetent(100, 1000)).toBe(FOLD_LOWEST);
-    expect(lowDetent(900, 1000)).toBe(FOLD_HIGHEST);
-    expect(lowDetent(undefined, 1000)).toBe(FOLD_NONE);
-    expect(lowDetent(401, 1000)).toBe(0.41);
+    expect(lowDetent(400, 1000, 1000)).toBe(0.4);
+    expect(lowDetent(100, 1000, 1000)).toBe(FOLD_LOWEST);
+    expect(lowDetent(900, 1000, 1000)).toBe(FOLD_HIGHEST);
+    expect(lowDetent(undefined, 1000, 1000)).toBe(FOLD_NONE);
+    expect(lowDetent(401, 1000, 1000)).toBe(0.41);
+  });
+
+  it("is a share of the largest sheet, which the platform measures it against", () => {
+    // An iPhone of 852 points with 59 of them over the safe area: a summary that ends 400 points
+    // under the sheet's top takes more than 47 hundredths of the screen's height.
+    const largest = largestSheet(852, 59, true);
+    expect(largest).toBe(783);
+    expect(lowDetent(400, 852, largest)).toBe(0.52);
+    expect(lowDetent(400, 852, largest) * largest).toBeGreaterThanOrEqual(400);
+    // Its bounds stay shares of the screen.
+    expect(lowDetent(100, 852, largest) * largest).toBeGreaterThanOrEqual(0.3 * 852);
+    expect(largestSheet(852, 40, false)).toBe(812);
+  });
+
+  it("never reaches the raised height", () => {
+    expect(lowDetent(600, 1000, 600)).toBeLessThan(RAISED);
   });
 
   it("moves the sheet for no change of a few points", () => {

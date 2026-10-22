@@ -1,8 +1,9 @@
 import { type NativeStackNavigationProp, useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { useWindowDimensions } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { RAISED, isWorthMoving, lowDetent } from "./fold";
+import { RAISED, isWorthMoving, largestSheet, lowDetent } from "./fold";
 
 // What a place's sheet knows of itself as the platform's sheet: whether it is at rest, so that its
 // charts draw (the web's `useChartTurn`), and how tall it stands while low, from the summary of
@@ -39,15 +40,17 @@ export function useSheetState() {
 
 /**
  * Makes the low sheet as tall as the summary its panel ends at, once it is known: only while the
- * sheet is low, so that a raised sheet is not moved under the reader.
+ * sheet is low, so that a raised sheet is not moved under the reader. The platform takes a
+ * height as a share of the sheet at its largest, which is shorter than the screen.
  */
 export function useFoldHeight(detent: number) {
   const navigation = useNavigation<Navigation>();
   const { height } = useWindowDimensions();
+  const { top } = useSafeAreaInsets();
   const current = useRef<number | undefined>(undefined);
   return (foldBottom: number) => {
     if (detent !== 0) return;
-    const low = lowDetent(foldBottom, height);
+    const low = lowDetent(foldBottom, height, largestSheet(height, top, Platform.OS === "ios"));
     if (current.current !== undefined && !isWorthMoving(current.current, low)) return;
     current.current = low;
     navigation.setOptions({ sheetAllowedDetents: [low, RAISED] });

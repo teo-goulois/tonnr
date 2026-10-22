@@ -21,6 +21,7 @@ import { useTheme } from "@/lib/theme";
 import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
+import { FOLD_MARGIN } from "./fold";
 import { PlaceForecast } from "./place-forecast";
 import { PlaceHeader } from "./place-header";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
@@ -98,14 +99,14 @@ export function PlaceSheet({
   }, [shown]);
 
   // How tall the head and the tabs stand over what scrolls, and where the summary of the panel
-  // ends under them, past the panel's room over it: the low sheet is as tall as both, with a step
-  // of room under the summary. Each is known by its own layout, in either order.
+  // ends under them, past the panel's room over it: the low sheet is as tall as both, with the
+  // web's room under the summary. Each is known by its own layout, in either order.
   const chrome = useRef(0);
   const [headHeight, setHeadHeight] = useState(0);
   const foldBottom = useRef<number | undefined>(undefined);
   const fit = () => {
     if (chrome.current > 0 && foldBottom.current !== undefined) {
-      foldAt(chrome.current + space.m + foldBottom.current + space.s);
+      foldAt(chrome.current + space.m + foldBottom.current + FOLD_MARGIN);
     }
   };
 
