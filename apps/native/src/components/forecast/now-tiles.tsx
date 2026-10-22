@@ -1,13 +1,20 @@
 import { periodOf } from "@repo/client/viewer/types";
 import type { Reading } from "@repo/client/viewer/types";
 import { ChevronDownIcon, InfoIcon } from "@repo/ui/icon";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { Glyph } from "@/components/shared/glyph";
 import { IconButton } from "@/components/ui/button";
 import { edge } from "@/components/ui/edge";
-import { TARGET } from "@/components/ui/metrics";
+import { SMALL, TARGET } from "@/components/ui/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { compassName, formatNumber, formatSeconds } from "@/lib/format";
@@ -172,8 +179,28 @@ export function NowTiles({
 /** What a buoy reads beside the tiles. It stays folded until it is asked for. */
 export function ReadingMore({ latest }: { latest?: Reading | null }) {
   useUnits();
-  const { colors, space } = useTheme();
+  const { colors, space, radius, motion } = useTheme();
   const [open, setOpen] = useState(false);
+  // The chevron turns on the theme's motion, and at once for a reader who asked for no motion.
+  const reducedMotion = useReducedMotion();
+  const turn = useSharedValue(0);
+  useEffect(() => {
+    const to = open ? 180 : 0;
+    turn.set(
+      reducedMotion
+        ? to
+        : withTiming(to, {
+            duration: motion.duration,
+            easing: Easing.bezier(
+              motion.easing[0],
+              motion.easing[1],
+              motion.easing[2],
+              motion.easing[3],
+            ),
+          }),
+    );
+  }, [open, reducedMotion, turn, motion]);
+  const turned = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));
   if (!latest) return null;
 
   // A buoy gives one period among three: the line says which.
@@ -203,53 +230,72 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
   ];
   const rows = listed.filter((row) => row !== false);
   if (rows.length === 0) return null;
+  // Two columns, the right one ending flush with the tiles.
+  const pairs = rows.flatMap((row, index) =>
+    index % 2 === 0 ? [[row, rows[index + 1]] as const] : [],
+  );
 
   return (
     <View style={{ gap: space.xs }}>
+      {/* The web's small ghost button, which stands in the room under the tiles and takes no
+          line of its own. */}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
-        hitSlop={8}
+        hitSlop={{ top: (TARGET - SMALL) / 2, bottom: (TARGET - SMALL) / 2 }}
         style={{
           alignSelf: "flex-end",
-          minHeight: TARGET - 16,
+          height: SMALL,
+          marginTop: -space.xxs,
+          marginBottom: -space.xs,
+          paddingHorizontal: space.s,
+          borderRadius: radius.s,
           flexDirection: "row",
           alignItems: "center",
           gap: space.xxs,
         }}
       >
-        <Text size="xs" tone="muted">
+        <Text size="xs" weight="medium" tone="muted" dense>
           {m.details_more()}
         </Text>
-        <View style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}>
-          <Glyph icon={ChevronDownIcon} size={12} color={colors["neutral-7"]} />
-        </View>
+        <Animated.View style={turned}>
+          <Glyph icon={ChevronDownIcon} size={14} color={colors["neutral-7"]} />
+        </Animated.View>
       </Pressable>
       {open && (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: space.xxs }}>
-          {rows.map(([name, value]) => (
-            <View
-              key={name}
-              accessible
-              style={{
-                width: "50%",
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: space.xs,
-                paddingRight: space.s,
-              }}
-            >
-              <Text size="xs" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-                {name}
-              </Text>
-              {typeof value === "string" ? (
-                <Text size="xs" numeric>
-                  {value}
-                </Text>
-              ) : (
-                value
+        <View style={{ gap: space.xxs }}>
+          {pairs.map(([left, right]) => (
+            <View key={left[0]} style={{ flexDirection: "row", gap: space.s }}>
+              {[left, right].map((row) =>
+                row ? (
+                  <View
+                    key={row[0]}
+                    accessible
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: space.xs,
+                    }}
+                  >
+                    <Text size="xs" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {row[0]}
+                    </Text>
+                    {typeof row[1] === "string" ? (
+                      <Text size="xs" numeric numberOfLines={1}>
+                        {row[1]}
+                      </Text>
+                    ) : (
+                      row[1]
+                    )}
+                  </View>
+                ) : (
+                  // An odd last row keeps its column.
+                  <View key="none" style={{ flex: 1 }} />
+                ),
               )}
             </View>
           ))}
