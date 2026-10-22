@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { RefreshControl, SectionList, type ListViewToken, View } from "react-native";
 
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { ReportCard, SHOT } from "@/components/reports/report-card";
 import { reportCounter } from "@/components/reports/report-counter";
 import { useBreakReports, useReportWrites } from "@/components/reports/use-reports";
@@ -19,7 +20,6 @@ import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { TabFailure } from "./tab-states";
-import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -41,7 +41,7 @@ function openShot(report: Report, mediaId: string) {
 /** The reports of a break: what accounts showed of its waves lately. */
 function BreakReports({ breakId }: { breakId: string }) {
   const { colors, space, type } = useTheme();
-  const { signedIn } = useAccount();
+  const { signedIn, pending } = useAccount();
   const requireAccount = useRequireAccount();
   const reports = useBreakReports(breakId);
   const writes = useReportWrites();
@@ -117,7 +117,8 @@ function BreakReports({ breakId }: { breakId: string }) {
                 {m.report_send()}
               </Button>
             ) : null
-          ) : (
+          ) : pending ? null : (
+            // Not before the app knows who reads: an account's session is read as the app starts.
             <AccountPrompt text={m.report_sign_in_prompt()} />
           )}
         </View>
