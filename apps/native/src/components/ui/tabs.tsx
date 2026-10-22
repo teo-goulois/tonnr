@@ -94,11 +94,14 @@ export function Tabs<Value extends string>({
   // inside what scrolls, which no press reaches beyond.
   const height = type.m.line + 2 * space.xs;
   const slop = Math.ceil(Math.max(0, TARGET - height) / 2);
+  const side = Math.floor(space.l / 2);
 
   return (
     <ScrollView
       ref={scroller}
       horizontal
+      // A row that fits stays still: iOS would let it be dragged and spring back.
+      alwaysBounceHorizontal={false}
       showsHorizontalScrollIndicator={false}
       accessibilityRole="tablist"
       accessibilityLabel={label}
@@ -134,7 +137,9 @@ export function Tabs<Value extends string>({
             accessibilityRole="tab"
             accessibilityLabel={option.label}
             accessibilityState={{ selected }}
-            hitSlop={{ top: slop, bottom: slop }}
+            // A short name, "Guía", is narrower than a finger: each reaches into half the step
+            // that stands between it and the next.
+            hitSlop={{ top: slop, bottom: slop, left: side, right: side }}
             onLayout={(event) => {
               const layout = event.nativeEvent.layout;
               setLayouts((known) => ({ ...known, [option.value]: layout }));
