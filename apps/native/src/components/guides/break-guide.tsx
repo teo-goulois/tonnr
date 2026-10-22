@@ -640,20 +640,17 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
   );
 }
 
-/** The guide's place while it loads: its rows, as a glyph and two lines each. */
+// The height of a bar of the guide's skeleton: the web's `h-5`.
+const SKELETON_BAR = 20;
+
+/** The guide's place while it loads: its lines, as bars, as the web draws them. */
 export function GuideSkeleton() {
   const { space } = useTheme();
   return (
     <Loading>
       <View style={{ gap: space.s }}>
         {[0, 1, 2, 3, 4, 5].map((row) => (
-          <View key={row} style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
-            <Skeleton width={GLYPH_SIZE} height={GLYPH_SIZE} round />
-            <View style={{ flex: 1, gap: space.xxs }}>
-              <Skeleton height={12} width="40%" />
-              <Skeleton height={14} width="80%" />
-            </View>
-          </View>
+          <Skeleton key={row} height={SKELETON_BAR} />
         ))}
       </View>
     </Loading>
