@@ -29,8 +29,8 @@ import { type ChartGeometry, SeaChart } from "./sea-chart";
 
 // The waves, their period, their energy and the wind of a buoy as lanes on one span of time,
 // read together: a finger held on one reads the same moment on all of them, and each says its
-// value then. The buoy's line is drawn bold over the model's dashed one. The web's
-// `metric-lanes.tsx` says the same.
+// value then. The buoy's line is drawn bold over the model's dashed one, and the room between
+// them is hatched. The web's `metric-lanes.tsx` says the same.
 
 type Night = { from: number; to: number };
 
@@ -41,8 +41,33 @@ const LANE_HEIGHT = 96;
 // The last lane is taller by the hours written under it, so that the plots are of one height.
 const TIME_AXIS = 22;
 const Y_AXIS = 30;
+// The columns a lane writes its figures in, over its plot: the buoy's, the model's, and what
+// parts them, the web's `w-14`, `w-12` and `w-11`. They are the same on every lane, so the lanes
+// read as a table under one legend.
+const BUOY_COLUMN = 56;
+const MODEL_COLUMN = 48;
+const GAP_COLUMN = 44;
+// The web's badge of what parts them: 20 points tall, and 36 wide at the least.
+const BADGE_HEIGHT = 20;
+const BADGE_WIDTH = 36;
+// The moment a finger reads is written from a side of the plot nearer it than this.
+const TIME_LABEL_REACH = 48;
+const TIME_LABEL_WIDTH = 120;
 // A reading older than this no longer stands for the sea now.
 const LIVE_REACH = 3 * HOUR_MS;
+// Where the phone keeps that its reader has held a lane once, as the web's browser does: the
+// hint of how to read the lanes is then said no more.
+const HOLD_KEY = "tonnr:chart-hold";
+
+let knowsHold: boolean | undefined;
+
+function storedKnowsHold() {
+  try {
+    return localStorage.getItem(HOLD_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 function rowsOf(
   key: Metric["key"],
@@ -84,6 +109,8 @@ type LaneProps = {
   end: number;
   now: number;
   nights: Night[];
+  // While the forecast loads, a lane keeps its name and the place of its plot.
+  isLoading: boolean;
   // The moment a finger reads, on whichever lane it is.
   pointedTime: number | undefined;
   onPoint: (time: number | undefined) => void;
@@ -91,6 +118,57 @@ type LaneProps = {
   first: boolean;
   last: boolean;
 };
+
+/**
+ * The moment a finger reads, written over the first lane: from the side of the plot it is near,
+ * kept inside it, and ringed in the page's color over the curves.
+ */
+function ReadTime({ time, geometry }: { time: number; geometry: ChartGeometry }) {
+  const { colors, space } = useTheme();
+  const at = Math.min(
+    Math.max(geometry.x(time), geometry.left + space.xxs),
+    geometry.right - space.xxs,
+  );
+  const side =
+    at < geometry.left + TIME_LABEL_REACH
+      ? "left"
+      : at > geometry.right - TIME_LABEL_REACH
+        ? "right"
+        : "center";
+  return (
+    <Text
+      size="xs"
+      weight="medium"
+      numeric
+      dense
+      numberOfLines={1}
+      style={{
+        position: "absolute",
+        top: geometry.top,
+        left:
+          side === "left"
+            ? at
+            : side === "right"
+              ? at - TIME_LABEL_WIDTH
+              : at - TIME_LABEL_WIDTH / 2,
+        width: TIME_LABEL_WIDTH,
+        textAlign: side,
+        textShadowColor: colors["neutral-1"],
+        textShadowRadius: 3,
+        textShadowOffset: { width: 0, height: 0 },
+      }}
+    >
+      {formatDayAndClock(new Date(time))}
+    </Text>
+  );
+}
+
+// A column of figures, its figure at its right end.
+const COLUMN = {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "flex-end",
+} as const;
 
 const Lane = memo(function Lane({
   metric,
@@ -100,12 +178,13 @@ const Lane = memo(function Lane({
   end,
   now,
   nights,
+  isLoading,
   pointedTime,
   onPoint,
   first,
   last,
 }: LaneProps) {
-  const { colors, space } = useTheme();
+  const { colors, space, radius, type } = useTheme();
   const isMyTurn = useChartTurn();
   const rows = useMemo(
     () => rowsOf(metric.key, measured, model, start, end),
@@ -126,6 +205,21 @@ const Lane = memo(function Lane({
         : []),
     ],
     [rows, hasBuoy, metric.scale],
+  );
+  // The room between the buoy and the model, where both say something.
+  const band = useMemo(
+    () =>
+      hasBuoy
+        ? {
+            lower: rows.map((row) =>
+              row.model !== null && row.buoy !== null ? Math.min(row.model, row.buoy) : null,
+            ),
+            upper: rows.map((row) =>
+              row.model !== null && row.buoy !== null ? Math.max(row.model, row.buoy) : null,
+            ),
+          }
+        : undefined,
+    [rows, hasBuoy],
   );
   const ticks = useMemo(
     () =>
@@ -210,7 +304,8 @@ const Lane = memo(function Lane({
               textAlign: "center",
             }}
           >
-            {new Date(hour).getHours() === 12 && !short
+            {/* A day is named under its noon, whatever the span. */}
+            {new Date(hour).getHours() === 12
               ? formatDay(new Date(hour))
               : String(new Date(hour).getHours()).padStart(2, "0")}
           </Text>
@@ -258,26 +353,7 @@ const Lane = memo(function Lane({
               }}
             />
           )}
-          {first && (
-            <Text
-              size="xs"
-              weight="medium"
-              numeric
-              dense
-              style={{
-                position: "absolute",
-                top: 0,
-                left: Math.min(
-                  Math.max(geometry.x(pointed.time) - 60, geometry.left),
-                  geometry.right - 120,
-                ),
-                width: 120,
-                textAlign: "center",
-              }}
-            >
-              {formatDayAndClock(new Date(pointed.time))}
-            </Text>
-          )}
+          {first && <ReadTime time={pointed.time} geometry={geometry} />}
         </>
       )}
     </>
@@ -299,9 +375,10 @@ const Lane = memo(function Lane({
           : "",
       }}
     >
+      {/* Of one height, the line of the small type, whatever it writes. */}
       <View
         style={{
-          minHeight: 19,
+          height: type.s.line,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -315,53 +392,63 @@ const Lane = memo(function Lane({
           <Text size="xs" style={{ color: colors["neutral-6"] }}>
             {metric.unit}
           </Text>
-          {bearing !== undefined && (
+          {bearing !== undefined && !isLoading && (
             <DirectionArrow fromDegrees={bearing} size={12} color={colors["neutral-10"]} />
           )}
         </View>
-        {read && (
+        {read && !isLoading && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-            {read.buoy !== null && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
-                <LineGlyph color={metricColor(metric, read.buoy)} />
-                <Text size="s" weight="medium" numeric dense>
-                  {formatMetric(metric, read.buoy, false)}
-                </Text>
-              </View>
-            )}
-            {read.model !== null && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
-                <LineGlyph dashed color={metricColor(metric, read.model)} />
-                <Text
-                  size={read.buoy === null ? "s" : "xs"}
-                  weight={read.buoy === null ? "medium" : "regular"}
-                  tone={read.buoy === null ? "default" : "muted"}
-                  numeric
-                  dense
+            <View style={[COLUMN, { width: BUOY_COLUMN, gap: space.xxs }]}>
+              {read.buoy !== null && (
+                <>
+                  <LineGlyph color={metricColor(metric, read.buoy)} />
+                  <Text size="s" weight="medium" numeric dense numberOfLines={1}>
+                    {formatMetric(metric, read.buoy, false)}
+                  </Text>
+                </>
+              )}
+            </View>
+            <View style={[COLUMN, { width: MODEL_COLUMN, gap: space.xxs }]}>
+              {read.model !== null && (
+                <>
+                  <LineGlyph dashed color={metricColor(metric, read.model)} />
+                  <Text
+                    size={read.buoy === null ? "s" : "xs"}
+                    weight={read.buoy === null ? "medium" : "regular"}
+                    tone={read.buoy === null ? "default" : "muted"}
+                    numeric
+                    dense
+                    numberOfLines={1}
+                  >
+                    {formatMetric(metric, read.model, false)}
+                  </Text>
+                </>
+              )}
+            </View>
+            <View style={[COLUMN, { width: GAP_COLUMN }]}>
+              {read.buoy !== null && read.model !== null && (
+                <View
+                  style={{
+                    height: BADGE_HEIGHT,
+                    minWidth: BADGE_WIDTH,
+                    paddingHorizontal: space.xs,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: radius.xs,
+                    borderCurve: "continuous",
+                    backgroundColor: colors["neutral-3"],
+                  }}
                 >
-                  {formatMetric(metric, read.model, false)}
-                </Text>
-              </View>
-            )}
-            {read.buoy !== null && read.model !== null && (
-              <View
-                style={{
-                  minWidth: 36,
-                  paddingHorizontal: space.xxs,
-                  borderRadius: 9999,
-                  backgroundColor: colors["neutral-3"],
-                  alignItems: "center",
-                }}
-              >
-                <Text size="xs" numeric dense>
-                  {formatGap(metric, read.model, read.buoy, false)}
-                </Text>
-              </View>
-            )}
+                  <Text size="xs" weight="medium" numeric dense numberOfLines={1}>
+                    {formatGap(metric, read.model, read.buoy, false)}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
       </View>
-      {!isMyTurn ? (
+      {isLoading || !isMyTurn ? (
         <Skeleton height={height} />
       ) : (
         <SeaChart
@@ -377,6 +464,7 @@ const Lane = memo(function Lane({
           nights={nights}
           midnights={midnights}
           now={now}
+          band={band}
           press={state}
           overlay={overlay}
         />
@@ -410,28 +498,33 @@ export function MetricLanes({
   const units = useUnits();
   const { space } = useTheme();
   const [pointed, setPointed] = useState<number>();
+  // How a finger reads the lanes is said until it has read them once.
+  const [knows, setKnows] = useState(() => (knowsHold ??= storedKnowsHold()));
+  const onPoint = useCallback(
+    (time: number | undefined) => {
+      setPointed(time);
+      if (time === undefined || knows) return;
+      knowsHold = true;
+      setKnows(true);
+      try {
+        localStorage.setItem(HOLD_KEY, "true");
+      } catch {
+        // A phone that keeps nothing still says it no more until the app is closed.
+      }
+    },
+    [knows],
+  );
   // The metrics are written in the reader's units.
   // oxlint-disable-next-line react-hooks/exhaustive-deps
   const all = useMemo(() => metrics(), [units]);
 
-  if (isLoading) {
-    return (
-      <View style={{ gap: space.xs }}>
-        {keys.map((key, index) => (
-          <Skeleton
-            key={key}
-            height={LANE_HEIGHT + 19 + (index === keys.length - 1 ? TIME_AXIS : 0)}
-          />
-        ))}
-      </View>
-    );
-  }
-
   return (
     <View style={{ gap: space.xs }}>
-      <Text size="xs" tone="muted">
-        {m.chart_touch_hint()}
-      </Text>
+      {!knows && (
+        <Text size="xs" tone="muted">
+          {m.chart_touch_hint()}
+        </Text>
+      )}
       {keys.map((key, index) => (
         <Lane
           key={key}
@@ -442,8 +535,9 @@ export function MetricLanes({
           end={end}
           now={now}
           nights={nights}
+          isLoading={isLoading}
           pointedTime={pointed}
-          onPoint={setPointed}
+          onPoint={onPoint}
           first={index === 0}
           last={index === keys.length - 1}
         />
