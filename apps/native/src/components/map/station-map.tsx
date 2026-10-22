@@ -199,6 +199,12 @@ export function StationMap({
   // The basemap's style, which the map waits for: its names are given the web's width. One that
   // could not be read is read by the map from its address as it is.
   const basemap = useBasemap(scheme);
+  // Whether the map was drawn once. It then stays, as the web's does, and only its style changes
+  // with the theme: drawn anew, it would open where it first opened and lose the reader's view.
+  const [drawn, setDrawn] = useState(false);
+  if (!basemap.isPending && !drawn) setDrawn(true);
+  // A list fitted before the map was drawn, which is fitted once it is.
+  const waitingFit = useRef<(() => void) | undefined>(undefined);
   // Written once as JSON, which the map reads as a style, so that it is not written again each
   // time the map is drawn again.
   const mapStyle = useMemo(
@@ -225,14 +231,18 @@ export function StationMap({
         const box = boundsAround(points);
         if (!box) return;
         const padding = fitPadding(covered);
-        // The platform's fit takes no zoom to stop at: one that would come closer than a bay is
-        // a move to the box's middle at that zoom instead.
-        const fit = fitted(box, size.current, padding);
-        if (fit.capped) {
-          camera.current?.easeTo({ center: fit.center, zoom: fit.zoom, padding, duration });
-        } else {
-          camera.current?.fitBounds(box, { padding, duration, easing: "ease" });
-        }
+        const move = () => {
+          // The platform's fit takes no zoom to stop at: one that would come closer than a bay
+          // is a move to the box's middle at that zoom instead.
+          const fit = fitted(box, size.current, padding);
+          if (fit.capped) {
+            camera.current?.easeTo({ center: fit.center, zoom: fit.zoom, padding, duration });
+          } else {
+            camera.current?.fitBounds(box, { padding, duration, easing: "ease" });
+          }
+        };
+        if (camera.current) move();
+        else waitingFit.current = move;
       },
       lift: (point, y) => {
         const instance = map.current;
@@ -304,7 +314,7 @@ export function StationMap({
   });
 
   // The tone of the map's place while it waits, which the map covers as it draws.
-  if (basemap.isPending) return <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }} />;
+  if (!drawn) return <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }} />;
 
   return (
     <MapLibre
@@ -313,6 +323,10 @@ export function StationMap({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         size.current = { width, height };
+      }}
+      onDidFinishLoadingMap={() => {
+        waitingFit.current?.();
+        waitingFit.current = undefined;
       }}
       // The style as it came, which only the names' width was changed in.
       mapStyle={mapStyle}

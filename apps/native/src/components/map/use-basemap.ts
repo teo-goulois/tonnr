@@ -1,5 +1,5 @@
 import { STYLE_URLS } from "@repo/client/map/view";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { BASEMAP_ATTRIBUTION, readBasemap } from "./basemap";
 
@@ -14,8 +14,9 @@ async function json(address: string): Promise<unknown> {
 }
 
 /**
- * The basemap of a theme, read from its style. Pending while the style comes; none once it could
- * not be read, and the map then reads the style from its address as it is.
+ * The basemap of a theme, read from its style. Pending while the first style comes; the style of
+ * the theme before while another comes, so that a map drawn stays as it is until it changes; none
+ * once it could not be read, and the map then reads the style from its address as it is.
  */
 export function useBasemap(scheme: "light" | "dark") {
   return useQuery({
@@ -28,6 +29,7 @@ export function useBasemap(scheme: "light" | "dark") {
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
     retry: 1,
+    placeholderData: keepPreviousData,
   });
 }
 
