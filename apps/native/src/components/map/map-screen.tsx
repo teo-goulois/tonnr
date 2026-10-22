@@ -112,6 +112,8 @@ const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
 // stands on it takes too.
 const IOS_SHEET_MS = 500;
 const IOS_SHEET_CURVE = [0.32, 0.72, 0, 1] as const;
+// How long after it is drawn the map loads the code of a place's sheet.
+const SHEET_CODE_MS = 1500;
 
 export function MapScreen() {
   const { colors, space, scheme, motion } = useTheme();
@@ -452,6 +454,15 @@ export function MapScreen() {
     opacity: footOpacity.value,
     transform: [{ translateY: -footLift.value }],
   }));
+
+  // The code of a place's sheet is loaded while the map waits, once it is drawn: the router loads
+  // a screen's code as it first draws it, which a first press on the map waited for.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      require("@/components/place/place-sheet");
+    }, SHEET_CODE_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   // The place whose sheet was just asked for, until it is in front.
   const opening = useRef<Opening | null>(null);

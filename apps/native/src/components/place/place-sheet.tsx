@@ -1,5 +1,5 @@
 import { router, useNavigation } from "expo-router";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated, {
   useAnimatedScrollHandler,
@@ -188,6 +188,11 @@ export function PlaceSheet({
     }
   };
 
+  // What stands under the head is drawn in a render of its own, after the head: iOS begins to
+  // show the sheet once its first render is on the screen, which the panel, most of what the sheet
+  // draws, held back.
+  const filled = useDeferredValue(true, false);
+
   // The tab in view comes first, as iOS finds the scroll view that raises the sheet among the
   // first things of the screen; the others stay drawn, hidden, in the order they were seen. Each
   // is its own scroll view, which scrolls, and is pulled to be read again, under the head.
@@ -204,7 +209,7 @@ export function PlaceSheet({
             key={one}
             style={one === shown ? { flex: 1, paddingTop: headHeight } : { display: "none" }}
           >
-            {one === "forecast" ? (
+            {!filled ? null : one === "forecast" ? (
               <ForecastScroll bottom={insets.bottom + space.xl}>{panelOf(one)}</ForecastScroll>
             ) : (
               panelOf(one)
