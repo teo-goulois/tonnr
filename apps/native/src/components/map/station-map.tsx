@@ -44,6 +44,7 @@ import {
   type AccessibilityActionEvent,
   type AccessibilityActionInfo,
   type NativeSyntheticEvent,
+  Platform,
   View,
 } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
@@ -315,6 +316,11 @@ export function StationMap({
     [duration],
   );
 
+  // Whether the map moved since a finger last touched it. On iOS, MapLibre's module presses the map
+  // where the last touch began whenever a marker that was pressed is taken off the map, which the
+  // markers are as the map moves: that press is no one's, and only a touch that moved nothing is.
+  const movedSinceTouch = useRef(false);
+
   // One press selects one thing, as on the web: the dot nearest to the finger, within its reach,
   // whichever layer draws it. A press that finds none is the map's.
   const press = async (event: NativeSyntheticEvent<PressEvent>) => {
@@ -540,11 +546,17 @@ export function StationMap({
       accessibilityValue={accessibilityValue}
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
-      onPress={(event) => void press(event)}
+      onTouchStart={() => {
+        movedSinceTouch.current = false;
+      }}
+      onPress={(event) => {
+        if (!movedSinceTouch.current) void press(event);
+      }}
       onLongPress={onLongPress && ((event) => onLongPress(event.nativeEvent.lngLat))}
-      onRegionWillChange={
-        onMoveStart && ((event) => onMoveStart(event.nativeEvent.userInteraction))
-      }
+      onRegionWillChange={(event) => {
+        movedSinceTouch.current = true;
+        onMoveStart?.(event.nativeEvent.userInteraction);
+      }}
       onRegionIsChanging={(event) => {
         const { center, zoom: at } = event.nativeEvent;
         view.current = { center, zoom: at };
@@ -878,8 +890,10 @@ export function StationMap({
           </Marker>
         );
       })}
-      {/* The break or the spot in hand, its disc on its point. A press on it is the map's, as on
-          the web, whose pill lets a press through. */}
+      {/* The break or the spot in hand, its disc on its point. On Android a press on it is the
+          map's at the finger, as on the web, whose pill lets a press through. On iOS the platform
+          says only the pill's own point, where the place in hand is no dot to find: a press there
+          keeps what is open. */}
       {pinned ? (
         <Marker
           key={`pinned:${pinned.id}:${pillLeft ? "left" : "right"}`}
@@ -887,7 +901,7 @@ export function StationMap({
           lngLat={[pinned.longitude, pinned.latitude]}
           anchor={pillLeft ? "right" : "left"}
           offset={[pillLeft ? BREAK_PILL_POINT : -BREAK_PILL_POINT, 0]}
-          onPress={(event) => void press(event)}
+          onPress={Platform.OS === "android" ? (event) => void press(event) : undefined}
           style={{ zIndex: 20 }}
         >
           <BreakPill
