@@ -18,7 +18,6 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
-  LinearTransition,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -432,21 +431,27 @@ export function MapScreen() {
           easing: Easing.bezier(...motion.largeEasing),
         });
   }, [isCovered, reduceMotion, footOpacity, motion]);
-  const footFade = useAnimatedStyle(() => ({ opacity: footOpacity.value }));
   // They move with the sheet they stand on, on its own time: iOS's sheet takes about half a
   // second, on the curve the web's drawers of iOS's kind take, where the web's own drawer and its
-  // foot both take the theme's large motion. Android's sheet keeps to the theme's.
-  const footMove = useMemo(
-    () =>
-      reduceMotion
-        ? undefined
-        : Platform.OS === "ios"
-          ? LinearTransition.duration(IOS_SHEET_MS).easing(Easing.bezier(...IOS_SHEET_CURVE))
-          : LinearTransition.duration(motion.largeDuration).easing(
-              Easing.bezier(...motion.largeEasing),
-            ),
-    [reduceMotion, motion],
-  );
+  // foot both take the theme's large motion. Android's sheet keeps to the theme's. Only how high
+  // they stand moves so: what the foot holds grows upward at once, and the legend that opens moves
+  // nothing beside it.
+  const footLift = useSharedValue(floor - space.s);
+  useEffect(() => {
+    const to = floor - space.s;
+    footLift.value = reduceMotion
+      ? to
+      : withTiming(
+          to,
+          Platform.OS === "ios"
+            ? { duration: IOS_SHEET_MS, easing: Easing.bezier(...IOS_SHEET_CURVE) }
+            : { duration: motion.largeDuration, easing: Easing.bezier(...motion.largeEasing) },
+        );
+  }, [floor, space.s, reduceMotion, footLift, motion]);
+  const footStyle = useAnimatedStyle(() => ({
+    opacity: footOpacity.value,
+    transform: [{ translateY: -footLift.value }],
+  }));
 
   // The place whose sheet was just asked for, until it is in front.
   const opening = useRef<Opening | null>(null);
@@ -574,7 +579,6 @@ export function MapScreen() {
               tabs, or over the low sheet of a place that is open. The lists unfold over the
               legend, where it opens: opening one folds the other. */}
           <Animated.View
-            layout={footMove}
             pointerEvents={isCovered ? "none" : "box-none"}
             accessibilityElementsHidden={isCovered}
             importantForAccessibility={isCovered ? "no-hide-descendants" : "auto"}
@@ -585,12 +589,13 @@ export function MapScreen() {
                 // The buttons stand over the middle of the "+" of the bar, which is wider than
                 // them.
                 right: space.s + BUTTONS_IN,
-                bottom: floor,
+                // Over the bar of tabs, and lifted onto the low sheet.
+                bottom: space.s,
                 flexDirection: "row",
                 alignItems: "flex-end",
                 gap: space.xs,
               },
-              footFade,
+              footStyle,
             ]}
           >
             <View
