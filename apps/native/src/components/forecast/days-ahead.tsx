@@ -78,7 +78,8 @@ function Judged({ judgement, children }: { judgement: Judgement; children: React
   return (
     <View
       style={{
-        height: 24,
+        // The web's h-6, which grows around its words when the type is large.
+        minHeight: 24,
         flexDirection: "row",
         alignItems: "center",
         gap: space.xxs,
