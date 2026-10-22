@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   givesToSheet,
   newSpotHref,
+  opensAgain,
   opensRaised,
   overHref,
   placeHref,
@@ -98,5 +99,19 @@ describe("one sheet of a place", () => {
     expect(givesToSheet("/place/save?kind=break&id=b1", true)).toBe(false);
     expect(givesToSheet("/saved/shared/t1", true)).toBe(false);
     expect(givesToSheet("/", true)).toBe(false);
+  });
+});
+
+describe("a place asked for twice", () => {
+  const last = { key: "station:buoy-1", at: 1_000 };
+
+  it("is the same press when it comes again before its sheet is in front", () => {
+    expect(opensAgain(last, "station:buoy-1", 1_400)).toBe(true);
+  });
+
+  it("is a new press for another place, or once the moment has passed", () => {
+    expect(opensAgain(last, "break:b-1", 1_400)).toBe(false);
+    expect(opensAgain(last, "station:buoy-1", 2_600)).toBe(false);
+    expect(opensAgain(null, "station:buoy-1", 1_400)).toBe(false);
   });
 });

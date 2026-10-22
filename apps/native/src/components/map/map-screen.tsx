@@ -58,7 +58,7 @@ import { useBasemapAttribution } from "./use-basemap";
 import { currentMapState, onMapRequest } from "./map-state";
 import { MapListChips } from "./list-chips";
 import { currentSheet, floorOver, onSheetChange } from "./sheet-state";
-import { placeOf, pressedHref } from "./place-route";
+import { type Opening, opensAgain, placeOf, pressedHref } from "./place-route";
 import {
   BREAK_LIMIT,
   MINUTE_MS,
@@ -439,7 +439,12 @@ export function MapScreen() {
     [reduceMotion, motion],
   );
 
+  // The place whose sheet was just asked for, until it is in front.
+  const opening = useRef<Opening | null>(null);
+
   function open(press: MapPress) {
+    const key = `${press.kind}:${press.id}`;
+    if (!front && opensAgain(opening.current, key, Date.now())) return;
     feel("select");
     // One sheet at a time: the sheet of a place that is open, which is the screen in front, is
     // given the place pressed, at the height it stands, on its first tab; another opens low, with
@@ -456,6 +461,7 @@ export function MapScreen() {
         from: "map",
       });
     } else {
+      opening.current = { key, at: Date.now() };
       router.push(pressedHref(press.kind, press.id));
     }
   }

@@ -324,6 +324,10 @@ export function StationMap({
   // where the last touch began whenever a marker that was pressed is taken off the map, which the
   // markers are as the map moves: that press is no one's, and only a touch that moved nothing is.
   const movedSinceTouch = useRef(false);
+  // Whether a buoy's pill or a wind's badge took the touch. The marker selects what it stands for,
+  // which draws it again, and the press the module then gives the map is that same touch's: the
+  // map counts a press only once a new touch began.
+  const markerTookTouch = useRef(false);
 
   // One press selects one thing, as on the web: the dot nearest to the finger, within its reach,
   // whichever layer draws it. A press that finds none is the map's.
@@ -585,9 +589,10 @@ export function StationMap({
       onAccessibilityAction={onAccessibilityAction}
       onTouchStart={() => {
         movedSinceTouch.current = false;
+        markerTookTouch.current = false;
       }}
       onPress={(event) => {
-        if (!movedSinceTouch.current) void press(event);
+        if (!movedSinceTouch.current && !markerTookTouch.current) void press(event);
       }}
       onLongPress={onLongPress && ((event) => onLongPress(event.nativeEvent.lngLat))}
       onRegionWillChange={(event) => {
@@ -877,13 +882,15 @@ export function StationMap({
       {placed.map((marker) => {
         const isSelected = marker.id === selectedStation;
         const pressAt =
-          (longitude: number, latitude: number) => (event: NativeSyntheticEvent<PressEvent>) =>
+          (longitude: number, latitude: number) => (event: NativeSyntheticEvent<PressEvent>) => {
+            markerTookTouch.current = true;
             onPress({
               kind: "station",
               id: marker.id,
               at: [longitude, latitude],
               point: event.nativeEvent.point,
             });
+          };
         if (marker.kind === "buoy") {
           const station = stationsById.get(marker.id);
           if (!station || station.heightMeters === null) return null;

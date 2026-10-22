@@ -96,3 +96,15 @@ export function tabUnder(pathname: string): PhoneTab | undefined {
   const place = placeOf(pathname);
   return place ? tabOf({ [place.kind]: place.id }) : undefined;
 }
+
+/** A place asked for, by its kind and its id, and when. */
+export type Opening = { key: string; at: number };
+
+/**
+ * Whether a place asked for again is the one whose sheet was just asked for and is not in front
+ * yet: on an iPhone the map may give one press twice, and a second push would stack a second
+ * sheet of the same place.
+ */
+export function opensAgain(last: Opening | null, key: string, now: number, within = 1500) {
+  return last !== null && last.key === key && now - last.at < within;
+}
