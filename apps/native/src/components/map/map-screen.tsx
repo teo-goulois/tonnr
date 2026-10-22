@@ -457,10 +457,8 @@ export function MapScreen() {
                     if (open) setListsOpen(false);
                   }}
                   maxHeight={Math.max(160, frame.height - floor - space.xxl * 2)}
-                  onShowCredits={() => {
-                    setCreditsShown(true);
-                    setLegendOpen(false);
-                  }}
+                  // The credits open over the map and the legend stays open, as on the web.
+                  onShowCredits={() => setCreditsShown(true)}
                   windTruncated={!list && windThinned}
                   breaksTruncated={!list && breaks.data?.next != null}
                 />
