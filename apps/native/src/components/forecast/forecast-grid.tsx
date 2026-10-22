@@ -1,6 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "@repo/ui/icon";
 import {
   type ComponentRef,
+  type ReactNode,
   memo,
   useEffect,
   useLayoutEffect,
@@ -13,13 +14,18 @@ import {
   type NativeSyntheticEvent,
   Platform,
   Pressable,
+  type StyleProp,
   View,
+  type ViewStyle,
 } from "react-native";
 import { GestureDetector, ScrollView, usePanGesture } from "react-native-gesture-handler";
 import Animated, {
   Easing,
+  type SharedValue,
+  useAnimatedRef,
   useAnimatedStyle,
   useReducedMotion,
+  useScrollOffset,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
@@ -244,6 +250,50 @@ function useNamed() {
   ] as const;
 }
 
+/**
+ * A name over a part of the table that follows it while any column of the part is in view, as
+ * the web's sticky names do: it stands at the part's start, keeps to the left edge of the hours
+ * once that start has scrolled by, and stops where the part ends. It moves on the scroll's own
+ * frames, from `offset`, how far the table has scrolled.
+ */
+function Sticky({
+  offset,
+  start,
+  width,
+  inset = 0,
+  style,
+  children,
+}: {
+  offset: SharedValue<number>;
+  // Where the part starts among the columns, and how wide it is.
+  start: number;
+  width: number;
+  // The room the part leaves before its name.
+  inset?: number;
+  style?: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
+  const own = useSharedValue(0);
+  const follows = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: Math.min(
+          Math.max(offset.get() - start, 0),
+          Math.max(0, width - inset - own.get()),
+        ),
+      },
+    ],
+  }));
+  return (
+    <Animated.View
+      onLayout={(event) => own.set(event.nativeEvent.layout.width)}
+      style={[{ flexDirection: "row", alignItems: "center" }, style, follows]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 /** One hour of the table, every row of it. */
 const GridColumn = memo(function GridColumn({
   column,
@@ -429,7 +479,10 @@ export function ForecastGrid({
 
   const nowIndex = columns.findIndex((column) => column.isNow);
   const home = homeOffset(columns, lead, COLUMN);
-  const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scroller = useAnimatedRef<ComponentRef<typeof ScrollView>>();
+  // How far the table has scrolled, on the scroll's own frames, for the names that follow it. It
+  // is listened to once the table is drawn.
+  const offset = useScrollOffset(!isLoading && columns.length > 0 ? scroller : null);
   const scrollX = useRef(0);
   const viewWidth = useRef(0);
   // Where the pressed hour stood in the view, to keep it there once the step changes; and where
@@ -439,7 +492,6 @@ export function ForecastGrid({
   const placed = useRef(false);
   const away = useRef(false);
   const dragging = useRef(false);
-  const [dayInView, setDayInView] = useState(0);
   // The hour a screen reader is on, and the one a finger reads.
   const [focus, setFocus] = useState<number>();
   const [reading, setReading] = useState<number>();
@@ -453,6 +505,13 @@ export function ForecastGrid({
 
   function scrollTo(x: number, animated = false) {
     scroller.current?.scrollTo({ x: Math.max(0, x), animated });
+    // The names that follow the table stand where it goes at once, before it says it moved: it
+    // may move before it is listened to.
+    if (!animated) {
+      offset.set(
+        Math.min(Math.max(0, x), Math.max(0, columns.length * COLUMN - viewWidth.current)),
+      );
+    }
   }
 
   // The table opens with now at its left, after the columns of the past it keeps. Once the step
@@ -519,8 +578,6 @@ export function ForecastGrid({
   function onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const x = event.nativeEvent.contentOffset.x;
     scrollX.current = x;
-    const inView = columns[columnAt(columns, Math.max(0, x) + 1, COLUMN) ?? 0]?.day ?? 0;
-    if (inView !== dayInView) setDayInView(inView);
     if (offered && x > COLUMN * 2) setOffered(false);
     const next = nowIndex >= 0 && Math.abs(x - home) > COLUMN * 2;
     if (next !== away.current) {
@@ -618,12 +675,8 @@ export function ForecastGrid({
   // A name and its unit, beside its row.
   const names = (
     <View style={{ width: LABELS }}>
-      <View style={{ height: headHeight, justifyContent: "flex-start", paddingTop: 4 }}>
-        {/* The day in view stays in the corner while its hours scroll. */}
-        <Text size="xs" weight="medium" numberOfLines={1} dense>
-          {formatDay(new Date(columns.find((column) => column.day === dayInView)?.time ?? start))}
-        </Text>
-      </View>
+      {/* The corner over the days and the hours is empty: each day's name follows its hours. */}
+      <View style={{ height: headHeight }} />
       {specs.map((spec) => (
         <View
           key={spec.key}
@@ -748,10 +801,12 @@ export function ForecastGrid({
           >
             <GestureDetector gesture={press}>
               <View style={{ width }}>
-                {/* The days, each a band over its hours: a press shows every hour, or the step. */}
+                {/* The days, each a band over its hours whose name follows them: a press shows
+                    every hour, or the step. */}
                 <View style={{ flexDirection: "row", height: HEAD_ROW }}>
                   {[...days.entries()].map(([day, count]) => {
-                    const first = columns.find((column) => column.day === day)!;
+                    const index = columns.findIndex((column) => column.day === day);
+                    const first = columns[index]!;
                     return (
                       <Pressable
                         key={first.time}
@@ -759,15 +814,22 @@ export function ForecastGrid({
                         style={{
                           width: count * COLUMN,
                           justifyContent: "center",
-                          paddingHorizontal: space.xxs,
+                          alignItems: "flex-start",
                           overflow: "hidden",
                           backgroundColor: day % 2 === 1 ? colors["neutral-2"] : undefined,
                         }}
                       >
                         {count > 1 && (
-                          <Text size="xs" weight="medium" numberOfLines={1} dense>
-                            {formatDay(new Date(first.time))}
-                          </Text>
+                          <Sticky
+                            offset={offset}
+                            start={index * COLUMN}
+                            width={count * COLUMN}
+                            style={{ paddingHorizontal: space.xxs }}
+                          >
+                            <Text size="xs" weight="medium" numberOfLines={1} dense>
+                              {formatDay(new Date(first.time))}
+                            </Text>
+                          </Sticky>
                         )}
                       </Pressable>
                     );
@@ -812,37 +874,51 @@ export function ForecastGrid({
                   ))}
                 </View>
                 {lastMeasured >= 0 && (
-                  // Which hours are the buoy's and which the model's, said once above the figures.
+                  // Which hours are the buoy's and which the model's, said once above the figures,
+                  // each name following its hours.
                   <View style={{ flexDirection: "row", height: BAND_ROW }}>
                     <View
                       style={{
                         width: (lastMeasured + 1) * COLUMN,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: space.xxs,
+                        justifyContent: "center",
+                        alignItems: "flex-start",
                         borderBottomWidth: 2,
                         borderBottomColor: colors["neutral-10"],
                       }}
                     >
-                      <LineGlyph />
-                      <Text size="xs" weight="medium" numberOfLines={1} dense>
-                        {m.details_buoy()}
-                      </Text>
+                      <Sticky
+                        offset={offset}
+                        start={0}
+                        width={(lastMeasured + 1) * COLUMN}
+                        style={{ gap: space.xxs, paddingRight: space.xs }}
+                      >
+                        <LineGlyph />
+                        <Text size="xs" weight="medium" numberOfLines={1} dense>
+                          {m.details_buoy()}
+                        </Text>
+                      </Sticky>
                     </View>
                     {lastMeasured + 1 < columns.length && (
                       <View
                         style={{
                           flex: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: space.xxs,
+                          justifyContent: "center",
+                          alignItems: "flex-start",
                           paddingLeft: space.xs,
                         }}
                       >
-                        <LineGlyph dashed />
-                        <Text size="xs" tone="muted" numberOfLines={1} dense>
-                          {m.details_model()}
-                        </Text>
+                        <Sticky
+                          offset={offset}
+                          start={(lastMeasured + 1) * COLUMN}
+                          width={(columns.length - lastMeasured - 1) * COLUMN}
+                          inset={space.xs}
+                          style={{ gap: space.xxs, paddingRight: space.xs }}
+                        >
+                          <LineGlyph dashed />
+                          <Text size="xs" tone="muted" numberOfLines={1} dense>
+                            {m.details_model()}
+                          </Text>
+                        </Sticky>
                         {/* The model's hours are underlined in dashes, drawn as a line of a chart
                             is: iOS draws no dashed border on one side alone, and a line is drawn
                             alike on both platforms. */}
