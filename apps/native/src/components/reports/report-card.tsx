@@ -26,7 +26,8 @@ import { m } from "@/paraglide/messages";
 // platform's own: its author deletes it, anyone else flags it or blocks its author. What its author
 // alone reads of it, where it stands and how many saw it, is under it. Decisions 067, 068 and 071.
 
-const SHOT = 96;
+/** The side of a report's photo, the web's `size-24`. */
+export const SHOT = 96;
 
 /** Why a medium of a report is not shown, in the words of its author. */
 export function reasonWords(reason: ReportReason, distanceKm: number | null) {

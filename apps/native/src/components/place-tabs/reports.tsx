@@ -5,13 +5,11 @@ import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { RefreshControl, SectionList, type ListViewToken, View } from "react-native";
 
-import { ReportCard } from "@/components/reports/report-card";
+import { ReportCard, SHOT } from "@/components/reports/report-card";
 import { reportCounter } from "@/components/reports/report-counter";
 import { useBreakReports, useReportWrites } from "@/components/reports/use-reports";
 import { useMediaStatus } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
-import { ErrorState } from "@/components/ui/error-state";
-import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
@@ -20,6 +18,7 @@ import { useTheme } from "@/lib/theme";
 import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
+import { TabFailure } from "./tab-states";
 import { VisitorPrompt } from "./visitor-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
@@ -41,7 +40,7 @@ function openShot(report: Report, mediaId: string) {
 
 /** The reports of a break: what accounts showed of its waves lately. */
 function BreakReports({ breakId }: { breakId: string }) {
-  const { colors, space } = useTheme();
+  const { colors, space, type } = useTheme();
   const { signedIn } = useAccount();
   const requireAccount = useRequireAccount();
   const reports = useBreakReports(breakId);
@@ -124,20 +123,15 @@ function BreakReports({ breakId }: { breakId: string }) {
         </View>
       }
       ListEmptyComponent={
+        // As the web's panel: what failed in a line, with no retry, since the tab is pulled to be
+        // read again; and while it loads, a heading's line over a strip of photos.
         reports.isError ? (
-          <ErrorState
-            title={m.reports_load_failed()}
-            onRetry={() => void reports.refetch()}
-            retrying={reports.isFetching}
-          />
+          <TabFailure text={m.reports_load_failed()} />
         ) : !reports.data ? (
           <Loading>
             <View style={{ gap: space.s }}>
-              <Skeleton height={16} width="40%" />
-              <View style={{ flexDirection: "row", gap: space.xs }}>
-                <Skeleton height={96} width={96} />
-                <Skeleton height={96} width={96} />
-              </View>
+              <Skeleton height={type.m.line} width="40%" />
+              <Skeleton height={SHOT} />
             </View>
           </Loading>
         ) : (
@@ -151,12 +145,9 @@ function BreakReports({ breakId }: { breakId: string }) {
           {section.title}
         </Text>
       )}
-      SectionSeparatorComponent={() => <View style={{ height: space.xs }} />}
-      ItemSeparatorComponent={() => (
-        <View style={{ paddingVertical: space.m }}>
-          <Separator />
-        </View>
-      )}
+      // The cards of a part stand a large step apart with no line between them, and the parts as
+      // far, as the web's lists of reports are laid.
+      ItemSeparatorComponent={() => <View style={{ height: space.l }} />}
       renderSectionFooter={() => <View style={{ height: space.l }} />}
       renderItem={({ item }) => (
         <ReportCard
