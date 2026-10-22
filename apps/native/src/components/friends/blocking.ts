@@ -1,6 +1,7 @@
 import type { BlockedAccount } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useIsFocused } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 
 import { confirmDestructive } from "@/components/saved/confirm";
 import { useTell } from "@/components/ui/toast";
@@ -48,13 +49,17 @@ function useBlockChanged() {
 
 /**
  * What blocks an account by its username, once the reader said so. A visitor is asked for an
- * account first, and presses again once signed in. `onBlocked` follows a block that was made.
+ * account first, and then asked this, whichever account it signed in with, as the web's
+ * `useBlocks` asks it. `onBlocked` follows a block that was made.
  */
 export function useBlock({ onBlocked }: { onBlocked?: () => void } = {}) {
   const { signedIn } = useAccount();
   const requireAccount = useRequireAccount();
   const tell = useTell();
   const changed = useBlockChanged();
+  const focused = useIsFocused();
+  // The username a visitor asked to block, until it is asked again once signed in.
+  const [asked, setAsked] = useState<string>();
   const add = useMutation(
     orpc.v1.blocks.add.mutationOptions({
       onSuccess: (blocked) => {
@@ -73,9 +78,20 @@ export function useBlock({ onBlocked }: { onBlocked?: () => void } = {}) {
   );
   const { mutate } = add;
 
+  // Asked once the sign-in has left and the screen is in view again, so that the question is
+  // not shown over a sheet that goes.
+  useEffect(() => {
+    if (asked === undefined || !signedIn || !focused) return;
+    setAsked(undefined);
+    void confirmBlock(asked).then((yes) => {
+      if (yes) mutate({ username: asked });
+    });
+  }, [asked, signedIn, focused, mutate]);
+
   const block = useCallback(
     (username: string) => {
       if (!signedIn) {
+        setAsked(username);
         requireAccount(m.block_sign_in(), () => {});
         return;
       }

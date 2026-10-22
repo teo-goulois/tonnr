@@ -1,38 +1,38 @@
 import { APP_NAME } from "@repo/config/app";
-import type { Friend } from "@repo/client/viewer/types";
-import { ChevronRightIcon, CopyIcon, PersonIcon, ShareIcon, XIcon } from "@repo/ui/icon";
+import type { Friend, FriendDetail } from "@repo/client/viewer/types";
+import { ChevronDownIcon, CopyIcon, ShareIcon, XIcon } from "@repo/ui/icon";
 import { setStringAsync } from "expo-clipboard";
-import { router } from "expo-router";
-import { Fragment, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { RankBadge, rankName } from "@/components/account/rank-badge";
 import { Step } from "@/components/account/settings-steps";
+import { UsernameForm } from "@/components/account/username-form";
 import { SwipeRow } from "@/components/alerts/swipe-row";
-import { ContributionRow } from "@/components/contributions/contribution-row";
+import { AccountPrompt } from "@/components/auth/account-prompt";
+import { readContribution } from "@/components/guides/guide-words";
 import { openBreakGuide } from "@/components/guides/open-guide";
-import { PageSheet, usePresented } from "@/components/guides/page-sheet";
-import { Tag } from "@/components/guides/tag";
 import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { feel } from "@/components/ui/haptics";
-import { Row, Section } from "@/components/ui/list";
+import { Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
-import { Separator } from "@/components/ui/separator";
-import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
-import { Surface } from "@/components/ui/surface";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
-import { formatMonth } from "@/lib/format";
-import { useRequireAccount } from "@/lib/require-account";
 import { shareLink } from "@/lib/share";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
-import { light } from "@/theme/tokens";
 
 import { type Choice, chooseAmong } from "./asking";
 import { useBlock } from "./blocking";
@@ -40,11 +40,12 @@ import { QrCode } from "./qr-code";
 import { useFriendDetail, useFriends } from "./use-friends";
 
 // The account's link and the friends it made, one step into the account's tab, as the web's
-// `FriendsPanel` shows them: decision 041. The link is a code for a camera and an address for the
-// phone's own sheet. A friend is read by a username, a rank and what they wrote that was
-// confirmed, and by nothing else.
+// `FriendsPanel` draws them on a phone: decision 041. The link is a code for a camera and an
+// address for the phone's own sheet. A friend is read by a username, a rank and what they wrote
+// that was confirmed, and by nothing else: a press unfolds it in the list, one at a time.
 
-const QR_SIZE = 208;
+/** The web's `size-40`: the code with its own quiet zone, which needs no frame. */
+const QR_SIZE = 160;
 
 /** The step's name a friend reads by: `@name`, or that it has none yet. */
 const nameOf = (friend: Pick<Friend, "username">) =>
@@ -67,6 +68,7 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
   if (!address) {
     return friending.link.isError ? (
       <ErrorState
+        plain
         title={m.friends_failed()}
         onRetry={() => void friending.link.refetch()}
         retrying={friending.link.isRefetching}
@@ -74,7 +76,7 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
     ) : (
       <Loading>
         <View style={{ alignItems: "center" }}>
-          <Skeleton width={QR_SIZE + 2 * space.s} height={QR_SIZE + 2 * space.s} />
+          <Skeleton width={QR_SIZE} height={QR_SIZE} />
         </View>
       </Loading>
     );
@@ -95,63 +97,137 @@ function OwnLink({ friending }: { friending: ReturnType<typeof useFriends> }) {
       tell({ title: m.friends_link_copy_failed(), tone: "danger" });
     }
   };
-  const renew = async () => {
-    const yes = await confirmDestructive({
-      title: m.friends_link_renew(),
-      message: m.native_friends_renew_text(),
-      confirm: m.friends_link_renew(),
-    });
-    if (yes) friending.renew();
-  };
 
   return (
-    <View style={{ alignItems: "center", gap: space.m }}>
-      {/* White around the code, whatever the theme: a camera reads its quiet zone. */}
+    <View style={{ gap: space.s }}>
+      {/* The code is white around itself, whatever the theme: a camera reads its quiet zone. */}
       <View
         style={{
-          padding: space.s,
+          alignSelf: "center",
           borderRadius: radius.xs,
           borderCurve: "continuous",
-          backgroundColor: light["neutral-1"],
+          overflow: "hidden",
         }}
       >
         <QrCode text={address} label={m.friends_qr_label()} size={QR_SIZE} />
       </View>
-      <Text size="s" tone="muted" selectable numberOfLines={1} style={{ textAlign: "center" }}>
-        {address.replace(/^https?:\/\//, "")}
-      </Text>
-      <View
-        style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.xs }}
-      >
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
         <Button icon={ShareIcon} onPress={share}>
           {m.friends_link_share()}
         </Button>
         <Button variant="secondary" icon={CopyIcon} onPress={() => void copy()}>
           {m.friends_link_copy()}
         </Button>
+        {/* It renews at once: its toast says that the link before opens nothing. */}
+        <Button variant="ghost" loading={friending.isRenewing} onPress={friending.renew}>
+          {m.friends_link_renew()}
+        </Button>
       </View>
-      <Button variant="ghost" loading={friending.isRenewing} onPress={() => void renew()}>
-        {m.friends_link_renew()}
-      </Button>
+    </View>
+  );
+}
+
+/** The chevron of a friend's row, which turns over as the row unfolds, on the theme's motion. */
+function Unfolding({ open }: { open: boolean }) {
+  const { colors, motion } = useTheme();
+  const turn = useSharedValue(open ? 180 : 0);
+  // Reanimated holds it still for a reader who asked for no motion, as the web's does.
+  useEffect(() => {
+    turn.set(
+      withTiming(open ? 180 : 0, {
+        duration: motion.duration,
+        easing: Easing.bezier(...motion.easing),
+      }),
+    );
+  }, [open, turn, motion]);
+  const turned = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));
+  return (
+    <Animated.View style={turned}>
+      <Glyph icon={ChevronDownIcon} size={16} color={colors["neutral-7"]} />
+    </Animated.View>
+  );
+}
+
+type Written = FriendDetail["contributions"][number];
+
+/**
+ * One thing a friend wrote, on two lines as the web's: the break, which opens its guide, and the
+ * line it is of, then what it says. A break that left the catalogue opens nothing.
+ */
+function FriendContribution({
+  one,
+  onOpenBreak,
+}: {
+  one: Written;
+  onOpenBreak: (breakId: string) => void;
+}) {
+  const { space } = useTheme();
+  const { label, value } = readContribution(one);
+  const place = one.break;
+  return (
+    <View style={{ gap: space.xxs }}>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          alignItems: "center",
+          columnGap: space.xs,
+        }}
+      >
+        {place ? (
+          // A ghost button whose name stands in line with what is under it, as the web's `-ml-xs`.
+          <Button
+            variant="ghost"
+            accessibilityHint={m.native_contribution_open_hint()}
+            onPress={() => onOpenBreak(place.id)}
+            style={{ marginStart: -space.xs, paddingHorizontal: space.xs, maxWidth: "100%" }}
+          >
+            {place.name}
+          </Button>
+        ) : (
+          <Text size="s" tone="muted">
+            {m.contribution_break_gone()}
+          </Text>
+        )}
+        <Text size="s" tone="muted">
+          {label}
+        </Text>
+      </View>
+      {value ? <Text size="s">{value}</Text> : null}
     </View>
   );
 }
 
 /**
- * One friend: who they are, and what a press, a long press or a swipe does with them. A swipe
- * from the trailing edge ends the friendship, once asked; a screen reader reaches the same
- * actions as the long press, in the row's own.
+ * One friend: who they are, and, once a press unfolds them, what they wrote and what ends the
+ * friendship, which asks in place before it ends it, as the web's does. A swipe from the trailing
+ * edge and a long press reach the same, asked in the platform's own words; so does a screen
+ * reader, through the row's actions.
  */
 function FriendRow({
   friend,
+  isOpen,
+  onToggle,
+  detail,
   actions,
-  onOpen,
+  isRemoving,
+  onRemove,
+  onBlock,
+  onOpenBreak,
 }: {
   friend: Friend;
+  isOpen: boolean;
+  onToggle: () => void;
+  /** What the friend wrote, while the row is unfolded. */
+  detail: ReturnType<typeof useFriendDetail>;
   actions: Choice[];
-  onOpen: () => void;
+  isRemoving: boolean;
+  onRemove: () => void;
+  onBlock: (username: string) => void;
+  onOpenBreak: (breakId: string) => void;
 }) {
-  const { colors, space } = useTheme();
+  const { colors, space, radius } = useTheme();
+  const [isEnding, setEnding] = useState(false);
   const sponsored = sponsoredOf(friend);
   const remove = actions.find((action) => action.name === "remove");
   const label = [
@@ -161,151 +237,152 @@ function FriendRow({
   ]
     .filter(Boolean)
     .join(", ");
+  const contributions = isOpen ? detail.data?.contributions : undefined;
 
   return (
-    <SwipeRow
-      trailing={
-        remove
-          ? { label: m.native_remove(), icon: XIcon, tone: "danger", onAct: remove.onPress }
-          : undefined
-      }
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityHint={m.native_friend_hint()}
-        accessibilityActions={actions.map(({ name, label: said }) => ({ name, label: said }))}
-        onAccessibilityAction={(event) =>
-          actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress()
-        }
-        onPress={onOpen}
-        onLongPress={() => {
-          feel("hold");
-          chooseAmong(nameOf(friend), actions);
-        }}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.s,
-          minHeight: TARGET,
-          paddingHorizontal: space.m,
-          paddingVertical: space.s,
-          // The row's own ground, over the action that the swipe uncovers behind it.
-          backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
-        })}
-      >
-        <View style={{ flex: 1, gap: space.xxs }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-            <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {nameOf(friend)}
-            </Text>
-            {friend.rank ? <RankBadge rank={friend.rank} /> : null}
-          </View>
-          {sponsored ? <Tag tone={sponsored.tone}>{sponsored.label}</Tag> : null}
-        </View>
-        <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
-      </Pressable>
-    </SwipeRow>
-  );
-}
-
-/** A friend read whole, in a sheet: their rank, since when, and what they wrote that was confirmed. */
-function FriendSheet({
-  friend,
-  visible,
-  onClose,
-  onDismissed,
-  actions,
-  onOpenBreak,
-}: {
-  friend: Friend;
-  visible: boolean;
-  onClose: () => void;
-  onDismissed: () => void;
-  actions: Choice[];
-  onOpenBreak: (breakId: string) => void;
-}) {
-  const { space } = useTheme();
-  const detail = useFriendDetail(friend.id);
-  const sponsored = sponsoredOf(friend);
-  const contributions = detail.data?.contributions;
-
-  return (
-    <PageSheet visible={visible} title={nameOf(friend)} onClose={onClose} onDismissed={onDismissed}>
-      <View style={{ gap: space.xs }}>
-        <View
-          style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.xs }}
+    <View style={{ gap: space.xs }}>
+      {/* The row's room is laid outside the words, as the web's `-mx-xs px-xs`, so that its
+          words stand in line with the title and only its press shows it. */}
+      <View style={{ marginHorizontal: -space.xs }}>
+        <SwipeRow
+          trailing={
+            remove
+              ? { label: m.friends_remove(), icon: XIcon, tone: "danger", onAct: remove.onPress }
+              : undefined
+          }
         >
-          {friend.rank ? (
-            <>
-              <RankBadge rank={friend.rank} />
-              <Text size="s" tone="muted">
-                {rankName(friend.rank)}
-              </Text>
-            </>
-          ) : (
-            <Text size="s" tone="muted">
-              {m.contributions_no_rank()}
-            </Text>
-          )}
-          {sponsored ? <Tag tone={sponsored.tone}>{sponsored.label}</Tag> : null}
-        </View>
-        <Text size="s" tone="muted">
-          {m.native_friend_since({ date: formatMonth(friend.since) })}
-        </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityHint={m.native_friend_hint()}
+            accessibilityState={{ expanded: isOpen }}
+            accessibilityActions={actions.map(({ name, label: said }) => ({ name, label: said }))}
+            onAccessibilityAction={(event) =>
+              actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress()
+            }
+            onPress={() => {
+              setEnding(false);
+              onToggle();
+            }}
+            onLongPress={() => {
+              feel("hold");
+              chooseAmong(nameOf(friend), actions);
+            }}
+            // The screen's own ground, over the action that the swipe uncovers behind it.
+            style={{ backgroundColor: colors["cte-canvas"] }}
+          >
+            {({ pressed }) => (
+              <View
+                style={{
+                  minHeight: TARGET,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: space.s,
+                  paddingHorizontal: space.xs,
+                  borderRadius: radius.xs,
+                  borderCurve: "continuous",
+                  backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
+                }}
+              >
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    columnGap: space.xs,
+                    rowGap: space.xxs,
+                  }}
+                >
+                  <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+                    {nameOf(friend)}
+                  </Text>
+                  {friend.rank ? <RankBadge rank={friend.rank} /> : null}
+                  {sponsored ? <Badge tone={sponsored.tone}>{sponsored.label}</Badge> : null}
+                </View>
+                <Unfolding open={isOpen} />
+              </View>
+            )}
+          </Pressable>
+        </SwipeRow>
       </View>
 
-      {contributions ? (
-        contributions.length === 0 ? (
-          <Text tone="muted">{m.friends_contributions_empty()}</Text>
-        ) : (
-          <Surface insetEdge style={{ overflow: "hidden" }}>
-            {contributions.map((one, index) => (
-              <Fragment key={one.id}>
-                {index > 0 ? <Separator inset={space.m} /> : null}
-                <ContributionRow one={one} onOpenBreak={onOpenBreak} />
-              </Fragment>
-            ))}
-          </Surface>
-        )
-      ) : detail.isError ? (
-        <ErrorState
-          title={m.friends_failed()}
-          onRetry={() => void detail.refetch()}
-          retrying={detail.isRefetching}
-        />
-      ) : (
-        <Loading>
-          <SkeletonText lines={4} />
-        </Loading>
-      )}
-
-      <Section>
-        {actions.map((action) => (
-          <Row
-            key={action.label}
-            title={action.label}
-            destructive={action.destructive}
-            chevron={false}
-            onPress={action.onPress}
-          />
-        ))}
-      </Section>
-    </PageSheet>
+      {isOpen ? (
+        <View style={{ gap: space.s, paddingBottom: space.xs }}>
+          {!contributions ? (
+            detail.isError ? (
+              <ErrorState
+                plain
+                title={m.friends_failed()}
+                onRetry={() => void detail.refetch()}
+                retrying={detail.isRefetching}
+              />
+            ) : (
+              <Loading>
+                <Skeleton height={20} />
+              </Loading>
+            )
+          ) : contributions.length === 0 ? (
+            <Text size="s" tone="muted">
+              {m.friends_contributions_empty()}
+            </Text>
+          ) : (
+            <View style={{ gap: space.s }}>
+              {contributions.map((one) => (
+                <FriendContribution key={one.id} one={one} onOpenBreak={onOpenBreak} />
+              ))}
+            </View>
+          )}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
+            {isEnding ? (
+              <>
+                <Button variant="outline" loading={isRemoving} onPress={onRemove}>
+                  {m.friends_remove_confirm()}
+                </Button>
+                <Button variant="ghost" disabled={isRemoving} onPress={() => setEnding(false)}>
+                  {m.action_cancel()}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onPress={() => setEnding(true)}>
+                  {m.friends_remove()}
+                </Button>
+                {/* Ends the friendship too, and hides the friend's reports and name: decision
+                    071. A friend with no name is blocked by none. */}
+                {friend.username ? (
+                  <Button
+                    variant="ghost"
+                    destructive
+                    onPress={() => friend.username && onBlock(friend.username)}
+                  >
+                    {m.block_account({ username: friend.username })}
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 /**
  * One step into the account's tab: the link the account gives to whoever it wants as a friend,
  * and the friends it made, with what ends a friendship and what blocks a friend (decision 071).
+ * A visitor is asked for an account, and comes back here once signed in.
  */
 export function FriendsScreen() {
-  const { space } = useTheme();
-  const { signedIn, pending, username } = useAccount();
-  const requireAccount = useRequireAccount();
+  const { colors, space } = useTheme();
+  const { signedIn, pending, userId, username } = useAccount();
   const friending = useFriends(username);
-  const sheet = usePresented<Friend>();
-  const { block } = useBlock({ onBlocked: () => sheet.dismiss() });
+  // The friend whose row is unfolded, for the account that unfolded it, as the web keeps it.
+  const [opened, setOpened] = useState<{ account: string | undefined; id: string }>();
+  const openedId = opened !== undefined && opened.account === userId ? opened.id : undefined;
+  const detail = useFriendDetail(openedId);
+  const { block } = useBlock({ onBlocked: () => setOpened(undefined) });
   const [refreshing, setRefreshing] = useState(false);
   const friends = friending.friends.data;
 
@@ -314,7 +391,10 @@ export function FriendsScreen() {
     await friending.refresh().catch(() => {});
     setRefreshing(false);
   };
+  const removeFriend = (friend: Friend) => friending.remove(friend.id, () => setOpened(undefined));
 
+  // What a long press, a swipe and a screen reader's actions reach: ending the friendship is
+  // asked there in the platform's own words, as the unfolded row asks it in place.
   const actionsOf = (friend: Friend): Choice[] => [
     {
       name: "remove",
@@ -322,14 +402,11 @@ export function FriendsScreen() {
       onPress: () =>
         void confirmDestructive({
           title: m.friends_remove(),
-          message: m.native_friends_remove_text(),
           confirm: m.friends_remove_confirm(),
         }).then((yes) => {
-          if (yes) friending.remove(friend.id, () => sheet.dismiss());
+          if (yes) removeFriend(friend);
         }),
     },
-    // Ends the friendship too, and hides the friend's reports and name. A friend with no name
-    // is blocked by none.
     ...(friend.username
       ? [
           {
@@ -346,15 +423,7 @@ export function FriendsScreen() {
     return (
       <Step title={m.friends_title()}>
         {pending ? null : (
-          <EmptyState
-            icon={PersonIcon}
-            title={m.friends_title()}
-            description={m.friends_hint()}
-            action={{
-              label: m.auth_sign_in(),
-              onPress: () => requireAccount(m.friends_hint(), () => {}),
-            }}
-          />
+          <AccountPrompt text={m.account_sign_in_prompt()} next="/account/friends" />
         )}
       </Step>
     );
@@ -363,92 +432,67 @@ export function FriendsScreen() {
   return (
     <Step
       title={m.friends_title()}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void refresh()}
+          tintColor={colors["neutral-7"]}
+        />
+      }
     >
-      <View style={{ gap: space.xs }}>
-        <Text
-          size="s"
-          weight="medium"
-          tone="muted"
-          accessibilityRole="header"
-          style={{ paddingHorizontal: space.m }}
-        >
-          {m.friends_link_title()}
-        </Text>
-        <Surface style={{ padding: space.l, gap: space.m }}>
-          {username === null ? (
-            <View style={{ gap: space.s }}>
-              <Text>{m.friends_username_first()}</Text>
-              <Button fill onPress={() => router.push("/account/username")}>
-                {m.username_choose()}
-              </Button>
-            </View>
-          ) : (
-            <OwnLink friending={friending} />
-          )}
-        </Surface>
-        <Text size="s" tone="muted" style={{ paddingHorizontal: space.m }}>
-          {m.friends_link_text()}
-        </Text>
-      </View>
+      <Section plain title={m.friends_link_title()} lead={m.friends_link_text()}>
+        {username === null ? (
+          <View style={{ gap: space.xs }}>
+            <Text size="s">{m.friends_username_first()}</Text>
+            {/* Once it is saved, the account's name comes back and its link loads here. */}
+            <UsernameForm current={null} onSaved={() => {}} />
+          </View>
+        ) : (
+          <OwnLink friending={friending} />
+        )}
+      </Section>
 
-      <View style={{ gap: space.xs }}>
-        <Text
-          size="s"
-          weight="medium"
-          tone="muted"
-          accessibilityRole="header"
-          style={{ paddingHorizontal: space.m }}
-        >
-          {m.friends_list_title()}
-        </Text>
+      <Section plain title={m.friends_list_title()}>
         {friends ? (
           friends.length === 0 ? (
-            <Surface>
-              <EmptyState icon={PersonIcon} title={m.friends_empty()} />
-            </Surface>
+            <Text size="s" tone="muted">
+              {m.friends_empty()}
+            </Text>
           ) : (
-            <Surface insetEdge style={{ overflow: "hidden" }}>
-              {friends.map((friend, index) => (
-                <Fragment key={friend.id}>
-                  {index > 0 ? <Separator inset={space.m} /> : null}
-                  <FriendRow
-                    friend={friend}
-                    actions={actionsOf(friend)}
-                    onOpen={() => sheet.present(friend)}
-                  />
-                </Fragment>
+            <View style={{ gap: space.xxs }}>
+              {friends.map((friend) => (
+                <FriendRow
+                  key={friend.id}
+                  friend={friend}
+                  isOpen={openedId === friend.id}
+                  onToggle={() =>
+                    setOpened(
+                      openedId === friend.id ? undefined : { account: userId, id: friend.id },
+                    )
+                  }
+                  detail={detail}
+                  actions={actionsOf(friend)}
+                  isRemoving={friending.isRemoving}
+                  onRemove={() => removeFriend(friend)}
+                  onBlock={block}
+                  onOpenBreak={openBreakGuide}
+                />
               ))}
-            </Surface>
+            </View>
           )
         ) : friending.friends.isError ? (
           <ErrorState
+            plain
             title={m.friends_failed()}
             onRetry={() => void friending.friends.refetch()}
             retrying={friending.friends.isRefetching}
           />
         ) : (
           <Loading>
-            <View style={{ gap: space.xs }}>
-              <Skeleton height={TARGET} />
-              <Skeleton height={TARGET} />
-            </View>
+            <Skeleton height={TARGET} />
           </Loading>
         )}
-      </View>
-
-      {sheet.shown ? (
-        <FriendSheet
-          key={sheet.shown.id}
-          // What the list says now, once it changed while the sheet was open.
-          friend={friends?.find((one) => one.id === sheet.shown?.id) ?? sheet.shown}
-          visible={sheet.visible}
-          onClose={() => sheet.dismiss()}
-          onDismissed={sheet.dismissed}
-          actions={actionsOf(sheet.shown)}
-          onOpenBreak={(breakId) => sheet.dismiss(() => openBreakGuide(breakId))}
-        />
-      ) : null}
+      </Section>
     </Step>
   );
 }

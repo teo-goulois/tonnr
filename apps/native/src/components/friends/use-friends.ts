@@ -85,12 +85,13 @@ export function useFriends(username: string | null | undefined) {
     renew: () => renew.mutate({}),
     isRenewing: renew.isPending,
     remove: (id: string, then?: () => void) => remove.mutate({ id }, { onSuccess: then }),
+    isRemoving: remove.isPending,
     refresh: () =>
       Promise.all([friends.refetch(), typeof username === "string" ? link.refetch() : undefined]),
   };
 }
 
-/** What a friend wrote that was confirmed, asked for once their sheet opens. */
+/** What a friend wrote that was confirmed, asked for once their row unfolds. */
 export function useFriendDetail(id: string | undefined) {
   const { userId } = useAccount();
   const input = { id: id ?? "" };
