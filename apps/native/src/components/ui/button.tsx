@@ -171,7 +171,8 @@ export function Button({
         size={small ? "s" : "m"}
         weight="medium"
         dense={small}
-        style={{ color: label }}
+        // A name too long for the room the button has ends in an ellipsis.
+        style={{ color: label, flexShrink: 1 }}
         numberOfLines={1}
       >
         {children}

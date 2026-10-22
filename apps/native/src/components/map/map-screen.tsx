@@ -1,4 +1,5 @@
 import { seaTimeAt, seaTimes } from "@repo/client/map/sea";
+import { ListsIcon } from "@repo/ui/icon";
 import type { Station } from "@repo/client/viewer/types";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams, useNavigation, usePathname } from "expo-router";
@@ -26,6 +27,7 @@ import { Spinner } from "heroui-native";
 
 import { listName } from "@/components/lists/items";
 import { useSharedList } from "@/components/lists/use-shared-list";
+import { Button } from "@/components/ui/button";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
 import { ROUND } from "@/components/ui/metrics";
@@ -453,7 +455,9 @@ export function MapScreen() {
 
   const ownLists = lists.data?.lists ?? [];
   const joined = lists.data?.joined ?? [];
-  const hasLists = signedIn && ownLists.length + joined.length > 0;
+  // Whoever reads a list by its link has no other: the map names it, and a press opens it, as on
+  // the web, where the account's lists stand otherwise.
+  const hasLists = signedIn && !shared && ownLists.length + joined.length > 0;
   const windThinned = (wind.data?.apartKm ?? 0) > WIND_APART_KM || wind.data?.truncated === true;
   // Whose data the map draws, the sea's first as the web writes them: the basemap's names, as its
   // tiles write them, which no language changes, and the sea's, the API's.
@@ -559,6 +563,23 @@ export function MapScreen() {
               pointerEvents="box-none"
               style={{ flex: 1, alignItems: "flex-start", gap: space.xs }}
             >
+              {/* The list the map shows by its link, which opens it in the saved tab, where it
+                  is kept and its places are listed, as the web's button opens its saved panel. */}
+              {shared && list ? (
+                <Button
+                  variant="outline"
+                  icon={ListsIcon}
+                  onPress={() =>
+                    router.navigate(`/saved/shared/${encodeURIComponent(shared)}` as Route)
+                  }
+                  style={[
+                    { maxWidth: "70%", backgroundColor: colors["neutral-1"] },
+                    edge(colors["neutral-10-transparent"], { inset: true }),
+                  ]}
+                >
+                  {listName(list)}
+                </Button>
+              ) : null}
               {/* What the map says of itself: the buoys that load, or could not, over the legend.
                   The lists unfold where it stands, and it leaves them the room. */}
               {waves.isPending && !list && !(listsOpen && hasLists) ? (
