@@ -123,6 +123,7 @@ export function PlaceHeader({
   now,
   isSaved,
   onSave,
+  saveLabel,
   onMenu,
   onCopy,
   isCopying = false,
@@ -133,6 +134,8 @@ export function PlaceHeader({
   isSaved: boolean;
   // Undefined where nothing can be saved: a spot of someone else's, which is copied instead.
   onSave?: () => void;
+  // What the bookmark does: an account's opens its lists, a visitor's adds to the favorites.
+  saveLabel: string;
   onMenu?: () => void;
   onCopy?: () => void;
   isCopying?: boolean;
@@ -242,7 +245,7 @@ export function PlaceHeader({
           <IconButton
             variant="ghost"
             icon={isSaved ? BookmarkFillIcon : BookmarkIcon}
-            label={m.saved_add_to_list()}
+            label={saveLabel}
             selected={isSaved}
             onPress={onSave}
           />

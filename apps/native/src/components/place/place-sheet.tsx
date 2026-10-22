@@ -22,6 +22,7 @@ import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { FOLD_MARGIN } from "./fold";
+import { FAVORITES } from "./lists";
 import { PlaceForecast } from "./place-forecast";
 import { PlaceHeader } from "./place-header";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
@@ -63,7 +64,7 @@ export function PlaceSheet({
   const conditions = usePlaceConditions(record, now);
   const { atRest, detent } = useSheetState();
   const foldAt = useFoldHeight(detent);
-  const { isSaved } = useLists();
+  const { lists, isSaved, save: saveTo } = useLists();
   const spots = useSpotActions();
   const name = record.name;
 
@@ -116,14 +117,26 @@ export function PlaceSheet({
   const item: PlaceRef | undefined = known ? { kind, id } : undefined;
   const sharedSpot = kind === "spot" && record.spot && !record.isOwner ? record.spot : undefined;
 
+  // The bookmark opens an account's lists. A visitor's asks for an account, then puts the place
+  // in the favorites once it is signed in, as the web's does.
+  const [wantsFavorite, setWantsFavorite] = useState(false);
+  useEffect(() => {
+    if (!wantsFavorite || !signedIn || !item || !lists.isSuccess) return;
+    setWantsFavorite(false);
+    saveTo(FAVORITES, item, true);
+  }, [wantsFavorite, signedIn, item, lists.isSuccess, saveTo]);
   const save = item
     ? () => {
-        const next =
-          `/place/save?kind=${kind}&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name ?? "")}` as Route;
-        requireAccount(
-          m.auth_reason_save({ name: name ?? m.auth_reason_this_station() }),
-          () => router.push(next),
-          next,
+        if (!signedIn) {
+          setWantsFavorite(true);
+          requireAccount(
+            m.auth_reason_save({ name: name ?? m.auth_reason_this_station() }),
+            () => {},
+          );
+          return;
+        }
+        router.push(
+          `/place/save?kind=${kind}&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name ?? "")}` as Route,
         );
       }
     : undefined;
@@ -202,6 +215,7 @@ export function PlaceSheet({
             now={now}
             isSaved={item ? isSaved(item) : false}
             onSave={save}
+            saveLabel={signedIn ? m.saved_add_to_list() : m.saved_add_favorite()}
             onCopy={copy}
             isCopying={spots.isCopying}
             onMenu={
