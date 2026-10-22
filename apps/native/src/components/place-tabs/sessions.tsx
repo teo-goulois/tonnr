@@ -1,9 +1,9 @@
 import type { Session } from "@repo/client/viewer/types";
 import { likedConditions, LIKED_FROM, LIKED_SESSIONS } from "@repo/conditions/sessions/liked";
-import { BellIcon, PlusIcon } from "@repo/ui/icon";
+import { PlusIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
 import { keepCopy } from "@/components/alerts/copies";
@@ -12,10 +12,7 @@ import { placeParam, usePlaceKnown } from "@/components/sessions/session-place";
 import { SessionRow } from "@/components/sessions/session-row";
 import { useSessionsAt, useSessionWrites } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
-import { ErrorState } from "@/components/ui/error-state";
-import { Separator } from "@/components/ui/separator";
-import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
-import { Surface } from "@/components/ui/surface";
+import { edge } from "@/components/ui/edge";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
@@ -24,6 +21,7 @@ import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
+import { LinesLoading, TabFailure } from "./tab-states";
 import { VisitorPrompt } from "./visitor-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
@@ -44,13 +42,20 @@ function Liked({
   known: KnownPlace["point"];
   sessions: readonly Session[];
 }) {
-  const { space } = useTheme();
+  const { colors, space, radius } = useTheme();
   const liked = useMemo(() => likedConditions([...sessions]), [sessions]);
   const missing = LIKED_SESSIONS - liked.liked;
   const { criteria } = liked;
 
   return (
-    <Surface style={{ gap: space.xs, padding: space.m }}>
+    // The web's edged box: a fine line of the theme's grey with no ground, at the radius of its
+    // buttons.
+    <View
+      style={[
+        edge(colors["neutral-4"]),
+        { gap: space.xs, padding: space.s, borderRadius: radius.s, borderCurve: "continuous" },
+      ]}
+    >
       <Text weight="medium" accessibilityRole="header">
         {m.sessions_liked_title()}
       </Text>
@@ -65,7 +70,6 @@ function Liked({
               hands its editor the same draft. */}
           <Button
             variant="secondary"
-            icon={BellIcon}
             disabled={!known}
             onPress={() => {
               if (!known) return;
@@ -96,7 +100,7 @@ function Liked({
             : m.sessions_liked_unread()}
         </Text>
       )}
-    </Surface>
+    </View>
   );
 }
 
@@ -149,7 +153,7 @@ function PlaceSessions({ place }: { place: SessionAt }) {
     <ScrollView
       style={{ flex: 1 }}
       nestedScrollEnabled
-      contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
+      contentContainerStyle={{ gap: space.m, padding: space.m, paddingBottom: space.xxl }}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -158,19 +162,12 @@ function PlaceSessions({ place }: { place: SessionAt }) {
         />
       }
     >
+      {/* As the web's panel: what failed in a line, with no retry, since the tab is pulled to be
+          read again, and two lines to come while it loads. */}
       {here.isError ? (
-        <ErrorState
-          title={m.sessions_load_failed()}
-          onRetry={() => void here.refetch()}
-          retrying={here.isFetching}
-        />
+        <TabFailure text={m.sessions_load_failed()} />
       ) : !sessions ? (
-        <Loading>
-          <View style={{ gap: space.m }}>
-            <Skeleton height={112} />
-            <SkeletonText lines={2} />
-          </View>
-        </Loading>
+        <LinesLoading />
       ) : (
         <>
           {sessions.length === 0 ? (
@@ -187,19 +184,20 @@ function PlaceSessions({ place }: { place: SessionAt }) {
             {m.session_add()}
           </Button>
           {sessions.length > 0 ? (
-            <Surface insetEdge style={{ overflow: "hidden" }}>
-              {sessions.map((session, index) => (
-                <Fragment key={session.id}>
-                  {index > 0 ? <Separator inset={space.m} /> : null}
-                  <SessionRow
-                    session={session}
-                    now={now}
-                    media={media[session.id]}
-                    onDelete={(gone) => void writes.remove(gone)}
-                  />
-                </Fragment>
+            // The web's plain rows, a small step apart with no line between them, which run a
+            // small step past the panel so that their words line up with the rest.
+            <View style={{ gap: space.xxs, marginHorizontal: -space.xs }}>
+              {sessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  now={now}
+                  media={media[session.id]}
+                  onDelete={(gone) => void writes.remove(gone)}
+                  plain
+                />
               ))}
-            </Surface>
+            </View>
           ) : null}
         </>
       )}

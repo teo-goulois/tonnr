@@ -57,9 +57,17 @@ type SessionRowProps = {
   media?: readonly MediaItem[] | undefined;
   /** Deletes the session, once the person said to. */
   onDelete: (session: Session) => void;
+  /**
+   * Drawn as the web draws its rows in a place's panel: on the sheet's own ground, with the web's
+   * room around it and a rounded ground as it is pressed, a smaller photo and a darker chevron.
+   * The log's rows keep the ground of the card that groups them.
+   */
+  plain?: boolean;
 };
 
 const THUMB = 44;
+// The web's `size-10`.
+const PLAIN_THUMB = 40;
 const PREVIEW_WIDTH = 320;
 
 /** What a long press lifts out of the list: the session larger, its first photo over it. */
@@ -106,8 +114,15 @@ function SessionPreview({
   );
 }
 
-export function SessionRow({ session, now, withPlace = false, media, onDelete }: SessionRowProps) {
-  const { colors, space } = useTheme();
+export function SessionRow({
+  session,
+  now,
+  withPlace = false,
+  media,
+  onDelete,
+  plain = false,
+}: SessionRowProps) {
+  const { colors, space, radius } = useTheme();
   const first = media?.find((item) => item.state === "ready" && item.thumb);
   const when = sessionWhen(session, now);
   // A list of one place has it open already.
@@ -145,33 +160,52 @@ export function SessionRow({ session, now, withPlace = false, media, onDelete }:
       {/* expo-router's Link asChild merges its child's style by spreading it, which turns a
          style given as a function into nothing: what a press changes is drawn inside. */}
       {({ pressed }) => (
-        <View
-          style={{
-            minHeight: 56,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.s,
-            paddingHorizontal: space.m,
-            paddingVertical: space.xs,
-            backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"],
-          }}
-        >
-          <View style={{ flex: 1, gap: 2 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-              <Text numberOfLines={1} style={{ flexShrink: 1 }}>
-                {withPlace ? session.place.name : when}
-              </Text>
-              <RatingStars rating={session.rating} />
+        // A plain row stands on the sheet's ground, which hides the swipe's under it as the
+        // card's surface does, and rounds what a press lights.
+        <View style={plain ? { backgroundColor: colors["cte-canvas"] } : undefined}>
+          <View
+            style={{
+              minHeight: 56,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: plain ? space.xs : space.s,
+              paddingHorizontal: plain ? space.xs : space.m,
+              paddingVertical: space.xs,
+              backgroundColor: pressed
+                ? colors["neutral-3"]
+                : plain
+                  ? "transparent"
+                  : colors["cte-surface"],
+              ...(plain && { borderRadius: radius.xs, borderCurve: "continuous" as const }),
+            }}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+                <Text numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {withPlace ? session.place.name : when}
+                </Text>
+                <RatingStars rating={session.rating} />
+              </View>
+              {withPlace ? (
+                <Text size="s" tone="muted" numeric numberOfLines={1}>
+                  {when}
+                </Text>
+              ) : null}
+              <SessionSea session={session} />
             </View>
-            {withPlace ? (
-              <Text size="s" tone="muted" numeric numberOfLines={1}>
-                {when}
-              </Text>
+            {first?.thumb ? (
+              <Picture
+                uri={first.thumb}
+                size={plain ? PLAIN_THUMB : THUMB}
+                recyclingKey={first.id}
+              />
             ) : null}
-            <SessionSea session={session} />
+            <Glyph
+              icon={ChevronRightIcon}
+              size={16}
+              color={colors[plain ? "neutral-7" : "neutral-6"]}
+            />
           </View>
-          {first?.thumb ? <Picture uri={first.thumb} size={THUMB} recyclingKey={first.id} /> : null}
-          <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
         </View>
       )}
     </Pressable>
