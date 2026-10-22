@@ -288,7 +288,6 @@ function Chips() {
 function Segments() {
   const { space } = useTheme();
   const [unit, setUnit] = useState<"m" | "ft">("m");
-  const [part, setPart] = useState<"news" | "mine">("news");
   const [density, setDensity] = useState<"essentials" | "details" | "everything">("details");
   const [span, setSpan] = useState<"12h" | "24h" | "48h" | "week">("24h");
   return (
@@ -335,18 +334,6 @@ function Segments() {
         value={null}
         onChange={() => {}}
       />
-      <Tabs
-        label="Alerts"
-        options={[
-          { value: "news", label: "Notifications" },
-          { value: "mine", label: "My alerts" },
-        ]}
-        value={part}
-        onChange={setPart}
-      />
-      <Note>
-        Tabs are the web's underline: the parts of one screen. A segmented control chooses a value.
-      </Note>
       <Segmented
         label="Disabled"
         disabled
@@ -363,12 +350,25 @@ function Segments() {
 
 function TabRows() {
   const { space } = useTheme();
+  const [part, setPart] = useState<"news" | "mine">("news");
   const [tab, setTab] = useState<"forecast" | "guide" | "sessions">("forecast");
   const [many, setMany] = useState<"forecast" | "reports" | "guide" | "alert" | "sessions">(
     "sessions",
   );
   return (
     <View style={{ gap: space.l }}>
+      <Tabs
+        label="Alerts"
+        options={[
+          { value: "news", label: "Notifications" },
+          { value: "mine", label: "My alerts" },
+        ]}
+        value={part}
+        onChange={setPart}
+      />
+      <Note>
+        Tabs are the web's underline: the parts of one screen. A segmented control chooses a value.
+      </Note>
       <Tabs
         label="Hossegor"
         options={[
@@ -822,7 +822,7 @@ export function DesignSystemScreen() {
       <Block title="Chip">
         <Chips />
       </Block>
-      <Block title="Segmented and tabs">
+      <Block title="Segmented">
         <Segments />
       </Block>
       <Block title="Tabs">
