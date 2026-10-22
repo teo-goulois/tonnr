@@ -1,10 +1,10 @@
+import { goingTo } from "@repo/client/map/sea";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, scaleColor, scaleInk } from "@repo/client/sea-scales";
 import type { SavedList } from "@repo/client/viewer/types";
 import { APP_NAME, APP_SCHEME } from "@repo/config/app";
 import type { WidgetConfigurationEnum } from "expo-widgets";
 
 import { refsOf } from "@/components/lists/items";
-import { goingTo } from "@/components/map/features";
 import { kindWord, seaWords, shoreWord } from "@/components/saved/place-words";
 import {
   PLACES_AT_ONCE,

@@ -2,7 +2,6 @@ import { WAVE_HEIGHT_SCALE } from "@repo/client/sea-scales";
 import { describe, expect, it } from "vitest";
 
 import {
-  IMAGES,
   type MapStation,
   placeFeatures,
   pressed,
@@ -22,34 +21,26 @@ const buoy: MapStation = {
   directionDegrees: 290,
   freshness: "fresh",
   isSheltered: false,
-  figures: "3.4 m · 12 s",
+  isSaved: false,
+  label: "Gascogne, 3.4 m, 12 s",
 };
 
 describe("what the map draws", () => {
-  it("gives a buoy its arrow, turned the way the waves go, in an ink that reads on its color", () => {
+  it("gives a buoy's dot its height, and a buoy that measured nothing lately none", () => {
     const [feature] = stationFeatures([buoy]).features;
-    expect(feature?.properties).toMatchObject({
+    expect(feature?.properties).toEqual({
       kind: "station",
       id: "62001",
       height: 3.4,
-      rotate: 110,
-      arrow: IMAGES.arrowDark,
-      figures: "3.4 m · 12 s",
+      sheltered: false,
     });
-    const [flat] = stationFeatures([{ ...buoy, heightMeters: 0.2 }]).features;
-    expect(flat?.properties?.arrow).toBe(IMAGES.arrowLight);
-  });
-
-  it("draws no arrow where the buoy says nothing of the waves, and no height without a reading", () => {
-    const [silent] = stationFeatures([
-      { ...buoy, heightMeters: null, directionDegrees: null, freshness: "none" },
-    ]).features;
-    expect(silent?.properties).toMatchObject({ height: -1, arrow: "", fade: 1 });
+    const [silent] = stationFeatures([{ ...buoy, heightMeters: null, freshness: "none" }]).features;
+    expect(silent?.properties?.height).toBe(-1);
     const [sheltered] = stationFeatures([{ ...buoy, isSheltered: true }]).features;
-    expect(sheltered?.properties?.arrow).toBe("");
+    expect(sheltered?.properties?.sheltered).toBe(true);
   });
 
-  it("writes the wind's speed in an ink that reads on its color", () => {
+  it("gives a wind station's dot its speed, which its color reads", () => {
     const [calm] = windFeatures([
       {
         id: "w",
@@ -58,10 +49,10 @@ describe("what the map draws", () => {
         longitude: -1.53,
         speedKnots: 5,
         directionDegrees: null,
-        figure: "5",
+        label: "Biarritz, wind 5 kn",
       },
     ]).features;
-    expect(calm?.properties).toMatchObject({ kind: "station", figure: "5", arrow: "" });
+    expect(calm?.properties).toEqual({ kind: "station", id: "w", speed: 5 });
   });
 
   it("colors a value as the web's scale does", () => {

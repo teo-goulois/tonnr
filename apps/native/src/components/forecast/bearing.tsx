@@ -1,8 +1,8 @@
+import { goingTo } from "@repo/client/map/sea";
 import { ArrowUpIcon } from "@repo/ui/icon";
 import { View, useWindowDimensions } from "react-native";
 import Svg, { Line } from "react-native-svg";
 
-import { goingTo } from "@/components/map/features";
 import { Glyph } from "@/components/shared/glyph";
 import { DENSE_SCALE, Text, type TextProps } from "@/components/ui/text";
 import { compassName, compassPoint, formatNumber } from "@/lib/format";

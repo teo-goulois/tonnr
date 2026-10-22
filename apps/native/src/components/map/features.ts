@@ -1,13 +1,8 @@
 import type { CircleLayerSpecification } from "@maplibre/maplibre-react-native";
-import { goingTo, SEA_ARROW } from "@repo/client/map/sea";
-import type { Freshness } from "@repo/client/format";
+import type { MapStation, MapWind } from "@repo/client/map/markers";
+import { SEA_ARROW } from "@repo/client/map/sea";
 import type { Recent } from "@repo/client/recents";
-import {
-  type ScaleStop,
-  scaleInk,
-  WAVE_HEIGHT_SCALE,
-  WIND_SPEED_SCALE,
-} from "@repo/client/sea-scales";
+import type { ScaleStop } from "@repo/client/sea-scales";
 
 import type { LngLat } from "./view";
 
@@ -16,36 +11,8 @@ import type { LngLat } from "./view";
 // the sea's scales of packages/client, as the web's markers have theirs. A module that imports
 // nothing of React Native, so that a test reads it.
 
-/** A buoy, as the map draws it. */
-export type MapStation = {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  // Null when the station has no reading from the last few hours.
-  heightMeters: number | null;
-  periodSeconds: number | null;
-  // Where the waves come from. Null when the buoy does not say.
-  directionDegrees: number | null;
-  freshness: Freshness;
-  // A site in a harbour or an estuary, whose waves say nothing of the sea outside.
-  isSheltered: boolean;
-  // What the map writes beside it: its height and its period, in the reader's units.
-  figures: string;
-};
-
-/** A station that measures the wind, with a reading fresh enough to draw. */
-export type MapWind = {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  speedKnots: number;
-  // Where the wind comes from. Null when it turns too much to say.
-  directionDegrees: number | null;
-  // The speed in the reader's unit, without the unit: the legend says it.
-  figure: string;
-};
+/** A buoy and a station that measures the wind, as packages/client describes them. */
+export type { MapStation, MapWind };
 
 /** A surf break of the catalogue, or a spot of the account's own: a place, with a name. */
 export type MapPlace = {
@@ -64,8 +31,6 @@ export type PlaceKind = "station" | "break" | "spot";
 export const IMAGES = {
   wave: "break-wave",
   pin: "spot-pin",
-  arrowLight: "arrow-light",
-  arrowDark: "arrow-dark",
   seaArrow: SEA_ARROW.image,
 } as const;
 
@@ -88,20 +53,21 @@ export const SPOT_RADIUS = 7;
 export const SPOT_NAME_ZOOM = 7;
 /** The icon of a disc, as wide as this in points before the map scales it. */
 export const DISC_ICON = 13;
-/** A buoy's disc, which holds the arrow of its waves, and a sheltered site's, small and faded. */
-export const BUOY_RADIUS = 9;
-export const SHELTERED_RADIUS = 4;
-/** A wind station's disc, which holds its speed. */
-export const WIND_RADIUS = 9;
+/**
+ * A buoy's dot, under its pill or alone where the pill has no room, and a sheltered site's, small
+ * and faded, so that it is not read as the sea outside.
+ */
+export const BUOY_RADIUS = 5.5;
+export const SHELTERED_RADIUS = 3.5;
+/** The selected buoy's ring, which shows round a buoy that has no pill. */
+export const BUOY_RING = 10;
+/** A wind station's dot, under its badge. */
+export const WIND_RADIUS = 3;
 /** A name runs no wider than this, in letters' heights, before it takes a second line. */
 export const NAME_WIDTH = 12;
 /** The basemap's own type, which its glyphs are drawn in. */
 export const BOLD_FONT = ["Noto Sans Bold"];
 export const NAME_SIZE = 11;
-
-// How faded a reading is as it ages: the web's gauge empties, the map's disc pales. Its age is
-// said in words in the place's sheet.
-export const FADE: Record<Freshness, number> = { fresh: 1, aging: 0.85, old: 0.6, none: 1 };
 
 /** An expression of MapLibre's style, as JSON. */
 export type Expression = Extract<
@@ -136,12 +102,6 @@ const point = (longitude: number, latitude: number) => ({
   coordinates: [longitude, latitude],
 });
 
-const arrowOn = (scale: readonly ScaleStop[], value: number) =>
-  scaleInk([...scale], value) === "#ffffff" ? IMAGES.arrowLight : IMAGES.arrowDark;
-
-/** The way the waves or the wind go, from the bearing they come from. */
-export { goingTo };
-
 export function stationFeatures(stations: readonly MapStation[]): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
@@ -153,15 +113,6 @@ export function stationFeatures(stations: readonly MapStation[]): GeoJSON.Featur
         id: station.id,
         height: station.heightMeters ?? -1,
         sheltered: station.isSheltered,
-        fade: FADE[station.freshness],
-        figures: station.figures,
-        // The arrow in the disc, in the ink that reads on its color; none when the buoy does not
-        // say where the waves come from, or measured nothing lately.
-        arrow:
-          station.directionDegrees !== null && station.heightMeters !== null && !station.isSheltered
-            ? arrowOn(WAVE_HEIGHT_SCALE, station.heightMeters)
-            : "",
-        rotate: station.directionDegrees === null ? 0 : goingTo(station.directionDegrees),
       },
     })),
   };
@@ -177,10 +128,6 @@ export function windFeatures(stations: readonly MapWind[]): GeoJSON.FeatureColle
         kind: "station",
         id: station.id,
         speed: station.speedKnots,
-        figure: station.figure,
-        ink: scaleInk(WIND_SPEED_SCALE, station.speedKnots),
-        arrow: station.directionDegrees === null ? "" : IMAGES.arrowDark,
-        rotate: station.directionDegrees === null ? 0 : goingTo(station.directionDegrees),
       },
     })),
   };

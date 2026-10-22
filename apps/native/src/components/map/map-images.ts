@@ -14,10 +14,6 @@ import { type IconInk, iconSvg } from "./svg-string";
 // web's icons painted with Skia at the phone's density, as the web paints them on a canvas. A
 // picture that cannot be painted is left out, and its disc is drawn without it.
 
-// The arrow in a buoy's disc, in the ink that reads on the disc's color.
-const DISC_ARROW = 12;
-const INK = { light: "#ffffff", dark: "#0b0b0b" };
-
 /** An SVG painted into a PNG at the phone's density, as an image MapLibre takes. */
 function painted(svg: string, size: number): ImageEntry | null {
   const scale = Math.min(3, Math.ceil(PixelRatio.get()));
@@ -62,14 +58,6 @@ export function mapImages(surface: string): Record<string, ImageEntry> {
   const entries: [string, ImageEntry | null][] = [
     [IMAGES.wave, icon(WaveIcon, DISC_ICON, [{ color: surface }], { strokeWidth: 2 })],
     [IMAGES.pin, icon(PinIcon, DISC_ICON, [{ color: surface }], { strokeWidth: 2 })],
-    [
-      IMAGES.arrowLight,
-      icon(ArrowSymbolUpIcon, DISC_ARROW, [{ color: INK.light }], { strokeWidth: 2.25 }),
-    ],
-    [
-      IMAGES.arrowDark,
-      icon(ArrowSymbolUpIcon, DISC_ARROW, [{ color: INK.dark }], { strokeWidth: 2.25 }),
-    ],
     [
       IMAGES.seaArrow,
       icon(

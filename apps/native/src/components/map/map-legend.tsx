@@ -1,9 +1,4 @@
-import {
-  type ScaleStop,
-  WAVE_HEIGHT_SCALE,
-  WIND_SPEED_SCALE,
-  NO_READING_COLOR,
-} from "@repo/client/sea-scales";
+import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@repo/client/sea-scales";
 import { ChevronDownIcon, InfoIcon, LayersIcon } from "@repo/ui/icon";
 import { Pressable, ScrollView, View } from "react-native";
 import { useEffect, useState } from "react";
@@ -26,8 +21,8 @@ import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits, windFigure, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { FADE } from "./features";
 import type { MapLayers } from "./layers";
+import { FreshnessGauge } from "./map-markers";
 import { LEGEND_SWITCH_HEIGHT, SWITCH_GUESS, switchFit } from "./switch-fit";
 
 // What the map's colors mean, and the switch of each of its layers: the web's `MapLegend` as a
@@ -36,6 +31,8 @@ import { LEGEND_SWITCH_HEIGHT, SWITCH_GUESS, switchFit } from "./switch-fit";
 // credits, which the licences ask a reader to find: OpenStreetMap's and OpenFreeMap's always,
 // and Copernicus's whenever the sea is colored (decision 018).
 
+// The gauge of a buoy's pill, which the legend draws smaller.
+const GAUGE_SAMPLE = 24;
 // The values written under a scale. The others only take part in the gradient.
 const WAVE_TICKS = [0, 1, 2, 3, 5, 8];
 const WIND_TICKS = [0, 10, 20, 30, 50];
@@ -165,13 +162,16 @@ function LayerRow({
   );
 }
 
-/** How recent a buoy's reading is, as the map tells it: a disc that pales as it ages. */
+/**
+ * How recent a buoy's reading is, as the map tells it: the gauge of a buoy's pill, in the ink,
+ * at two thirds of its size, as the web's legend draws it.
+ */
 function Freshness() {
   const { space, colors } = useTheme();
   const items = [
-    { label: m.map_fresh(), opacity: FADE.fresh },
-    { label: m.map_aging(), opacity: FADE.aging },
-    { label: m.map_old(), opacity: FADE.old },
+    { label: m.map_fresh(), freshness: "fresh" as const },
+    { label: m.map_aging(), freshness: "aging" as const },
+    { label: m.map_old(), freshness: "old" as const },
   ];
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: space.s, rowGap: space.xxs }}>
@@ -182,14 +182,16 @@ function Freshness() {
         >
           <View
             style={{
-              width: 10,
-              height: 10,
-              borderRadius: 5,
-              opacity: item.opacity,
-              backgroundColor: WAVE_HEIGHT_SCALE[4]?.color ?? NO_READING_COLOR,
-              ...edge(colors["neutral-1"]),
+              width: GAUGE_SAMPLE,
+              height: GAUGE_SAMPLE,
+              margin: -4,
+              alignItems: "center",
+              justifyContent: "center",
+              transform: [{ scale: 0.67 }],
             }}
-          />
+          >
+            <FreshnessGauge freshness={item.freshness} color={colors["neutral-10"]} />
+          </View>
           <Text size="xs" tone="muted">
             {item.label}
           </Text>

@@ -27,7 +27,13 @@ import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/ma
 import { MapCredits } from "@/components/map/map-credits";
 import { RankBadge } from "@/components/account/rank-badge";
 import { AlertSamples } from "@/components/alerts/alert-samples";
-import { UserDot } from "@/components/map/map-markers";
+import {
+  BreakPill,
+  BuoyPill,
+  FreshnessGauge,
+  UserDot,
+  WindBadge,
+} from "@/components/map/map-markers";
 import { ProfileSamples } from "@/components/profile/profile-samples";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
@@ -837,7 +843,7 @@ function Icons() {
 
 /** What floats over the map, which the map's screen draws with the kit. */
 function MapParts() {
-  const { space } = useTheme();
+  const { space, colors } = useTheme();
   const [creditsShown, setCreditsShown] = useState(true);
   return (
     <View style={{ gap: space.s }}>
@@ -862,6 +868,57 @@ function MapParts() {
         <UserDot label={m.locate_you_are_here()} />
       </Line>
       <Note>Where the reader was found: its halo pings unless motion was refused.</Note>
+      <Line>
+        <BuoyPill heightMeters={2.7} periodSeconds={12} directionDegrees={290} freshness="fresh" />
+        <BuoyPill heightMeters={0.6} periodSeconds={8} directionDegrees={null} freshness="old" />
+        <BuoyPill
+          heightMeters={1.8}
+          periodSeconds={11}
+          directionDegrees={250}
+          freshness="aging"
+          saved
+        />
+        <BuoyPill
+          heightMeters={4.2}
+          periodSeconds={14}
+          directionDegrees={300}
+          freshness="fresh"
+          selected
+        />
+      </Line>
+      <Note>
+        A buoy's pill: its height in the color of the scale, the way the waves go, its period, a
+        bookmark when saved, and a gauge that empties as the reading ages. Selected, it takes the
+        accent and grows.
+      </Note>
+      <Line>
+        {(["fresh", "aging", "old", "none"] as const).map((freshness) => (
+          <View
+            key={freshness}
+            style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
+          >
+            <FreshnessGauge freshness={freshness} color={colors["neutral-10"]} />
+          </View>
+        ))}
+      </Line>
+      <Note>The gauge alone: fresh, aging, old, none.</Note>
+      <Line>
+        <WindBadge speedKnots={6} directionDegrees={45} />
+        <WindBadge speedKnots={18} directionDegrees={270} />
+        <WindBadge speedKnots={32} directionDegrees={null} />
+        <WindBadge speedKnots={18} directionDegrees={270} selected />
+      </Line>
+      <Note>A wind station's badge, on the color of its speed; selected, ringed in the ink.</Note>
+      <Line>
+        <BreakPill name="La Torche" selected />
+        <BreakPill name="My secret reef" selected own />
+        <BreakPill name="La Torche" selected mirrored />
+        <BreakPill name="Pointe de la Torche, the long left by the rocks" />
+      </Line>
+      <Note>
+        The break or the spot in hand, grown from its disc; mirrored where the right has no room,
+        and cut short past 224 points.
+      </Note>
     </View>
   );
 }

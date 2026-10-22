@@ -196,14 +196,19 @@ export function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, breaks.data, missingBreaks.map((query) => query.dataUpdatedAt).join()]);
 
+  // A buoy in one of the account's lists says so on its pill.
+  const savedIds = useMemo(
+    () => new Set((lists.data?.lists ?? []).flatMap((one) => one.stationIds)),
+    [lists.data],
+  );
   const mapStations = useMemo(
     () =>
       (listStations ?? waves.data ?? [])
         .filter((station) => station.measures.includes("waves"))
-        .map((station) => describeStation(station, now)),
+        .map((station) => describeStation(station, now, savedIds)),
     // A buoy's figures are written in the reader's unit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listStations, waves.data, now, units],
+    [listStations, waves.data, now, savedIds, units],
   );
   const mapWind = useMemo(
     () =>
@@ -219,6 +224,33 @@ export function MapScreen() {
     [listBreaks, breaks.data, recents, list],
   );
   const mapSpots = useMemo(() => list?.spots ?? spots.data ?? [], [list, spots.data]);
+
+  // The break or the spot a sheet is open on, which the map draws as a pill: among those drawn,
+  // or as its sheet read it, opened by its address or with the breaks switched off.
+  const drawnPlace =
+    selected?.kind === "break"
+      ? mapBreaks.find((one) => one.id === selected.id)
+      : selected?.kind === "spot"
+        ? mapSpots.find((one) => one.id === selected.id)
+        : undefined;
+  const quiet = { retry: false, meta: { quiet: true } } as const;
+  const selectedBreak = useQuery(
+    orpc.v1.breaks.get.queryOptions({
+      input: { id: selected?.id ?? "" },
+      enabled: selected?.kind === "break" && !drawnPlace,
+      ...quiet,
+    }),
+  );
+  const selectedSpot = useQuery(
+    orpc.v1.spots.get.queryOptions({
+      input: { id: selected?.id ?? "" },
+      enabled: selected?.kind === "spot" && signedIn && !drawnPlace,
+      ...quiet,
+    }),
+  );
+  const asked = selected?.kind === "break" ? selectedBreak.data : selectedSpot.data;
+  const selectedPlace: MapPlace | undefined =
+    drawnPlace ?? (asked && asked.id === selected?.id ? asked : undefined);
 
   // Where the controls stand, clear of what the system draws, and where the screen does: what
   // stands over the low sheet of a place that is open, and what a list is fitted inside.
@@ -352,6 +384,7 @@ export function MapScreen() {
         breaks={mapBreaks}
         spots={mapSpots}
         selected={selected}
+        selectedPlace={selectedPlace}
         layers={drawn}
         sea={sea.data}
         seaTime={seaTime}

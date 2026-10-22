@@ -11,8 +11,24 @@ import {
   RasterSource,
 } from "@maplibre/maplibre-react-native";
 import { LAND_TILE_SIZE } from "@repo/client/map/land";
+import {
+  opensLeft,
+  type PlacedMarker,
+  placeMarkers,
+  rankStations,
+  SELECTED_SCALE,
+  sameMarkers,
+  WIND_LIFT,
+} from "@repo/client/map/markers";
 import { SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
-import { FINGER_REACH, fitPadding, fitted, MAX_ZOOM, type Padding } from "@repo/client/map/view";
+import {
+  FINGER_REACH,
+  fitPadding,
+  fitted,
+  MAX_ZOOM,
+  type Padding,
+  projector,
+} from "@repo/client/map/view";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
 import {
   type Ref,
@@ -39,6 +55,7 @@ import {
   BREAK_NAME_ZOOM,
   BREAK_WAVE_ZOOM,
   BUOY_RADIUS,
+  BUOY_RING,
   byBreakDisc,
   DISC_ICON,
   type Expression,
@@ -62,7 +79,7 @@ import {
 } from "./features";
 import type { MapLayers } from "./layers";
 import { mapImages } from "./map-images";
-import { UserDot } from "./map-markers";
+import { BREAK_PILL_POINT, BreakPill, BuoyPill, UserDot, WindBadge } from "./map-markers";
 import { useBasemap, useBasemapTiles } from "./use-basemap";
 import { type MapState, rememberMapState } from "./map-state";
 import { landTiles, seaTiles } from "./drawn-tiles";
@@ -83,8 +100,11 @@ import {
 // The map, the web's `StationMap` drawn by MapLibre Native: OpenFreeMap's basemap in the theme in
 // force, the sea colored by its height under its names (decision 018), and over them the stations,
 // the surf breaks and the account's own spots, each a source of GeoJSON that the map draws and
-// places itself, with the colors of the sea's scales. North stays up, so that an arrow drawn on it
-// points the right way. A press opens what is nearest the finger; a press held puts a new spot.
+// places itself, with the colors of the sea's scales. The buoys and the wind stations that have
+// room carry the web's pills and badges, as markers of the platform's whose place is chosen here
+// as the web chooses it, and the break or the spot in hand its pill. North stays up, so that an
+// arrow drawn on it points the right way. A press opens what is nearest the finger; a press held
+// puts a new spot.
 // The sheet that adds a spot draws it too, with the breaks and the spots alone, and the map then
 // keeps nothing of where it rests: what the phone keeps and the other screens read is the tab's.
 
@@ -121,6 +141,9 @@ type StationMapProps = {
   spots: readonly MapPlace[];
   // What a sheet is open on.
   selected: { kind: PlaceKind; id: string } | undefined;
+  // The break or the spot a sheet is open on, which its pill stands for: one of those drawn, or
+  // one that is not, opened by its address or with the breaks switched off.
+  selectedPlace?: MapPlace | undefined;
   layers: MapLayers;
   sea: SeaMap | undefined;
   seaTime: Date | undefined;
@@ -148,11 +171,12 @@ type StationMapProps = {
   onMoved: (state: MapState, byHand: boolean) => void;
 };
 
-// The layers a press can land on: the dots, and a buoy's figures, which stand beside its dot as
-// the web's pill holds them and open the buoy as the pill does.
-const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots", "station-figures"];
-// What a selected place's ring adds to its disc.
-const RING = 5;
+// The layers a press can land on, as on the web. A buoy or a wind station that has its marker is
+// pressed there.
+const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
+// How often the markers are chosen again while the map moves, in milliseconds: a pill comes in at
+// the edge and a pill that would cover another leaves, a few times a second.
+const LAYOUT_MS = 120;
 // How long the map takes to go somewhere it was asked to.
 const MOVE_MS = 600;
 // No room kept at any edge: Android keeps the room a move was given for the moves after it.
@@ -185,6 +209,7 @@ export function StationMap({
   breaks,
   spots,
   selected,
+  selectedPlace,
   layers,
   sea,
   seaTime,
@@ -210,8 +235,10 @@ export function StationMap({
   // The view the map opens on, read once.
   const [opening] = useState(() => openingView ?? storedView());
   const zoom = useRef(opening.zoom);
-  // How large the map is drawn, which a list is fitted in.
+  // How large the map is drawn, which a list is fitted in, and where it stands: what the markers
+  // are placed on, projected here, since the platform projects a point only by a call that waits.
   const size = useRef({ width: 0, height: 0 });
+  const view = useRef<MapView>(opening);
 
   // The basemap's style, which the map waits for: its names are given the web's width. One that
   // could not be read is read by the map from its address as it is.
@@ -300,6 +327,75 @@ export function StationMap({
 
   // The sea and the land over it are tiles the app draws (decision 077).
   useEffect(drawTiles, []);
+
+  // The markers that have room, chosen as the web chooses them: the biggest seas first, the
+  // selected buoy and the saved ones before, then the wind, none covering another.
+  const selectedStation = selected?.kind === "station" ? selected.id : undefined;
+  const ranked = useMemo(
+    () => rankStations(stations, selectedStation),
+    [stations, selectedStation],
+  );
+  const [placed, setPlaced] = useState<PlacedMarker[]>([]);
+  // The pill of the break in hand opens to the right of its disc, and to the left when the right
+  // has no room for it.
+  const pinned = selected?.kind === "station" ? undefined : selectedPlace;
+  const [pillLeft, setPillLeft] = useState(false);
+  const [pillWidth, setPillWidth] = useState(0);
+  const laidOut = useRef(0);
+  const layout = () => {
+    const { width, height } = size.current;
+    if (width === 0 || height === 0) return;
+    laidOut.current = Date.now();
+    const project = projector(view.current, size.current);
+    const next = placeMarkers({
+      buoys: layers.buoys ? ranked : null,
+      wind: layers.wind ? wind : null,
+      selectedId: selectedStation,
+      project,
+      size: size.current,
+    });
+    setPlaced((previous) => (sameMarkers(previous, next) ? previous : next));
+    if (pinned) {
+      const { x } = project(pinned.longitude, pinned.latitude);
+      setPillLeft(opensLeft({ x, pillWidth: pillWidth * SELECTED_SCALE, mapWidth: width }));
+    }
+  };
+  // Chosen again when what the map holds changes, and as it moves.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(layout, [ranked, wind, layers.buoys, layers.wind, pinned, pillWidth]);
+  const stationsById = useMemo(() => new Map(stations.map((one) => [one.id, one])), [stations]);
+  const windById = useMemo(() => new Map(wind.map((one) => [one.id, one])), [wind]);
+
+  // The arrows on the sea where the map draws water, as the web keeps them: an island smaller than
+  // a cell of the model is sea to it, and land on the map. They are read again where the map rests,
+  // and written only when they change, since writing them draws the map again.
+  const [onWater, setOnWater] = useState<readonly SeaArrow[]>([]);
+  const written = useRef("");
+  const keepOnWater = async () => {
+    const instance = map.current;
+    if (!instance) return;
+    const { width, height } = size.current;
+    const project = projector(view.current, size.current);
+    const kept = await Promise.all(
+      arrows.map(async (arrow) => {
+        const { x, y } = project(arrow.longitude, arrow.latitude);
+        if (x < 0 || y < 0 || x > width || y > height) return false;
+        const water = await instance
+          .queryRenderedFeatures([x, y], { layers: ["water"] })
+          // A style with no water, or a map that is gone: the arrow stays.
+          .catch(() => null);
+        return water === null || water.length > 0;
+      }),
+    );
+    const next = arrows.filter((_, index) => kept[index]);
+    const signature = JSON.stringify(next);
+    if (signature === written.current) return;
+    written.current = signature;
+    setOnWater(next);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => void keepOnWater(), [arrows]);
+
   const seaPaletteName = useMemo(
     () => (sea ? seaPalette(sea.encoding.metersByLevel) : undefined),
     [sea],
@@ -371,7 +467,7 @@ export function StationMap({
   const windData = useMemo(() => windFeatures(wind), [wind]);
   const breakData = useMemo(() => placeFeatures(breaks, "break"), [breaks]);
   const spotData = useMemo(() => placeFeatures(spots, "spot"), [spots]);
-  const arrowData = useMemo(() => arrowFeatures(arrows), [arrows]);
+  const arrowData = useMemo(() => arrowFeatures(onWater), [onWater]);
   const isRecent = ["boolean", ["get", "recent"], false] as unknown as Expression;
   const nameLayout = (radius: Expression | number) => ({
     "text-field": get("name"),
@@ -388,12 +484,10 @@ export function StationMap({
     "text-max-width": NAME_WIDTH,
   });
   const namePaint = { "text-color": ink, "text-halo-color": surface, "text-halo-width": 1.5 };
-  const ring = (radius: number | Expression) => ({
-    "circle-radius": radius,
-    "circle-opacity": 0,
-    "circle-stroke-width": 2,
-    "circle-stroke-color": ink,
-  });
+  // The break or the spot in hand is drawn by its pill, which stands where its disc and its name
+  // were.
+  const isShown = ["!=", ["get", "id"], pinned?.id ?? ""];
+  const shown = isShown as never;
 
   // The tone of the map's place while it waits, which the map covers as it draws.
   if (!drawn) return <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }} />;
@@ -405,6 +499,7 @@ export function StationMap({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         size.current = { width, height };
+        layout();
       }}
       onDidFinishRenderingFrame={() => {
         if (awaitedSea.current) awaitedSea.current.loading = true;
@@ -439,9 +534,17 @@ export function StationMap({
       onRegionWillChange={
         onMoveStart && ((event) => onMoveStart(event.nativeEvent.userInteraction))
       }
+      onRegionIsChanging={(event) => {
+        const { center, zoom: at } = event.nativeEvent;
+        view.current = { center, zoom: at };
+        if (Date.now() - laidOut.current >= LAYOUT_MS) layout();
+      }}
+      onDidFinishRenderingMapFully={() => void keepOnWater()}
       onRegionDidChange={(event) => {
         const { center, zoom: at, bounds, userInteraction } = event.nativeEvent;
         zoom.current = at;
+        view.current = { center, zoom: at };
+        layout();
         const state = { center, zoom: at, bounds: bounds as Bounds };
         if (remembers) {
           rememberMapState(state);
@@ -511,7 +614,7 @@ export function StationMap({
           ))}
         </>
       ) : null}
-      {layers.arrows && arrows.length > 0 ? (
+      {layers.arrows && onWater.length > 0 ? (
         <GeoJSONSource id="sea-arrows" data={arrowData}>
           <Layer
             id="sea-arrows"
@@ -529,8 +632,8 @@ export function StationMap({
         </GeoJSONSource>
       ) : null}
 
-      {/* The wind: a disc in the color of its speed, which it writes when there is room, and an
-          arrow at its edge that points the way it blows. */}
+      {/* The wind: a dot in the color of its speed, under its badge, or alone where the badge
+          has no room. */}
       <GeoJSONSource id="wind" data={windData}>
         <Layer
           id="wind-dots"
@@ -543,67 +646,24 @@ export function StationMap({
             "circle-stroke-color": surface,
           }}
         />
-        <Layer
-          id="wind-arrows"
-          type="symbol"
-          filter={["!=", ["get", "arrow"], ""] as never}
-          layout={{
-            visibility: visible(layers.wind),
-            "icon-image": get("arrow"),
-            "icon-size": 0.8,
-            "icon-rotate": get("rotate"),
-            "icon-rotation-alignment": "map",
-            "icon-offset": [0, -(WIND_RADIUS + 5) / 0.8],
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-          }}
-        />
-        <Layer
-          id="wind-figures"
-          type="symbol"
-          layout={{
-            visibility: visible(layers.wind),
-            "text-field": get("figure"),
-            "text-font": BOLD_FONT,
-            "text-size": 10,
-          }}
-          paint={{ "text-color": get("ink") as never }}
-        />
-        <Layer
-          id="wind-selected"
-          type="circle"
-          filter={is(selected?.kind === "station" ? selected.id : undefined)}
-          layout={{ visibility: visible(layers.wind) }}
-          paint={ring(WIND_RADIUS + RING)}
-        />
       </GeoJSONSource>
 
-      {/* A buoy: a disc in the color of its height, with the arrow of its waves in it, and its
-          height and period beside it when there is room. A reading that ages pales; a sheltered
-          site stays small and faded, so that it is not read as the sea outside. */}
+      {/* A buoy: a dot in the color of its height, gray when it measured nothing lately, under its
+          pill, or alone where the pill has no room. A sheltered site stays small and faded, so
+          that it is not read as the sea outside. */}
       <GeoJSONSource id="stations" data={stationData}>
         <Layer
           id="station-dots"
           type="circle"
-          layout={{
-            visibility: visible(layers.buoys),
-            "circle-sort-key": get("height") as never,
-          }}
+          layout={{ visibility: visible(layers.buoys) }}
           paint={{
             "circle-radius": [
               "case",
               ["get", "sheltered"],
               SHELTERED_RADIUS,
-              ["<", ["get", "height"], 0],
-              SHELTERED_RADIUS + 1,
               BUOY_RADIUS,
             ] as unknown as Expression,
-            "circle-opacity": [
-              "case",
-              ["get", "sheltered"],
-              0.5,
-              ["get", "fade"],
-            ] as unknown as Expression,
+            "circle-opacity": ["case", ["get", "sheltered"], 0.5, 1] as unknown as Expression,
             "circle-color": [
               "case",
               ["<", ["get", "height"], 0],
@@ -615,40 +675,16 @@ export function StationMap({
           }}
         />
         <Layer
-          id="station-arrows"
-          type="symbol"
-          filter={["!=", ["get", "arrow"], ""] as never}
-          layout={{
-            visibility: visible(layers.buoys),
-            "icon-image": get("arrow"),
-            "icon-rotate": get("rotate"),
-            "icon-rotation-alignment": "map",
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-          }}
-        />
-        <Layer
-          id="station-figures"
-          type="symbol"
-          filter={[">=", ["get", "height"], 0] as never}
-          layout={{
-            visibility: visible(layers.buoys),
-            "text-field": get("figures"),
-            "text-font": BOLD_FONT,
-            "text-size": NAME_SIZE,
-            "text-variable-anchor": ["left", "right", "top", "bottom"],
-            "text-radial-offset": (BUOY_RADIUS + 4) / NAME_SIZE,
-            // The biggest seas are written first.
-            "symbol-sort-key": ["-", ["get", "height"]] as never,
-          }}
-          paint={namePaint}
-        />
-        <Layer
           id="station-selected"
           type="circle"
-          filter={is(selected?.kind === "station" ? selected.id : undefined)}
+          filter={is(selectedStation)}
           layout={{ visibility: visible(layers.buoys) }}
-          paint={ring(BUOY_RADIUS + RING)}
+          paint={{
+            "circle-radius": BUOY_RING,
+            "circle-opacity": 0,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": ink,
+          }}
         />
       </GeoJSONSource>
 
@@ -659,6 +695,7 @@ export function StationMap({
         <Layer
           id="break-dots"
           type="circle"
+          filter={shown}
           layout={{
             visibility: visible(layers.breaks),
             "circle-sort-key": ["case", isRecent, 1, 0] as never,
@@ -682,6 +719,7 @@ export function StationMap({
           id="break-names"
           type="symbol"
           minzoom={BREAK_NAME_ZOOM}
+          filter={shown}
           layout={{
             visibility: visible(layers.breaks),
             ...nameLayout(byBreakDisc((disc) => (disc.radius + 5) / NAME_SIZE)),
@@ -694,7 +732,7 @@ export function StationMap({
           id="break-recent-names"
           type="symbol"
           maxzoom={BREAK_NAME_ZOOM}
-          filter={isRecent as never}
+          filter={["all", isRecent, isShown] as never}
           layout={{
             visibility: visible(layers.breaks),
             ...nameLayout(
@@ -702,13 +740,6 @@ export function StationMap({
             ),
           }}
           paint={namePaint}
-        />
-        <Layer
-          id="break-selected"
-          type="circle"
-          filter={is(selected?.kind === "break" ? selected.id : undefined)}
-          layout={{ visibility: visible(layers.breaks) }}
-          paint={ring(byBreakDisc((disc) => Math.max(RECENT_RADIUS, disc.radius) + RING))}
         />
       </GeoJSONSource>
 
@@ -718,6 +749,7 @@ export function StationMap({
         <Layer
           id="spot-dots"
           type="circle"
+          filter={shown}
           paint={{
             "circle-radius": byBreakDisc((disc) => Math.max(SPOT_RADIUS, disc.radius)),
             "circle-color": accent,
@@ -728,6 +760,7 @@ export function StationMap({
         <Layer
           id="spot-names"
           type="symbol"
+          filter={shown}
           minzoom={SPOT_NAME_ZOOM}
           layout={nameLayout(
             byBreakDisc((disc) => (Math.max(SPOT_RADIUS, disc.radius) + 5) / NAME_SIZE),
@@ -737,6 +770,7 @@ export function StationMap({
         <Layer
           id="spot-pins"
           type="symbol"
+          filter={shown}
           layout={{
             "icon-image": IMAGES.pin,
             "icon-size": byBreakDisc(
@@ -745,12 +779,6 @@ export function StationMap({
             "icon-padding": [3, 3, 3, 3],
             "icon-allow-overlap": true,
           }}
-        />
-        <Layer
-          id="spot-selected"
-          type="circle"
-          filter={is(selected?.kind === "spot" ? selected.id : undefined)}
-          paint={ring(byBreakDisc((disc) => Math.max(SPOT_RADIUS, disc.radius) + RING))}
         />
       </GeoJSONSource>
 
@@ -761,6 +789,7 @@ export function StationMap({
         type="symbol"
         source="breaks"
         minzoom={BREAK_NAME_ZOOM}
+        filter={shown}
         layout={{
           visibility: visible(layers.breaks),
           "icon-image": IMAGES.wave,
@@ -781,6 +810,84 @@ export function StationMap({
           ] as never,
         }}
       />
+      {/* The buoys and the wind stations that have room, as the web draws them over its map. */}
+      {placed.map((marker) => {
+        const isSelected = marker.id === selectedStation;
+        const pressAt =
+          (longitude: number, latitude: number) => (event: NativeSyntheticEvent<PressEvent>) =>
+            onPress({
+              kind: "station",
+              id: marker.id,
+              at: [longitude, latitude],
+              point: event.nativeEvent.point,
+            });
+        if (marker.kind === "buoy") {
+          const station = stationsById.get(marker.id);
+          if (!station || station.heightMeters === null) return null;
+          return (
+            <Marker
+              key={marker.key}
+              id={marker.key}
+              lngLat={[station.longitude, station.latitude]}
+              anchor="center"
+              onPress={pressAt(station.longitude, station.latitude)}
+              style={{ zIndex: isSelected ? 20 : 0 }}
+            >
+              <BuoyPill
+                heightMeters={station.heightMeters}
+                periodSeconds={station.periodSeconds}
+                directionDegrees={station.directionDegrees}
+                freshness={station.freshness}
+                selected={isSelected}
+                saved={station.isSaved}
+                label={station.label}
+              />
+            </Marker>
+          );
+        }
+        const station = windById.get(marker.id);
+        if (!station) return null;
+        return (
+          <Marker
+            key={marker.key}
+            id={marker.key}
+            lngLat={[station.longitude, station.latitude]}
+            anchor="center"
+            // Above its point, so that a buoy that also measures the wind keeps both.
+            offset={[0, -WIND_LIFT]}
+            onPress={pressAt(station.longitude, station.latitude)}
+            style={{ zIndex: isSelected ? 20 : 0 }}
+          >
+            <WindBadge
+              speedKnots={station.speedKnots}
+              directionDegrees={station.directionDegrees}
+              selected={isSelected}
+              label={station.label}
+            />
+          </Marker>
+        );
+      })}
+      {/* The break or the spot in hand, its disc on its point. A press on it is the map's, as on
+          the web, whose pill lets a press through. */}
+      {pinned ? (
+        <Marker
+          key={`pinned:${pinned.id}:${pillLeft ? "left" : "right"}`}
+          id={`pinned:${pinned.id}:${pillLeft ? "left" : "right"}`}
+          lngLat={[pinned.longitude, pinned.latitude]}
+          anchor={pillLeft ? "right" : "left"}
+          offset={[pillLeft ? BREAK_PILL_POINT : -BREAK_PILL_POINT, 0]}
+          onPress={(event) => void press(event)}
+          style={{ zIndex: 20 }}
+        >
+          <BreakPill
+            name={pinned.name}
+            selected
+            own={selected?.kind === "spot"}
+            mirrored={pillLeft}
+            onLayout={(event) => setPillWidth(event.nativeEvent.layout.width)}
+          />
+        </Marker>
+      ) : null}
       {userLocation ? (
         <Marker
           lngLat={[userLocation.longitude, userLocation.latitude]}

@@ -1,53 +1,39 @@
-import { periodOf, type Station } from "@repo/client/viewer/types";
+import {
+  describeStation as describeMapStation,
+  describeWind as describeMapWind,
+  type MapStation,
+  type MapWind,
+  type MarkerWords,
+} from "@repo/client/map/markers";
+import type { Station } from "@repo/client/viewer/types";
 
-import { freshnessOf, formatSeconds, toKnots } from "@/lib/format";
-import { formatHeight, windFigure } from "@/lib/units";
+import { compassPoint, formatAgo, formatSeconds } from "@/lib/format";
+import { formatHeight, formatWind } from "@/lib/units";
+import { m } from "@/paraglide/messages";
 
-import type { MapStation, MapWind } from "./features";
+// What the map draws of a station, as the web's route describes it, in the reader's units and
+// language: the rules are packages/client's, given the app's words.
 
-// What the map draws of a station, as the web's route describes it, in the reader's units.
-
-const HOUR_MS = 60 * 60 * 1000;
-// A wind reading older than this says little of the wind now. The web's own.
-const FRESH_WIND_MS = 2 * HOUR_MS;
+const WORDS: MarkerWords = {
+  formatHeight,
+  formatSeconds,
+  formatWind,
+  compassPoint,
+  formatAgo,
+  map_from: m.map_from,
+  map_wind_speed: m.map_wind_speed,
+};
 
 /** A buoy, with its last reading when it is recent enough to say the sea now. */
-export function describeStation(station: Station, now: number): MapStation {
-  const reading = station.latestReading;
-  const freshness = freshnessOf(reading?.observedAt, now);
-  const shown = freshness === "none" ? null : reading;
-  const height = shown?.significantHeightMeters ?? null;
-  const period = periodOf(shown);
-  return {
-    id: station.id,
-    name: station.name,
-    latitude: station.latitude,
-    longitude: station.longitude,
-    heightMeters: height,
-    periodSeconds: period,
-    directionDegrees: shown?.peakDirectionDegrees ?? null,
-    freshness,
-    isSheltered: station.exposure === "sheltered",
-    figures: [height !== null && formatHeight(height), period !== null && formatSeconds(period)]
-      .filter(Boolean)
-      .join(" · "),
-  };
+export function describeStation(
+  station: Station,
+  now: number,
+  savedIds: ReadonlySet<string>,
+): MapStation {
+  return describeMapStation(station, now, savedIds, WORDS);
 }
 
 /** A station's wind, or none when it measured none lately. */
 export function describeWind(station: Station, now: number): MapWind | null {
-  const reading = station.latestReading;
-  const speed = toKnots(reading?.windSpeedMetersPerSecond);
-  if (!reading || speed === null || now - reading.observedAt.getTime() > FRESH_WIND_MS) {
-    return null;
-  }
-  return {
-    id: station.id,
-    name: station.name,
-    latitude: station.latitude,
-    longitude: station.longitude,
-    speedKnots: speed,
-    directionDegrees: reading.windDirectionDegrees,
-    figure: windFigure(speed),
-  };
+  return describeMapWind(station, now, WORDS);
 }
