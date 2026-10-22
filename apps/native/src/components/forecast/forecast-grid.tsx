@@ -480,7 +480,10 @@ export function ForecastGrid({
     // oxlint-disable-next-line react-hooks/exhaustive-deps
     [rows, palette, hasSwell, buoy, lastMeasured >= 0, units],
   );
-  const headHeight = 2 * HEAD_ROW + (lastMeasured >= 0 ? BAND_ROW : 0);
+  // Where the days and the hours end, as the web measures it: the line at now and the day before
+  // stand under them, across a buoy's band of names too.
+  const hoursEnd = 2 * HEAD_ROW;
+  const headHeight = hoursEnd + (lastMeasured >= 0 ? BAND_ROW : 0);
   const bodyHeight = specs.reduce((sum, spec) => sum + spec.height, 0);
 
   const nowIndex = columns.findIndex((column) => column.isNow);
@@ -983,8 +986,8 @@ export function ForecastGrid({
                     style={{
                       position: "absolute",
                       left: nowX,
-                      top: headHeight,
-                      height: bodyHeight,
+                      top: hoursEnd,
+                      bottom: 0,
                       width: 1,
                       backgroundColor: colors["neutral-5"],
                     }}
@@ -1069,7 +1072,7 @@ export function ForecastGrid({
           style={{
             position: "absolute",
             left: labels + 8,
-            top: headHeight + bodyHeight / 2 - 16,
+            top: hoursEnd + (headHeight - hoursEnd + bodyHeight) / 2 - 16,
             minHeight: 32,
             flexDirection: "row",
             alignItems: "center",
