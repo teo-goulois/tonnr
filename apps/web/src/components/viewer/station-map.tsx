@@ -27,8 +27,10 @@ import {
   BASEMAP_SOURCE,
   type Bounds,
   FINGER_REACH,
+  firstLabelOf,
   FIT_MAX_ZOOM,
   fitPadding,
+  isBasemapName,
   type MapPoint,
   readView,
   STYLE_URLS,
@@ -875,11 +877,7 @@ export function StationMap({
     if (!instance || styleVersion === 0 || instance.getSource("stations")) return;
 
     for (const layer of instance.getStyle().layers) {
-      if (
-        layer.type === "symbol" &&
-        layer.source === BASEMAP_SOURCE &&
-        layer.layout?.["text-field"]
-      ) {
+      if (isBasemapName(layer)) {
         instance.setLayoutProperty(layer.id, "text-max-width", BASEMAP_NAME_WIDTH);
       }
     }
@@ -1426,7 +1424,7 @@ export function StationMap({
       instance.addSource("sea-arrows", { type: "geojson", data: arrowFeatures([]) });
       // Over the sea and the land drawn again, under the names of the basemap, which an arrow
       // does not push away.
-      const names = instance.getStyle().layers.find((layer) => layer.type === "symbol")?.id;
+      const names = firstLabelOf(instance.getStyle().layers);
       instance.addLayer(
         {
           id: "sea-arrows",

@@ -1,4 +1,9 @@
-import { BASEMAP_NAME_WIDTH, BASEMAP_SOURCE } from "@repo/client/map/view";
+import {
+  BASEMAP_NAME_WIDTH,
+  BASEMAP_SOURCE,
+  firstLabelOf,
+  isBasemapName,
+} from "@repo/client/map/view";
 
 // OpenFreeMap's basemap as the map is given it: its style, read once for each theme and changed as
 // the web changes it once loaded, its names given the web's width, and what the map draws its own
@@ -43,13 +48,13 @@ export function readBasemap(json: unknown): Basemap | undefined {
   const { sources, layers } = json as Partial<BasemapStyle>;
   if (typeof sources !== "object" || sources === null || !Array.isArray(layers)) return undefined;
   const named = layers.map((layer) =>
-    layer.type === "symbol" && layer.source === BASEMAP_SOURCE && layer.layout?.["text-field"]
+    isBasemapName(layer)
       ? { ...layer, layout: { ...layer.layout, "text-max-width": BASEMAP_NAME_WIDTH } }
       : layer,
   );
   return {
     style: { ...(json as BasemapStyle), layers: named },
-    firstLabel: layers.find((layer) => layer.type === "symbol")?.id,
+    firstLabel: firstLabelOf(layers),
     land: colorOf(
       layers.find((layer) => layer.id === "background"),
       "background-color",

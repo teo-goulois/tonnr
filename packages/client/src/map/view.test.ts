@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BASEMAP_SOURCE,
   DEFAULT_VIEW,
+  firstLabelOf,
   FIT_MAX_ZOOM,
   FIT_PADDING,
   fitPadding,
   fitted,
+  isBasemapName,
   latitudeOf,
   mercatorY,
   readView,
@@ -37,6 +40,30 @@ describe("the view a device keeps", () => {
 
   it("opens on France's Atlantic coast, as the web does", () => {
     expect(DEFAULT_VIEW).toEqual({ center: [-2.5, 46.3], zoom: 4.8 });
+  });
+});
+
+describe("the basemap's style", () => {
+  const layers = [
+    { id: "background", type: "background" },
+    { id: "water", type: "fill", source: BASEMAP_SOURCE },
+    { id: "highway-shield", type: "symbol", source: BASEMAP_SOURCE, layout: {} },
+    {
+      id: "place-city",
+      type: "symbol",
+      source: BASEMAP_SOURCE,
+      layout: { "text-field": "{name}" },
+    },
+    { id: "ours", type: "symbol", source: "stations", layout: { "text-field": "{name}" } },
+  ];
+
+  it("gives its width to the names of the basemap and to nothing else", () => {
+    expect(layers.filter(isBasemapName).map((layer) => layer.id)).toEqual(["place-city"]);
+  });
+
+  it("draws the arrows of the sea under its first symbol, whatever it writes", () => {
+    expect(firstLabelOf(layers)).toBe("highway-shield");
+    expect(firstLabelOf(layers.slice(0, 2))).toBeUndefined();
   });
 });
 

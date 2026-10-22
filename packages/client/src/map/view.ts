@@ -29,6 +29,29 @@ export const BASEMAP_SOURCE = "openmaptiles";
  */
 export const BASEMAP_NAME_WIDTH = 14;
 
+/** A layer of a style, as much of it as says whether it writes a name. */
+type StyleLayer = { id: string; type: string; source?: unknown; layout?: unknown };
+
+/** Whether a layer of the basemap's style writes a name, which takes `BASEMAP_NAME_WIDTH`. */
+export function isBasemapName(layer: StyleLayer) {
+  const { layout } = layer;
+  return (
+    layer.type === "symbol" &&
+    layer.source === BASEMAP_SOURCE &&
+    typeof layout === "object" &&
+    layout !== null &&
+    Boolean((layout as Record<string, unknown>)["text-field"])
+  );
+}
+
+/**
+ * The first layer of a style that writes words or draws a symbol, which the arrows of the sea go
+ * under: a name reads over them.
+ */
+export function firstLabelOf(layers: readonly StyleLayer[]) {
+  return layers.find((layer) => layer.type === "symbol")?.id;
+}
+
 /** France and its Atlantic coast, which a phone held upright shows whole at this zoom too. */
 export const DEFAULT_VIEW: MapView = { center: [-2.5, 46.3], zoom: 4.8 };
 
