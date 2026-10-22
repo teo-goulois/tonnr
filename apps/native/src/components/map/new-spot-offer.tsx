@@ -48,10 +48,11 @@ export function Offer({
     >
       <Text size="s">{text}</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
-        <Button size="xs" variant="secondary" onPress={onAction}>
+        {/* The web's small buttons, which a phone's screen draws at their full size. */}
+        <Button variant="secondary" onPress={onAction}>
           {action}
         </Button>
-        <Button size="xs" variant="ghost" onPress={onLater}>
+        <Button variant="ghost" onPress={onLater}>
           {m.spot_later()}
         </Button>
       </View>
