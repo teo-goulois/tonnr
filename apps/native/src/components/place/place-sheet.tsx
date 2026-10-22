@@ -1,7 +1,13 @@
 import { router, useNavigation } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { ChartsAtRest } from "@/components/charts/chart-turn";
 import { placeHref } from "@/components/map/place-route";
@@ -253,28 +259,94 @@ export function PlaceSheet({
   );
 }
 
+// How far the panel's edges fade while more of it is hidden past them, the web's `--fade-size`.
+const FADE = 24;
+
 /**
  * The forecast's scroll view, which holds still under the finger while a chart or the week's
- * table is read, the web's panel with its room around what it holds. The lock is its own state: a
- * reading that begins or ends draws this view again, and not the panel it is given.
+ * table is read, the web's panel with its room around what it holds. Its top and its bottom fade
+ * into the sheet while more of it is hidden past them, as the web's panel fades, as far as what is
+ * hidden and no further than the fade. The lock is its own state: a reading that begins or ends
+ * draws this view again, and not the panel it is given.
  */
 function ForecastScroll({ bottom, children }: { bottom: number; children: ReactNode }) {
-  const { space } = useTheme();
+  const { colors, space } = useTheme();
   const [locked, setLocked] = useState(false);
+  // How far it is scrolled, how tall it stands and how tall what it holds is.
+  const offset = useSharedValue(0);
+  const frame = useSharedValue(0);
+  const content = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    offset.set(event.contentOffset.y);
+    frame.set(event.layoutMeasurement.height);
+    content.set(event.contentSize.height);
+  });
+  const over = useAnimatedStyle(() => ({
+    height: Math.min(FADE, Math.max(0, offset.get())),
+  }));
+  const under = useAnimatedStyle(() => ({
+    height: Math.min(FADE, Math.max(0, content.get() - frame.get() - offset.get())),
+  }));
+  const canvas = colors["cte-canvas"];
+
   return (
     <ReadingLock onLock={setLocked}>
-      <ScrollView
-        style={{ flex: 1 }}
-        scrollEnabled={!locked}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          paddingHorizontal: space.m,
-          paddingTop: space.m,
-          paddingBottom: bottom,
-        }}
-      >
-        {children}
-      </ScrollView>
+      <View style={{ flex: 1 }}>
+        <Animated.ScrollView
+          style={{ flex: 1 }}
+          scrollEnabled={!locked}
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          onLayout={(event) => {
+            frame.set(event.nativeEvent.layout.height);
+          }}
+          onContentSizeChange={(_, height) => {
+            content.set(height);
+          }}
+          contentContainerStyle={{
+            paddingHorizontal: space.m,
+            paddingTop: space.m,
+            paddingBottom: bottom,
+          }}
+        >
+          {children}
+        </Animated.ScrollView>
+        <Animated.View
+          pointerEvents="none"
+          style={[{ position: "absolute", top: 0, left: 0, right: 0 }, over]}
+        >
+          <Fade color={canvas} from="top" />
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[{ position: "absolute", bottom: 0, left: 0, right: 0 }, under]}
+        >
+          <Fade color={canvas} from="bottom" />
+        </Animated.View>
+      </View>
     </ReadingLock>
+  );
+}
+
+/** The sheet's color, from the edge it stands at to nothing. */
+function Fade({ color, from }: { color: string; from: "top" | "bottom" }) {
+  const id = `panel-fade-${from}`;
+  return (
+    <Svg width="100%" height="100%" preserveAspectRatio="none">
+      <Defs>
+        <LinearGradient
+          id={id}
+          x1="0"
+          y1={from === "top" ? "0" : "1"}
+          x2="0"
+          y2={from === "top" ? "1" : "0"}
+        >
+          <Stop offset="0" stopColor={color} stopOpacity={1} />
+          <Stop offset="1" stopColor={color} stopOpacity={0} />
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
   );
 }
