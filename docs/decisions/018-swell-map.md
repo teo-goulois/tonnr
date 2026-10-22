@@ -1,6 +1,6 @@
 # 018. The swell map
 
-Status: proposed to Téo on 2026-10-08, who asked for the sea to be colored by the swell. The API's part ran once against the real service.
+Status: proposed to Téo on 2026-10-08, who asked for the sea to be colored by the swell. The API's part ran once against the real service. The app for phones draws the sea and the land over it as the web does, by [decision 077](077-the-sea-of-the-phones-map.md).
 
 ## Context
 
