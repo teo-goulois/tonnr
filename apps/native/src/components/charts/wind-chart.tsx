@@ -49,29 +49,31 @@ export function WindChart({
   const { colors, space } = useTheme();
   const isMyTurn = useChartTurn();
   const [pointed, setPointed] = useState<WindRow>();
+  // The rows that say something. The others stand where the station was silent, and are drawn
+  // all the same, so that its curve stops there rather than joining across the silence.
   const readable = useMemo(
-    () => rows.filter((row) => row.wind !== null || row.model !== null || row.gust !== null),
+    () => rows.filter((row) => row.wind !== null || row.model !== null),
     [rows],
   );
-  const times = useMemo(() => readable.map((row) => row.time), [readable]);
+  const times = useMemo(() => rows.map((row) => row.time), [rows]);
   const hasGusts = readable.some((row) => row.gust !== null);
   const hasModel = readable.some((row) => row.model !== null);
   const series = useMemo(
     () => [
       {
-        values: readable.map((row) => row.model),
+        values: rows.map((row) => row.model),
         look: "dashed" as const,
         color: colors["neutral-7"],
       },
-      { values: readable.map((row) => row.gust), look: "thin" as const, scale: WIND_SPEED_SCALE },
+      { values: rows.map((row) => row.gust), look: "thin" as const, scale: WIND_SPEED_SCALE },
       {
-        values: readable.map((row) => row.wind),
+        values: rows.map((row) => row.wind),
         look: "solid" as const,
         scale: WIND_SPEED_SCALE,
         fill: true,
       },
     ],
-    [readable, colors],
+    [rows, colors],
   );
   // Round figures in the reader's unit, set where they stand among the knots the curves are in.
   const ticks = useMemo(
@@ -96,14 +98,15 @@ export function WindChart({
   // From there on the bearings are the model's, drawn paler.
   const lastMeasured = rows.filter((row) => row.wind !== null).at(-1)?.time ?? -Infinity;
 
+  // A finger reads the row nearest it that says something, a silence read as the rows around it.
   const onIndex = useCallback(
     (index: number | undefined) => {
-      const time = index === undefined ? undefined : readable[index]?.time;
+      const time = index === undefined ? undefined : rows[index]?.time;
       setPointed(time === undefined ? undefined : rowNear(readable, time));
     },
-    [readable],
+    [rows, readable],
   );
-  const { state } = useChartReading(onIndex, (index) => readable[index]?.time);
+  const { state } = useChartReading(onIndex, (index) => rows[index]?.time);
 
   if (!isLoading && readable.length < 2) {
     return (
