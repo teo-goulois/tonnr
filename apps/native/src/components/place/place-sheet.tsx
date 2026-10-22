@@ -134,10 +134,9 @@ export function PlaceSheet({
   const save = item
     ? () => {
         if (!signedIn) {
-          setWantsFavorite(true);
-          requireAccount(
-            m.auth_reason_save({ name: name ?? m.auth_reason_this_station() }),
-            () => {},
+          // Once signed in through this prompt, and only then.
+          requireAccount(m.auth_reason_save({ name: name ?? m.auth_reason_this_station() }), () =>
+            setWantsFavorite(true),
           );
           return;
         }

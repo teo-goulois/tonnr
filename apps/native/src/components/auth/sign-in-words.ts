@@ -59,5 +59,7 @@ export function signInParams(params: Record<string, string | string[] | undefine
   const reason = one(params.reason)?.trim() || undefined;
   const invite = one(params.invite)?.trim() || undefined;
   const mode: AuthMode = one(params.mode) === "sign-up" || invite ? "sign-up" : "sign-in";
-  return { reason, next: insideNext(params.next), invite, mode };
+  // Which prompt opened the sheet, whose follow-up it runs once signed in.
+  const follow = one(params.follow)?.trim() || undefined;
+  return { reason, next: insideNext(params.next), invite, mode, follow };
 }

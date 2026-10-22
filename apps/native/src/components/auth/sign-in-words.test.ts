@@ -24,6 +24,12 @@ describe("the sheet that signs in", () => {
     expect(signInParams({ reason: ["first", "second"] }).reason).toBe("first");
   });
 
+  it("knows which prompt opened it, and none when it was opened from elsewhere", () => {
+    expect(signInParams({ follow: "3" }).follow).toBe("3");
+    expect(signInParams({}).follow).toBeUndefined();
+    expect(signInParams({ follow: " " }).follow).toBeUndefined();
+  });
+
   it("goes on to a screen of the app, and never to another address", () => {
     expect(insideNext("/alert/new?place=break:12")).toBe("/alert/new?place=break:12");
     expect(insideNext("//evil.example/path")).toBeUndefined();

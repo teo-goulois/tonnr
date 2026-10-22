@@ -8,13 +8,14 @@ import { type AuthMode, signInParams } from "@/components/auth/sign-in-words";
 import { SheetHeader } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import type { Route } from "@/lib/links";
+import { takeFollowUp } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 /**
  * Signs in or creates an account, in a sheet that says what it was opened for (`?reason=`), goes
- * on to `?next=` once signed in or closes, and carries the link of `?invite=` into a sign-up:
- * decisions 039, 041 and 070.
+ * on to `?next=` once signed in or closes and does what the prompt that opened it asked
+ * (`?follow=`), and carries the link of `?invite=` into a sign-up: decisions 039, 041 and 070.
  */
 export default function SignInScreen() {
   const { colors, space } = useTheme();
@@ -22,10 +23,13 @@ export default function SignInScreen() {
   const [mode, setMode] = useState<AuthMode>(params.mode);
 
   const done = () => {
+    // What the prompt that opened the sheet was for, which goes on once the sheet has closed.
+    const then = takeFollowUp(params.follow);
     // A path of the app, which `insideNext` checked; the router's types read only those written.
     if (params.next) router.replace(params.next as Route);
     else if (router.canGoBack()) router.back();
     else router.replace("/");
+    then?.();
   };
 
   return (
