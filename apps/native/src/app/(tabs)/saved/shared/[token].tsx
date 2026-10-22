@@ -141,8 +141,9 @@ function SharedList({
   const { signedIn } = useAccount();
   const now = useNow();
   const { show } = useListInView();
-  // A place opens on the map, where the link is still held while this screen stays.
-  const actions = usePlaceActions({ open: (place) => openOnMap(place, undefined) });
+  // A place opens on the map, which shows the list alone by its link, as the web's address keeps
+  // `?shared=` (decision 035).
+  const actions = usePlaceActions({ open: (place) => openOnMap(place, { shared: token }) });
   const [refreshing, setRefreshing] = useState(false);
 
   // Kept, the list is read by its id from then on, alone in the saved tab and on the map.

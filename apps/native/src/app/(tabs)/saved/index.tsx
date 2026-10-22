@@ -53,7 +53,9 @@ export default function SavedScreen() {
   const inView = useListInView();
   const chosen = signedIn ? inView.list : undefined;
   // A place opens on the map, which goes on showing the list it shows alone.
-  const actions = usePlaceActions({ open: (place) => openOnMap(place, chosen) });
+  const actions = usePlaceActions({
+    open: (place) => openOnMap(place, chosen ? { list: chosen } : undefined),
+  });
   const recents = useRecentPlaces();
   const [refreshing, setRefreshing] = useState(false);
 

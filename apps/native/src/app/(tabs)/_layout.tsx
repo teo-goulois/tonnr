@@ -1,4 +1,4 @@
-import { router, useNavigation, usePathname } from "expo-router";
+import { router, useGlobalSearchParams, useNavigation, usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/native-tabs";
 import { useEffect } from "react";
 import { Platform } from "react-native";
@@ -28,12 +28,19 @@ export default function TabsLayout() {
   // The quick actions of the app's icon open their route over the tabs (decision 074).
   useQuickActions();
   // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039),
-  // except on a list opened by its link, which opens then too, as the web's ?shared= does: the
-  // wall comes back once the visitor leaves the list for another tab.
+  // except on a list opened by its link, in the saved tab or alone on the map, and the places it
+  // holds, which open then too, as the web's ?shared= does: the wall comes back once the visitor
+  // leaves the list for another tab.
   const walled = useVisitorWall();
   const pathname = usePathname();
-  useTabUnder(pathname);
-  if (walled && !pathname.startsWith("/saved/shared/")) return <LoginWall />;
+  const root = useNavigation<Navigation>();
+  useTabUnder(pathname, root);
+  const { shared } = useGlobalSearchParams<{ shared?: string }>();
+  const byLink =
+    pathname.startsWith("/saved/shared/") ||
+    Boolean(shared) ||
+    mapParamsOf(root).shared !== undefined;
+  if (walled && !byLink) return <LoginWall />;
   return (
     <NativeTabs
       tintColor={colors["neutral-10"]}
@@ -54,14 +61,15 @@ export default function TabsLayout() {
         tabPress: () => {
           if (route.name === "add") router.push("/create");
           // A press on a tab navigates to it with no parameters, which takes away the map's: the
-          // list it shows alone is given back to it, as the web keeps `?list=` whatever tab is
-          // in view (`tabSearch` in packages/client/src/phone-nav.ts).
-          const list = (route.params as { list?: unknown } | undefined)?.list;
-          if (route.name === "index" && typeof list === "string" && list) {
+          // list it shows alone, by its id or by its link, is given back to it, as the web keeps
+          // `?list=` and `?shared=` whatever tab is in view (`tabSearch` in
+          // packages/client/src/phone-nav.ts).
+          const alone = aloneOf(route.params);
+          if (route.name === "index" && alone) {
             requestAnimationFrame(() =>
               navigation.dispatch({
                 type: "SET_PARAMS",
-                payload: { params: { list } },
+                payload: { params: alone },
                 source: route.key,
               }),
             );
@@ -99,7 +107,37 @@ export default function TabsLayout() {
   );
 }
 
-type TabsState = { key: string; index: number; routes: readonly { name: string }[] };
+type TabsState = {
+  key: string;
+  index: number;
+  routes: readonly { name: string; params?: object | undefined }[];
+};
+/** The root's navigation, whose state holds the tabs'. */
+type Navigation = {
+  getState(): { routes: readonly { name: string; state?: unknown }[] } | undefined;
+  dispatch(action: { type: string; payload: object; target?: string }): void;
+};
+
+/** The state of the tabs' navigator, from the root's, whose state holds it. */
+function tabsOf(root: Navigation) {
+  return root.getState()?.routes.find((one) => one.name === "(tabs)")?.state as
+    | TabsState
+    | undefined;
+}
+
+/** The list a route of the map shows alone, by its id or by its link, as its parameters say it. */
+function aloneOf(params: object | undefined) {
+  const { list, shared } = (params ?? {}) as { list?: unknown; shared?: unknown };
+  if (typeof shared === "string" && shared) return { shared };
+  if (typeof list === "string" && list) return { list };
+  return undefined;
+}
+
+/** What the map's route shows alone, read from the tabs, whatever screen is in front. */
+function mapParamsOf(root: Navigation): { list?: string; shared?: string } {
+  const map = tabsOf(root)?.routes.find((one) => one.name === TAB_ROUTES.map);
+  return aloneOf(map?.params) ?? {};
+}
 
 /**
  * Shows the tab a screen over the tabs shows under it: a place opened from the saved tab, an
@@ -107,15 +145,11 @@ type TabsState = { key: string; index: number; routes: readonly { name: string }
  * selected on the map (`tabOf` in packages/client/src/phone-nav.ts). The tab is changed under the
  * sheet, which stays where it is.
  */
-function useTabUnder(pathname: string) {
-  // The root's navigation, whose state holds the tabs'.
-  const root = useNavigation();
+function useTabUnder(pathname: string, root: Navigation) {
   const wanted = tabUnder(pathname);
   useEffect(() => {
     if (!wanted) return;
-    const tabs = root.getState()?.routes.find((one) => one.name === "(tabs)")?.state as
-      | TabsState
-      | undefined;
+    const tabs = tabsOf(root);
     const name = TAB_ROUTES[wanted];
     if (!tabs || tabs.routes[tabs.index]?.name === name) return;
     root.dispatch({ type: "JUMP_TO", payload: { name }, target: tabs.key });

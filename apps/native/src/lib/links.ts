@@ -66,9 +66,13 @@ export function destinationOf(link: AppLink): AppDestination {
       };
     }
   }
-  // A list opened by its link is read in the saved tab, which the web's short address opens.
+  // A list opened by its link is read in the saved tab, which the web's short address opens, or
+  // alone on the map, as the web's phone shows `?shared=` without its panel.
   if (search.shared) {
-    return { route: routeOf(`/saved/shared/${encodeURIComponent(search.shared)}`) };
+    if (search.panel === "saved") {
+      return { route: routeOf(`/saved/shared/${encodeURIComponent(search.shared)}`) };
+    }
+    return { route: withQuery("/", { shared: search.shared }) };
   }
   if (search.invite) return { route: withQuery("/", { invite: search.invite }) };
   // How to be told was a part of the alerts' panel once: every alert's mail still links there.

@@ -38,15 +38,19 @@ import type { PlaceRef } from "./sea-now";
 /** A place as a row shows it: what it is, and the name it is read by. */
 export type PlaceItem = { ref: PlaceRef; name: string };
 
+/** The list the map shows alone: one of the account's by its id, or one opened by its link. */
+export type ShownAlone = { list: string } | { shared: string };
+
 /**
  * Opens a place's sheet over the map, as a press on its marker does: the map's tab first, with
- * the list it shows alone, which the web's address keeps, then the place (decisions 040 and 069).
+ * the list it shows alone, which the web's address keeps, then the place (decisions 035, 040 and
+ * 069).
  */
-export function openOnMap(place: PlaceRef, list: string | undefined) {
+export function openOnMap(place: PlaceRef, alone: ShownAlone | undefined) {
   const href = placeHref(place.kind, place.id);
-  if (!list) return openPlaceOnMap(href);
+  if (!alone) return openPlaceOnMap(href);
   // The map's tab takes the parameters it is navigated to: the list is given again, or it is lost.
-  router.navigate({ pathname: "/", params: { list } });
+  router.navigate({ pathname: "/", params: alone });
   router.push(href);
 }
 

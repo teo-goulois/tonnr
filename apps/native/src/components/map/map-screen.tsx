@@ -1,7 +1,7 @@
 import { seaTimeAt, seaTimes } from "@repo/client/map/sea";
 import type { Station } from "@repo/client/viewer/types";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import { router, useLocalSearchParams, usePathname } from "expo-router";
+import { router, useLocalSearchParams, useNavigation, usePathname } from "expo-router";
 import {
   type ComponentRef,
   useCallback,
@@ -25,12 +25,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Spinner } from "heroui-native";
 
 import { listName } from "@/components/lists/items";
+import { useSharedList } from "@/components/lists/use-shared-list";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
 import { ROUND } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
+import type { Route } from "@/lib/links";
 import { useRecentPlaces } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
@@ -68,7 +70,13 @@ import { bboxOf, type Bounds, LOCATE_ZOOM, type LngLat, visibleBounds } from "./
 // The map tab (decisions 018, 040 and 069): the web's viewer as a phone has it, the map with its
 // buttons and its legend at the bottom where the thumb is, over the bar of tabs. A press on a
 // marker opens its place as a sheet over the map, which stays alive under it; a press held puts a
-// new spot there. `?list=<id>` shows one of the account's lists alone, as the saved tab links to.
+// new spot there. `?list=<id>` shows one of the account's lists alone, as the saved tab links to,
+// and `?shared=<token>` a list opened by its link, as the web's `?shared=` does (decision 035).
+
+/** What the map's route among the tabs is navigated with: what it shows alone. */
+type MapNavigation = {
+  setParams: (params: { list?: string | undefined; shared?: string | undefined }) => void;
+};
 
 /** The layers the legend switched, kept on the phone as the browser keeps them. */
 function useMapLayers() {
@@ -107,9 +115,14 @@ export function MapScreen() {
   const tell = useTell();
   const pathname = usePathname();
   const selected = placeOf(pathname);
-  const params = useLocalSearchParams<{ list?: string }>();
+  // The map's own route among the tabs, whose parameters say what it shows alone: `router`'s
+  // would be those of the screen in front, a place's sheet.
+  const navigation = useNavigation<MapNavigation>();
+  const params = useLocalSearchParams<{ list?: string; shared?: string }>();
+  // A list opened by its link comes first, as on the web.
+  const shared = typeof params.shared === "string" && params.shared ? params.shared : undefined;
   const listId =
-    signedIn && typeof params.list === "string" && params.list ? params.list : undefined;
+    signedIn && !shared && typeof params.list === "string" && params.list ? params.list : undefined;
   const now = useNow();
   // A figure is written in the reader's units, and drawn again when they change.
   const units = useUnits();
@@ -132,7 +145,9 @@ export function MapScreen() {
       retry: false,
     }),
   );
-  const list = listId ? listView.data : undefined;
+  // A visitor reads it, and the places it holds, by its link while the map shows it.
+  const door = useSharedList(shared ?? "");
+  const list = shared ? door.list : listId ? listView.data : undefined;
   const drawn = list ? layersForList(layers) : layers;
   // Wind stations are many, so only the ones in view are loaded, one for each place where several
   // networks stand together: decision 048.
@@ -170,8 +185,22 @@ export function MapScreen() {
   useEffect(() => {
     if (!listGone) return;
     tell({ title: m.list_gone(), tone: "danger" });
-    router.setParams({ list: undefined });
-  }, [listGone, tell]);
+    navigation.setParams({ list: undefined });
+  }, [listGone, tell, navigation]);
+  // A list opened by its link that is the account's, or that it kept, is shown as one of its own,
+  // by its id. One that asks a password, or opens nothing, is read where its short address leads,
+  // in the saved tab, which asks the password or says why, and the map shows everything again.
+  const sharedOwn = shared && door.list && door.list.access !== "link" ? door.list.id : undefined;
+  const sharedShut =
+    shared && (door.state === "locked" || door.state === "missing" || door.state === "failed");
+  useEffect(() => {
+    if (sharedOwn) navigation.setParams({ list: sharedOwn, shared: undefined });
+  }, [sharedOwn, navigation]);
+  useEffect(() => {
+    if (!shared || !sharedShut) return;
+    navigation.setParams({ shared: undefined });
+    router.navigate(`/saved/shared/${encodeURIComponent(shared)}` as Route);
+  }, [shared, sharedShut, navigation]);
 
   // A list shown alone draws what it holds, wherever it is: a station or a break that is not
   // among those loaded is asked for on its own.
@@ -566,7 +595,7 @@ export function MapScreen() {
                     lists={ownLists}
                     joined={joined}
                     current={list?.id}
-                    onPick={(id) => router.setParams({ list: id })}
+                    onPick={(id) => navigation.setParams({ list: id, shared: undefined })}
                   />
                 </View>
               ) : null}

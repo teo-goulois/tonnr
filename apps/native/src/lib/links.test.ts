@@ -37,6 +37,10 @@ describe("where a link takes the app", () => {
     // A list alone on the map, or in the saved tab as well when the address names it.
     expect(to(`${SITE}/app?list=l1`)).toEqual({ route: "/?list=l1" });
     expect(to(`${SITE}/app?list=l1&panel=saved`)).toEqual({ route: "/saved?list=l1" });
+    // A list opened by its link, in the saved tab where its short address leads, or alone on
+    // the map.
+    expect(to(`${SITE}/app?shared=tok&panel=saved`)).toEqual({ route: "/saved/shared/tok" });
+    expect(to(`${SITE}/app?shared=tok`)).toEqual({ route: "/?shared=tok" });
     // What is selected comes first, as on the web's phone.
     expect(to(`${SITE}/app?station=41012&list=l1&panel=saved`)).toEqual({
       route: "/place/station/41012",
