@@ -172,6 +172,7 @@ export function PlaceMenu({
         accessible
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={{ busy: actions.isRemoving }}
         accessibilityActions={spoken}
         onAccessibilityAction={(event) => {
           const action = event.nativeEvent.actionName;
@@ -179,12 +180,16 @@ export function PlaceMenu({
           else void act(action);
         }}
       >
-        <IconButton
-          variant="ghost"
-          icon={MoreHorizontalIcon}
-          label={label}
-          loading={actions.isRemoving}
-        />
+        {/* The button is drawn and not heard: the view over it is what a screen reader finds,
+            once, where Android's would find both. */}
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <IconButton
+            variant="ghost"
+            icon={MoreHorizontalIcon}
+            label={label}
+            loading={actions.isRemoving}
+          />
+        </View>
       </View>
     </MenuView>
   );
