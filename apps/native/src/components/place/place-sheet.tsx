@@ -73,7 +73,7 @@ export function PlaceSheet({
   const record = usePlaceRecord(kind, id);
   const conditions = usePlaceConditions(record, now);
   const { atRest, detent } = useSheetState();
-  const foldAt = useFoldHeight(detent);
+  const { fit: foldAt, top: sheetTop } = useFoldHeight(detent, atRest);
   const { lists, isSaved, save: saveTo } = useLists();
   const spots = useSpotActions();
   const name = record.name;
@@ -213,6 +213,7 @@ export function PlaceSheet({
             place is, its buttons, then its tabs, as the web's drawer heads its panel. It comes
             after the tabs, so that their scroll view is the first that iOS finds. */}
         <View
+          ref={sheetTop}
           className="bg-background"
           style={{ position: "absolute", top: 0, left: 0, right: 0 }}
           onLayout={(event) => {

@@ -9,6 +9,7 @@ import {
   lowDetent,
   RAISED,
   sheetDetentOf,
+  sheetShift,
 } from "./fold";
 import { isPlaceKind, tabFrom, tabsOf } from "./tabs";
 
@@ -115,5 +116,19 @@ describe("the height a place's sheet stands at", () => {
   it("is the one it was last moved to", () => {
     const known = new Map([["a", 1]]);
     expect(sheetDetentOf(known, "a", false)).toBe(1);
+  });
+});
+
+describe("how far the low sheet stands over its share", () => {
+  it("is what was measured over what the share gives, to the point", () => {
+    // iOS 26 floats the sheet over the bottom of the screen.
+    expect(sheetShift(380.4, 372)).toBe(8);
+    expect(sheetShift(372, 372)).toBe(0);
+    expect(sheetShift(368, 372)).toBe(-4);
+  });
+
+  it("is none for a measure taken as the sheet moved", () => {
+    expect(sheetShift(700, 372)).toBeUndefined();
+    expect(sheetShift(Number.NaN, 372)).toBeUndefined();
   });
 });

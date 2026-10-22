@@ -55,6 +55,19 @@ export function sheetDetentOf(known: Map<string, number>, route: string, opensRa
   return detent;
 }
 
+/** The most the platform's sheet is taken to stand from where its share puts it, in points. */
+export const MAX_SHEET_SHIFT = 40;
+
+/**
+ * How far over the height its share gives the low sheet really stands, measured, in points: iOS
+ * 26 floats a sheet that is not at its largest over the bottom of the screen. None for a measure
+ * that cannot be one, taken as the sheet moved.
+ */
+export function sheetShift(measured: number, computed: number) {
+  const shift = Math.round(measured - computed);
+  return Number.isFinite(shift) && Math.abs(shift) <= MAX_SHEET_SHIFT ? shift : undefined;
+}
+
 /** Whether a new low height is worth moving the sheet for: a few points are not. */
 export function isWorthMoving(from: number, to: number) {
   return Math.abs(from - to) >= 0.02;
