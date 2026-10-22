@@ -5,8 +5,8 @@ import { useTell } from "@/components/ui/toast";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-// What the owner of a spot does with it from its sheet, as the web's route does it: rename it,
-// move it, ask that it be made public or take the request back, delete it; and what makes a spot
+// What the owner of a spot does with it from its sheet, as the web's route does it: rename it
+// and move it, ask that it be made public or take the request back, delete it; and what makes a spot
 // read in a shared list one of the reader's own. Each answer takes its place wherever the spot
 // is kept. Decisions 006, 034 and 035.
 
@@ -96,8 +96,12 @@ export function useSpotActions() {
   return {
     rename: (spot: Spot, name: string, done: () => void) =>
       change.mutate({ id: spot.id, name }, { onSuccess: done }),
-    move: (spot: Spot, point: { latitude: number; longitude: number }, done: () => void) =>
-      change.mutate({ id: spot.id, ...point }, { onSuccess: done }),
+    /** Renames a spot and moves it in one request, as the web's editor saves both. */
+    edit: (
+      spot: Spot,
+      edited: { name: string; latitude: number; longitude: number },
+      done: () => void,
+    ) => change.mutate({ id: spot.id, ...edited }, { onSuccess: done }),
     describe: (spot: Spot, characteristics: Spot["characteristics"], done: () => void) =>
       change.mutate({ id: spot.id, characteristics }, { onSuccess: done }),
     isChanging: change.isPending,

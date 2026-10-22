@@ -1,10 +1,12 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { View } from "react-native";
+import { Keyboard, View } from "react-native";
+import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Field } from "@/components/auth/field";
 import { DEFAULT_LAYERS } from "@/components/map/layers";
-import { type Heading, nudged, writePoint } from "@/components/map/new-spot";
+import { type Heading, NAME_MOST, nudged, writePoint } from "@/components/map/new-spot";
 import { BREAK_LIMIT, MINUTE_MS, spotsQuery } from "@/components/map/queries";
 import { SpotPin } from "@/components/map/spot-pin";
 import { StationMap, type StationMapHandle } from "@/components/map/station-map";
@@ -27,11 +29,13 @@ import { orpc } from "@/utils/orpc";
 import { usePlaceRecord } from "./use-place";
 import { useSpotActions } from "./use-spot";
 
-// Moving a spot of the account's own, as the web's `SpotEditor` moves it with the marker of
-// `NewSpotPanel`: here the marker of a new spot, `SpotPin`, stands in the middle of the map and the
-// map moves under it, a press on the map brings the point pressed there, and a screen reader
-// moves it a step at a time, all as the new spot's sheet does. Cancel, a swipe or the back of
-// Android ask before a spot that moved is left where it was. Decision 006.
+// Renaming a spot of the account's own and moving it, in one sheet, as the web's `SpotEditor`
+// does both with the marker of `NewSpotPanel`: its name in a field, and here the marker of a new
+// spot, `SpotPin`, in the middle of the map, which moves under it; a press on the map brings the
+// point pressed there, and a screen reader moves it a step at a time, all as the new spot's sheet
+// does. Saved, the name and the point go together. A name left empty is said under its field, as
+// the web says it. Cancel, a swipe or the back of Android ask before a spot renamed or moved is
+// left as it was. Decision 006.
 
 // What this map draws: the surf breaks and the account's own spots, to put a spot beside them.
 // Nothing of the sea.
@@ -47,10 +51,14 @@ const HEADING_LABELS: Record<Heading, () => string> = {
 export function MoveSpot({ id }: { id: string }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
+  const keyboardShown = useKeyboardState((state) => state.isVisible);
   const { signedIn } = useAccount();
   const { spot, isOwner } = usePlaceRecord("spot", id);
   const actions = useSpotActions();
   const map = useRef<StationMapHandle>(null);
+  // The name once the person typed it. Until then, the spot's.
+  const [name, setName] = useState<string>();
+  const [missing, setMissing] = useState(false);
   // Where the marker stands once the person moved it. Until then, where the spot is.
   const [point, setPoint] = useState<MapPoint>();
   const [bounds, setBounds] = useState<Bounds | null>(null);
@@ -67,12 +75,14 @@ export function MoveSpot({ id }: { id: string }) {
   );
 
   const at = point ?? spot;
+  const written = name ?? spot?.name ?? "";
+  const renamed = spot !== undefined && name !== undefined && name.trim() !== spot.name;
   const moved =
     spot !== undefined &&
     point !== undefined &&
     (Math.abs(point.latitude - spot.latitude) > 1e-6 ||
       Math.abs(point.longitude - spot.longitude) > 1e-6);
-  const guard = useSheetGuard(moved && !actions.isChanging);
+  const guard = useSheetGuard((renamed || moved) && !actions.isChanging);
 
   /** Puts the marker at `next`, and brings the map there. */
   function putAt(next: MapPoint) {
@@ -81,82 +91,118 @@ export function MoveSpot({ id }: { id: string }) {
     map.current?.focus(next);
   }
 
+  function save() {
+    if (!spot || !at || !isOwner || actions.isChanging) return;
+    const trimmed = written.trim();
+    if (!trimmed) {
+      setMissing(true);
+      return;
+    }
+    Keyboard.dismiss();
+    actions.edit(
+      spot,
+      { name: trimmed, latitude: at.latitude, longitude: at.longitude },
+      guard.close,
+    );
+  }
+
   return (
     <View className="flex-1 bg-background">
       <SheetHeader
-        title={spot ? m.native_spot_move_title({ name: spot.name }) : m.native_spot_move()}
+        title={spot?.name ?? m.spot_edit()}
         onCancel={guard.cancel}
-        onSave={() => {
-          if (!spot || !point || !isOwner) return;
-          actions.move(spot, point, guard.close);
-        }}
+        onSave={save}
         saveLabel={m.spot_edit_save()}
-        canSave={moved}
+        canSave={spot !== undefined}
         saving={actions.isChanging}
       />
-      {spot ? (
-        <View style={{ flex: 1, overflow: "hidden" }}>
-          <StationMap
-            ref={map}
-            stations={[]}
-            wind={[]}
-            breaks={breaks.data?.breaks ?? []}
-            spots={spots.data ?? []}
-            selected={undefined}
-            layers={LAYERS}
-            sea={undefined}
-            seaTime={undefined}
-            arrows={[]}
-            userLocation={null}
-            opening={{ center: [spot.longitude, spot.latitude], zoom: SPOT_ZOOM }}
-            remembers={false}
-            accessibilityLabel={m.native_spot_marker()}
-            accessibilityHint={m.native_spot_move_hint()}
-            accessibilityValue={at ? { text: writePoint(at) } : undefined}
-            accessibilityActions={HEADINGS.map((name) => ({
-              name,
-              label: HEADING_LABELS[name](),
-            }))}
-            onAccessibilityAction={(event) => {
-              const heading = event.nativeEvent.actionName as Heading;
-              if (at && bounds && HEADINGS.includes(heading)) {
-                putAt(nudged(at, bounds, heading));
-              }
+      {/* The keyboard pushes up what is typed in: the map gives way to it. */}
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
+        {spot ? (
+          <View style={{ flex: 1, overflow: "hidden" }}>
+            <StationMap
+              ref={map}
+              stations={[]}
+              wind={[]}
+              breaks={breaks.data?.breaks ?? []}
+              spots={spots.data ?? []}
+              selected={undefined}
+              layers={LAYERS}
+              sea={undefined}
+              seaTime={undefined}
+              arrows={[]}
+              userLocation={null}
+              opening={{ center: [spot.longitude, spot.latitude], zoom: SPOT_ZOOM }}
+              remembers={false}
+              accessibilityLabel={m.native_spot_marker()}
+              accessibilityHint={m.native_spot_move_hint()}
+              accessibilityValue={at ? { text: writePoint(at) } : undefined}
+              accessibilityActions={HEADINGS.map((heading) => ({
+                name: heading,
+                label: HEADING_LABELS[heading](),
+              }))}
+              onAccessibilityAction={(event) => {
+                const heading = event.nativeEvent.actionName as Heading;
+                if (at && bounds && HEADINGS.includes(heading)) {
+                  putAt(nudged(at, bounds, heading));
+                }
+              }}
+              onPress={({ at: [longitude, latitude] }) => putAt({ latitude, longitude })}
+              onMapPress={([longitude, latitude]) => putAt({ latitude, longitude })}
+              onLongPress={([longitude, latitude]) => putAt({ latitude, longitude })}
+              onMoveStart={() => setMoving(true)}
+              onMoved={(state, byHand) => {
+                setMoving(false);
+                if (state.bounds) setBounds(state.bounds);
+                // Moved by a finger, the marker goes with the middle of the map. Moved by a press,
+                // it stands where it was put.
+                if (byHand) setPoint({ latitude: state.center[1], longitude: state.center[0] });
+              }}
+            />
+            <SpotPin lifted={moving} />
+          </View>
+        ) : (
+          <View style={{ flex: 1, padding: space.m }}>
+            <Skeleton height={320} />
+          </View>
+        )}
+        {/* The web's form: the name, then where the marker stands. */}
+        <View
+          style={{
+            gap: space.m,
+            paddingHorizontal: space.m,
+            paddingTop: space.s,
+            paddingBottom: keyboardShown ? space.s : Math.max(insets.bottom, space.s),
+          }}
+        >
+          <Field
+            label={m.spot_name_label()}
+            placeholder={m.spot_name_placeholder()}
+            value={written}
+            onChangeText={(next) => {
+              setName(next);
+              if (next.trim()) setMissing(false);
             }}
-            onPress={({ at: [longitude, latitude] }) => putAt({ latitude, longitude })}
-            onMapPress={([longitude, latitude]) => putAt({ latitude, longitude })}
-            onLongPress={([longitude, latitude]) => putAt({ latitude, longitude })}
-            onMoveStart={() => setMoving(true)}
-            onMoved={(state, byHand) => {
-              setMoving(false);
-              if (state.bounds) setBounds(state.bounds);
-              // Moved by a finger, the marker goes with the middle of the map. Moved by a press,
-              // it stands where it was put.
-              if (byHand) setPoint({ latitude: state.center[1], longitude: state.center[0] });
-            }}
+            error={missing ? m.spot_name_missing() : undefined}
+            maxLength={NAME_MOST}
+            disabled={!spot || actions.isChanging}
+            autoComplete="off"
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={save}
           />
-          <SpotPin lifted={moving} />
+          <View style={{ gap: space.xxs }}>
+            <Text size="s" tone="muted">
+              {m.native_spot_move_hint()}
+            </Text>
+            <Text size="xs" tone="muted" numeric>
+              {at ? writePoint(at) : " "}
+            </Text>
+          </View>
         </View>
-      ) : (
-        <View style={{ flex: 1, padding: space.m }}>
-          <Skeleton height={320} />
-        </View>
-      )}
-      <View
-        style={{
-          gap: space.xxs,
-          paddingHorizontal: space.m,
-          paddingTop: space.s,
-          paddingBottom: Math.max(insets.bottom, space.s),
-        }}
-      >
-        <Text size="s" tone="muted">
-          {m.native_spot_move_hint()}
-        </Text>
-        <Text size="xs" tone="muted" numeric>
-          {at ? writePoint(at) : " "}
-        </Text>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }
