@@ -129,7 +129,7 @@ function MenuRow({
 }
 
 export function SaveToLists({ place }: { place: PlaceRef }) {
-  const { space } = useTheme();
+  const { colors, space } = useTheme();
   const insets = useSafeAreaInsets();
   const { lists, save, createWith, isCreating } = useLists();
   const [isNaming, setIsNaming] = useState(false);
@@ -161,7 +161,11 @@ export function SaveToLists({ place }: { place: PlaceRef }) {
 
   if (isNaming) {
     return (
-      <KeyboardAvoidingView behavior="padding" enabled={Platform.OS === "android"}>
+      <KeyboardAvoidingView
+        behavior="padding"
+        enabled={Platform.OS === "android"}
+        style={{ backgroundColor: colors["cte-canvas"] }}
+      >
         <StepHeader title={m.saved_new_list()} onBack={() => setIsNaming(false)} />
         <View
           style={{
@@ -199,8 +203,9 @@ export function SaveToLists({ place }: { place: PlaceRef }) {
 
   return (
     // The lists' scroll view stands under the header: SheetRoot keeps react-native-screens from
-    // moving it over it.
-    <SheetRoot>
+    // moving it over it. The sheet's ground is the theme's, as the web's sheet is, under rows
+    // that stand on it with no card.
+    <SheetRoot className="bg-background">
       <StepHeader title={m.saved_add_to_list()} />
       <ScrollView
         contentContainerStyle={{

@@ -73,7 +73,8 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
-  const { scheme } = useTheme();
+  const { scheme, colors } = useTheme();
+  const canvas = colors["cte-canvas"];
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -94,8 +95,22 @@ export default function RootLayout() {
                   name="place/[kind]/[id]"
                   options={formSheet({ detents: [FOLD_NONE, RAISED], undimmedUpTo: "last" })}
                 />
-                <Stack.Screen name="place/save" options={formSheet({ detents: "fit" })} />
-                <Stack.Screen name="place/publish" options={formSheet({ detents: "fit" })} />
+                {/* As tall as what they hold, on the theme's ground to their foot, which iOS would
+                    otherwise leave to its glass under the rows. */}
+                <Stack.Screen
+                  name="place/save"
+                  options={{
+                    ...formSheet({ detents: "fit" }),
+                    contentStyle: { backgroundColor: canvas },
+                  }}
+                />
+                <Stack.Screen
+                  name="place/publish"
+                  options={{
+                    ...formSheet({ detents: "fit" }),
+                    contentStyle: { backgroundColor: canvas },
+                  }}
+                />
                 <Stack.Screen name="place/move" options={formSheet()} />
                 <Stack.Screen name="search" options={formSheet({ detents: [0.94] })} />
                 <Stack.Screen name="alert/new" options={formSheet()} />

@@ -24,7 +24,7 @@ import { useSpotActions } from "./use-spot";
 const NOTE_MOST = 280;
 
 export function PublishSpot({ id }: { id: string }) {
-  const { space, type } = useTheme();
+  const { colors, space, type } = useTheme();
   const insets = useSafeAreaInsets();
   const { openPage } = useOpenPage();
   const { spot: read, isOwner } = usePlaceRecord("spot", id);
@@ -37,7 +37,11 @@ export function PublishSpot({ id }: { id: string }) {
 
   if (!spot) return null;
   return (
-    <KeyboardAvoidingView behavior="padding" enabled={Platform.OS === "android"}>
+    <KeyboardAvoidingView
+      behavior="padding"
+      enabled={Platform.OS === "android"}
+      style={{ backgroundColor: colors["cte-canvas"] }}
+    >
       <StepHeader title={m.spot_publish_title({ name: spot.name })} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
