@@ -16,6 +16,7 @@ import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { VisitorPrompt } from "./visitor-prompt";
@@ -44,7 +45,10 @@ function BreakReports({ breakId }: { breakId: string }) {
   const requireAccount = useRequireAccount();
   const reports = useBreakReports(breakId);
   const writes = useReportWrites();
-  const [now, setNow] = useState(Date.now);
+  // The screens' one clock, read again each minute as the web's route reads its own, and not only
+  // as the tab is pulled, since a tab once seen stays drawn: "just now" ages, and a report of the
+  // last hours goes to the week's.
+  const now = useNow();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // The reports of the last hours first, then those of the week.
@@ -68,7 +72,6 @@ function BreakReports({ breakId }: { breakId: string }) {
 
   async function refresh() {
     setIsRefreshing(true);
-    setNow(Date.now());
     await reports.refetch().finally(() => setIsRefreshing(false));
   }
 

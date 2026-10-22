@@ -20,6 +20,7 @@ import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -108,12 +109,13 @@ function PlaceSessions({ place }: { place: SessionAt }) {
   const known = usePlaceKnown(place);
   const { here, media } = useSessionsAt(place);
   const writes = useSessionWrites();
-  const [now, setNow] = useState(Date.now);
+  // The screens' one clock, read again each minute as the web's route reads its own, and not only
+  // as the tab is pulled: a tab once seen stays drawn.
+  const now = useNow();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function refresh() {
     setIsRefreshing(true);
-    setNow(Date.now());
     await Promise.all([
       here.refetch(),
       queryClient.invalidateQueries({ queryKey: orpc.v1.media.sessions.key() }),
