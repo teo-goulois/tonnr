@@ -20,6 +20,17 @@ export function pointsOf(value: unknown, fallback: number): number {
   return found ? Number(found[1]) : fallback;
 }
 
+/**
+ * What the app cannot draw is left out and said in the log, never thrown: a drawing goes on in the
+ * middle of a screen, and an error there stops the app in a store build, as Google's mark stopped
+ * its sign-in. The tests hold every icon of `@repo/ui/icon` to the web's shapes, and no screen to
+ * an icon left out (`NOT_DRAWN`), so that none goes missing in silence.
+ */
+function left(what: string): null {
+  console.error(`An icon draws ${what}, which the app cannot draw`);
+  return null;
+}
+
 /** The props of an SVG element as a native one takes them. */
 function nativeProps(props: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -41,7 +52,7 @@ export function drawTree(
   root: { size: number; color: string; label?: string | undefined },
   depth = 0,
 ): ReactNode {
-  if (depth > 32) throw new Error("An icon nests too deep to be drawn");
+  if (depth > 32) return left("an icon that nests too deep");
   if (node === null || node === undefined || typeof node === "boolean") return null;
   if (typeof node === "string" || typeof node === "number") return null;
   if (Array.isArray(node)) {
@@ -65,7 +76,7 @@ export function drawTree(
   if (type === "title" || type === "desc") return null;
 
   const Native = renderer[type];
-  if (!Native) throw new Error(`An icon draws <${type}>, which the app cannot draw`);
+  if (!Native) return left(`<${type}>`);
 
   const children = drawTree(props.children as ReactNode, renderer, root, depth + 1);
   if (type === "svg") {

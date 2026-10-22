@@ -1,9 +1,13 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type * as icons from "@repo/ui/icon";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { ICON_SAMPLES, ICONS } from "./icon-samples";
+import { ICON_SAMPLES, ICONS, NOT_DRAWN } from "./icon-samples";
 import { drawTree, pointsOf, type SvgRenderer } from "./svg-tree";
 
 // The web's own elements stand for the native ones: what the app would draw is then markup, and
@@ -67,12 +71,36 @@ describe("an icon of the web, drawn by the app", () => {
     expect(pointsOf("1em", 20)).toBe(20);
   });
 
-  it("refuses an element the app cannot draw, so that no icon goes missing in silence", () => {
-    expect(() =>
-      drawTree(createElement("svg", null, createElement("foreignObject")), WEB, {
-        size: 20,
-        color: "#000",
-      }),
-    ).toThrow(/foreignObject/);
+  it("leaves out an element the app cannot draw and says so, rather than stopping the screen", () => {
+    const said = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      function Drawn() {
+        return drawTree(
+          createElement("svg", null, createElement("foreignObject"), createElement("path")),
+          WEB,
+          { size: 20, color: "#000" },
+        );
+      }
+      const app = renderToStaticMarkup(createElement(Drawn));
+      expect(app).toContain("<path>");
+      expect(app).not.toContain("foreignObject");
+      expect(said).toHaveBeenCalledWith(expect.stringMatching(/foreignObject/));
+    } finally {
+      said.mockRestore();
+    }
+  });
+
+  it("is asked by no screen of the app for an icon it leaves out", () => {
+    const source = fileURLToPath(new URL("../..", import.meta.url));
+    const asking = readdirSync(source, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+      .filter((file) => {
+        const text = readFileSync(join(source, file), "utf8");
+        const imported = /import\s*\{([^}]*)\}\s*from\s*"@repo\/ui\/icon"/g;
+        return [...text.matchAll(imported)].some(([, names = ""]) =>
+          names.split(",").some((name) => NOT_DRAWN.has(name.trim().replace(/^type\s+/, ""))),
+        );
+      });
+    expect(asking).toEqual([]);
   });
 });

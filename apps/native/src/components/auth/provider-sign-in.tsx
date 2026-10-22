@@ -1,4 +1,3 @@
-import { GoogleIcon } from "@repo/ui/icon";
 import { useQuery } from "@tanstack/react-query";
 import { uuid } from "expo";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -16,6 +15,11 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { refusalWords } from "./sign-in-words";
+
+// Google's gradient G as the web draws it (`GoogleIcon`), written out as a picture at one, two and
+// three times its 16 points: its gradient is drawn through a foreignObject, which no native SVG
+// has, and the app stopped as soon as the button was drawn (decision 070).
+const GOOGLE_MARK = require("../../../assets/google-g.png") as number;
 
 // Signing in with a provider rather than an address and a password: Apple through the system's
 // own sheet, on iOS, and Google through a browser the system opens over the app and closes after.
@@ -184,7 +188,7 @@ export function ProviderButton({
   return (
     <Button
       variant="secondary"
-      icon={GoogleIcon}
+      picture={GOOGLE_MARK}
       fill
       loading={pending}
       disabled={disabled}

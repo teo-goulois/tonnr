@@ -1,5 +1,5 @@
 import { Button as HeroButton, Spinner } from "heroui-native";
-import type { StyleProp, ViewStyle } from "react-native";
+import { Image, type ImageSourcePropType, type StyleProp, type ViewStyle } from "react-native";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { type TonnrTheme, useTheme } from "@/lib/theme";
@@ -76,6 +76,11 @@ type ButtonProps = {
   muted?: boolean;
   /** An icon before the name, from `@repo/ui/icon`. */
   icon?: Icon;
+  /**
+   * A picture before the name, in its own colors, where the app cannot draw the icon the web
+   * draws: Google's mark, whose gradient no native SVG has. It stands where an icon would.
+   */
+  picture?: ImageSourcePropType;
   onPress?: () => void;
   disabled?: boolean;
   /** Waiting for what the press began: a spinner takes the icon's place, and it cannot be pressed. */
@@ -94,6 +99,7 @@ export function Button({
   size = "default",
   muted = false,
   icon,
+  picture,
   onPress,
   disabled = false,
   loading = false,
@@ -141,6 +147,12 @@ export function Button({
         <Spinner size="sm" color={label} />
       ) : icon ? (
         <Glyph icon={icon} size={small ? 14 : 16} color={label} />
+      ) : picture ? (
+        <Image
+          source={picture}
+          style={{ width: small ? 14 : 16, height: small ? 14 : 16 }}
+          accessibilityIgnoresInvertColors
+        />
       ) : null}
       {/* A small one stays as tall as the head it stands in, however large Dynamic Type makes
           its name. */}

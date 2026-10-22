@@ -17,7 +17,8 @@ export const ICON_SAMPLES: Record<string, Record<string, unknown>> = {
 
 /**
  * Google's mark draws its gradient through a foreignObject, which no native SVG has. The app
- * shows Google's own button where it signs in with Google (decision 070).
+ * shows it as a picture where it signs in with Google, `assets/google-g.png`, which the web's
+ * `GoogleIcon` was written out to (decision 070). A test holds every screen away from these.
  */
 export const NOT_DRAWN = new Set(["GoogleIcon"]);
 
