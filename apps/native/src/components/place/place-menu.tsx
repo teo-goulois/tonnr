@@ -1,4 +1,4 @@
-import MenuView, { type MenuAction, type MenuComponentRef } from "@expo/ui/community/menu";
+import type { MenuAction, MenuComponentRef } from "@expo/ui/community/menu";
 import { DIRECTIONS_APPS, type DirectionsApp, directionsUrl } from "@repo/client/directions";
 import { APP_NAME } from "@repo/config/app";
 import { MoreHorizontalIcon } from "@repo/ui/icon";
@@ -16,6 +16,7 @@ import { shareLink } from "@/lib/share";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
+import FixedMenu from "./fixed-menu";
 import { leavesOf, type MenuGroup, menuActions } from "./menu-actions";
 import type { PlaceKind } from "./tabs";
 import type { PlaceRecord } from "./use-place";
@@ -160,7 +161,7 @@ export function PlaceMenu({
   ];
 
   return (
-    <MenuView
+    <FixedMenu
       ref={menu}
       actions={all}
       onPressAction={({ nativeEvent }) => void act(nativeEvent.event)}
@@ -191,6 +192,6 @@ export function PlaceMenu({
           />
         </View>
       </View>
-    </MenuView>
+    </FixedMenu>
   );
 }
