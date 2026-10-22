@@ -386,6 +386,9 @@ export function StationMap({
   // and written only when they change, since writing them draws the map again.
   const [onWater, setOnWater] = useState<readonly SeaArrow[]>([]);
   const written = useRef("");
+  // A style that draws no water keeps every arrow, as the web's does: the map answers nothing for a
+  // layer it does not have, which would drop them all. The style the instance names has it.
+  const hasWater = basemap.data?.style.layers.some((layer) => layer.id === "water") ?? true;
   const keepOnWater = async () => {
     const instance = map.current;
     if (!instance) return;
@@ -395,9 +398,10 @@ export function StationMap({
       arrows.map(async (arrow) => {
         const { x, y } = project(arrow.longitude, arrow.latitude);
         if (x < 0 || y < 0 || x > width || y > height) return false;
+        if (!hasWater) return true;
         const water = await instance
           .queryRenderedFeatures([x, y], { layers: ["water"] })
-          // A style with no water, or a map that is gone: the arrow stays.
+          // A map that is gone: the arrow stays.
           .catch(() => null);
         return water === null || water.length > 0;
       }),
@@ -409,7 +413,7 @@ export function StationMap({
     setOnWater(next);
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => void keepOnWater(), [arrows]);
+  useEffect(() => void keepOnWater(), [arrows, hasWater]);
 
   const seaPaletteName = useMemo(
     () => (sea ? seaPalette(sea.encoding.metersByLevel) : undefined),
