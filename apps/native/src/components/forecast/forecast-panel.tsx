@@ -38,7 +38,7 @@ import {
 import type { Nearby } from "@repo/client/viewer/nearby";
 import { NearbyBuoy, NearbyWindStation } from "./nearby-rows";
 import { type SeaRead, seaNowOf } from "./now";
-import { About, NowTiles, ReadingMore } from "./now-tiles";
+import { About, AboutNotes, NowTiles, ReadingMore } from "./now-tiles";
 import { SeaNow } from "./sea-now";
 
 // The forecast of a buoy, a surf break or a spot, in the sheet of a place: the web's `Details`
@@ -132,6 +132,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
   const { now, model, measured, place, hasBuoy, forecast, tides, extremes, density, words } = props;
   const { space } = useTheme();
   const [range, setRange] = useState<Range>("24h");
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [backToNow] = useState(wayBack);
 
   const first = model[0]?.time ?? now;
@@ -276,27 +277,31 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
             <Block
               title={m.details_buoy_and_model()}
               control={
-                <About
+                <>
+                  <About open={aboutOpen} onPress={() => setAboutOpen((open) => !open)} />
+                  <Segmented
+                    label={m.details_buoy_and_model()}
+                    options={[
+                      ...(Object.keys(SPANS) as (keyof typeof SPANS)[]).map((one) => ({
+                        value: one,
+                        label: `${SPANS[one]} ${m.details_hours_short()}`,
+                      })),
+                      { value: "week" as const, label: `7 ${m.details_days_short()}` },
+                    ]}
+                    value={range}
+                    onChange={setRange}
+                  />
+                </>
+              }
+            >
+              {aboutOpen && (
+                <AboutNotes
                   measured={measured}
                   model={model}
                   now={now}
                   measuresWind={props.measuresWind}
                 />
-              }
-            >
-              <Segmented
-                label={m.details_buoy_and_model()}
-                fill
-                options={[
-                  ...(Object.keys(SPANS) as (keyof typeof SPANS)[]).map((one) => ({
-                    value: one,
-                    label: `${SPANS[one]} ${m.details_hours_short()}`,
-                  })),
-                  { value: "week" as const, label: `7 ${m.details_days_short()}` },
-                ]}
-                value={range}
-                onChange={setRange}
-              />
+              )}
               <MetricLanes
                 keys={keys}
                 measured={measured}

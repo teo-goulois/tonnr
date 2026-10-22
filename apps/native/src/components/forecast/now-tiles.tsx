@@ -2,10 +2,11 @@ import { periodOf } from "@repo/client/viewer/types";
 import type { Reading } from "@repo/client/viewer/types";
 import { ChevronDownIcon, InfoIcon } from "@repo/ui/icon";
 import { type ReactNode, useState } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
 import { IconButton } from "@/components/ui/button";
+import { edge } from "@/components/ui/edge";
 import { TARGET } from "@/components/ui/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
@@ -259,11 +260,31 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
 }
 
 /**
- * What there is to know before trusting the curves of a buoy: how far the model stands from it,
- * that the model's past hours are its latest run, and whether the buoy measures the wind. The
- * phone's own alert says it, behind a button, so that the panel stays bare.
+ * The button of what there is to know before trusting the curves of a buoy, in the head of their
+ * part, as small and as quiet as the web's: it unfolds `AboutNotes` under the head, and folds
+ * them again, so that the panel stays bare.
  */
-export function About({ measuresWind, ...read }: SeaRead & { measuresWind: boolean }) {
+export function About({ open, onPress }: { open: boolean; onPress: () => void }) {
+  return (
+    <IconButton
+      icon={InfoIcon}
+      label={m.details_about()}
+      variant="ghost"
+      size="xs"
+      muted
+      expanded={open}
+      onPress={onPress}
+    />
+  );
+}
+
+/**
+ * What there is to know before trusting the curves of a buoy: which line is the buoy's and which
+ * the model's, how far the model stands from it, that the model's past hours are its latest run,
+ * and whether the buoy measures the wind. Drawn as the web's popover draws it, with no title.
+ */
+export function AboutNotes({ measuresWind, ...read }: SeaRead & { measuresWind: boolean }) {
+  const { colors, space, radius } = useTheme();
   const height = metrics().height;
   const drift = bias(read.measured, read.model, "height", read.now - DAY_MS);
   const notes = [
@@ -278,16 +299,38 @@ export function About({ measuresWind, ...read }: SeaRead & { measuresWind: boole
   ].filter((note) => note !== false);
 
   return (
-    <IconButton
-      icon={InfoIcon}
-      label={m.details_about()}
-      variant="ghost"
-      onPress={() =>
-        Alert.alert(
-          m.details_about(),
-          [`— ${m.details_buoy()}  - - ${m.details_model()}`, ...notes].join("\n\n"),
-        )
-      }
-    />
+    <View
+      style={[
+        {
+          gap: space.xs,
+          padding: space.s,
+          borderRadius: radius.xs,
+          borderCurve: "continuous",
+          backgroundColor: colors["neutral-1"],
+        },
+        edge(colors["neutral-7-transparent"]),
+      ]}
+    >
+      {/* The legend of the curves: which line is the buoy's and which the model's. */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
+          <LineGlyph />
+          <Text size="xs" tone="muted">
+            {m.details_buoy()}
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
+          <LineGlyph dashed />
+          <Text size="xs" tone="muted">
+            {m.details_model()}
+          </Text>
+        </View>
+      </View>
+      {notes.map((note) => (
+        <Text key={note} size="s">
+          {note}
+        </Text>
+      ))}
+    </View>
   );
 }
