@@ -12,6 +12,7 @@ import {
   TrashIcon,
   WaveIcon,
   WindIcon,
+  XIcon,
 } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { type ReactNode, useState } from "react";
@@ -20,22 +21,25 @@ import { ScopedTheme } from "uniwind";
 
 import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/map/basemap";
 import { MapCredits } from "@/components/map/map-credits";
+import { RankBadge } from "@/components/account/rank-badge";
 import { UserDot } from "@/components/map/map-markers";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
+import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { edge } from "@/components/ui/edge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { type Feel, feel } from "@/components/ui/haptics";
-import { Row, RowTile, Section } from "@/components/ui/list";
+import { Row, RowTile, Section, SettingLine } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
 import { Segmented } from "@/components/ui/segmented";
 import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Card, Surface } from "@/components/ui/surface";
 import { Switch } from "@/components/ui/switch";
+import { Tabs } from "@/components/ui/tabs";
 import { Text, type TextStep } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { THEME_CHOICES, type ThemeChoice } from "@/lib/theme-choice";
@@ -146,13 +150,14 @@ function Type() {
 }
 
 function Buttons() {
-  const { space } = useTheme();
+  const { colors, space } = useTheme();
   const [saving, setSaving] = useState(false);
   return (
     <View style={{ gap: space.s }}>
       <Line>
         <Button>Primary</Button>
         <Button variant="secondary">Secondary</Button>
+        <Button variant="outline">Outline</Button>
         <Button variant="ghost">Ghost</Button>
         <Button variant="danger">Delete</Button>
       </Line>
@@ -169,6 +174,9 @@ function Buttons() {
           Press to load
         </Button>
         <Button disabled>Disabled</Button>
+        <Button variant="outline" disabled>
+          Disabled
+        </Button>
         <Button variant="danger" disabled>
           Disabled
         </Button>
@@ -187,7 +195,22 @@ function Buttons() {
         <IconButton icon={ListsIcon} label="Lists, unfolded" variant="surface" expanded />
         <IconButton icon={ListsIcon} label="A list shown alone" variant="inverse" />
       </Line>
-      <Note>A button with a name is the theme's one height; a round one is 48 points.</Note>
+      <Line>
+        <IconButton icon={ShareIcon} label="Share" variant="ghost" size="small" />
+        <IconButton
+          icon={ShareIcon}
+          label="Shared"
+          variant="ghost"
+          size="small"
+          iconColor={colors["color-1"]}
+        />
+        <IconButton icon={TrashIcon} label="Delete" variant="ghost" size="small" />
+        <IconButton icon={XIcon} label="Take out" variant="ghost" size="small" disabled />
+      </Line>
+      <Note>
+        A button with a name is the theme's one height; a round one is 48 points, and a small one
+        40, the web's icon-sm, for a button in a line of text.
+      </Note>
     </View>
   );
 }
@@ -243,6 +266,7 @@ function Chips() {
 function Segments() {
   const { space } = useTheme();
   const [unit, setUnit] = useState<"m" | "ft">("m");
+  const [part, setPart] = useState<"news" | "mine">("news");
   const [density, setDensity] = useState<"essentials" | "details" | "everything">("details");
   return (
     <View style={{ gap: space.s }}>
@@ -275,6 +299,18 @@ function Segments() {
         value={null}
         onChange={() => {}}
       />
+      <Tabs
+        label="Alerts"
+        options={[
+          { value: "news", label: "Notifications" },
+          { value: "mine", label: "My alerts" },
+        ]}
+        value={part}
+        onChange={setPart}
+      />
+      <Note>
+        Tabs are the web's underline: the parts of one screen. A segmented control chooses a value.
+      </Note>
       <Segmented
         label="Disabled"
         disabled
@@ -338,6 +374,7 @@ function Surfaces() {
 function Lists() {
   const { colors, space } = useTheme();
   const [push, setPush] = useState(true);
+  const [theme, setTheme] = useState<"system" | "light" | "dark">("system");
   const tell = useTell();
   return (
     <View style={{ gap: space.l }}>
@@ -367,6 +404,62 @@ function Lists() {
           onPress={() => tell({ title: "Signed out", tone: "success" })}
         />
       </Section>
+      <Section plain title="A plain section, the web's panel" lead="A line over its rows.">
+        <Row
+          title="A row that opens"
+          description="Its words stand in line with the title."
+          onPress={() => {}}
+        />
+        <Row
+          title="This phone"
+          badge="This device"
+          accessory={<IconButton icon={TrashIcon} label="Remove" variant="ghost" size="small" />}
+        />
+        <Row
+          title="Push on this phone"
+          description="The switch stands at the top of two lines."
+          note="It could not be turned on."
+          toggle={{ value: push, onChange: setPush }}
+        />
+        <Row
+          title="Waiting for its answer"
+          toggle={{ value: push, onChange: setPush, disabled: true }}
+        />
+        <Row title="Delete the account" description="One step in." destructive onPress={() => {}} />
+      </Section>
+      <Section plain title="Display">
+        <SettingLine label="Theme">
+          <Segmented<"system" | "light" | "dark">
+            label="Theme"
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: "system", label: "System" },
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+          />
+        </SettingLine>
+        <SettingLine label="A setting with a long name, whose choice goes under it">
+          <Segmented<"a" | "b" | "c">
+            label="Density"
+            value="b"
+            onChange={() => {}}
+            options={[
+              { value: "a", label: "Simple" },
+              { value: "b", label: "Classic" },
+              { value: "c", label: "Complete" },
+            ]}
+          />
+        </SettingLine>
+      </Section>
+      <Line>
+        <Badge>This device</Badge>
+        <Badge tone="success">Counted</Badge>
+        <Badge tone="warning">Waiting</Badge>
+        <Badge tone="error">Refused</Badge>
+        <RankBadge rank="cs" />
+      </Line>
       <Surface
         style={{
           flexDirection: "row",
@@ -600,7 +693,7 @@ export function DesignSystemScreen() {
       <Block title="Chip">
         <Chips />
       </Block>
-      <Block title="Segmented">
+      <Block title="Segmented and tabs">
         <Segments />
       </Block>
       <Block title="Switch">
@@ -609,7 +702,7 @@ export function DesignSystemScreen() {
       <Block title="Surface, card and separator">
         <Surfaces />
       </Block>
-      <Block title="Section and row">
+      <Block title="Section, row and badge">
         <Lists />
       </Block>
       <Block title="Empty, error and loading">

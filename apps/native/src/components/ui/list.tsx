@@ -1,11 +1,19 @@
 import { ChevronRightIcon } from "@repo/ui/icon";
-import { Children, Fragment, isValidElement, type ReactNode } from "react";
+import {
+  Children,
+  createContext,
+  Fragment,
+  isValidElement,
+  type ReactNode,
+  useContext,
+} from "react";
 import { Pressable, View } from "react-native";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { useTheme } from "@/lib/theme";
 import { light } from "@/theme/tokens";
 
+import { Badge } from "./badge";
 import { feel } from "./haptics";
 import { TARGET } from "./metrics";
 import { Separator } from "./separator";
@@ -17,6 +25,11 @@ import { Text } from "./text";
 // surface, each row a finger's height at least, with an icon on a tile, a title, a value, and a
 // chevron or a switch at its end. The section's title is the web's (`AccountPanel`'s), and a
 // line between two rows starts at the title, past the icon.
+//
+// A `plain` section is the web's panel instead, as a tab of the phone's bar draws one
+// (`AccountPanel`, `AlertSettings`): its title over rows that stand on the screen's own ground,
+// with no surface and no line between them, each row's words in line with the title, and a
+// press tinted in the theme's transparent third grey. Its rows read it from the section.
 
 /** The tile an icon stands on, and its corner in the landing's `Tile` proportion. */
 const TILE = 28;
@@ -24,6 +37,9 @@ const TILE_RADIUS = Math.round((TILE * 0.26) / 0.92);
 const GLYPH = 16;
 
 type Icon = GlyphIcon;
+
+/** Whether the rows stand in a plain section, the web's panel. */
+const Plain = createContext(false);
 
 /**
  * The tile a row's icon stands on, for a row the kit's `Row` cannot draw, as one that holds a
@@ -61,8 +77,12 @@ export function RowTile({
 
 type RowProps = {
   title: string;
+  /** A short word beside the title, on the theme's grey: the web's neutral `Badge`. */
+  badge?: string;
   /** A line under the title. */
   description?: string;
+  /** A line under the description, in the theme's red, that a screen reader is told of. */
+  note?: string;
   /** What the row is set to, at its end: a unit, a language. */
   value?: string;
   icon?: Icon;
@@ -71,8 +91,13 @@ type RowProps = {
   /** Opens something: a chevron is drawn at the end, unless `chevron` is false. */
   onPress?: () => void;
   chevron?: boolean;
-  /** A switch at the end, which the whole row is to a screen reader. */
-  toggle?: { value: boolean; onChange: (value: boolean) => void };
+  /**
+   * A switch at the end, which the whole row is to a screen reader. `disabled` holds the switch
+   * alone still, while what it began is under way, and leaves the row's words as they are.
+   */
+  toggle?: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean };
+  /** What stands at the row's end in place of a chevron: a button of its own. */
+  accessory?: ReactNode;
   /** What cannot be undone: in the theme's red. */
   destructive?: boolean;
   disabled?: boolean;
@@ -81,34 +106,55 @@ type RowProps = {
 
 export function Row({
   title,
+  badge,
   description,
+  note,
   value,
   icon,
   tint,
   onPress,
   chevron = true,
   toggle,
+  accessory,
   destructive = false,
   disabled = false,
   accessibilityHint,
 }: RowProps) {
-  const { colors, space } = useTheme();
+  const { colors, space, radius } = useTheme();
+  const plain = useContext(Plain);
   const titleColor = disabled
-    ? colors["neutral-6"]
+    ? plain
+      ? colors["neutral-7"]
+      : colors["neutral-6"]
     : destructive
       ? colors.error
       : colors["neutral-10"];
+  const switchDisabled = disabled || toggle?.disabled === true;
 
   const content = (
     <>
       {icon ? (
         <RowTile icon={icon} tint={destructive ? colors.error : tint} disabled={disabled} />
       ) : null}
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: titleColor }}>{title}</Text>
+      <View style={{ flex: 1, gap: plain ? space.xxs : 0 }}>
+        {badge ? (
+          <View
+            style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.xs }}
+          >
+            <Text style={{ color: titleColor, flexShrink: 1 }}>{title}</Text>
+            <Badge>{badge}</Badge>
+          </View>
+        ) : (
+          <Text style={{ color: titleColor }}>{title}</Text>
+        )}
         {description ? (
           <Text size="s" tone="muted">
             {description}
+          </Text>
+        ) : null}
+        {note ? (
+          <Text size="s" tone="danger" accessibilityLiveRegion="polite">
+            {note}
           </Text>
         ) : null}
       </View>
@@ -119,27 +165,48 @@ export function Row({
       ) : null}
       {toggle ? (
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <Switch value={toggle.value} onChange={toggle.onChange} disabled={disabled} />
+          <Switch value={toggle.value} onChange={toggle.onChange} disabled={switchDisabled} />
         </View>
+      ) : accessory ? (
+        accessory
       ) : onPress && chevron ? (
-        <Glyph icon={ChevronRightIcon} size={GLYPH} color={colors["neutral-6"]} />
+        <Glyph
+          icon={ChevronRightIcon}
+          size={GLYPH}
+          color={plain ? colors["neutral-7"] : colors["neutral-6"]}
+        />
       ) : null}
     </>
   );
 
-  const shape = {
-    minHeight: TARGET,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: space.s,
-    paddingHorizontal: space.m,
-    paddingVertical: space.xs,
-  };
+  // A plain row's words stand in line with its section's title: its room is laid outside it, as
+  // the web's `-mx-xs px-xs`, so that only its press shows it. A switch beside two lines stands
+  // at their top, as the web's settings have it.
+  const shape = plain
+    ? {
+        minHeight: TARGET,
+        flexDirection: "row" as const,
+        alignItems: toggle && (description || note) ? ("flex-start" as const) : ("center" as const),
+        gap: space.s,
+        marginHorizontal: -space.xs,
+        paddingHorizontal: space.xs,
+        borderRadius: radius.xs,
+        borderCurve: "continuous" as const,
+      }
+    : {
+        minHeight: TARGET,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: space.s,
+        paddingHorizontal: space.m,
+        paddingVertical: space.xs,
+      };
+  const pressedGround = plain ? colors["neutral-3-transparent"] : colors["neutral-3"];
 
   if (toggle) {
     // The switch takes its own touches; a screen reader reads the row as the switch, by its title.
     const flip = () => {
-      if (disabled) return;
+      if (switchDisabled) return;
       feel(toggle.value ? "toggle-off" : "toggle-on");
       toggle.onChange(!toggle.value);
     };
@@ -149,7 +216,7 @@ export function Row({
         accessibilityRole="switch"
         accessibilityLabel={description ? `${title}, ${description}` : title}
         accessibilityHint={accessibilityHint}
-        accessibilityState={{ checked: toggle.value, disabled }}
+        accessibilityState={{ checked: toggle.value, disabled: switchDisabled }}
         accessibilityActions={[{ name: "activate" }]}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === "activate") flip();
@@ -176,7 +243,7 @@ export function Row({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [shape, pressed ? { backgroundColor: colors["neutral-3"] } : null]}
+      style={({ pressed }) => [shape, pressed ? { backgroundColor: pressedGround } : null]}
     >
       {content}
     </Pressable>
@@ -186,15 +253,44 @@ export function Row({
 type SectionProps = {
   /** What the rows are about, over them. */
   title?: string;
+  /** A line over the rows, under the title, that says what they are: a plain section's. */
+  lead?: string;
   /** A line under the rows, that says what they do. */
   footer?: string;
+  /** The web's panel: rows on the screen's ground, with no surface and no line between them. */
+  plain?: boolean;
   children: ReactNode;
 };
 
-/** Rows grouped on the theme's surface, a line between two of them. */
-export function Section({ title, footer, children }: SectionProps) {
+/** Rows grouped on the theme's surface, a line between two of them; or, plain, the web's. */
+export function Section({ title, lead, footer, plain = false, children }: SectionProps) {
   const { space } = useTheme();
   const rows = Children.toArray(children).filter(isValidElement);
+
+  if (plain) {
+    return (
+      <Plain.Provider value>
+        <View style={{ gap: space.s }}>
+          {title ? (
+            <Text size="s" weight="medium" tone="muted" accessibilityRole="header">
+              {title}
+            </Text>
+          ) : null}
+          {lead ? (
+            <Text size="s" tone="muted">
+              {lead}
+            </Text>
+          ) : null}
+          {rows}
+          {footer ? (
+            <Text size="s" tone="muted">
+              {footer}
+            </Text>
+          ) : null}
+        </View>
+      </Plain.Provider>
+    );
+  }
 
   return (
     <View style={{ gap: space.xs }}>
@@ -226,6 +322,30 @@ export function Section({ title, footer, children }: SectionProps) {
           {footer}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * A setting on a line, as the web's `Line` in `AccountPanel`: its name, and what chooses it at
+ * the line's end, which goes under the name when the line is too narrow for both.
+ */
+export function SettingLine({ label, children }: { label: string; children: ReactNode }) {
+  const { space } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        columnGap: space.s,
+        rowGap: space.xxs,
+        minHeight: TARGET,
+      }}
+    >
+      <Text>{label}</Text>
+      {children}
     </View>
   );
 }

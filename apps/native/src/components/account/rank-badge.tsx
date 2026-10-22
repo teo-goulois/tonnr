@@ -1,8 +1,6 @@
 import type { Rank } from "@repo/client/viewer/types";
-import { View } from "react-native";
 
-import { Text } from "@/components/ui/text";
-import { useTheme } from "@/lib/theme";
+import { Badge } from "@/components/ui/badge";
 import { m } from "@/paraglide/messages";
 
 // The ranks an account reaches in the guides, by the initials of a tour and their names, as the
@@ -18,23 +16,9 @@ export const rankName = (rank: Rank) => RANKS[rank].name();
 /** A rank by its initials, as its badge writes it: "QS". */
 export const rankInitials = (rank: Rank) => RANKS[rank].short();
 
-/** The rank an account reached, by its initials on the theme's muted ground; its name is said. */
+/** The rank an account reached, by its initials on the theme's badge, as the web's; its name is said. */
 export function RankBadge({ rank }: { rank: Rank }) {
-  const { colors, space } = useTheme();
   return (
-    <View
-      accessible
-      accessibilityLabel={m.rank_label({ name: rankName(rank) })}
-      style={{
-        paddingHorizontal: space.xs,
-        paddingVertical: 2,
-        borderRadius: 9999,
-        backgroundColor: colors["neutral-3"],
-      }}
-    >
-      <Text size="xs" weight="medium" numeric dense>
-        {RANKS[rank].short()}
-      </Text>
-    </View>
+    <Badge accessibilityLabel={m.rank_label({ name: rankName(rank) })}>{RANKS[rank].short()}</Badge>
   );
 }

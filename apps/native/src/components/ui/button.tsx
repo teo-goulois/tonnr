@@ -13,7 +13,7 @@ import { Text } from "./text";
 // button with a name has the theme's one height, the body's line and a step of room above and
 // under it; a round one is 48 points. What is drawn in a color is drawn in the theme's.
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 type Icon = GlyphIcon;
 
 // HeroUI's press clips the button to its corners, so an edge is drawn inside it.
@@ -21,6 +21,13 @@ type Look = { background: string; label: string; edge?: string };
 
 function lookOf(variant: ButtonVariant, disabled: boolean, colors: TonnrTheme["colors"]): Look {
   if (disabled) {
+    if (variant === "outline") {
+      return {
+        background: "transparent",
+        label: colors["neutral-6"],
+        edge: colors["neutral-4-transparent"],
+      };
+    }
     return {
       background: variant === "ghost" ? "transparent" : colors["neutral-3"],
       label: colors["neutral-6"],
@@ -39,6 +46,9 @@ function lookOf(variant: ButtonVariant, disabled: boolean, colors: TonnrTheme["c
         label: colors["neutral-10"],
         edge: colors["cte-border"],
       };
+    // The web's: no ground, a line of the theme's fourth grey inside it.
+    case "outline":
+      return { background: "transparent", label: colors["neutral-10"], edge: colors["neutral-4"] };
     case "ghost":
       return { background: "transparent", label: colors["neutral-10"] };
     case "danger":
@@ -87,7 +97,8 @@ export function Button({
 
   return (
     <HeroButton
-      variant={variant}
+      // HeroUI's outline draws a border of its own: the theme's edge is drawn below instead.
+      variant={variant === "outline" ? "ghost" : variant}
       isDisabled={disabled || loading}
       onPress={onPress}
       accessibilityLabel={children}
@@ -147,10 +158,19 @@ type IconButtonProps = {
    * says: a surface button is then drawn pressed, in the theme's third grey, as the web's is.
    */
   expanded?: boolean;
+  /**
+   * `small` is the web's `icon-sm` under `lg`, 40 points with a 16-point icon, for a button that
+   * stands in a line of text, as a list's share and trash do: its target still reaches a finger's.
+   */
+  size?: "default" | "small";
+  /** The icon's color, where it says a state: a list that is shared, in the theme's accent. */
+  iconColor?: string;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
+
+const SMALL = 40;
 
 /** A round button with an icon and no name. */
 export function IconButton({
@@ -162,10 +182,14 @@ export function IconButton({
   loading = false,
   selected,
   expanded,
+  size = "default",
+  iconColor,
   accessibilityHint,
   style,
   testID,
 }: IconButtonProps) {
+  const diameter = size === "small" ? SMALL : ROUND;
+  const slop = Math.ceil(Math.max(0, TARGET - diameter) / 2);
   const { colors } = useTheme();
   const look: Look =
     variant === "surface"
@@ -188,19 +212,28 @@ export function IconButton({
 
   return (
     <HeroButton
-      variant={variant === "surface" ? "secondary" : variant === "inverse" ? "primary" : variant}
+      variant={
+        variant === "surface"
+          ? "secondary"
+          : variant === "inverse"
+            ? "primary"
+            : variant === "outline"
+              ? "ghost"
+              : variant
+      }
       isIconOnly
       isDisabled={disabled || loading}
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: disabled || loading, busy: loading, selected, expanded }}
+      hitSlop={slop}
       testID={testID}
       style={[
         {
-          width: ROUND,
-          height: ROUND,
-          borderRadius: ROUND / 2,
+          width: diameter,
+          height: diameter,
+          borderRadius: diameter / 2,
           backgroundColor: look.background,
           opacity: 1,
         },
@@ -211,7 +244,11 @@ export function IconButton({
       {loading ? (
         <Spinner size="sm" color={look.label} />
       ) : (
-        <Glyph icon={icon} size={20} color={look.label} />
+        <Glyph
+          icon={icon}
+          size={size === "small" ? 16 : 20}
+          color={disabled ? look.label : (iconColor ?? look.label)}
+        />
       )}
     </HeroButton>
   );

@@ -10,7 +10,9 @@ import { Text } from "./text";
 
 // What a screen says when what it asked could not be had: what failed, in the screen's own
 // words ("Your lists could not be loaded."), and a press that asks again. A screen reader is
-// told as it appears.
+// told as it appears. `plain` is the web's panel's: one muted line where the rows would be, at
+// the start, and the press that asks again under it as a ghost button, since a phone has no
+// reload.
 
 type ErrorStateProps = {
   title: string;
@@ -19,10 +21,36 @@ type ErrorStateProps = {
   onRetry?: () => void;
   /** Asking again: the button waits. */
   retrying?: boolean;
+  /** The web's panel's look: a muted line at the start, with no icon and no centring. */
+  plain?: boolean;
 };
 
-export function ErrorState({ title, description, onRetry, retrying = false }: ErrorStateProps) {
+export function ErrorState({
+  title,
+  description,
+  onRetry,
+  retrying = false,
+  plain = false,
+}: ErrorStateProps) {
   const { colors, space } = useTheme();
+  if (plain) {
+    return (
+      <View
+        accessibilityRole="alert"
+        accessibilityLiveRegion="polite"
+        style={{ alignItems: "flex-start", gap: space.xs }}
+      >
+        <Text size="s" tone="muted">
+          {description ? `${title} ${description}` : title}
+        </Text>
+        {onRetry ? (
+          <Button variant="ghost" onPress={onRetry} loading={retrying}>
+            {m.action_retry()}
+          </Button>
+        ) : null}
+      </View>
+    );
+  }
   return (
     <View
       accessibilityRole="alert"
