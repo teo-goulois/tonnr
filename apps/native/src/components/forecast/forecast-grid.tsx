@@ -23,6 +23,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import Svg, { Line } from "react-native-svg";
 
 import { type Palette, usePalette } from "@/components/account/display";
 import { useReadingLock } from "@/components/charts/reading";
@@ -836,15 +837,31 @@ export function ForecastGrid({
                           alignItems: "center",
                           gap: space.xxs,
                           paddingLeft: space.xs,
-                          borderBottomWidth: 1,
-                          borderStyle: "dashed",
-                          borderBottomColor: colors["neutral-6"],
                         }}
                       >
                         <LineGlyph dashed />
                         <Text size="xs" tone="muted" numberOfLines={1} dense>
                           {m.details_model()}
                         </Text>
+                        {/* The model's hours are underlined in dashes, drawn as a line of a chart
+                            is: iOS draws no dashed border on one side alone, and a line is drawn
+                            alike on both platforms. */}
+                        <Svg
+                          width={(columns.length - lastMeasured - 1) * COLUMN}
+                          height={1}
+                          pointerEvents="none"
+                          style={{ position: "absolute", left: 0, bottom: 0 }}
+                        >
+                          <Line
+                            x1={0}
+                            x2={(columns.length - lastMeasured - 1) * COLUMN}
+                            y1={0.5}
+                            y2={0.5}
+                            stroke={colors["neutral-6"]}
+                            strokeWidth={1}
+                            strokeDasharray="3 3"
+                          />
+                        </Svg>
                       </View>
                     )}
                   </View>
