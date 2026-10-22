@@ -22,7 +22,7 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 import { LinesLoading, TabFailure } from "./tab-states";
-import { VisitorPrompt } from "./visitor-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -141,7 +141,7 @@ function PlaceSessions({ place }: { place: SessionAt }) {
         nestedScrollEnabled
         contentContainerStyle={{ padding: space.m, paddingBottom: space.xxl }}
       >
-        <VisitorPrompt text={m.session_sign_in_prompt()} />
+        <AccountPrompt text={m.session_sign_in_prompt()} />
       </ScrollView>
     );
   }

@@ -19,7 +19,7 @@ import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { TabFailure } from "./tab-states";
-import { VisitorPrompt } from "./visitor-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -118,7 +118,7 @@ function BreakReports({ breakId }: { breakId: string }) {
               </Button>
             ) : null
           ) : (
-            <VisitorPrompt text={m.report_sign_in_prompt()} />
+            <AccountPrompt text={m.report_sign_in_prompt()} />
           )}
         </View>
       }

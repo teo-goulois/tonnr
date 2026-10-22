@@ -14,7 +14,7 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { LinesLoading, TabFailure } from "./tab-states";
-import { VisitorPrompt } from "./visitor-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -49,7 +49,7 @@ export function AlertsTab({ kind, id }: PlaceTabProps) {
   let content: ReactNode;
   if (!signedIn && !pending) {
     // A visitor's sheet has no alerts' tab: this is seen for a moment, as an account signs out.
-    content = <VisitorPrompt text={m.alerts_sign_in_prompt()} />;
+    content = <AccountPrompt text={m.alerts_sign_in_prompt()} />;
   } else if (pending || isPending) {
     // As the web's panel of a spot: two lines to come, and what failed in a line with a retry.
     content = <LinesLoading />;
