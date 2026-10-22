@@ -1,8 +1,8 @@
 import type { GuideLineName } from "@repo/client/guides/types";
 import type { GuideOwn } from "@repo/client/viewer/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
-import { View } from "react-native";
+import { type ReactNode, useEffect, useState } from "react";
+import { AccessibilityInfo, Platform, View } from "react-native";
 
 import { useOpenPage } from "@/components/account/open-page";
 import { UsernameForm } from "@/components/account/username-form";
@@ -109,6 +109,10 @@ function License() {
  * the web's field says it: a toast may stand behind the sheet.
  */
 function Refusal({ why }: { why: string | undefined }) {
+  // Android reads a live region as it comes; iOS reads none, so it is told the words.
+  useEffect(() => {
+    if (why && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(why);
+  }, [why]);
   if (!why) return null;
   return (
     <Text size="s" tone="danger" accessibilityRole="alert" accessibilityLiveRegion="polite">
