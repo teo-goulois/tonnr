@@ -43,6 +43,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs } from "@/components/ui/tabs";
 import { Text, type TextStep } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { THEME_CHOICES, type ThemeChoice } from "@/lib/theme-choice";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -379,6 +380,61 @@ function TabRows() {
       />
       <Note>
         Wider than the phone, a row scrolls to the screen's edges and opens on the tab chosen.
+      </Note>
+    </View>
+  );
+}
+
+function Toggles() {
+  const { space } = useTheme();
+  const [crowd, setCrowd] = useState<string | null>("some");
+  const [bottom, setBottom] = useState<string[]>(["sand"]);
+  const crowds = [
+    { value: "few", label: "Few people" },
+    { value: "some", label: "Some" },
+    { value: "many", label: "Crowded" },
+  ];
+  const bottoms = [
+    { value: "sand", label: "Sand" },
+    { value: "rock", label: "Rock" },
+    { value: "reef", label: "Reef" },
+    { value: "pebbles", label: "Pebbles" },
+  ];
+  return (
+    <View style={{ gap: space.s }}>
+      <ToggleGroup label="How crowded">
+        {crowds.map((item) => (
+          <Toggle
+            key={item.value}
+            label={item.label}
+            pressed={crowd === item.value}
+            onPress={() => setCrowd((before) => (before === item.value ? null : item.value))}
+          />
+        ))}
+      </ToggleGroup>
+      <ToggleGroup label="Bottom">
+        {bottoms.map((item) => (
+          <Toggle
+            key={item.value}
+            label={item.label}
+            pressed={bottom.includes(item.value)}
+            onPress={() =>
+              setBottom((before) =>
+                before.includes(item.value)
+                  ? before.filter((one) => one !== item.value)
+                  : [...before, item.value],
+              )
+            }
+          />
+        ))}
+      </ToggleGroup>
+      <ToggleGroup label="Disabled">
+        <Toggle label="In" pressed disabled onPress={() => {}} />
+        <Toggle label="Out" pressed={false} disabled onPress={() => {}} />
+      </ToggleGroup>
+      <Note>
+        One answer, pressed again to take it back, then several words: a guide's answers and its
+        words, as the web's outlined toggles.
       </Note>
     </View>
   );
@@ -757,6 +813,9 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Tabs">
         <TabRows />
+      </Block>
+      <Block title="Toggle">
+        <Toggles />
       </Block>
       <Block title="Switch">
         <Switches />
