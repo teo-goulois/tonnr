@@ -1,11 +1,11 @@
 import { STYLE_URLS } from "@repo/client/map/view";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { BASEMAP_ATTRIBUTION, readBasemap } from "./basemap";
+import { BASEMAP_ATTRIBUTION, readBasemap, readBasemapTiles } from "./basemap";
 
 // The basemap's style and the description of its tiles, asked of OpenFreeMap once for each theme
-// and kept while the app runs: the map, the sheets that add or move a spot and the credits read
-// one answer.
+// and kept while the app runs: the map, the sheets that add or move a spot, the land drawn over
+// the sea and the credits read one answer.
 
 async function json(address: string): Promise<unknown> {
   const response = await fetch(address);
@@ -33,10 +33,10 @@ export function useBasemap(scheme: "light" | "dark") {
   });
 }
 
-/** Whose data the basemap draws, as its tiles say it in HTML, or as OpenFreeMap wrote it. */
-export function useBasemapAttribution(scheme: "light" | "dark") {
+// The description of the basemap's tiles, which says whose data they are and where they are.
+function useTilesDescription(scheme: "light" | "dark") {
   const tiles = useBasemap(scheme).data?.tiles;
-  const description = useQuery({
+  return useQuery({
     queryKey: ["basemap-tiles", tiles],
     queryFn: () => json(tiles!),
     enabled: tiles !== undefined,
@@ -44,6 +44,19 @@ export function useBasemapAttribution(scheme: "light" | "dark") {
     gcTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });
+}
+
+/** Whose data the basemap draws, as its tiles say it in HTML, or as OpenFreeMap wrote it. */
+export function useBasemapAttribution(scheme: "light" | "dark") {
+  const description = useTilesDescription(scheme);
   const attribution = (description.data as { attribution?: unknown } | undefined)?.attribution;
   return typeof attribution === "string" ? attribution : BASEMAP_ATTRIBUTION;
+}
+
+/**
+ * Where the basemap's vector tiles are, which the land drawn over the sea is drawn from: none
+ * until their description comes, or when it says nothing of them.
+ */
+export function useBasemapTiles(scheme: "light" | "dark") {
+  return readBasemapTiles(useTilesDescription(scheme).data);
 }

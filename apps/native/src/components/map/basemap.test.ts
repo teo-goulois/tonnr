@@ -1,7 +1,13 @@
 import { BASEMAP_NAME_WIDTH } from "@repo/client/map/view";
 import { describe, expect, it } from "vitest";
 
-import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits, readBasemap } from "./basemap";
+import {
+  BASEMAP_ATTRIBUTION,
+  creditParts,
+  joinedCredits,
+  readBasemap,
+  readBasemapTiles,
+} from "./basemap";
 
 // The layers of OpenFreeMap's positron that are read, cut down to what is read of them.
 const positron = {
@@ -110,5 +116,26 @@ describe("the map's credits", () => {
       { text: " | " },
       { text: "OpenFreeMap", href: "https://openfreemap.org" },
     ]);
+  });
+});
+
+describe("the description of the basemap's tiles", () => {
+  it("says where they are and how close they are drawn", () => {
+    expect(
+      readBasemapTiles({
+        tiles: ["https://tiles.openfreemap.org/planet/20261015/{z}/{x}/{y}.pbf"],
+        maxzoom: 14,
+        attribution: "OpenFreeMap",
+      }),
+    ).toEqual({
+      tiles: "https://tiles.openfreemap.org/planet/20261015/{z}/{x}/{y}.pbf",
+      maxZoom: 14,
+    });
+  });
+
+  it("is none when it says neither", () => {
+    expect(readBasemapTiles({ attribution: "OpenFreeMap" })).toBeUndefined();
+    expect(readBasemapTiles({ tiles: [], maxzoom: 14 })).toBeUndefined();
+    expect(readBasemapTiles(null)).toBeUndefined();
   });
 });

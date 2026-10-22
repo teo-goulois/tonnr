@@ -8,12 +8,21 @@ import {
   type MapRef,
   Marker,
   type PressEvent,
-  RasterDEMSource,
+  RasterSource,
 } from "@maplibre/maplibre-react-native";
-import { SEA_ARROW } from "@repo/client/map/sea";
+import { LAND_TILE_SIZE } from "@repo/client/map/land";
+import { SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
 import { FINGER_REACH, fitPadding, fitted, MAX_ZOOM, type Padding } from "@repo/client/map/view";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
-import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  type Ref,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type AccessibilityActionEvent,
   type AccessibilityActionInfo,
@@ -54,9 +63,10 @@ import {
 import type { MapLayers } from "./layers";
 import { mapImages } from "./map-images";
 import { UserDot } from "./map-markers";
-import { useBasemap } from "./use-basemap";
+import { useBasemap, useBasemapTiles } from "./use-basemap";
 import { type MapState, rememberMapState } from "./map-state";
-import { SEA_ENCODING, SEA_MAX_ZOOM, seaReliefColor, seaTileUrl } from "./sea";
+import { landTiles, seaTiles } from "./drawn-tiles";
+import { drawTiles, seaPalette } from "./tile-painter";
 import { arrowFeatures, type SeaArrow } from "./sea-arrows";
 import {
   boundsAround,
@@ -147,6 +157,13 @@ const RING = 5;
 const MOVE_MS = 600;
 // No room kept at any edge: Android keeps the room a move was given for the moves after it.
 const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
+// How long one moment of the sea takes to fade into the next, as on the web.
+const SEA_FADE_MS = 250;
+// The opacity of a moment of the sea whose tiles come while another is in view. MapLibre Native
+// loads no tile of a layer it does not draw, so it is drawn, too faint to be seen.
+const SEA_COMING = 0.01;
+// How long the coming moment of the sea is waited for, at most.
+const SEA_WAIT_MS = 3000;
 
 const get = (property: string) => ["get", property] as unknown as Expression;
 const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
@@ -281,10 +298,75 @@ export function StationMap({
     else onMapPress?.(lngLat);
   };
 
-  const relief = useMemo(
-    () => (sea ? seaReliefColor(sea.encoding.metersByLevel) : undefined),
+  // The sea and the land over it are tiles the app draws (decision 077).
+  useEffect(drawTiles, []);
+  const seaPaletteName = useMemo(
+    () => (sea ? seaPalette(sea.encoding.metersByLevel) : undefined),
     [sea],
   );
+  const basemapTiles = useBasemapTiles(scheme);
+  const landColor = basemap.data?.land;
+  const waterColor = basemap.data?.water;
+  const land = useMemo(
+    () =>
+      basemapTiles && landColor && waterColor
+        ? {
+            tiles: landTiles(basemapTiles.tiles, { land: landColor, water: waterColor }),
+            maxZoom: basemapTiles.maxZoom,
+          }
+        : undefined,
+    [basemapTiles, landColor, waterColor],
+  );
+  // Each moment of the sea is a source of its own. The one in view stays until the next has its
+  // tiles, then one fades into the other, so that the sea never goes blank between two moments.
+  // MapLibre says once a style is loaded that the map is drawn, and then only frame by frame: the
+  // coming moment is shown at the first frame drawn whole after one that waited for tiles.
+  const seaMoment = seaTime?.toISOString();
+  const [seaState, setSeaState] = useState<{ shown?: string; going?: string }>({
+    shown: seaMoment,
+  });
+  const seaOn = Boolean(layers.sea && sea && seaTime && seaPaletteName && land);
+  // The first moment is shown at once, and a sea not drawn shows the moment in force once it is.
+  if (
+    (!seaOn || seaState.shown === undefined) &&
+    (seaState.shown !== seaMoment || seaState.going !== undefined)
+  ) {
+    setSeaState({ shown: seaMoment });
+  }
+  const { shown: seaShown, going: seaGoing } = seaState;
+  const comingSea = seaOn && seaMoment !== seaShown ? seaMoment : undefined;
+  const comesBack = comingSea !== undefined && comingSea === seaGoing;
+  const seaMoments = [...new Set([seaGoing, seaShown, comingSea])].filter(
+    (moment): moment is string => moment !== undefined,
+  );
+  const revealSea = useCallback(
+    (moment: string) =>
+      setSeaState((state) =>
+        state.shown === moment ? state : { shown: moment, going: state.shown },
+      ),
+    [],
+  );
+  // The moment whose tiles come, and whether a frame was drawn without all of them.
+  const awaitedSea = useRef<{ moment: string; loading: boolean } | undefined>(undefined);
+  useEffect(() => {
+    awaitedSea.current = undefined;
+    if (comingSea === undefined) return;
+    // The moment that fades out still has its tiles.
+    if (comesBack) {
+      revealSea(comingSea);
+      return;
+    }
+    awaitedSea.current = { moment: comingSea, loading: false };
+    // A moment whose tiles do not come does not hold the sea back for ever.
+    const timer = setTimeout(() => revealSea(comingSea), SEA_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [comingSea, comesBack, revealSea]);
+  // Gone once it has faded.
+  useEffect(() => {
+    if (seaGoing === undefined) return;
+    const timer = setTimeout(() => setSeaState((state) => ({ shown: state.shown })), SEA_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [seaGoing]);
   const stationData = useMemo(() => stationFeatures(stations), [stations]);
   const windData = useMemo(() => windFeatures(wind), [wind]);
   const breakData = useMemo(() => placeFeatures(breaks, "break"), [breaks]);
@@ -323,6 +405,15 @@ export function StationMap({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         size.current = { width, height };
+      }}
+      onDidFinishRenderingFrame={() => {
+        if (awaitedSea.current) awaitedSea.current.loading = true;
+      }}
+      onDidFinishRenderingFrameFully={() => {
+        const awaited = awaitedSea.current;
+        if (!awaited?.loading) return;
+        awaitedSea.current = undefined;
+        revealSea(awaited.moment);
       }}
       onDidFinishLoadingMap={() => {
         waitingFit.current?.();
@@ -372,27 +463,53 @@ export function StationMap({
       />
       <Images images={images} />
 
-      {/* The sea colored by its height, read as a relief over the water and under the land's
-          features, the roads and the names. */}
-      {layers.sea && sea && seaTime && relief ? (
-        <RasterDEMSource
-          // A new moment is a new source: the map asks for its tiles.
-          key={seaTime.toISOString()}
-          id="sea"
-          tiles={[seaTileUrl(sea.tileUrlTemplate, seaTime)]}
-          tileSize={256}
-          minzoom={sea.minZoom}
-          maxzoom={Math.min(sea.maxZoom, SEA_MAX_ZOOM)}
-          encoding={SEA_ENCODING}
-          attribution={sea.source.attribution}
-        >
-          <Layer
-            id="sea-relief"
-            type="color-relief"
-            afterId="water"
-            paint={{ "color-relief-color": relief as never, "color-relief-opacity": 1 }}
-          />
-        </RasterDEMSource>
+      {/* The sea colored by its height and spread to the shore, under the land, which is drawn
+          again over it from the basemap's own tiles so that the coast stays sharp, and under the
+          land's features, the roads and the names. Without the land the sea is not drawn: it
+          would cover the land. */}
+      {seaOn && sea && seaPaletteName && land ? (
+        <>
+          <RasterSource
+            // Another theme's land is another source.
+            key={land.tiles}
+            id={`land:${land.tiles}`}
+            tiles={[land.tiles]}
+            tileSize={LAND_TILE_SIZE}
+            maxzoom={land.maxZoom}
+          >
+            <Layer
+              id={`land:${land.tiles}`}
+              type="raster"
+              afterId="water"
+              // The land appears at once: while it faded in, the sea's colors would show through.
+              paint={{ "raster-fade-duration": 0 }}
+            />
+          </RasterSource>
+          {seaMoments.map((moment) => (
+            <RasterSource
+              key={moment}
+              id={`sea:${moment}`}
+              tiles={[seaTiles(sea.tileUrlTemplate, new Date(moment), seaPaletteName)]}
+              tileSize={256}
+              minzoom={sea.minZoom}
+              maxzoom={Math.min(sea.maxZoom, SEA_MAX_ZOOM)}
+              attribution={sea.source.attribution}
+            >
+              <Layer
+                id={`sea:${moment}`}
+                type="raster"
+                beforeId={`land:${land.tiles}`}
+                paint={{
+                  "raster-resampling": "linear",
+                  // The first moment fades in as its tiles come, and the next into the one before.
+                  "raster-fade-duration": seaMoments.length > 1 ? 0 : SEA_FADE_MS,
+                  "raster-opacity": moment === seaShown ? 1 : moment === seaGoing ? 0 : SEA_COMING,
+                  "raster-opacity-transition": { duration: SEA_FADE_MS, delay: 0 },
+                }}
+              />
+            </RasterSource>
+          ))}
+        </>
       ) : null}
       {layers.arrows && arrows.length > 0 ? (
         <GeoJSONSource id="sea-arrows" data={arrowData}>

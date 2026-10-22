@@ -67,6 +67,18 @@ export function readBasemap(json: unknown): Basemap | undefined {
   };
 }
 
+/** Where the basemap's vector tiles are, and the closest zoom they are drawn at. */
+export type BasemapTiles = { tiles: string; maxZoom: number };
+
+/** Reads the description of the basemap's tiles, TileJSON, or nothing when it says neither. */
+export function readBasemapTiles(json: unknown): BasemapTiles | undefined {
+  if (typeof json !== "object" || json === null) return undefined;
+  const { tiles, maxzoom } = json as { tiles?: unknown; maxzoom?: unknown };
+  const first: unknown = Array.isArray(tiles) ? tiles[0] : undefined;
+  if (typeof first !== "string" || typeof maxzoom !== "number") return undefined;
+  return { tiles: first, maxZoom: maxzoom };
+}
+
 /** A piece of the map's credits: words, which lead somewhere when they have an address. */
 export type CreditPart = { text: string; href?: string };
 

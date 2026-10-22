@@ -1,0 +1,8 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MapTilesModule"],
+    "appDelegateSubscribers": ["MapTilesAppDelegate"]
+  },
+  "android": { "modules": ["app.tonnr.maptiles.MapTilesModule"] }
+}

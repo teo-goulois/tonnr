@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.tonnr'
+version = '1.0.0'
+
+android {
+  namespace "app.tonnr.maptiles"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // MapLibre fetches through OkHttp, which React Native and MapLibre already bring: the module
+  // compiles against it and ships none of its own.
+  compileOnly 'com.squareup.okhttp3:okhttp:4.12.0'
+}
