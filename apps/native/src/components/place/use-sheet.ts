@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { opensRaised } from "@/components/map/place-route";
 import { hideSheet, showSheet } from "@/components/map/sheet-state";
 
-import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent } from "./fold";
+import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent, sheetDetentOf } from "./fold";
 
 // What a place's sheet knows of itself as the platform's sheet: whether it is at rest, so that its
 // charts draw (the web's `useChartTurn`), and how tall it stands while low, from the summary of
@@ -14,10 +14,18 @@ import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent } from "./fol
 
 type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
-// The height each sheet stands at, and its low height, by its route: a sheet that a press on the
-// map gives another place keeps them, though the place is drawn anew in it.
+// The height each sheet stands at, and its low height, by its route: a sheet given another place,
+// by a press on the map or from anywhere else, keeps them, though the place is drawn anew in it.
+// They are forgotten once the route has left.
 const detents = new Map<string, number>();
 const lows = new Map<string, number>();
+
+/** Forgets what a route's sheet stood at, once the route is no longer among its navigator's. */
+function forgetLeft(navigation: Navigation, route: string) {
+  if (navigation.getState()?.routes.some((one) => one.key === route)) return;
+  detents.delete(route);
+  lows.delete(route);
+}
 
 /**
  * Whether the sheet has come to rest, and at which height: its opening is over, and no finger
@@ -27,9 +35,10 @@ export function useSheetState() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute();
   const [atRest, setAtRest] = useState(false);
-  // Raised as it opens, unless it was pressed on the map (`opensRaised`).
-  const [detent, setDetent] = useState(
-    () => detents.get(route.key) ?? (opensRaised(route.params) ? 1 : 0),
+  // Raised as it opens, unless it was pressed on the map (`opensRaised`), and where it stands once
+  // it is given another place, whose parameters say nothing of it.
+  const [detent, setDetent] = useState(() =>
+    sheetDetentOf(detents, route.key, opensRaised(route.params)),
   );
   useEffect(() => {
     const opened = navigation.addListener("transitionEnd", (event) => {
@@ -46,6 +55,8 @@ export function useSheetState() {
       opened();
       moved();
       clearTimeout(timer);
+      // A sheet drawn anew for another place is still the route's.
+      forgetLeft(navigation, route.key);
     };
   }, [navigation, route.key]);
   return { atRest, detent };

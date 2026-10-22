@@ -43,6 +43,18 @@ export function lowDetent(foldBottom: number | undefined, screenHeight: number, 
   return Math.min(Math.ceil((height / largest) * 100) / 100, RAISED - 0.01);
 }
 
+/**
+ * The height a sheet of a route stands at as it is drawn, 1 raised and 0 low: the one it was last
+ * told, or the one it opened at, which is kept for the route from then on. A sheet given another
+ * place is drawn anew with that place's parameters and still stands where it stood: the platform
+ * sets the height a sheet opens at once, and says nothing of a height until a finger moves it.
+ */
+export function sheetDetentOf(known: Map<string, number>, route: string, opensRaised: boolean) {
+  const detent = known.get(route) ?? (opensRaised ? 1 : 0);
+  known.set(route, detent);
+  return detent;
+}
+
 /** Whether a new low height is worth moving the sheet for: a few points are not. */
 export function isWorthMoving(from: number, to: number) {
   return Math.abs(from - to) >= 0.02;

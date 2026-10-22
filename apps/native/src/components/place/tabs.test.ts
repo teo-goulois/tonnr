@@ -8,6 +8,7 @@ import {
   largestSheet,
   lowDetent,
   RAISED,
+  sheetDetentOf,
 } from "./fold";
 import { isPlaceKind, tabFrom, tabsOf } from "./tabs";
 
@@ -94,5 +95,25 @@ describe("the low height of a place's sheet", () => {
   it("moves the sheet for no change of a few points", () => {
     expect(isWorthMoving(0.45, 0.46)).toBe(false);
     expect(isWorthMoving(0.45, 0.4)).toBe(true);
+  });
+});
+
+describe("the height a place's sheet stands at", () => {
+  it("is the one it opened at, raised or low", () => {
+    expect(sheetDetentOf(new Map(), "a", true)).toBe(1);
+    expect(sheetDetentOf(new Map(), "a", false)).toBe(0);
+  });
+
+  it("stays the one it opened at when the sheet is given another place", () => {
+    const known = new Map<string, number>();
+    // Pressed on the map, low; then given a place found by the search, whose address says raised.
+    expect(sheetDetentOf(known, "a", false)).toBe(0);
+    expect(sheetDetentOf(known, "a", true)).toBe(0);
+    expect(sheetDetentOf(known, "b", true)).toBe(1);
+  });
+
+  it("is the one it was last moved to", () => {
+    const known = new Map([["a", 1]]);
+    expect(sheetDetentOf(known, "a", false)).toBe(1);
   });
 });
