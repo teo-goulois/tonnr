@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isTabPanel, tabOf, tabSearch } from "./phone-nav";
+import { isTabPanel, tabOf, tabSearch, unreadBadge } from "./phone-nav";
 
 describe("tabOf", () => {
   it("shows the map when the address names no panel", () => {
@@ -56,5 +56,18 @@ describe("tabSearch", () => {
       alerts: undefined,
       settings: undefined,
     });
+  });
+});
+
+describe("unreadBadge", () => {
+  it("says nothing when everything was read", () => {
+    expect(unreadBadge(0)).toBeUndefined();
+  });
+
+  it("counts up to nine, then says 9+", () => {
+    expect(unreadBadge(3)).toBe("3");
+    expect(unreadBadge(9)).toBe("9");
+    expect(unreadBadge(10)).toBe("9+");
+    expect(unreadBadge(57)).toBe("9+");
   });
 });

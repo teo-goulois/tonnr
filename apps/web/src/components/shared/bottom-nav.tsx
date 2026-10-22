@@ -16,7 +16,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 
 import { openCreateMenu } from "@/lib/create-menu";
-import { type PhoneTab, tabOf, tabSearch } from "@/lib/phone-nav";
+import { type PhoneTab, tabOf, tabSearch, unreadBadge } from "@/lib/phone-nav";
 import { m } from "@/paraglide/messages.js";
 
 import { useUnreadAlerts } from "./use-unread-alerts";
@@ -121,7 +121,7 @@ export function BottomNav({ className }: { className?: string }) {
                       "shadow-[0_0_0_1.5px_var(--neutral-1)] group-aria-[current=page]:shadow-[0_0_0_1.5px_var(--neutral-3)]",
                     )}
                   >
-                    {count > 9 ? "9+" : count}
+                    {unreadBadge(count)}
                   </span>
                 )}
               </span>

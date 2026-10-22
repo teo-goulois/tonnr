@@ -46,3 +46,12 @@ export function tabSearch<Search extends AppSearch>(tab: PhoneTab, previous: Sea
     panel: tab,
   };
 }
+
+/**
+ * What the bar's alerts tab says of what was not read: nothing at none, the count up to nine,
+ * then "9+", which a badge of the bar has room for.
+ */
+export function unreadBadge(count: number): string | undefined {
+  if (count <= 0) return undefined;
+  return count > 9 ? "9+" : String(count);
+}

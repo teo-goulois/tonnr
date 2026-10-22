@@ -1,7 +1,11 @@
 import { Stack } from "expo-router";
 
+import { tabStackOptions } from "@/components/ui/stack-options";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
+
+/** A step opened by a link stands over the tab's first screen, which its back goes to. */
+export const unstable_settings = { anchor: "index" };
 
 /**
  * The tab of the account: who is signed in, and the settings, one step into it each (decision
@@ -9,18 +13,9 @@ import { m } from "@/paraglide/messages";
  * opens on a large title, as a phone's settings do, and each step has its title in the bar.
  */
 export default function Layout() {
-  const { colors, fonts } = useTheme();
+  const theme = useTheme();
   return (
-    <Stack
-      screenOptions={{
-        headerTransparent: false,
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: colors["cte-canvas"] },
-        headerTitleStyle: { fontFamily: fonts.medium },
-        headerLargeTitleStyle: { fontFamily: fonts.heavy },
-        headerBackButtonDisplayMode: "minimal",
-      }}
-    >
+    <Stack screenOptions={tabStackOptions(theme)}>
       <Stack.Screen name="index" options={{ title: m.account_menu(), headerLargeTitle: true }} />
     </Stack>
   );
