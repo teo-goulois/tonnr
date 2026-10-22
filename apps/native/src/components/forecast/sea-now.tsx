@@ -23,6 +23,9 @@ type Judged = Verdict["fits"][number];
 type Judgement = "fits" | "off" | undefined;
 
 const NO_BREAK = "\u00a0";
+// Words held on one line: their spaces do not break, nor do their hyphens, after which a word
+// joiner stands, which draws nothing ("ouest-nord-ouest", "de secteur", "a encher").
+const held = (words: string) => words.replaceAll(" ", NO_BREAK).replaceAll("-", "-\u2060");
 
 const PART_NAMES: Record<Judged, () => string> = {
   swell: m.page_now_part_swell,
@@ -81,14 +84,14 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
           ? "off"
           : undefined;
   // A direction is never cut at the end of a line: no-break spaces hold its word, its arrow and
-  // its name together, as the web's `whitespace-nowrap` does.
+  // its name together, and its name's hyphens hold too, as the web's `whitespace-nowrap` does.
   const direction = (degrees: number) => (
     <>
-      {m.alert_from()}
+      {held(m.alert_from())}
       {NO_BREAK}
       <DirectionArrow fromDegrees={degrees} size={13} color={colors["neutral-10"]} />
       {NO_BREAK}
-      {compassName(degrees).replaceAll(" ", NO_BREAK)}
+      {held(compassName(degrees))}
     </>
   );
 
@@ -173,7 +176,7 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
                   color={colors["neutral-10"]}
                 />
                 {NO_BREAK}
-                {tide.trend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling()}
+                {held(tide.trend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling())}
               </Part>
               {tide.next && (
                 <>
