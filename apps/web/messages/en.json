@@ -1978,7 +1978,6 @@
   "native_locate_denied": "{name} cannot see where you are. Allow it in Settings.",
   "native_open_settings": "Open Settings",
   "native_search_count": "Results: {count}.",
-  "native_spot_move_hint": "Move the map, or press it, to put the marker where the wave breaks.",
   "native_spot_near_break": "There is already a surf break here: {name}.",
   "native_spot_from_break": "Use this break",
   "native_spot_marker": "Where the spot goes",

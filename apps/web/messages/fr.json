@@ -1978,7 +1978,6 @@
   "native_locate_denied": "{name} ne peut pas voir où tu es. Autorise-le dans les réglages.",
   "native_open_settings": "Ouvrir les réglages",
   "native_search_count": "Résultats : {count}.",
-  "native_spot_move_hint": "Déplace la carte, ou appuie dessus, pour mettre le marqueur là où la vague casse.",
   "native_spot_near_break": "Il y a déjà un spot de surf ici : {name}.",
   "native_spot_from_break": "Partir de ce spot",
   "native_spot_marker": "L'endroit du spot",

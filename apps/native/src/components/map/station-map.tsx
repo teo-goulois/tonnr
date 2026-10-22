@@ -9,6 +9,7 @@ import {
   Marker,
   type PressEvent,
   RasterSource,
+  ViewAnnotation,
 } from "@maplibre/maplibre-react-native";
 import { LAND_TILE_SIZE } from "@repo/client/map/land";
 import {
@@ -85,6 +86,7 @@ import { type MapState, rememberMapState } from "./map-state";
 import { landTiles, seaTiles } from "./drawn-tiles";
 import { drawTiles, seaPalette } from "./tile-painter";
 import { arrowFeatures, type SeaArrow } from "./sea-arrows";
+import { SPOT_PIN_FOOT, SpotPin } from "./spot-pin";
 import {
   boundsAround,
   type Bounds,
@@ -94,6 +96,7 @@ import {
   readView,
   STYLE_URLS,
   VIEW_KEY,
+  wrapLongitude,
   writeView,
 } from "./view";
 
@@ -150,6 +153,11 @@ type StationMapProps = {
   arrows: readonly SeaArrow[];
   // Where the reader was found, once they asked.
   userLocation: MapPoint | null;
+  // The spot being added, whose marker stands there and is dragged elsewhere, and what a screen
+  // reader says of it.
+  draft?: MapPoint | null;
+  draftLabel?: string;
+  onDraftMoved?: (point: MapPoint) => void;
   accessibilityLabel: string;
   accessibilityHint: string;
   // What a screen reader may do with the map besides reading it, and what that does.
@@ -215,6 +223,9 @@ export function StationMap({
   seaTime,
   arrows,
   userLocation,
+  draft = null,
+  draftLabel,
+  onDraftMoved,
   accessibilityLabel,
   accessibilityHint,
   accessibilityValue,
@@ -887,6 +898,22 @@ export function StationMap({
             onLayout={(event) => setPillWidth(event.nativeEvent.layout.width)}
           />
         </Marker>
+      ) : null}
+      {/* The spot being added: a pin to take hold of and drag, whose foot is the point. */}
+      {draft ? (
+        <ViewAnnotation
+          id="draft"
+          lngLat={[draft.longitude, draft.latitude]}
+          anchor="bottom"
+          offset={[0, SPOT_PIN_FOOT / 2]}
+          draggable
+          onDragEnd={(event) => {
+            const [longitude, latitude] = event.nativeEvent.lngLat;
+            onDraftMoved?.({ latitude, longitude: wrapLongitude(longitude) });
+          }}
+        >
+          <SpotPin label={draftLabel} />
+        </ViewAnnotation>
       ) : null}
       {userLocation ? (
         <Marker

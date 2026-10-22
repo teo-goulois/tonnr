@@ -8,7 +8,6 @@ import { Field } from "@/components/auth/field";
 import { DEFAULT_LAYERS } from "@/components/map/layers";
 import { type Heading, NAME_MOST, nudged, writePoint } from "@/components/map/new-spot";
 import { BREAK_LIMIT, MINUTE_MS, spotsQuery } from "@/components/map/queries";
-import { SpotPin } from "@/components/map/spot-pin";
 import { StationMap, type StationMapHandle } from "@/components/map/station-map";
 import {
   bboxOf,
@@ -30,12 +29,12 @@ import { usePlaceRecord } from "./use-place";
 import { useSpotActions } from "./use-spot";
 
 // Renaming a spot of the account's own and moving it, in one sheet, as the web's `SpotEditor`
-// does both with the marker of `NewSpotPanel`: its name in a field, and here the marker of a new
-// spot, `SpotPin`, in the middle of the map, which moves under it; a press on the map brings the
-// point pressed there, and a screen reader moves it a step at a time, all as the new spot's sheet
-// does. Saved, the name and the point go together. A name left empty is said under its field, as
-// the web says it. Cancel, a swipe or the back of Android ask before a spot renamed or moved is
-// left as it was. Decision 006.
+// does both with the marker of `NewSpotPanel`: its name in a field, and the marker of a new spot,
+// which a finger drags, a press on the map brings to the point pressed, and a screen reader moves a
+// step at a time, all as the new spot's sheet does. The spot itself is drawn by its marker alone
+// while it moves. Saved, the name and the point go together. A name left empty is said under its
+// field, as the web says it. Cancel, a swipe or the back of Android ask before a spot renamed or
+// moved is left as it was. Decision 006.
 
 // What this map draws: the surf breaks and the account's own spots, to put a spot beside them.
 // Nothing of the sea.
@@ -62,7 +61,6 @@ export function MoveSpot({ id }: { id: string }) {
   // Where the marker stands once the person moved it. Until then, where the spot is.
   const [point, setPoint] = useState<MapPoint>();
   const [bounds, setBounds] = useState<Bounds | null>(null);
-  const [moving, setMoving] = useState(false);
   const spots = useQuery(spotsQuery(signedIn));
   const breaks = useQuery(
     orpc.v1.breaks.list.queryOptions({
@@ -84,11 +82,10 @@ export function MoveSpot({ id }: { id: string }) {
       Math.abs(point.longitude - spot.longitude) > 1e-6);
   const guard = useSheetGuard((renamed || moved) && !actions.isChanging);
 
-  /** Puts the marker at `next`, and brings the map there. */
+  /** Puts the marker at `next`, where the map shows it already. */
   function putAt(next: MapPoint) {
     feel("select");
     setPoint(next);
-    map.current?.focus(next);
   }
 
   function save() {
@@ -125,17 +122,20 @@ export function MoveSpot({ id }: { id: string }) {
               stations={[]}
               wind={[]}
               breaks={breaks.data?.breaks ?? []}
-              spots={spots.data ?? []}
+              spots={(spots.data ?? []).filter((one) => one.id !== id)}
               selected={undefined}
               layers={LAYERS}
               sea={undefined}
               seaTime={undefined}
               arrows={[]}
               userLocation={null}
+              draft={at}
+              draftLabel={m.native_spot_marker()}
+              onDraftMoved={putAt}
               opening={{ center: [spot.longitude, spot.latitude], zoom: SPOT_ZOOM }}
               remembers={false}
               accessibilityLabel={m.native_spot_marker()}
-              accessibilityHint={m.native_spot_move_hint()}
+              accessibilityHint={m.spot_marker_hint()}
               accessibilityValue={at ? { text: writePoint(at) } : undefined}
               accessibilityActions={HEADINGS.map((heading) => ({
                 name: heading,
@@ -150,16 +150,10 @@ export function MoveSpot({ id }: { id: string }) {
               onPress={({ at: [longitude, latitude] }) => putAt({ latitude, longitude })}
               onMapPress={([longitude, latitude]) => putAt({ latitude, longitude })}
               onLongPress={([longitude, latitude]) => putAt({ latitude, longitude })}
-              onMoveStart={() => setMoving(true)}
-              onMoved={(state, byHand) => {
-                setMoving(false);
+              onMoved={(state) => {
                 if (state.bounds) setBounds(state.bounds);
-                // Moved by a finger, the marker goes with the middle of the map. Moved by a press,
-                // it stands where it was put.
-                if (byHand) setPoint({ latitude: state.center[1], longitude: state.center[0] });
               }}
             />
-            <SpotPin lifted={moving} />
           </View>
         ) : (
           <View style={{ flex: 1, padding: space.m }}>
@@ -195,7 +189,7 @@ export function MoveSpot({ id }: { id: string }) {
           />
           <View style={{ gap: space.xxs }}>
             <Text size="s" tone="muted">
-              {m.native_spot_move_hint()}
+              {m.spot_marker_hint()}
             </Text>
             <Text size="xs" tone="muted" numeric>
               {at ? writePoint(at) : " "}

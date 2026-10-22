@@ -43,7 +43,6 @@ import {
 } from "./new-spot";
 import { placeHref } from "./place-route";
 import { BREAK_LIMIT, MINUTE_MS, SPOTS_MOST, spotsQuery } from "./queries";
-import { SpotPin } from "./spot-pin";
 import { type MapPress, StationMap, type StationMapHandle } from "./station-map";
 import {
   bboxOf,
@@ -58,10 +57,9 @@ import {
 } from "./view";
 
 // Adding a spot of the account's own (decision 006): finding the place, putting the marker and
-// naming it, in that order, as the web's `NewSpotPanel` does it, in a sheet of the platform's. The
-// marker stands in the middle of a map that moves under it; a press on the map brings the point
-// pressed there, and a press on a surf break puts the marker on it, which the spot is then made
-// from. The search finds the breaks and the places by their name, and the phone says where the
+// naming it, in that order, as the web's `NewSpotPanel` does it, in a sheet of the platform's. A press
+// on the map puts the marker there, a finger drags it from there, and a press on a surf break puts
+// it on the break, which the spot is then made from. The search finds the breaks and the places by their name, and the phone says where the
 // reader is. A spot of the account's or a break within 150 metres is said, with what goes to it.
 // Saved, the spot's sheet takes this one's place, over the map that has gone there.
 
@@ -111,7 +109,6 @@ export function NewSpotScreen() {
   const map = useRef<StationMapHandle>(null);
   // What the map shows, which the breaks are asked for and a step of the marker is measured on.
   const [bounds, setBounds] = useState<Bounds | null>(null);
-  const [moving, setMoving] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const { point: located, isLocating, locate } = useLocate();
 
@@ -184,12 +181,15 @@ export function NewSpotScreen() {
     create.mutate(input);
   }
 
-  /** Puts the marker at `point`, on what it names, and brings the map there. */
+  /**
+   * Puts the marker at `point`, on what it names. A place found away from where the map is, by
+   * the search or the phone, brings the map there, as close as `zoom`.
+   */
   function putAt(point: MapPoint, on?: { breakId?: string; name?: string }, zoom?: number) {
     feel("select");
     setTouched(true);
     setDraft((current) => placedAt(current, point, on));
-    map.current?.focus(point, zoom);
+    if (zoom !== undefined) map.current?.focus(point, zoom);
   }
   function press({ kind, id, at: [longitude, latitude] }: MapPress) {
     const point = { latitude, longitude };
@@ -277,10 +277,14 @@ export function NewSpotScreen() {
             seaTime={undefined}
             arrows={[]}
             userLocation={located}
+            // Once put, on the map's middle or where a press held opened the sheet.
+            draft={draft.placed ? draft.point : null}
+            draftLabel={m.native_spot_marker()}
+            onDraftMoved={(point) => putAt(point)}
             opening={opening.view}
             remembers={false}
             accessibilityLabel={m.native_spot_marker()}
-            accessibilityHint={m.native_spot_move_hint()}
+            accessibilityHint={m.spot_marker_hint()}
             accessibilityValue={draft.placed ? { text: writePoint(draft.point) } : undefined}
             accessibilityActions={HEADINGS.map((name) => ({
               name,
@@ -295,21 +299,10 @@ export function NewSpotScreen() {
             onPress={press}
             onMapPress={([longitude, latitude]: LngLat) => putAt({ latitude, longitude })}
             onLongPress={([longitude, latitude]: LngLat) => putAt({ latitude, longitude })}
-            onMoveStart={() => setMoving(true)}
-            onMoved={(state, byHand) => {
-              setMoving(false);
+            onMoved={(state) => {
               if (state.bounds) setBounds(state.bounds);
-              // Moved by a finger, the marker leaves the break it stood on. Moved by the sheet, it
-              // stands where it was put.
-              if (byHand) {
-                setTouched(true);
-                setDraft((current) =>
-                  placedAt(current, { latitude: state.center[1], longitude: state.center[0] }),
-                );
-              }
             }}
           />
-          <SpotPin lifted={moving} />
           <View
             pointerEvents="box-none"
             style={{ position: "absolute", right: space.s, bottom: space.s }}
@@ -354,7 +347,7 @@ export function NewSpotScreen() {
           >
             <View style={{ gap: space.xxs }}>
               <Text size="s" tone="muted">
-                {m.native_spot_move_hint()}
+                {m.spot_marker_hint()}
               </Text>
               {draft.placed ? (
                 <Text size="xs" tone="muted" numeric>

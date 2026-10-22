@@ -14,7 +14,7 @@ export type SpotDraft = {
   name: string;
   // The name the search or the map gave the draft. A name the person wrote is not replaced.
   suggested: string;
-  // Where the marker stands: the middle of the map.
+  // Where the marker stands: where it was put, or the middle of the map until then.
   point: MapPoint;
   // The break of the catalogue the marker was put on, until it is moved off it.
   breakId?: string | undefined;

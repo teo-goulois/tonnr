@@ -1978,7 +1978,6 @@
   "native_locate_denied": "{name} no puede ver dónde estás. Permítelo en los ajustes.",
   "native_open_settings": "Abrir los ajustes",
   "native_search_count": "Resultados: {count}.",
-  "native_spot_move_hint": "Mueve el mapa, o púlsalo, para poner el marcador donde rompe la ola.",
   "native_spot_near_break": "Ya hay un pico de surf aquí: {name}.",
   "native_spot_from_break": "Usar este pico",
   "native_spot_marker": "Dónde va el spot",

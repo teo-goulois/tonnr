@@ -34,6 +34,7 @@ import {
   UserDot,
   WindBadge,
 } from "@/components/map/map-markers";
+import { SpotPin } from "@/components/map/spot-pin";
 import { ProfileSamples } from "@/components/profile/profile-samples";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
@@ -919,6 +920,10 @@ function MapParts() {
         The break or the spot in hand, grown from its disc; mirrored where the right has no room,
         and cut short past 224 points.
       </Note>
+      <Line>
+        <SpotPin />
+      </Line>
+      <Note>The marker of a spot being added, which a finger drags; its foot is the point.</Note>
     </View>
   );
 }
