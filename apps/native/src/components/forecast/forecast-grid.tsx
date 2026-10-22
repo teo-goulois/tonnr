@@ -29,7 +29,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Line } from "react-native-svg";
+import Svg, { Defs, Line, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { type Palette, usePalette } from "@/components/account/display";
 import { useReadingLock } from "@/components/charts/reading";
@@ -96,6 +96,8 @@ const OVERPULL = 48;
 const EARLIER_MS = 1500;
 // Where the phone keeps whether the rows say their names, as the web's browser does.
 const NAMED_KEY = "tonnr:grid-names";
+// How wide the last hours in view fade out, to say that more follow.
+const FADE = 28;
 
 type DirectionKey = "waveDirection" | "swellDirection" | "windDirection";
 
@@ -1011,6 +1013,20 @@ export function ForecastGrid({
               </View>
             </GestureDetector>
           </ScrollView>
+          {/* The last hours in view fade into the sheet, as the web's do, to say that more
+              follow. */}
+          <Svg
+            pointerEvents="none"
+            style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: FADE }}
+          >
+            <Defs>
+              <LinearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={colors["neutral-1"]} stopOpacity={0} />
+                <Stop offset="1" stopColor={colors["neutral-1"]} stopOpacity={1} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#fade)" />
+          </Svg>
         </View>
       </View>
 
