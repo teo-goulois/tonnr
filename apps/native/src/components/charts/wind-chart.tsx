@@ -1,11 +1,11 @@
 import { WIND_SPEED_SCALE } from "@repo/client/sea-scales";
 import { type WindRow, bearingsAlong, rowNear } from "@repo/client/viewer/wind";
 import { useCallback, useMemo, useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
-import { DirectionArrow, LineGlyph } from "@/components/forecast/bearing";
+import { Bearing, DirectionArrow, LineGlyph } from "@/components/forecast/bearing";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
+import { DENSE_SCALE, Text } from "@/components/ui/text";
 import { formatClock, formatDay, formatDayAndClock } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { knotsFrom, useUnits, windFigure, windIn, windUnit } from "@/lib/units";
@@ -219,73 +219,36 @@ export function WindChart({
   );
 
   return (
-    <View style={{ gap: space.xxs }}>
+    <View style={{ gap: space.xs }}>
       <Text size="xs" tone="muted">
         {m.chart_touch_hint()}
       </Text>
-      {/* What the chart reads: what is under the finger, or the legend of its lines at rest. */}
-      <View
-        accessibilityLiveRegion="polite"
-        style={{
-          minHeight: 19,
-          flexDirection: "row",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: space.s,
-        }}
-      >
-        {pointed ? (
-          <>
-            <Text size="xs" weight="medium" numeric>
-              {formatDayAndClock(new Date(pointed.time))}
-            </Text>
-            {pointed.wind !== null && (
-              <Legend label={`${windFigure(pointed.wind)} ${windUnit()}`} strong />
-            )}
-            {pointed.gust !== null && (
-              <Legend label={m.details_gusts_to({ speed: windFigure(pointed.gust) })} thin />
-            )}
-            {pointed.model !== null && (
-              <Legend label={`${m.details_model()} ${windFigure(pointed.model)}`} dashed />
-            )}
-            {pointed.direction !== null && (
-              <DirectionArrow
-                fromDegrees={pointed.direction}
-                size={12}
-                color={colors["neutral-10"]}
-              />
-            )}
-          </>
+      {/* The legend's two lines stand close over the chart, as the web sets them. */}
+      <View style={{ gap: 2 }}>
+        <WindLegend read={pointed} hasGusts={hasGusts} hasModel={hasModel} isLoading={isLoading} />
+        {isLoading || !isMyTurn ? (
+          <Skeleton height={HEIGHT} />
         ) : (
-          <>
-            <Legend label={m.details_wind()} strong />
-            {hasGusts && <Legend label={m.details_gusts()} thin />}
-            {hasModel && <Legend label={m.details_model()} dashed />}
-          </>
+          <View accessible accessibilityLabel={m.details_wind()}>
+            <SeaChart
+              times={times}
+              series={series}
+              start={start}
+              end={end}
+              ticks={ticks}
+              height={HEIGHT}
+              left={Y_AXIS}
+              top={6}
+              bottom={X_AXIS}
+              nights={nights}
+              midnights={midnights}
+              now={now}
+              press={state}
+              overlay={overlay}
+            />
+          </View>
         )}
       </View>
-      {isLoading || !isMyTurn ? (
-        <Skeleton height={HEIGHT} />
-      ) : (
-        <View accessible accessibilityLabel={m.details_wind()}>
-          <SeaChart
-            times={times}
-            series={series}
-            start={start}
-            end={end}
-            ticks={ticks}
-            height={HEIGHT}
-            left={Y_AXIS}
-            top={6}
-            bottom={X_AXIS}
-            nights={nights}
-            midnights={midnights}
-            now={now}
-            press={state}
-            overlay={overlay}
-          />
-        </View>
-      )}
       {!isLoading && (
         <View
           accessibilityElementsHidden
@@ -317,24 +280,134 @@ export function WindChart({
   );
 }
 
-/** A line of the chart and what it is, or what it reads. */
-function Legend({
+/**
+ * The lines named and, under the finger, the moment they are read at and what they read, on two
+ * lines of a fixed height as the web's: what a finger reads never moves the chart under it. The
+ * height grows as far as Dynamic Type grows the figures, which are kept to a line.
+ */
+function WindLegend({
+  read,
+  hasGusts,
+  hasModel,
+  isLoading,
+}: {
+  // The row under the finger. Undefined at rest.
+  read: WindRow | undefined;
+  hasGusts: boolean;
+  hasModel: boolean;
+  isLoading: boolean;
+}) {
+  const { colors, space, type } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const grown = Math.min(fontScale, DENSE_SCALE);
+  const shown = isLoading ? undefined : read;
+  return (
+    <>
+      <View
+        style={{
+          height: type.xs.line * grown,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: space.xs,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.s,
+            flexShrink: 1,
+            overflow: "hidden",
+          }}
+        >
+          <LineName label={m.details_wind()} />
+          {hasGusts && <LineName label={m.details_gusts()} thin />}
+          {hasModel && <LineName label={m.details_model()} dashed />}
+        </View>
+        {shown && (
+          <Text size="xs" weight="medium" numeric dense numberOfLines={1}>
+            {formatDayAndClock(new Date(shown.time))}
+          </Text>
+        )}
+      </View>
+      <View
+        accessibilityLiveRegion="polite"
+        style={{
+          height: type.s.line * grown,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: space.xs,
+        }}
+      >
+        <Text size="xs" dense numberOfLines={1} style={{ color: colors["neutral-6"] }}>
+          {windUnit()}
+        </Text>
+        {shown && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+            {shown.wind !== null && <LineFigure value={shown.wind} />}
+            {shown.gust !== null && <LineFigure value={shown.gust} thin />}
+            {shown.model !== null && (
+              // Beside the station's wind, the model's is written a step quieter.
+              <LineFigure value={shown.model} dashed quiet={shown.wind !== null} />
+            )}
+            {shown.direction !== null && (
+              <Bearing degrees={shown.direction} size="s" weight="medium" arrow={11} dense />
+            )}
+          </View>
+        )}
+      </View>
+    </>
+  );
+}
+
+/** A line of the chart and its name. */
+function LineName({
   label,
-  strong = false,
   thin = false,
   dashed = false,
 }: {
   label: string;
-  strong?: boolean;
   thin?: boolean;
   dashed?: boolean;
 }) {
   const { space } = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs, flexShrink: 1 }}>
       <LineGlyph thin={thin} dashed={dashed} />
-      <Text size="xs" tone={strong ? "default" : "muted"} numeric dense>
+      <Text size="xs" tone="muted" dense numberOfLines={1} style={{ flexShrink: 1 }}>
         {label}
+      </Text>
+    </View>
+  );
+}
+
+/** What a line reads under the finger: its mark in the color of the figure, then the figure. */
+function LineFigure({
+  value,
+  thin = false,
+  dashed = false,
+  quiet = false,
+}: {
+  value: number;
+  thin?: boolean;
+  dashed?: boolean;
+  quiet?: boolean;
+}) {
+  const { space } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
+      <LineGlyph thin={thin} dashed={dashed} color={colorAt(WIND_SPEED_SCALE, value)} />
+      <Text
+        size={quiet ? "xs" : "s"}
+        weight={quiet ? "regular" : "medium"}
+        tone={quiet ? "muted" : "default"}
+        numeric
+        dense
+        numberOfLines={1}
+      >
+        {windFigure(value)}
       </Text>
     </View>
   );
