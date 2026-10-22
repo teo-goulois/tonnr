@@ -1,39 +1,33 @@
+import MenuView, { type MenuAction, type MenuComponentRef } from "@expo/ui/community/menu";
 import { DIRECTIONS_APPS, type DirectionsApp, directionsUrl } from "@repo/client/directions";
 import { APP_NAME } from "@repo/config/app";
-import { BellIcon, GlobalIcon, MapPinIcon, PenIcon, ShareIcon, TrashIcon } from "@repo/ui/icon";
+import { MoreHorizontalIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { BackHandler, Linking, Platform, ScrollView, View } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRef } from "react";
+import { Linking, Platform, View } from "react-native";
 
-import { useOpenPage } from "@/components/account/open-page";
 import { placeLinkOf } from "@/components/lists/links";
-import { TextField } from "@/components/lists/text-field";
-import { NAME_MOST } from "@/components/map/new-spot";
 import { confirmDestructive } from "@/components/saved/confirm";
-import { Button } from "@/components/ui/button";
-import { Row, Section } from "@/components/ui/list";
-import { Surface } from "@/components/ui/surface";
-import { Text } from "@/components/ui/text";
+import { IconButton } from "@/components/ui/button";
 import { ENV } from "@/env";
 import type { Route } from "@/lib/links";
 import { useRequireAccount } from "@/lib/require-account";
 import { shareLink } from "@/lib/share";
-import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
-import { StepHeader } from "./save-lists";
+import { leavesOf, type MenuGroup, menuActions } from "./menu-actions";
 import type { PlaceKind } from "./tabs";
-import { usePlaceRecord } from "./use-place";
+import type { PlaceRecord } from "./use-place";
 import { useSpotActions } from "./use-spot";
 
-// What is seldom done with a place, in one sheet, as the web's `PlaceMenu` and `SpotActions` hold
-// it: begin an alert there (decision 064), send its short address through the platform's share
-// sheet (decision 056), go there with a map app, and for a spot of the account's own, rename it,
-// move it, ask that it be made public or take the request back, and delete it (decision 034).
-// Renaming and asking are a second step of the same sheet, and deleting is asked first.
+// What is seldom done with a place, in the platform's own menu, which opens from the button of
+// the head as the web's `PlaceMenu` and `SpotActions` open theirs, with plain words and the web's
+// separators: begin an alert there (decision 064), send its short address through the platform's
+// share sheet (decision 056), go there with a map app, and for a spot of the account's own,
+// rename or move it, ask that it be made public or take the request back, and delete it, which
+// is asked first (decision 034). What needs words, the name and the word for the moderator, is
+// written in a sheet that the menu opens.
 
 // An app's name, which its maker gives it in each language.
 const APP_NAMES: Record<DirectionsApp, () => string> = {
@@ -43,255 +37,147 @@ const APP_NAMES: Record<DirectionsApp, () => string> = {
 };
 // Apple's maps live on Apple's phones: elsewhere their address opens a page.
 const APPS = DIRECTIONS_APPS.filter((app) => app !== "apple" || Platform.OS === "ios");
+const DIRECTIONS = "directions:";
 
-// The word for the moderator, as long as the API takes it.
-const NOTE_MOST = 280;
-
-type Step = "menu" | "rename" | "publish";
-
-export function PlaceMenu({ kind, id }: { kind: PlaceKind; id: string }) {
-  const { space, type } = useTheme();
-  const insets = useSafeAreaInsets();
+export function PlaceMenu({
+  kind,
+  id,
+  record,
+  onAlert,
+  onDeleted,
+}: {
+  kind: PlaceKind;
+  id: string;
+  record: PlaceRecord;
+  /** Shows the place's alerts, as the web's panel turns to them while an alert is written. */
+  onAlert: () => void;
+  /** Closes the place's sheet, once its spot is deleted. */
+  onDeleted: () => void;
+}) {
   const requireAccount = useRequireAccount();
-  const { openPage } = useOpenPage();
-  const record = usePlaceRecord(kind, id);
   const actions = useSpotActions();
-  const [step, setStep] = useState<Step>("menu");
-  const [name, setName] = useState("");
-  const [note, setNote] = useState("");
-  // Android's back goes from a second step to the menu, as the button over it does.
-  useEffect(() => {
-    if (step === "menu") return;
-    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      setStep("menu");
-      return true;
-    });
-    return () => listener.remove();
-  }, [step]);
-  const title = record.name ?? "";
+  const menu = useRef<MenuComponentRef>(null);
+  const name = record.name ?? "";
   const spot = record.isOwner ? record.spot : undefined;
   const status = spot?.publication?.status;
-
-  const close = () => router.back();
   // What an alert is set on: a surf break of the catalogue, or a spot of the account's own.
   const alertPlace =
     kind === "break" && record.found ? `break:${id}` : spot ? `spot:${id}` : undefined;
   // A spot of an account's own is sent in a shared list, never by an address of its own.
   const url = placeLinkOf(ENV.EXPO_PUBLIC_SITE_URL, getLocale(), { kind, id });
+  // A station has no way to it: the sea is read there, not surfed.
+  const destination = kind === "station" ? undefined : record.point;
 
-  async function share() {
-    if (!url) return;
-    if (
-      await shareLink({ title, message: m.place_share_text({ name: title, app: APP_NAME }), url })
-    ) {
-      close();
+  const groups: MenuGroup[] = [
+    {
+      actions: [
+        ...(alertPlace ? [{ id: "alert", title: m.alert_create() }] : []),
+        ...(url ? [{ id: "share", title: m.place_share() }] : []),
+      ],
+    },
+    {
+      title: m.directions_choose(),
+      actions: destination
+        ? APPS.map((app) => ({ id: `${DIRECTIONS}${app}`, title: APP_NAMES[app]() }))
+        : [],
+    },
+    {
+      actions: spot
+        ? [
+            { id: "edit", title: m.spot_edit() },
+            ...(status === "pending"
+              ? [
+                  {
+                    id: "unpublish",
+                    title: m.spot_publish_cancel(),
+                    attributes: { disabled: actions.isPublishing },
+                  },
+                ]
+              : // A spot that is public already is not asked for again.
+                status !== "accepted"
+                ? [{ id: "publish", title: m.spot_publish() }]
+                : []),
+          ]
+        : [],
+    },
+    {
+      actions: spot
+        ? [
+            {
+              id: "delete",
+              title: m.action_delete(),
+              attributes: { destructive: true, disabled: actions.isRemoving },
+            },
+          ]
+        : [],
+    },
+  ];
+  const all: MenuAction[] = menuActions(groups);
+  if (all.length === 0) return null;
+
+  async function act(action: string) {
+    if (action === "alert" && alertPlace) {
+      const next = `/alert/new?place=${encodeURIComponent(alertPlace)}` as Route;
+      onAlert();
+      requireAccount(m.auth_reason_add_alert(), () => router.push(next), next);
+    } else if (action === "share" && url) {
+      await shareLink({ title: name, message: m.place_share_text({ name, app: APP_NAME }), url });
+    } else if (action.startsWith(DIRECTIONS) && destination) {
+      const app = APPS.find((one) => `${DIRECTIONS}${one}` === action);
+      // A web address that the app answers when it is installed, and its site when it is not.
+      if (app) Linking.openURL(directionsUrl(app, destination)).catch(() => {});
+    } else if (action === "edit" && spot) {
+      router.push({ pathname: "/place/move", params: { id: spot.id } });
+    } else if (action === "publish" && spot) {
+      router.push({ pathname: "/place/publish", params: { id: spot.id } });
+    } else if (action === "unpublish" && spot) {
+      actions.cancelPublication(spot, () => {});
+    } else if (action === "delete" && spot) {
+      const sure = await confirmDestructive({
+        title: m.spot_delete_title({ name: spot.name }),
+        message: status === "accepted" ? m.spot_delete_text_public() : m.spot_delete_text(),
+        confirm: m.action_delete(),
+      });
+      // The spot's sheet goes with it.
+      if (sure) actions.remove(spot, onDeleted);
     }
   }
 
-  function directions(app: DirectionsApp) {
-    if (!record.point) return;
-    // A web address that the app answers when it is installed, and its site when it is not.
-    Linking.openURL(directionsUrl(app, record.point)).then(close, () => {});
-  }
-
-  async function askDelete() {
-    if (!spot) return;
-    const sure = await confirmDestructive({
-      title: m.spot_delete_title({ name: spot.name }),
-      message: status === "accepted" ? m.spot_delete_text_public() : m.spot_delete_text(),
-      confirm: m.action_delete(),
-    });
-    // The spot's sheet goes with it.
-    if (sure) actions.remove(spot, () => router.dismissAll());
-  }
-
-  const padding = { paddingHorizontal: space.m, paddingBottom: insets.bottom + space.m };
-
-  if (step === "rename" && spot) {
-    const renamed = name.trim();
-    const save = () => {
-      if (!renamed || renamed === spot.name || actions.isChanging) return;
-      actions.rename(spot, renamed, close);
-    };
-    return (
-      <KeyboardAvoidingView behavior="padding" enabled={Platform.OS === "android"}>
-        <StepHeader
-          title={m.native_spot_rename_title({ name: spot.name })}
-          onBack={() => setStep("menu")}
-        />
-        <View style={{ gap: space.m, paddingTop: space.s, ...padding }}>
-          <Surface insetEdge style={{ paddingHorizontal: space.m }}>
-            <TextField
-              accessibilityLabel={m.spot_name_label()}
-              placeholder={m.spot_name_placeholder()}
-              value={name}
-              onChangeText={setName}
-              maxLength={NAME_MOST}
-              autoFocus
-              selectTextOnFocus
-              autoComplete="off"
-              autoCapitalize="words"
-              returnKeyType="done"
-              submitBehavior="blurAndSubmit"
-              onSubmitEditing={save}
-              style={{ flex: 0 }}
-            />
-          </Surface>
-          <Button
-            fill
-            onPress={save}
-            disabled={!renamed || renamed === spot.name}
-            loading={actions.isChanging}
-          >
-            {m.spot_edit_save()}
-          </Button>
-        </View>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  if (step === "publish" && spot) {
-    return (
-      <KeyboardAvoidingView behavior="padding" enabled={Platform.OS === "android"}>
-        <StepHeader
-          title={m.spot_publish_title({ name: spot.name })}
-          onBack={() => setStep("menu")}
-        />
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ gap: space.m, paddingTop: space.s, ...padding }}
-        >
-          <Text size="s">{m.spot_publish_what()}</Text>
-          <Text size="s" tone="muted">
-            {m.spot_publish_then()}
-          </Text>
-          <View style={{ gap: space.xs }}>
-            <Text size="s" weight="medium">
-              {m.spot_publish_note()}
-            </Text>
-            <Surface insetEdge>
-              <TextField
-                accessibilityLabel={m.spot_publish_note()}
-                placeholder={m.spot_publish_note_placeholder()}
-                value={note}
-                onChangeText={setNote}
-                maxLength={NOTE_MOST}
-                multiline
-                textAlignVertical="top"
-                editable={!actions.isPublishing}
-                style={{
-                  flex: 0,
-                  minHeight: 96,
-                  paddingHorizontal: space.m,
-                  paddingVertical: space.s,
-                  lineHeight: type.m.line,
-                }}
-              />
-            </Surface>
-          </View>
-          <Text size="s" tone="muted">
-            {m.spot_publish_license()}{" "}
-            <Text
-              size="s"
-              tone="muted"
-              accessibilityRole="link"
-              onPress={() => void openPage("terms")}
-              style={{ textDecorationLine: "underline" }}
-            >
-              {m.terms_title()}
-            </Text>
-          </Text>
-          <Button
-            fill
-            loading={actions.isPublishing}
-            onPress={() => actions.publish(spot, note.trim(), close)}
-          >
-            {m.spot_publish_send()}
-          </Button>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
+  const label = m.spot_menu({ name: name || m.spot_title() });
+  // What the menu offers is offered to a screen reader too, among the button's actions. Android's
+  // reader opens the menu itself; iOS's presses the button, which opens it.
+  const spoken = [
+    ...(Platform.OS === "android" ? [{ name: "activate" }] : []),
+    ...leavesOf(all).map((action) => ({ name: action.id ?? action.title, label: action.title })),
+  ];
 
   return (
-    <View>
-      <StepHeader title={title} onClose={close} />
-      <ScrollView contentContainerStyle={{ gap: space.l, paddingTop: space.s, ...padding }}>
-        {(alertPlace || url) && (
-          <Section>
-            {alertPlace ? (
-              <Row
-                title={m.alert_create()}
-                icon={BellIcon}
-                onPress={() => {
-                  const next = `/alert/new?place=${encodeURIComponent(alertPlace)}` as Route;
-                  requireAccount(m.auth_reason_add_alert(), () => router.replace(next), next);
-                }}
-              />
-            ) : null}
-            {url ? (
-              <Row title={m.place_share()} icon={ShareIcon} chevron={false} onPress={share} />
-            ) : null}
-          </Section>
-        )}
-        {/* A station has no way to it: the sea is read there, not surfed. */}
-        {kind !== "station" && record.point && (
-          <Section title={m.directions_choose()}>
-            {APPS.map((app) => (
-              <Row
-                key={app}
-                title={APP_NAMES[app]()}
-                chevron={false}
-                onPress={() => directions(app)}
-              />
-            ))}
-          </Section>
-        )}
-        {spot && (
-          <Section>
-            <Row
-              title={m.native_spot_rename()}
-              icon={PenIcon}
-              onPress={() => {
-                setName(spot.name);
-                setStep("rename");
-              }}
-            />
-            <Row
-              title={m.native_spot_move()}
-              icon={MapPinIcon}
-              onPress={() => router.replace({ pathname: "/place/move", params: { id: spot.id } })}
-            />
-            {status === "pending" ? (
-              <Row
-                title={m.spot_publish_cancel()}
-                icon={GlobalIcon}
-                chevron={false}
-                disabled={actions.isPublishing}
-                onPress={() => actions.cancelPublication(spot, close)}
-              />
-            ) : status !== "accepted" ? (
-              // A spot that is public already is not asked for again.
-              <Row
-                title={m.spot_publish()}
-                icon={GlobalIcon}
-                onPress={() => {
-                  setNote(spot.publication?.note ?? "");
-                  setStep("publish");
-                }}
-              />
-            ) : null}
-            <Row
-              title={m.action_delete()}
-              icon={TrashIcon}
-              destructive
-              chevron={false}
-              disabled={actions.isRemoving}
-              onPress={() => void askDelete()}
-            />
-          </Section>
-        )}
-      </ScrollView>
-    </View>
+    <MenuView
+      ref={menu}
+      actions={all}
+      onPressAction={({ nativeEvent }) => void act(nativeEvent.event)}
+    >
+      {/* Drawn as the head's other buttons. The menu takes the press: the button under it takes
+          none. */}
+      <View
+        pointerEvents="none"
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityActions={spoken}
+        onAccessibilityAction={(event) => {
+          const action = event.nativeEvent.actionName;
+          if (action === "activate") menu.current?.show();
+          else void act(action);
+        }}
+      >
+        <IconButton
+          variant="ghost"
+          icon={MoreHorizontalIcon}
+          label={label}
+          loading={actions.isRemoving}
+        />
+      </View>
+    </MenuView>
   );
 }

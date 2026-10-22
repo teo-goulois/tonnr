@@ -1,12 +1,5 @@
 import type { Spot } from "@repo/client/viewer/types";
-import {
-  BookmarkFillIcon,
-  BookmarkIcon,
-  LockIcon,
-  MoreHorizontalIcon,
-  PinPlusIcon,
-  XIcon,
-} from "@repo/ui/icon";
+import { BookmarkFillIcon, BookmarkIcon, LockIcon, PinPlusIcon, XIcon } from "@repo/ui/icon";
 import { type ReactNode, useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
@@ -124,7 +117,7 @@ export function PlaceHeader({
   isSaved,
   onSave,
   saveLabel,
-  onMenu,
+  menu,
   onCopy,
   isCopying = false,
   onClose,
@@ -136,7 +129,8 @@ export function PlaceHeader({
   onSave?: () => void;
   // What the bookmark does: an account's opens its lists, a visitor's adds to the favorites.
   saveLabel: string;
-  onMenu?: () => void;
+  // The menu of what is seldom done with the place, which opens from its own button.
+  menu?: ReactNode;
   onCopy?: () => void;
   isCopying?: boolean;
   onClose: () => void;
@@ -250,14 +244,7 @@ export function PlaceHeader({
             onPress={onSave}
           />
         )}
-        {onMenu && (
-          <IconButton
-            variant="ghost"
-            icon={MoreHorizontalIcon}
-            label={m.spot_menu({ name: name ?? m.spot_title() })}
-            onPress={onMenu}
-          />
-        )}
+        {menu}
         {onCopy && (
           <IconButton
             variant="ghost"

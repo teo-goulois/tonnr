@@ -94,8 +94,6 @@ export function useSpotActions() {
   );
 
   return {
-    rename: (spot: Spot, name: string, done: () => void) =>
-      change.mutate({ id: spot.id, name }, { onSuccess: done }),
     /** Renames a spot and moves it in one request, as the web's editor saves both. */
     edit: (
       spot: Spot,

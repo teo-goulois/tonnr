@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,6 +25,7 @@ import { FOLD_MARGIN } from "./fold";
 import { FAVORITES } from "./lists";
 import { PlaceForecast } from "./place-forecast";
 import { PlaceHeader } from "./place-header";
+import { PlaceMenu } from "./place-menu";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
 import { useLists } from "./use-lists";
 import { usePlaceConditions, usePlaceRecord } from "./use-place";
@@ -149,6 +150,9 @@ export function PlaceSheet({
         )
     : undefined;
   const openStation = (stationId: string) => router.push(placeHref("station", stationId));
+  // Closes this sheet, whatever stands over it then.
+  const navigation = useNavigation();
+  const close = () => navigation.goBack();
 
   const panelOf = (one: PlaceTab): ReactNode => {
     switch (one) {
@@ -218,12 +222,18 @@ export function PlaceSheet({
             saveLabel={signedIn ? m.saved_add_to_list() : m.saved_add_favorite()}
             onCopy={copy}
             isCopying={spots.isCopying}
-            onMenu={
-              name
-                ? () => router.push({ pathname: "/place/menu", params: { kind, id } })
-                : undefined
+            menu={
+              name ? (
+                <PlaceMenu
+                  kind={kind}
+                  id={id}
+                  record={record}
+                  onAlert={() => setTab("alerts")}
+                  onDeleted={close}
+                />
+              ) : undefined
             }
-            onClose={() => router.back()}
+            onClose={close}
           />
           {/* A station has one tab and no row: what has tabs is a break or a spot, once it is
               read. */}
