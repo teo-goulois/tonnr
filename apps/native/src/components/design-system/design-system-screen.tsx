@@ -1,5 +1,8 @@
+import { scaleColor, WAVE_HEIGHT_SCALE } from "@repo/client/sea-scales";
 import {
   BellIcon,
+  BellOnFillDuoIcon,
+  BookBookmarkFillDuoIcon,
   BookmarkFillIcon,
   BookmarkIcon,
   GlobalIcon,
@@ -23,18 +26,24 @@ import { ScopedTheme } from "uniwind";
 import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/map/basemap";
 import { MapCredits } from "@/components/map/map-credits";
 import { RankBadge } from "@/components/account/rank-badge";
+import { AlertSamples } from "@/components/alerts/alert-samples";
 import { UserDot } from "@/components/map/map-markers";
+import { ProfileSamples } from "@/components/profile/profile-samples";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Button, IconButton } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { edge } from "@/components/ui/edge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { FreshnessDot } from "@/components/ui/freshness-dot";
 import { type Feel, feel } from "@/components/ui/haptics";
+import { Field, Input } from "@/components/ui/input";
 import { Row, RowTile, Section, SettingLine } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
+import { OptionCard, OptionCards } from "@/components/ui/option-card";
 import { Segmented } from "@/components/ui/segmented";
 import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
@@ -42,6 +51,7 @@ import { Card, Surface } from "@/components/ui/surface";
 import { Switch } from "@/components/ui/switch";
 import { Tabs } from "@/components/ui/tabs";
 import { Text, type TextStep } from "@/components/ui/text";
+import { Tile } from "@/components/ui/tile";
 import { useTell } from "@/components/ui/toast";
 import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { THEME_CHOICES, type ThemeChoice } from "@/lib/theme-choice";
@@ -161,6 +171,9 @@ function Buttons() {
         <Button variant="secondary">Secondary</Button>
         <Button variant="outline">Outline</Button>
         <Button variant="ghost">Ghost</Button>
+        <Button variant="ghost" destructive>
+          Block @name
+        </Button>
         <Button variant="danger">Delete</Button>
       </Line>
       <Line>
@@ -467,13 +480,61 @@ function Switches() {
   );
 }
 
+/** The web's outlined choices: a card for one among a few, a toggle for several, and its tiles. */
+function Choices() {
+  const { space } = useTheme();
+  const [one, setOne] = useState<string>("basics");
+  const [several, setSeveral] = useState<string[]>(["Fish"]);
+  const flip = (board: string) =>
+    setSeveral((pressed) =>
+      pressed.includes(board) ? pressed.filter((name) => name !== board) : [...pressed, board],
+    );
+  return (
+    <View style={{ gap: space.s }}>
+      <OptionCards label="Reading a forecast">
+        <OptionCard
+          title="A glance"
+          description="A line under the name says what it means."
+          selected={one === "glance"}
+          onPress={() => setOne("glance")}
+        />
+        <OptionCard
+          title="The basics"
+          selected={one === "basics"}
+          onPress={() => setOne("basics")}
+        />
+      </OptionCards>
+      <Note>A card says the one chosen by its ground and its line, with no check.</Note>
+      <ToggleGroup label="Boards">
+        {["Shortboard", "Fish", "Longboard"].map((board) => (
+          <Toggle
+            key={board}
+            label={board}
+            pressed={several.includes(board)}
+            onPress={() => flip(board)}
+            size="m"
+          />
+        ))}
+        <Toggle label="Small" pressed={several.includes("Small")} onPress={() => flip("Small")} />
+        <Toggle label="Disabled" pressed={false} disabled onPress={() => {}} />
+      </ToggleGroup>
+      <Line>
+        <Tile icon={BellOnFillDuoIcon} color={scaleColor(WAVE_HEIGHT_SCALE, 4)} />
+        <Tile icon={BookBookmarkFillDuoIcon} color={scaleColor(WAVE_HEIGHT_SCALE, 1.5)} />
+        <Tile icon={BellOnFillDuoIcon} color={scaleColor(WAVE_HEIGHT_SCALE, 8)} size="m" />
+      </Line>
+      <Note>A tile is sized by the text it stands in: the onboarding's, then the body's.</Note>
+    </View>
+  );
+}
+
 function Surfaces() {
   const { space } = useTheme();
   const tell = useTell();
   return (
     <View style={{ gap: space.s }}>
       <Line>
-        {(["raised", "default", "muted"] as const).map((variant) => (
+        {(["raised", "default", "muted", "outline"] as const).map((variant) => (
           <Surface key={variant} variant={variant} style={{ padding: space.m }}>
             <Text size="s">{variant}</Text>
           </Surface>
@@ -609,6 +670,35 @@ function Lists() {
   );
 }
 
+function Fields() {
+  const { space } = useTheme();
+  const [name, setName] = useState("");
+  const [sent, setSent] = useState(false);
+  return (
+    <View style={{ gap: space.m }}>
+      <Field
+        label="Name of the list"
+        error={sent && !name.trim() ? "Give your list a name." : undefined}
+      >
+        <Input
+          value={name}
+          onChangeText={setName}
+          placeholder="New list"
+          invalid={sent && !name.trim()}
+          accessibilityLabel="Name of the list"
+        />
+      </Field>
+      <Button variant="secondary" onPress={() => setSent(true)} style={{ alignSelf: "flex-start" }}>
+        Send, never disabled
+      </Button>
+      <Field label="Link">
+        <Input value="https://tonnr.app/l/abc123" readOnly accessibilityLabel="Link" />
+      </Field>
+      <Input value="Cannot be typed in" editable={false} accessibilityLabel="Disabled" />
+    </View>
+  );
+}
+
 function States() {
   const { space } = useTheme();
   const [retrying, setRetrying] = useState(false);
@@ -632,6 +722,10 @@ function States() {
           }}
         />
       </Surface>
+      {/* The web's panel's: a muted line, and a ghost Retry under it. */}
+      <ErrorState plain title={m.saved_load_failed()} onRetry={() => {}} />
+      {/* What a visitor is asked for an account, in a tab or a step. */}
+      <AccountPrompt text={m.saved_sign_in_prompt()} />
       <Surface style={{ padding: space.m }}>
         <Loading>
           <View style={{ gap: space.s }}>
@@ -642,10 +736,27 @@ function States() {
               </View>
             </View>
             <Skeleton height={120} />
+            {/* The log's two tiles to come, at the radius their own take. */}
+            <View style={{ flexDirection: "row", gap: space.xs }}>
+              <View style={{ flex: 1 }}>
+                <Skeleton height={96} corner="s" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Skeleton height={96} corner="s" />
+              </View>
+            </View>
             <SkeletonText lines={3} />
           </View>
         </Loading>
       </Surface>
+      <Line>
+        <FreshnessDot freshness="fresh" />
+        <Note>Fresh</Note>
+        <FreshnessDot freshness="aging" />
+        <Note>Aging</Note>
+        <FreshnessDot freshness="old" />
+        <Note>Old</Note>
+      </Line>
     </View>
   );
 }
@@ -834,6 +945,12 @@ export function DesignSystemScreen() {
       <Block title="Switch">
         <Switches />
       </Block>
+      <Block title="Input and field">
+        <Fields />
+      </Block>
+      <Block title="Option card, toggle and tile">
+        <Choices />
+      </Block>
       <Block title="Surface, card and separator">
         <Surfaces />
       </Block>
@@ -854,6 +971,12 @@ export function DesignSystemScreen() {
           Change something in it, then swipe it down or press Cancel: it asks before it loses what
           changed.
         </Note>
+      </Block>
+      <Block title="Surfer profile">
+        <ProfileSamples />
+      </Block>
+      <Block title="Alerts' rows">
+        <AlertSamples />
       </Block>
       <Block title="Toast">
         <Toasts />
