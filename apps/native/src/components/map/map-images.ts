@@ -28,7 +28,11 @@ function painted(svg: string, size: number): ImageEntry | null {
     if (!dom || !surface) return null;
     const canvas = surface.getCanvas();
     canvas.clear(Skia.Color("transparent"));
-    canvas.drawSvg(dom, pixels, pixels);
+    // The SVG says its size in points, which Skia keeps whatever box it is drawn in: the canvas is
+    // scaled to the density, or the picture would fill a third of its image at three pixels to
+    // the point, and MapLibre would draw it a third of its size, in its corner.
+    canvas.scale(pixels / size, pixels / size);
+    canvas.drawSvg(dom, size, size);
     surface.flush();
     const png = surface.makeImageSnapshot().encodeToBase64();
     return { source: { uri: `data:image/png;base64,${png}`, scale } };
