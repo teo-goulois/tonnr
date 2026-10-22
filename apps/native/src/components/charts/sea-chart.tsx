@@ -225,16 +225,19 @@ const Curves = memo(function Curves({
             </SkiaLine>
           ) : null
         }
-        onScaleChange={(x, y) =>
+        onScaleChange={(x, y) => {
+          // The value axis runs down the canvas: its range is the plot's top first, which the
+          // smaller of its two ends says whatever the library's order.
+          const [one = top, other = height] = y.range();
           onGeometry({
             x,
             y,
             left: x.range()[0] ?? left,
             right: x.range()[1] ?? 0,
-            top: y.range()[1] ?? top,
-            bottom: y.range()[0] ?? 0,
-          })
-        }
+            top: Math.min(one, other),
+            bottom: Math.max(one, other),
+          });
+        }}
       >
         {({ points, xScale, yScale, chartBounds }) => {
           const x = (time: number) => xScale(time);
