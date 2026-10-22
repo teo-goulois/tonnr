@@ -28,12 +28,12 @@ export function DensitySwitch({
   return (
     <View style={{ flexDirection: "row", justifyContent: "center", gap: space.xs }}>
       {less && (
-        <Button variant="ghost" onPress={() => change(less)}>
+        <Button variant="ghost" size="xs" muted onPress={() => change(less)}>
           {m.density_less()}
         </Button>
       )}
       {more && (
-        <Button variant="ghost" onPress={() => change(more)}>
+        <Button variant="ghost" size="xs" muted onPress={() => change(more)}>
           {m.density_more()}
         </Button>
       )}

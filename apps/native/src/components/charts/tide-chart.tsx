@@ -181,9 +181,10 @@ export function TideChart({
 
   return (
     <View style={{ gap: space.xxs }}>
+      {/* Of one height, which the small button of today overflows: nothing moves as it comes. */}
       <View
         style={{
-          minHeight: 32,
+          height: 32,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -209,7 +210,7 @@ export function TideChart({
           )}
         </View>
         {today >= 0 && shownDay !== today && (
-          <Button variant="secondary" onPress={() => goTo(today)}>
+          <Button variant="secondary" size="xs" onPress={() => goTo(today)}>
             {m.tide_today()}
           </Button>
         )}

@@ -81,7 +81,7 @@ function BackToNow({ way }: { way: ReturnType<typeof wayBack> }) {
   const go = useSyncExternalStore(way.subscribe, way.get, way.get);
   if (!go) return null;
   return (
-    <Button variant="secondary" onPress={go}>
+    <Button variant="secondary" size="xs" onPress={go}>
       {m.details_back_to_now()}
     </Button>
   );
