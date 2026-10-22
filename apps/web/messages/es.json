@@ -2166,5 +2166,6 @@
   "native_window_more": "y {count} spots más",
   "native_window_progress": "Avance de la ventana",
   "native_live_none": "No hay ninguna sesión en curso.",
-  "native_live_start": "Empezar la sesión"
+  "native_live_start": "Empezar la sesión",
+  "native_screen_failed": "No se pudo mostrar esta pantalla."
 }

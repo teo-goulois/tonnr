@@ -2166,5 +2166,6 @@
   "native_window_more": "and {count} more spots",
   "native_window_progress": "How far into the window",
   "native_live_none": "No session in progress.",
-  "native_live_start": "Start the session"
+  "native_live_start": "Start the session",
+  "native_screen_failed": "This screen couldn't be shown."
 }

@@ -9,16 +9,19 @@ import "@/lib/i18n";
 import "@/lib/theme";
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack, ThemeProvider } from "expo-router";
+import { type ErrorBoundaryProps, Stack, ThemeProvider } from "expo-router";
 import { HeroUINativeProvider } from "heroui-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Pressable, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
+import { Text } from "@/components/ui/text";
 import { navigationTheme, useTheme } from "@/lib/theme";
+import { m } from "@/paraglide/messages";
 import { queryClient } from "@/utils/orpc";
 import { WidgetWriter } from "@/widgets/widget-writer";
 
@@ -27,6 +30,47 @@ import { WidgetWriter } from "@/widgets/widget-writer";
 // back to once it is saved or closed, and the tabs mount what they run at each start (decision
 // 074).
 export const unstable_settings = { anchor: "(tabs)" };
+
+/**
+ * What the app shows in the place of a screen that stopped as it was drawn, which a store build
+ * would otherwise close on, as it closed when Google's mark was drawn: one line and a press that
+ * draws it again. It stands in the place of this layout and of its providers, so it draws with the
+ * theme alone and React Native's own press. The error itself is in the log.
+ */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  const { colors, space, radius } = useTheme();
+  return (
+    <View
+      accessibilityRole="alert"
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: space.m,
+        padding: space.l,
+        backgroundColor: colors["neutral-1"],
+      }}
+    >
+      <Text size="m" style={{ textAlign: "center" }}>
+        {m.native_screen_failed()}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => void retry()}
+        style={({ pressed }) => ({
+          paddingHorizontal: space.m,
+          paddingVertical: space.xs,
+          borderRadius: radius.s,
+          backgroundColor: pressed ? colors["neutral-4"] : colors["neutral-3"],
+        })}
+      >
+        <Text size="m" weight="medium">
+          {m.action_retry()}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const { scheme } = useTheme();

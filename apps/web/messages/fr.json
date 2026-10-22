@@ -2166,5 +2166,6 @@
   "native_window_more": "et {count} autres spots",
   "native_window_progress": "Avancée du créneau",
   "native_live_none": "Aucune session en cours.",
-  "native_live_start": "Commencer la session"
+  "native_live_start": "Commencer la session",
+  "native_screen_failed": "Cet écran n'a pas pu s'afficher."
 }
