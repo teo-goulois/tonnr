@@ -160,8 +160,8 @@ export function PlaceHeader({
       <Text size="s">{m.break_title()}</Text>
     );
   } else if (kind === "station" && station) {
-    const reading = record.history.data?.readings[0];
-    const observedAt = reading?.observedAt;
+    // Its newest reading, or the one the map holds until they come.
+    const observedAt = record.latest?.observedAt;
     line = (
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexWrap: "wrap" }}>
         <FreshnessDot freshness={freshnessOf(observedAt, now)} />
