@@ -81,8 +81,8 @@ function AddLabel() {
 
 /**
  * What a reader may do of a line that stands aside from what it says, as the web's guide draws
- * it: a word in the small type, underlined, with an icon of 12 points before it where it has one,
- * and in the muted ink where it is quieter still. A finger is given 44 points around it.
+ * it: a word in the small type, underlined, or with an icon of 12 points before it and no line
+ * under it, and in the muted ink where it is quieter still. A finger is given 44 points around it.
  */
 function Quiet({
   children,
@@ -123,7 +123,9 @@ function Quiet({
       <Text
         size="s"
         weight={muted ? "regular" : "medium"}
-        style={{ color: ink, textDecorationLine: "underline" }}
+        // Underlined without an icon only, as the web draws it: its words with an icon stand in a
+        // box of their own there, which its underline does not reach.
+        style={{ color: ink, textDecorationLine: icon ? "none" : "underline" }}
       >
         {children}
       </Text>
