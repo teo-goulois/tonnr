@@ -650,7 +650,14 @@ export function StationMap({
         }}
       />
       {userLocation ? (
-        <Marker lngLat={[userLocation.longitude, userLocation.latitude]} anchor="center">
+        <Marker
+          lngLat={[userLocation.longitude, userLocation.latitude]}
+          anchor="center"
+          // The platform gives a press on the dot to the dot and not to the map, where the web's
+          // passes through it: it is the map's press all the same, at the finger on Android and
+          // at the dot's middle on iOS, so that what stands under the dot is still pressed.
+          onPress={(event) => void press(event)}
+        >
           <UserDot label={m.locate_you_are_here()} />
         </Marker>
       ) : null}
