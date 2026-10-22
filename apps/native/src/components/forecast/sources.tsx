@@ -42,7 +42,7 @@ function waveModelLines({ waveModels, swellModels, hours }: Forecast) {
   ];
 }
 
-/** A word of a credit that opens its page. */
+/** A word of a credit that opens its page, in the muted ink of the line it stands in. */
 function Link({ url, children }: { url: string; children: string }) {
   const { colors } = useTheme();
   const { openAddress } = useOpenPage();
@@ -51,7 +51,7 @@ function Link({ url, children }: { url: string; children: string }) {
       size="xs"
       accessibilityRole="link"
       onPress={() => void openAddress(url)}
-      style={{ color: colors["neutral-8"], textDecorationLine: "underline" }}
+      style={{ color: colors["neutral-7"], textDecorationLine: "underline" }}
       suppressHighlighting={false}
     >
       {children}
@@ -72,7 +72,7 @@ export function Sources({
   forecast: Forecast | undefined;
   tides: TideTimeline | undefined;
 }) {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   return (
     <View style={{ gap: space.xxs }}>
       {origin === null ? null : origin && license === null ? (
@@ -84,7 +84,7 @@ export function Sources({
           {origin} <Link url={license.url}>{license.type}</Link>
         </Text>
       ) : (
-        <Skeleton height={11} width="75%" />
+        <Skeleton height={type.xs.line} width="75%" />
       )}
       {forecast && (
         <Text size="xs" tone="muted">
