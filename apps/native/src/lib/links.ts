@@ -66,11 +66,22 @@ export function destinationOf(link: AppLink): AppDestination {
       };
     }
   }
-  if (search.shared) return { route: routeOf(`/shared/${encodeURIComponent(search.shared)}`) };
+  // A list opened by its link is read in the saved tab, which the web's short address opens.
+  if (search.shared) {
+    return { route: routeOf(`/saved/shared/${encodeURIComponent(search.shared)}`) };
+  }
   if (search.invite) return { route: withQuery("/", { invite: search.invite }) };
-  if (search.list) return { route: withQuery("/", { list: search.list }) };
+  // How to be told was a part of the alerts' panel once: every alert's mail still links there.
+  if (search.alerts === "settings") return { route: "/account/alerts" };
+  // A list shown alone, on the map, or in the saved tab too when the address names it.
+  if (search.list) {
+    return { route: withQuery(search.panel === "saved" ? "/saved" : "/", { list: search.list }) };
+  }
   if (search.panel === "saved") return { route: "/saved" };
-  if (search.panel === "alerts") return { route: "/alerts" };
+  if (search.panel === "alerts") {
+    // The alerts themselves, `My alerts`, which the alerts' tab reads in `view`.
+    return { route: withQuery("/alerts", { view: search.alerts === "mine" ? "mine" : undefined }) };
+  }
   if (search.panel === "account") {
     const step = search.settings ? ACCOUNT_STEPS[search.settings] : undefined;
     return { route: routeOf(step ?? "/account") };

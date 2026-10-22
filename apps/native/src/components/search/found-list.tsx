@@ -1,4 +1,4 @@
-import { PinIcon, WaveIcon } from "@repo/ui/icon";
+import { MapIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { useEffect } from "react";
 import { AccessibilityInfo, Pressable, View } from "react-native";
 
@@ -20,34 +20,55 @@ import type { PlaceSearching } from "./use-place-search";
 // fill pulse; what the search came to is said to a screen reader.
 
 export const MARK = 28;
+/** The saved tab's mark, the web's `size-6` with a glyph of 14 points. */
+export const SMALL_MARK = 24;
 
-/** What says the kind of a thing found, as the lists of the saved tab draw it. */
-export function FoundMark({ kind }: { kind: Found["kind"] }) {
+/**
+ * What says the kind of a thing found, as the lists of the saved tab draw it. `small` is the saved
+ * tab's own, as the web's rows draw it: 24 points, a station an empty disc of the theme's third
+ * grey, and a list of someone else's the map's sign on that grey.
+ */
+export function FoundMark({
+  kind,
+  small = false,
+}: {
+  kind: Found["kind"] | "list";
+  small?: boolean;
+}) {
   const { colors } = useTheme();
+  const size = small ? SMALL_MARK : MARK;
   const ground =
     kind === "spot"
       ? colors["color-1"]
       : kind === "break"
         ? colors["neutral-10"]
-        : colors["neutral-4"];
+        : small
+          ? colors["neutral-3"]
+          : colors["neutral-4"];
   const ink = kind === "spot" || kind === "break" ? colors["neutral-1"] : colors["neutral-10"];
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={{
-        width: MARK,
-        height: MARK,
-        borderRadius: MARK / 2,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: ground,
       }}
     >
       {kind === "station" ? (
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ink }} />
+        small ? null : (
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ink }} />
+        )
       ) : (
-        <Glyph icon={kind === "break" ? WaveIcon : PinIcon} size={16} color={ink} />
+        <Glyph
+          icon={kind === "break" ? WaveIcon : kind === "list" ? MapIcon : PinIcon}
+          size={small ? 14 : 16}
+          color={ink}
+        />
       )}
     </View>
   );

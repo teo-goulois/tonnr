@@ -5,9 +5,10 @@ import { m } from "@/paraglide/messages";
 import type { ListChoice } from "@/components/saved/actions";
 import type { PlaceRef } from "@/components/saved/sea-now";
 
-// What a list holds, as the screens read it: its places in one order everywhere, its spots,
-// then its surf breaks, then its stations, each kind in the order it was added, and its name as
-// a reader sees it. A module that reads no React and no phone, so that a test reads it.
+// What a list holds, as the screens read it: its places in the web's two orders, each kind in
+// the order it was added, the saved tab's stations first and a list shown alone its spots first,
+// and its name as a reader sees it. A module that reads no React and no phone, so that a test
+// reads it.
 
 /** A list's name as a reader sees it: the favorites under a label of their own. */
 export function listName(list: Pick<SavedList, "name" | "isDefault">) {
@@ -19,23 +20,30 @@ export function sizeOf(list: Pick<SavedList, "spotIds" | "breakIds" | "stationId
   return list.spotIds.length + list.breakIds.length + list.stationIds.length;
 }
 
-/** "1 place", "4 places". */
-export function placesCount(count: number) {
-  return count === 1 ? m.native_places_one() : m.native_places_some({ count });
-}
-
-type Held = {
+export type Held = {
   spotIds: readonly string[];
   breakIds: readonly string[];
   stationIds: readonly string[];
 };
 
-/** The places a list holds, its spots first, then its breaks, then its stations. */
+/**
+ * The places a list holds, its spots first, then its breaks, then its stations: a list shown
+ * alone, the web's `ListPanel`, and what the widgets show.
+ */
 export function refsOf(list: Held): PlaceRef[] {
   return [
     ...list.spotIds.map((id) => ({ kind: "spot" as const, id })),
     ...list.breakIds.map((id) => ({ kind: "break" as const, id })),
     ...list.stationIds.map((id) => ({ kind: "station" as const, id })),
+  ];
+}
+
+/** The places of a list as the saved tab lists them, the web's `SavedPanel`: its stations first. */
+export function savedRefsOf(list: Held): PlaceRef[] {
+  return [
+    ...list.stationIds.map((id) => ({ kind: "station" as const, id })),
+    ...list.breakIds.map((id) => ({ kind: "break" as const, id })),
+    ...list.spotIds.map((id) => ({ kind: "spot" as const, id })),
   ];
 }
 

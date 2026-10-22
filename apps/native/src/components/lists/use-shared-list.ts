@@ -1,17 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
-
-import type { PlacesNowInput } from "@/components/saved/sea-now";
-import { type SeaReader, useAccountReader } from "@/components/saved/use-sea-now";
 
 import { codeOf } from "./items";
 import { isListToken } from "./links";
 import { holdLink, keepPass, keptPass } from "./shared-link";
 
-// The list a link opens, `/l/<token>` on the web and `/shared/<token>` in the app, as the web's
+// The list a link opens, `/l/<token>` on the web and `/saved/shared/<token>` in the app, as the web's
 // `useSharedList` opens it (apps/web/src/routes/app/-shared.ts): an account with its session, a
 // visitor with the link itself. The first answer says whether a password is asked, and the phone
 // keeps what stands for it once it was given, so that the list opens again without it. Decision
@@ -46,12 +43,6 @@ export function useSharedList(token: string) {
     // Read again when the reader comes back to it, not on every render.
     staleTime: 60 * 1000,
   });
-  // Who shares it, as the last answer said: a password tried since, while it is checked and once
-  // it is refused, has no answer of its own, and the door goes on saying whose list it is.
-  const [owner, setOwner] = useState<string | null>(null);
-  useEffect(() => {
-    if (opened.data) setOwner(opened.data.owner);
-  }, [opened.data]);
   const answer = opened.data && !opened.data.locked ? opened.data : undefined;
   const list = answer?.list;
   const pass = answer?.pass ?? null;
@@ -81,8 +72,6 @@ export function useSharedList(token: string) {
   return {
     list,
     pass,
-    /** The username of whoever shares the list, which a locked one says too. */
-    owner: opened.data ? opened.data.owner : owner,
     /** The password that opened it, which keeping the list asks for again. */
     password,
     byLink,
@@ -103,30 +92,4 @@ export function useSharedList(token: string) {
     refetch: () => opened.refetch(),
     isFetching: opened.isFetching,
   };
-}
-
-/**
- * Who asks the sea at a shared list's places: a visitor by the link, which answers its spots
- * too, and an account by its session, which answers its spots once it kept the list.
- */
-export function useSharedReader(token: string, pass: string | null, byLink: boolean): SeaReader {
-  const account = useAccountReader();
-  return useMemo(
-    () =>
-      byLink
-        ? {
-            key: `link:${token}:${pass ?? ""}`,
-            // The link is held for the call itself, whatever the screen holds by then.
-            ask: async (input: PlacesNowInput) => {
-              const release = holdLink(token, pass);
-              try {
-                return await orpc.v1.places.now.call(input);
-              } finally {
-                release();
-              }
-            },
-          }
-        : account,
-    [byLink, token, pass, account],
-  );
 }

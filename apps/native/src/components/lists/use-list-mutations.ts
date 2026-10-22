@@ -15,6 +15,9 @@ import { holds } from "./items";
 
 type ListsAnswer = Awaited<ReturnType<typeof orpc.v1.lists.list.call>>;
 
+/** Where a list keeps each kind of place. */
+const IDS = { station: "stationIds", break: "breakIds", spot: "spotIds" } as const;
+
 export function useListMutations() {
   const queryClient = useQueryClient();
   const tell = useTell();
@@ -54,7 +57,6 @@ export function useListMutations() {
       onError: (error) => tell({ title: error.message, tone: "danger" }),
     }),
   );
-  const rename = useMutation(orpc.v1.lists.update.mutationOptions(changing));
   const remove = useMutation(
     orpc.v1.lists.delete.mutationOptions({
       onSuccess: ({ id }) => {
@@ -99,6 +101,22 @@ export function useListMutations() {
     return removeSpot.mutateAsync({ id: listId, spotId: place.id });
   };
 
+  /**
+   * Takes a place out of one of the account's lists on the screen at once, as the web's route
+   * does, then asks the API, whose answer takes its place.
+   */
+  const removeAtOnce = (listId: string, place: PlaceRef) => {
+    // An answer on its way would bring the place back.
+    void queryClient.cancelQueries({ queryKey: listsKey });
+    const key = IDS[place.kind];
+    setLists((all) =>
+      all.map((list) =>
+        list.id === listId ? { ...list, [key]: list[key].filter((id) => id !== place.id) } : list,
+      ),
+    );
+    return removePlace(listId, place);
+  };
+
   /** Whether one of the account's lists holds a place, as the lists last read say. */
   const holdsPlace = (listId: string, place: PlaceRef) => {
     const list = queryClient
@@ -110,9 +128,9 @@ export function useListMutations() {
   return {
     addPlace,
     removePlace,
+    removeAtOnce,
     holdsPlace,
     create,
-    rename,
     remove,
     share,
     renewShare,

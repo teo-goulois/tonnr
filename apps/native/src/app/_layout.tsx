@@ -107,8 +107,8 @@ export default function RootLayout() {
                 <Stack.Screen name="session/[id]" options={formSheet()} />
                 <Stack.Screen name="report/new" options={formSheet()} />
                 <Stack.Screen name="spot/new" options={formSheet()} />
-                <Stack.Screen name="list/[id]" options={{ headerShown: true }} />
-                <Stack.Screen name="shared/[token]" options={{ headerShown: true }} />
+                {/* The web's dialog that shares a list, over the saved tab. */}
+                <Stack.Screen name="list/share" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="sign-in" options={formSheet()} />
                 <Stack.Screen name="forgot-password" options={formSheet()} />
                 <Stack.Screen name="reset-password" options={formSheet()} />

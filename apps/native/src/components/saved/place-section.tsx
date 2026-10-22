@@ -1,62 +1,34 @@
-import { ChevronRightIcon } from "@repo/ui/icon";
-import { Fragment, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import type { ReactNode } from "react";
+import { View } from "react-native";
 
-import { MARK } from "@/components/search/found-list";
-import { Glyph } from "@/components/shared/glyph";
-import { Button } from "@/components/ui/button";
-import { TARGET } from "@/components/ui/metrics";
-import { Separator } from "@/components/ui/separator";
-import { Surface } from "@/components/ui/surface";
+import type { GlyphIcon } from "@/components/shared/glyph";
+import { Button, type ButtonVariant } from "@/components/ui/button";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
-import { m } from "@/paraglide/messages";
 
 import type { RowContext } from "./actions";
 import type { PlaceActions, PlaceItem } from "./place-actions";
 import { PlaceRow, PlaceRowSkeleton } from "./place-row";
-import { keyOf } from "./sea-now";
-import { type SeaReader, useSeaNows } from "./use-sea-now";
+import type { SavedRow } from "./use-saved-places";
 
-// Places grouped as the platform groups a list: a title over them, which opens the list when it
-// is one, then the rows on the theme's surface, a line between two of them that starts at the
-// name. Each row shown asks the sea at its place, and the asks of a section leave together; a
-// place beyond the rows shown asks nothing, since each call counts a forecast question of the
-// reader's hour (decision 074). A place the answer left out, a spot deleted meanwhile or a break
-// merged away, leaves no row.
+// The parts of the saved tab, as the web's `SavedPanel` lays them: a section's heading in the
+// body's medium, with how many it holds in muted figures beside it and what is done with it at
+// its end, flush with the screen's room; then its rows, which stand on the screen's ground with
+// no card and no line between them, their marks in line with the heading.
 
 type SectionHeaderProps = {
   title: string;
   /** How many the section holds, beside its title. */
-  count?: number;
-  /** Opens what the section is, as a list's own screen: the title then has a chevron. */
-  onPress?: () => void;
-  accessibilityHint?: string;
-  /** One thing to do at its end, as adding a spot. */
-  action?: { label: string; onPress: () => void };
+  count?: number | undefined;
+  /** One thing to do at its end, as adding a spot or clearing what was looked at. */
+  action?: { label: string; onPress: () => void; icon?: GlyphIcon; variant?: ButtonVariant };
+  /** What stands at its end in place of an action: a list's small buttons. */
+  accessory?: ReactNode;
 };
 
-export function SectionHeader({
-  title,
-  count,
-  onPress,
-  accessibilityHint,
-  action,
-}: SectionHeaderProps) {
-  const { colors, space } = useTheme();
-  const words = (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexShrink: 1 }}>
-      <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
-        {title}
-      </Text>
-      {count !== undefined ? (
-        <Text size="s" tone="muted" numeric>
-          {count}
-        </Text>
-      ) : null}
-      {onPress ? <Glyph icon={ChevronRightIcon} size={14} color={colors["neutral-6"]} /> : null}
-    </View>
-  );
+export function SectionHeader({ title, count, action, accessory }: SectionHeaderProps) {
+  const { space } = useTheme();
   return (
     <View
       style={{
@@ -64,155 +36,85 @@ export function SectionHeader({
         alignItems: "center",
         justifyContent: "space-between",
         gap: space.s,
-        minHeight: TARGET,
-        paddingHorizontal: space.xxs,
       }}
     >
-      {onPress ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={count === undefined ? title : `${title}, ${count}`}
-          accessibilityHint={accessibilityHint}
-          onPress={onPress}
-          hitSlop={8}
-          style={({ pressed }) => ({ flexShrink: 1, opacity: pressed ? 0.6 : 1 })}
-        >
-          {words}
-        </Pressable>
-      ) : (
-        <View accessible accessibilityRole="header" style={{ flexShrink: 1 }}>
-          {words}
-        </View>
-      )}
+      <View
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={count === undefined ? title : `${title}, ${count}`}
+        style={{ flexDirection: "row", alignItems: "baseline", gap: space.xs, flexShrink: 1 }}
+      >
+        <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {title}
+        </Text>
+        {count !== undefined ? (
+          <Text size="s" tone="muted" numeric>
+            {count}
+          </Text>
+        ) : null}
+      </View>
       {action ? (
-        <Button variant="ghost" onPress={action.onPress}>
+        <Button variant={action.variant ?? "ghost"} icon={action.icon} onPress={action.onPress}>
           {action.label}
         </Button>
       ) : null}
+      {accessory}
     </View>
   );
 }
 
-type PlaceSectionProps = {
-  header?: ReactNode;
-  items: readonly PlaceItem[];
-  reader: SeaReader;
+type PlaceRowsProps = {
+  rows: readonly SavedRow[];
+  now: number;
   /** Where each row stands, which says what it offers. */
   contextOf: (item: PlaceItem) => RowContext;
   actions: PlaceActions;
-  /** How many rows it shows at most, with a row that leads to the rest. */
-  limit?: number;
-  onSeeAll?: () => void;
-  /** A line under the rows. */
-  footer?: ReactNode;
-  /** What it says when it holds nothing. */
-  empty?: ReactNode;
+  /** Each row has the X that takes it out of the account's list. */
+  removable?: boolean;
 };
 
-export function PlaceSection({
-  header,
-  items,
-  reader,
-  contextOf,
-  actions,
-  limit,
-  onSeeAll,
-  footer,
-  empty,
-}: PlaceSectionProps) {
+/** The rows of a section, on the screen's ground: the web's `-mx-xs grid gap-xxs`. */
+export function PlaceRows({ rows, now, contextOf, actions, removable = false }: PlaceRowsProps) {
   const { space } = useTheme();
-  const showing = items.slice(0, limit ?? items.length);
-  const asked = useSeaNows(
-    reader,
-    showing.map((item) => item.ref),
-  );
-  // A place the answer left out is no more, and leaves no row, unless the screen knows it by its
-  // name: a spot of a list read by its link, which the reader sees and is not told the sea of.
-  const present = showing.flatMap((item, index) => {
-    const query = asked[index];
-    return query?.data === null && !item.name ? [] : [{ item, query }];
-  });
-  const unanswered = ({ query }: (typeof present)[number]) =>
-    query?.isError === true && query.data === undefined;
-  // A row with no name has nothing to show while its answer failed: the line under the rows
-  // asks again for it, and for the sea of the others.
-  const failed = present.filter(unanswered);
-  const shown = present.filter((one) => !unanswered(one) || one.item.name);
-  // What the rows do not show, and the places known to be there, which the last row opens.
-  const rest = items.length - showing.length;
-  const held = items.length - (showing.length - present.length);
-
   return (
-    <View style={{ gap: space.xs }}>
-      {header}
-      {present.length === 0 && rest === 0 ? (
-        (empty ?? null)
-      ) : (
-        <Surface insetEdge style={{ overflow: "hidden" }}>
-          {shown.map(({ item, query }, index) => (
-            <Fragment key={keyOf(item.ref)}>
-              {index > 0 ? <Separator inset={space.m + MARK + space.s} /> : null}
-              {query?.isPending && !item.name ? (
-                <PlaceRowSkeleton />
-              ) : (
-                <PlaceRow
-                  item={item}
-                  told={query?.data}
-                  pending={query?.isPending ?? true}
-                  context={contextOf(item)}
-                  actions={actions}
-                />
-              )}
-            </Fragment>
-          ))}
-          {failed.length > 0 ? (
-            <>
-              {shown.length > 0 ? <Separator inset={space.m} /> : null}
-              <View
-                accessibilityRole="alert"
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: space.s,
-                  padding: space.m,
-                }}
-              >
-                <Text size="s" tone="muted" style={{ flex: 1 }}>
-                  {m.native_places_failed()}
-                </Text>
-                <Button
-                  variant="secondary"
-                  loading={failed.some(({ query }) => query?.isFetching)}
-                  onPress={() => {
-                    for (const { query } of failed) void query?.refetch();
-                  }}
-                >
-                  {m.action_retry()}
-                </Button>
-              </View>
-            </>
-          ) : null}
-          {rest > 0 && onSeeAll ? (
-            <>
-              {present.length > 0 ? <Separator inset={space.m} /> : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={onSeeAll}
-                style={({ pressed }) => ({
-                  minHeight: TARGET,
-                  justifyContent: "center",
-                  paddingHorizontal: space.m,
-                  paddingVertical: space.xs,
-                  opacity: pressed ? 0.6 : 1,
-                })}
-              >
-                <Text weight="medium">{m.native_see_all({ count: held })}</Text>
-              </Pressable>
-            </>
-          ) : null}
-        </Surface>
+    <View style={{ marginHorizontal: -space.xs, gap: space.xxs }}>
+      {rows.map((row) =>
+        "waiting" in row ? (
+          <Loading key={row.key}>
+            <PlaceRowSkeleton />
+          </Loading>
+        ) : (
+          <PlaceRow
+            key={row.key}
+            item={row.item}
+            station={row.station}
+            now={now}
+            context={contextOf(row.item)}
+            actions={actions}
+            removable={removable}
+          />
+        ),
       )}
-      {footer}
     </View>
+  );
+}
+
+/**
+ * The place of rows while they are read, never a spinner: with `heading`, a section's heading
+ * over them too, as the web's tab waits for the account's lists.
+ */
+export function RowsWaiting({ count = 3, heading = false }: { count?: number; heading?: boolean }) {
+  const { space, type } = useTheme();
+  return (
+    <Loading>
+      <View style={{ gap: space.xs }}>
+        {heading ? <Skeleton width={96} height={type.m.line} /> : null}
+        <View style={{ marginHorizontal: -space.xs, gap: space.xxs }}>
+          {Array.from({ length: count }, (_, index) => (
+            <PlaceRowSkeleton key={index} />
+          ))}
+        </View>
+      </View>
+    </Loading>
   );
 }

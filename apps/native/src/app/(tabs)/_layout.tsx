@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/native-tabs";
 import { Platform } from "react-native";
 
@@ -25,8 +25,12 @@ export default function TabsLayout() {
   useAccountStart();
   // The quick actions of the app's icon open their route over the tabs (decision 074).
   useQuickActions();
-  // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039).
-  if (useVisitorWall()) return <LoginWall />;
+  // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039),
+  // except on a list opened by its link, which opens then too, as the web's ?shared= does: the
+  // wall comes back once the visitor leaves the list for another tab.
+  const walled = useVisitorWall();
+  const pathname = usePathname();
+  if (walled && !pathname.startsWith("/saved/shared/")) return <LoginWall />;
   return (
     <NativeTabs
       tintColor={colors["neutral-10"]}
@@ -43,9 +47,22 @@ export default function TabsLayout() {
       indicatorColor={colors["neutral-3"]}
       rippleColor={colors["neutral-3-transparent"]}
       labelVisibilityMode="labeled"
-      screenListeners={({ route }) => ({
+      screenListeners={({ navigation, route }) => ({
         tabPress: () => {
           if (route.name === "add") router.push("/create");
+          // A press on a tab navigates to it with no parameters, which takes away the map's: the
+          // list it shows alone is given back to it, as the web keeps `?list=` whatever tab is
+          // in view (`tabSearch` in packages/client/src/phone-nav.ts).
+          const list = (route.params as { list?: unknown } | undefined)?.list;
+          if (route.name === "index" && typeof list === "string" && list) {
+            requestAnimationFrame(() =>
+              navigation.dispatch({
+                type: "SET_PARAMS",
+                payload: { params: { list } },
+                source: route.key,
+              }),
+            );
+          }
         },
       })}
     >

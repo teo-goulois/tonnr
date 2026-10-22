@@ -1,94 +1,113 @@
-import { TrashIcon } from "@repo/ui/icon";
+import { type Station, periodOf } from "@repo/client/viewer/types";
+import { TrashIcon, XIcon } from "@repo/ui/icon";
 import { Link } from "expo-router";
 import { type ReactNode, useRef } from "react";
-import { type AccessibilityActionEvent, PixelRatio, Platform, Pressable, View } from "react-native";
+import { type AccessibilityActionEvent, Platform, Pressable, View } from "react-native";
 import Swipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { placeHref } from "@/components/map/place-route";
-import { FoundMark, MARK } from "@/components/search/found-list";
+import { FoundMark, SMALL_MARK } from "@/components/search/found-list";
 import { Glyph } from "@/components/shared/glyph";
+import { IconButton } from "@/components/ui/button";
+import { FreshnessDot } from "@/components/ui/freshness-dot";
 import { feel } from "@/components/ui/haptics";
 import { TARGET } from "@/components/ui/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { formatAgo, formatClock } from "@/lib/format";
+import { formatSeconds, freshnessOf } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
+import { formatHeight, useUnits } from "@/lib/units";
 import { light } from "@/theme/tokens";
 import { m } from "@/paraglide/messages";
 
 import { type ActionKey, actionsOf, type RowContext } from "./actions";
 import { ACTION_LOOKS, type PlaceActions, type PlaceItem } from "./place-actions";
 import { kindWord } from "./place-words";
-import {
-  HeightPill,
-  MutedBearing,
-  PillSkeleton,
-  SeaLine,
-  WindPill,
-  seaWords,
-  shoreWord,
-} from "./sea-figures";
-import { type SeaFigures, type SeaNow, seaFiguresOf, type Told } from "./sea-now";
+import { HeightChip } from "./sea-figures";
 
-// A place in a list, as the saved tab, a list and a list opened by its link show it: what it is,
-// its name, and the sea there now, its height on the color of the sea's scale. A press opens the
-// place. A swipe to the left takes it out of the account's list, and a long press offers what
-// else can be done with it: iOS's own context menu under a preview of the sea there, Android's
-// sheet. A screen reader finds the same among the row's actions.
+// A place in a list, as the web's `StationRow`, `BreakRow` and `SpotRow` draw it: on one line a
+// finger's height, the mark of what it is, its name, and for a station what it read last, its
+// height and its period with how recent they are, the mark then being the height's color with
+// where the waves go. It stands on the screen's ground, tinted while it is pressed, and a press
+// opens the place. In a list of the account's, the X at its end takes it out. A swipe to the left
+// does the same, and a long press offers what else can be done with it, iOS's own context menu or
+// Android's sheet: the platform's additions, which a screen reader finds among the row's actions.
 
 const ACTION_WIDTH = 88;
-/** A row's height: a finger's, and room for the name over the line of the sea. */
-const ROW_HEIGHT = Math.max(TARGET, 60);
+/** The web's `icon-sm` under `lg`, which the X is. */
+const SMALL_BUTTON = 40;
 
 // What a place is, in words, which the widgets write too.
 export { kindWord };
 
-/** A row's place while what it says is on its way. */
+/** A row's place while what it says is on its way, the web's `StationRowSkeleton`. */
 export function PlaceRowSkeleton() {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   return (
-    <View
-      style={{
-        minHeight: ROW_HEIGHT,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.s,
-        paddingHorizontal: space.m,
-      }}
-    >
-      <Skeleton width={MARK} height={MARK} round />
-      <View style={{ flex: 1, gap: space.xxs }}>
-        <Skeleton width="55%" height={14} />
-        <Skeleton width="35%" height={11} />
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
+      <View
+        style={{
+          flex: 1,
+          minHeight: TARGET,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.xs,
+          paddingHorizontal: space.xs,
+        }}
+      >
+        <Skeleton width={SMALL_MARK} height={SMALL_MARK} round />
+        <Skeleton width="40%" height={type.s.line} />
+        <View style={{ flex: 1 }} />
+        <Skeleton width={64} height={type.s.line} />
       </View>
-      <PillSkeleton />
+      <View style={{ width: SMALL_BUTTON }} />
     </View>
   );
 }
 
 type PlaceRowProps = {
   item: PlaceItem;
-  /**
-   * What `places.now` said of it: null when it said nothing of it, a spot the reader may see in
-   * a list and not ask the sea of, and undefined when no answer came.
-   */
-  told: Told | null | undefined;
-  /** Whether the answer is on its way: the sea's place waits for it. */
-  pending: boolean;
+  /** What a station read last, which its row writes beside its name. */
+  station?: Station | undefined;
+  /** The time a reading's age is read against. */
+  now: number;
   context: RowContext;
   actions: PlaceActions;
+  /** The X at its end, which takes the place out of the account's list it stands in. */
+  removable?: boolean;
 };
 
 /** A place in a list. */
-export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProps) {
-  const { colors, space } = useTheme();
+export function PlaceRow({
+  item,
+  station,
+  now,
+  context,
+  actions,
+  removable = false,
+}: PlaceRowProps) {
+  const { colors, space, radius } = useTheme();
+  // The height is written in the reader's unit.
+  useUnits();
   const swipeable = useRef<SwipeableMethods>(null);
-  const sea = told?.sea;
-  const name = sea?.place.name ?? item.name;
-  const figures = told ? seaFiguresOf(told.sea, told.at) : null;
-  const shown: PlaceItem = { ref: item.ref, name };
-  const offered = actionsOf(item.ref, context);
-  const kind = kindWord(item.ref.kind, sea);
+  const { ref, name } = item;
+  const offered = actionsOf(ref, context);
+
+  const reading = station?.latestReading;
+  const freshness = freshnessOf(reading?.observedAt, now);
+  const height = freshness === "none" ? null : (reading?.significantHeightMeters ?? null);
+  const period = freshness === "none" ? null : periodOf(reading);
+  const figures = `${height === null ? "–" : formatHeight(height)}${
+    period !== null ? ` · ${formatSeconds(period)}` : ""
+  }`;
+  const spoken = [height === null ? null : formatHeight(height), period && formatSeconds(period)]
+    .filter(Boolean)
+    .join(", ");
+  const label = station
+    ? `${name}, ${spoken || m.station_no_recent_reading()}`
+    : ref.kind === "station"
+      ? name
+      : `${name}, ${kindWord(ref.kind)}`;
 
   const accessibilityActions = offered
     .filter((key) => key !== "open")
@@ -99,91 +118,101 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
   // A double tap opens the place as a press does: the actions are the rest of what it offers.
   const onAccessibilityAction = (event: AccessibilityActionEvent) => {
     const key = event.nativeEvent.actionName as ActionKey;
-    if (offered.includes(key)) actions.run(key, shown, context);
+    if (offered.includes(key)) actions.run(key, item, context);
   };
+  const open = () => actions.run("open", item, context);
 
-  const body = (
-    <View
-      style={{
-        minHeight: ROW_HEIGHT,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.s,
-        paddingHorizontal: space.m,
-        paddingVertical: space.xs,
-      }}
-    >
-      <FoundMark kind={item.ref.kind} />
-      <View style={{ flex: 1, gap: space.xxs / 2 }}>
-        <Text weight="medium" numberOfLines={1}>
-          {name}
-        </Text>
-        {figures ? (
-          <SeaLine figures={figures} />
-        ) : pending ? (
-          <Skeleton width="45%" height={11} />
-        ) : (
-          <Text size="s" tone="muted" dense numberOfLines={1}>
-            {kind}
-          </Text>
-        )}
-      </View>
-      {figures === null ? (
-        pending ? (
-          <PillSkeleton />
-        ) : (
-          <Text tone="muted" numeric>
-            –
-          </Text>
-        )
-      ) : figures.heightMeters !== null ? (
-        <HeightPill meters={figures.heightMeters} />
-      ) : figures.windKnots !== null ? (
-        <WindPill knots={figures.windKnots} />
-      ) : (
-        <Text tone="muted" numeric>
-          –
-        </Text>
-      )}
-    </View>
-  );
+  const mark =
+    ref.kind === "station" && height !== null ? (
+      <HeightChip meters={height} fromDegrees={reading?.peakDirectionDegrees ?? null} />
+    ) : (
+      <FoundMark kind={ref.kind} small />
+    );
 
-  const pressable = (onLongPress?: () => void) => (
+  const pressable = (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={figures ? `${name}, ${kind}, ${seaWords(figures)}` : `${name}, ${kind}`}
+      accessibilityLabel={label}
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
-      onLongPress={onLongPress}
+      // iOS's Link takes the press, for its menu: the row opens the place through it.
+      onPress={Platform.OS === "ios" ? undefined : open}
+      onLongPress={Platform.OS === "ios" ? undefined : () => actions.showSheet(item, context)}
       delayLongPress={350}
+      style={{ flex: 1 }}
     >
       {/* expo-router's Link asChild merges its child's style by spreading it, which turns a
          style given as a function into nothing: what a press changes is drawn inside. */}
       {({ pressed }) => (
-        <View style={{ backgroundColor: pressed ? colors["neutral-3"] : colors["cte-surface"] }}>
-          {body}
+        <View
+          style={{
+            minHeight: TARGET,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.xs,
+            paddingHorizontal: space.xs,
+            borderRadius: radius.xs,
+            borderCurve: "continuous",
+            backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
+          }}
+        >
+          {mark}
+          <Text numberOfLines={1} style={{ flex: 1 }}>
+            {name}
+          </Text>
+          {station ? (
+            <>
+              <Text size="s" tone="muted" numeric numberOfLines={1}>
+                {figures}
+              </Text>
+              <FreshnessDot freshness={freshness} />
+            </>
+          ) : null}
         </View>
       )}
     </Pressable>
   );
 
-  const row =
+  const opened =
     Platform.OS === "ios" ? (
-      <Link href={placeHref(item.ref.kind, item.ref.id)} asChild>
-        <Link.Trigger>{pressable()}</Link.Trigger>
-        <Link.Preview
-          style={{ width: 340, height: Math.round(250 * Math.min(PixelRatio.getFontScale(), 1.6)) }}
-        >
-          <PlacePreview name={name} kind={kind} figures={figures} sea={sea} />
-        </Link.Preview>
-        <Link.Menu>{menuOf(offered, shown, context, actions)}</Link.Menu>
+      <Link
+        href={placeHref(ref.kind, ref.id)}
+        asChild
+        // The place opens where the screen says, on the map from a tab: never pushed over it.
+        onPress={(event) => {
+          event.preventDefault();
+          open();
+        }}
+      >
+        <Link.Trigger>{pressable}</Link.Trigger>
+        <Link.Menu>{menuOf(offered, item, context, actions)}</Link.Menu>
       </Link>
     ) : (
-      // Android's Link would take the press: the row opens the place itself, and holds for the sheet.
-      <Link href={placeHref(item.ref.kind, item.ref.id)} asChild>
-        {pressable(() => actions.showSheet(shown, context))}
-      </Link>
+      pressable
     );
+
+  const row = (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.xxs,
+        // A swipe slides the row over what it uncovers: it keeps the screen's ground.
+        backgroundColor: colors["cte-canvas"],
+      }}
+    >
+      {opened}
+      {removable && offered.includes("remove") ? (
+        <IconButton
+          icon={XIcon}
+          label={m.saved_remove_station({ name })}
+          variant="ghost"
+          size="small"
+          onPress={() => actions.run("remove", item, context)}
+        />
+      ) : null}
+    </View>
+  );
 
   if (!offered.includes("remove")) return row;
 
@@ -201,7 +230,7 @@ export function PlaceRow({ item, told, pending, context, actions }: PlaceRowProp
           importantForAccessibility="no-hide-descendants"
           onPress={() => {
             swipeable.current?.close();
-            actions.run("remove", shown, context);
+            actions.run("remove", item, context);
           }}
           style={{
             width: ACTION_WIDTH,
@@ -254,76 +283,4 @@ function menuOf(offered: ActionKey[], item: PlaceItem, context: RowContext, acti
       </Link.MenuAction>
     );
   });
-}
-
-/** What a long press shows of a place on iOS, over its menu: the sea there now, bigger. */
-function PlacePreview({
-  name,
-  kind,
-  figures,
-  sea,
-}: {
-  name: string;
-  kind: string;
-  figures: SeaFigures | null;
-  sea: SeaNow | undefined;
-}) {
-  const { colors, space } = useTheme();
-  const tide = figures?.nextTide;
-  return (
-    <View style={{ flex: 1, padding: space.m, gap: space.s, backgroundColor: colors["neutral-1"] }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
-        {sea ? <FoundMark kind={sea.place.kind} /> : null}
-        <View style={{ flex: 1 }}>
-          <Text size="s" tone="muted" numberOfLines={1}>
-            {kind}
-          </Text>
-          <Text size="l" weight="medium" numberOfLines={2}>
-            {name}
-          </Text>
-        </View>
-      </View>
-      {figures ? (
-        <>
-          <Text size="s" weight="medium" tone="muted">
-            {m.page_sea_now()}
-          </Text>
-          <View
-            style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.s }}
-          >
-            {figures.heightMeters !== null ? (
-              <HeightPill meters={figures.heightMeters} size="large" />
-            ) : null}
-            {figures.windKnots !== null ? (
-              <WindPill knots={figures.windKnots} size="large" />
-            ) : null}
-          </View>
-          <SeaLine figures={figures} />
-          {figures.atShore && figures.windFromDegrees !== null ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-              <MutedBearing degrees={figures.windFromDegrees} />
-              <Text size="s" tone="muted">
-                {shoreWord(figures.atShore)}
-              </Text>
-            </View>
-          ) : null}
-          {tide ? (
-            <Text size="s" tone="muted" numeric>
-              {`${tide.type === "high" ? m.page_tide_high() : m.page_tide_low()} ${formatClock(tide.time)}`}
-            </Text>
-          ) : null}
-          {figures.from === "measured" && figures.observedAt ? (
-            <Text size="xs" tone="muted">
-              {m.page_measured_ago({ ago: formatAgo(figures.observedAt, Date.now()) })}
-            </Text>
-          ) : null}
-        </>
-      ) : (
-        <View style={{ gap: space.xs }}>
-          <Skeleton width={120} height={40} round />
-          <Skeleton width="60%" height={12} />
-        </View>
-      )}
-    </View>
-  );
 }

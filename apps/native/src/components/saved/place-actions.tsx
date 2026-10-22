@@ -12,6 +12,7 @@ import { type ComponentProps, useState } from "react";
 import { Platform } from "react-native";
 
 import { placeHref } from "@/components/map/place-route";
+import { openPlaceOnMap } from "@/components/sessions/session-place";
 import type { GlyphIcon } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { useTell } from "@/components/ui/toast";
@@ -29,21 +30,24 @@ import { type ActionKey, actionsOf, type ListChoice, type RowContext } from "./a
 import { chooseOnIos } from "./confirm";
 import type { PlaceRef } from "./sea-now";
 
-// What a place's row does, wherever it stands: the saved tab, a list, a list opened by its link.
-// One set of actions, which iOS lists in the system's context menu under the place's preview,
-// Android in its sheet, and a screen reader among the row's own actions.
+// What a place's row does, wherever it stands: the saved tab, a list shown alone, a list opened
+// by its link. One set of actions, which iOS lists in the system's context menu, Android in its
+// sheet, and a screen reader among the row's own actions. A press opens the place, on the map
+// from the saved tab, as the web's address does (decision 040).
 
 /** A place as a row shows it: what it is, and the name it is read by. */
 export type PlaceItem = { ref: PlaceRef; name: string };
 
-/** Opens a place's sheet over the map (decisions 040 and 069). */
-function openPlace(place: PlaceRef) {
-  router.push(placeHref(place.kind, place.id));
-}
-
-/** Shows the map with one list alone, which the map reads from `?list=`. */
-export function showListOnMap(listId: string) {
-  router.navigate({ pathname: "/", params: { list: listId } });
+/**
+ * Opens a place's sheet over the map, as a press on its marker does: the map's tab first, with
+ * the list it shows alone, which the web's address keeps, then the place (decisions 040 and 069).
+ */
+export function openOnMap(place: PlaceRef, list: string | undefined) {
+  const href = placeHref(place.kind, place.id);
+  if (!list) return openPlaceOnMap(href);
+  // The map's tab takes the parameters it is navigated to: the list is given again, or it is lost.
+  router.navigate({ pathname: "/", params: { list } });
+  router.push(href);
 }
 
 /** A symbol of SF Symbols, which iOS's menu draws. */
@@ -60,7 +64,7 @@ export const ACTION_LOOKS: Record<ActionKey, Look> = {
   remove: { label: m.native_remove, icon: TrashIcon, symbol: "trash", destructive: true },
 };
 
-export function usePlaceActions() {
+export function usePlaceActions({ open }: { open: (place: PlaceRef) => void }) {
   const tell = useTell();
   const lists = useListMutations();
   const requireAccount = useRequireAccount();
@@ -79,24 +83,10 @@ export function usePlaceActions() {
     );
   }
 
-  async function remove({ ref, name }: PlaceItem, list: ListChoice) {
-    try {
-      await lists.removePlace(list.id, ref);
-    } catch {
-      // What failed was told, and the lists are read again.
-      return;
-    }
-    tell({
-      title: m.native_removed_from({ place: name, list: list.name }),
-      tone: "success",
-      action: {
-        label: m.native_undo(),
-        onPress: () => {
-          feel("select");
-          void lists.addPlace(list.id, ref).catch(() => {});
-        },
-      },
-    });
+  // Taken out at once, as the web's X does, with nothing said: what failed is told, and the lists
+  // are read again.
+  function remove({ ref }: PlaceItem, list: ListChoice) {
+    void lists.removeAtOnce(list.id, ref).catch(() => {});
   }
 
   async function move({ ref, name }: PlaceItem, from: ListChoice, to: ListChoice) {
@@ -156,7 +146,7 @@ export function usePlaceActions() {
   function run(key: ActionKey, item: PlaceItem, context: RowContext) {
     switch (key) {
       case "open":
-        return openPlace(item.ref);
+        return open(item.ref);
       case "move":
         return void chooseMove(item, context);
       case "alert":
@@ -164,7 +154,7 @@ export function usePlaceActions() {
       case "share":
         return void share(item);
       case "remove":
-        return context.list ? void remove(item, context.list) : undefined;
+        return context.list ? remove(item, context.list) : undefined;
     }
   }
 

@@ -9,7 +9,7 @@ describe("where a link takes the app", () => {
   it("opens a break, a station and a list by their short addresses, in any language", () => {
     expect(to(`${SITE}/b/abc`)).toEqual({ route: "/place/break/abc" });
     expect(to(`${SITE}/fr/s/41012`)).toEqual({ route: "/place/station/41012" });
-    expect(to(`${SITE}/l/tok`)).toEqual({ route: "/shared/tok" });
+    expect(to(`${SITE}/l/tok`)).toEqual({ route: "/saved/shared/tok" });
     expect(to(`${SITE}/i/inv`)).toEqual({ route: "/?invite=inv" });
   });
 
@@ -27,6 +27,19 @@ describe("where a link takes the app", () => {
     expect(to(`${SITE}/app?panel=account&settings=alerts`)).toEqual({ route: "/account/alerts" });
     expect(to(`${SITE}/app?break=abc&create=alert`)).toEqual({
       route: "/alert/new?place=break%3Aabc",
+    });
+  });
+
+  it("opens the screens the web's phone shows for the alerts and the lists", () => {
+    // Every alert's mail links to how to be told by its old address.
+    expect(to(`${SITE}/app?panel=alerts&alerts=settings`)).toEqual({ route: "/account/alerts" });
+    expect(to(`${SITE}/app?panel=alerts&alerts=mine`)).toEqual({ route: "/alerts?view=mine" });
+    // A list alone on the map, or in the saved tab as well when the address names it.
+    expect(to(`${SITE}/app?list=l1`)).toEqual({ route: "/?list=l1" });
+    expect(to(`${SITE}/app?list=l1&panel=saved`)).toEqual({ route: "/saved?list=l1" });
+    // What is selected comes first, as on the web's phone.
+    expect(to(`${SITE}/app?station=41012&list=l1&panel=saved`)).toEqual({
+      route: "/place/station/41012",
     });
   });
 

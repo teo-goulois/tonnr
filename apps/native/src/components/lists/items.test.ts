@@ -8,9 +8,9 @@ import {
   holds,
   listName,
   othersOf,
-  placesCount,
   refsOf,
   retryUnlessGone,
+  savedRefsOf,
   sizeOf,
 } from "./items";
 
@@ -68,9 +68,13 @@ describe("what a list holds, as the screens read it", () => {
     ]);
   });
 
-  it("counts places in words", () => {
-    expect(placesCount(1)).toBe("1 place");
-    expect(placesCount(4)).toBe("4 places");
+  it("lists its stations first in the saved tab, as the web's does", () => {
+    expect(savedRefsOf(trips).map((ref) => `${ref.kind}:${ref.id}`)).toEqual([
+      "station:s1",
+      "break:b1",
+      "break:b2",
+      "spot:p1",
+    ]);
   });
 
   it("asks again once for a list that failed, and never for one the API says is not there", () => {
