@@ -1,5 +1,3 @@
-import { distanceKm } from "@repo/client/viewer/samples";
-import * as Location from "expo-location";
 import { type NativeStackNavigationProp, useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useWindowDimensions } from "react-native";
@@ -8,7 +6,7 @@ import { RAISED, isWorthMoving, lowDetent } from "./fold";
 
 // What a place's sheet knows of itself as the platform's sheet: whether it is at rest, so that its
 // charts draw (the web's `useChartTurn`), and how tall it stands while low, from the summary of
-// its panel (decision 040), and how far the place stands from the reader.
+// its panel (decision 040).
 
 type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
@@ -54,30 +52,4 @@ export function useFoldHeight(detent: number) {
     current.current = low;
     navigation.setOptions({ sheetAllowedDetents: [low, RAISED] });
   };
-}
-
-/**
- * How far the place stands from the reader, when the phone already lets the app know where it
- * is: the sheet never asks for it.
- */
-export function useDistanceFrom(point: { latitude: number; longitude: number } | undefined) {
-  const [here, setHere] = useState<{ latitude: number; longitude: number }>();
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const { granted } = await Location.getForegroundPermissionsAsync();
-        if (!granted) return;
-        const last = await Location.getLastKnownPositionAsync({ maxAge: 30 * 60 * 1000 });
-        if (live && last)
-          setHere({ latitude: last.coords.latitude, longitude: last.coords.longitude });
-      } catch {
-        // A phone that cannot say where it is says no distance.
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-  return here && point ? distanceKm(here, point) : undefined;
 }

@@ -26,7 +26,7 @@ import { PlaceHeader } from "./place-header";
 import { type PlaceKind, type PlaceTab, tabFrom, tabsOf } from "./tabs";
 import { useLists } from "./use-lists";
 import { usePlaceConditions, usePlaceRecord } from "./use-place";
-import { useDistanceFrom, useFoldHeight, useSheetState } from "./use-sheet";
+import { useFoldHeight, useSheetState } from "./use-sheet";
 import { useSpotActions } from "./use-spot";
 
 // A place as a sheet over the map: a surf break, a station or a spot, at
@@ -62,7 +62,6 @@ export function PlaceSheet({
   const conditions = usePlaceConditions(record, now);
   const { atRest, detent } = useSheetState();
   const foldAt = useFoldHeight(detent);
-  const distanceKm = useDistanceFrom(record.point);
   const { isSaved } = useLists();
   const spots = useSpotActions();
   const name = record.name;
@@ -166,7 +165,6 @@ export function PlaceSheet({
       <PlaceHeader
         record={record}
         now={now}
-        distanceKm={distanceKm}
         isSaved={item ? isSaved(item) : false}
         onSave={save}
         onCopy={copy}
@@ -181,7 +179,11 @@ export function PlaceSheet({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: space.m, paddingBottom: space.s }}
+          contentContainerStyle={{
+            paddingHorizontal: space.m,
+            paddingTop: space.xs,
+            paddingBottom: space.s,
+          }}
         >
           <Segmented
             // A station has one tab and no row: what has tabs is a break or a spot.
