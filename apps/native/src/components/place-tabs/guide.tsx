@@ -1,5 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { View } from "react-native";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { type ReactNode, useState } from "react";
+import { RefreshControl, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BreakGuide, GuideSkeleton } from "@/components/guides/break-guide";
 import { SpotGuide } from "@/components/guides/spot-guide";
@@ -12,9 +14,10 @@ import { orpc } from "@/utils/orpc";
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
 /**
- * The guide of a place, drawn in the sheet's own scroll: of a surf break, what the accounts
- * write of it (decision 041), which this tab reads and completes; of a spot, what its owner says
- * it is like (decision 006). A station has none.
+ * The guide of a place, in a scroll view of its own under the sheet's head, as the other tabs of
+ * a place's sheet are, and pulled to be read again: of a surf break, what the accounts write of
+ * it (decision 041), which this tab reads and completes; of a spot, what its owner says it is
+ * like (decision 006). A station has none.
  */
 export function GuideTab({ kind, id }: PlaceTabProps) {
   if (kind === "break") return <BreakGuideTab id={id} />;
@@ -22,22 +25,71 @@ export function GuideTab({ kind, id }: PlaceTabProps) {
   return null;
 }
 
-function SpotGuideTab({ id }: { id: string }) {
-  const { space } = useTheme();
+/**
+ * What the guide scrolls in: within the sheet's padding, as far under the head as the other
+ * tabs stand, and clear of the phone's bottom edge once it is read to its end.
+ */
+function GuideScroll({
+  onRefresh,
+  children,
+}: {
+  // Reads again what the tab shows, as a pull does.
+  onRefresh: () => Promise<unknown>;
+  children: ReactNode;
+}) {
+  const { colors, space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refresh = async () => {
+    setIsRefreshing(true);
+    await onRefresh().finally(() => setIsRefreshing(false));
+  };
   return (
-    <View style={{ paddingHorizontal: space.m, paddingVertical: space.l }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{
+        paddingHorizontal: space.m,
+        paddingTop: space.m,
+        paddingBottom: insets.bottom + space.xl,
+      }}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={() => void refresh()}
+          tintColor={colors["neutral-7"]}
+        />
+      }
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+function SpotGuideTab({ id }: { id: string }) {
+  const queryClient = useQueryClient();
+  // A spot of the account's own is asked for again; one read in a list someone shared is that
+  // list's, which this tab does not ask for.
+  const refresh = () =>
+    queryClient.refetchQueries({
+      queryKey: orpc.v1.spots.get.queryKey({ input: { id } }),
+      type: "active",
+    });
+  return (
+    <GuideScroll onRefresh={refresh}>
       <SpotGuide id={id} />
-    </View>
+    </GuideScroll>
   );
 }
 
 function BreakGuideTab({ id }: { id: string }) {
-  const { space } = useTheme();
   const found = useQuery(orpc.v1.breaks.get.queryOptions({ input: { id } }));
-  const { guide, own, actions } = useGuiding(id);
+  const { guide, own, actions, refresh } = useGuiding(id);
 
   return (
-    <View style={{ paddingHorizontal: space.m, paddingVertical: space.l }}>
+    // A list of words that was confirmed is what the break says: it is read again with its guide.
+    <GuideScroll onRefresh={() => Promise.all([refresh(), found.refetch()])}>
       {found.data ? (
         <BreakGuide found={found.data} guide={guide} own={own} actions={actions} />
       ) : found.isError ? (
@@ -49,6 +101,6 @@ function BreakGuideTab({ id }: { id: string }) {
       ) : (
         <GuideSkeleton />
       )}
-    </View>
+    </GuideScroll>
   );
 }
