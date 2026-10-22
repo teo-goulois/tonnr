@@ -4,9 +4,9 @@ import { localTime, momentOf } from "@repo/conditions/alerts/clock";
 import { m } from "@/paraglide/messages";
 
 // What the step of the alerts' settings reads and writes, as the web's `AlertSettingsForm` does:
-// the hours of a day, the notice before a window, the days ahead, a day the account is away
-// until. What the two offer, and how they write an hour, is packages/client's. Decision 031. A
-// module that imports nothing of React Native, so that a test reads it.
+// the hours of a day, the notice before a window, a day the account is away until. What the two
+// offer, and how they write an hour, is packages/client's. Decision 031. A module that imports
+// nothing of React Native, so that a test reads it.
 
 /** A week the account can go at any hour of any day, which its own hours start from. */
 export const allWeek = () => Array.from({ length: 7 }, () => [...ALL_DAY]);
@@ -37,21 +37,6 @@ export function oneStretch(hours: readonly Stretch[]): Stretch | undefined {
   const first = hours[0];
   const last = hours.at(-1);
   return first && last ? { from: first.from, to: last.to } : undefined;
-}
-
-/** The hours a day may begin at, and end at: whole hours, and an end after the beginning. */
-export function hoursFrom(to: number) {
-  return Array.from({ length: 24 }, (_, hour) => hour * 60).filter((minutes) => minutes < to);
-}
-export function hoursTo(from: number) {
-  return Array.from({ length: 24 }, (_, hour) => (hour + 1) * 60).filter(
-    (minutes) => minutes > from,
-  );
-}
-
-/** A day's stretch, its beginning or its end moved. */
-export function moved(stretch: Stretch, end: "from" | "to", minutes: number): Stretch {
-  return end === "from" ? { ...stretch, from: minutes } : { ...stretch, to: minutes };
 }
 
 /** The week after one day's hours changed, the other days as they were. */

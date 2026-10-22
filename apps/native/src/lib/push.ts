@@ -125,9 +125,25 @@ export async function switchPushOn(account: string) {
   return true;
 }
 
+/** Forgets on the phone that push is on, and the device it was. */
+function forgetHere() {
+  localStorage.removeItem(ON);
+  localStorage.removeItem(DEVICE);
+  localStorage.removeItem(TOKEN);
+  // Live Activities go off with push: their switch is on a device that is forgotten (decision 074).
+  forgetActivityStart();
+}
+
+// The API's refusal of a device it does not keep for the caller.
+const isGone = (error: unknown) =>
+  typeof error === "object" && error !== null && (error as { code?: unknown }).code === "NOT_FOUND";
+
 /**
  * Says the phone's token again, as each start does and when the system gives another one, which
- * is `known`.
+ * is `known`. A device the API no longer keeps was removed from another one, or the phone is
+ * another account's now: the app lets go of it and of its keys, and makes none, since only the
+ * switch does, as a browser lets go (`push.renewApp`, decision 072). A renewal that had no
+ * answer is thrown, and push stays on until the next one.
  */
 export async function renewPush(account: string, known?: string) {
   if (!pushIsOn() || (await permission()) !== "granted") return;
@@ -136,10 +152,11 @@ export async function renewPush(account: string, known?: string) {
   try {
     const renewed = await client.v1.push.renewApp({ ...device, ...(id && { id }) });
     localStorage.setItem(DEVICE, renewed.id);
-  } catch {
-    // A device the API no longer keeps is given again.
-    const made = await client.v1.push.registerApp(device);
-    localStorage.setItem(DEVICE, made.id);
+  } catch (error) {
+    if (!isGone(error)) throw error;
+    forgetHere();
+    await forgetPushKeys();
+    return;
   }
   saidStartToken(device);
 }
@@ -147,11 +164,7 @@ export async function renewPush(account: string, known?: string) {
 /** Switches push off for this phone, as switching it off or signing out does (decision 070). */
 export async function switchPushOff(account?: string) {
   const kept = given();
-  localStorage.removeItem(ON);
-  localStorage.removeItem(DEVICE);
-  localStorage.removeItem(TOKEN);
-  // Live Activities go off with push: their switch is on a device that is forgotten (decision 074).
-  forgetActivityStart();
+  forgetHere();
   try {
     const token = kept ?? String((await Notifications.getDevicePushTokenAsync()).data);
     await client.v1.push.forgetApp({

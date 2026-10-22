@@ -2,21 +2,28 @@ import {
   ALL_DAY,
   type AlertSettingsChange,
   clock,
+  DAY_MINUTES,
   DAYS_AHEAD,
   FIRST_QUIET,
   noticeChoices,
 } from "@repo/client/alerts/settings";
 import type { AlertSettings } from "@repo/client/viewer/types";
-import { CalendarIcon, ClockIcon, GlobalIcon, MailIcon, MoonIcon, SunIcon } from "@repo/ui/icon";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { RefreshControl, View } from "react-native";
 
+import { RangeSlider } from "@/components/alerts/range-slider";
+import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
+import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
-import { Loading, SkeletonText } from "@/components/ui/skeleton";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
+import { useAccount } from "@/lib/account";
 import { useTheme } from "@/lib/theme";
+import { type PhonePush, usePhonePush } from "@/lib/use-push";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 
@@ -24,11 +31,9 @@ import {
   allWeek,
   awayDay,
   awayMoment,
+  dateOfDay,
   dayOf,
   dayWords,
-  hoursFrom,
-  hoursTo,
-  moved,
   noticeWords,
   oneStretch,
   type Stretch,
@@ -37,146 +42,156 @@ import {
   weekWith,
 } from "./alert-settings-words";
 import { DayPicker, TimePicker } from "./clock-pickers";
-import { MenuPicker } from "./menu-picker";
 import { PushSetting } from "./push-setting";
 import { Step } from "./settings-steps";
 import { useAlertSettings } from "./use-alert-settings";
 
 // How an account wants to be told, for all its alerts, one step into the account's tab: the
-// web's `AlertSettingsForm`, as a phone's settings group it, each switch the platform's own and
-// each time, day and choice among a few the platform's own picker. Every control saves what it
-// changes at once. Decisions 031, 040 and 068.
+// web's `AlertSettingsForm`, section by section in its order, its rows on the screen's ground as
+// the web's panel draws them. Each switch is the platform's own, and so is each time and day,
+// which the web asks in a field; a choice among a few is the web's toggles. Every control saves
+// what it changes at once. Decisions 031, 040 and 068.
 
-/** A row whose end is a picker: its title, a line under it, and the picker. */
-function PickerRow({
-  title,
-  description,
-  children,
+/** What stands under a switch at the start of the line, as the web's bare field: a picker. */
+function Under({ children }: { children: ReactNode }) {
+  return <View style={{ alignItems: "flex-start" }}>{children}</View>;
+}
+
+/** A choice among a few, as the web's small outline toggles say it: the one in force pressed in. */
+function Choices({
+  label,
+  options,
+  value,
+  onChange,
 }: {
-  title: string;
-  description?: string | undefined;
-  children: ReactNode;
+  label: string;
+  options: readonly { value: number; label: string }[];
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <ToggleGroup label={label}>
+      {options.map((option) => (
+        <Toggle
+          key={option.value}
+          label={option.label}
+          pressed={option.value === value}
+          onPress={() => {
+            if (option.value !== value) onChange(option.value);
+          }}
+        />
+      ))}
+    </ToggleGroup>
+  );
+}
+
+/** An end of the quiet hours: a time of the day, with its name before it. */
+function QuietHour({
+  label,
+  minutes,
+  onChange,
+}: {
+  label: string;
+  minutes: number;
+  onChange: (minutes: number) => void;
 }) {
   const { space } = useTheme();
   return (
-    <View
-      style={{
-        minHeight: TARGET,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.s,
-        paddingHorizontal: space.m,
-        paddingVertical: space.xs,
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <Text>{title}</Text>
-        {description ? (
-          <Text size="s" tone="muted">
-            {description}
-          </Text>
-        ) : null}
-      </View>
-      {children}
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+      {/* The picker says it to a screen reader. */}
+      <Text size="s" accessible={false}>
+        {label}
+      </Text>
+      <TimePicker
+        label={`${m.alert_settings_quiet()}, ${label}`}
+        minutes={minutes}
+        onChange={onChange}
+      />
     </View>
   );
 }
 
-const hourOptions = (hours: number[]) =>
-  hours.map((minutes) => ({ value: minutes, label: clock(minutes) }));
-
-/** The one stretch of a day the account can go: its beginning and its end, on whole hours. */
-function DayStretch({
+/** One day of the week: whether the account can go, and between which hours. */
+function DayHours({
   day,
-  stretch,
+  hours,
   onChange,
 }: {
   day: string;
-  stretch: Stretch;
-  onChange: (stretch: Stretch) => void;
+  hours: readonly Stretch[];
+  onChange: (hours: Stretch[]) => void;
 }) {
   const { space } = useTheme();
-  return (
-    <View
-      style={{
-        minHeight: TARGET,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        gap: space.xs,
-        paddingHorizontal: space.m,
-        paddingVertical: space.xxs,
-      }}
-    >
-      <MenuPicker
-        label={m.alert_settings_day_from({ day })}
-        value={stretch.from}
-        options={hourOptions(hoursFrom(stretch.to))}
-        onChange={(from) => onChange(moved(stretch, "from", from))}
-      />
-      <Text tone="muted" accessible={false}>
-        –
-      </Text>
-      <MenuPicker
-        label={m.alert_settings_day_to({ day })}
-        value={stretch.to}
-        options={hourOptions(hoursTo(stretch.from))}
-        onChange={(to) => onChange(moved(stretch, "to", to))}
-      />
-    </View>
-  );
-}
+  // The slider is followed while it moves, and saved when it is let go.
+  const [moving, setMoving] = useState<Stretch | null>(null);
+  const shown = moving ?? hours[0] ?? { from: 0, to: DAY_MINUTES };
+  const isFree = hours.length > 0;
+  // Hours given in several stretches, as the API takes them: the slider sets one, so they are
+  // shown as they are and kept until one stretch is asked for in their place.
+  const whole = hours.length > 1 ? oneStretch(hours) : undefined;
+  const words = !isFree || whole ? dayWords(hours) : stretchWords(shown);
+  const label = `${m.alert_settings_day_free({ day })}, ${words}`;
+  const flip = (free: boolean) => onChange(free ? ALL_DAY : []);
 
-/** The days of the week the account can go, each with its hours. */
-function WeekHours({
-  week,
-  onChange,
-}: {
-  week: Stretch[][];
-  onChange: (week: Stretch[][]) => void;
-}) {
-  const days = weekdays(getLocale());
   return (
-    <Section title={m.alert_settings_hours()}>
-      {days.flatMap((day, index) => {
-        const hours = week[index] ?? [];
-        const isFree = hours.length > 0;
-        const first = hours[0];
-        const whole = oneStretch(hours);
-        const set = (next: Stretch[]) => onChange(weekWith(week, index, next));
-        const rows = [
-          <Row
-            key={`${day}-free`}
-            title={day}
-            description={dayWords(hours)}
-            toggle={{ value: isFree, onChange: (free) => set(free ? ALL_DAY : []) }}
-            accessibilityHint={m.alert_settings_day_free({ day })}
-          />,
-        ];
-        // Hours given in several stretches, as the API takes them, are shown as they are and
-        // kept until one stretch is asked for in their place.
-        if (hours.length > 1 && whole) {
-          rows.push(
-            <Row
-              key={`${day}-one`}
-              title={m.alert_settings_day_one({ hours: stretchWords(whole) })}
-              chevron={false}
-              onPress={() => set([whole])}
-            />,
-          );
-        } else if (first) {
-          rows.push(
-            <DayStretch
-              key={`${day}-hours`}
-              day={day}
-              stretch={first}
-              onChange={(stretch) => set([stretch])}
-            />,
-          );
-        }
-        return rows;
-      })}
-    </Section>
+    <View style={{ gap: space.xxs }}>
+      {/* The day, and its hours beside its switch, which the whole line is to a screen reader. */}
+      <View
+        accessible
+        accessibilityRole="switch"
+        accessibilityLabel={label}
+        accessibilityState={{ checked: isFree }}
+        accessibilityActions={[{ name: "activate" }]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName !== "activate") return;
+          feel(isFree ? "toggle-off" : "toggle-on");
+          flip(!isFree);
+        }}
+        style={{
+          minHeight: TARGET,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: space.s,
+        }}
+      >
+        <Text style={{ flexShrink: 1 }}>{day}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
+          <Text size="s" tone="muted" numeric>
+            {words}
+          </Text>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Switch value={isFree} onChange={flip} />
+          </View>
+        </View>
+      </View>
+      {whole ? (
+        <Button
+          variant="ghost"
+          onPress={() => onChange([whole])}
+          style={{ alignSelf: "flex-start" }}
+        >
+          {m.alert_settings_day_one({ hours: stretchWords(whole) })}
+        </Button>
+      ) : isFree ? (
+        <RangeSlider
+          leastLabel={m.alert_settings_day_from({ day })}
+          mostLabel={m.alert_settings_day_to({ day })}
+          values={[shown.from / 60, shown.to / 60]}
+          min={0}
+          max={24}
+          step={1}
+          gap={1}
+          ends={false}
+          format={(hour) => clock(hour * 60)}
+          onChange={([from, to]) => setMoving({ from: from * 60, to: to * 60 })}
+          onCommit={([from, to]) => {
+            setMoving(null);
+            onChange([{ from: from * 60, to: to * 60 }]);
+          }}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -185,20 +200,27 @@ function SettingsForm({
   kept,
   phoneZone,
   onChange,
+  push,
 }: {
   kept: AlertSettings;
   phoneZone: string;
   onChange: (change: AlertSettingsChange) => void;
+  push: PhonePush;
 }) {
   const zone = kept.zone ?? phoneZone;
+  const days = weekdays(getLocale());
   const isQuiet = kept.quietFrom !== null && kept.quietTo !== null;
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
+  // The day the account is away until, on its own calendar. One that is past already is shown
+  // as it is, which the picker then reaches.
   const away = awayDay(kept.awayUntil, zone);
+  const awayFrom = away && dateOfDay(away) < tomorrow ? dateOfDay(away) : tomorrow;
+  const byMail = kept.mail !== "off" && kept.byMail === true;
 
   return (
     <>
-      <Section title={m.alert_settings_when()}>
+      <Section plain title={m.alert_settings_when()}>
         <Row
           title={m.alert_settings_found()}
           description={m.alert_settings_found_hint()}
@@ -215,13 +237,13 @@ function SettingsForm({
           toggle={{ value: kept.onEvening, onChange: (onEvening) => onChange({ onEvening }) }}
         />
         {kept.onEvening ? (
-          <PickerRow title={m.alert_settings_evening_at()}>
+          <Under>
             <TimePicker
               label={m.alert_settings_evening_at()}
               minutes={kept.eveningMinutes}
               onChange={(eveningMinutes) => onChange({ eveningMinutes })}
             />
-          </PickerRow>
+          </Under>
         ) : null}
         <Row
           title={m.alert_settings_begin()}
@@ -229,22 +251,21 @@ function SettingsForm({
           toggle={{ value: kept.onBegin, onChange: (onBegin) => onChange({ onBegin }) }}
         />
         {kept.onBegin ? (
-          <PickerRow title={m.alert_settings_notice()}>
-            <MenuPicker
-              label={m.alert_settings_notice()}
-              value={kept.noticeMinutes}
-              options={noticeChoices(kept.noticeMinutes).map((minutes) => ({
-                value: minutes,
-                label: noticeWords(minutes),
-              }))}
-              onChange={(noticeMinutes) => onChange({ noticeMinutes })}
-            />
-          </PickerRow>
+          // A notice set elsewhere, that is none of these, shows as it is.
+          <Choices
+            label={m.alert_settings_notice()}
+            options={noticeChoices(kept.noticeMinutes).map((minutes) => ({
+              value: minutes,
+              label: noticeWords(minutes),
+            }))}
+            value={kept.noticeMinutes}
+            onChange={(noticeMinutes) => onChange({ noticeMinutes })}
+          />
         ) : null}
       </Section>
 
       {/* The reports at the breaks the account keeps, told as they come: decision 068. */}
-      <Section title={m.alert_settings_reports_title()}>
+      <Section plain title={m.alert_settings_reports_title()}>
         <Row
           title={m.alert_settings_reports()}
           description={m.alert_settings_reports_hint()}
@@ -252,23 +273,20 @@ function SettingsForm({
         />
       </Section>
 
-      <Section footer={m.alert_settings_ahead_hint()}>
-        <PickerRow title={m.alert_settings_ahead()}>
-          <MenuPicker
-            label={m.alert_settings_ahead()}
-            value={kept.horizonDays}
-            options={DAYS_AHEAD.map((count) => ({
-              value: count,
-              label: m.alert_settings_days({ count }),
-            }))}
-            onChange={(horizonDays) => onChange({ horizonDays })}
-          />
-        </PickerRow>
+      <Section plain title={m.alert_settings_ahead()} lead={m.alert_settings_ahead_hint()}>
+        <Choices
+          label={m.alert_settings_ahead_hint()}
+          options={DAYS_AHEAD.map((count) => ({
+            value: count,
+            label: m.alert_settings_days({ count }),
+          }))}
+          value={kept.horizonDays}
+          onChange={(horizonDays) => onChange({ horizonDays })}
+        />
       </Section>
 
-      <Section title={m.alert_settings_can_go()}>
+      <Section plain title={m.alert_settings_can_go()}>
         <Row
-          icon={SunIcon}
           title={m.alert_settings_daylight()}
           description={m.alert_settings_daylight_hint()}
           toggle={{
@@ -277,7 +295,6 @@ function SettingsForm({
           }}
         />
         <Row
-          icon={ClockIcon}
           title={m.alert_settings_hours()}
           description={m.alert_settings_hours_hint()}
           toggle={{
@@ -285,9 +302,19 @@ function SettingsForm({
             onChange: (given) => onChange({ week: given ? allWeek() : null }),
           }}
         />
-        {/* Away is a switch, and the day it ends the platform's calendar under it. */}
+        {kept.week
+          ? days.map((day, index) => (
+              <DayHours
+                key={day}
+                day={day}
+                hours={kept.week?.[index] ?? []}
+                onChange={(hours) => onChange({ week: weekWith(kept.week, index, hours) })}
+              />
+            ))
+          : null}
+        {/* Away is a switch, since the platform's calendar cannot stand empty as the web's
+            field does, and the day it ends is under it. */}
         <Row
-          icon={CalendarIcon}
           title={m.alert_settings_away()}
           description={m.alert_settings_away_hint()}
           toggle={{
@@ -297,42 +324,38 @@ function SettingsForm({
           }}
         />
         {kept.awayUntil !== null && away ? (
-          <PickerRow title={m.native_away_back()}>
+          <Under>
             <DayPicker
               label={m.alert_settings_away()}
               day={away}
-              from={tomorrow}
+              from={awayFrom}
               onChange={(day) => onChange({ awayUntil: awayMoment(day, zone) })}
             />
-          </PickerRow>
+          </Under>
         ) : null}
       </Section>
 
-      {kept.week ? <WeekHours week={kept.week} onChange={(week) => onChange({ week })} /> : null}
-
-      <Section title={m.alert_settings_how()}>
+      <Section plain title={m.alert_settings_how()}>
         {/* A mail needs an instance that sends some. An account says yes before its address is
             checked, and mail leaves once it is. */}
         {kept.mail === "off" ? (
           <Row
-            icon={MailIcon}
             title={m.alert_settings_mail()}
             description={m.alert_settings_mail_none()}
             disabled
           />
         ) : (
           <Row
-            icon={MailIcon}
             title={m.alert_settings_mail()}
             description={
               kept.mail === "unchecked"
                 ? m.alert_settings_mail_unchecked()
                 : m.alert_settings_mail_hint()
             }
-            toggle={{ value: kept.byMail === true, onChange: (byMail) => onChange({ byMail }) }}
+            toggle={{ value: kept.byMail === true, onChange: (next) => onChange({ byMail: next }) }}
           />
         )}
-        {kept.mail !== "off" && kept.byMail === true ? (
+        {byMail ? (
           <Row
             title={m.alert_settings_subject()}
             description={m.alert_settings_subject_hint()}
@@ -342,9 +365,8 @@ function SettingsForm({
             }}
           />
         ) : null}
-        {kept.mail !== "off" && kept.byMail === true ? (
+        {byMail ? (
           <Row
-            icon={MoonIcon}
             title={m.alert_settings_quiet()}
             description={m.alert_settings_quiet_hint()}
             toggle={{
@@ -355,50 +377,73 @@ function SettingsForm({
             }}
           />
         ) : null}
-        {kept.mail !== "off" && kept.byMail === true && isQuiet ? (
-          <PickerRow title={m.alert_settings_quiet_from()}>
-            <TimePicker
-              label={`${m.alert_settings_quiet()}, ${m.alert_settings_quiet_from()}`}
-              minutes={kept.quietFrom ?? FIRST_QUIET.quietFrom}
-              onChange={(quietFrom) => onChange({ quietFrom, quietTo: kept.quietTo })}
-            />
-          </PickerRow>
+        {byMail && kept.quietFrom !== null && kept.quietTo !== null ? (
+          <QuietLine
+            from={kept.quietFrom}
+            to={kept.quietTo}
+            onChange={(quietFrom, quietTo) => onChange({ quietFrom, quietTo })}
+          />
         ) : null}
-        {kept.mail !== "off" && kept.byMail === true && isQuiet ? (
-          <PickerRow title={m.alert_settings_quiet_to()}>
-            <TimePicker
-              label={`${m.alert_settings_quiet()}, ${m.alert_settings_quiet_to()}`}
-              minutes={kept.quietTo ?? FIRST_QUIET.quietTo}
-              onChange={(quietTo) => onChange({ quietFrom: kept.quietFrom, quietTo })}
-            />
-          </PickerRow>
-        ) : null}
+        <PushSetting push={push} />
       </Section>
 
-      <PushSetting />
-
-      <Section title={m.alert_settings_zone()}>
-        <Row icon={GlobalIcon} title={kept.zone ?? m.alert_settings_zone_unset()} />
+      <Section plain title={m.alert_settings_zone()}>
+        <Text size="s">{kept.zone ?? m.alert_settings_zone_unset()}</Text>
         {kept.zone !== phoneZone ? (
-          <Row
-            title={m.alert_settings_zone_use({ zone: phoneZone })}
-            chevron={false}
+          <Button
+            variant="secondary"
             onPress={() => onChange({ zone: phoneZone })}
-          />
+            style={{ alignSelf: "flex-start" }}
+          >
+            {m.alert_settings_zone_use({ zone: phoneZone })}
+          </Button>
         ) : null}
       </Section>
     </>
   );
 }
 
+/** The quiet hours on one line, as the web writes them: "from 22:00 to 07:00". */
+function QuietLine({
+  from,
+  to,
+  onChange,
+}: {
+  from: number;
+  to: number;
+  onChange: (from: number, to: number) => void;
+}) {
+  const { space } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s }}>
+      <QuietHour
+        label={m.alert_settings_quiet_from()}
+        minutes={from}
+        onChange={(next) => onChange(next, to)}
+      />
+      <QuietHour
+        label={m.alert_settings_quiet_to()}
+        minutes={to}
+        onChange={(next) => onChange(from, next)}
+      />
+    </View>
+  );
+}
+
 /** The step of the alerts' settings, once the API has said them. */
 export function AlertSettingsStep() {
-  const { colors } = useTheme();
+  const { colors, space, type } = useTheme();
+  const { userId } = useAccount();
   const alerting = useAlertSettings();
+  const push = usePhonePush(userId);
+  // A pull asks again for the settings, and for what push on this phone reads.
   const refresh = (
     <RefreshControl
       refreshing={alerting.isRefetching}
-      onRefresh={alerting.refetch}
+      onRefresh={() => {
+        alerting.refetch();
+        push.refresh();
+      }}
       tintColor={colors["neutral-7"]}
     />
   );
@@ -410,16 +455,22 @@ export function AlertSettingsStep() {
           kept={alerting.settings}
           phoneZone={alerting.phoneZone}
           onChange={alerting.change}
+          push={push}
         />
       ) : alerting.isError ? (
         <ErrorState
+          plain
           title={m.alert_settings_load_failed()}
           onRetry={alerting.refetch}
           retrying={alerting.isRefetching}
         />
       ) : (
         <Loading>
-          <SkeletonText lines={8} />
+          <View style={{ gap: space.s }}>
+            <Skeleton height={type.m.line} width="40%" />
+            <Skeleton height={type.m.line} width="80%" />
+            <Skeleton height={type.m.line} width="60%" />
+          </View>
         </Loading>
       )}
     </Step>

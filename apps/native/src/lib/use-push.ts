@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
 
 import { feel } from "@/components/ui/haptics";
@@ -36,6 +36,9 @@ export type ActivitiesState =
   | { kind: "on" | "off"; isBusy: boolean; failed: boolean };
 
 type Device = { id: string; kind: "web" | "ios" | "android"; label: string | null; seenAt: Date };
+
+/** What the row "On this device" and the devices under it read and ask for. */
+export type PhonePush = ReturnType<typeof usePhonePush>;
 
 // The refusal of a device past the account's ten, which names its limit (packages/api).
 const isFull = (error: unknown) =>
@@ -77,11 +80,19 @@ export function usePhonePush(account: string | undefined) {
     return () => watching.remove();
   }, []);
 
-  const settle = useCallback(() => {
+  // What the phone keeps of push, read again once something may have changed it: a switch, or a
+  // renewal that let go of a device the API no longer keeps. When it was read last is kept too,
+  // which a list of the devices is newer than or not.
+  const readAt = useRef(0);
+  const readHere = useCallback(() => {
+    readAt.current = Date.now();
     setOn(pushIsOn());
     setHere(pushDeviceId());
+  }, []);
+  const settle = useCallback(() => {
+    readHere();
     void queryClient.invalidateQueries({ queryKey: devicesQuery.queryKey });
-  }, [queryClient, devicesQuery.queryKey]);
+  }, [queryClient, devicesQuery.queryKey, readHere]);
 
   const flip = useCallback(
     async (next: boolean) => {
@@ -144,10 +155,26 @@ export function usePhonePush(account: string | undefined) {
         feel("failed");
       } finally {
         setActivitiesBusy(false);
+        readHere();
       }
     },
-    [account, activitiesBusy],
+    [account, activitiesBusy, readHere],
   );
+
+  // A list newer than what this phone last read of push, and that has not its device: it was
+  // removed from another one, and the phone says its token again, which lets go of it
+  // (`renewPush`), as the web's browser asks again. Once for a list, whatever the answer, so that
+  // a renewal that fails does not ask in a circle: the list is not asked for again after it.
+  const isListed = devices.data?.devices.some((device) => device.id === here) ?? true;
+  const isIdle = !isBusy && !activitiesBusy && !devices.isFetching;
+  useEffect(() => {
+    if (!account || !isOn || here === null || isListed || !isIdle) return;
+    if (devices.dataUpdatedAt <= readAt.current) return;
+    readAt.current = Date.now();
+    void renewPush(account)
+      .catch(() => undefined)
+      .finally(readHere);
+  }, [account, isOn, here, isListed, isIdle, devices.dataUpdatedAt, readHere]);
 
   const platform = Platform.OS === "ios" ? "ios" : "android";
   const state: PhonePushState =
@@ -187,5 +214,10 @@ export function usePhonePush(account: string | undefined) {
     flip,
     remove,
     retry: () => void key.refetch(),
+    // A pull of the settings asks again what the instance offers and which devices are told.
+    refresh: () => {
+      void key.refetch();
+      void devices.refetch();
+    },
   };
 }

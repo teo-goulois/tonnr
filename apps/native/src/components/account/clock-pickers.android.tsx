@@ -12,11 +12,11 @@ import { getLocale } from "@/paraglide/runtime";
 import { dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
 
 // A time of day and a day of the calendar, chosen with the platform's own pickers through Expo
-// UI, at the end of a row: on Android the value as a button that opens Material's dialog, which
-// stands while it is open. iOS's are in `clock-pickers.tsx`. Each is read in the phone's own
-// clock, and kept as the API takes it. Decision 069.
+// UI, where the web's alerts' settings put a bare field: on Android the value as a button that
+// opens Material's dialog, which stands while it is open. iOS's are in `clock-pickers.tsx`. Each
+// is read in the phone's own clock, and kept as the API takes it. Decision 069.
 
-/** The value at the end of a row, in the accent's color, which opens its dialog. */
+/** The value, in the accent's color, which opens its dialog. */
 function DialogValue({
   label,
   shown,

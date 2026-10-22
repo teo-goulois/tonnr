@@ -7,10 +7,12 @@ import { getLocale } from "@/paraglide/runtime";
 import { dateOfDay, dateOfMinutes, dayOf, minutesOf } from "./alert-settings-words";
 
 // A time of day and a day of the calendar, chosen with the platform's own pickers through Expo
-// UI, at the end of a row: on iOS SwiftUI's compact picker, a pill that opens the system's wheel
-// or calendar over the screen, whose label is said to a screen reader and not drawn, since the
-// row says it; Android's are in `clock-pickers.android.tsx`. Each is read in the phone's own
-// clock, and kept as the API takes it. Decision 069.
+// UI, where the web's alerts' settings put a bare field: under the switch they belong to, at the
+// start of the line, or after the words that name them. On iOS SwiftUI's compact picker, a pill
+// that opens the system's wheel or calendar over the screen, whose label is said to a screen
+// reader and not drawn, as the web's field draws none; Android's are in
+// `clock-pickers.android.tsx`. Each is read in the phone's own clock, and kept as the API takes
+// it. Decision 069.
 
 type PickerProps = {
   label: string;

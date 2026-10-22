@@ -7,8 +7,6 @@ import {
   dateOfMinutes,
   dayOf,
   dayWords,
-  hoursFrom,
-  hoursTo,
   minutesOf,
   noticeWords,
   oneStretch,
@@ -38,11 +36,6 @@ describe("the hours of the alerts' settings", () => {
       ]),
     ).toEqual({ from: 360, to: 1260 });
     expect(oneStretch([])).toBeUndefined();
-  });
-
-  it("offer whole hours, an end after its beginning", () => {
-    expect(hoursFrom(180)).toEqual([0, 60, 120]);
-    expect(hoursTo(22 * 60)).toEqual([23 * 60, 24 * 60]);
   });
 
   it("change one day and keep the others, from a week given or none", () => {
