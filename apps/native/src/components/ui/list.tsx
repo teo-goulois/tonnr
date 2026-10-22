@@ -131,7 +131,9 @@ export function Row({
       : colors["neutral-10"];
   const switchDisabled = disabled || toggle?.disabled === true;
 
-  const content = (
+  // What the row says, which a screen reader reads as one element, and what stands at its end.
+  const spoken = [title, badge, description, note, value].filter(Boolean).join(", ");
+  const words = (
     <>
       {icon ? (
         <RowTile icon={icon} tint={destructive ? colors.error : tint} disabled={disabled} />
@@ -163,12 +165,15 @@ export function Row({
           {value}
         </Text>
       ) : null}
+    </>
+  );
+  const content = (
+    <>
+      {words}
       {toggle ? (
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Switch value={toggle.value} onChange={toggle.onChange} disabled={switchDisabled} />
         </View>
-      ) : accessory ? (
-        accessory
       ) : onPress && chevron ? (
         <Glyph
           icon={ChevronRightIcon}
@@ -229,10 +234,47 @@ export function Row({
     );
   }
 
-  if (!onPress) {
-    // A button at its end is reached on its own, after the row's words: one element would hide it.
+  if (accessory !== undefined) {
+    // A button at its end is an element of its own, after the row's words, which are one: a row
+    // read as one element would hide the button from a screen reader, which could neither reach
+    // nor press it. A row that opens something opens it from its words.
+    const wordsShape = {
+      flex: 1,
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: space.s,
+      alignSelf: "stretch" as const,
+    };
     return (
-      <View accessible={accessory === undefined} style={shape}>
+      <View style={shape}>
+        {onPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={spoken}
+            accessibilityHint={accessibilityHint}
+            accessibilityState={{ disabled }}
+            disabled={disabled}
+            onPress={onPress}
+            style={({ pressed }) => [
+              wordsShape,
+              pressed ? { backgroundColor: pressedGround, borderRadius: radius.xs } : null,
+            ]}
+          >
+            {words}
+          </Pressable>
+        ) : (
+          <View accessible accessibilityLabel={spoken} style={wordsShape}>
+            {words}
+          </View>
+        )}
+        {accessory}
+      </View>
+    );
+  }
+
+  if (!onPress) {
+    return (
+      <View accessible style={shape}>
         {content}
       </View>
     );
