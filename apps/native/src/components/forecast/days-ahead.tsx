@@ -8,8 +8,8 @@ import type { Forecast } from "@repo/client/viewer/types";
 import { weekOf } from "@repo/conditions/forecasts/week";
 import { type SeaWords, type Verdict, verdictOf } from "@repo/conditions/sea-now";
 import { shoreWind } from "@repo/conditions/shore-wind";
-import { type ReactNode, useMemo } from "react";
-import { View } from "react-native";
+import { type ReactNode, useMemo, useState } from "react";
+import { type LayoutChangeEvent, View } from "react-native";
 
 import { shoreWord } from "@/components/saved/sea-figures";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,24 +60,28 @@ function SeaChip({
   );
 }
 
-/** What a day says of a thing, on the ground its judgement gives it. */
-function Judged({
-  verdict,
-  thing,
-  children,
-}: {
-  verdict: Verdict | null;
-  thing: Verdict["fits"][number];
-  children: ReactNode;
-}) {
+type Judgement = "fits" | "off" | undefined;
+
+/** Whether a day's thing fits the place's words, does not, or was not judged. */
+function judgementOf(verdict: Verdict | null, thing: Verdict["fits"][number]): Judgement {
+  return verdict?.fits.includes(thing) ? "fits" : verdict?.off.includes(thing) ? "off" : undefined;
+}
+
+/**
+ * What a day says of a thing, on the ground its judgement gives it. What nothing judged, at a
+ * buoy or at a place with no words, is written in the muted ink, as the web's is.
+ */
+function Judged({ judgement, children }: { judgement: Judgement; children: ReactNode }) {
   const { colors, space, radius } = useTheme();
-  const fits = verdict?.fits.includes(thing);
-  const off = verdict?.off.includes(thing);
+  const fits = judgement === "fits";
+  const off = judgement === "off";
   return (
     <View
       style={{
-        minHeight: 24,
-        justifyContent: "center",
+        height: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.xxs,
         paddingHorizontal: space.xs,
         borderRadius: radius.xs,
         borderCurve: "continuous",
@@ -114,7 +118,13 @@ export function DaysAhead({
   isLoading: boolean;
 }) {
   useUnits();
-  const { colors, space } = useTheme();
+  const { colors, space, type } = useTheme();
+  // The days' column is as wide as its widest name, as the web's table sizes it.
+  const [dayWidth, setDayWidth] = useState(0);
+  const measureDay = (event: LayoutChangeEvent) => {
+    const width = Math.ceil(event.nativeEvent.layout.width);
+    setDayWidth((widest) => Math.max(widest, width));
+  };
   const hour = Math.floor(now / HOUR_MS);
   const days = useMemo(
     () =>
@@ -134,8 +144,8 @@ export function DaysAhead({
         importantForAccessibility="no-hide-descendants"
         style={{ flexDirection: "row", paddingBottom: space.xxs }}
       >
-        <View style={{ width: 72 }} />
-        <Text size="xs" tone="muted" style={{ flex: 1 }}>
+        <View style={{ minWidth: dayWidth + space.s }} />
+        <Text size="xs" tone="muted" style={{ flex: 1, paddingRight: space.s }}>
           {m.details_waves()}
         </Text>
         <Text size="xs" tone="muted" style={{ flex: 1 }}>
@@ -181,6 +191,11 @@ export function DaysAhead({
         ]
           .filter(Boolean)
           .join(". ");
+        // A direction nothing judged is written in the muted ink.
+        const inkOf = (judgement: Judgement) =>
+          judgement ? colors["neutral-10"] : colors["neutral-7"];
+        const swell = judgementOf(verdict, "swell");
+        const windJudged = judgementOf(verdict, "wind");
         return (
           <View
             key={day.day}
@@ -194,26 +209,53 @@ export function DaysAhead({
               borderTopColor: colors["neutral-3"],
             }}
           >
-            <Text size="s" weight="medium" style={{ width: 72 }} numberOfLines={1}>
-              {dayLabel(day.day)}
-            </Text>
-            <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: space.xxs }}>
+            <View
+              style={{
+                minWidth: dayWidth + space.s,
+                paddingRight: space.s,
+                alignItems: "flex-start",
+              }}
+            >
+              <Text size="s" weight="medium" numberOfLines={1} onLayout={measureDay}>
+                {dayLabel(day.day)}
+              </Text>
+            </View>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: space.xs,
+                paddingRight: space.s,
+              }}
+            >
               {day.wave ? (
                 <>
                   <SeaChip scale={WAVE_HEIGHT_SCALE} value={day.wave.heightMeters}>
                     {formatHeight(day.wave.heightMeters)}
                   </SeaChip>
                   {day.wave.directionDegrees !== null && (
-                    <Judged verdict={verdict} thing="swell">
-                      <Bearing degrees={day.wave.directionDegrees} />
+                    <Judged judgement={swell}>
+                      <Bearing degrees={day.wave.directionDegrees} color={inkOf(swell)} />
                     </Judged>
                   )}
                 </>
               ) : (
-                <Text tone="muted">–</Text>
+                <Text size="s" tone="muted">
+                  –
+                </Text>
               )}
             </View>
-            <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", gap: space.xxs }}>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: space.xs,
+              }}
+            >
               {wind != null ? (
                 <>
                   <SeaChip scale={WIND_SPEED_SCALE} value={wind}>
@@ -222,26 +264,29 @@ export function DaysAhead({
                   {/* Named by the shore where the place knows it, with the way it blows; by
                       its point alone otherwise. */}
                   {atShore && windFrom !== null ? (
-                    <Judged verdict={verdict} thing="wind">
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                        <DirectionArrow
-                          fromDegrees={windFrom}
-                          size={12}
-                          color={colors["neutral-10"]}
-                        />
-                        <Text size="s">{shoreWord(atShore)}</Text>
-                      </View>
+                    <Judged judgement={windJudged}>
+                      {/* The size of the word's letters, as the web's 0.85em. */}
+                      <DirectionArrow
+                        fromDegrees={windFrom}
+                        size={Math.round(type.s.size * 0.85)}
+                        color={inkOf(windJudged)}
+                      />
+                      <Text size="s" numberOfLines={1} style={{ color: inkOf(windJudged) }}>
+                        {shoreWord(atShore)}
+                      </Text>
                     </Judged>
                   ) : (
                     windFrom !== null && (
-                      <Judged verdict={verdict} thing="wind">
-                        <Bearing degrees={windFrom} />
+                      <Judged judgement={windJudged}>
+                        <Bearing degrees={windFrom} color={inkOf(windJudged)} />
                       </Judged>
                     )
                   )}
                 </>
               ) : (
-                <Text tone="muted">–</Text>
+                <Text size="s" tone="muted">
+                  –
+                </Text>
               )}
             </View>
           </View>
