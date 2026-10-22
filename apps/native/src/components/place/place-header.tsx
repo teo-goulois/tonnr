@@ -51,22 +51,24 @@ function FreshnessDot({ freshness }: { freshness: Freshness }) {
   const ping = useSharedValue(0);
   useEffect(() => {
     if (!beats) {
-      ping.value = 0;
+      ping.set(0);
       return;
     }
     // Out to twice its size and gone by three quarters of the second, then still.
-    ping.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: PING_MS * 0.75, easing: Easing.bezier(0, 0, 0.2, 1) }),
-        withTiming(1, { duration: PING_MS * 0.25 }),
-        withTiming(0, { duration: 0 }),
+    ping.set(
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: PING_MS * 0.75, easing: Easing.bezier(0, 0, 0.2, 1) }),
+          withTiming(1, { duration: PING_MS * 0.25 }),
+          withTiming(0, { duration: 0 }),
+        ),
+        -1,
       ),
-      -1,
     );
   }, [beats, ping]);
   const ring = useAnimatedStyle(() => ({
-    opacity: 1 - ping.value,
-    transform: [{ scale: 1 + ping.value }],
+    opacity: 1 - ping.get(),
+    transform: [{ scale: 1 + ping.get() }],
   }));
   const color =
     freshness === "fresh"
