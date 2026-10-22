@@ -113,7 +113,8 @@ function PrivateSpot() {
             name={m.landing_spots_example()}
             own
             selected
-            className="shadow-(--shadow-m)"
+            // The landing's own size, which Téo chose here, over the map's 12 pixels.
+            className="text-m shadow-(--shadow-m)"
           />
           <span className="h-3 w-0.5 bg-color-1" />
           <span className="-mt-px size-1.5 rounded-full bg-color-1 ring-1 ring-neutral-1" />
