@@ -81,7 +81,9 @@ function Tile({
       {isLoading ? (
         <Skeleton height={31} width={40} />
       ) : typeof figure === "string" || figure === undefined ? (
-        <Text size="l" weight="medium" numeric dense numberOfLines={1} adjustsFontSizeToFit>
+        // The figure keeps the size of its type and ends in an ellipsis where the tile is too
+        // narrow, as the web's does. Its unit stays on its line, a space after it.
+        <Text size="l" weight="medium" numeric dense numberOfLines={1}>
           {figure ?? "–"}
           {figure !== undefined && unit ? <Text size="xs" tone="muted">{` ${unit}`}</Text> : null}
         </Text>
