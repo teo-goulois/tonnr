@@ -71,6 +71,19 @@ describe("an icon of the web, drawn by the app", () => {
     expect(pointsOf("1em", 20)).toBe(20);
   });
 
+  it("raises the lighter part of a Fill Duo icon, filled whole, when asked", () => {
+    const duo = ICONS.find(([name]) => name === "BellOnFillDuoIcon")?.[1];
+    if (!duo) throw new Error("BellOnFillDuoIcon is not drawn");
+    const Drawn = ({ raised }: { raised?: number }) =>
+      drawTree(duo({}), WEB, { size: 20, color: "#fff", duo: raised });
+    const raised = renderToStaticMarkup(createElement(Drawn, { raised: 0.7 }));
+    expect(raised).toMatch(/<path[^>]*fill-opacity="1"[^>]*opacity="0.7"/);
+    expect(raised.match(/opacity="0.7"/g)).toHaveLength(1);
+    const own = renderToStaticMarkup(createElement(Drawn, {}));
+    expect(own).toContain('fill-opacity="0.4"');
+    expect(own).not.toContain('opacity="0.7"');
+  });
+
   it("leaves out an element the app cannot draw and says so, rather than stopping the screen", () => {
     const said = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {

@@ -14,7 +14,9 @@ import { nearestThumb, snapped, stepped } from "./slider-steps";
 // `Slider` sets one with two values. A thumb moves by the steps of its range and is felt at each,
 // as a picker's wheel is; a press on the line brings the nearer thumb there. A thumb taken to the
 // end of the line leaves that side open, which the editor reads (`rangeAfter`). A screen reader
-// finds each thumb as a control it raises and lowers by a step. Decision 031, "The editor".
+// finds each thumb as a control it raises and lowers by a step. The alerts' settings set the hours
+// of a day with it too, an hour apart at least, saved once it is let go. Decision 031, "The
+// editor".
 
 /** How big a thumb is drawn, and how far the line runs from each side for it to fit. */
 const THUMB = 28;
@@ -33,6 +35,15 @@ type RangeSliderProps = {
   format: (value: number) => string;
   /** The thumbs moved by a step at least. */
   onChange: (next: [number, number]) => void;
+  /** How far apart the two thumbs stay at least, in the values' unit: they meet by default. */
+  gap?: number;
+  /**
+   * Where the thumbs were left: once the finger lets go, if they moved, and at each step a screen
+   * reader takes, as the web's `onValueCommitted`, for a slider whose value is saved only then.
+   */
+  onCommit?: (next: [number, number]) => void;
+  /** Whether the line's two ends are written under it, as the editor's are. */
+  ends?: boolean;
 };
 
 export function RangeSlider({
@@ -44,28 +55,36 @@ export function RangeSlider({
   step,
   format,
   onChange,
+  gap = 0,
+  onCommit,
+  ends = true,
 }: RangeSliderProps) {
   const { colors } = useTheme();
   const [width, setWidth] = useState(0);
   const run = Math.max(1, width - THUMB);
   const at = (value: number) => ((value - min) / (max - min || 1)) * run;
-  // The thumb a finger holds, and the values as they last were, which a gesture reads.
+  // The thumb a finger holds, the values as they last were, which a gesture reads, and as they
+  // were when the finger came down.
   const holding = useRef<0 | 1 | null>(null);
   const latest = useRef(values);
   latest.current = values;
+  const began = useRef(values);
   // What a gesture reads, as this drawing has it: the gesture may keep its first callbacks.
-  const drawn = useRef({ onChange, min, max, step, run });
-  drawn.current = { onChange, min, max, step, run };
+  const drawn = useRef({ onChange, onCommit, min, max, step, run, gap });
+  drawn.current = { onChange, onCommit, min, max, step, run, gap };
 
+  /** Moves a thumb, and says whether it moved. */
   const move = (thumb: 0 | 1, value: number) => {
     const [least, most] = latest.current;
-    // A thumb stops at the other one: the two may meet, never cross.
+    const apart = drawn.current.gap;
+    // A thumb stops at the other one, or as far from it as the gap: never across.
     const next: [number, number] =
-      thumb === 0 ? [Math.min(value, most), most] : [least, Math.max(value, least)];
-    if (next[0] === least && next[1] === most) return;
+      thumb === 0 ? [Math.min(value, most - apart), most] : [least, Math.max(value, least + apart)];
+    if (next[0] === least && next[1] === most) return false;
     latest.current = next;
     feel("select");
     drawn.current.onChange(next);
+    return true;
   };
   const valueAtX = (x: number) => {
     const { min: least, max: most, step: by, run: line } = drawn.current;
@@ -80,6 +99,7 @@ export function RangeSlider({
       const value = valueAtX(event.x);
       const thumb = nearestThumb(latest.current, value);
       holding.current = thumb;
+      began.current = latest.current;
       move(thumb, value);
     },
     onUpdate: (event) => {
@@ -88,6 +108,10 @@ export function RangeSlider({
     },
     onFinalize: () => {
       holding.current = null;
+      const [least, most] = latest.current;
+      if (least !== began.current[0] || most !== began.current[1]) {
+        drawn.current.onCommit?.([least, most]);
+      }
     },
   });
 
@@ -103,7 +127,10 @@ export function RangeSlider({
         accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
         onAccessibilityAction={(event) => {
           const up = event.nativeEvent.actionName === "increment";
-          move(index, stepped(value, up ? 1 : -1, min, max, step));
+          if (move(index, stepped(value, up ? 1 : -1, min, max, step))) {
+            const [least, most] = latest.current;
+            onCommit?.([least, most]);
+          }
         }}
         style={[
           {
@@ -155,18 +182,20 @@ export function RangeSlider({
           ) : null}
         </View>
       </GestureDetector>
-      <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{ flexDirection: "row", justifyContent: "space-between" }}
-      >
-        <Text size="xs" tone="muted" numeric dense>
-          {format(min)}
-        </Text>
-        <Text size="xs" tone="muted" numeric dense>
-          {format(max)}
-        </Text>
-      </View>
+      {ends ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ flexDirection: "row", justifyContent: "space-between" }}
+        >
+          <Text size="xs" tone="muted" numeric dense>
+            {format(min)}
+          </Text>
+          <Text size="xs" tone="muted" numeric dense>
+            {format(max)}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

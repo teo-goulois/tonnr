@@ -87,6 +87,11 @@ type ButtonProps = {
   loading?: boolean;
   /** As wide as what holds it, whatever the way it aligns what it holds. */
   fill?: boolean;
+  /**
+   * Its name in the theme's red, for a ghost or an outline button, which has no ground: one that
+   * takes something away, as the web's ghost `text-error` that blocks an account.
+   */
+  destructive?: boolean;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -104,13 +109,19 @@ export function Button({
   disabled = false,
   loading = false,
   fill = false,
+  destructive = false,
   accessibilityHint,
   style,
   testID,
 }: ButtonProps) {
   const { colors, space, type, radius } = useTheme();
   const look = lookOf(variant, disabled, colors);
-  const label = muted && !disabled ? colors["neutral-7"] : look.label;
+  const label =
+    destructive && !disabled && (variant === "ghost" || variant === "outline")
+      ? colors.error
+      : muted && !disabled
+        ? colors["neutral-7"]
+        : look.label;
   const small = size === "xs";
   const height = small ? XS : type.m.line + 2 * space.xs;
   const slop = Math.ceil(Math.max(0, TARGET - height) / 2);
@@ -203,6 +214,11 @@ type IconButtonProps = {
   expanded?: boolean;
   /** The icon's color, where it says a state: a list that is shared, in the theme's accent. */
   iconColor?: string;
+  /**
+   * The icon's size in points, where it is not the size's own: the web's 20-point icon in a small
+   * button that stands in the platform's bar, which a round button of 48 points would overflow.
+   */
+  iconSize?: number;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -221,6 +237,7 @@ export function IconButton({
   selected,
   expanded,
   iconColor,
+  iconSize,
   accessibilityHint,
   style,
   testID,
@@ -284,7 +301,7 @@ export function IconButton({
       ) : (
         <Glyph
           icon={icon}
-          size={size === "xs" ? 14 : size === "small" ? 16 : 20}
+          size={iconSize ?? (size === "xs" ? 14 : size === "small" ? 16 : 20)}
           color={disabled ? ink : (iconColor ?? ink)}
         />
       )}

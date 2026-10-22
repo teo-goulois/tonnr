@@ -16,9 +16,11 @@ type SkeletonProps = {
   height: number;
   /** Round, as an avatar or a round button; else the theme's smallest radius. */
   round?: boolean;
+  /** A larger step of the theme's radii, for the place of what has it: a tile at `s`. */
+  corner?: "xs" | "s" | "m";
 };
 
-export function Skeleton({ width = "100%", height, round = false }: SkeletonProps) {
+export function Skeleton({ width = "100%", height, round = false, corner = "xs" }: SkeletonProps) {
   const { colors, radius } = useTheme();
   return (
     <HeroSkeleton
@@ -26,7 +28,7 @@ export function Skeleton({ width = "100%", height, round = false }: SkeletonProp
       style={{
         width,
         height,
-        borderRadius: round ? height / 2 : Math.min(radius.xs, height / 2),
+        borderRadius: round ? height / 2 : Math.min(radius[corner], height / 2),
         backgroundColor: colors["neutral-3"],
       }}
     />

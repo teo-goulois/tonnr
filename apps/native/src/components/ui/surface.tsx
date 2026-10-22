@@ -10,9 +10,11 @@ import { Text } from "./text";
 // the theme's shadows are transparent, so nothing stands higher than another but by its ground.
 //   - `raised`, the surface that floats, as a menu, a sheet or the map's buttons have it;
 //   - `default`, the surface of a card in a panel;
-//   - `muted`, a ground with no edge, under what is grouped.
+//   - `muted`, a ground with no edge, under what is grouped;
+//   - `outline`, the edge alone on the screen's own ground, as the web's `edge` draws a tile of
+//     a panel with no fill (the log's recap).
 
-export type SurfaceVariant = "raised" | "default" | "muted";
+export type SurfaceVariant = "raised" | "default" | "muted" | "outline";
 export type SurfaceRadius = "xs" | "s" | "m";
 
 function groundOf(variant: SurfaceVariant, colors: TonnrTheme["colors"], inset = false) {
@@ -23,6 +25,8 @@ function groundOf(variant: SurfaceVariant, colors: TonnrTheme["colors"], inset =
       return { backgroundColor: colors["cte-surface"], ...edge(colors["neutral-4"], { inset }) };
     case "muted":
       return { backgroundColor: colors["neutral-3"] };
+    case "outline":
+      return edge(colors["neutral-4"], { inset });
   }
 }
 

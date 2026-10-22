@@ -44,12 +44,14 @@ function nativeProps(props: Record<string, unknown>) {
 
 /**
  * The tree of `node` drawn with `renderer`. `root` is the props the outer `<svg>` takes: its size
- * and its color, which each `currentColor` inside reads.
+ * and its color, which each `currentColor` inside reads. `duo`, when it is given, is the opacity
+ * of the lighter part of a Fill Duo icon in place of its own, filled whole: the web raises it so
+ * on a tile of color (`Tile`'s `raised`), where its 40 % would not read in white.
  */
 export function drawTree(
   node: ReactNode,
   renderer: SvgRenderer,
-  root: { size: number; color: string; label?: string | undefined },
+  root: { size: number; color: string; label?: string | undefined; duo?: number | undefined },
   depth = 0,
 ): ReactNode {
   if (depth > 32) return left("an icon that nests too deep");
@@ -95,5 +97,10 @@ export function drawTree(
       children,
     );
   }
-  return createElement(Native as never, nativeProps(props), children);
+  const drawn = nativeProps(props);
+  if (root.duo !== undefined && props["data-color"] === "color-2") {
+    drawn.opacity = root.duo;
+    drawn.fillOpacity = 1;
+  }
+  return createElement(Native as never, drawn, children);
 }

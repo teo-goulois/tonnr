@@ -120,19 +120,24 @@ export function VideoBadge({ durationMs }: { durationMs: number | null }) {
 
 type TileShape = { size: number };
 
-/** A picture filling its square, which the phone keeps a while once it was drawn. */
+/**
+ * A picture filling its square, which the phone keeps a while once it was drawn. Its corner is a
+ * quarter of its side at most, as a strip's tiles have it, unless `corner` gives its own: a
+ * session's picture at the end of its line takes the theme's `xs` whole, as the web's does.
+ */
 export function Picture({
   uri,
   size,
   recyclingKey,
-}: TileShape & { uri: string | null; recyclingKey?: string }) {
+  corner,
+}: TileShape & { uri: string | null; recyclingKey?: string; corner?: number }) {
   const { colors, radius } = useTheme();
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: Math.min(radius.xs, size / 4),
+        borderRadius: corner ?? Math.min(radius.xs, size / 4),
         borderCurve: "continuous",
         overflow: "hidden",
         backgroundColor: colors["neutral-3"],

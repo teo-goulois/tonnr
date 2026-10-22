@@ -26,10 +26,13 @@ export function DirectionArrow({
   fromDegrees,
   size = 14,
   color,
+  strokeWidth,
 }: {
   fromDegrees: number;
   size?: number;
   color?: string;
+  // The line's width in the icon's own units: the web's 2.25 unless it is given another.
+  strokeWidth?: number;
 }) {
   return (
     <View
@@ -37,7 +40,12 @@ export function DirectionArrow({
       importantForAccessibility="no-hide-descendants"
       style={{ width: size, height: size, transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}
     >
-      <Glyph icon={ArrowUpIcon} size={size} color={color} strokeWidth={ARROW_STROKE} />
+      <Glyph
+        icon={ArrowUpIcon}
+        size={size}
+        color={color}
+        strokeWidth={strokeWidth ?? ARROW_STROKE}
+      />
     </View>
   );
 }
@@ -51,6 +59,8 @@ type BearingProps = Omit<TextProps, "children"> & {
   named?: boolean;
   // The arrow's size: the size of the text's letters by default.
   arrow?: number;
+  // The arrow's line, in the icon's units: the web's 2.25 by default.
+  strokeWidth?: number;
   color?: string;
 };
 
@@ -63,6 +73,7 @@ export function Bearing({
   withDegrees = false,
   named = false,
   arrow,
+  strokeWidth,
   color,
   size = "s",
   ...text
@@ -87,6 +98,7 @@ export function Bearing({
         fromDegrees={degrees}
         size={arrow ?? Math.round(type[size].size * ARROW_EM * grown)}
         color={color ?? colors["neutral-10"]}
+        {...(strokeWidth === undefined ? {} : { strokeWidth })}
       />
       <Text
         size={size}

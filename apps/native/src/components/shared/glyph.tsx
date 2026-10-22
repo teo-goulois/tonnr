@@ -51,15 +51,18 @@ type GlyphProps = {
   color?: string;
   /** What a screen reader says of it. Without it, the icon says nothing. */
   label?: string;
+  /** The opacity of a Fill Duo icon's lighter part, raised from its own on a tile of color. */
+  duo?: number;
 } & Omit<IconProps, "color" | "size">;
 
 /** An icon of the web's, drawn natively, at a size in points and in a color. */
-export function Glyph({ icon: Icon, size = 20, color, label, ...props }: GlyphProps) {
+export function Glyph({ icon: Icon, size = 20, color, label, duo, ...props }: GlyphProps) {
   const text = useCSSVariable("--cte-text");
   const drawn = Icon(props) as ReactNode;
   return drawTree(drawn, NATIVE, {
     size,
     color: color ?? (typeof text === "string" ? text : "#000000"),
     label,
+    duo,
   });
 }

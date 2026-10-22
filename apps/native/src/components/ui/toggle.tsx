@@ -20,7 +20,8 @@ import { Text } from "./text";
 // variant="outline" size="sm"`): a pill with the theme's fine edge, as tall as a finger on a
 // phone, which takes the theme's ink while it is pressed in, with a check before its word. The
 // check comes in on the theme's motion, and at once for a reader who asked for no motion. One
-// that cannot be pressed keeps saying whether it is in.
+// that cannot be pressed keeps saying whether it is in. Its word is the theme's small step, the
+// web's `sm`, unless it is given the body's, as the web's toggles of a surfer's boards are.
 const CHECK = 12;
 
 type ToggleProps = {
@@ -30,10 +31,12 @@ type ToggleProps = {
   pressed: boolean;
   /** Pressed, to go in or out: what holds it says what that changes. */
   onPress: () => void;
+  /** The step of the theme's type its word takes: `s`, the web's `sm`, or `m`, the body's. */
+  size?: "s" | "m";
   disabled?: boolean;
 };
 
-export function Toggle({ label, pressed, onPress, disabled = false }: ToggleProps) {
+export function Toggle({ label, pressed, onPress, size = "s", disabled = false }: ToggleProps) {
   const { colors, space, motion } = useTheme();
   const shown = useSharedValue(pressed ? 1 : 0);
 
@@ -53,7 +56,7 @@ export function Toggle({ label, pressed, onPress, disabled = false }: ToggleProp
 
   // The web's slot of the check: no room while the toggle is out, which its own margin takes
   // back from the gap, and while it is in its width, two points nearer the edge.
-  const gap = space.xxs;
+  const gap = size === "m" ? space.xs : space.xxs;
   const scale = motion.popupScale;
   const slot = useAnimatedStyle(() => {
     const amount = shown.get();
@@ -105,7 +108,7 @@ export function Toggle({ label, pressed, onPress, disabled = false }: ToggleProp
       <Animated.View style={[{ alignItems: "flex-start" }, slot]}>
         <Glyph icon={CheckIcon} size={CHECK} color={ink} />
       </Animated.View>
-      <Text size="s" weight="medium" dense numberOfLines={1} style={{ color: ink }}>
+      <Text size={size} weight="medium" dense numberOfLines={1} style={{ color: ink }}>
         {label}
       </Text>
     </Pressable>

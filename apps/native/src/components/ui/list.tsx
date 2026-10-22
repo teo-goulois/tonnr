@@ -214,7 +214,8 @@ export function Row({
       <View
         accessible
         accessibilityRole="switch"
-        accessibilityLabel={description ? `${title}, ${description}` : title}
+        // Its red line is read with its words: what failed is said where the switch is.
+        accessibilityLabel={[title, description, note].filter(Boolean).join(", ")}
         accessibilityHint={accessibilityHint}
         accessibilityState={{ checked: toggle.value, disabled: switchDisabled }}
         accessibilityActions={[{ name: "activate" }]}
@@ -229,8 +230,9 @@ export function Row({
   }
 
   if (!onPress) {
+    // A button at its end is reached on its own, after the row's words: one element would hide it.
     return (
-      <View accessible style={shape}>
+      <View accessible={accessory === undefined} style={shape}>
         {content}
       </View>
     );
