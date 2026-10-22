@@ -11,14 +11,7 @@ import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { compassName, formatAgo, formatNumber, formatSeconds, toKnots } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
-import {
-  formatDistance,
-  formatHeight,
-  formatWind,
-  heightFigure,
-  useUnits,
-  windFigure,
-} from "@/lib/units";
+import { formatDistance, formatHeight, formatWind, useUnits, windFigure } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
 import { Bearing, DirectionArrow } from "./bearing";
@@ -29,22 +22,50 @@ import type { Nearby } from "@repo/client/viewer/nearby";
 // row that opens the station's own sheet over this one. The web's `NearbyBuoy` and
 // `NearbyWindStation` (`details/parts.tsx`).
 
-/** A figure on the color of the map's marker for it, with the arrow of where it comes from. */
-function Chip({ color, children }: { color: string; children: ReactNode }) {
-  const { space } = useTheme();
+/** The disc that says a wave height by its color, with the direction of the waves when known. */
+function HeightChip({ heightMeters, from }: { heightMeters: number; from: number | null }) {
   return (
     <View
       style={{
-        minHeight: 24,
+        width: 24,
+        height: 24,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 12,
+        backgroundColor: colorAt(WAVE_HEIGHT_SCALE, heightMeters),
+      }}
+    >
+      {from !== null && (
+        <DirectionArrow
+          fromDegrees={from}
+          size={14}
+          color={scaleInk(WAVE_HEIGHT_SCALE, heightMeters)}
+        />
+      )}
+    </View>
+  );
+}
+
+/** A wind speed on its color with where the wind is going, as the map writes it. */
+function WindChip({ knots, from }: { knots: number; from: number | null }) {
+  const ink = scaleInk(WIND_SPEED_SCALE, knots);
+  return (
+    <View
+      style={{
+        // The web's chip of the wind, 22 pixels tall with 6 each side.
+        height: 22,
         flexDirection: "row",
         alignItems: "center",
         gap: 2,
-        paddingHorizontal: space.xs,
+        paddingHorizontal: 6,
         borderRadius: 9999,
-        backgroundColor: color,
+        backgroundColor: colorAt(WIND_SPEED_SCALE, knots),
       }}
     >
-      {children}
+      {from !== null && <DirectionArrow fromDegrees={from} size={12} color={ink} />}
+      <Text size="xs" weight="medium" numeric dense numberOfLines={1} style={{ color: ink }}>
+        {windFigure(knots)}
+      </Text>
     </View>
   );
 }
@@ -113,7 +134,6 @@ export function NearbyBuoy({
   const period = periodOf(reading);
   const from = reading.peakDirectionDegrees;
   const line = `${m.details_nearest_buoy({ distance: formatDistance(nearby.distanceKm) })} · ${station.name}`;
-  const ink = scaleInk(WAVE_HEIGHT_SCALE, height);
 
   return (
     <Row
@@ -127,14 +147,7 @@ export function NearbyBuoy({
       ]
         .filter(Boolean)
         .join(", ")}
-      chip={
-        <Chip color={colorAt(WAVE_HEIGHT_SCALE, height)}>
-          <Text size="xs" weight="medium" numeric dense style={{ color: ink }}>
-            {heightFigure(height)}
-          </Text>
-          {from !== null && <DirectionArrow fromDegrees={from} size={11} color={ink} />}
-        </Chip>
-      }
+      chip={<HeightChip heightMeters={height} from={from} />}
       title={
         <View
           style={{
@@ -180,7 +193,6 @@ export function NearbyWindStation({
   const from = reading.windDirectionDegrees;
   const atShore = from !== null && offshoreFrom != null ? shoreWind(from, offshoreFrom) : null;
   const line = `${m.details_nearest_wind({ distance: formatDistance(nearby.distanceKm) })} · ${station.name}`;
-  const ink = scaleInk(WIND_SPEED_SCALE, speed);
 
   return (
     <Row
@@ -195,14 +207,7 @@ export function NearbyWindStation({
       ]
         .filter(Boolean)
         .join(", ")}
-      chip={
-        <Chip color={colorAt(WIND_SPEED_SCALE, speed)}>
-          {from !== null && <DirectionArrow fromDegrees={from} size={11} color={ink} />}
-          <Text size="xs" weight="medium" numeric dense style={{ color: ink }}>
-            {windFigure(speed)}
-          </Text>
-        </Chip>
-      }
+      chip={<WindChip knots={speed} from={from} />}
       title={
         <View
           style={{
