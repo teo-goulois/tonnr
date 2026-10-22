@@ -6,10 +6,11 @@ import {
   Layer,
   Map as MapLibre,
   type MapRef,
-  NativeUserLocation,
-  type PressEventWithFeatures,
+  Marker,
+  type PressEvent,
   RasterDEMSource,
 } from "@maplibre/maplibre-react-native";
+import { FINGER_REACH } from "@repo/client/map/view";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
 import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
@@ -21,6 +22,7 @@ import {
 import { useReducedMotion } from "react-native-reanimated";
 
 import { useTheme } from "@/lib/theme";
+import { m } from "@/paraglide/messages";
 
 import {
   BOLD_FONT,
@@ -50,6 +52,7 @@ import {
 } from "./features";
 import type { MapLayers } from "./layers";
 import { mapImages } from "./map-images";
+import { UserDot } from "./map-markers";
 import { useBasemap } from "./use-basemap";
 import { type MapState, rememberMapState } from "./map-state";
 import { SEA_ENCODING, SEA_MAX_ZOOM, seaReliefColor, seaTileUrl } from "./sea";
@@ -108,8 +111,8 @@ type StationMapProps = {
   sea: SeaMap | undefined;
   seaTime: Date | undefined;
   arrows: readonly SeaArrow[];
-  // Where the reader is, once they asked to be found.
-  located: boolean;
+  // Where the reader was found, once they asked.
+  userLocation: MapPoint | null;
   accessibilityLabel: string;
   accessibilityHint: string;
   // What a screen reader may do with the map besides reading it, and what that does.
@@ -131,6 +134,8 @@ type StationMapProps = {
   onMoved: (state: MapState, byHand: boolean) => void;
 };
 
+// The layers a press can land on.
+const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 // What a selected place's ring adds to its disc.
 const RING = 5;
 // How long the map takes to go somewhere it was asked to.
@@ -163,7 +168,7 @@ export function StationMap({
   sea,
   seaTime,
   arrows,
-  located,
+  userLocation,
   accessibilityLabel,
   accessibilityHint,
   accessibilityValue,
@@ -232,12 +237,25 @@ export function StationMap({
     [duration],
   );
 
-  const press = (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
-    const { features, lngLat, point } = event.nativeEvent;
+  // One press selects one thing, as on the web: the dot nearest to the finger, within its reach,
+  // whichever layer draws it. A press that finds none is the map's.
+  const press = async (event: NativeSyntheticEvent<PressEvent>) => {
+    const { lngLat, point } = event.nativeEvent;
+    const [x, y] = point;
+    const features =
+      (await map.current
+        ?.queryRenderedFeatures(
+          [
+            [x - FINGER_REACH, y - FINGER_REACH],
+            [x + FINGER_REACH, y + FINGER_REACH],
+          ],
+          { layers: DOT_LAYERS },
+        )
+        // A map that is gone, or still loading its style, has drawn nothing to press.
+        .catch(() => [])) ?? [];
     const found = pressed(features, lngLat);
-    if (!found) return;
-    event.stopPropagation();
-    onPress({ ...found, point });
+    if (found) onPress({ ...found, point });
+    else onMapPress?.(lngLat);
   };
 
   const relief = useMemo(
@@ -294,7 +312,7 @@ export function StationMap({
       accessibilityValue={accessibilityValue}
       accessibilityActions={accessibilityActions}
       onAccessibilityAction={onAccessibilityAction}
-      onPress={onMapPress && ((event) => onMapPress(event.nativeEvent.lngLat))}
+      onPress={(event) => void press(event)}
       onLongPress={onLongPress && ((event) => onLongPress(event.nativeEvent.lngLat))}
       onRegionWillChange={
         onMoveStart && ((event) => onMoveStart(event.nativeEvent.userInteraction))
@@ -363,7 +381,7 @@ export function StationMap({
 
       {/* The wind: a disc in the color of its speed, which it writes when there is room, and an
           arrow at its edge that points the way it blows. */}
-      <GeoJSONSource id="wind" data={windData} onPress={press}>
+      <GeoJSONSource id="wind" data={windData}>
         <Layer
           id="wind-dots"
           type="circle"
@@ -413,7 +431,7 @@ export function StationMap({
       {/* A break measures nothing, so it takes no color of a scale: the theme's ink. From afar
           each is a dot, small enough for a coast full of them to stay a coast; closer, a disc with
           a wave in it and its name beside it. One looked at lately is named from afar. */}
-      <GeoJSONSource id="breaks" data={breakData} onPress={press}>
+      <GeoJSONSource id="breaks" data={breakData}>
         <Layer
           id="break-dots"
           type="circle"
@@ -497,7 +515,7 @@ export function StationMap({
       {/* A buoy: a disc in the color of its height, with the arrow of its waves in it, and its
           height and period beside it when there is room. A reading that ages pales; a sheltered
           site stays small and faded, so that it is not read as the sea outside. */}
-      <GeoJSONSource id="stations" data={stationData} onPress={press}>
+      <GeoJSONSource id="stations" data={stationData}>
         <Layer
           id="station-dots"
           type="circle"
@@ -570,7 +588,7 @@ export function StationMap({
 
       {/* The account's own spots stand above the catalogue, in the accent: a disc with a pin in
           it, where a break has a wave. */}
-      <GeoJSONSource id="spots" data={spotData} onPress={press}>
+      <GeoJSONSource id="spots" data={spotData}>
         <Layer
           id="spot-dots"
           type="circle"
@@ -610,7 +628,11 @@ export function StationMap({
         />
       </GeoJSONSource>
 
-      {located ? <NativeUserLocation /> : null}
+      {userLocation ? (
+        <Marker lngLat={[userLocation.longitude, userLocation.latitude]} anchor="center">
+          <UserDot label={m.locate_you_are_here()} />
+        </Marker>
+      ) : null}
     </MapLibre>
   );
 }

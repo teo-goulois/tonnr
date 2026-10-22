@@ -113,7 +113,7 @@ export function NewSpotScreen() {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [moving, setMoving] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const { located, isLocating, locate } = useLocate();
+  const { point: located, isLocating, locate } = useLocate();
 
   const spots = useQuery(spotsQuery(signedIn));
   const breaks = useQuery(
@@ -276,7 +276,7 @@ export function NewSpotScreen() {
             sea={undefined}
             seaTime={undefined}
             arrows={[]}
-            located={located}
+            userLocation={located}
             opening={opening.view}
             remembers={false}
             accessibilityLabel={m.native_spot_marker()}
@@ -318,7 +318,7 @@ export function NewSpotScreen() {
               icon={LocateIcon}
               variant="surface"
               label={m.native_spot_here()}
-              selected={located}
+              selected={located !== null}
               loading={isLocating}
               onPress={() => void findMe()}
             />

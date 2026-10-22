@@ -107,7 +107,7 @@ export function MoveSpot({ id }: { id: string }) {
             sea={undefined}
             seaTime={undefined}
             arrows={[]}
-            located={false}
+            userLocation={null}
             opening={{ center: [spot.longitude, spot.latitude], zoom: SPOT_ZOOM }}
             remembers={false}
             accessibilityLabel={m.native_spot_marker()}

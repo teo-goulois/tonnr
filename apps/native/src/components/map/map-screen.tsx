@@ -259,8 +259,8 @@ export function MapScreen() {
     );
   }, [drawn.arrows, sea.data, seaTime, view, readArrows, tilesRead]);
 
-  // Where the reader is: the phone's own dot, once they allowed it, and the button that goes there.
-  const { located, isLocating, locate } = useLocate();
+  // Where the reader was found, which the map marks, and the button that finds them.
+  const { point: located, isLocating, locate } = useLocate();
   async function findMe() {
     const point = await locate();
     if (point) map.current?.focus(point, LOCATE_ZOOM);
@@ -331,7 +331,7 @@ export function MapScreen() {
         sea={sea.data}
         seaTime={seaTime}
         arrows={arrows}
-        located={located}
+        userLocation={located}
         accessibilityLabel={m.native_map_label()}
         accessibilityHint={m.native_map_hint()}
         onPress={open}
@@ -465,7 +465,7 @@ export function MapScreen() {
               ) : null}
               <MapButtons
                 isLocating={isLocating}
-                located={located}
+                located={located !== null}
                 onLocate={() => void findMe()}
                 onSearch={() => router.push("/search")}
                 {...(hasLists && {

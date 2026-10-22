@@ -20,6 +20,7 @@ import { ScopedTheme } from "uniwind";
 
 import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/map/basemap";
 import { MapCredits } from "@/components/map/map-credits";
+import { UserDot } from "@/components/map/map-markers";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
 import { Button, IconButton } from "@/components/ui/button";
@@ -524,6 +525,10 @@ function MapParts() {
         The credits open as the map does, fold at their button or once the map is moved, and open
         again from the legend.
       </Note>
+      <Line>
+        <UserDot label={m.locate_you_are_here()} />
+      </Line>
+      <Note>Where the reader was found: its halo pings unless motion was refused.</Note>
     </View>
   );
 }

@@ -1,6 +1,6 @@
 import { APP_NAME } from "@repo/config/app";
 import * as Location from "expo-location";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Linking } from "react-native";
 
 import { useTell } from "@/components/ui/toast";
@@ -10,21 +10,15 @@ import { MINUTE_MS } from "./queries";
 import type { MapPoint } from "./view";
 
 // Where the reader is, as the map's button finds it: the phone asks leave the first time the
-// button is pressed, and never before. Once it was given, the map draws the phone's own dot. A
-// reader who refused is told where to give it.
+// button is pressed, and never before. The map then draws a dot where the reader was found, as
+// the web's does, and the dot stays there until the button is pressed again: it does not follow
+// the phone. A reader who refused is told where to give it.
 
-/** Whether the phone may say where the reader is, and what finds them. */
+/** Where the reader was found, once they asked, and what finds them. */
 export function useLocate() {
   const tell = useTell();
-  const [located, setLocated] = useState(false);
+  const [point, setPoint] = useState<MapPoint | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  useEffect(() => {
-    void Location.getForegroundPermissionsAsync()
-      .then((permission) => {
-        if (permission.granted) setLocated(true);
-      })
-      .catch(() => {});
-  }, []);
 
   /**
    * Where the reader is, once the phone says it, or nothing when it cannot. `precise` asks the
@@ -47,8 +41,9 @@ export function useLocate() {
         (await Location.getCurrentPositionAsync({
           accuracy: precise ? Location.Accuracy.High : Location.Accuracy.Balanced,
         }));
-      setLocated(true);
-      return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      const found = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setPoint(found);
+      return found;
     } catch {
       tell({ title: m.locate_failed(), tone: "danger" });
       return undefined;
@@ -57,5 +52,5 @@ export function useLocate() {
     }
   }
 
-  return { located, isLocating, locate };
+  return { point, isLocating, locate };
 }
