@@ -73,7 +73,7 @@ export function PlaceSheet({
   const record = usePlaceRecord(kind, id);
   const conditions = usePlaceConditions(record, now);
   const { atRest, detent } = useSheetState();
-  const { fit: foldAt, top: sheetTop } = useFoldHeight(detent, atRest);
+  const { fit: foldAt, measure } = useFoldHeight(detent);
   const { lists, isSaved, save: saveTo } = useLists();
   const spots = useSpotActions();
   const name = record.name;
@@ -195,7 +195,10 @@ export function PlaceSheet({
     <ChartsAtRest atRest={atRest}>
       {/* Each tab's scroll view stands under the head: SheetRoot keeps react-native-screens
           from moving it. */}
-      <SheetRoot className="flex-1 bg-background">
+      <SheetRoot
+        className="flex-1 bg-background"
+        onLayout={(event) => measure(event.nativeEvent.layout.height)}
+      >
         {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
           <View
             key={one}
@@ -213,7 +216,6 @@ export function PlaceSheet({
             place is, its buttons, then its tabs, as the web's drawer heads its panel. It comes
             after the tabs, so that their scroll view is the first that iOS finds. */}
         <View
-          ref={sheetTop}
           className="bg-background"
           style={{ position: "absolute", top: 0, left: 0, right: 0 }}
           onLayout={(event) => {

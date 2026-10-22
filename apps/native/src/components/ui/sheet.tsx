@@ -7,6 +7,7 @@ import {
   Platform,
   type StyleProp,
   View,
+  type ViewProps,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -287,14 +288,17 @@ export function SheetFooter({
 export function SheetRoot({
   style,
   className,
+  onLayout,
   children,
 }: {
   style?: StyleProp<ViewStyle>;
   className?: string;
+  // The sheet's own layout: its height is the one it stands at on the screen.
+  onLayout?: ViewProps["onLayout"];
   children: ReactNode;
 }) {
   return (
-    <View collapsable={false} style={style} className={className}>
+    <View collapsable={false} style={style} className={className} onLayout={onLayout}>
       <View collapsable={false} pointerEvents="none" style={{ position: "absolute" }} />
       {children}
     </View>

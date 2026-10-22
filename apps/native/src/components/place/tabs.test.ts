@@ -9,7 +9,9 @@ import {
   lowDetent,
   RAISED,
   sheetDetentOf,
+  floatsSheets,
   sheetShift,
+  standingHeight,
 } from "./fold";
 import { isPlaceKind, tabFrom, tabsOf } from "./tabs";
 
@@ -130,5 +132,25 @@ describe("how far the low sheet stands over its share", () => {
   it("is none for a measure taken as the sheet moved", () => {
     expect(sheetShift(700, 372)).toBeUndefined();
     expect(sheetShift(Number.NaN, 372)).toBeUndefined();
+  });
+});
+
+describe("how tall a low sheet stands on the screen", () => {
+  it("is drawn smaller and floated by iOS 26, as measured on an iPhone of 402 points", () => {
+    // Laid out 353 and 290.67 points tall, its top stood 527 and 587 points under the top of a
+    // screen of 874.
+    expect(874 - standingHeight(353, 402, true)).toBeCloseTo(527, 0);
+    expect(874 - standingHeight(290.67, 402, true)).toBeCloseTo(587, 0);
+  });
+
+  it("is as laid out where the platform does not float it", () => {
+    expect(standingHeight(353, 402, false)).toBe(353);
+  });
+
+  it("is floated from iOS 26 alone", () => {
+    expect(floatsSheets("ios", "26.0")).toBe(true);
+    expect(floatsSheets("ios", "27.1")).toBe(true);
+    expect(floatsSheets("ios", "18.6")).toBe(false);
+    expect(floatsSheets("android", 36)).toBe(false);
   });
 });

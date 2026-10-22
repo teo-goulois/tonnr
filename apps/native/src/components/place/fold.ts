@@ -55,13 +55,32 @@ export function sheetDetentOf(known: Map<string, number>, route: string, opensRa
   return detent;
 }
 
+/** The room iOS 26 leaves around a low sheet, at its sides and under it, in points. */
+export const IOS_FLOAT_MARGIN = 8;
+
+/**
+ * How tall a low sheet laid out `laidOut` points tall stands on a screen `width` wide: iOS 26
+ * floats it, drawn smaller by the room it leaves at its sides, with that room under it, where
+ * its layout knows nothing of it. Earlier systems draw it as it is laid out. Measured on the
+ * screen of an iPhone of 402 by 874 points: 386 wide, its foot 8 over the bottom.
+ */
+export function standingHeight(laidOut: number, width: number, floating: boolean) {
+  if (!floating || !(width > 2 * IOS_FLOAT_MARGIN)) return laidOut;
+  return IOS_FLOAT_MARGIN + (laidOut * (width - 2 * IOS_FLOAT_MARGIN)) / width;
+}
+
+/** Whether the platform floats a sheet that is not at its largest: iOS from its 26th version. */
+export function floatsSheets(os: string, version: string | number) {
+  return os === "ios" && Number.parseInt(String(version), 10) >= 26;
+}
+
 /** The most the platform's sheet is taken to stand from where its share puts it, in points. */
 export const MAX_SHEET_SHIFT = 40;
 
 /**
- * How far over the height its share gives the low sheet really stands, measured, in points: iOS
- * 26 floats a sheet that is not at its largest over the bottom of the screen. None for a measure
- * that cannot be one, taken as the sheet moved.
+ * How far over the height its share gives the low sheet really stands, measured, in points: some
+ * 20 on an iPhone of 874 points, under iOS 26. None for a measure that cannot be one, taken before
+ * the sheet is shown or as it moved.
  */
 export function sheetShift(measured: number, computed: number) {
   const shift = Math.round(measured - computed);

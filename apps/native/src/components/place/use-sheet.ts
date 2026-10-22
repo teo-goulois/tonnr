@@ -1,6 +1,6 @@
 import { type NativeStackNavigationProp, useNavigation, useRoute } from "expo-router";
-import { type ComponentRef, useEffect, useRef, useState } from "react";
-import { Platform, useWindowDimensions, type View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { opensRaised, selectsOnMap } from "@/components/map/place-route";
@@ -9,11 +9,13 @@ import { hideSheet, showSheet } from "@/components/map/sheet-state";
 import {
   FOLD_NONE,
   RAISED,
+  floatsSheets,
   isWorthMoving,
   largestSheet,
   lowDetent,
   sheetDetentOf,
   sheetShift,
+  standingHeight,
 } from "./fold";
 
 // What a place's sheet knows of itself as the platform's sheet: whether it is at rest, so that its
@@ -22,8 +24,6 @@ import {
 
 type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
-// How long a sheet given a new low height takes to reach it, past which it is measured.
-const SETTLING_MS = 400;
 // By when a sheet the platform says nothing of has begun to be shown.
 const SHOWN_BY_MS = 600;
 
@@ -85,15 +85,18 @@ export function useSheetState() {
  * height as a share of the sheet at its largest, which is shorter than the screen. The map under
  * it is told how tall the low sheet stands, whether it is raised and the place it selects
  * (`sheet-state.ts`), as the web's drawer tells its viewer: how tall it stands is measured, from
- * where `top`, a view at the top of the sheet, stands on the screen once the low sheet is at rest,
- * since the platform's sheet does not stand exactly at the height its share gives it.
+ * the layout of the sheet's root, which `measure` is given, and how iOS 26 draws a floating sheet
+ * from it (`standingHeight`): its share of the largest sheet does not say it. Where its top stands
+ * on the screen cannot be read: React Native measures a view in its own layout, where a sheet's
+ * top is the screen's and nothing is drawn smaller.
  */
-export function useFoldHeight(detent: number, atRest: boolean) {
+export function useFoldHeight(detent: number) {
   const navigation = useNavigation<Navigation>();
   const route = useRoute();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const largest = largestSheet(height, insets.top, Platform.OS === "ios");
+  const floating = floatsSheets(Platform.OS, Platform.Version);
   const current = useRef<number | undefined>(undefined);
   // The low height as a share of the largest sheet: the one it opens at until its summary is known.
   const [low, setLow] = useState(() => lows.get(route.key) ?? FOLD_NONE);
@@ -140,21 +143,16 @@ export function useFoldHeight(detent: number, atRest: boolean) {
       place: placeKind && placeId ? { kind: placeKind, id: placeId } : undefined,
     });
   }, [route.key, showing, leaving, low, largest, shift, detent, placeKind, placeId]);
-  // Measured once the low sheet is at rest, and once it has taken a new low height, which the
-  // platform gives it without saying when it is reached.
-  const top = useRef<ComponentRef<typeof View>>(null);
-  useEffect(() => {
-    if (!atRest || detent !== 0) return;
-    const timer = setTimeout(() => {
-      top.current?.measureInWindow((_x, y) => {
-        const next = sheetShift(height - y, low * largest);
-        if (next === undefined) return;
-        measuredShift = next;
-        setShift(next);
-      });
-    }, SETTLING_MS);
-    return () => clearTimeout(timer);
-  }, [atRest, detent, low, largest, height]);
+  // Only a low sheet's layout is read. One far from what its share gives is left: the size of the
+  // screen, which the platform lays the sheet out at before it shows it, or one taken as the sheet
+  // goes from a height to another.
+  const measure = (laidOut: number) => {
+    if (detent !== 0) return;
+    const next = sheetShift(standingHeight(laidOut, width, floating), low * largest);
+    if (next === undefined) return;
+    measuredShift = next;
+    setShift(next);
+  };
   useEffect(() => () => hideSheet(route.key), [route.key]);
   // Where the summary ends, as last told: a sheet that opened raised takes its low height once it
   // is lowered.
@@ -178,6 +176,6 @@ export function useFoldHeight(detent: number, atRest: boolean) {
       told.current = foldBottom;
       fit(foldBottom);
     },
-    top,
+    measure,
   };
 }
