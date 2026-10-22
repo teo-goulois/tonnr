@@ -15,6 +15,20 @@ export function placeHref(kind: PlaceKind, id: string) {
   return `/place/${kind}/${encodeURIComponent(id)}` as Route;
 }
 
+/**
+ * The address of a place's sheet as a press on its marker opens it: low, with the map in view to
+ * press another. What is chosen anywhere else, in a list, a search, a notification or a link, is
+ * there to be read, and its sheet opens raised, as the web's drawer opens it.
+ */
+export function pressedHref(kind: PlaceKind, id: string) {
+  return `${placeHref(kind, id)}?from=map` as Route;
+}
+
+/** Whether the sheet of a place opens raised, by the parameters of its address. */
+export function opensRaised(params: object | undefined) {
+  return (params as { from?: unknown } | undefined)?.from !== "map";
+}
+
 /** The place whose sheet an address opens, or none. */
 export function placeOf(pathname: string): { kind: PlaceKind; id: string } | undefined {
   const [, root, kind, id, ...rest] = pathname.split("/");

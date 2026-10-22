@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { opensRaised } from "@/components/map/place-route";
 import { hideSheet, showSheet } from "@/components/map/sheet-state";
 
 import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent } from "./fold";
@@ -13,19 +14,29 @@ import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent } from "./fol
 
 type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
+// The height each sheet stands at, and its low height, by its route: a sheet that a press on the
+// map gives another place keeps them, though the place is drawn anew in it.
+const detents = new Map<string, number>();
+const lows = new Map<string, number>();
+
 /**
  * Whether the sheet has come to rest, and at which height: its opening is over, and no finger
  * drags it. iOS says a height once it is reached; Android says whether it is still settling.
  */
 export function useSheetState() {
   const navigation = useNavigation<Navigation>();
+  const route = useRoute();
   const [atRest, setAtRest] = useState(false);
-  const [detent, setDetent] = useState(0);
+  // Raised as it opens, unless it was pressed on the map (`opensRaised`).
+  const [detent, setDetent] = useState(
+    () => detents.get(route.key) ?? (opensRaised(route.params) ? 1 : 0),
+  );
   useEffect(() => {
     const opened = navigation.addListener("transitionEnd", (event) => {
       if (!event.data.closing) setAtRest(true);
     });
     const moved = navigation.addListener("sheetDetentChange", (event) => {
+      detents.set(route.key, event.data.index);
       setDetent(event.data.index);
       setAtRest(event.data.stable);
     });
@@ -36,7 +47,7 @@ export function useSheetState() {
       moved();
       clearTimeout(timer);
     };
-  }, [navigation]);
+  }, [navigation, route.key]);
   return { atRest, detent };
 }
 
@@ -55,17 +66,30 @@ export function useFoldHeight(detent: number) {
   const largest = largestSheet(height, top, Platform.OS === "ios");
   const current = useRef<number | undefined>(undefined);
   // The low height as a share of the largest sheet: the one it opens at until its summary is known.
-  const [low, setLow] = useState(FOLD_NONE);
+  const [low, setLow] = useState(() => lows.get(route.key) ?? FOLD_NONE);
   useEffect(() => {
     showSheet(route.key, { height: low * largest, raised: detent > 0 });
   }, [route.key, low, largest, detent]);
   useEffect(() => () => hideSheet(route.key), [route.key]);
-  return (foldBottom: number) => {
+  // Where the summary ends, as last told: a sheet that opened raised takes its low height once it
+  // is lowered.
+  const told = useRef<number | undefined>(undefined);
+  const fit = (foldBottom: number) => {
     if (detent !== 0) return;
     const next = lowDetent(foldBottom, height, largest);
     if (current.current !== undefined && !isWorthMoving(current.current, next)) return;
     current.current = next;
+    lows.set(route.key, next);
     setLow(next);
     navigation.setOptions({ sheetAllowedDetents: [next, RAISED] });
+  };
+  useEffect(() => {
+    if (told.current !== undefined) fit(told.current);
+    // Once lowered: what the summary told is read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detent]);
+  return (foldBottom: number) => {
+    told.current = foldBottom;
+    fit(foldBottom);
   };
 }

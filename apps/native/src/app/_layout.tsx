@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Pressable, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { opensRaised } from "@/components/map/place-route";
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
@@ -88,12 +89,19 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="pause-alert" options={formSheet({ detents: "fit" })} />
-                {/* A place opens low, over the map that stays alive under it, and rises to be
-                    read: decision 040's two heights. The map is never dimmed, and a press on it
-                    never closes the sheet, as the web's drawer stands beside the map. */}
+                {/* A place pressed on the map opens low, over the map that stays alive under it,
+                    and rises to be read: decision 040's two heights. What was chosen anywhere
+                    else opens raised, as the web's drawer opens it. The map is never dimmed, and a
+                    press on it never closes the sheet, as the web's drawer stands beside the map. */}
                 <Stack.Screen
                   name="place/[kind]/[id]"
-                  options={formSheet({ detents: [FOLD_NONE, RAISED], undimmedUpTo: "last" })}
+                  options={({ route }) =>
+                    formSheet({
+                      detents: [FOLD_NONE, RAISED],
+                      initial: opensRaised(route.params) ? 1 : 0,
+                      undimmedUpTo: "last",
+                    })
+                  }
                 />
                 {/* As tall as what they hold, on the theme's ground to their foot, which iOS would
                     otherwise leave to its glass under the rows. */}

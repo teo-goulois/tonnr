@@ -52,7 +52,7 @@ import { useBasemapAttribution } from "./use-basemap";
 import { currentMapState, onMapRequest } from "./map-state";
 import { MapListChips } from "./list-chips";
 import { currentSheet, floorOver, onSheetChange } from "./sheet-state";
-import { placeHref, placeOf } from "./place-route";
+import { placeOf, pressedHref } from "./place-route";
 import {
   BREAK_LIMIT,
   MINUTE_MS,
@@ -368,11 +368,15 @@ export function MapScreen() {
 
   function open(press: MapPress) {
     feel("select");
-    const href = placeHref(press.kind, press.id);
-    // One sheet at a time: a place that is open gives way to the one pressed. What the sheet
-    // covers comes into view over it, as the map reveals what is selected.
-    if (selected) router.replace(href);
-    else router.push(href);
+    // One sheet at a time: the sheet of a place that is open, which is the screen in front, is
+    // given the place pressed, at the height it stands, on its first tab; another opens low, with
+    // the map in view. What the sheet covers comes into view over it, as the map reveals what is
+    // selected.
+    if (selected) {
+      router.setParams({ kind: press.kind, id: press.id, tab: undefined, notice: undefined });
+    } else {
+      router.push(pressedHref(press.kind, press.id));
+    }
   }
 
   function addSpot([longitude, latitude]: LngLat) {

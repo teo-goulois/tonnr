@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { placeHref, placeOf, TAB_ROUTES, tabUnder } from "./place-route";
+import { opensRaised, placeHref, placeOf, pressedHref, TAB_ROUTES, tabUnder } from "./place-route";
 
 describe("the address of a place's sheet", () => {
   it("names the place it opens, and reads it back", () => {
@@ -31,5 +31,18 @@ describe("the tab under a screen", () => {
     expect(tabUnder("/saved")).toBeUndefined();
     expect(tabUnder("/sign-in")).toBeUndefined();
     expect(tabUnder("/place/save")).toBeUndefined();
+  });
+});
+
+describe("how a place's sheet opens", () => {
+  it("opens low for a press on the map, which reads it as the same place", () => {
+    expect(pressedHref("break", "b1")).toBe("/place/break/b1?from=map");
+    expect(opensRaised({ kind: "break", id: "b1", from: "map" })).toBe(false);
+  });
+
+  it("opens raised for what was chosen anywhere else", () => {
+    expect(opensRaised({ kind: "break", id: "b1" })).toBe(true);
+    expect(opensRaised({ kind: "break", id: "b1", tab: "reports" })).toBe(true);
+    expect(opensRaised(undefined)).toBe(true);
   });
 });
