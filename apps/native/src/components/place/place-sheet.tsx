@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { ChartsAtRest } from "@/components/charts/chart-turn";
+import { NewSpotOffer } from "@/components/map/new-spot-offer";
 import { placeHref } from "@/components/map/place-route";
 import type { PlaceRef } from "@/components/saved/sea-now";
 import { ReadingLock } from "@/components/charts/reading";
@@ -56,10 +57,13 @@ export function PlaceSheet({
   kind,
   id,
   askedTab,
+  isNew = false,
 }: {
   kind: PlaceKind;
   id: string;
   askedTab?: string;
+  // A spot just added, whose owner is offered to describe it and an alert there (`?new=1`).
+  isNew?: boolean;
 }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
@@ -237,6 +241,13 @@ export function PlaceSheet({
             }
             onClose={close}
           />
+          {isNew && kind === "spot" ? (
+            <NewSpotOffer
+              id={id}
+              onDescribe={() => setTab("guide")}
+              style={{ marginHorizontal: space.m, marginTop: space.m }}
+            />
+          ) : null}
           {/* A station has one tab and no row: what has tabs is a break or a spot, once it is
               read. */}
           {tabs.length > 1 && (

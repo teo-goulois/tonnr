@@ -373,7 +373,13 @@ export function MapScreen() {
     // the map in view. What the sheet covers comes into view over it, as the map reveals what is
     // selected.
     if (selected) {
-      router.setParams({ kind: press.kind, id: press.id, tab: undefined, notice: undefined });
+      router.setParams({
+        kind: press.kind,
+        id: press.id,
+        tab: undefined,
+        notice: undefined,
+        new: undefined,
+      });
     } else {
       router.push(pressedHref(press.kind, press.id));
     }

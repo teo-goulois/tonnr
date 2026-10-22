@@ -1,5 +1,5 @@
 import type { Spot } from "@repo/client/viewer/types";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { usePlaceRecord } from "@/components/place/use-place";
@@ -12,6 +12,7 @@ import { m } from "@/paraglide/messages";
 
 import { GuideSkeleton } from "./break-guide";
 import { CHARACTERISTIC_FIELDS } from "./characteristic-words";
+import { onDescribeAsked, takeDescribeAsk } from "./describing";
 import { CharacteristicsList, listedRows, measuredRows, useSizeReading } from "./characteristics";
 import { PageSheet, usePresented } from "./page-sheet";
 
@@ -29,6 +30,20 @@ export function SpotGuide({ id }: { id: string }) {
   const sheet = usePresented<Spot>();
   const spot = record.spot;
   const size = useSizeReading(spot?.characteristics.waveSizeMeters ?? null);
+  // The offer a spot just added makes its owner opens what describes it here, once the spot is
+  // read, as the web's panel opens its editor.
+  const latest = useRef(spot);
+  latest.current = spot;
+  const isOwner = spot?.isOwner ?? false;
+  const { present } = sheet;
+  useEffect(() => {
+    if (!isOwner) return;
+    const answer = () => {
+      if (latest.current && takeDescribeAsk(id)) present(latest.current);
+    };
+    answer();
+    return onDescribeAsked(answer);
+  }, [id, isOwner, present]);
 
   // A spot that is gone, or someone else's, is said so by the sheet's head.
   if (!spot) return record.isError ? null : <GuideSkeleton />;

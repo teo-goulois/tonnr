@@ -24,6 +24,14 @@ export function pressedHref(kind: PlaceKind, id: string) {
   return `${placeHref(kind, id)}?from=map` as Route;
 }
 
+/**
+ * The address of the sheet of a spot just added, which offers its owner to describe it and an
+ * alert there, as the web's panel of a new spot does.
+ */
+export function newSpotHref(id: string) {
+  return `${placeHref("spot", id)}?new=1` as Route;
+}
+
 /** Whether the sheet of a place opens raised, by the parameters of its address. */
 export function opensRaised(params: object | undefined) {
   return (params as { from?: unknown } | undefined)?.from !== "map";

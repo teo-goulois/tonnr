@@ -26,6 +26,7 @@ import { ScopedTheme } from "uniwind";
 
 import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/map/basemap";
 import { MapCredits } from "@/components/map/map-credits";
+import { Offer } from "@/components/map/new-spot-offer";
 import { RankBadge } from "@/components/account/rank-badge";
 import { AlertSamples } from "@/components/alerts/alert-samples";
 import {
@@ -1075,6 +1076,24 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Form">
         <FormSamples />
+      </Block>
+      <Block title="Offer">
+        <Offer
+          text={m.spot_new_describe()}
+          action={m.spot_guide_describe()}
+          onAction={() => {}}
+          onLater={() => {}}
+        />
+        <Offer
+          text={m.alert_offer()}
+          action={m.alert_create()}
+          onAction={() => {}}
+          onLater={() => {}}
+        />
+        <Note>
+          What a spot just added offers its owner at the top of its sheet: to describe it, then an
+          alert there once that is answered.
+        </Note>
       </Block>
       <Block title="Sheet">
         <SheetParts />

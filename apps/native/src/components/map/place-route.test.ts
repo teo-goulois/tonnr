@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { opensRaised, placeHref, placeOf, pressedHref, TAB_ROUTES, tabUnder } from "./place-route";
+import {
+  newSpotHref,
+  opensRaised,
+  placeHref,
+  placeOf,
+  pressedHref,
+  TAB_ROUTES,
+  tabUnder,
+} from "./place-route";
 
 describe("the address of a place's sheet", () => {
   it("names the place it opens, and reads it back", () => {
@@ -44,5 +52,13 @@ describe("how a place's sheet opens", () => {
     expect(opensRaised({ kind: "break", id: "b1" })).toBe(true);
     expect(opensRaised({ kind: "break", id: "b1", tab: "reports" })).toBe(true);
     expect(opensRaised(undefined)).toBe(true);
+  });
+});
+
+describe("the sheet of a spot just added", () => {
+  it("says so to the sheet, which opens raised on its offers", () => {
+    expect(newSpotHref("s/1")).toBe("/place/spot/s%2F1?new=1");
+    expect(placeOf(newSpotHref("s1").split("?")[0]!)).toEqual({ kind: "spot", id: "s1" });
+    expect(opensRaised({ kind: "spot", id: "s1", new: "1" })).toBe(true);
   });
 });

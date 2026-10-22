@@ -42,7 +42,7 @@ import {
   stepFrom,
   writePoint,
 } from "./new-spot";
-import { placeHref } from "./place-route";
+import { newSpotHref, placeHref } from "./place-route";
 import { BREAK_LIMIT, MINUTE_MS, SPOTS_MOST, spotsQuery } from "./queries";
 import { type MapPress, StationMap, type StationMapHandle } from "./station-map";
 import {
@@ -153,9 +153,10 @@ export function NewSpotScreen() {
   const hint = draft.placed ? m.spot_marker_hint() : m.spot_place_hint();
 
   const guard = useSheetGuard(!made && (touched || draft.name.trim().length > 0));
-  // Once the guard has let go, the spot's sheet opens in this one's place.
+  // Once the guard has let go, the spot's sheet opens in this one's place, and offers to describe
+  // the spot and an alert there, as the web's panel of a spot just added.
   useEffect(() => {
-    if (made) router.replace(placeHref("spot", made));
+    if (made) router.replace(newSpotHref(made));
   }, [made]);
 
   const spotsKey = orpc.v1.spots.list.queryKey();
