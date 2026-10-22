@@ -1,37 +1,26 @@
+import { type Bounds, type MapPoint, wrapLongitude } from "@repo/client/map/view";
 import { distanceKm } from "@repo/client/viewer/samples";
 
 // Where the map stands and what part of the world it reads, as the web's `StationMap` and its
-// route say it: what the phone keeps of the view, the area the API is asked about, and the middle
-// a search ranks what is near by. A module that imports nothing of React Native, so that a test
-// reads it.
+// route say it: the area the API is asked about, and the middle a search ranks what is near by.
+// What the phone keeps of the view and the view it opens on are both apps', in packages/client.
+// A module that imports nothing of React Native, so that a test reads it.
 
-/** A point as MapLibre takes it: longitude first. */
-export type LngLat = [longitude: number, latitude: number];
+export {
+  type Bounds,
+  DEFAULT_VIEW,
+  LOCATE_ZOOM,
+  type LngLat,
+  type MapPoint,
+  type MapView,
+  PLACE_ZOOM,
+  readView,
+  STYLE_URLS,
+  VIEW_KEY,
+  wrapLongitude,
+  writeView,
+} from "@repo/client/map/view";
 
-/** West, south, east, north. West is greater than east when the area crosses the antimeridian. */
-export type Bounds = [west: number, south: number, east: number, north: number];
-
-export type MapPoint = { latitude: number; longitude: number };
-
-export type MapView = { center: LngLat; zoom: number };
-
-/** OpenFreeMap's styles, as the web draws them, light and dark with the theme. */
-export const STYLE_URLS = {
-  light: "https://tiles.openfreemap.org/styles/positron",
-  dark: "https://tiles.openfreemap.org/styles/dark",
-} as const;
-
-// France and its Atlantic coast, as the web opens on it, a little further out: a phone held
-// upright is narrower than a browser, and would cut the coast at the web's zoom.
-export const DEFAULT_VIEW: MapView = { center: [-2.5, 46.3], zoom: 4.3 };
-
-/** What the phone keeps the view under, as the browser does. */
-export const VIEW_KEY = "tonnr:map-view";
-
-/** How close a place by its name is shown, as the web's search shows one. */
-export const PLACE_ZOOM = 13;
-/** How close the map comes to where the reader is, as the web's button brings it. */
-export const LOCATE_ZOOM = 8;
 /**
  * How close the map comes to a break or a spot it is sent to, from a search or once a spot is
  * added, so that it is seen among its neighbours.
@@ -42,38 +31,6 @@ export const SPOT_ZOOM = 14;
 
 const MIN_ZOOM = 0;
 const MAX_ZOOM = 22;
-
-/** The view a phone kept, or the one the map opens on. */
-export function readView(stored: string | null | undefined): MapView {
-  try {
-    const saved: unknown = JSON.parse(stored ?? "null");
-    if (
-      Array.isArray(saved) &&
-      saved.length === 3 &&
-      saved.every((value) => typeof value === "number" && Number.isFinite(value))
-    ) {
-      const [longitude, latitude, zoom] = saved as [number, number, number];
-      if (Math.abs(latitude) <= 90 && zoom >= MIN_ZOOM && zoom <= MAX_ZOOM) {
-        return { center: [wrapLongitude(longitude), latitude], zoom };
-      }
-    }
-  } catch {
-    // A value this app did not write: the default view applies.
-  }
-  return DEFAULT_VIEW;
-}
-
-/** The view as the phone keeps it, in the browser's own form. */
-export function writeView(view: MapView): string {
-  return JSON.stringify([view.center[0], view.center[1], view.zoom]);
-}
-
-/** A longitude brought back between -180 and 180, since the map can be dragged past either edge. */
-export function wrapLongitude(degrees: number) {
-  // One in the world is kept as it is, which no sum turns into another figure.
-  if (degrees >= -180 && degrees <= 180) return degrees;
-  return ((((degrees + 180) % 360) + 360) % 360) - 180;
-}
 
 // A tenth of a degree, written as one.
 const toTenth = (degrees: number) => Math.round(degrees * 10) / 10;

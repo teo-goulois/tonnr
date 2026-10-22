@@ -1,3 +1,5 @@
+import { seaTimeAt, seaTimes as seaTimesOf } from "@repo/client/map/sea";
+import { LOCATE_ZOOM, PLACE_ZOOM } from "@repo/client/map/view";
 import { Button } from "@repo/ui/components/ui/button";
 import { MenuItem } from "@repo/ui/components/ui/menu";
 import { LeaveDialog } from "@/components/alerts/leave-dialog";
@@ -93,7 +95,7 @@ import {
   SEARCH_HEAD,
 } from "./place-search";
 import { AccountPrompt, RecentPlaces, SavedPanel } from "./saved-panel";
-import { SeaTimeline, type SeaTimes } from "./sea-timeline";
+import { SeaTimeline } from "./sea-timeline";
 import { SEA_TIMELINE_SHOWN } from "./sea-timeline-shown";
 import { ReadingAge, StationActions, holds, listName } from "./station-actions";
 import {
@@ -137,17 +139,6 @@ import { NO_SHEET, ViewerDrawer, sidePanelWidth, useScreenWidth } from "./viewer
 import { ViewerTab } from "./viewer-screen";
 
 const HOUR_MS = 60 * 60 * 1000;
-// How far back the sea can be shown.
-const SEA_PAST_MS = 24 * HOUR_MS;
-
-// The model's last instants often spill a few hours into one more day, by the clock of the reader.
-// The timeline stops at the end of the day before, so that its last day is a whole one.
-function endOfLastWholeDay(latest: number, stepMs: number) {
-  const midnight = new Date(latest).setHours(0, 0, 0, 0);
-  const nextMidnight = new Date(midnight).setDate(new Date(midnight).getDate() + 1);
-  if (latest + stepMs >= nextMidnight) return latest;
-  return latest - (Math.floor((latest - midnight) / stepMs) + 1) * stepMs;
-}
 // A wind reading older than this says little of the wind now.
 const FRESH_WIND_MS = 2 * HOUR_MS;
 
@@ -166,8 +157,6 @@ export type SettingsPart =
   | "friends"
   | "profile"
   | "sessions";
-// How close the map comes to a place the search found: near enough to see where the wave breaks.
-const PLACE_ZOOM = 13;
 
 /** What the panel that adds a spot is given, and what it asks for. */
 export type AddingSpot = {
@@ -654,27 +643,10 @@ export function Viewer({
     [layers.wind, windStations, now, units],
   );
 
-  // The model's latest field that is not in the future, then as many steps ahead as asked. The
-  // model keeps years of the past: the timeline goes a day back, enough to see what just came in.
-  const seaStepMs = (sea?.times.stepSeconds ?? 0) * 1000;
-  const seaTimes = useMemo<SeaTimes | undefined>(() => {
-    if (!sea || seaStepMs <= 0) return undefined;
-    const start = sea.times.start.getTime();
-    const onStep = (time: number) => start + Math.floor((time - start) / seaStepMs) * seaStepMs;
-    const present = onStep(now);
-    return {
-      present,
-      earliest: Math.max(start, onStep(present - SEA_PAST_MS)),
-      latest: endOfLastWholeDay(onStep(sea.times.end.getTime()), seaStepMs),
-      stepMs: seaStepMs,
-    };
-  }, [sea, seaStepMs, now]);
-  const seaTimestamp =
-    seaTimes &&
-    Math.min(
-      Math.max(seaTimes.present + seaSteps * seaTimes.stepMs, seaTimes.earliest),
-      seaTimes.latest,
-    );
+  // The model's latest field that is not in the future, then as many steps ahead as asked, within
+  // a day back and the model's last whole day.
+  const seaTimes = useMemo(() => seaTimesOf(sea?.times, now), [sea, now]);
+  const seaTimestamp = seaTimes && seaTimeAt(seaTimes, seaSteps);
   const seaTime = useMemo(
     () => (seaTimestamp === undefined ? undefined : new Date(seaTimestamp)),
     [seaTimestamp],
@@ -691,6 +663,7 @@ export function Viewer({
     };
   }, []);
   const seaPresent = seaTimes?.present;
+  const seaStepMs = seaTimes?.stepMs ?? 0;
   const onSeaTimeChange = useCallback(
     (time: number) => {
       if (seaPresent !== undefined) setSeaSteps(Math.round((time - seaPresent) / seaStepMs));
@@ -1352,7 +1325,7 @@ export function Viewer({
         };
         setIsLocating(false);
         setUserLocation(point);
-        map.current?.focus(point, 8);
+        map.current?.focus(point, LOCATE_ZOOM);
       },
       (error) => {
         setIsLocating(false);

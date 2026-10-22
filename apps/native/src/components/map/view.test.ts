@@ -1,30 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LAYERS, layersForList, layersFrom } from "./layers";
-import {
-  boundsAround,
-  DEFAULT_VIEW,
-  middleOf,
-  nearestWithin,
-  readView,
-  visibleBounds,
-  writeView,
-} from "./view";
-
-describe("the view the phone keeps", () => {
-  it("reads back what it wrote, and the default for anything else", () => {
-    const view = { center: [-1.6, 43.5] as [number, number], zoom: 9.5 };
-    expect(readView(writeView(view))).toEqual(view);
-    expect(readView(null)).toBe(DEFAULT_VIEW);
-    expect(readView("[1, 2]")).toBe(DEFAULT_VIEW);
-    expect(readView("[1, 95, 4]")).toBe(DEFAULT_VIEW);
-    expect(readView("not json")).toBe(DEFAULT_VIEW);
-  });
-
-  it("brings a longitude dragged past the edge back into the world", () => {
-    expect(readView("[200, 10, 3]").center).toEqual([-160, 10]);
-  });
-});
+import { boundsAround, middleOf, nearestWithin, visibleBounds } from "./view";
 
 describe("the area the API is asked about", () => {
   it("widens the view to a tenth of a degree, so that small moves ask the same", () => {

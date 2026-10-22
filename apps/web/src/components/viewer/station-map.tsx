@@ -22,6 +22,21 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import {
+  BASEMAP_NAME_WIDTH,
+  BASEMAP_SOURCE,
+  type Bounds,
+  FINGER_REACH,
+  FIT_MAX_ZOOM,
+  fitPadding,
+  type MapPoint,
+  readView,
+  STYLE_URLS,
+  VIEW_KEY,
+  wrapLongitude,
+  writeView,
+} from "@repo/client/map/view";
+import { SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
 import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
@@ -113,10 +128,7 @@ export type MapLayers = {
   breaks: boolean;
 };
 
-// West, south, east, north.
-export type Bounds = [number, number, number, number];
-
-export type MapPoint = { latitude: number; longitude: number };
+export type { Bounds, MapPoint };
 
 export type StationMapHandle = {
   /** Brings a point to the middle of the part of the map that no drawer covers. */
@@ -165,19 +177,8 @@ type StationMapProps = {
   onPlace?: (point: MapPoint, breakId?: string) => void;
 };
 
-const STYLE_URLS = {
-  light: "https://tiles.openfreemap.org/styles/positron",
-  dark: "https://tiles.openfreemap.org/styles/dark",
-};
-// France and its Atlantic coast.
-const DEFAULT_VIEW = { center: [-2.5, 46.3] as [number, number], zoom: 4.8 };
-const VIEW_STORAGE_KEY = "tonnr:map-view";
 // Sea tiles go through this protocol, which gives each gray level its color.
 const SEA_PROTOCOL = "seatile";
-// The model's cells are about nine kilometres wide, and a tile of this zoom gives each about one
-// pixel. The map then blends a pixel into the next, and the sea shades evenly. A closer tile says
-// nothing more, and draws each cell as a square.
-const SEA_MAX_ZOOM = 4;
 // Heights can be written on the sea in figures. They are hidden for now, as Téo asked on
 // 2026-10-09 after trying them.
 const SEA_HEIGHTS_SHOWN: boolean = false;
@@ -185,13 +186,8 @@ const SEA_HEIGHTS_SHOWN: boolean = false;
 const SEA_LAYER = "sea:";
 // How long one instant of the sea takes to fade into the next.
 const SEA_FADE_MS = 250;
-// The source of the basemap, whose tiles say where the water is.
-const BASEMAP_SOURCE = "openmaptiles";
-// How wide a name may run before it takes a second line, in letters' heights. The basemap's own
-// width of 8 cut a town such as "Le Mont-Saint-Michel" after a hyphen, onto two lines: the names
-// of the basemap are given this width, and a break's or a spot's name a little less, for it is
-// bold and stands beside a disc.
-const BASEMAP_NAME_WIDTH = 14;
+// The names of the basemap are given `BASEMAP_NAME_WIDTH`, and a break's or a spot's name a little
+// less, for it is bold and stands beside a disc.
 const PLACE_NAME_WIDTH = 12;
 // More markers than this hide the map, and the dots under them still say where the stations are.
 const MAX_MARKERS = 140;
@@ -201,9 +197,8 @@ const WIND_BOX = { width: 50, height: 26 };
 const WIND_LIFT = 24;
 // The layers a press can land on.
 const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
-// How far from a dot a press still finds it, in pixels: a dot is small, and a finger is not. The
-// pointer of a mouse is finer, and has to come closer.
-const FINGER_REACH = 12;
+// How far from a dot a press of a mouse still finds it, in pixels: its pointer is finer than a
+// finger (`FINGER_REACH`), and has to come closer.
 const MOUSE_REACH = 6;
 // The layers of the surf breaks, which their switch shows and hides together.
 const BREAK_LAYERS = ["break-dots", "break-waves", "break-names", "break-recent-names"];
@@ -240,10 +235,6 @@ const BREAK_WAVE_ZOOM = 9.75;
 const BREAK_NAME_ZOOM = 9;
 // The wave of a break's disc, as an image of the map: its name and its size.
 const BREAK_WAVE = { image: "break-wave", size: 13 };
-// The arrow drawn on the sea, as an image of the map: its name and its size. It is finer than the
-// arrow that says a direction in the panels, light with a dark edge, so it reads on every color
-// of the sea without covering it.
-const SEA_ARROW = { image: "sea-arrow", size: 15, ink: "#ffffff", edge: "rgba(0, 0, 0, 0.35)" };
 // A station this close to the edge of what is visible is brought back to the middle.
 const REVEAL_MARGIN = 56;
 
@@ -299,24 +290,11 @@ function seaTiles(layer: SeaLayer, time: Date) {
 
 function readSavedView() {
   try {
-    const saved: unknown = JSON.parse(localStorage.getItem(VIEW_STORAGE_KEY) ?? "null");
-    if (
-      Array.isArray(saved) &&
-      saved.length === 3 &&
-      saved.every((value) => typeof value === "number" && Number.isFinite(value))
-    ) {
-      const [longitude, latitude, zoom] = saved as [number, number, number];
-      return { center: [longitude, latitude] as [number, number], zoom };
-    }
+    return readView(localStorage.getItem(VIEW_KEY));
   } catch {
-    // A value this app did not write, or a browser that keeps nothing: the default view applies.
+    // A browser that keeps nothing: the default view applies.
+    return readView(null);
   }
-  return DEFAULT_VIEW;
-}
-
-// A longitude brought back between -180 and 180, since the map can be dragged past either edge.
-function wrapLongitude(degrees: number) {
-  return ((((degrees + 180) % 360) + 360) % 360) - 180;
 }
 
 // The visible area, widened to a tenth of a degree so that small moves ask for the same area.
@@ -868,8 +846,8 @@ export function StationMap({
         const center = instance.getCenter();
         try {
           localStorage.setItem(
-            VIEW_STORAGE_KEY,
-            JSON.stringify([center.lng, center.lat, instance.getZoom()]),
+            VIEW_KEY,
+            writeView({ center: [center.lng, center.lat], zoom: instance.getZoom() }),
           );
         } catch {
           // A browser that keeps nothing: the next visit starts from the default view.
@@ -1461,7 +1439,7 @@ export function StationMap({
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
           },
-          paint: { "icon-opacity": 0.85 },
+          paint: { "icon-opacity": SEA_ARROW.opacity },
         },
         names,
       );
@@ -1583,7 +1561,6 @@ export function StationMap({
           south = Math.min(south, point.latitude);
           north = Math.max(north, point.latitude);
         }
-        const { top, right, bottom, left } = latest.current.padding;
         instance.fitBounds(
           [
             [west, south],
@@ -1591,9 +1568,8 @@ export function StationMap({
           ],
           {
             // Room for the markers and their labels, inside what the drawers leave.
-            padding: { top: top + 72, right: right + 56, bottom: bottom + 56, left: left + 56 },
-            // One point, or a few on one beach, are not shown closer than a bay.
-            maxZoom: 11,
+            padding: fitPadding(latest.current.padding),
+            maxZoom: FIT_MAX_ZOOM,
             duration: 600,
           },
         );

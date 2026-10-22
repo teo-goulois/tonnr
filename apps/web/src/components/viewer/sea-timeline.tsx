@@ -1,3 +1,4 @@
+import type { SeaTimes } from "@repo/client/map/sea";
 import { Button } from "@repo/ui/components/ui/button";
 import { ScrollArea } from "@repo/ui/components/ui/scroll-area";
 import { SliderPrimitive } from "@repo/ui/components/ui/slider";
@@ -25,14 +26,8 @@ const PHONE_INSTANT_WIDTH = 0.5;
 // How far from an edge of what is in view the thumb may come before the strip slides, in pixels.
 const THUMB_MARGIN = 32;
 
-/** The instants the sea can be shown at: a day back, and as far ahead as the model goes. */
-export type SeaTimes = {
-  // The model's latest field that is not in the future.
-  present: number;
-  earliest: number;
-  latest: number;
-  stepMs: number;
-};
+// The instants the sea can be shown at, which packages/client says for both apps.
+export type { SeaTimes };
 
 type SeaTimelineProps = {
   time: Date;

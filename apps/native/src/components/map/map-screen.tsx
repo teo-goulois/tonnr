@@ -1,3 +1,4 @@
+import { seaTimeAt, seaTimes } from "@repo/client/map/sea";
 import type { Station } from "@repo/client/viewer/types";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams, usePathname } from "expo-router";
@@ -48,7 +49,6 @@ import {
   WIND_LIMIT,
   wavesQuery,
 } from "./queries";
-import { seaTimeOf } from "./sea";
 import { type SeaArrow, seaArrowsReader } from "./sea-arrows";
 import { type MapPress, StationMap, type StationMapHandle } from "./station-map";
 import { bboxOf, type Bounds, LOCATE_ZOOM, type LngLat, visibleBounds } from "./view";
@@ -234,7 +234,11 @@ export function MapScreen() {
   }, [list, listStations, listBreaks, missingStations, missingBreaks, selected, waves.isPending]);
 
   // The sea at the present, and its arrows, read for the view from the tiles of its direction.
-  const seaTime = useMemo(() => seaTimeOf(sea.data?.times, now), [sea.data, now]);
+  // The web's own moment, as its timeline stands while hidden.
+  const seaTime = useMemo(() => {
+    const times = seaTimes(sea.data?.times, now);
+    return times && new Date(seaTimeAt(times));
+  }, [sea.data, now]);
   const readArrows = useMemo(() => seaArrowsReader(readSeaTile), []);
   const [tilesRead, tileCame] = useReducer((count: number) => count + 1, 0);
   const [arrows, setArrows] = useState<SeaArrow[]>([]);

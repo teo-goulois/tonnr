@@ -1,4 +1,5 @@
 import type { CircleLayerSpecification } from "@maplibre/maplibre-react-native";
+import { goingTo } from "@repo/client/map/sea";
 import type { Freshness } from "@repo/client/format";
 import type { Recent } from "@repo/client/recents";
 import {
@@ -139,7 +140,7 @@ const arrowOn = (scale: readonly ScaleStop[], value: number) =>
   scaleInk([...scale], value) === "#ffffff" ? IMAGES.arrowLight : IMAGES.arrowDark;
 
 /** The way the waves or the wind go, from the bearing they come from. */
-export const goingTo = (fromDegrees: number) => Math.round(fromDegrees + 180) % 360;
+export { goingTo };
 
 export function stationFeatures(stations: readonly MapStation[]): GeoJSON.FeatureCollection {
   return {

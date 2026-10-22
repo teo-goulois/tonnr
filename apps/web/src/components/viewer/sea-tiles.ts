@@ -1,4 +1,5 @@
 import { VectorTile } from "@mapbox/vector-tile";
+import { levelsOf, seaArrowsReader } from "@repo/client/map/sea";
 import { PbfReader } from "pbf";
 
 // Land tiles go through this protocol, which draws them from the basemap's own tiles.
@@ -130,23 +131,10 @@ export function seaHeights(
   return heights;
 }
 
-// Where the waves come from, in each tile of the direction that was read, by the tile's time and
-// place: a gray level, or -1 where the model has no sea. Null for a tile that could not be read.
-const directionLevels = new Map<string, Int16Array | null>();
-const directionsLoading = new Set<string>();
-const REMEMBERED_DIRECTION_TILES = 64;
-// How many arrows are drawn across one tile of the basemap, each way.
-const ARROWS_PER_TILE = 8;
-// The closest zoom a tile of the direction is asked at. A pixel of it is then a third of a cell
-// of the model: a closer tile says nothing more, and asks more tiles of the service.
-const DIRECTION_MAX_ZOOM = 6;
+export type { DirectionTiles } from "@repo/client/map/sea";
 
-/** Tiles of where the waves come from, as the API describes them. */
-export type DirectionTiles = {
-  tileUrlTemplate: string;
-  encoding: { degreesByLevel: readonly number[] };
-};
-
+// The arrows on the sea are read from the tiles of the direction by the grid both apps share,
+// which the browser gives its own reader of a picture.
 async function readDirectionTile(address: string) {
   const response = await fetch(address);
   if (!response.ok) throw new Error(`The direction tile answered ${response.status}`);
@@ -155,30 +143,7 @@ async function readDirectionTile(address: string) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("The direction tile has no canvas to be read on");
   context.drawImage(tile, 0, 0);
-  const pixels = context.getImageData(0, 0, tile.width, tile.height).data;
-  const levels = new Int16Array(tile.width * tile.height);
-  for (let pixel = 0; pixel < levels.length; pixel++) {
-    levels[pixel] = pixels[pixel * 4 + 3] === 0 ? -1 : pixels[pixel * 4]!;
-  }
-  return levels;
-}
-
-function loadDirectionTile(key: string, address: string, onLoaded: () => void) {
-  if (directionsLoading.has(key)) return;
-  directionsLoading.add(key);
-  readDirectionTile(address)
-    // A tile that fails is not asked again until the page is loaded again: its sea has no arrows.
-    .catch(() => null)
-    .then((levels) => {
-      directionsLoading.delete(key);
-      directionLevels.set(key, levels);
-      // The oldest goes first: a map keeps its keys in the order they came.
-      for (const oldest of directionLevels.keys()) {
-        if (directionLevels.size <= REMEMBERED_DIRECTION_TILES) break;
-        directionLevels.delete(oldest);
-      }
-      onLoaded();
-    });
+  return levelsOf(context.getImageData(0, 0, tile.width, tile.height).data);
 }
 
 /**
@@ -186,63 +151,7 @@ function loadDirectionTile(key: string, address: string, onLoaded: () => void) {
  * holds still while the map moves, and tightens as it comes closer. The tiles it needs and does
  * not have are asked for, and `onLoaded` is called as each comes.
  */
-export function seaArrows(
-  view: { west: number; south: number; east: number; north: number; zoom: number },
-  time: Date,
-  tiles: DirectionTiles,
-  onLoaded: () => void,
-) {
-  const zoom = Math.max(0, Math.floor(view.zoom));
-  const cells = 2 ** zoom * ARROWS_PER_TILE;
-  // A tile of 256 pixels, a quarter of the width of a tile of the basemap at the map's zoom.
-  const tileZoom = Math.min(DIRECTION_MAX_ZOOM, Math.max(0, zoom - 1));
-  const tilesAcross = 2 ** tileZoom;
-  const toY = (latitude: number) =>
-    (1 - Math.asinh(Math.tan((latitude * Math.PI) / 180)) / Math.PI) / 2;
-  const toLatitude = (y: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
-  const iso = time.toISOString();
-
-  const arrows: { longitude: number; latitude: number; fromDegrees: number }[] = [];
-  const firstColumn = Math.floor(((view.west + 180) / 360) * cells);
-  const lastColumn = Math.floor(((view.east + 180) / 360) * cells);
-  const firstRow = Math.max(0, Math.floor(toY(view.north) * cells));
-  const lastRow = Math.min(cells - 1, Math.floor(toY(view.south) * cells));
-  for (let column = firstColumn; column <= lastColumn; column++) {
-    for (let row = firstRow; row <= lastRow; row++) {
-      const x = (column + 0.5) / cells;
-      const y = (row + 0.5) / cells;
-      // A map that shows the date line counts longitudes past 180.
-      const worldX = ((x % 1) + 1) % 1;
-      const tileX = Math.floor(worldX * tilesAcross);
-      const tileY = Math.floor(y * tilesAcross);
-      const key = `${iso}/${tileZoom}/${tileX}/${tileY}`;
-      const levels = directionLevels.get(key);
-      if (levels === undefined) {
-        loadDirectionTile(
-          key,
-          tiles.tileUrlTemplate
-            .replace("{z}", String(tileZoom))
-            .replace("{x}", String(tileX))
-            .replace("{y}", String(tileY))
-            .replace("{time}", encodeURIComponent(iso)),
-          onLoaded,
-        );
-        continue;
-      }
-      if (levels === null) continue;
-
-      const width = Math.sqrt(levels.length);
-      const pixel =
-        Math.floor(((y * tilesAcross) % 1) * width) * width +
-        Math.floor(((worldX * tilesAcross) % 1) * width);
-      const level = levels[pixel]!;
-      const fromDegrees = level < 0 ? undefined : tiles.encoding.degreesByLevel[level];
-      if (fromDegrees === undefined) continue;
-      arrows.push({ longitude: x * 360 - 180, latitude: toLatitude(y), fromDegrees });
-    }
-  }
-  return arrows;
-}
+export const seaArrows = seaArrowsReader(readDirectionTile);
 
 /** The address of the land tiles, for a basemap whose land and water have these colors. */
 export function landTiles(basemapTiles: string, colors: { land: string; water: string }) {

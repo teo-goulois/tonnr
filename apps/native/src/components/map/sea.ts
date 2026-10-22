@@ -12,28 +12,10 @@ import type { Expression } from "./features";
 // pixels, the relief mixes the levels before it colors them, where the web mixes the colors.
 // A module that imports nothing of React Native, so that a test reads it.
 
-/** The moments the model has a field for, as the API says them. */
-export type SeaTimes = { start: Date; end: Date; stepSeconds: number };
-
-// The model's cells are about nine kilometres wide, and a tile of this zoom gives each about one
-// pixel. The map then blends a pixel into the next, and the sea shades evenly. The web's own.
-export const SEA_MAX_ZOOM = 4;
+export { SEA_MAX_ZOOM } from "@repo/client/map/sea";
 
 /** How the map is told to read the gray of a tile as a height. */
 export const SEA_ENCODING = "mapbox" as const;
-
-/**
- * The model's latest field that is not in the future, as the web shows it while its timeline is
- * hidden: the sea at the present, and at the last field when the model has none after it.
- */
-export function seaTimeOf(times: SeaTimes | undefined, now: number): Date | undefined {
-  if (!times || times.stepSeconds <= 0) return undefined;
-  const start = times.start.getTime();
-  const step = times.stepSeconds * 1000;
-  const onStep = (time: number) => start + Math.floor((time - start) / step) * step;
-  const present = Math.max(start, onStep(now));
-  return new Date(Math.min(present, onStep(times.end.getTime())));
-}
 
 /** The address of the sea's tiles at a moment, with `{z}`, `{x}` and `{y}` for the map to fill. */
 export function seaTileUrl(template: string, time: Date) {
