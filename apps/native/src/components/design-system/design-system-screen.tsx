@@ -346,6 +346,44 @@ function Segments() {
   );
 }
 
+function TabRows() {
+  const { space } = useTheme();
+  const [tab, setTab] = useState<"forecast" | "guide" | "sessions">("forecast");
+  const [many, setMany] = useState<"forecast" | "reports" | "guide" | "alert" | "sessions">(
+    "sessions",
+  );
+  return (
+    <View style={{ gap: space.l }}>
+      <Tabs
+        label="Hossegor"
+        options={[
+          { value: "forecast", label: "Forecast" },
+          { value: "guide", label: "Guide" },
+          { value: "sessions", label: "Sessions" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      <Tabs
+        label="La Gravière"
+        bleed={space.m}
+        options={[
+          { value: "forecast", label: "The week's forecast" },
+          { value: "reports", label: "Reports of the waves" },
+          { value: "guide", label: "Guide" },
+          { value: "alert", label: "Alerts" },
+          { value: "sessions", label: "Sessions" },
+        ]}
+        value={many}
+        onChange={setMany}
+      />
+      <Note>
+        Wider than the phone, a row scrolls to the screen's edges and opens on the tab chosen.
+      </Note>
+    </View>
+  );
+}
+
 function Switches() {
   const [on, setOn] = useState(true);
   const [off, setOff] = useState(false);
@@ -716,6 +754,9 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Segmented and tabs">
         <Segments />
+      </Block>
+      <Block title="Tabs">
+        <TabRows />
       </Block>
       <Block title="Switch">
         <Switches />
