@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { isSheetOpen } from "@/components/map/sheet-state";
 import { useSessionDraft } from "@/components/sessions/session-draft";
 import { SessionFields, SizesStep } from "@/components/sessions/session-form";
 import { openPlaceOnMap } from "@/components/sessions/session-place";
@@ -125,9 +126,13 @@ function SessionSheet({ session, kept }: Props) {
             <Row
               icon={MapPinIcon}
               title={m.session_open_place()}
-              // The place opens over the map. While something written here is not saved, the
-              // session's sheet gives its place to the place's, asking first.
-              onPress={() => (drafting.isDirty ? router.replace(place) : openPlaceOnMap(place))}
+              // The place opens over the map, given to the place's sheet that is open, which this
+              // one closes over, asking first while something written here is not saved. With no
+              // place's sheet open, a session's sheet that holds something gives way to the
+              // place's, asking first.
+              onPress={() =>
+                drafting.isDirty && !isSheetOpen() ? router.replace(place) : openPlaceOnMap(place)
+              }
               disabled={busy}
             />
           ) : null}
