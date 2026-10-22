@@ -90,7 +90,8 @@ export function WindChart({
   );
   const days = end - start > 12 * 60 * 60 * 1000;
   const hours = useMemo(() => timeTicks(start, end, days ? 24 : 2), [start, end, days]);
-  const midnights = useMemo(() => midnightsBetween(start, end), [start, end]);
+  // A span of days is ruled at each midnight. A few hours are not: their hours are written.
+  const midnights = useMemo(() => (days ? midnightsBetween(start, end) : []), [days, start, end]);
   const bearings = useMemo(() => bearingsAlong(rows, start, end, BEARINGS), [rows, start, end]);
   // From there on the bearings are the model's, drawn paler.
   const lastMeasured = rows.filter((row) => row.wind !== null).at(-1)?.time ?? -Infinity;
