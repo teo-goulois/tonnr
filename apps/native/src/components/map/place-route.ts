@@ -1,3 +1,5 @@
+import { type PhoneTab, tabOf } from "@repo/client/phone-nav";
+
 import type { Route } from "@/lib/links";
 
 import type { PlaceKind } from "./features";
@@ -5,12 +7,6 @@ import type { PlaceKind } from "./features";
 // Where a place's sheet lives, `/place/<break|station|spot>/<id>` (decision 069), as the map opens
 // it and reads which one is open. A module that imports nothing of React Native, so that a test
 // reads it.
-
-/**
- * How high the sheet of a place opens over the map, as a share of the screen: the low height of
- * its form sheet in src/app/_layout.tsx, decision 040's, under which a marker pressed would hide.
- */
-export const LOW_SHEET = 0.45;
 
 const KINDS: readonly string[] = ["station", "break", "spot"] satisfies PlaceKind[];
 
@@ -30,4 +26,22 @@ export function placeOf(pathname: string): { kind: PlaceKind; id: string } | und
   } catch {
     return undefined;
   }
+}
+
+/** The route of each tab of decision 040 in the tabs' navigator, `app/(tabs)/`. */
+export const TAB_ROUTES: Record<PhoneTab, string> = {
+  map: "index",
+  saved: "saved",
+  alerts: "alerts",
+  account: "account",
+};
+
+/**
+ * The tab a screen shows under it, by its address, as the web's address says it (`tabOf`): the
+ * map under a place's sheet, wherever the place was opened from. None for any other screen, which
+ * leaves the tab that is in view.
+ */
+export function tabUnder(pathname: string): PhoneTab | undefined {
+  const place = placeOf(pathname);
+  return place ? tabOf({ [place.kind]: place.id }) : undefined;
 }

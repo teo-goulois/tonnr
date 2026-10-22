@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { placeHref, placeOf } from "./place-route";
+import { placeHref, placeOf, TAB_ROUTES, tabUnder } from "./place-route";
 
 describe("the address of a place's sheet", () => {
   it("names the place it opens, and reads it back", () => {
@@ -18,5 +18,18 @@ describe("the address of a place's sheet", () => {
     expect(placeOf("/place/planet/1")).toBeUndefined();
     expect(placeOf("/place/spot")).toBeUndefined();
     expect(placeOf("/place/spot/1/more")).toBeUndefined();
+  });
+});
+
+describe("the tab under a screen", () => {
+  it("is the map under a place's sheet, as the web reads what is selected on the map", () => {
+    expect(tabUnder("/place/break/b1")).toBe("map");
+    expect(TAB_ROUTES[tabUnder("/place/station/s1")!]).toBe("index");
+  });
+
+  it("is the one in view under any other screen", () => {
+    expect(tabUnder("/saved")).toBeUndefined();
+    expect(tabUnder("/sign-in")).toBeUndefined();
+    expect(tabUnder("/place/save")).toBeUndefined();
   });
 });

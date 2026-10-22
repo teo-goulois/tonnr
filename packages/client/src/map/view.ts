@@ -70,6 +70,31 @@ export const LOCATE_ZOOM = 8;
 export const FINGER_REACH = 12;
 
 /**
+ * How far inside the edges of what is not covered a selected place must stand to be in view, in
+ * points: closer to an edge, the map brings it back to the middle.
+ */
+export const REVEAL_MARGIN = 56;
+
+/**
+ * Whether a point of a map of `size` stands in view, inside what `padding` covers at each edge
+ * and `REVEAL_MARGIN` further in. One that does not is brought into view as it is selected; one
+ * that does stays where it is, and the map does not move under the finger that pressed it.
+ */
+export function isInView(
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+  padding: Padding,
+  margin = REVEAL_MARGIN,
+) {
+  return (
+    point.x > padding.left + margin &&
+    point.x < size.width - padding.right - margin &&
+    point.y > padding.top + margin &&
+    point.y < size.height - padding.bottom - margin
+  );
+}
+
+/**
  * The room a list shown alone is fitted in, inside what the screen's own bars and a drawer leave:
  * room for the markers and their names at its edges, more at the top for a buoy's pill.
  */
@@ -141,6 +166,18 @@ export function projector(view: MapView, size: { width: number; height: number }
     x: size.width / 2 + (wrapLongitude(longitude - middleX) / 360) * world,
     y: size.height / 2 + mercatorY(latitude) * world - middleY,
   });
+}
+
+/**
+ * The middle of what a phone's map shows, from the corners it says it shows. The middle it says
+ * itself is the one of the room the last move was given at its edges, which MapLibre keeps for
+ * the moves after it, and no middle of the map once a move left room for a sheet. Far out, where
+ * the corners stop at the edges of the world, the middle it says is kept.
+ */
+export function middleOfBounds([west, south, east, north]: Bounds, said: LngLat): LngLat {
+  const across = east >= west ? east - west : east + 360 - west;
+  if (across >= 360 || Math.max(Math.abs(south), Math.abs(north)) >= 85) return said;
+  return [wrapLongitude(west + across / 2), latitudeOf((mercatorY(north) + mercatorY(south)) / 2)];
 }
 
 export type Padding = { top: number; right: number; bottom: number; left: number };

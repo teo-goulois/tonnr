@@ -52,7 +52,7 @@ import { useBasemapAttribution } from "./use-basemap";
 import { currentMapState, onMapRequest } from "./map-state";
 import { MapListChips } from "./list-chips";
 import { currentSheet, floorOver, onSheetChange } from "./sheet-state";
-import { LOW_SHEET, placeHref, placeOf } from "./place-route";
+import { placeHref, placeOf } from "./place-route";
 import {
   BREAK_LIMIT,
   MINUTE_MS,
@@ -95,6 +95,8 @@ function useMapLayers() {
 const BUTTONS_IN = 6;
 // The spinner of the map's status, as the web's.
 const SPINNER = { width: 14, height: 14 };
+// Nothing covers the map but the bars, which the map is drawn under as the web's is.
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
 
 export function MapScreen() {
   const { colors, space, scheme, motion } = useTheme();
@@ -344,6 +346,20 @@ export function MapScreen() {
   const sheet = useSyncExternalStore(onSheetChange, currentSheet);
   const floor = floorOver(sheet, frame, window.height, space.s);
   const isCovered = sheet.height > 0 && sheet.raised;
+  // What covers the map, which a place selected is shown clear of and a move is given: the status
+  // bar and the low sheet, whether it is raised or not, as the web's map is given its drawer's.
+  // While the sheet of what is selected has not said how tall it stands, the place waits for it.
+  const statusBar = Math.max(0, frame.top - screen.top);
+  const underMap = window.height - (screen.top + screen.height);
+  const padding = useMemo(
+    () =>
+      sheet.height > 0
+        ? { top: statusBar, right: 0, bottom: Math.max(0, sheet.height - underMap), left: 0 }
+        : selected
+          ? undefined
+          : NO_PADDING,
+    [sheet.height, statusBar, underMap, selected],
+  );
   const footFade = useAnimatedStyle(() => ({
     opacity: withTiming(isCovered ? 0 : 1, {
       duration: reduceMotion ? 0 : motion.largeDuration,
@@ -353,12 +369,10 @@ export function MapScreen() {
   function open(press: MapPress) {
     feel("select");
     const href = placeHref(press.kind, press.id);
-    // One sheet at a time: a place that is open gives way to the one pressed.
+    // One sheet at a time: a place that is open gives way to the one pressed. What the sheet
+    // covers comes into view over it, as the map reveals what is selected.
     if (selected) router.replace(href);
     else router.push(href);
-    // What the low sheet would cover comes up over it.
-    const top = window.height * (1 - LOW_SHEET);
-    if (press.point[1] > top - space.xxl) map.current?.lift(press.point, top / 2);
   }
 
   function addSpot([longitude, latitude]: LngLat) {
@@ -405,6 +419,7 @@ export function MapScreen() {
         spots={mapSpots}
         selected={selected}
         selectedPlace={selectedPlace}
+        padding={padding}
         layers={drawn}
         sea={sea.data}
         seaTime={seaTime}

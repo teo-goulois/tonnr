@@ -26,7 +26,9 @@ import {
   FINGER_REACH,
   fitPadding,
   fitted,
+  isInView,
   MAX_ZOOM,
+  middleOfBounds,
   type Padding,
   projector,
 } from "@repo/client/map/view";
@@ -125,15 +127,16 @@ export type SeaMap = {
 export type MapPress = { kind: PlaceKind; id: string; at: LngLat; point: [number, number] };
 
 export type StationMapHandle = {
-  /** Brings a point to the middle of the map, no further out than `zoom`. */
+  /**
+   * Brings a point to the middle of what the map shows, clear of what covers it, no further out
+   * than `zoom`.
+   */
   focus: (point: MapPoint, zoom?: number) => void;
   /**
    * Shows these points together, no closer than a bay, inside what the screen's bars cover at
    * the top and at the bottom.
    */
   fit: (points: readonly MapPoint[], covered?: Partial<Padding>) => void;
-  /** Moves the map so that a point the finger pressed stands where `y` is, from the top. */
-  lift: (point: [number, number], y: number) => void;
 };
 
 type StationMapProps = {
@@ -145,6 +148,10 @@ type StationMapProps = {
   spots: readonly MapPlace[];
   // What a sheet is open on.
   selected: { kind: PlaceKind; id: string } | undefined;
+  // What covers the map at each edge, the status bar and a sheet that is open, in points: a place
+  // selected is shown clear of it, and what the map is sent to is brought to its middle. Unknown
+  // while the sheet of what is selected has not said how tall it stands, and the place waits.
+  padding?: Padding | undefined;
   // The break or the spot a sheet is open on, which its pill stands for: one of those drawn, or
   // one that is not, opened by its address or with the breaks switched off.
   selectedPlace?: MapPlace | undefined;
@@ -185,8 +192,10 @@ const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 // How often the markers are chosen again while the map moves, in milliseconds: a pill comes in at
 // the edge and a pill that would cover another leaves, a few times a second.
 const LAYOUT_MS = 120;
-// How long the map takes to go somewhere it was asked to.
+// How long the map takes to go somewhere it was asked to, and to bring a place selected into view,
+// as on the web.
 const MOVE_MS = 600;
+const REVEAL_MS = 500;
 // No room kept at any edge: Android keeps the room a move was given for the moves after it.
 const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
 // How long one moment of the sea takes to fade into the next, as on the web.
@@ -218,6 +227,7 @@ export function StationMap({
   spots,
   selected,
   selectedPlace,
+  padding,
   layers,
   sea,
   seaTime,
@@ -270,6 +280,10 @@ export function StationMap({
   const accent = colors["color-1"];
   const images = useMemo(() => mapImages(surface), [surface]);
   const duration = reduceMotion ? 0 : MOVE_MS;
+  // What covers the map now, which a move is always given: Android keeps the room a move was
+  // given for the moves after it.
+  const covered = useRef(padding ?? NO_PADDING);
+  covered.current = padding ?? NO_PADDING;
 
   useImperativeHandle(
     ref,
@@ -278,7 +292,7 @@ export function StationMap({
         camera.current?.easeTo({
           center: [point.longitude, point.latitude],
           zoom: Math.max(zoom.current, at ?? 0),
-          padding: NO_PADDING,
+          padding: covered.current,
           duration,
         }),
       fit: (points, covered) => {
@@ -297,18 +311,6 @@ export function StationMap({
         };
         if (camera.current) move();
         else waitingFit.current = move;
-      },
-      lift: (point, y) => {
-        const instance = map.current;
-        if (!instance) return;
-        // The middle moves down by as much as the point stands below where it should.
-        void (async () => {
-          const [x, middle] = await instance.project(await instance.getCenter());
-          const target = await instance.unproject([x, middle + (point[1] - y)]);
-          camera.current?.easeTo({ center: target, padding: NO_PADDING, duration });
-        })().catch(() => {
-          // A map that is gone moves nowhere.
-        });
       },
     }),
     [duration],
@@ -380,6 +382,35 @@ export function StationMap({
   useEffect(layout, [ranked, wind, layers.buoys, layers.wind, pinned, pillWidth]);
   const stationsById = useMemo(() => new Map(stations.map((one) => [one.id, one])), [stations]);
   const windById = useMemo(() => new Map(wind.map((one) => [one.id, one])), [wind]);
+
+  // The place selected comes into view when it is off the map, close to an edge or under the
+  // sheet, as on the web: one that is already in view stays where it is, and the map does not
+  // move under the finger that pressed it. It is brought to the middle of what is not covered, at
+  // the zoom the map is at, once, when its point and the sheet's height are both known.
+  const revealed = useRef<string | undefined>(undefined);
+  const selectedKey = selected && `${selected.kind}:${selected.id}`;
+  useEffect(() => {
+    if (!selected) revealed.current = undefined;
+    if (!drawn || !selected || !padding || revealed.current === selectedKey) return;
+    const place =
+      selected.kind === "station"
+        ? (stationsById.get(selected.id) ?? windById.get(selected.id))
+        : selectedPlace?.id === selected.id
+          ? selectedPlace
+          : undefined;
+    const { width, height } = size.current;
+    if (!place || width === 0 || height === 0) return;
+    revealed.current = selectedKey;
+    const point = projector(view.current, size.current)(place.longitude, place.latitude);
+    if (isInView(point, size.current, padding)) return;
+    camera.current?.easeTo({
+      center: [place.longitude, place.latitude],
+      padding,
+      duration: reduceMotion ? 0 : REVEAL_MS,
+    });
+    // The point and the room are read as they are when the place is selected or becomes known.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawn, selectedKey, selectedPlace, stationsById, windById, padding]);
 
   // The arrows on the sea where the map draws water, as the web keeps them: an island smaller than
   // a cell of the model is sea to it, and land on the map. They are read again where the map rests,
@@ -559,14 +590,17 @@ export function StationMap({
         movedSinceTouch.current = true;
         onMoveStart?.(event.nativeEvent.userInteraction);
       }}
+      // The middle of the map is read from its corners: the one MapLibre says is the middle of
+      // the room the last move left for a sheet.
       onRegionIsChanging={(event) => {
-        const { center, zoom: at } = event.nativeEvent;
-        view.current = { center, zoom: at };
+        const { center, zoom: at, bounds } = event.nativeEvent;
+        view.current = { center: middleOfBounds(bounds as Bounds, center), zoom: at };
         if (Date.now() - laidOut.current >= LAYOUT_MS) layout();
       }}
       onDidFinishRenderingMapFully={() => void keepOnWater()}
       onRegionDidChange={(event) => {
-        const { center, zoom: at, bounds, userInteraction } = event.nativeEvent;
+        const { center: said, zoom: at, bounds, userInteraction } = event.nativeEvent;
+        const center = middleOfBounds(bounds as Bounds, said);
         zoom.current = at;
         view.current = { center, zoom: at };
         layout();

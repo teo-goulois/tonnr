@@ -1,9 +1,11 @@
-import { router, usePathname } from "expo-router";
+import { router, useNavigation, usePathname } from "expo-router";
 import { NativeTabs } from "expo-router/native-tabs";
+import { useEffect } from "react";
 import { Platform } from "react-native";
 
 import { useAccountStart } from "@/components/account/account-start";
 import { LoginWall, useVisitorWall } from "@/components/auth/login-wall";
+import { TAB_ROUTES, tabUnder } from "@/components/map/place-route";
 import { useQuickActions } from "@/lib/quick-actions";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -30,6 +32,7 @@ export default function TabsLayout() {
   // wall comes back once the visitor leaves the list for another tab.
   const walled = useVisitorWall();
   const pathname = usePathname();
+  useTabUnder(pathname);
   if (walled && !pathname.startsWith("/saved/shared/")) return <LoginWall />;
   return (
     <NativeTabs
@@ -94,4 +97,27 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
     </NativeTabs>
   );
+}
+
+type TabsState = { key: string; index: number; routes: readonly { name: string }[] };
+
+/**
+ * Shows the tab a screen over the tabs shows under it: a place opened from the saved tab, an
+ * alert, a notification or a link is read on the map, as the web's address shows whatever is
+ * selected on the map (`tabOf` in packages/client/src/phone-nav.ts). The tab is changed under the
+ * sheet, which stays where it is.
+ */
+function useTabUnder(pathname: string) {
+  // The root's navigation, whose state holds the tabs'.
+  const root = useNavigation();
+  const wanted = tabUnder(pathname);
+  useEffect(() => {
+    if (!wanted) return;
+    const tabs = root.getState()?.routes.find((one) => one.name === "(tabs)")?.state as
+      | TabsState
+      | undefined;
+    const name = TAB_ROUTES[wanted];
+    if (!tabs || tabs.routes[tabs.index]?.name === name) return;
+    root.dispatch({ type: "JUMP_TO", payload: { name }, target: tabs.key });
+  }, [wanted, root]);
 }

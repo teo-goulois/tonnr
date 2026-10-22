@@ -31,6 +31,7 @@ import {
   FIT_MAX_ZOOM,
   fitPadding,
   isBasemapName,
+  isInView,
   type MapPoint,
   readView,
   STYLE_URLS,
@@ -216,9 +217,6 @@ const BREAK_WAVE_ZOOM = 9.75;
 const BREAK_NAME_ZOOM = 9;
 // The wave of a break's disc, as an image of the map: its name and its size.
 const BREAK_WAVE = { image: "break-wave", size: 13 };
-// A station this close to the edge of what is visible is brought back to the middle.
-const REVEAL_MARGIN = 56;
-
 // Where the middle of the visible part is, from the middle of the whole map.
 function visibleCenterOffset(padding: Required<PaddingOptions>): [number, number] {
   return [(padding.left - padding.right) / 2, (padding.top - padding.bottom) / 2];
@@ -1403,12 +1401,8 @@ export function StationMap({
 
     const point = instance.project([station.longitude, station.latitude]);
     const element = instance.getContainer();
-    const isVisible =
-      point.x > padding.left + REVEAL_MARGIN &&
-      point.x < element.clientWidth - padding.right - REVEAL_MARGIN &&
-      point.y > padding.top + REVEAL_MARGIN &&
-      point.y < element.clientHeight - padding.bottom - REVEAL_MARGIN;
-    if (isVisible) return;
+    const size = { width: element.clientWidth, height: element.clientHeight };
+    if (isInView(point, size, padding)) return;
 
     instance.easeTo({
       center: [station.longitude, station.latitude],

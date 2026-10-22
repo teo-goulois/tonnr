@@ -9,11 +9,14 @@ import {
   fitPadding,
   fitted,
   isBasemapName,
+  isInView,
   latitudeOf,
   MAX_ZOOM,
   mercatorY,
+  middleOfBounds,
   projector,
   readView,
+  REVEAL_MARGIN,
   wrapLongitude,
   writeView,
 } from "./view";
@@ -150,5 +153,47 @@ describe("a point on the map", () => {
       projector({ center: [179, -17], zoom: 6 }, phone)(-179, -17).x,
       6,
     );
+  });
+});
+
+describe("a place selected on the map", () => {
+  const phone = { width: 390, height: 844 };
+  const none = { top: 0, right: 0, bottom: 0, left: 0 };
+  // A low sheet of 380 points over the bottom of the map, under a status bar of 59.
+  const sheet = { ...none, top: 59, bottom: 380 };
+
+  it("is in view in the middle of what is not covered", () => {
+    expect(isInView({ x: 195, y: 300 }, phone, sheet)).toBe(true);
+  });
+
+  it("is brought into view off the map, under the sheet, or close to an edge", () => {
+    expect(isInView({ x: -20, y: 300 }, phone, none)).toBe(false);
+    expect(isInView({ x: 195, y: 600 }, phone, sheet)).toBe(false);
+    expect(isInView({ x: 195, y: 844 - 380 - REVEAL_MARGIN + 1 }, phone, sheet)).toBe(false);
+    expect(isInView({ x: 195, y: 844 - 380 - REVEAL_MARGIN - 1 }, phone, sheet)).toBe(true);
+    expect(isInView({ x: REVEAL_MARGIN - 1, y: 300 }, phone, none)).toBe(false);
+    expect(isInView({ x: 195, y: 59 + REVEAL_MARGIN }, phone, sheet)).toBe(false);
+  });
+});
+
+describe("the middle of a phone's map", () => {
+  it("is the middle of its corners, on Mercator, wherever the map says its middle is", () => {
+    const [longitude, latitude] = middleOfBounds([-5, 46, -3, 49], [-4, 48.1]);
+    expect(longitude).toBeCloseTo(-4);
+    expect(latitude).toBeCloseTo(latitudeOf((mercatorY(49) + mercatorY(46)) / 2));
+    expect(
+      projector({ center: [longitude, latitude], zoom: 7 }, { width: 2, height: 2 })(-4, latitude)
+        .y,
+    ).toBeCloseTo(1);
+  });
+
+  it("is found across the antimeridian", () => {
+    expect(middleOfBounds([178, -18, -178, -16], [0, 0])[0]).toBeCloseTo(180);
+    expect(middleOfBounds([170, -18, 190, -16], [0, 0])[0]).toBeCloseTo(180);
+  });
+
+  it("is the one the map says where its corners stop at the world's edges", () => {
+    expect(middleOfBounds([-180, -85.05, 180, 85.05], [12, 30])).toEqual([12, 30]);
+    expect(middleOfBounds([-100, 20, 100, 85.05], [3, 60])).toEqual([3, 60]);
   });
 });
