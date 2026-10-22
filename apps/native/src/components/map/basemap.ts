@@ -72,7 +72,7 @@ export type CreditPart = { text: string; href?: string };
 
 /** OpenFreeMap's own credits, as its tiles say them, for a map that could not read them. */
 export const BASEMAP_ATTRIBUTION =
-  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a>';
 
 const ENTITIES: Record<string, string> = {
   amp: "&",

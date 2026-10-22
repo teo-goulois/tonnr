@@ -70,15 +70,30 @@ describe("the basemap", () => {
   });
 });
 
+// The credits OpenFreeMap's description gives, as it wrote them on 2026-10-22.
+const OPENFREEMAP =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+
 describe("the map's credits", () => {
   it("reads OpenFreeMap's into its words and its links", () => {
-    expect(creditParts(BASEMAP_ATTRIBUTION)).toEqual([
+    expect(creditParts(OPENFREEMAP)).toEqual([
       { text: "OpenFreeMap", href: "https://openfreemap.org" },
       { text: " " },
       { text: "© OpenMapTiles", href: "https://www.openmaptiles.org/" },
       { text: " Data from " },
       { text: "OpenStreetMap", href: "https://www.openstreetmap.org/copyright" },
     ]);
+  });
+
+  it("names the three sources and nothing else when the description could not be read", () => {
+    const parts = creditParts(BASEMAP_ATTRIBUTION);
+    expect(parts.filter((part) => part.href).map((part) => part.text)).toEqual([
+      "OpenFreeMap",
+      "© OpenMapTiles",
+      "© OpenStreetMap",
+    ]);
+    // No words a reader would need in their language.
+    expect(parts.filter((part) => !part.href).every((part) => part.text.trim() === "")).toBe(true);
   });
 
   it("keeps words that are no link, and no link that leads nowhere on the web", () => {
