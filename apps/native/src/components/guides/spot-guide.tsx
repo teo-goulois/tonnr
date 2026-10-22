@@ -6,14 +6,13 @@ import { usePlaceRecord } from "@/components/place/use-place";
 import { useSpotActions } from "@/components/place/use-spot";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { Section } from "@/components/ui/list";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { GuideSkeleton } from "./break-guide";
 import { CHARACTERISTIC_FIELDS } from "./characteristic-words";
-import { listedRows, measuredRows, useSizeReading } from "./characteristics";
+import { CharacteristicsList, listedRows, measuredRows, useSizeReading } from "./characteristics";
 import { PageSheet, usePresented } from "./page-sheet";
 
 // What its owner says a spot is like, the tab of a spot's sheet beside its forecast, as the web's
@@ -36,11 +35,11 @@ export function SpotGuide({ id }: { id: string }) {
   const rows = [...listedRows(spot.characteristics), ...measuredRows(spot.characteristics, size)];
 
   return (
-    <View style={{ gap: space.l }}>
+    <View style={{ gap: space.m }}>
       {rows.length > 0 ? (
-        <Section title={m.spot_guide_title()}>{rows}</Section>
+        <CharacteristicsList title={m.spot_guide_title()} rows={rows} />
       ) : (
-        <Text size="s" tone="muted" style={{ paddingHorizontal: space.m }}>
+        <Text size="s" tone="muted">
           {spot.isOwner ? m.spot_guide_invite() : m.details_guide_empty()}
         </Text>
       )}
@@ -48,7 +47,7 @@ export function SpotGuide({ id }: { id: string }) {
         <Button
           variant="secondary"
           onPress={() => sheet.present(spot)}
-          style={{ alignSelf: "flex-start", marginStart: space.m }}
+          style={{ alignSelf: "flex-start" }}
         >
           {rows.length > 0 ? m.spot_guide_edit() : m.spot_guide_describe()}
         </Button>

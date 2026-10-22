@@ -20,7 +20,6 @@ import { View } from "react-native";
 
 import { Bearing } from "@/components/forecast/bearing";
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
-import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
@@ -254,33 +253,56 @@ export function CharacteristicRow({
   );
 }
 
-/** A row of a guide that says something and opens nothing. */
-export function StillRow({ children }: { children: ReactNode }) {
+/**
+ * A part of a guide as the web's panel draws one: its title in the body's type, then what it
+ * holds, flat on the sheet's ground and in the line of its text.
+ */
+export function GuideSection({ title, children }: { title: string; children: ReactNode }) {
   const { space } = useTheme();
   return (
-    <View style={{ paddingHorizontal: space.m, paddingVertical: space.xs, minHeight: TARGET }}>
+    <View style={{ gap: space.xs }}>
+      <Text weight="medium" accessibilityRole="header">
+        {title}
+      </Text>
       {children}
     </View>
   );
 }
 
 /**
- * What is known of a place in the catalogue's words, as rows of a grouped list: each list of
- * words that says something, with its glyph, in the order a guide gives them.
+ * A row of a break's guide that says something and opens nothing, with the room above and under
+ * it that a line which opens has.
+ */
+export function StillRow({ children }: { children: ReactNode }) {
+  const { space } = useTheme();
+  return <View style={{ paddingVertical: space.xxs }}>{children}</View>;
+}
+
+/** Where a place lies, the nearest place first, as an address reads. */
+export function locationRow(location: readonly string[]): ReactElement {
+  return (
+    <CharacteristicRow key="location" label={m.break_location()}>
+      {[...location].reverse().join(", ")}
+    </CharacteristicRow>
+  );
+}
+
+/**
+ * What is known of a place in the catalogue's words: each list of words that says something,
+ * with its glyph, in the order a guide gives them.
  */
 export function listedRows(known: Characteristics): ReactElement[] {
   return CHARACTERISTIC_FIELDS.flatMap(({ key, label }) => {
     const given = known[key];
     return given && given.length > 0
       ? [
-          <StillRow key={key}>
-            <CharacteristicRow
-              icon={<CharacteristicIcon field={key} given={given} />}
-              label={label()}
-            >
-              <WordsReading field={key} given={given} />
-            </CharacteristicRow>
-          </StillRow>,
+          <CharacteristicRow
+            key={key}
+            icon={<CharacteristicIcon field={key} given={given} />}
+            label={label()}
+          >
+            <WordsReading field={key} given={given} />
+          </CharacteristicRow>,
         ]
       : [];
   });
@@ -296,28 +318,40 @@ export function measuredRows(known: Characteristics, size: string | null): React
     ...(offshore == null
       ? []
       : [
-          <StillRow key="offshore">
-            <CharacteristicRow
-              icon={<OffshoreIcon degrees={offshore} />}
-              label={m.break_offshore_wind()}
-            >
-              <Bearing degrees={offshore} />
-            </CharacteristicRow>
-          </StillRow>,
+          <CharacteristicRow
+            key="offshore"
+            icon={<OffshoreIcon degrees={offshore} />}
+            label={m.break_offshore_wind()}
+          >
+            <Bearing degrees={offshore} />
+          </CharacteristicRow>,
         ]),
     ...(known.waveSizeMeters && size
       ? [
-          <StillRow key="size">
-            <CharacteristicRow
-              icon={<SizeIcon size={known.waveSizeMeters} />}
-              label={m.break_wave_size()}
-            >
-              {size}
-            </CharacteristicRow>
-          </StillRow>,
+          <CharacteristicRow
+            key="size"
+            icon={<SizeIcon size={known.waveSizeMeters} />}
+            label={m.break_wave_size()}
+          >
+            {size}
+          </CharacteristicRow>,
         ]
       : []),
   ];
+}
+
+/**
+ * What is known of a place, under a title, as the web's `CharacteristicsList` lists it: nothing
+ * of a place of which nothing is known.
+ */
+export function CharacteristicsList({ title, rows }: { title: string; rows: ReactElement[] }) {
+  const { space } = useTheme();
+  if (rows.length === 0) return null;
+  return (
+    <GuideSection title={title}>
+      <View style={{ gap: space.xs }}>{rows}</View>
+    </GuideSection>
+  );
 }
 
 /**

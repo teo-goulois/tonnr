@@ -1,7 +1,7 @@
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
 import type { Guide, GuideLine, GuideOwn, SurfBreak } from "@repo/client/viewer/types";
 import { ChevronRightIcon, PenIcon, PlusIcon } from "@repo/ui/icon";
-import { Children, isValidElement, type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 
 import { useBlock } from "@/components/friends/blocking";
@@ -9,7 +9,6 @@ import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ErrorState } from "@/components/ui/error-state";
-import { Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
@@ -28,8 +27,11 @@ import {
   BreakDescription,
   CharacteristicIcon,
   CharacteristicRow,
+  CharacteristicsList,
   GLYPH_SIZE,
+  GuideSection,
   listedRows,
+  locationRow,
   measuredRows,
   StillRow,
   useSizeReading,
@@ -63,12 +65,6 @@ type Proposed = GuideLine["proposed"][number];
 
 // What a sheet over the guide holds: the editor of a line, or the reason of a contest on one.
 type Shown = { line: GuideLineName; contest?: string };
-
-/** Rows of the guide in the kit's grouped list, which draws nothing while it has no row. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
-  const rows = Children.toArray(children).filter(isValidElement);
-  return rows.length === 0 ? null : <Section title={title}>{rows}</Section>;
-}
 
 /** What a line says it lacks: a plus, and "Add". */
 function AddLabel() {
@@ -237,13 +233,16 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
         </View>
       ) : null}
       {mayContestSaid && said !== null ? (
-        <Button
-          variant="ghost"
-          onPress={() => onContest(said)}
-          style={{ alignSelf: "flex-start", marginStart: -space.m }}
-        >
-          {m.guide_contest()}
-        </Button>
+        // Under what it contests: what a line of words says stands after its glyph.
+        <View style={isTextLine(line.line) ? undefined : { paddingStart: GLYPH_SIZE + space.s }}>
+          <Button
+            variant="ghost"
+            onPress={() => onContest(said)}
+            style={{ alignSelf: "flex-start", marginStart: -space.m }}
+          >
+            {m.guide_contest()}
+          </Button>
+        </View>
       ) : null}
     </View>
   );
@@ -252,45 +251,50 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
 /** A line that is said in the catalogue's words: its glyph, its name, what it says, who said so. */
 function WordsLine(props: LineProps & { field: CharacteristicField }) {
   const { line, field, onOpen, blockerOf } = props;
-  const { colors, space } = useTheme();
+  const { colors, space, radius } = useTheme();
   const value = Array.isArray(line.value) ? line.value : null;
-  const under = space.m + GLYPH_SIZE + space.s;
+  // Where what the line says begins: after its glyph.
+  const under = GLYPH_SIZE + space.s;
   return (
-    <View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${field.label()}, ${value ? wordsText(field.key, value) : m.guide_add()}`}
-        accessibilityHint={m.native_guide_line_hint()}
-        onPress={onOpen}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space.s,
-          minHeight: TARGET,
-          paddingHorizontal: space.m,
-          paddingVertical: space.xs,
-          backgroundColor: pressed ? colors["neutral-3"] : undefined,
-        })}
-      >
-        <View style={{ flex: 1 }}>
-          <CharacteristicRow
-            icon={<CharacteristicIcon field={field.key} given={value ?? []} faint={!value} />}
-            label={field.label()}
-          >
-            {value ? <WordsReading field={field.key} given={value} /> : <AddLabel />}
-          </CharacteristicRow>
-        </View>
-        <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
-      </Pressable>
-      {/* Who said it stands under the value, out of the row's press: its name asks of its own. */}
-      {value && line.origin === "contribution" ? (
-        <View style={{ paddingStart: under, paddingEnd: space.m, paddingBottom: space.xs }}>
-          <Author by={line.by} onBlock={blockerOf(line.by)} />
-        </View>
-      ) : null}
-      <View style={{ paddingStart: under, paddingEnd: space.m }}>
-        <Waiting {...props} />
+    <View style={{ gap: space.xs }}>
+      <View>
+        {/* The row reaches a step past the text on each side, where its press is drawn. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${field.label()}, ${value ? wordsText(field.key, value) : m.guide_add()}`}
+          accessibilityHint={m.native_guide_line_hint()}
+          onPress={onOpen}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.s,
+            minHeight: TARGET,
+            marginHorizontal: -space.xs,
+            paddingHorizontal: space.xs,
+            paddingVertical: space.xxs,
+            borderRadius: radius.xs,
+            borderCurve: "continuous",
+            backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
+          })}
+        >
+          <View style={{ flex: 1 }}>
+            <CharacteristicRow
+              icon={<CharacteristicIcon field={field.key} given={value ?? []} faint={!value} />}
+              label={field.label()}
+            >
+              {value ? <WordsReading field={field.key} given={value} /> : <AddLabel />}
+            </CharacteristicRow>
+          </View>
+          <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
+        </Pressable>
+        {/* Who said it stands under the value, out of the row's press: its name asks of its own. */}
+        {value && line.origin === "contribution" ? (
+          <View style={{ marginTop: -space.xxs, paddingStart: under, paddingBottom: space.xxs }}>
+            <Author by={line.by} onBlock={blockerOf(line.by)} />
+          </View>
+        ) : null}
       </View>
+      <Waiting {...props} />
     </View>
   );
 }
@@ -303,7 +307,7 @@ function TextLine(props: LineProps & { name: TextLineName }) {
   const hasMine = own?.waiting.some((one) => one.line === name) ?? false;
   const written = writtenIn(line.language);
   return (
-    <View style={{ gap: space.xs, paddingHorizontal: space.m, paddingVertical: space.s }}>
+    <View style={{ gap: space.xs }}>
       <View
         style={{
           flexDirection: "row",
@@ -369,7 +373,7 @@ function Question({
   const { question } = spread;
   const answers = Object.keys(QUESTIONS[question].answers);
   return (
-    <View style={{ gap: space.xs, paddingHorizontal: space.m, paddingVertical: space.s }}>
+    <View style={{ gap: space.xs }}>
       <Text size="s" weight="medium" accessibilityRole="header">
         {QUESTIONS[question].label()}
       </Text>
@@ -394,35 +398,48 @@ function Question({
   );
 }
 
-/** What the catalogue knows of a break, read and never opened: while its guide cannot be had. */
-function About({
-  found,
-  lines,
-}: {
-  found: SurfBreak;
-  // The guide's lines of words, each a row that opens; without them, the catalogue's words.
-  lines?: ReactNode[];
-}) {
+/**
+ * What the guide says a break is like: what its operator wrote, where it lies, its lines of
+ * words, each a row that opens, and what is measured of it.
+ */
+function About({ found, lines }: { found: SurfBreak; lines: ReactNode[] }) {
+  const { space } = useTheme();
   const known = found.characteristics;
   const size = useSizeReading(known.waveSizeMeters);
   return (
-    <Group title={m.break_about()}>
-      {found.description ? (
-        <StillRow key="description">
-          <BreakDescription description={found.description} />
-        </StillRow>
-      ) : null}
-      {found.location ? (
-        <StillRow key="location">
-          <CharacteristicRow label={m.break_location()}>
-            {/* The nearest place first, as an address reads. */}
-            {[...found.location].reverse().join(", ")}
-          </CharacteristicRow>
-        </StillRow>
-      ) : null}
-      {lines ?? listedRows(known)}
-      {measuredRows(known, size)}
-    </Group>
+    <GuideSection title={m.break_about()}>
+      <BreakDescription description={found.description} />
+      <View style={{ gap: space.xxs }}>
+        {found.location ? <StillRow>{locationRow(found.location)}</StillRow> : null}
+        {lines}
+        {measuredRows(known, size).map((row) => (
+          <StillRow key={row.key}>{row}</StillRow>
+        ))}
+      </View>
+    </GuideSection>
+  );
+}
+
+/**
+ * What the catalogue knows of a break, read and never opened, while its guide cannot be had: as
+ * the web's `BreakCharacteristics` says it.
+ */
+function BreakCharacteristics({ found }: { found: SurfBreak }) {
+  const { space } = useTheme();
+  const known = found.characteristics;
+  const size = useSizeReading(known.waveSizeMeters);
+  return (
+    <View style={{ gap: space.m }}>
+      <BreakDescription description={found.description} />
+      <CharacteristicsList
+        title={m.break_about()}
+        rows={[
+          ...(found.location ? [locationRow(found.location)] : []),
+          ...listedRows(known),
+          ...measuredRows(known, size),
+        ]}
+      />
+    </View>
   );
 }
 
@@ -469,7 +486,7 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
           onRetry={() => void guide.refetch()}
           retrying={guide.isRefetching}
         />
-        <About found={found} />
+        <BreakCharacteristics found={found} />
       </View>
     );
   }
@@ -511,7 +528,7 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
 
   return (
     <View style={{ gap: space.l }}>
-      <Text size="s" tone="muted" style={{ paddingHorizontal: space.m }}>
+      <Text size="s" tone="muted">
         {m.guide_hint()}
       </Text>
 
@@ -523,30 +540,34 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
         })}
       />
 
-      <Group title={m.guide_on_site()}>
-        {(Object.keys(TEXT_LINES) as TextLineName[]).flatMap((name) => {
-          const line = lineOf(name);
-          return line ? [<TextLine key={name} name={name} {...propsOf(line)} />] : [];
-        })}
-      </Group>
+      <GuideSection title={m.guide_on_site()}>
+        <View style={{ gap: space.m }}>
+          {(Object.keys(TEXT_LINES) as TextLineName[]).flatMap((name) => {
+            const line = lineOf(name);
+            return line ? [<TextLine key={name} name={name} {...propsOf(line)} />] : [];
+          })}
+        </View>
+      </GuideSection>
 
-      <Group title={m.guide_lineup()}>
-        {guide.data.answers.map((spread) => (
-          <Question
-            key={spread.question}
-            spread={spread}
-            listed={spread.question === "level" ? listedLevel : undefined}
-            mine={own?.answers[spread.question]}
-            onAnswer={(question, pressed) => {
-              if (!signedIn) {
-                requireAccount(m.guide_sign_in_answer(), () => {});
-                return;
-              }
-              actions.onAnswer(question, answerAfter(own?.answers[question], pressed));
-            }}
-          />
-        ))}
-      </Group>
+      <GuideSection title={m.guide_lineup()}>
+        <View style={{ gap: space.m }}>
+          {guide.data.answers.map((spread) => (
+            <Question
+              key={spread.question}
+              spread={spread}
+              listed={spread.question === "level" ? listedLevel : undefined}
+              mine={own?.answers[spread.question]}
+              onAnswer={(question, pressed) => {
+                if (!signedIn) {
+                  requireAccount(m.guide_sign_in_answer(), () => {});
+                  return;
+                }
+                actions.onAnswer(question, answerAfter(own?.answers[question], pressed));
+              }}
+            />
+          ))}
+        </View>
+      </GuideSection>
 
       {shown && shownLine ? (
         shown.contest !== undefined ? (
@@ -592,7 +613,7 @@ export function GuideSkeleton() {
   const { space } = useTheme();
   return (
     <Loading>
-      <View style={{ gap: space.s, paddingHorizontal: space.m }}>
+      <View style={{ gap: space.s }}>
         {[0, 1, 2, 3, 4, 5].map((row) => (
           <View key={row} style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
             <Skeleton width={GLYPH_SIZE} height={GLYPH_SIZE} round />
