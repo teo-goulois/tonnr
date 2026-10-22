@@ -106,6 +106,8 @@ describe("an icon of the web, drawn by the app", () => {
   it("is asked by no screen of the app for an icon it leaves out", () => {
     const source = fileURLToPath(new URL("../..", import.meta.url));
     const asking = readdirSync(source, { recursive: true, encoding: "utf8" })
+      // The messages Paraglide compiles are thousands of files that draw nothing.
+      .filter((file) => !file.startsWith("paraglide"))
       .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
       .filter((file) => {
         const text = readFileSync(join(source, file), "utf8");
