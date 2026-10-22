@@ -2031,7 +2031,6 @@
   "native_alert_part_another": "Another value",
   "native_alert_forecast_credit": "Forecast: {attribution}",
   "native_go_to_map": "Go to the map",
-  "native_auth_mode": "Sign in or create an account",
   "native_auth_google_none": "You're not signed in with Google. Try again, or use your email.",
   "native_version": "Version",
   "native_profile_load_failed": "Your answers could not be loaded.",

@@ -11,7 +11,6 @@ import { useUsernameFree } from "@/components/account/use-username";
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { TARGET } from "@/components/ui/metrics";
-import { Segmented } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { APP_ORIGIN, appHeader } from "@/lib/app-client";
@@ -40,12 +39,23 @@ type AuthFormProps = {
   invitation?: string | undefined;
 };
 
-/** A link in small text, a finger's height, which opens what it names. */
-export function SmallLink({ label, onPress }: { label: string; onPress: () => void }) {
+/**
+ * A link in small text, a finger's height, which opens what it names, or a button drawn as one,
+ * as the web's switch between signing in and creating an account is.
+ */
+export function SmallLink({
+  label,
+  onPress,
+  role = "link",
+}: {
+  label: string;
+  onPress: () => void;
+  role?: "link" | "button";
+}) {
   const { space } = useTheme();
   return (
     <Pressable
-      accessibilityRole="link"
+      accessibilityRole={role}
       onPress={onPress}
       hitSlop={{ left: space.xxs, right: space.xxs }}
       style={{ minHeight: TARGET, justifyContent: "center" }}
@@ -64,9 +74,10 @@ export function SmallLink({ label, onPress }: { label: string; onPress: () => vo
 }
 
 /**
- * Signs a visitor in, or creates their account: a switch between the two, the providers the
- * instance offers, then the address and the password, which the phone's passwords fill and keep,
- * and the username at a sign-up. One form does both, as the web's `AuthForm` does: decision 070.
+ * Signs a visitor in, or creates their account: the providers the instance offers, then the
+ * address and the password, which the phone's passwords fill and keep, the username at a sign-up,
+ * and at the bottom a line that switches from one to the other. One form does both, as the web's
+ * `AuthForm` does, with its words: decision 070.
  */
 export function AuthForm({ mode, onModeChange, onSignedIn, invitation }: AuthFormProps) {
   const { space, motion } = useTheme();
@@ -152,22 +163,6 @@ export function AuthForm({ mode, onModeChange, onSignedIn, invitation }: AuthFor
 
   return (
     <Animated.View layout={LinearTransition.duration(motion.duration)} style={{ gap: space.m }}>
-      <Segmented
-        label={m.native_auth_mode()}
-        fill
-        options={[
-          { value: "sign-in", label: m.auth_sign_in() },
-          { value: "sign-up", label: m.auth_create_account() },
-        ]}
-        value={mode}
-        disabled={busy}
-        onChange={(next) => {
-          setWasSent(false);
-          setRefusal(undefined);
-          onModeChange(next);
-        }}
-      />
-
       <ProviderSignIn
         invitation={invitation}
         disabled={sending}
@@ -266,6 +261,31 @@ export function AuthForm({ mode, onModeChange, onSignedIn, invitation }: AuthFor
           />
         </View>
       )}
+
+      {/* The other of the two, as the web says it under its form. */}
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          alignItems: "center",
+          columnGap: space.xxs,
+        }}
+      >
+        <Text size="s" tone="muted">
+          {isSignUp ? m.auth_have_account() : m.auth_no_account()}
+        </Text>
+        <SmallLink
+          label={isSignUp ? m.auth_sign_in() : m.auth_create_account()}
+          role="button"
+          onPress={() => {
+            if (busy) return;
+            setWasSent(false);
+            setRefusal(undefined);
+            onModeChange(isSignUp ? "sign-in" : "sign-up");
+          }}
+        />
+      </View>
     </Animated.View>
   );
 }

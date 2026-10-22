@@ -2031,7 +2031,6 @@
   "native_alert_part_another": "Une autre valeur",
   "native_alert_forecast_credit": "Prévision : {attribution}",
   "native_go_to_map": "Aller à la carte",
-  "native_auth_mode": "Se connecter ou créer un compte",
   "native_auth_google_none": "Tu n'es pas connecté avec Google. Réessaie, ou utilise ton e-mail.",
   "native_version": "Version",
   "native_profile_load_failed": "Tes réponses n'ont pas pu être chargées.",

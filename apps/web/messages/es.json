@@ -2031,7 +2031,6 @@
   "native_alert_part_another": "Otro valor",
   "native_alert_forecast_credit": "Previsión: {attribution}",
   "native_go_to_map": "Ir al mapa",
-  "native_auth_mode": "Iniciar sesión o crear una cuenta",
   "native_auth_google_none": "No has iniciado sesión con Google. Vuelve a intentarlo o usa tu correo.",
   "native_version": "Versión",
   "native_profile_load_failed": "No se han podido cargar tus respuestas.",
