@@ -2,6 +2,7 @@ import type { MediaItem, Session } from "@repo/client/viewer/types";
 import { ChevronRightIcon, TrashIcon } from "@repo/ui/icon";
 import { Image } from "expo-image";
 import { Link } from "expo-router";
+import type { ReactNode } from "react";
 import { Alert, Platform, Pressable, View } from "react-native";
 
 import { SwipeRow } from "@/components/alerts/swipe-row";
@@ -19,10 +20,13 @@ import { RatingStars } from "./rating";
 import { openPlaceOnMap } from "./session-place";
 import { SessionSea } from "./session-sea";
 
-// A session on a line of a list, the log or a place's: where or when it was, its rating, what the
-// sea did, and its first photo small. A press opens it; a long press opens its menu, the
-// platform's own on iOS, with what a press on its place and its deletion do; a swipe to the left
-// asks to delete it. Decisions 043 and 066.
+// A session on a line of a list, the log or a place's, as the web's `SessionRow` draws it: where or
+// when it was, its rating, what the sea did, and its first photo small, on the screen's own
+// ground, the list that holds the rows laying their room outside it (`-mx-xs`). A press opens it;
+// a long press opens its menu, the platform's own on iOS, with what a press on its place and its
+// deletion do; a swipe to the left asks to delete it. Each is named `action_delete`, as the web's
+// sheet names its first press, and the platform's question then confirms with
+// `session_delete_confirm`, as the web's second press does. Decisions 043 and 066.
 
 /** When a session was and how long it lasted, as "Sat 10 Oct · 09:00 · 1 h 30". */
 export function sessionWhen(session: Pick<Session, "startedAt" | "durationMinutes">, now: number) {
@@ -49,6 +53,16 @@ export const askToDelete = () =>
     confirm: m.session_delete_confirm(),
   });
 
+/**
+ * The rows of a list as the web lays them (`-mx-xs grid gap-xxs`): a little apart, their room
+ * laid outside the list, so that their words stand in line with the title over them and only a
+ * press shows how wide they are. The log's lists and a place's sessions.
+ */
+export function RowList({ children }: { children: ReactNode }) {
+  const { space } = useTheme();
+  return <View style={{ gap: space.xxs, marginHorizontal: -space.xs }}>{children}</View>;
+}
+
 type SessionRowProps = {
   session: Session;
   now: number;
@@ -66,7 +80,7 @@ type SessionRowProps = {
 };
 
 const THUMB = 44;
-// The web's `size-10`.
+// The web's `size-10`, at the theme's smallest radius.
 const PLAIN_THUMB = 40;
 const PREVIEW_WIDTH = 320;
 
@@ -161,7 +175,7 @@ export function SessionRow({
          style given as a function into nothing: what a press changes is drawn inside. */}
       {({ pressed }) => (
         // A plain row stands on the sheet's ground, which hides the swipe's under it as the
-        // card's surface does, and rounds what a press lights.
+        // card's surface does, and rounds what a press lights, in the web's transparent grey.
         <View style={plain ? { backgroundColor: colors["cte-canvas"] } : undefined}>
           <View
             style={{
@@ -172,14 +186,14 @@ export function SessionRow({
               paddingHorizontal: plain ? space.xs : space.m,
               paddingVertical: space.xs,
               backgroundColor: pressed
-                ? colors["neutral-3"]
+                ? colors[plain ? "neutral-3-transparent" : "neutral-3"]
                 : plain
                   ? "transparent"
                   : colors["cte-surface"],
               ...(plain && { borderRadius: radius.xs, borderCurve: "continuous" as const }),
             }}
           >
-            <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: plain ? space.xxs : 2 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
                 <Text numberOfLines={1} style={{ flexShrink: 1 }}>
                   {withPlace ? session.place.name : when}
@@ -197,12 +211,13 @@ export function SessionRow({
               <Picture
                 uri={first.thumb}
                 size={plain ? PLAIN_THUMB : THUMB}
+                {...(plain && { corner: radius.xs })}
                 recyclingKey={first.id}
               />
             ) : null}
             <Glyph
               icon={ChevronRightIcon}
-              size={16}
+              size={plain ? 15 : 16}
               color={colors[plain ? "neutral-7" : "neutral-6"]}
             />
           </View>
@@ -221,31 +236,34 @@ export function SessionRow({
         onAct: () => void remove(),
       }}
     >
-      {Platform.OS === "ios" ? (
-        <Link href={href} asChild>
-          <Link.Trigger>{row}</Link.Trigger>
-          {/* A long press on iOS lifts the session out of its list, larger, over its menu. */}
-          <Link.Preview style={{ width: PREVIEW_WIDTH }}>
-            <SessionPreview session={session} when={when} photo={first ?? null} />
-          </Link.Preview>
-          <Link.Menu>
-            {place ? (
-              <Link.MenuAction icon="mappin.and.ellipse" onPress={() => openPlaceOnMap(place)}>
-                {m.session_open_place()}
+      {/* The ground a swipe moves over what it reveals: the screen's own. */}
+      <View style={{ backgroundColor: colors["cte-canvas"] }}>
+        {Platform.OS === "ios" ? (
+          <Link href={href} asChild>
+            <Link.Trigger>{row}</Link.Trigger>
+            {/* A long press on iOS lifts the session out of its list, larger, over its menu. */}
+            <Link.Preview style={{ width: PREVIEW_WIDTH }}>
+              <SessionPreview session={session} when={when} photo={first ?? null} />
+            </Link.Preview>
+            <Link.Menu>
+              {place ? (
+                <Link.MenuAction icon="mappin.and.ellipse" onPress={() => openPlaceOnMap(place)}>
+                  {m.session_open_place()}
+                </Link.MenuAction>
+              ) : null}
+              <Link.MenuAction icon="trash" destructive onPress={() => void remove()}>
+                {m.action_delete()}
               </Link.MenuAction>
-            ) : null}
-            <Link.MenuAction icon="trash" destructive onPress={() => void remove()}>
-              {m.session_delete_confirm()}
-            </Link.MenuAction>
-          </Link.Menu>
-        </Link>
-      ) : (
-        // Android has no preview: the row opens the session, and its long press the dialog, as
-        // the saved tab's rows do.
-        <Link href={href} asChild>
-          {row}
-        </Link>
-      )}
+            </Link.Menu>
+          </Link>
+        ) : (
+          // Android has no preview: the row opens the session, and its long press the dialog, as
+          // the saved tab's rows do.
+          <Link href={href} asChild>
+            {row}
+          </Link>
+        )}
+      </View>
     </SwipeRow>
   );
 }

@@ -2,13 +2,13 @@ import type { AlertCriteria } from "@repo/client/viewer/types";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
+import { Bearing } from "@/components/forecast/bearing";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
 import { said, type Value, valuesOf } from "./condition-words";
-import { Bearing } from "./session-sea";
 
 // Conditions in a few words, as an alert says its own: the waves, the swell, the wind and the
 // tide, each with what is asked of it, what nothing is asked of left out. What an account likes at

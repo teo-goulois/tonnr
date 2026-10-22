@@ -1,72 +1,69 @@
 import { byMonth } from "@repo/client/sessions/rules";
 import type { Session } from "@repo/client/viewer/types";
-import { LogbookIcon, PlusIcon } from "@repo/ui/icon";
+import { PlusIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, View } from "react-native";
+import { FlatList, RefreshControl, View } from "react-native";
 
-import { Glyph } from "@/components/shared/glyph";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { MonthGroup, Recap } from "@/components/sessions/logbook";
 import { useSessionLog, useSessionWrites } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { formatMonth } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
+import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-/** The header's "+", which begins a session and asks where. */
-function AddButton() {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={m.session_add()}
-      onPress={() => router.push("/session/new")}
-      hitSlop={4}
-      style={({ pressed }) => ({
-        width: TARGET,
-        height: TARGET,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: pressed ? 0.5 : 1,
-      })}
-    >
-      <Glyph icon={PlusIcon} size={20} color={colors["neutral-10"]} />
-    </Pressable>
-  );
-}
-
+/** The log to come, as the web's: the two tiles of the recap, then two lines. */
 function LogSkeleton() {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   return (
     <Loading>
-      <View style={{ gap: space.l, padding: space.m }}>
+      <View style={{ gap: space.m }}>
         <View style={{ flexDirection: "row", gap: space.xs }}>
           <View style={{ flex: 1 }}>
-            <Skeleton height={92} />
+            <Skeleton height={96} corner="s" />
           </View>
           <View style={{ flex: 1 }}>
-            <Skeleton height={92} />
+            <Skeleton height={96} corner="s" />
           </View>
         </View>
-        <Skeleton height={20} width="40%" />
-        <Skeleton height={168} />
+        <Skeleton height={type.m.line} width="60%" />
+        <Skeleton height={type.m.line} width="80%" />
       </View>
     </Loading>
   );
 }
 
+const addSession = () => router.push("/session/new");
+
+/** What begins a session and asks where, as the web's log offers it. */
+function AddButton() {
+  return (
+    <Button
+      variant="secondary"
+      icon={PlusIcon}
+      onPress={addSession}
+      style={{ alignSelf: "flex-start" }}
+    >
+      {m.session_add()}
+    </Button>
+  );
+}
+
 /**
- * The account's log of its sessions, one step into the account's tab: what it comes to this month
- * and this year, the places it surfs most, then every session month by month, each opening its
- * sheet, swiped to be deleted, pulled down to be read again. The web's `LogbookPanel` shows the
- * same. Decision 043.
+ * The account's log of its sessions, one step into the account's tab, as the web's
+ * `LogbookPanel` draws it: what it comes to this month and this year, the places it surfs most,
+ * what adds a session, then every session month by month, each opening its sheet. A swipe
+ * deletes one and a pull reads the log again, as a phone's lists do. A visitor is asked for an
+ * account in the words of the web's account panel, which a visitor's link to the log shows, and
+ * comes back here once signed in. Decision 043.
  */
 export default function Logbook() {
   const { colors, space } = useTheme();
@@ -74,13 +71,13 @@ export default function Logbook() {
   const { signedIn, pending } = useAccount();
   const { log, recap, media } = useSessionLog();
   const writes = useSessionWrites();
-  const [now, setNow] = useState(Date.now);
+  // "Today" and "Yesterday" follow the clock while the log stays open.
+  const now = useNow();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const months = useMemo(() => byMonth(log.data ?? [], formatMonth), [log.data]);
 
   async function refresh() {
     setIsRefreshing(true);
-    setNow(Date.now());
     await Promise.all([
       log.refetch(),
       recap.refetch(),
@@ -88,89 +85,56 @@ export default function Logbook() {
     ]).finally(() => setIsRefreshing(false));
   }
 
-  const header = (
-    <Stack.Screen
-      options={{
-        title: m.sessions_title(),
-        headerRight: signedIn ? () => <AddButton /> : undefined,
-      }}
+  // What stands where the months would: a visitor's prompt, the log to come, what failed, or
+  // the empty log's sentence with what adds a session.
+  const instead = !signedIn ? (
+    pending ? (
+      <LogSkeleton />
+    ) : (
+      <AccountPrompt text={m.account_sign_in_prompt()} next="/account/logbook" />
+    )
+  ) : log.isError ? (
+    <ErrorState
+      plain
+      title={m.sessions_load_failed()}
+      onRetry={() => void log.refetch()}
+      retrying={log.isFetching}
     />
+  ) : !log.data ? (
+    <LogSkeleton />
+  ) : (
+    <View style={{ gap: space.m, alignItems: "flex-start" }}>
+      <Text tone="muted">{m.sessions_empty()}</Text>
+      <AddButton />
+    </View>
   );
-  const ground = { flex: 1, backgroundColor: colors["cte-canvas"] };
-
-  if (!signedIn) {
-    return (
-      <View style={ground}>
-        {header}
-        {pending ? (
-          <LogSkeleton />
-        ) : (
-          <EmptyState
-            icon={LogbookIcon}
-            title={m.auth_reason_add_session()}
-            description={m.session_sign_in_prompt()}
-            action={{
-              label: m.auth_sign_in(),
-              onPress: () =>
-                router.push({
-                  pathname: "/sign-in",
-                  params: { reason: m.auth_reason_add_session(), next: "/account/logbook" },
-                }),
-            }}
-          />
-        )}
-      </View>
-    );
-  }
 
   return (
-    <View style={ground}>
-      {header}
+    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
+      <Stack.Screen options={{ title: m.sessions_title() }} />
       <FlatList
-        data={months}
+        data={signedIn ? months : []}
         keyExtractor={(month) => month.name}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => void refresh()}
-            tintColor={colors["neutral-7"]}
-          />
+          signedIn ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={() => void refresh()}
+              tintColor={colors["neutral-7"]}
+            />
+          ) : undefined
         }
         ListHeaderComponent={
-          log.data && log.data.length > 0 ? (
+          signedIn && log.data && log.data.length > 0 ? (
             <View style={{ gap: space.l }}>
               {recap.data ? <Recap recap={recap.data} /> : null}
-              <Button
-                variant="secondary"
-                icon={PlusIcon}
-                onPress={() => router.push("/session/new")}
-                style={{ alignSelf: "flex-start" }}
-              >
-                {m.session_add()}
-              </Button>
+              <AddButton />
             </View>
           ) : undefined
         }
-        ListEmptyComponent={
-          log.isError ? (
-            <ErrorState
-              title={m.sessions_load_failed()}
-              onRetry={() => void log.refetch()}
-              retrying={log.isFetching}
-            />
-          ) : !log.data ? (
-            <LogSkeleton />
-          ) : (
-            <EmptyState
-              icon={LogbookIcon}
-              title={m.sessions_title()}
-              description={m.sessions_empty()}
-              action={{ label: m.session_add(), onPress: () => router.push("/session/new") }}
-            />
-          )
-        }
+        ListEmptyComponent={instead}
         renderItem={({ item }) => (
           <MonthGroup
             month={item}

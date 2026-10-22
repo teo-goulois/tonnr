@@ -1,14 +1,12 @@
 import type { Session, SessionDetail } from "@repo/client/viewer/types";
 import { forecastSource, type WaveModelId } from "@repo/conditions/forecasts/wave-models";
-import { ArrowUpIcon } from "@repo/ui/icon";
 import { Fragment } from "react";
 import { View } from "react-native";
 
-import { goingTo } from "@/components/map/features";
+import { Bearing } from "@/components/forecast/bearing";
 import { shoreWord } from "@/components/saved/sea-figures";
-import { Glyph } from "@/components/shared/glyph";
 import { Text, type TextStep } from "@/components/ui/text";
-import { compassName, compassPoint, formatSeconds, toKnots } from "@/lib/format";
+import { compassName, formatSeconds, toKnots } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatDistance, formatHeight, formatTemperature, formatWind, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -29,38 +27,12 @@ type Part = { text: string } | { from: number };
 
 const said = (part: Part) => ("text" in part ? part.text : compassName(part.from));
 
-/** Where a wind or a swell comes from: an arrow the way it goes, then the name of its point. */
-export function Bearing({
-  degrees,
-  size = "s",
-  color,
-}: {
-  degrees: number;
-  size?: TextStep;
-  color?: string;
-}) {
-  const { colors, type } = useTheme();
-  const ink = color ?? colors["neutral-7"];
-  return (
-    <View
-      accessible
-      accessibilityLabel={compassName(degrees)}
-      style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
-    >
-      <View style={{ transform: [{ rotate: `${goingTo(degrees)}deg` }] }}>
-        <Glyph icon={ArrowUpIcon} size={Math.round(type[size].size * 0.9)} color={ink} />
-      </View>
-      <Text size={size} numeric dense style={{ color: ink }}>
-        {compassPoint(degrees)}
-      </Text>
-    </View>
-  );
-}
-
 /** Parts on a line, a point between two of them. */
 function Parts({ parts, size = "s", color }: { parts: Part[]; size?: TextStep; color?: string }) {
-  const { colors } = useTheme();
+  const { colors, type } = useTheme();
   const ink = color ?? colors["neutral-7"];
+  // The arrow of a direction in a line of text, as the web's: 0.85 of the text, its line 2.25.
+  const arrow = Math.round(type[size].size * 0.85);
   return (
     <>
       {parts.map((part, index) => (
@@ -77,7 +49,15 @@ function Parts({ parts, size = "s", color }: { parts: Part[]; size?: TextStep; c
               {part.text}
             </Text>
           ) : (
-            <Bearing degrees={part.from} size={size} color={ink} />
+            <Bearing
+              degrees={part.from}
+              size={size}
+              color={ink}
+              arrow={arrow}
+              strokeWidth={2.25}
+              numeric
+              dense
+            />
           )}
         </Fragment>
       ))}

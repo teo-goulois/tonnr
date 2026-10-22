@@ -154,8 +154,9 @@ export function useSessionWrites() {
       queryClient.invalidateQueries({ queryKey: orpc.v1.sessions.key() }),
       queryClient.invalidateQueries({ queryKey: orpc.v1.media.key() }),
     ]);
-  const failed = (error: unknown) =>
-    tell({ title: (error as Error).message || m.native_session_failed(), tone: "danger" });
+  // What the API said of a refusal, or else what could not be done: a session kept, or deleted.
+  const failed = (error: unknown, fallback = m.native_session_failed) =>
+    tell({ title: (error as Error).message || fallback(), tone: "danger" });
 
   return {
     isSaving: create.isPending || update.isPending,
@@ -221,7 +222,7 @@ export function useSessionWrites() {
         tell({ title: m.session_deleted(), tone: "success" });
         return true;
       } catch (error) {
-        failed(error);
+        failed(error, m.native_session_delete_failed);
         return false;
       }
     },

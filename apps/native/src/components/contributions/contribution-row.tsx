@@ -1,86 +1,76 @@
 import type { Contribution } from "@repo/client/viewer/types";
-import { ChevronRightIcon } from "@repo/ui/icon";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 
+import { fieldOf } from "@/components/guides/characteristic-words";
+import { WordsReading } from "@/components/guides/characteristics";
 import { readContribution, STATES } from "@/components/guides/guide-words";
-import { Tag } from "@/components/guides/tag";
-import { Glyph } from "@/components/shared/glyph";
-import { TARGET } from "@/components/ui/metrics";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-type Written = {
-  break: { id: string; name: string } | null;
-  line: string;
-  value: string[] | string | null;
-};
-
 /**
- * One contribution to a guide: the break it is of, which opens its guide, the line, what it
- * says, and, to its author, what became of it. A break that left the catalogue opens nothing.
+ * One contribution to a guide, as the web's `ContributionsPanel` lists it: the break it is of,
+ * whose name opens its guide, and what became of it at the end of the line, then the line it
+ * is of, what it says, its directions each with its arrow, and why it was refused. A break that
+ * left the catalogue opens nothing.
  */
 export function ContributionRow({
   one,
-  status,
-  reason,
   onOpenBreak,
 }: {
-  one: Written;
-  // What became of it, said to its author alone.
-  status?: Contribution["status"];
-  reason?: string | null;
+  one: Contribution;
   onOpenBreak: (breakId: string) => void;
 }) {
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const { label, value } = readContribution(one);
+  const field = fieldOf(one.line);
   const place = one.break;
-  const state = status ? STATES[status] : undefined;
-  const placeName = place?.name ?? m.contribution_break_gone();
-  const refused = status === "refused" && reason ? m.contribution_reason({ reason }) : undefined;
+  const state = STATES[one.status];
 
   return (
-    <Pressable
-      disabled={!place}
-      accessibilityRole={place ? "button" : undefined}
-      accessibilityLabel={[placeName, label, value, state?.label(), refused]
-        .filter(Boolean)
-        .join(", ")}
-      accessibilityHint={place ? m.native_contribution_open_hint() : undefined}
-      onPress={() => place && onOpenBreak(place.id)}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.s,
-        minHeight: TARGET,
-        paddingHorizontal: space.m,
-        paddingVertical: space.s,
-        backgroundColor: pressed ? colors["neutral-3"] : undefined,
-      })}
-    >
-      <View style={{ flex: 1, gap: space.xxs }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-          <Text
-            weight="medium"
-            tone={place ? "default" : "muted"}
-            numberOfLines={1}
-            style={{ flexShrink: 1 }}
+    <View style={{ gap: space.xxs }}>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          columnGap: space.s,
+          rowGap: space.xxs,
+        }}
+      >
+        {place ? (
+          // The name is a quiet button whose words stand in line with the lines under it.
+          <Button
+            variant="ghost"
+            accessibilityHint={m.native_contribution_open_hint()}
+            onPress={() => onOpenBreak(place.id)}
+            style={{ maxWidth: "100%", marginLeft: -space.xs, paddingHorizontal: space.xs }}
           >
-            {placeName}
-          </Text>
-          {state ? <Tag tone={state.tone}>{state.label()}</Tag> : null}
-        </View>
-        <Text size="s" tone="muted">
-          {label}
-        </Text>
-        {value ? <Text size="s">{value}</Text> : null}
-        {refused ? (
+            {place.name}
+          </Button>
+        ) : (
           <Text size="s" tone="muted">
-            {refused}
+            {m.contribution_break_gone()}
           </Text>
-        ) : null}
+        )}
+        <Badge tone={state.tone}>{state.label()}</Badge>
       </View>
-      {place ? <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} /> : null}
-    </Pressable>
+      <Text size="s" tone="muted">
+        {label}
+      </Text>
+      {field && Array.isArray(one.value) && one.value.length > 0 ? (
+        <WordsReading field={field.key} given={one.value} />
+      ) : value ? (
+        <Text size="s">{value}</Text>
+      ) : null}
+      {one.status === "refused" && one.reason ? (
+        <Text size="s" tone="muted">
+          {m.contribution_reason({ reason: one.reason })}
+        </Text>
+      ) : null}
+    </View>
   );
 }
