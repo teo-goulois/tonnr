@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
 import { DirectionArrow, LineGlyph } from "@/components/forecast/bearing";
 import {
@@ -16,7 +16,7 @@ import {
   valueAt,
 } from "@/components/forecast/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
+import { DENSE_SCALE, Text } from "@/components/ui/text";
 import { formatDay, formatDayAndClock, formatNumber } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
@@ -185,6 +185,8 @@ const Lane = memo(function Lane({
   last,
 }: LaneProps) {
   const { colors, space, radius, type } = useTheme();
+  // The head grows with the type as far as its dense figures do, and no further.
+  const { fontScale } = useWindowDimensions();
   const isMyTurn = useChartTurn();
   const rows = useMemo(
     () => rowsOf(metric.key, measured, model, start, end),
@@ -378,7 +380,7 @@ const Lane = memo(function Lane({
       {/* Of one height, the line of the small type, whatever it writes. */}
       <View
         style={{
-          height: type.s.line,
+          height: type.s.line * Math.min(fontScale, DENSE_SCALE),
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -386,10 +388,10 @@ const Lane = memo(function Lane({
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
-          <Text size="xs" tone="muted">
+          <Text size="xs" tone="muted" dense numberOfLines={1}>
             {metric.label}
           </Text>
-          <Text size="xs" style={{ color: colors["neutral-6"] }}>
+          <Text size="xs" dense numberOfLines={1} style={{ color: colors["neutral-6"] }}>
             {metric.unit}
           </Text>
           {bearing !== undefined && !isLoading && (
