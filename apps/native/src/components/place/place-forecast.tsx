@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { View } from "react-native";
 
 import { ForecastPanel } from "@/components/forecast/forecast-panel";
@@ -33,6 +33,17 @@ export function PlaceForecast({
   const { colors, space, radius } = useTheme();
   const { kind, found, station, spot, history } = record;
   const { forecast, tides, extremes } = conditions;
+  // A sheltered station's note stands over its panel, and the low sheet ends under the panel's
+  // summary all the same, as the web measures its fold from the top of the sheet: where the panel
+  // starts under the note, and where its summary ends in it, each known by its own layout.
+  const sheltered = kind === "station" && station?.exposure === "sheltered";
+  const panelTop = useRef<number | undefined>(undefined);
+  const summaryEnd = useRef<number | undefined>(undefined);
+  const foldUnderNote = () => {
+    if (panelTop.current !== undefined && summaryEnd.current !== undefined) {
+      onFold?.(panelTop.current + summaryEnd.current);
+    }
+  };
 
   // A break says where it comes from when the instance knows, and on what terms when it has any.
   const source = found?.source;
@@ -113,7 +124,14 @@ export function PlaceForecast({
       tides={tides}
       extremes={extremes}
       onTideExtend={conditions.onTideExtend}
-      onFold={onFold}
+      onFold={
+        sheltered
+          ? (bottom) => {
+              summaryEnd.current = bottom;
+              foldUnderNote();
+            }
+          : onFold
+      }
       footer={footer}
       {...(kind === "station"
         ? {
@@ -145,7 +163,7 @@ export function PlaceForecast({
     />
   );
 
-  if (kind === "station" && station?.exposure === "sheltered") {
+  if (sheltered) {
     return (
       <View style={{ gap: space.l }}>
         <Text
@@ -160,7 +178,14 @@ export function PlaceForecast({
         >
           {m.station_sheltered_note()}
         </Text>
-        {panel}
+        <View
+          onLayout={(event) => {
+            panelTop.current = event.nativeEvent.layout.y;
+            foldUnderNote();
+          }}
+        >
+          {panel}
+        </View>
       </View>
     );
   }
