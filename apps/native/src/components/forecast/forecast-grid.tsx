@@ -732,7 +732,8 @@ export function ForecastGrid({
           }}
         >
           {spec.kind === "value" && (
-            <Text size="xs" numberOfLines={1} dense adjustsFontSizeToFit minimumFontScale={0.8}>
+            // Spain's "Mar de fondo m" fits its column at seven tenths of its size, with its unit.
+            <Text size="xs" numberOfLines={1} dense adjustsFontSizeToFit minimumFontScale={0.7}>
               {spec.label}
               {spec.unit ? (
                 <Text size="xs" style={{ color: colors["neutral-6"] }}>{` ${spec.unit}`}</Text>
