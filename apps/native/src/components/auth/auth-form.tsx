@@ -40,30 +40,41 @@ type AuthFormProps = {
 };
 
 /**
- * A link in small text, a finger's height, which opens what it names, or a button drawn as one,
- * as the web's switch between signing in and creating an account is.
+ * A link in small text, which opens what it names, or a button drawn as one, as the web's switch
+ * between signing in and creating an account is: underlined, in the theme's ink and medium, or
+ * `muted` in its seventh grey, as the web draws a link that stands aside, the forgotten password
+ * and the terms. It is a finger's height to a press, past the line it is drawn on, so that it
+ * stands as close to what is around it as the web's.
  */
 export function SmallLink({
   label,
   onPress,
   role = "link",
+  muted = false,
+  disabled = false,
 }: {
   label: string;
   onPress: () => void;
   role?: "link" | "button";
+  muted?: boolean;
+  /** Cannot be pressed for now: while the form is sent. */
+  disabled?: boolean;
 }) {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
+  const slop = Math.ceil(Math.max(0, TARGET - type.s.line) / 2);
   return (
     <Pressable
       accessibilityRole={role}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
-      hitSlop={{ left: space.xxs, right: space.xxs }}
-      style={{ minHeight: TARGET, justifyContent: "center" }}
+      hitSlop={{ top: slop, bottom: slop, left: space.xxs, right: space.xxs }}
     >
       {({ pressed }) => (
         <Text
           size="s"
-          weight="medium"
+          weight={muted ? "regular" : "medium"}
+          tone={muted ? "muted" : "default"}
           style={{ textDecorationLine: "underline", opacity: pressed ? 0.6 : 1 }}
         >
           {label}
@@ -249,13 +260,14 @@ export function AuthForm({ mode, onModeChange, onSignedIn, invitation }: AuthFor
             {m.auth_accept_terms()}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.m }}>
-            <SmallLink label={m.terms_title()} onPress={() => void openPage("terms")} />
-            <SmallLink label={m.privacy_title()} onPress={() => void openPage("privacy")} />
+            <SmallLink muted label={m.terms_title()} onPress={() => void openPage("terms")} />
+            <SmallLink muted label={m.privacy_title()} onPress={() => void openPage("privacy")} />
           </View>
         </View>
       ) : (
         <View style={{ alignItems: "center" }}>
           <SmallLink
+            muted
             label={m.auth_forgot_password()}
             onPress={() => router.push("/forgot-password")}
           />
@@ -278,8 +290,8 @@ export function AuthForm({ mode, onModeChange, onSignedIn, invitation }: AuthFor
         <SmallLink
           label={isSignUp ? m.auth_sign_in() : m.auth_create_account()}
           role="button"
+          disabled={busy}
           onPress={() => {
-            if (busy) return;
             setWasSent(false);
             setRefusal(undefined);
             onModeChange(isSignUp ? "sign-in" : "sign-up");
