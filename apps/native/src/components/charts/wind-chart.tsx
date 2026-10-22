@@ -11,13 +11,14 @@ import { useTheme } from "@/lib/theme";
 import { knotsFrom, useUnits, windFigure, windIn, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { midnightsBetween, timeTicks, valueTicks } from "./chart-math";
+import { colorAt, midnightsBetween, timeTicks, valueTicks } from "./chart-math";
 import { useChartTurn } from "./chart-turn";
 import { useChartReading } from "./reading";
 import { type ChartGeometry, SeaChart } from "./sea-chart";
 
-// The wind of a station that measures the wind alone: its wind as a bold line in the colors of
-// the wind's scale, its gusts as a thin one, and the model's wind dashed, which goes on past now.
+// The wind of a station that measures the wind alone: its wind as a bold line, its gusts as a
+// thin one and the model's wind dashed, which goes on past now, each in the colors of the wind's
+// scale.
 // A press held reads a moment: the station's figures then and the model's. Under the plot, where
 // the wind came from along the span. The web's `wind-chart.tsx` says the same.
 
@@ -60,11 +61,7 @@ export function WindChart({
   const hasModel = readable.some((row) => row.model !== null);
   const series = useMemo(
     () => [
-      {
-        values: rows.map((row) => row.model),
-        look: "dashed" as const,
-        color: colors["neutral-7"],
-      },
+      { values: rows.map((row) => row.model), look: "dashed" as const, scale: WIND_SPEED_SCALE },
       { values: rows.map((row) => row.gust), look: "thin" as const, scale: WIND_SPEED_SCALE },
       {
         values: rows.map((row) => row.wind),
@@ -73,7 +70,7 @@ export function WindChart({
         fill: true,
       },
     ],
-    [rows, colors],
+    [rows],
   );
   // Round figures in the reader's unit, set where they stand among the knots the curves are in.
   const ticks = useMemo(
@@ -169,6 +166,38 @@ export function WindChart({
               opacity: 0.5,
             }}
           />
+          {/* Each line read has its mark, in the color of what it reads: a ring on the model's
+              and on the gusts', and a dot on the station's wind. */}
+          {pointed.model !== null && (
+            <View
+              style={{
+                position: "absolute",
+                left: geometry.x(pointed.time) - 4,
+                top: geometry.y(pointed.model) - 4,
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                borderWidth: 1.5,
+                borderColor: colorAt(WIND_SPEED_SCALE, pointed.model),
+                backgroundColor: colors["neutral-1"],
+              }}
+            />
+          )}
+          {pointed.gust !== null && (
+            <View
+              style={{
+                position: "absolute",
+                left: geometry.x(pointed.time) - 3.5,
+                top: geometry.y(pointed.gust) - 3.5,
+                width: 7,
+                height: 7,
+                borderRadius: 3.5,
+                borderWidth: 1.25,
+                borderColor: colorAt(WIND_SPEED_SCALE, pointed.gust),
+                backgroundColor: colors["neutral-1"],
+              }}
+            />
+          )}
           {pointed.wind !== null && (
             <View
               style={{
@@ -180,7 +209,7 @@ export function WindChart({
                 borderRadius: 5,
                 borderWidth: 1.5,
                 borderColor: colors["neutral-1"],
-                backgroundColor: colors["neutral-10"],
+                backgroundColor: colorAt(WIND_SPEED_SCALE, pointed.wind),
               }}
             />
           )}
