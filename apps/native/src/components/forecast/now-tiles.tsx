@@ -14,7 +14,7 @@ import Animated, {
 import { Glyph } from "@/components/shared/glyph";
 import { IconButton } from "@/components/ui/button";
 import { edge } from "@/components/ui/edge";
-import { SMALL, TARGET } from "@/components/ui/metrics";
+import { TARGET, XS } from "@/components/ui/metrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { compassName, formatNumber, formatSeconds } from "@/lib/format";
@@ -243,10 +243,10 @@ export function ReadingMore({ latest }: { latest?: Reading | null }) {
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
-        hitSlop={{ top: (TARGET - SMALL) / 2, bottom: (TARGET - SMALL) / 2 }}
+        hitSlop={{ top: (TARGET - XS) / 2, bottom: (TARGET - XS) / 2 }}
         style={{
           alignSelf: "flex-end",
-          height: SMALL,
+          height: XS,
           marginTop: -space.xxs,
           marginBottom: -space.xs,
           paddingHorizontal: space.s,

@@ -5,7 +5,7 @@ import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { type TonnrTheme, useTheme } from "@/lib/theme";
 
 import { edge } from "./edge";
-import { ROUND, SMALL, TARGET } from "./metrics";
+import { ROUND, ROUND_SM, TARGET, XS } from "./metrics";
 import { Text } from "./text";
 
 // The theme's button on HeroUI Native's, which keeps its press (a slight scale and a highlight)
@@ -106,7 +106,7 @@ export function Button({
   const look = lookOf(variant, disabled, colors);
   const label = muted && !disabled ? colors["neutral-7"] : look.label;
   const small = size === "xs";
-  const height = small ? SMALL : type.m.line + 2 * space.xs;
+  const height = small ? XS : type.m.line + 2 * space.xs;
   const slop = Math.ceil(Math.max(0, TARGET - height) / 2);
 
   return (
@@ -196,9 +196,6 @@ type IconButtonProps = {
   testID?: string;
 };
 
-// The web's `icon-sm` under `lg`.
-const ROUND_SMALL = 40;
-
 /** A round button with an icon and no name. */
 export function IconButton({
   icon,
@@ -236,7 +233,7 @@ export function IconButton({
           : { background: colors["neutral-10"], label: colors["neutral-1"] }
         : lookOf(variant, disabled, colors);
   const ink = muted && !disabled ? colors["neutral-7"] : look.label;
-  const width = size === "xs" ? SMALL : size === "small" ? ROUND_SMALL : ROUND;
+  const width = size === "xs" ? XS : size === "small" ? ROUND_SM : ROUND;
   const slop = Math.ceil(Math.max(0, TARGET - width) / 2);
 
   return (

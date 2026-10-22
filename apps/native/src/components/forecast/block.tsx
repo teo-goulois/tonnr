@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 
-import { SMALL } from "@/components/ui/metrics";
+import { XS } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 
@@ -23,7 +23,7 @@ export function Block({
           is left goes on to its next line. */}
       <View
         style={{
-          minHeight: SMALL,
+          minHeight: XS,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
