@@ -112,7 +112,7 @@ export function PlaceMenu({
         : [],
     },
   ];
-  const all: MenuAction[] = menuActions(groups);
+  const all: MenuAction[] = menuActions(groups, Platform.OS === "android" ? "android" : "ios");
   if (all.length === 0) return null;
 
   async function act(action: string) {

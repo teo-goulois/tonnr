@@ -32,6 +32,44 @@ describe("the groups of a place's menu", () => {
     expect(actions[0]).toMatchObject({ title: "Get there with", displayInline: true });
   });
 
+  it("on Android, names a group with a title by an item of its own, and ends on no line", () => {
+    const actions = menuActions(
+      [
+        { actions: [one("alert"), one("share")] },
+        { title: "Get there with", actions: [one("google"), one("waze")] },
+      ],
+      "android",
+    );
+    expect(actions.map((action) => action.id)).toEqual(["alert", "share", "group-1"]);
+    expect(actions[2]).toMatchObject({ title: "Get there with" });
+    expect(actions[2]?.displayInline).toBeUndefined();
+  });
+
+  it("on Android, sets a line only between groups, for a spot of one's own", () => {
+    const actions = menuActions(
+      [
+        { actions: [one("alert")] },
+        { title: "Get there with", actions: [one("google")] },
+        { actions: [one("edit"), one("publish")] },
+        { actions: [{ ...one("delete"), attributes: { destructive: true } }] },
+      ],
+      "android",
+    );
+    expect(actions.map((action) => action.id)).toEqual(["alert", "group-1", "group-2", "delete"]);
+    expect(actions[1]?.displayInline).toBeUndefined();
+    expect(actions[2]).toMatchObject({ displayInline: true });
+  });
+
+  it("on Android, gives a spot read in a list its ways there under their name", () => {
+    const actions = menuActions(
+      [{ actions: [] }, { title: "Get there with", actions: [one("google")] }],
+      "android",
+    );
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ title: "Get there with" });
+    expect(leavesOf(actions).map((action) => action.id)).toEqual(["google"]);
+  });
+
   it("offers a screen reader every action that can be done, its groups opened", () => {
     const actions = menuActions([
       { actions: [one("alert"), { ...one("unpublish"), attributes: { disabled: true } }] },
