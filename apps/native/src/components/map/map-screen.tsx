@@ -114,7 +114,17 @@ export function MapScreen() {
   const requireAccount = useRequireAccount();
   const tell = useTell();
   const pathname = usePathname();
-  const selected = placeOf(pathname);
+  // The place whose sheet is in front, which a press on the map gives another place.
+  const front = placeOf(pathname);
+  // The buttons and the legend stand on the low sheet of a place that is open, as tall as its
+  // summary, which its sheet tells, with the place it selects. A sheet that is raised covers them
+  // where they stand: they fade away, out of reach of a finger and of a screen reader, and go down
+  // with it when it leaves, as on the web.
+  const sheet = useSyncExternalStore(onSheetChange, currentSheet);
+  // The place selected on the map: the one a place's sheet selects, which stays selected while a
+  // sheet of its own stands over it, a bookmark, an alert or the station nearest it, as the web
+  // keeps it in its address, and none once the map is in front again.
+  const selected = pathname === "/" ? undefined : (sheet.place ?? front);
   // The map's own route among the tabs, whose parameters say what it shows alone: `router`'s
   // would be those of the screen in front, a place's sheet.
   const navigation = useNavigation<MapNavigation>();
@@ -386,11 +396,6 @@ export function MapScreen() {
   const [listsOpen, setListsOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [creditsShown, setCreditsShown] = useState(true);
-  // The buttons and the legend stand on the low sheet of a place that is open, as tall as its
-  // summary, which its sheet tells. A sheet that is raised covers them where they stand: they
-  // fade away, out of reach of a finger and of a screen reader, and go down with it when it
-  // leaves, as on the web.
-  const sheet = useSyncExternalStore(onSheetChange, currentSheet);
   const floor = floorOver(sheet, frame, window.height, space.s);
   const isCovered = sheet.height > 0 && sheet.raised;
   // What covers the map, which a place selected is shown clear of and a move is given: the status
@@ -419,13 +424,15 @@ export function MapScreen() {
     // given the place pressed, at the height it stands, on its first tab; another opens low, with
     // the map in view. What the sheet covers comes into view over it, as the map reveals what is
     // selected.
-    if (selected) {
+    if (front) {
       router.setParams({
         kind: press.kind,
         id: press.id,
         tab: undefined,
         notice: undefined,
         new: undefined,
+        // A station's sheet over a place's selects the place pressed from then on.
+        from: "map",
       });
     } else {
       router.push(pressedHref(press.kind, press.id));
@@ -439,7 +446,7 @@ export function MapScreen() {
     // goes on to it once signed in.
     requireAccount(
       m.auth_reason_add_spot(),
-      () => (selected ? router.replace(href) : router.push(href)),
+      () => (front ? router.replace(href) : router.push(href)),
       href,
     );
   }

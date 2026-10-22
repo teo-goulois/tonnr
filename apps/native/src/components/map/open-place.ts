@@ -6,9 +6,9 @@ import { givesToSheet } from "./place-route";
 import { isSheetOpen } from "./sheet-state";
 
 // A place's sheet is one, as the web's panel is one (decision 040): a place opened while a sheet is
-// open, by a link, a notification, a search or the station a sheet names, is given to that sheet,
-// at the height it stands, and whatever stood over it, the search for one, is closed. Another
-// address opens as it would.
+// open, by a link, a notification, a search or the log, is given to that sheet, at the height it
+// stands, and whatever stood over it, the search for one, is closed. Another address opens as it
+// would. The station nearest a place opens over the place's sheet instead (`overHref`).
 
 /**
  * Whether the address was given to the sheet of a place that is open: the sheet takes it, and

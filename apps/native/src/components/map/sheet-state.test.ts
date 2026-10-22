@@ -54,6 +54,27 @@ describe("the sheet in front", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it("names the place of the sheet nearest the front that selects one", () => {
+    const listener = vi.fn();
+    const stop = onSheetChange(listener);
+    showSheet("a", { height: 300, raised: false, place: { kind: "break", id: "b1" } });
+    expect(currentSheet().place).toEqual({ kind: "break", id: "b1" });
+    // A station over the break's sheet selects nothing: the break stays selected.
+    showSheet("b", { height: 400, raised: true });
+    expect(currentSheet()).toEqual({
+      height: 400,
+      raised: true,
+      place: { kind: "break", id: "b1" },
+    });
+    // Given another place by a press on the map, it selects it.
+    showSheet("b", { height: 400, raised: true, place: { kind: "break", id: "b2" } });
+    expect(currentSheet().place).toEqual({ kind: "break", id: "b2" });
+    expect(listener).toHaveBeenCalledTimes(3);
+    hideSheet("b");
+    expect(currentSheet().place).toEqual({ kind: "break", id: "b1" });
+    stop();
+  });
+
   it("keeps the same answer while nothing changed, as React asks of a store", () => {
     showSheet("a", { height: 300, raised: false });
     expect(currentSheet()).toBe(currentSheet());

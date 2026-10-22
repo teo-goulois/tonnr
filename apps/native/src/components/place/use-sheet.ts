@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { opensRaised } from "@/components/map/place-route";
+import { opensRaised, selectsOnMap } from "@/components/map/place-route";
 import { hideSheet, showSheet } from "@/components/map/sheet-state";
 
 import { FOLD_NONE, RAISED, isWorthMoving, largestSheet, lowDetent, sheetDetentOf } from "./fold";
@@ -66,8 +66,8 @@ export function useSheetState() {
  * Makes the low sheet as tall as the summary its panel ends at, once it is known: only while the
  * sheet is low, so that a raised sheet is not moved under the reader. The platform takes a
  * height as a share of the sheet at its largest, which is shorter than the screen. The map under
- * it is told how tall the low sheet stands and whether it is raised (`sheet-state.ts`), as the
- * web's drawer tells its viewer.
+ * it is told how tall the low sheet stands, whether it is raised and the place it selects
+ * (`sheet-state.ts`), as the web's drawer tells its viewer.
  */
 export function useFoldHeight(detent: number) {
   const navigation = useNavigation<Navigation>();
@@ -78,9 +78,17 @@ export function useFoldHeight(detent: number) {
   const current = useRef<number | undefined>(undefined);
   // The low height as a share of the largest sheet: the one it opens at until its summary is known.
   const [low, setLow] = useState(() => lows.get(route.key) ?? FOLD_NONE);
+  // The place it selects on the map, by its address: a station over a place's sheet selects none.
+  const place = selectsOnMap(route.params);
+  const placeKind = place?.kind;
+  const placeId = place?.id;
   useEffect(() => {
-    showSheet(route.key, { height: low * largest, raised: detent > 0 });
-  }, [route.key, low, largest, detent]);
+    showSheet(route.key, {
+      height: low * largest,
+      raised: detent > 0,
+      place: placeKind && placeId ? { kind: placeKind, id: placeId } : undefined,
+    });
+  }, [route.key, low, largest, detent, placeKind, placeId]);
   useEffect(() => () => hideSheet(route.key), [route.key]);
   // Where the summary ends, as last told: a sheet that opened raised takes its low height once it
   // is lowered.

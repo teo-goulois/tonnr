@@ -32,9 +32,29 @@ export function newSpotHref(id: string) {
   return `${placeHref("spot", id)}?new=1` as Route;
 }
 
+/**
+ * The address of a station's sheet opened from the sheet of a place, the buoy or the wind station
+ * nearest a break: raised, over the place's sheet, which closing it gives back, and selecting
+ * nothing on the map, which keeps the place, as the web's `?buoy=` opens it over the break.
+ */
+export function overHref(kind: PlaceKind, id: string) {
+  return `${placeHref(kind, id)}?from=place` as Route;
+}
+
 /** Whether the sheet of a place opens raised, by the parameters of its address. */
 export function opensRaised(params: object | undefined) {
   return (params as { from?: unknown } | undefined)?.from !== "map";
+}
+
+/**
+ * The place the sheet of a place selects on the map, by the parameters of its address: its own,
+ * unless it stands over another place's sheet (`overHref`).
+ */
+export function selectsOnMap(params: object | undefined) {
+  const { kind, id, from } = (params ?? {}) as { kind?: unknown; id?: unknown; from?: unknown };
+  if (from === "place" || typeof kind !== "string" || !KINDS.includes(kind)) return undefined;
+  if (typeof id !== "string" || !id) return undefined;
+  return { kind: kind as PlaceKind, id };
 }
 
 /** The place whose sheet an address opens, or none. */

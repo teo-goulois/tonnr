@@ -11,8 +11,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { ChartsAtRest } from "@/components/charts/chart-turn";
 import { NewSpotOffer } from "@/components/map/new-spot-offer";
-import { openRoute } from "@/components/map/open-place";
-import { placeHref } from "@/components/map/place-route";
+import { overHref, placeHref } from "@/components/map/place-route";
 import type { PlaceRef } from "@/components/saved/sea-now";
 import { ReadingLock } from "@/components/charts/reading";
 import { AlertsTab } from "@/components/place-tabs/alerts";
@@ -156,8 +155,9 @@ export function PlaceSheet({
           placeHref(kind, id),
         )
     : undefined;
-  // The station is shown in this sheet, as the web's panel shows it in its place.
-  const openStation = (stationId: string) => openRoute(placeHref("station", stationId));
+  // The station nearest the place opens in a sheet over this one, which closing it gives back,
+  // and the map keeps the place selected, as the web's `?buoy=` opens it over the break's panel.
+  const openStation = (stationId: string) => router.push(overHref("station", stationId));
   // Closes this sheet, whatever stands over it then.
   const navigation = useNavigation();
   const close = () => navigation.goBack();

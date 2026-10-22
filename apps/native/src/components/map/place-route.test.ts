@@ -4,9 +4,11 @@ import {
   givesToSheet,
   newSpotHref,
   opensRaised,
+  overHref,
   placeHref,
   placeOf,
   pressedHref,
+  selectsOnMap,
   TAB_ROUTES,
   tabUnder,
 } from "./place-route";
@@ -53,6 +55,26 @@ describe("how a place's sheet opens", () => {
     expect(opensRaised({ kind: "break", id: "b1" })).toBe(true);
     expect(opensRaised({ kind: "break", id: "b1", tab: "reports" })).toBe(true);
     expect(opensRaised(undefined)).toBe(true);
+  });
+});
+
+describe("a station opened from a place's sheet", () => {
+  it("opens raised over the place's sheet, and leaves the place selected on the map", () => {
+    expect(overHref("station", "ndbc/1")).toBe("/place/station/ndbc%2F1?from=place");
+    const params = { kind: "station", id: "ndbc/1", from: "place" };
+    expect(opensRaised(params)).toBe(true);
+    expect(selectsOnMap(params)).toBeUndefined();
+  });
+
+  it("is none of the places a sheet selects otherwise", () => {
+    expect(selectsOnMap({ kind: "break", id: "b1" })).toEqual({ kind: "break", id: "b1" });
+    expect(selectsOnMap({ kind: "break", id: "b1", from: "map" })).toEqual({
+      kind: "break",
+      id: "b1",
+    });
+    expect(selectsOnMap({ kind: "planet", id: "b1" })).toBeUndefined();
+    expect(selectsOnMap({ kind: "break" })).toBeUndefined();
+    expect(selectsOnMap(undefined)).toBeUndefined();
   });
 });
 
