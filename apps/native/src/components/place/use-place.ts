@@ -8,7 +8,9 @@ import {
 import type {
   Forecast,
   Loadable,
+  Reading,
   Spot,
+  Station,
   StationReadings,
   SurfBreak,
   TideExtremes,
@@ -83,6 +85,40 @@ function spotInLists(queryClient: QueryClient, id: string): Spot | undefined {
   return undefined;
 }
 
+/**
+ * A station as the map read it, among the buoys, the wind in view and the stations of a list, as
+ * the web's route knows it from its map: the newest answer that holds it, with its last reading.
+ */
+function stationOnMap(queryClient: QueryClient, id: string): Station | undefined {
+  const cache = queryClient.getQueryCache();
+  const answers = [
+    ...cache.findAll({ queryKey: orpc.v1.stations.list.key({ type: "query" }) }),
+    ...cache.findAll({ queryKey: orpc.v1.stations.get.key({ input: { id }, type: "query" }) }),
+  ].sort((one, other) => other.state.dataUpdatedAt - one.state.dataUpdatedAt);
+  for (const query of answers) {
+    const data = query.state.data as { stations?: Station[] } | Station | undefined;
+    const found =
+      data && "stations" in data
+        ? data.stations?.find((one) => one.id === id)
+        : data && "id" in data && data.id === id
+          ? data
+          : undefined;
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** A surf break among those the map read, where its point is known before the break is asked. */
+function breakOnMap(queryClient: QueryClient, id: string): SurfBreak | undefined {
+  const cache = queryClient.getQueryCache();
+  for (const query of cache.findAll({ queryKey: orpc.v1.breaks.list.key({ type: "query" }) })) {
+    const breaks = (query.state.data as { breaks?: SurfBreak[] } | undefined)?.breaks;
+    const found = breaks?.find((one) => one.id === id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 /** The place itself: its name, its point and what it is, from the cache when it was read. */
 export function usePlaceRecord(kind: PlaceKind, id: string) {
   const { signedIn, pending } = useAccount();
@@ -119,15 +155,32 @@ export function usePlaceRecord(kind: PlaceKind, id: string) {
     }),
   );
   const spot = asked.data ?? listed;
-  const station: StationReadings["station"] | undefined = history.data?.station;
+  // The map already knows most stations, with their last reading, and the point of the breaks in
+  // view: the sheet names a station and reads it at once, and the forecast and the tide of either
+  // are asked beside its history or its break, not after them.
+  const known = useMemo(
+    () => (kind === "station" ? stationOnMap(queryClient, id) : undefined),
+    [kind, id, queryClient],
+  );
+  const onMap = useMemo(
+    () => (kind === "break" ? breakOnMap(queryClient, id) : undefined),
+    [kind, id, queryClient],
+  );
+  const station: StationReadings["station"] | undefined = history.data?.station ?? known;
+  // What the station read last: its newest reading, or the one the map holds until they come.
+  const latest: Reading | undefined =
+    history.data?.readings[0] ?? known?.latestReading ?? undefined;
 
-  const point = kind === "break" ? found.data : kind === "station" ? station : spot;
-  const name = point?.name;
+  const point = kind === "break" ? (found.data ?? onMap) : kind === "station" ? station : spot;
+  // A break is named once it is read, as the web's panel names it, and one that has left the
+  // catalogue is not.
+  const name = kind === "break" ? found.data?.name : point?.name;
   const isError =
     kind === "break"
       ? found.isError
       : kind === "station"
-        ? history.isError
+        ? // A station the map holds is shown from what it holds, whatever its history answers.
+          history.isError && !known
         : !listed && !pending && (asked.isError || !signedIn);
 
   return {
@@ -137,6 +190,7 @@ export function usePlaceRecord(kind: PlaceKind, id: string) {
     point: point && { latitude: point.latitude, longitude: point.longitude },
     found: found.data as SurfBreak | undefined,
     station,
+    latest,
     history,
     historyDays: historyStart && !history.isPlaceholderData ? HISTORY_DAYS_MOST : HISTORY_DAYS,
     onHistoryExtend: () => {
@@ -149,7 +203,7 @@ export function usePlaceRecord(kind: PlaceKind, id: string) {
       kind === "break"
         ? found.isLoading
         : kind === "station"
-          ? history.isLoading
+          ? history.isLoading && !known
           : !listed && (pending || asked.isLoading),
   };
 }

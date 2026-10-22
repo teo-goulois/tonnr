@@ -85,7 +85,10 @@ export function PlaceForecast({
   }
 
   const readings = history.data?.readings;
-  const latest = readings?.[0];
+  // The map's last reading of the station stands until its history comes.
+  const latest = record.latest;
+  // A station the map holds is known at once: one that measures the wind alone opens on its own
+  // panel, never on a buoy's first.
   if (kind === "station" && station && !station.measures.includes("waves")) {
     return (
       <WindDetails
