@@ -15,18 +15,24 @@ export function isPlaceKind(value: unknown): value is PlaceKind {
   return typeof value === "string" && (PLACE_KINDS as readonly string[]).includes(value);
 }
 
-/** The tabs a place shows, in their order. */
+/**
+ * The tabs a place shows, in their order. A break or a spot shows its forecast alone until it is
+ * read, and when it is gone, which that tab says, as the web's panel draws no row of tabs before.
+ */
 export function tabsOf({
   kind,
   signedIn,
   isOwner,
+  known,
 }: {
   kind: PlaceKind;
   signedIn: boolean;
   // Whether a spot is the account's own. A break and a station belong to everyone.
   isOwner: boolean;
+  // Whether the break or the spot is read.
+  known: boolean;
 }): PlaceTab[] {
-  if (kind === "station") return ["forecast"];
+  if (kind === "station" || !known) return ["forecast"];
   if (kind === "break") {
     // A visitor has no alert: the sessions' tab asks it for an account.
     return ["forecast", "reports", "guide", ...(signedIn ? (["alerts"] as const) : []), "sessions"];

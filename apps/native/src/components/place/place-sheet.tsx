@@ -11,7 +11,7 @@ import { AlertsTab } from "@/components/place-tabs/alerts";
 import { GuideTab } from "@/components/place-tabs/guide";
 import { ReportsTab } from "@/components/place-tabs/reports";
 import { SessionsTab } from "@/components/place-tabs/sessions";
-import { Segmented } from "@/components/ui/segmented";
+import { Tabs } from "@/components/ui/tabs";
 import { SheetRoot } from "@/components/ui/sheet";
 import { useAccount } from "@/lib/account";
 import type { Route } from "@/lib/links";
@@ -74,7 +74,15 @@ export function PlaceSheet({
       : undefined,
   );
 
-  const tabs = tabsOf({ kind, signedIn, isOwner: record.isOwner });
+  const tabs = tabsOf({
+    kind,
+    signedIn,
+    isOwner: record.isOwner,
+    // A break that has left the catalogue may still be in the cache: the error comes first.
+    known:
+      !record.isError &&
+      (kind === "break" ? record.found !== undefined : kind === "spot" ? !!record.spot : true),
+  });
   // The tab asked for, by the address or by a press, which is shown once the place has it: the
   // alerts of an account come once it is known to be signed in.
   const [tab, setTab] = useState<string | undefined>(askedTab);
@@ -90,13 +98,14 @@ export function PlaceSheet({
   }, [shown]);
 
   // How tall the head and the tabs stand over what scrolls, and where the summary of the panel
-  // ends under them: the low sheet is as tall as both, with a step of room under the summary.
-  // Each is known by its own layout, in either order.
+  // ends under them, past the panel's room over it: the low sheet is as tall as both, with a step
+  // of room under the summary. Each is known by its own layout, in either order.
   const chrome = useRef(0);
+  const [headHeight, setHeadHeight] = useState(0);
   const foldBottom = useRef<number | undefined>(undefined);
   const fit = () => {
     if (chrome.current > 0 && foldBottom.current !== undefined) {
-      foldAt(chrome.current + space.xs + foldBottom.current + space.s);
+      foldAt(chrome.current + space.m + foldBottom.current + space.s);
     }
   };
 
@@ -153,89 +162,82 @@ export function PlaceSheet({
     }
   };
 
-  // The head of the sheet: what the place is, its bookmark and its menu, and its tabs.
-  const head = (
-    <View
-      className="bg-background"
-      onLayout={(event) => {
-        chrome.current = event.nativeEvent.layout.height;
-        fit();
-      }}
-    >
-      <PlaceHeader
-        record={record}
-        now={now}
-        isSaved={item ? isSaved(item) : false}
-        onSave={save}
-        onCopy={copy}
-        isCopying={spots.isCopying}
-        onMenu={
-          name ? () => router.push({ pathname: "/place/menu", params: { kind, id } }) : undefined
-        }
-        onClose={() => router.back()}
-      />
-      {tabs.length > 1 && (
-        // Its names may be longer than a phone is wide, in some languages: the row scrolls.
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: space.m,
-            paddingTop: space.xs,
-            paddingBottom: space.s,
-          }}
-        >
-          <Segmented
-            // A station has one tab and no row: what has tabs is a break or a spot.
-            label={m.native_place_sections({
-              name: name ?? (kind === "break" ? m.break_title() : m.spot_title()),
-            })}
-            options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
-            value={shown}
-            onChange={setTab}
-          />
-        </ScrollView>
-      )}
-    </View>
-  );
-
-  // Each tab is its own scroll view, with the head over it: the forecast's holds the head as its
-  // sticky header, and the others scroll, and are pulled to be read again, under it. The tab in
-  // view comes first, as iOS finds the scroll view that raises the sheet among the first things
-  // of the screen; the others stay drawn, hidden, in the order they were seen.
+  // The tab in view comes first, as iOS finds the scroll view that raises the sheet among the
+  // first things of the screen; the others stay drawn, hidden, in the order they were seen. Each
+  // is its own scroll view, which scrolls, and is pulled to be read again, under the head.
   return (
     <ChartsAtRest atRest={atRest}>
-      {/* The row of tabs and each tab's scroll view stand under the head: SheetRoot keeps
-          react-native-screens from moving them. */}
+      {/* Each tab's scroll view stands under the head: SheetRoot keeps react-native-screens
+          from moving it. */}
       <SheetRoot className="flex-1 bg-background">
         {[shown, ...seen.filter((one) => one !== shown)].map((one) => (
-          <View key={one} style={one === shown ? { flex: 1 } : { display: "none" }}>
+          <View
+            key={one}
+            style={one === shown ? { flex: 1, paddingTop: headHeight } : { display: "none" }}
+          >
             {one === "forecast" ? (
-              <ForecastScroll bottom={insets.bottom + space.xl}>
-                {one === shown ? head : <View />}
-                <View style={{ paddingHorizontal: space.m, paddingTop: space.xs }}>
-                  {panelOf(one)}
-                </View>
-              </ForecastScroll>
+              <ForecastScroll bottom={insets.bottom + space.xl}>{panelOf(one)}</ForecastScroll>
             ) : (
-              <>
-                {one === shown ? head : null}
-                <View style={{ flex: 1 }}>{panelOf(one)}</View>
-              </>
+              panelOf(one)
             )}
           </View>
         ))}
+        {/* The head of the sheet, drawn once over the tabs, whichever is in view, so that the line
+            under the tab chosen moves to it and the row keeps where it was scrolled: what the
+            place is, its buttons, then its tabs, as the web's drawer heads its panel. It comes
+            after the tabs, so that their scroll view is the first that iOS finds. */}
+        <View
+          className="bg-background"
+          style={{ position: "absolute", top: 0, left: 0, right: 0 }}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            chrome.current = height;
+            setHeadHeight(height);
+            fit();
+          }}
+        >
+          <PlaceHeader
+            record={record}
+            now={now}
+            isSaved={item ? isSaved(item) : false}
+            onSave={save}
+            onCopy={copy}
+            isCopying={spots.isCopying}
+            onMenu={
+              name
+                ? () => router.push({ pathname: "/place/menu", params: { kind, id } })
+                : undefined
+            }
+            onClose={() => router.back()}
+          />
+          {/* A station has one tab and no row: what has tabs is a break or a spot, once it is
+              read. */}
+          {tabs.length > 1 && (
+            <View style={{ paddingHorizontal: space.m, paddingTop: space.m }}>
+              <Tabs
+                label={m.native_place_sections({
+                  name: name ?? (kind === "break" ? m.break_title() : m.spot_title()),
+                })}
+                options={tabs.map((one) => ({ value: one, label: TAB_NAMES[one]() }))}
+                value={shown}
+                onChange={setTab}
+                bleed={space.m}
+              />
+            </View>
+          )}
+        </View>
       </SheetRoot>
     </ChartsAtRest>
   );
 }
 
 /**
- * The forecast's scroll view, with the head as its sticky header, which holds still under the
- * finger while a chart or the week's table is read. The lock is its own state: a reading that
- * begins or ends draws this view again, and not the head and the panel it is given.
+ * The forecast's scroll view, which holds still under the finger while a chart or the week's
+ * table is read, the web's panel with its room around what it holds. The lock is its own state: a
+ * reading that begins or ends draws this view again, and not the panel it is given.
  */
 function ForecastScroll({ bottom, children }: { bottom: number; children: ReactNode }) {
+  const { space } = useTheme();
   const [locked, setLocked] = useState(false);
   return (
     <ReadingLock onLock={setLocked}>
@@ -243,8 +245,11 @@ function ForecastScroll({ bottom, children }: { bottom: number; children: ReactN
         style={{ flex: 1 }}
         scrollEnabled={!locked}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[0]}
-        contentContainerStyle={{ paddingBottom: bottom }}
+        contentContainerStyle={{
+          paddingHorizontal: space.m,
+          paddingTop: space.m,
+          paddingBottom: bottom,
+        }}
       >
         {children}
       </ScrollView>

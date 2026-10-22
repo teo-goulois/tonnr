@@ -5,22 +5,29 @@ import { isPlaceKind, tabFrom, tabsOf } from "./tabs";
 
 describe("the tabs of a place", () => {
   it("gives a station its forecast alone", () => {
-    expect(tabsOf({ kind: "station", signedIn: true, isOwner: false })).toEqual(["forecast"]);
+    expect(tabsOf({ kind: "station", signedIn: true, isOwner: false, known: true })).toEqual([
+      "forecast",
+    ]);
   });
 
   it("gives a break its alerts for an account only", () => {
-    expect(tabsOf({ kind: "break", signedIn: false, isOwner: false })).toEqual([
+    expect(tabsOf({ kind: "break", signedIn: false, isOwner: false, known: true })).toEqual([
       "forecast",
       "reports",
       "guide",
       "sessions",
     ]);
-    expect(tabsOf({ kind: "break", signedIn: true, isOwner: false })).toContain("alerts");
+    expect(tabsOf({ kind: "break", signedIn: true, isOwner: false, known: true })).toContain(
+      "alerts",
+    );
   });
 
   it("gives a spot read in a shared list its forecast and its guide", () => {
-    expect(tabsOf({ kind: "spot", signedIn: true, isOwner: false })).toEqual(["forecast", "guide"]);
-    expect(tabsOf({ kind: "spot", signedIn: true, isOwner: true })).toEqual([
+    expect(tabsOf({ kind: "spot", signedIn: true, isOwner: false, known: true })).toEqual([
+      "forecast",
+      "guide",
+    ]);
+    expect(tabsOf({ kind: "spot", signedIn: true, isOwner: true, known: true })).toEqual([
       "forecast",
       "guide",
       "alerts",
@@ -28,8 +35,17 @@ describe("the tabs of a place", () => {
     ]);
   });
 
+  it("gives a break or a spot its forecast alone until it is read, and once it is gone", () => {
+    expect(tabsOf({ kind: "break", signedIn: true, isOwner: false, known: false })).toEqual([
+      "forecast",
+    ]);
+    expect(tabsOf({ kind: "spot", signedIn: true, isOwner: false, known: false })).toEqual([
+      "forecast",
+    ]);
+  });
+
   it("opens the tab an address asks for when the place has it, the web's names too", () => {
-    const tabs = tabsOf({ kind: "break", signedIn: true, isOwner: false });
+    const tabs = tabsOf({ kind: "break", signedIn: true, isOwner: false, known: true });
     expect(tabFrom("reports", tabs)).toBe("reports");
     expect(tabFrom("alert", tabs)).toBe("alerts");
     expect(tabFrom("alerts", ["forecast"])).toBe("forecast");
