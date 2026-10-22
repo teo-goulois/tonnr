@@ -10,9 +10,17 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useAnimatedStyle,
+  useReducedMotion,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Spinner } from "heroui-native";
 
@@ -43,6 +51,7 @@ import { MapLegend } from "./map-legend";
 import { useBasemapAttribution } from "./use-basemap";
 import { currentMapState, onMapRequest } from "./map-state";
 import { MapListChips } from "./list-chips";
+import { currentSheet, floorOver, onSheetChange } from "./sheet-state";
 import { LOW_SHEET, placeHref, placeOf } from "./place-route";
 import {
   BREAK_LIMIT,
@@ -88,7 +97,8 @@ const BUTTONS_IN = 6;
 const SPINNER = { width: 14, height: 14 };
 
 export function MapScreen() {
-  const { colors, space, scheme } = useTheme();
+  const { colors, space, scheme, motion } = useTheme();
+  const reduceMotion = useReducedMotion();
   const window = useWindowDimensions();
   const { signedIn } = useAccount();
   const requireAccount = useRequireAccount();
@@ -327,8 +337,18 @@ export function MapScreen() {
   const [listsOpen, setListsOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [creditsShown, setCreditsShown] = useState(true);
-  const sheetTop = window.height * (1 - LOW_SHEET) - frame.top;
-  const floor = selected ? Math.max(space.s, frame.height - sheetTop + space.s) : space.s;
+  // The buttons and the legend stand on the low sheet of a place that is open, as tall as its
+  // summary, which its sheet tells. A sheet that is raised covers them where they stand: they
+  // fade away, out of reach of a finger and of a screen reader, and go down with it when it
+  // leaves, as on the web.
+  const sheet = useSyncExternalStore(onSheetChange, currentSheet);
+  const floor = floorOver(sheet, frame, window.height, space.s);
+  const isCovered = sheet.height > 0 && sheet.raised;
+  const footFade = useAnimatedStyle(() => ({
+    opacity: withTiming(isCovered ? 0 : 1, {
+      duration: reduceMotion ? 0 : motion.largeDuration,
+    }),
+  }));
 
   function open(press: MapPress) {
     feel("select");
@@ -438,17 +458,23 @@ export function MapScreen() {
               legend, where it opens: opening one folds the other. */}
           <Animated.View
             layout={LinearTransition}
-            pointerEvents="box-none"
-            style={{
-              position: "absolute",
-              left: space.s,
-              // The buttons stand over the middle of the "+" of the bar, which is wider than them.
-              right: space.s + BUTTONS_IN,
-              bottom: floor,
-              flexDirection: "row",
-              alignItems: "flex-end",
-              gap: space.xs,
-            }}
+            pointerEvents={isCovered ? "none" : "box-none"}
+            accessibilityElementsHidden={isCovered}
+            importantForAccessibility={isCovered ? "no-hide-descendants" : "auto"}
+            style={[
+              {
+                position: "absolute",
+                left: space.s,
+                // The buttons stand over the middle of the "+" of the bar, which is wider than
+                // them.
+                right: space.s + BUTTONS_IN,
+                bottom: floor,
+                flexDirection: "row",
+                alignItems: "flex-end",
+                gap: space.xs,
+              },
+              footFade,
+            ]}
           >
             <View
               pointerEvents="box-none"
