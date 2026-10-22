@@ -38,17 +38,37 @@ export const REASON_MOST = 280;
 /** A text as it is sent: on one line, its spaces as one. */
 export const saidOf = (text: string) => text.replace(/\s+/g, " ").trim();
 
-/** Whether a text may be sent for a line: long enough, and not what the line says already. */
-export function isSendableText(text: string, saved: string) {
+/**
+ * Why a text cannot be sent for a line, as the web's editor says it under the field once Send is
+ * pressed: too short, or what the line says already. Nothing once it can be sent.
+ */
+export function textRefusal(text: string, saved: string) {
   const said = saidOf(text);
-  return said.length >= TEXT_LEAST && said !== saved;
+  if (said.length < TEXT_LEAST) return m.guide_too_short({ count: TEXT_LEAST });
+  return said === saved ? m.guide_same() : undefined;
+}
+
+/** Whether a text may be sent for a line: long enough, and not what the line says already. */
+export const isSendableText = (text: string, saved: string) =>
+  textRefusal(text, saved) === undefined;
+
+/**
+ * Why a list of words cannot be sent for a line: no word pressed, or the words the line says
+ * already. Nothing once it can be sent.
+ */
+export function wordsRefusal(pressed: readonly string[], saved: readonly string[]) {
+  if (pressed.length === 0) return m.guide_words_none();
+  const isSame = pressed.length === saved.length && pressed.every((word) => saved.includes(word));
+  return isSame ? m.guide_same() : undefined;
 }
 
 /** Whether a list of words may be sent for a line: one word at least, and not what it says. */
-export function isSendableWords(pressed: readonly string[], saved: readonly string[]) {
-  const isSame = pressed.length === saved.length && pressed.every((word) => saved.includes(word));
-  return pressed.length > 0 && !isSame;
-}
+export const isSendableWords = (pressed: readonly string[], saved: readonly string[]) =>
+  wordsRefusal(pressed, saved) === undefined;
+
+/** Why the reason of a contest cannot be sent: too short. Nothing once it can be sent. */
+export const reasonRefusal = (reason: string) =>
+  saidOf(reason).length < TEXT_LEAST ? m.guide_too_short({ count: TEXT_LEAST }) : undefined;
 
 // The three questions of a guide, with the answers each takes and how they read. An answer the
 // API gains has to be given its reading here: until then it reads as the API names it.

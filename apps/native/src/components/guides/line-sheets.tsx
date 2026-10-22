@@ -21,14 +21,15 @@ import type { CharacteristicField } from "./characteristic-words";
 import { wordsText } from "./characteristic-words";
 import { CharacteristicIcon } from "./characteristics";
 import {
-  isSendableText,
   isSendableWords,
   REASON_MOST,
+  reasonRefusal,
   saidOf,
-  TEXT_LEAST,
   TEXT_LINES,
   textMostOf,
   type TextLineName,
+  textRefusal,
+  wordsRefusal,
 } from "./guide-words";
 import { PageSheet } from "./page-sheet";
 import type { GuideActions } from "./use-guiding";
@@ -105,14 +106,37 @@ function License() {
   );
 }
 
-/** Why what was sent was refused, said where it was written: a toast may stand behind the sheet. */
+/**
+ * Why what was sent was refused, or why it cannot be sent yet, said under what was written as
+ * the web's field says it: a toast may stand behind the sheet.
+ */
 function Refusal({ why }: { why: string | undefined }) {
   if (!why) return null;
   return (
-    <Text tone="danger" accessibilityRole="alert" accessibilityLiveRegion="polite">
+    <Text size="s" tone="danger" accessibilityRole="alert" accessibilityLiveRegion="polite">
       {why}
     </Text>
   );
+}
+
+/**
+ * Sends what a sheet holds once it can be, and otherwise says why under it: Send is never
+ * greyed, as decision 076 keeps it on the web.
+ */
+function sendWith(
+  isSending: boolean,
+  wrong: string | undefined,
+  setRefused: (why: string | undefined) => void,
+  send: () => void,
+) {
+  if (isSending) return;
+  if (wrong) {
+    feel("failed");
+    setRefused(wrong);
+    return;
+  }
+  setRefused(undefined);
+  send();
 }
 
 /**
@@ -185,19 +209,17 @@ export function WordsSheet({
   const [pressed, setPressed] = useState<string[]>([...saved]);
   const [refused, setRefused] = useState<string>();
   const { canWrite, onNamed } = useWriter(own);
-  const sendable = canWrite && isSendableWords(pressed, saved);
 
-  const send = () => {
-    if (!sendable || actions.isSending) return;
-    setRefused(undefined);
-    actions.onPropose(line, pressed, {
-      done: onClose,
-      failed: (why) => {
-        feel("failed");
-        setRefused(why);
-      },
-    });
-  };
+  const send = () =>
+    sendWith(actions.isSending, wordsRefusal(pressed, saved), setRefused, () =>
+      actions.onPropose(line, pressed, {
+        done: onClose,
+        failed: (why) => {
+          feel("failed");
+          setRefused(why);
+        },
+      }),
+    );
 
   return (
     <PageSheet
@@ -205,10 +227,9 @@ export function WordsSheet({
       title={field.label()}
       onClose={onClose}
       onDismissed={onDismissed}
-      dirty={sendable}
+      dirty={canWrite && isSendableWords(pressed, saved)}
       onSave={canWrite ? send : undefined}
       saveLabel={m.guide_send()}
-      canSave={sendable}
       saving={actions.isSending}
     >
       <Writer own={own} canWrite={canWrite} onNamed={onNamed}>
@@ -235,11 +256,13 @@ export function WordsSheet({
               label={reading()}
               pressed={pressed.includes(word)}
               disabled={actions.isSending}
-              onPress={() =>
+              onPress={() => {
+                // What was wrong is said again only once Send is pressed again.
+                setRefused(undefined);
                 setPressed((before) =>
                   before.includes(word) ? before.filter((one) => one !== word) : [...before, word],
-                )
-              }
+                );
+              }}
             />
           ))}
         </ToggleGroup>
@@ -266,10 +289,10 @@ export function TextSheet({
   const [text, setText] = useState(actions.draftOf(line) ?? saved);
   const [refused, setRefused] = useState<string>();
   const { canWrite, onNamed } = useWriter(own);
-  const sendable = canWrite && isSendableText(text, saved);
 
   const write = (next: string) => {
     setText(next);
+    setRefused(undefined);
     actions.onDraft(line, next === saved ? undefined : next);
   };
   // What was sent, or let go, is no draft any more.
@@ -277,17 +300,16 @@ export function TextSheet({
     actions.onDraft(line, undefined);
     onClose();
   };
-  const send = () => {
-    if (!sendable || actions.isSending) return;
-    setRefused(undefined);
-    actions.onPropose(line, saidOf(text), {
-      done: leave,
-      failed: (why) => {
-        feel("failed");
-        setRefused(why);
-      },
-    });
-  };
+  const send = () =>
+    sendWith(actions.isSending, textRefusal(text, saved), setRefused, () =>
+      actions.onPropose(line, saidOf(text), {
+        done: leave,
+        failed: (why) => {
+          feel("failed");
+          setRefused(why);
+        },
+      }),
+    );
 
   return (
     <PageSheet
@@ -298,7 +320,6 @@ export function TextSheet({
       onDismissed={onDismissed}
       onSave={canWrite ? send : undefined}
       saveLabel={m.guide_send()}
-      canSave={sendable}
       saving={actions.isSending}
     >
       <Writer own={own} canWrite={canWrite} onNamed={onNamed}>
@@ -342,19 +363,17 @@ export function ContestSheet({
   const [reason, setReason] = useState("");
   const [refused, setRefused] = useState<string>();
   const said = saidOf(reason);
-  const sendable = said.length >= TEXT_LEAST;
 
-  const send = () => {
-    if (!sendable || actions.isSending) return;
-    setRefused(undefined);
-    actions.onContest(contributionId, said, {
-      done: onClose,
-      failed: (why) => {
-        feel("failed");
-        setRefused(why);
-      },
-    });
-  };
+  const send = () =>
+    sendWith(actions.isSending, reasonRefusal(reason), setRefused, () =>
+      actions.onContest(contributionId, said, {
+        done: onClose,
+        failed: (why) => {
+          feel("failed");
+          setRefused(why);
+        },
+      }),
+    );
 
   return (
     <PageSheet
@@ -365,7 +384,6 @@ export function ContestSheet({
       dirty={said.length > 0}
       onSave={send}
       saveLabel={m.guide_send()}
-      canSave={sendable}
       saving={actions.isSending}
     >
       <Text weight="medium">{m.guide_contest_title()}</Text>
@@ -373,7 +391,10 @@ export function ContestSheet({
         label={m.guide_contest_title()}
         hint={m.guide_contest_hint()}
         value={reason}
-        onChangeText={setReason}
+        onChangeText={(next) => {
+          setReason(next);
+          setRefused(undefined);
+        }}
         maxLength={REASON_MOST}
         disabled={actions.isSending}
       />

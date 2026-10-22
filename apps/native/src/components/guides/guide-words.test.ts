@@ -17,8 +17,11 @@ import {
   points,
   progressOf,
   readContribution,
+  reasonRefusal,
   saidOf,
   spreadText,
+  textRefusal,
+  wordsRefusal,
   writtenIn,
 } from "./guide-words";
 
@@ -63,6 +66,19 @@ describe("the words of a guide, as the web says them (decision 041)", () => {
     expect(isSendableWords([], [])).toBe(false);
     expect(isSendableWords(["sand"], ["sand"])).toBe(false);
     expect(isSendableWords(["rock", "sand"], ["sand"])).toBe(true);
+  });
+
+  it("says why a line or a contest cannot be sent, as the web's editors say it", () => {
+    expect(textRefusal(" a\n ", "")).toBe("Write at least 3 characters.");
+    expect(textRefusal("Park by  the church", "Park by the church")).toBe(
+      "The guide already says so.",
+    );
+    expect(textRefusal("Park by the church", "")).toBeUndefined();
+    expect(wordsRefusal([], ["sand"])).toBe("Pick at least one.");
+    expect(wordsRefusal(["sand", "rock"], ["rock", "sand"])).toBe("The guide already says so.");
+    expect(wordsRefusal(["rock"], ["sand"])).toBeUndefined();
+    expect(reasonRefusal("  no ")).toBe("Write at least 3 characters.");
+    expect(reasonRefusal("Not a reef")).toBeUndefined();
   });
 
   it("takes an answer back when the one given is pressed again", () => {
