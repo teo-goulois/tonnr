@@ -13,6 +13,11 @@ import { m } from "@/paraglide/messages";
 // the way the wind or the swell goes, then the name of the point it comes from. Never a name
 // alone: the arrow has turned it into a direction.
 
+// The arrow's line, as the web draws it everywhere, bolder than the icon's own.
+const ARROW_STROKE = 2.25;
+// The arrow beside a name is the size of the name's letters: 0.85 of its type, as the web's 0.85em.
+const ARROW_EM = 0.85;
+
 /**
  * An arrow that points the way something goes, from the bearing it comes from: on a line of its
  * own, or in a line of text, at the text's size.
@@ -32,7 +37,7 @@ export function DirectionArrow({
       importantForAccessibility="no-hide-descendants"
       style={{ width: size, height: size, transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}
     >
-      <Glyph icon={ArrowUpIcon} size={size} color={color} />
+      <Glyph icon={ArrowUpIcon} size={size} color={color} strokeWidth={ARROW_STROKE} />
     </View>
   );
 }
@@ -44,7 +49,7 @@ type BearingProps = Omit<TextProps, "children"> & {
   withDegrees?: boolean;
   // Writes the point by its full name, "west-northwest", where there is room for words.
   named?: boolean;
-  // The arrow's size: the text's own, near enough, by default.
+  // The arrow's size: the size of the text's letters by default.
   arrow?: number;
   color?: string;
 };
@@ -57,20 +62,24 @@ export function Bearing({
   degrees,
   withDegrees = false,
   named = false,
-  arrow = 13,
+  arrow,
   color,
   size = "s",
   ...text
 }: BearingProps) {
-  const { colors } = useTheme();
+  const { colors, space, type } = useTheme();
   const name = named ? compassName(degrees) : compassPoint(degrees);
   return (
     <View
       accessible
       accessibilityLabel={`${m.alert_from()} ${compassName(degrees)}${withDegrees ? `, ${formatNumber(degrees, 0)}°` : ""}`}
-      style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}
     >
-      <DirectionArrow fromDegrees={degrees} size={arrow} color={color ?? colors["neutral-10"]} />
+      <DirectionArrow
+        fromDegrees={degrees}
+        size={arrow ?? Math.round(type[size].size * ARROW_EM)}
+        color={color ?? colors["neutral-10"]}
+      />
       <Text size={size} numberOfLines={1} style={color ? { color } : undefined} {...text}>
         {name}
         {withDegrees ? ` ${formatNumber(degrees, 0)}°` : ""}

@@ -276,7 +276,7 @@ const GridColumn = memo(function GridColumn({
               }}
             >
               {bearing !== undefined && (
-                <DirectionArrow fromDegrees={bearing} size={13} color={colors["neutral-9"]} />
+                <DirectionArrow fromDegrees={bearing} size={14} color={colors["neutral-9"]} />
               )}
               {bearing !== undefined && spec.degrees && (
                 <Text size="xxs" tone="muted" numeric dense numberOfLines={1}>
