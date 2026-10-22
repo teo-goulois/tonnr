@@ -29,6 +29,30 @@ export function valueTicks(lowest: number, highest: number) {
 }
 
 /**
+ * The room a chart of the tide leaves above its plot and under its lowest figure, in points: only
+ * what the names of its high and low waters lack between the curve and the ends of its axis,
+ * `high` over the highest water and `low` under the lowest, on a plot `plot` points tall. The room
+ * changes the scale, which changes the room, so it is settled in a few rounds. The web's
+ * `marksRoom`, in `tide-chart.tsx`, with its least room above, the 8 of its other charts.
+ */
+export function marksRoom(values: number[], plot: number, high: number, low: number) {
+  if (values.length === 0) return { head: 8, foot: 0 };
+  const highest = Math.max(...values);
+  const lowest = Math.min(...values);
+  const ticks = valueTicks(Math.min(0, lowest), Math.max(0, highest));
+  const top = ticks.at(-1)!;
+  const bottom = ticks[0]!;
+  let head = 8;
+  let foot = 0;
+  for (let round = 0; round < 4; round++) {
+    const scale = (plot - head - foot) / (top - bottom);
+    head = Math.max(8, high - (top - highest) * scale);
+    foot = Math.max(0, low - (lowest - bottom) * scale);
+  }
+  return { head: Math.ceil(head), foot: Math.ceil(foot) };
+}
+
+/**
  * Round figures for a value whose curve sits far from zero: a period of 8 s on an axis from zero
  * would be a flat line, so it starts a little under its lowest value.
  */

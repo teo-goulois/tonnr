@@ -7,6 +7,7 @@ import {
   curveGradient,
   floorTicks,
   heightAt,
+  marksRoom,
   midnightsBetween,
   timeTicks,
   valueTicks,
@@ -108,5 +109,27 @@ describe("the moments a time axis names", () => {
     const midnights = midnightsBetween(start, start + 2 * 24 * HOUR);
     expect(midnights).toHaveLength(2);
     for (const midnight of midnights) expect(new Date(midnight).getHours()).toBe(0);
+  });
+});
+
+describe("the room of the tide's marks", () => {
+  // The web's chart: 192 pixels, 30 of them for the hours, 34 over a high water, 31 under a low.
+  const room = (values: number[]) => marksRoom(values, 192 - 30, 34, 31);
+
+  it("leaves above the curve only what the name of a high water lacks", () => {
+    expect(room([1.1, 3.9])).toEqual({ head: 31, foot: 0 });
+  });
+
+  it("leaves under the lowest figure what the name of a low water lacks", () => {
+    expect(room([0.4, 4.6])).toEqual({ head: 8, foot: 23 });
+    expect(room([0.2, 5])).toEqual({ head: 14, foot: 27 });
+  });
+
+  it("reads a tide under its datum as the web does", () => {
+    expect(room([-0.3, 2.1])).toEqual({ head: 8, foot: 5 });
+  });
+
+  it("keeps the least room of a chart without a curve", () => {
+    expect(room([])).toEqual({ head: 8, foot: 0 });
   });
 });

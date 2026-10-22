@@ -1,7 +1,7 @@
 import { TIDE_COLOR, TIDE_PAST_COLOR } from "@repo/client/sea-scales";
 import type { TideExtremes, TideTimeline } from "@repo/client/viewer/types";
-import { Circle, Line as SkiaLine, vec } from "@shopify/react-native-skia";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Circle } from "@shopify/react-native-skia";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, type ListViewToken, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
@@ -14,7 +14,14 @@ import { useTheme } from "@/lib/theme";
 import { formatHeight, heightFigure, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { type Row, crossingsAt, heightAt, valueTicks } from "./chart-math";
+import {
+  type Crossing,
+  type Row,
+  crossingsAt,
+  heightAt,
+  marksRoom,
+  valueTicks,
+} from "./chart-math";
 import { useChartTurn } from "./chart-turn";
 import { useChartReading } from "./reading";
 import { type ChartGeometry, SeaChart } from "./sea-chart";
@@ -26,13 +33,21 @@ import { type ChartGeometry, SeaChart } from "./sea-chart";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-// The chart's height, the room it keeps over its curve for the names of the high waters, under
-// it for those of the low waters, and under that for the hours.
+// The chart's height, and the room under its plot for the hours, as the web's.
 const CHART_HEIGHT = 192;
-const HEAD = 34;
-const LOW_ROOM = 30;
-const FOOT = 20;
-const AXIS_WIDTH = 28;
+const X_AXIS = 30;
+// The room the name of a high water takes above its point, and that of a low water below it:
+// the chart keeps over and under its curve what they lack there (`marksRoom`).
+const HIGH_MARK_ROOM = 34;
+const LOW_MARK_ROOM = 31;
+// The column of the heights beside the strip, the web's `w-6`.
+const AXIS_WIDTH = 24;
+// The room a character of a mark takes, to tell whether a time fits before its dot.
+const CHARACTER_WIDTH = 6.5;
+// The box a time or a height is written in over the chart.
+const MARK_WIDTH = 64;
+// Where the plot ends and the hours begin.
+const PLOT_BOTTOM = CHART_HEIGHT - X_AXIS;
 // A day is the one in view once most of it is.
 const VIEWABLE = { itemVisiblePercentThreshold: 60 };
 
@@ -54,23 +69,29 @@ function midnightOf(time: number) {
   return day.getTime();
 }
 
+type Room = { head: number; foot: number };
+
 /** Where a height stands on the chart, for the figures beside the strip. */
-function yOf(value: number, ticks: number[]) {
+function yOf(value: number, ticks: number[], room: Room) {
   const low = ticks[0] ?? 0;
   const span = (ticks.at(-1) ?? 1) - low || 1;
-  const plot = CHART_HEIGHT - HEAD - LOW_ROOM - FOOT;
-  return HEAD + plot - ((value - low) / span) * plot;
+  const plot = PLOT_BOTTOM - room.head - room.foot;
+  return room.head + plot - ((value - low) / span) * plot;
 }
 
-/** The tide's place while it loads: its day, then its strip, of the chart's own size. */
+/**
+ * The tide's place while it loads: its day, then its strip, then its hint, each of its own size,
+ * so that nothing moves when the tide comes.
+ */
 export function TideChartSkeleton() {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   return (
     <View style={{ gap: space.xxs }}>
       <View style={{ height: 32, justifyContent: "center" }}>
-        <Skeleton height={13} width={64} />
+        <Skeleton height={type.s.line} width={64} />
       </View>
       <Skeleton height={CHART_HEIGHT} />
+      <Skeleton height={type.xs.line} width={224} />
     </View>
   );
 }
@@ -84,7 +105,7 @@ export function TideChart({
   isLoading = false,
 }: TideChartProps) {
   useUnits();
-  const { colors, space } = useTheme();
+  const { colors, space, radius, type } = useTheme();
   const isMyTurn = useChartTurn();
   const rows = useMemo<Row[]>(
     () => timeline.map((point) => ({ time: point.time.getTime(), value: point.heightMeters })),
@@ -108,6 +129,16 @@ export function TideChart({
     const values = rows.map((row) => row.value);
     return values.length > 0 ? valueTicks(Math.min(0, ...values), Math.max(0, ...values)) : [0, 1];
   }, [rows]);
+  const room = useMemo(
+    () =>
+      marksRoom(
+        rows.map((row) => row.value),
+        PLOT_BOTTOM,
+        HIGH_MARK_ROOM,
+        LOW_MARK_ROOM,
+      ),
+    [rows],
+  );
   const today = days.findIndex((day) => now >= day && now < day + DAY_MS);
 
   const [width, setWidth] = useState(0);
@@ -194,7 +225,8 @@ export function TideChart({
         <View
           style={{ flexDirection: "row", alignItems: "baseline", gap: space.xs, flexShrink: 1 }}
         >
-          <Text size="s" numeric>
+          {/* Said again by Android's screen reader as it changes, as the web's is. */}
+          <Text size="s" numeric accessibilityLiveRegion="polite">
             {reading
               ? `${formatClock(new Date(reading.time))} · ${formatHeight(reading.value)}`
               : shownDay === today
@@ -231,11 +263,42 @@ export function TideChart({
                 tone="muted"
                 numeric
                 dense
-                style={{ position: "absolute", top: yOf(tick, ticks) - 8, left: 0 }}
+                style={{
+                  position: "absolute",
+                  top: yOf(tick, ticks, room) - type.xs.line / 2,
+                  left: 0,
+                }}
               >
                 {heightFigure(tick)}
               </Text>
             ))}
+          {/* The height under the finger, over the figure the axis has there. */}
+          {ready && reading && (
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: space.xxs,
+                top: yOf(reading.value, ticks, room) - type.xs.line / 2,
+                height: type.xs.line,
+                justifyContent: "center",
+                borderRadius: radius.xs,
+                backgroundColor: colors["color-1"],
+              }}
+            >
+              <Text
+                size="xs"
+                weight="medium"
+                numeric
+                dense
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={{ color: colors["neutral-1"], textAlign: "center" }}
+              >
+                {heightFigure(reading.value)}
+              </Text>
+            </View>
+          )}
         </View>
         <View
           style={{ flex: 1, height: CHART_HEIGHT }}
@@ -279,6 +342,7 @@ export function TideChart({
                   rows={rows}
                   extremes={extremes}
                   ticks={ticks}
+                  room={room}
                   now={now}
                   grey={(index - Math.max(0, today)) % 2 !== 0}
                   ground={colors["neutral-2"]}
@@ -305,12 +369,22 @@ type TideDayProps = {
   rows: Row[];
   extremes: TideExtremes["extremes"];
   ticks: number[];
+  room: Room;
   now: number;
   grey: boolean;
   ground: string;
   onRead: (read: { time: number; value: number } | undefined) => void;
   onReading: (reading: boolean) => void;
 };
+
+/** Whether the water rises at a moment of a day's predictions, from the one after it or before. */
+function risingAt(rows: Row[], index: number) {
+  const here = rows[index];
+  const next = rows[index + 1];
+  const previous = rows[index - 1];
+  if (!here) return true;
+  return next ? next.value > here.value : previous ? previous.value < here.value : true;
+}
 
 /** One day of the strip: its curve, pale where the hours are gone, and its high and low waters. */
 const TideDay = memo(function TideDay({
@@ -320,13 +394,14 @@ const TideDay = memo(function TideDay({
   rows,
   extremes,
   ticks,
+  room,
   now,
   grey,
   ground,
   onRead,
   onReading,
 }: TideDayProps) {
-  const { colors } = useTheme();
+  const { colors, space, type } = useTheme();
   const end = day + DAY_MS;
   // The day's predictions, and one on each side, so that the curve reaches the edges.
   const own = useMemo(() => {
@@ -355,6 +430,9 @@ const TideDay = memo(function TideDay({
       {
         values: own.map((row) => row.value),
         look: "solid" as const,
+        // The web's tide is a line of 2 over a ground of its colors.
+        strokeWidth: 2,
+        fill: true,
         color: TIDE_COLOR,
         pastUntil,
         pastColor: TIDE_PAST_COLOR,
@@ -373,27 +451,11 @@ const TideDay = memo(function TideDay({
   const nowHeight = now > day && now < end ? heightAt(rows, now) : undefined;
 
   const marks = useCallback(
-    (geometry: ChartGeometry) => (
-      <>
-        {dayExtremes.map((extreme) => {
-          const x = geometry.x(extreme.time.getTime());
-          return (
-            <SkiaLine
-              key={extreme.time.getTime()}
-              p1={vec(x, geometry.y(extreme.heightMeters))}
-              p2={vec(x, geometry.bottom)}
-              color={TIDE_COLOR}
-              opacity={0.4}
-              strokeWidth={1}
-            />
-          );
-        })}
-        {nowHeight !== undefined && (
-          <Circle cx={geometry.x(now)} cy={geometry.y(nowHeight)} r={4} color={TIDE_COLOR} />
-        )}
-      </>
-    ),
-    [dayExtremes, nowHeight, now],
+    (geometry: ChartGeometry) =>
+      nowHeight !== undefined && (
+        <Circle cx={geometry.x(now)} cy={geometry.y(nowHeight)} r={4} color={TIDE_COLOR} />
+      ),
+    [nowHeight, now],
   );
 
   // What a finger reads: a line at its level, and the other moments of the day the water stands
@@ -409,6 +471,50 @@ const TideDay = memo(function TideDay({
     );
   }, [pressed, read, own, day, end]);
 
+  // Text over the curve, rimmed with the page's color so that a line under it does not cut it.
+  const rim = {
+    textShadowColor: colors["neutral-1"],
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 0 },
+  };
+  // From the top of a line of the smallest type to where its letters stand, as the web places a
+  // mark by where its letters stand.
+  const baseline = type.xs.line - 3;
+
+  // A time sits where the curve leaves room: before its dot, above the line when the water rises
+  // and below when it falls. Against the left edge of the day it goes to the other side,
+  // mirrored. As the web's `levelMark`.
+  const levelMark = (geometry: ChartGeometry, crossing: Crossing, strong: boolean) => {
+    const cx = geometry.x(crossing.time);
+    const cy = geometry.y(crossing.value);
+    const text = formatClock(new Date(crossing.time));
+    const before = cx - 6 - text.length * CHARACTER_WIDTH >= geometry.left;
+    const above = (crossing.rising === before || cy + 16 > PLOT_BOTTOM) && cy - 16 > 0;
+    return (
+      <Text
+        key={`time-${crossing.time}`}
+        size="xs"
+        weight={strong ? "medium" : "regular"}
+        tone={strong ? "default" : "muted"}
+        numeric
+        dense
+        numberOfLines={1}
+        style={[
+          {
+            position: "absolute",
+            left: before ? cx - 6 - MARK_WIDTH : cx + 6,
+            width: MARK_WIDTH,
+            textAlign: before ? "right" : "left",
+            top: (above ? cy - 6 : cy + 14) - baseline,
+          },
+          rim,
+        ]}
+      >
+        {text}
+      </Text>
+    );
+  };
+
   const overlay = (geometry: ChartGeometry) => (
     <>
       {[6, 12, 18].map((hour) => {
@@ -421,46 +527,76 @@ const TideDay = memo(function TideDay({
             tone="muted"
             numeric
             dense
+            numberOfLines={1}
             style={{
               position: "absolute",
-              top: CHART_HEIGHT - FOOT + 2,
-              left: geometry.x(at.getTime()) - 20,
-              width: 40,
+              top: PLOT_BOTTOM + space.xxs,
+              left: geometry.x(at.getTime()) - MARK_WIDTH / 2,
+              width: MARK_WIDTH,
               textAlign: "center",
             }}
           >
-            {String(hour).padStart(2, "0")}
+            {formatClock(at)}
           </Text>
         );
       })}
+      {/* The high and low waters, each with its line down to the hours, its time and its height;
+          a finger that reads the curve takes their place. */}
       {!pressed &&
         dayExtremes.map((extreme) => {
           const x = geometry.x(extreme.time.getTime());
           const y = geometry.y(extreme.heightMeters);
           // Kept whole when the water turns near an edge of the day.
-          const left = Math.min(geometry.right - 64, Math.max(geometry.left, x - 32));
+          const left = Math.min(
+            geometry.right - MARK_WIDTH,
+            Math.max(geometry.left, x - MARK_WIDTH / 2),
+          );
           return (
-            <View
-              key={extreme.time.getTime()}
-              style={{
-                position: "absolute",
-                left,
-                width: 64,
-                top: extreme.type === "high" ? y - 32 : y + 3,
-                alignItems: "center",
-              }}
-            >
-              <Text size="xs" weight="medium" numeric dense>
-                {formatClock(extreme.time)}
-              </Text>
-              <Text size="xs" tone="muted" numeric dense>
-                {formatHeight(extreme.heightMeters)}
-              </Text>
-            </View>
+            <Fragment key={extreme.time.getTime()}>
+              <View
+                style={{
+                  position: "absolute",
+                  left: x - 0.5,
+                  top: y,
+                  width: 1,
+                  height: Math.max(0, PLOT_BOTTOM - y),
+                  backgroundColor: TIDE_COLOR,
+                  opacity: 0.4,
+                }}
+              />
+              <View
+                style={{
+                  position: "absolute",
+                  left,
+                  width: MARK_WIDTH,
+                  top: extreme.type === "high" ? y - 32 : y + 3,
+                  alignItems: "center",
+                }}
+              >
+                <Text size="xs" weight="medium" numeric dense numberOfLines={1} style={rim}>
+                  {formatClock(extreme.time)}
+                </Text>
+                <Text size="xs" tone="muted" numeric dense numberOfLines={1} style={rim}>
+                  {formatHeight(extreme.heightMeters)}
+                </Text>
+              </View>
+            </Fragment>
           );
         })}
-      {pressed && (
+      {pressed && read !== undefined && (
         <>
+          {/* The rule down the moment read, as the web's charts draw it under a finger. */}
+          <View
+            style={{
+              position: "absolute",
+              left: geometry.x(pressed.time) - 0.5,
+              top: geometry.top,
+              width: 1,
+              height: Math.max(0, PLOT_BOTTOM - geometry.top),
+              backgroundColor: colors["neutral-10"],
+              opacity: 0.5,
+            }}
+          />
           <View
             style={{
               position: "absolute",
@@ -476,44 +612,30 @@ const TideDay = memo(function TideDay({
               key={crossing.time}
               style={{
                 position: "absolute",
-                left: geometry.x(crossing.time) - 30,
+                left: geometry.x(crossing.time) - 4,
                 top: geometry.y(crossing.value) - 4,
-                width: 60,
-                alignItems: "center",
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                borderWidth: 1.5,
+                borderColor: colors["color-1"],
+                backgroundColor: colors["neutral-1"],
               }}
-            >
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  borderWidth: 1.5,
-                  borderColor: colors["color-1"],
-                  backgroundColor: colors["neutral-1"],
-                }}
-              />
-              <Text
-                size="xs"
-                tone="muted"
-                numeric
-                dense
-                style={{ position: "absolute", top: crossing.rising ? -18 : 10 }}
-              >
-                {formatClock(new Date(crossing.time))}
-              </Text>
-            </View>
+            />
           ))}
+          {others.map((crossing) => levelMark(geometry, crossing, false))}
+          {levelMark(geometry, { ...pressed, rising: risingAt(own, read) }, true)}
           <View
             style={{
               position: "absolute",
-              left: geometry.x(pressed.time) - 5,
-              top: geometry.y(pressed.value) - 5,
-              width: 10,
-              height: 10,
-              borderRadius: 5,
-              backgroundColor: TIDE_COLOR,
+              left: geometry.x(pressed.time) - 5.5,
+              top: geometry.y(pressed.value) - 5.5,
+              width: 11,
+              height: 11,
+              borderRadius: 5.5,
               borderWidth: 2,
-              borderColor: colors["neutral-1"],
+              borderColor: colors["color-1"],
+              backgroundColor: colors["neutral-1"],
             }}
           />
         </>
@@ -531,8 +653,8 @@ const TideDay = memo(function TideDay({
         ticks={ticks}
         height={CHART_HEIGHT}
         left={0}
-        top={HEAD}
-        bottom={LOW_ROOM + FOOT}
+        top={room.head}
+        bottom={X_AXIS + room.foot}
         now={nowHeight === undefined ? undefined : now}
         // The tide's line at now is the muted grey, as the web's is.
         nowColor={colors["neutral-7"]}
