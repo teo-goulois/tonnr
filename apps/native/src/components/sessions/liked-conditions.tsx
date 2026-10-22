@@ -1,5 +1,5 @@
 import type { AlertCriteria } from "@repo/client/viewer/types";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { View } from "react-native";
 
 import { Text } from "@/components/ui/text";
@@ -15,69 +15,84 @@ import { Bearing } from "./session-sea";
 // a place is said so, so that an alert is begun from it. The words are packages/client's, which
 // the web's `ConditionsSummary` reads too. Decision 043.
 
-/** One value: its words, or the two ends of its sector, clockwise. */
-function ValueText({ value }: { value: Value }) {
+// About the width of a space in the small type: what stands between two words of the line.
+const SPACE = 3;
+
+/** One value, with what follows it close, a comma: its words, or the two ends of its sector. */
+function ValueWords({ value, after }: { value: Value; after: string }) {
   const { colors } = useTheme();
   if ("text" in value) {
     return (
-      <Text size="s" numeric style={{ color: colors["neutral-10"] }}>
-        {value.text}
+      <Text size="s" numeric>
+        {value.text + after}
       </Text>
     );
   }
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       <Bearing degrees={value.arc.from} color={colors["neutral-10"]} />
-      <Text size="s" style={{ color: colors["neutral-10"] }}>
-        –
-      </Text>
+      <Text size="s">–</Text>
       <Bearing degrees={value.arc.to} color={colors["neutral-10"]} />
+      {after ? <Text size="s">{after}</Text> : null}
     </View>
   );
 }
 
-/** Items between which `between` is said, as a part of a line. */
-function joined<Item>(items: readonly Item[], between: string, draw: (item: Item) => ReactNode) {
-  return items.map((item, index) => (
-    // The items keep their order: nothing else tells them apart.
-    // oxlint-disable-next-line react/no-array-index-key
-    <Fragment key={index}>
-      {index > 0 ? (
-        <Text size="s" tone="muted">
-          {between}
-        </Text>
-      ) : null}
-      {draw(item)}
-    </Fragment>
-  ));
-}
-
-/** Conditions in a few words: each part on its line, what it asks after its name. */
+/**
+ * Conditions in a line, as the web writes them: each part after its name, the values of a part
+ * joined by "or" and its parts by commas, the parts a point apart, all in the ink of the values.
+ * The line runs on to the next where a word ends; a screen reader hears it at once.
+ */
 export function ConditionsSummary({ criteria }: { criteria: AlertCriteria }) {
   useUnits();
-  const { space } = useTheme();
-  const or = ` ${m.alert_or_word()} `;
+  const groups = valuesOf(criteria);
+  const or = m.alert_or_word();
+
+  // The words of the line, each kept whole, in their order.
+  const words: ReactNode[] = [];
+  groups.forEach(([name, parts], at) => {
+    words.push(
+      <Text key={`${at}`} size="s">
+        {name}
+      </Text>,
+    );
+    parts.forEach((values, part) => {
+      values.forEach((value, index) => {
+        if (index > 0) {
+          words.push(
+            <Text key={`${at}-${part}-${index}-or`} size="s">
+              {or}
+            </Text>,
+          );
+        }
+        // The last value of a part that another part follows takes the comma.
+        const beforeNext = index === values.length - 1 && part < parts.length - 1;
+        words.push(
+          <ValueWords key={`${at}-${part}-${index}`} value={value} after={beforeNext ? "," : ""} />,
+        );
+      });
+    });
+    if (at < groups.length - 1) {
+      words.push(
+        <Text key={`${at}-dot`} size="s">
+          ·
+        </Text>,
+      );
+    }
+  });
+
   return (
-    <View style={{ gap: space.xxs }}>
-      {valuesOf(criteria).map(([name, parts]) => (
-        <View
-          key={name}
-          accessible
-          accessibilityLabel={`${name}: ${parts.map((values) => values.map(said).join(or)).join(", ")}`}
-          style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 3 }}
-        >
-          <Text size="s" tone="muted">
-            {name}
-          </Text>
-          {joined(parts, ", ", (values) => (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center" }}>
-              {joined(values, or, (value) => (
-                <ValueText value={value} />
-              ))}
-            </View>
-          ))}
-        </View>
-      ))}
+    <View
+      accessible
+      accessibilityLabel={groups
+        .map(
+          ([name, parts]) =>
+            `${name}: ${parts.map((values) => values.map(said).join(` ${or} `)).join(", ")}`,
+        )
+        .join(". ")}
+      style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: SPACE }}
+    >
+      {words}
     </View>
   );
 }
