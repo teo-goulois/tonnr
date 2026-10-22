@@ -2,13 +2,13 @@ import { TIDE_COLOR, TIDE_PAST_COLOR } from "@repo/client/sea-scales";
 import type { TideExtremes, TideTimeline } from "@repo/client/viewer/types";
 import { Circle } from "@shopify/react-native-skia";
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, type ListViewToken, View } from "react-native";
+import { FlatList, type ListViewToken, View, useWindowDimensions } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
 import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Text } from "@/components/ui/text";
+import { DENSE_SCALE, Text } from "@/components/ui/text";
 import { formatClock, formatDay } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatHeight, heightFigure, useUnits } from "@/lib/units";
@@ -106,6 +106,7 @@ export function TideChart({
 }: TideChartProps) {
   useUnits();
   const { colors, space, radius, type } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const isMyTurn = useChartTurn();
   const rows = useMemo<Row[]>(
     () => timeline.map((point) => ({ time: point.time.getTime(), value: point.heightMeters })),
@@ -212,10 +213,11 @@ export function TideChart({
 
   return (
     <View style={{ gap: space.xxs }}>
-      {/* Of one height, which the small button of today overflows: nothing moves as it comes. */}
+      {/* Of one height, which the small button of today overflows: nothing moves as it comes.
+          Its words grow with the type as dense words do, and the row with them. */}
       <View
         style={{
-          height: 32,
+          height: Math.max(32, type.s.line * Math.min(fontScale, DENSE_SCALE)),
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -226,7 +228,7 @@ export function TideChart({
           style={{ flexDirection: "row", alignItems: "baseline", gap: space.xs, flexShrink: 1 }}
         >
           {/* Said again by Android's screen reader as it changes, as the web's is. */}
-          <Text size="s" numeric accessibilityLiveRegion="polite">
+          <Text size="s" numeric dense numberOfLines={1} accessibilityLiveRegion="polite">
             {reading
               ? `${formatClock(new Date(reading.time))} · ${formatHeight(reading.value)}`
               : shownDay === today
@@ -236,7 +238,14 @@ export function TideChart({
                   : ""}
           </Text>
           {!reading && coefficients.length > 0 && (
-            <Text size="xs" tone="muted" numeric accessibilityHint={m.tide_coefficient_title()}>
+            <Text
+              size="xs"
+              tone="muted"
+              numeric
+              dense
+              numberOfLines={1}
+              accessibilityHint={m.tide_coefficient_title()}
+            >
               {m.tide_coefficient({ values: coefficients.join(" · ") })}
             </Text>
           )}
