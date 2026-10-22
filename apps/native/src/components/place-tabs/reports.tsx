@@ -8,6 +8,7 @@ import { RefreshControl, SectionList, type ListViewToken, View } from "react-nat
 import { ReportCard } from "@/components/reports/report-card";
 import { reportCounter } from "@/components/reports/report-counter";
 import { useBreakReports, useReportWrites } from "@/components/reports/use-reports";
+import { useMediaStatus } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Separator } from "@/components/ui/separator";
@@ -45,6 +46,7 @@ function BreakReports({ breakId }: { breakId: string }) {
   const requireAccount = useRequireAccount();
   const reports = useBreakReports(breakId);
   const writes = useReportWrites();
+  const status = useMediaStatus();
   // The screens' one clock, read again each minute as the web's route reads its own, and not only
   // as the tab is pulled, since a tab once seen stays drawn: "just now" ages, and a report of the
   // last hours goes to the week's.
@@ -79,7 +81,9 @@ function BreakReports({ breakId }: { breakId: string }) {
     requireAccount(m.report_sign_in_prompt(), () =>
       router.push({ pathname: "/report/new", params: { break: breakId } }),
     );
-  const offered = reports.data?.offered !== false;
+  // An instance that keeps no photo takes no report, nor one whose operator stopped the uploads:
+  // the button is not shown, as on the web, rather than open a screen that says so.
+  const offered = reports.data?.offered !== false && status.data?.paused !== true;
 
   return (
     <SectionList
