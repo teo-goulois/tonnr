@@ -11,7 +11,7 @@ import {
   RasterDEMSource,
 } from "@maplibre/maplibre-react-native";
 import { SEA_ARROW } from "@repo/client/map/sea";
-import { FINGER_REACH, fitPadding, fitted, type Padding } from "@repo/client/map/view";
+import { FINGER_REACH, fitPadding, fitted, MAX_ZOOM, type Padding } from "@repo/client/map/view";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
 import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
@@ -348,7 +348,13 @@ export function StationMap({
         onMoved(state, userInteraction);
       }}
     >
-      <Camera ref={camera} initialViewState={{ center: opening.center, zoom: opening.zoom }} />
+      {/* No closer than the web's map and an iPhone's come, which Android's would pass, and a
+          view kept closer would not be read back. */}
+      <Camera
+        ref={camera}
+        initialViewState={{ center: opening.center, zoom: opening.zoom }}
+        maxZoom={MAX_ZOOM}
+      />
       <Images images={images} />
 
       {/* The sea colored by its height, read as a relief over the water and under the land's

@@ -79,7 +79,11 @@ export const FIT_MAX_ZOOM = 11;
 
 /** MapLibre's zooms, from the whole world a little smaller than the screen. */
 const MIN_ZOOM = -2;
-const MAX_ZOOM = 22;
+/**
+ * The closest MapLibre comes on a page and on an iPhone, which Android's would pass up to 25.5:
+ * a view kept closer than this is not read back.
+ */
+export const MAX_ZOOM = 22;
 /** How wide the world is at zoom 0, in points, for MapLibre on a page and on a phone. */
 const WORLD_SIZE = 512;
 

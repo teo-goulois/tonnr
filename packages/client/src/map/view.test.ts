@@ -10,6 +10,7 @@ import {
   fitted,
   isBasemapName,
   latitudeOf,
+  MAX_ZOOM,
   mercatorY,
   readView,
   wrapLongitude,
@@ -29,6 +30,11 @@ describe("the view a device keeps", () => {
 
   it("keeps a view of the whole world, which the web zooms out to", () => {
     expect(readView("[0, 0, -1.5]").zoom).toBe(-1.5);
+  });
+
+  it("keeps a view as close as the map comes, and none closer", () => {
+    expect(readView(`[0, 0, ${MAX_ZOOM}]`).zoom).toBe(MAX_ZOOM);
+    expect(readView(`[0, 0, ${MAX_ZOOM + 0.5}]`)).toBe(DEFAULT_VIEW);
   });
 
   it("brings a longitude dragged past the edge back into the world", () => {
