@@ -5,6 +5,7 @@ import {
   LockIcon,
   MoreHorizontalIcon,
   PinPlusIcon,
+  XIcon,
 } from "@repo/ui/icon";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -23,7 +24,9 @@ import type { PlaceRecord } from "./use-place";
 
 // The head of a place's sheet, as the web's drawer heads a panel: the name, what the place is
 // and, for a spot, whether it is private or public (decision 034), how far it stands from the
-// reader, then the bookmark that keeps it in lists and the menu of what is seldom done with it.
+// reader, then its buttons, drawn as the web's ghost buttons: the bookmark that keeps it in
+// lists, the menu of what is seldom done with it, what copies a spot read in a shared list, and
+// last what closes the sheet.
 
 /** How recent a station's reading is: a dot, which the words beside it say too. */
 function FreshnessDot({ freshness }: { freshness: Freshness }) {
@@ -68,6 +71,7 @@ export function PlaceHeader({
   onMenu,
   onCopy,
   isCopying = false,
+  onClose,
 }: {
   record: PlaceRecord;
   now: number;
@@ -78,6 +82,7 @@ export function PlaceHeader({
   onMenu?: () => void;
   onCopy?: () => void;
   isCopying?: boolean;
+  onClose: () => void;
 }) {
   useUnits();
   const { colors, space } = useTheme();
@@ -173,27 +178,31 @@ export function PlaceHeader({
       </View>
       {onSave && (
         <IconButton
+          variant="ghost"
           icon={isSaved ? BookmarkFillIcon : BookmarkIcon}
           label={m.saved_add_to_list()}
           selected={isSaved}
           onPress={onSave}
         />
       )}
+      {onMenu && (
+        <IconButton
+          variant="ghost"
+          icon={MoreHorizontalIcon}
+          label={m.spot_menu({ name: name ?? m.spot_title() })}
+          onPress={onMenu}
+        />
+      )}
       {onCopy && (
         <IconButton
+          variant="ghost"
           icon={PinPlusIcon}
           label={m.spot_copy({ name: name ?? m.spot_title() })}
           loading={isCopying}
           onPress={onCopy}
         />
       )}
-      {onMenu && (
-        <IconButton
-          icon={MoreHorizontalIcon}
-          label={m.spot_menu({ name: name ?? m.spot_title() })}
-          onPress={onMenu}
-        />
-      )}
+      <IconButton variant="ghost" icon={XIcon} label={m.action_close()} onPress={onClose} />
     </View>
   );
 }

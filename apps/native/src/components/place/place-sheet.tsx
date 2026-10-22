@@ -32,9 +32,9 @@ import { useSpotActions } from "./use-spot";
 // A place as a sheet over the map: a surf break, a station or a spot, at
 // `/place/<break|station|spot>/<id>?tab=`. It opens low, with the map alive over it, as tall as
 // the summary of its forecast, and rises to be read (decision 040). Its head says what the place
-// is and holds the bookmark and the menu; its tabs are those the web gives each kind, and the
-// address opens one. What a tab other than the forecast draws is drawn by its own part of the app,
-// in a scroll view of its own under the head.
+// is and holds the bookmark, the menu and what closes the sheet; its tabs are those the web gives
+// each kind, and the address opens one. What a tab other than the forecast draws is drawn by its
+// own part of the app, in a scroll view of its own under the head.
 
 const TAB_NAMES: Record<PlaceTab, () => string> = {
   forecast: m.details_forecast_tab,
@@ -174,6 +174,7 @@ export function PlaceSheet({
         onMenu={
           name ? () => router.push({ pathname: "/place/menu", params: { kind, id } }) : undefined
         }
+        onClose={() => router.back()}
       />
       {tabs.length > 1 && (
         // Its names may be longer than a phone is wide, in some languages: the row scrolls.
