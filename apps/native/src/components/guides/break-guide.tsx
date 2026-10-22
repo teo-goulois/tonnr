@@ -102,7 +102,7 @@ function Value({ line, value }: { line: GuideLineName; value: string[] | string 
  * read.
  */
 function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
-  const { colors, space } = useTheme();
+  const { colors, space, radius } = useTheme();
   const mine = own?.waiting.find((one) => one.line === line.line);
   const verdictOf = (id: string) => own?.verdicts.find((one) => one.contributionId === id)?.verdict;
   // What the guide says may be contested too, by whoever keeps the break and did not write it.
@@ -178,10 +178,12 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
   const isEmpty = line.proposed.length === 0 && mine?.status !== "pending" && !mayContestSaid;
   if (isEmpty) return null;
 
+  // What waits is a card in the theme's second grey on the sheet's ground, with its smallest
+  // corners, as the web draws it.
   const card = {
     gap: space.xxs,
-    padding: space.s,
-    borderRadius: space.xs,
+    padding: space.xs,
+    borderRadius: radius.xs,
     borderCurve: "continuous" as const,
     backgroundColor: colors["neutral-2"],
   };
