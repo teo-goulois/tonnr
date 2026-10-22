@@ -3,6 +3,7 @@ import {
   BookmarkFillIcon,
   BookmarkIcon,
   GlobalIcon,
+  InfoIcon,
   ListsIcon,
   LogOutIcon,
   MapIcon,
@@ -210,6 +211,26 @@ function Buttons() {
       <Note>
         A button with a name is the theme's one height; a round one is 48 points, and a small one
         40, the web's icon-sm, for a button in a line of text.
+      </Note>
+      <Line>
+        <Button variant="secondary" size="xs">
+          Now
+        </Button>
+        <Button variant="ghost" size="xs" muted>
+          Show less
+        </Button>
+        <Button variant="secondary" size="xs" icon={PlusIcon}>
+          With an icon
+        </Button>
+        <Button variant="secondary" size="xs" disabled>
+          Disabled
+        </Button>
+        <IconButton icon={InfoIcon} label="About these figures" variant="ghost" size="xs" muted />
+        <IconButton icon={ShareIcon} label="Share" variant="secondary" size="xs" />
+      </Line>
+      <Note>
+        The web's xs, as a phone draws it: 36 points, the small type, for a control in the head of a
+        part of a panel, which a finger is given 44 points around. Muted, a ghost one is grey.
       </Note>
     </View>
   );
