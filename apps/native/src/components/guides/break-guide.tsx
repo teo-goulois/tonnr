@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 
 import { useBlock } from "@/components/friends/blocking";
-import { Glyph } from "@/components/shared/glyph";
+import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ErrorState } from "@/components/ui/error-state";
@@ -79,6 +79,58 @@ function AddLabel() {
   );
 }
 
+/**
+ * What a reader may do of a line that stands aside from what it says, as the web's guide draws
+ * it: a word in the small type, underlined, with an icon of 12 points before it where it has one,
+ * and in the muted ink where it is quieter still. A finger is given 44 points around it.
+ */
+function Quiet({
+  children,
+  icon,
+  muted = false,
+  disabled = false,
+  onPress,
+  accessibilityHint,
+}: {
+  children: string;
+  icon?: GlyphIcon;
+  muted?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+  accessibilityHint?: string;
+}) {
+  const { colors, space, type } = useTheme();
+  const ink = muted ? colors["neutral-7"] : colors["neutral-10"];
+  const slop = Math.ceil(Math.max(0, TARGET - type.s.line) / 2);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={children}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      hitSlop={{ top: slop, bottom: slop, left: space.xs, right: space.xs }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        alignSelf: "flex-start",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space.xxs,
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      {icon ? <Glyph icon={icon} size={12} color={ink} /> : null}
+      <Text
+        size="s"
+        weight={muted ? "regular" : "medium"}
+        style={{ color: ink, textDecorationLine: "underline" }}
+      >
+        {children}
+      </Text>
+    </Pressable>
+  );
+}
+
 type LineProps = {
   line: GuideLine;
   own: GuideOwn | undefined;
@@ -115,14 +167,9 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
   const sayOf = (one: Proposed): ReactNode => {
     if (mine?.id === one.id) {
       return (
-        <Button
-          variant="ghost"
-          disabled={actions.isSending}
-          onPress={() => actions.onWithdraw(one.id)}
-          style={{ alignSelf: "flex-start", marginStart: -space.m }}
-        >
+        <Quiet disabled={actions.isSending} onPress={() => actions.onWithdraw(one.id)}>
           {m.guide_withdraw()}
-        </Button>
+        </Quiet>
       );
     }
     const verdict = verdictOf(one.id);
@@ -136,16 +183,18 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
     if (verdict === "confirm") {
       return (
         <View
-          style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.xs }}
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            alignItems: "center",
+            columnGap: space.s,
+            rowGap: space.xxs,
+          }}
         >
           <Text size="s" tone="muted">
             {m.guide_you_confirmed()}
           </Text>
-          {own?.keeps ? (
-            <Button variant="ghost" onPress={() => onContest(one.id)}>
-              {m.guide_contest()}
-            </Button>
-          ) : null}
+          {own?.keeps ? <Quiet onPress={() => onContest(one.id)}>{m.guide_contest()}</Quiet> : null}
         </View>
       );
     }
@@ -223,13 +272,9 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
             }}
           >
             <Tag>{m.guide_mine_pending()}</Tag>
-            <Button
-              variant="ghost"
-              disabled={actions.isSending}
-              onPress={() => actions.onWithdraw(mine.id)}
-            >
+            <Quiet disabled={actions.isSending} onPress={() => actions.onWithdraw(mine.id)}>
               {m.guide_withdraw()}
-            </Button>
+            </Quiet>
           </View>
           <Value line={line.line} value={mine.value} />
         </View>
@@ -237,13 +282,9 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
       {mayContestSaid && said !== null ? (
         // Under what it contests: what a line of words says stands after its glyph.
         <View style={isTextLine(line.line) ? undefined : { paddingStart: GLYPH_SIZE + space.s }}>
-          <Button
-            variant="ghost"
-            onPress={() => onContest(said)}
-            style={{ alignSelf: "flex-start", marginStart: -space.m }}
-          >
+          <Quiet muted onPress={() => onContest(said)}>
             {m.guide_contest()}
-          </Button>
+          </Quiet>
         </View>
       ) : null}
     </View>
@@ -316,15 +357,13 @@ function TextLine(props: LineProps & { name: TextLineName }) {
         <Text size="s" weight="medium" accessibilityRole="header" style={{ flex: 1 }}>
           {TEXT_LINES[name].label()}
         </Text>
-        <Button
-          variant="ghost"
+        <Quiet
           icon={value ? PenIcon : PlusIcon}
           accessibilityHint={m.native_guide_line_hint()}
           onPress={onOpen}
-          style={{ marginEnd: -space.s }}
         >
           {value ? m.guide_correct() : m.guide_add()}
-        </Button>
+        </Quiet>
       </View>
       {value ? (
         <View style={{ gap: space.xxs }}>
