@@ -15,11 +15,13 @@ import {
 } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
+  Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
   useAnimatedStyle,
   useReducedMotion,
+  useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -414,11 +416,28 @@ export function MapScreen() {
           : NO_PADDING,
     [sheet.height, statusBar, underMap, selected],
   );
-  const footFade = useAnimatedStyle(() => ({
-    opacity: withTiming(isCovered ? 0 : 1, {
-      duration: reduceMotion ? 0 : motion.largeDuration,
-    }),
-  }));
+  // They move and fade on the theme's large motion, as the web's foot does, and at once for a
+  // reader who asked for no motion.
+  const footOpacity = useSharedValue(isCovered ? 0 : 1);
+  useEffect(() => {
+    const to = isCovered ? 0 : 1;
+    footOpacity.value = reduceMotion
+      ? to
+      : withTiming(to, {
+          duration: motion.largeDuration,
+          easing: Easing.bezier(...motion.largeEasing),
+        });
+  }, [isCovered, reduceMotion, footOpacity, motion]);
+  const footFade = useAnimatedStyle(() => ({ opacity: footOpacity.value }));
+  const footMove = useMemo(
+    () =>
+      reduceMotion
+        ? undefined
+        : LinearTransition.duration(motion.largeDuration).easing(
+            Easing.bezier(...motion.largeEasing),
+          ),
+    [reduceMotion, motion],
+  );
 
   function open(press: MapPress) {
     feel("select");
@@ -540,7 +559,7 @@ export function MapScreen() {
               tabs, or over the low sheet of a place that is open. The lists unfold over the
               legend, where it opens: opening one folds the other. */}
           <Animated.View
-            layout={LinearTransition}
+            layout={footMove}
             pointerEvents={isCovered ? "none" : "box-none"}
             accessibilityElementsHidden={isCovered}
             importantForAccessibility={isCovered ? "no-hide-descendants" : "auto"}
