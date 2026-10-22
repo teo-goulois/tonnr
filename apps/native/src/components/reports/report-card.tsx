@@ -14,7 +14,7 @@ import { MediaTile } from "@/components/media/media-tile";
 import { chooseOnIos, confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
 import { sizesWords } from "@/components/sessions/surf-size";
-import { TARGET } from "@/components/ui/metrics";
+import { ROUND } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { formatAgo } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
@@ -149,6 +149,32 @@ function OwnState({ report }: { report: Report }) {
   );
 }
 
+/**
+ * A photo or a video that the worker is still making, as the web draws it: the square's muted
+ * ground with a spinner in the muted grey, and nothing of the picture yet.
+ */
+function Making() {
+  const { colors, radius } = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel={m.media_processing()}
+      accessibilityState={{ busy: true }}
+      style={{
+        width: SHOT,
+        height: SHOT,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: radius.xs,
+        borderCurve: "continuous",
+        backgroundColor: colors["neutral-3"],
+      }}
+    >
+      <Spinner size="sm" color={colors["neutral-7"]} />
+    </View>
+  );
+}
+
 type ReportCardProps = {
   report: Report;
   now: number;
@@ -263,12 +289,14 @@ export function ReportCard({
           accessibilityLabel={[author, when, from].filter(Boolean).join(", ")}
           accessibilityActions={signedIn ? spoken : undefined}
           onAccessibilityAction={(event) => void act(event.nativeEvent.actionName)}
-          style={{ flex: 1, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap" }}
+          style={{ flex: 1 }}
         >
-          <Text size="s" weight="medium" numberOfLines={1}>
-            {author}
-          </Text>
-          <Text size="s" tone="muted" numeric numberOfLines={1} style={{ flexShrink: 1 }}>
+          {/* One line, cut at its end when it is too long, as the web writes it: the author in
+              the theme's ink, then when and from how far in the muted grey. */}
+          <Text size="s" tone="muted" numeric numberOfLines={1}>
+            <Text size="s" weight="medium">
+              {author}
+            </Text>
             {` · ${when}${from ? ` · ${from}` : ""}`}
           </Text>
         </View>
@@ -278,20 +306,22 @@ export function ReportCard({
             actions={actions}
             onPressAction={({ nativeEvent }) => void act(nativeEvent.event)}
           >
+            {/* The web's ghost round button as a phone draws it: 48 points, its icon of 20 in
+                the theme's ink. The menu opens on a press of what it holds, so it is drawn and
+                not the kit's button, whose own press would take the touch. */}
             <View
               accessible
               accessibilityRole="button"
               accessibilityLabel={m.report_menu({ author })}
               accessibilityHint={m.native_report_menu_hint()}
               style={{
-                width: TARGET,
-                height: TARGET,
+                width: ROUND,
+                height: ROUND,
                 alignItems: "center",
                 justifyContent: "center",
-                marginVertical: -space.xs,
               }}
             >
-              <Glyph icon={MoreHorizontalIcon} size={18} color={colors["neutral-7"]} />
+              <Glyph icon={MoreHorizontalIcon} size={20} color={colors["neutral-10"]} />
             </View>
           </MenuView>
         ) : null}
@@ -302,21 +332,25 @@ export function ReportCard({
           horizontal
           showsHorizontalScrollIndicator={false}
           accessibilityLabel={m.report_viewer_title()}
-          style={{ marginHorizontal: -space.m, flexGrow: 0 }}
-          contentContainerStyle={{ gap: space.xs, paddingHorizontal: space.m }}
+          // The strip runs a small step past the card on each side, as the web's does.
+          style={{ marginHorizontal: -space.xs, flexGrow: 0 }}
+          contentContainerStyle={{ gap: space.xs, paddingHorizontal: space.xs }}
         >
-          {report.media.map((item) => (
-            <MediaTile
-              key={item.id}
-              size={SHOT}
-              uri={item.thumb}
-              recyclingKey={item.id}
-              video={item.kind === "video"}
-              durationMs={item.durationMs}
-              cover={item.state === "ready" ? null : { state: "processing" }}
-              onOpen={item.state === "ready" ? () => onOpen(report, item) : undefined}
-            />
-          ))}
+          {report.media.map((item) =>
+            item.state === "ready" ? (
+              <MediaTile
+                key={item.id}
+                size={SHOT}
+                uri={item.thumb}
+                recyclingKey={item.id}
+                video={item.kind === "video"}
+                durationMs={item.durationMs}
+                onOpen={() => onOpen(report, item)}
+              />
+            ) : (
+              <Making key={item.id} />
+            ),
+          )}
         </ScrollView>
       ) : null}
 
