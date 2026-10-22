@@ -73,14 +73,21 @@ export function Bearing({
     <View
       accessible
       accessibilityLabel={`${m.alert_from()} ${compassName(degrees)}${withDegrees ? `, ${formatNumber(degrees, 0)}°` : ""}`}
-      style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}
+      // Narrower than its name, as a tile is in the largest type, it ends in an ellipsis, as the
+      // web's does, rather than running past what holds it.
+      style={{ flexDirection: "row", alignItems: "center", gap: space.xxs, flexShrink: 1 }}
     >
       <DirectionArrow
         fromDegrees={degrees}
         size={arrow ?? Math.round(type[size].size * ARROW_EM)}
         color={color ?? colors["neutral-10"]}
       />
-      <Text size={size} numberOfLines={1} style={color ? { color } : undefined} {...text}>
+      <Text
+        size={size}
+        numberOfLines={1}
+        style={[{ flexShrink: 1 }, color ? { color } : null]}
+        {...text}
+      >
         {name}
         {withDegrees ? ` ${formatNumber(degrees, 0)}°` : ""}
       </Text>
