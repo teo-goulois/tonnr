@@ -38,11 +38,21 @@ import {
   wrapLongitude,
   writeView,
 } from "@repo/client/map/view";
+import {
+  type MapStation,
+  type MapWind,
+  type Marker,
+  opensLeft,
+  placeMarkers,
+  rankStations,
+  SELECTED_SCALE,
+  sameMarkers,
+} from "@repo/client/map/markers";
 import { paintSea, SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
 import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
-import { formatNumber, type Freshness } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import {
   NO_READING_COLOR,
   WAVE_HEIGHT_SCALE,
@@ -64,34 +74,9 @@ import {
   spreadSea,
 } from "./sea-tiles";
 
-export type MapStation = {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  // Null when the station has no reading from the last few hours.
-  heightMeters: number | null;
-  periodSeconds: number | null;
-  // Where the waves come from. Null when the buoy does not say.
-  directionDegrees: number | null;
-  freshness: Freshness;
-  // A site in a harbour or an estuary, whose waves say nothing of the sea outside.
-  isSheltered: boolean;
-  isSaved: boolean;
-  // What a screen reader says for the station's marker.
-  label: string;
-};
-
-export type WindStation = {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  speedKnots: number;
-  // Where the wind comes from. Null when it turns too much to say.
-  directionDegrees: number | null;
-  label: string;
-};
+/** A buoy and a wind station as the map draws them, which packages/client describes. */
+export type { MapStation };
+export type WindStation = MapWind;
 
 /** Map tiles of the wave height, as the API describes them. */
 export type SeaLayer = {
@@ -191,12 +176,6 @@ const SEA_FADE_MS = 250;
 // The names of the basemap are given `BASEMAP_NAME_WIDTH`, and a break's or a spot's name a little
 // less, for it is bold and stands beside a disc.
 const PLACE_NAME_WIDTH = 12;
-// More markers than this hide the map, and the dots under them still say where the stations are.
-const MAX_MARKERS = 140;
-const BUOY_BOX = { width: 104, height: 32 };
-const WIND_BOX = { width: 50, height: 26 };
-// A wind badge sits above its point, so a buoy that also measures the wind keeps both.
-const WIND_LIFT = 24;
 // The layers a press can land on.
 const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 // How far from a dot a press of a mouse still finds it, in pixels: its pointer is finer than a
@@ -515,27 +494,6 @@ function themeColor(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888888";
 }
 
-type Marker = { key: string; kind: "buoy" | "wind"; id: string };
-
-function sameMarkers(previous: Marker[], next: Marker[]) {
-  return (
-    previous.length === next.length &&
-    previous.every((marker, index) => marker.key === next[index]!.key)
-  );
-}
-
-type Box = { left: number; top: number; right: number; bottom: number };
-
-function overlaps(box: Box, others: Box[]) {
-  return others.some(
-    (other) =>
-      box.left < other.right &&
-      box.right > other.left &&
-      box.top < other.bottom &&
-      box.bottom > other.top,
-  );
-}
-
 export function StationMap({
   ref,
   stations,
@@ -586,16 +544,7 @@ export function StationMap({
   const dragged = useRef(false);
 
   // The biggest seas get their marker first. The selected station and the saved ones always do.
-  const rankedStations = useMemo(() => {
-    const rank = (station: MapStation) =>
-      (station.id === selectedId ? 1000 : 0) +
-      (station.isSaved ? 100 : 0) +
-      (station.isSheltered ? -50 : 0) +
-      (station.heightMeters ?? -1);
-    return stations
-      .filter((station) => station.heightMeters !== null)
-      .sort((a, b) => rank(b) - rank(a));
-  }, [stations, selectedId]);
+  const rankedStations = useMemo(() => rankStations(stations, selectedId), [stations, selectedId]);
 
   const breaksById = useMemo(() => new Map(breaks.map((found) => [found.id, found])), [breaks]);
   // The selected break has its own pill, so pointing at it adds nothing.
@@ -661,60 +610,16 @@ export function StationMap({
     } = latest.current;
     const width = element.clientWidth;
     const height = element.clientHeight;
-    const taken: Box[] = [];
-    const next: Marker[] = [];
     positions.current.clear();
-
-    const place = (
-      marker: Marker,
-      longitude: number,
-      latitude: number,
-      box: { width: number; height: number },
-      lift: number,
-      always: boolean,
-    ) => {
-      if (next.length >= MAX_MARKERS && !always) return;
-      const point = instance.project([longitude, latitude]);
-      const x = Math.round(point.x);
-      const y = Math.round(point.y) - lift;
-      const bounds = {
-        left: x - box.width / 2,
-        right: x + box.width / 2,
-        top: y - box.height / 2,
-        bottom: y + box.height / 2,
-      };
-      if (bounds.right < 0 || bounds.left > width || bounds.bottom < 0 || bounds.top > height)
-        return;
-      if (!always && overlaps(bounds, taken)) return;
-      taken.push(bounds);
-      next.push(marker);
-      positions.current.set(marker.key, { x, y });
-    };
-
-    if (layers.buoys) {
-      for (const station of rankedStations) {
-        place(
-          { key: `buoy:${station.id}`, kind: "buoy", id: station.id },
-          station.longitude,
-          station.latitude,
-          BUOY_BOX,
-          0,
-          station.id === selectedId,
-        );
-      }
-    }
-    if (layers.wind) {
-      for (const station of windStations) {
-        place(
-          { key: `wind:${station.id}`, kind: "wind", id: station.id },
-          station.longitude,
-          station.latitude,
-          WIND_BOX,
-          WIND_LIFT,
-          false,
-        );
-      }
-    }
+    const placed = placeMarkers({
+      buoys: layers.buoys ? rankedStations : null,
+      wind: layers.wind ? windStations : null,
+      selectedId,
+      project: (longitude, latitude) => instance.project([longitude, latitude]),
+      size: { width, height },
+    });
+    const next: Marker[] = placed.map(({ key, kind, id }) => ({ key, kind, id }));
+    for (const marker of placed) positions.current.set(marker.key, { x: marker.x, y: marker.y });
     // What stands at one point and has no room to find: where the user is, and the break in hand.
     const pinned = {
       user: userLocation,
@@ -734,9 +639,14 @@ export function StationMap({
 
     const selectedAt = positions.current.get("break:selected");
     if (selectedAt) {
-      const pill = selectedPillWidth.current;
-      const room = width - latest.current.padding.right - selectedAt.x;
-      setSelectedOpensLeft(room < pill && selectedAt.x > pill);
+      setSelectedOpensLeft(
+        opensLeft({
+          x: selectedAt.x,
+          pillWidth: selectedPillWidth.current,
+          mapWidth: width,
+          coveredRight: latest.current.padding.right,
+        }),
+      );
     }
 
     for (const [key, position] of positions.current) {
@@ -1510,7 +1420,7 @@ export function StationMap({
   // How wide the pill of the selected break is, as it stands when selected: a little larger than
   // it is laid out.
   useLayoutEffect(() => {
-    selectedPillWidth.current = (selectedPill.current?.offsetWidth ?? 0) * 1.1;
+    selectedPillWidth.current = (selectedPill.current?.offsetWidth ?? 0) * SELECTED_SCALE;
   }, [selectedBreak]);
   // What is pinned to a point takes its place before the browser paints it, and so does a marker
   // that has just been drawn.

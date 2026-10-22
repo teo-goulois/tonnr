@@ -1,3 +1,4 @@
+import { describeStation, describeWind, type MarkerWords } from "@repo/client/map/markers";
 import { seaTimeAt, seaTimes as seaTimesOf } from "@repo/client/map/sea";
 import { LOCATE_ZOOM, PLACE_ZOOM } from "@repo/client/map/view";
 import { Button } from "@repo/ui/components/ui/button";
@@ -70,7 +71,7 @@ import { SpotActions } from "@/components/spots/spot-menu";
 import { SpotPanel } from "@/components/spots/spot-panel";
 import { Onboarding, ProfileForm } from "@/components/profile/profile-questions";
 import { closeCreateMenu, useCreateMenu } from "@/lib/create-menu";
-import { compassPoint, formatAgo, formatSeconds, freshnessOf, toKnots } from "@/lib/format";
+import { compassPoint, formatAgo, formatSeconds, freshnessOf } from "@/lib/format";
 import { isTabPanel } from "@/lib/phone-nav";
 import type { Recent } from "@/lib/recents";
 import { formatHeight, formatWind, useUnits } from "@/lib/units";
@@ -103,11 +104,9 @@ import {
   type MapBreak,
   type MapLayers,
   type MapPoint,
-  type MapStation,
   type SeaLayer,
   StationMap,
   type StationMapHandle,
-  type WindStation,
 } from "./station-map";
 import { StationPanel } from "./station-panel";
 import {
@@ -133,14 +132,20 @@ import {
   type SurfBreak,
   type TideExtremes,
   type TideTimeline,
-  periodOf,
 } from "./types";
 import { NO_SHEET, ViewerDrawer, sidePanelWidth, useScreenWidth } from "./viewer-drawer";
 import { ViewerTab } from "./viewer-screen";
 
-const HOUR_MS = 60 * 60 * 1000;
-// A wind reading older than this says little of the wind now.
-const FRESH_WIND_MS = 2 * HOUR_MS;
+// What a buoy's and a wind station's markers say, in the reader's units and language.
+const MARKER_WORDS: MarkerWords = {
+  formatHeight,
+  formatSeconds,
+  formatWind,
+  compassPoint,
+  formatAgo,
+  map_from: m.map_from,
+  map_wind_speed: m.map_wind_speed,
+};
 
 // "add" is the panel that adds a spot. It stands beside the map, which takes the marker. The
 // others are the tabs of a phone's bar, and drawers over the map on a wide screen.
@@ -381,62 +386,6 @@ type ViewerProps = {
   onReadNotification: (notification: AlertNotification) => void;
 };
 
-function describeStation(station: Station, now: number, savedIds: Set<string>): MapStation {
-  const reading = station.latestReading;
-  const freshness = freshnessOf(reading?.observedAt, now);
-  const shown = freshness === "none" ? null : reading;
-  const height = shown?.significantHeightMeters ?? null;
-  const period = periodOf(shown);
-  const direction = shown?.peakDirectionDegrees ?? null;
-
-  return {
-    id: station.id,
-    name: station.name,
-    latitude: station.latitude,
-    longitude: station.longitude,
-    heightMeters: height,
-    periodSeconds: period,
-    directionDegrees: direction,
-    freshness,
-    isSheltered: station.exposure === "sheltered",
-    isSaved: savedIds.has(station.id),
-    label: [
-      station.name,
-      height !== null && formatHeight(height),
-      period !== null && formatSeconds(period),
-      direction !== null && m.map_from({ direction: compassPoint(direction) }),
-      shown && formatAgo(shown.observedAt, now),
-    ]
-      .filter(Boolean)
-      .join(", "),
-  };
-}
-
-function describeWindStation(station: Station, now: number): WindStation[] {
-  const reading = station.latestReading;
-  const speed = toKnots(reading?.windSpeedMetersPerSecond);
-  if (!reading || speed === null || now - reading.observedAt.getTime() > FRESH_WIND_MS) return [];
-
-  const direction = reading.windDirectionDegrees;
-  return [
-    {
-      id: station.id,
-      name: station.name,
-      latitude: station.latitude,
-      longitude: station.longitude,
-      speedKnots: speed,
-      directionDegrees: direction,
-      label: [
-        station.name,
-        m.map_wind_speed({ speed: formatWind(speed) }),
-        direction !== null && m.map_from({ direction: compassPoint(direction) }),
-      ]
-        .filter(Boolean)
-        .join(", "),
-    },
-  ];
-}
-
 type Selection = ViewerProps["selected"] & {
   id: string | undefined;
   breakId: string | undefined;
@@ -631,13 +580,19 @@ export function Viewer({
     [lists.data],
   );
   const mapStations = useMemo(
-    () => (waveStations.data ?? []).map((station) => describeStation(station, now, savedIds)),
+    () =>
+      (waveStations.data ?? []).map((station) =>
+        describeStation(station, now, savedIds, MARKER_WORDS),
+      ),
     // A buoy's label says its height in the reader's unit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [waveStations.data, now, savedIds, units],
   );
   const mapWindStations = useMemo(
-    () => (layers.wind ? windStations.flatMap((station) => describeWindStation(station, now)) : []),
+    () =>
+      layers.wind
+        ? windStations.flatMap((station) => describeWind(station, now, MARKER_WORDS) ?? [])
+        : [],
     // A badge's label says the wind in the reader's unit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [layers.wind, windStations, now, units],

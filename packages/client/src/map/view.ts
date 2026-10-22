@@ -126,6 +126,21 @@ export const mercatorY = (latitude: number) =>
 export const latitudeOf = (y: number) =>
   (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
 
+/**
+ * Where a point stands on a map of `size` points that shows `view`, from its top left corner, as
+ * MapLibre projects it with north up: on the copy of the world nearest the middle, so that a point
+ * across the antimeridian stands where the map draws it. A phone's map, which projects a point
+ * only by a call that waits, places its markers with this.
+ */
+export function projector(view: MapView, size: { width: number; height: number }) {
+  const world = WORLD_SIZE * 2 ** view.zoom;
+  const middleY = mercatorY(view.center[1]) * world;
+  return (longitude: number, latitude: number) => ({
+    x: size.width / 2 + ((((longitude - view.center[0] + 540) % 360) - 180) / 360) * world,
+    y: size.height / 2 + mercatorY(latitude) * world - middleY,
+  });
+}
+
 export type Padding = { top: number; right: number; bottom: number; left: number };
 
 /** The room of `FIT_PADDING`, inside what the bars or a drawer cover at each edge. */
