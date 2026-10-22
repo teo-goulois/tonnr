@@ -12,13 +12,17 @@ import {
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  Platform,
   Pressable,
   type StyleProp,
   View,
   type ViewStyle,
 } from "react-native";
-import { GestureDetector, ScrollView, usePanGesture } from "react-native-gesture-handler";
+import {
+  GestureDetector,
+  ScrollView,
+  useCompetingGestures,
+  usePanGesture,
+} from "react-native-gesture-handler";
 import Animated, {
   Easing,
   type SharedValue,
@@ -91,7 +95,7 @@ const BAND_ROW = 20;
 const MEASURED_REACH = 1.5 * HOUR_MS;
 // How long a press holds still before it reads the hours under it instead of scrolling.
 const HOLD_MS = 350;
-// How far a pull goes past the start before it offers the day before, and how long it is held.
+// How far a finger pulls past the start before it offers the day before, and how long it is held.
 const OVERPULL = 48;
 const EARLIER_MS = 1500;
 // Where the phone keeps whether the rows say their names, as the web's browser does.
@@ -493,7 +497,10 @@ export function ForecastGrid({
   const pendingX = useRef<number | null>(null);
   const placed = useRef(false);
   const away = useRef(false);
-  const dragging = useRef(false);
+  // Whether the table stands at its start, where a pull past it offers the day before, and
+  // whether the finger on it began there and may still pull.
+  const [atStart, setAtStart] = useState(true);
+  const pulling = useRef(false);
   // The hour a screen reader is on, and the one a finger reads.
   const [focus, setFocus] = useState<number>();
   const [reading, setReading] = useState<number>();
@@ -556,6 +563,8 @@ export function ForecastGrid({
     holdBy.current = undefined;
     setHolding(undefined);
     setOffered(false);
+    // The pull that took it ends there: the table under it moves.
+    pulling.current = false;
     if (!onEarlier || columns.length === 0) return;
     feel("done");
     // What was the first hour stays where it stood: the day before comes in on its left.
@@ -580,19 +589,45 @@ export function ForecastGrid({
   function onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const x = event.nativeEvent.contentOffset.x;
     scrollX.current = x;
+    const isAtStart = x <= 0;
+    if (isAtStart !== atStart) setAtStart(isAtStart);
     if (offered && x > COLUMN * 2) setOffered(false);
     const next = nowIndex >= 0 && Math.abs(x - home) > COLUMN * 2;
     if (next !== away.current) {
       away.current = next;
       onAway?.(next ? () => scrollTo(home, !reducedMotion) : undefined);
     }
-    // Pulled past the start and held there, the table takes the day before. A phone that
-    // bounces says how far: iOS.
-    if (dragging.current && onEarlier) {
-      if (x < -OVERPULL) startHold("pull");
-      else stopHold("pull");
-    }
   }
+
+  // A finger that pulls the table past its start, which the table does not follow, offers the
+  // day before once it has gone OVERPULL, and takes it if it stays there. The finger is measured,
+  // as the web measures it, and not the table, which iOS lets go a fraction of the way and
+  // Android not at all. It runs beside the scroll, and leaves to it a swipe toward the next hours
+  // or up and down.
+  const puller = useRef({ startHold, stopHold });
+  puller.current = { startHold, stopHold };
+  const pull = usePanGesture({
+    enabled: Boolean(onEarlier) && atStart,
+    activeOffsetX: 10,
+    failOffsetX: -10,
+    failOffsetY: [-10, 10],
+    runOnJS: true,
+    onBegin: () => {
+      pulling.current = scrollX.current <= 0;
+    },
+    onUpdate: (event) => {
+      if (!pulling.current) return;
+      if (scrollX.current > 0) {
+        pulling.current = false;
+        puller.current.stopHold("pull");
+      } else if (event.translationX > OVERPULL) puller.current.startHold("pull");
+      else puller.current.stopHold("pull");
+    },
+    onFinalize: () => {
+      pulling.current = false;
+      puller.current.stopHold("pull");
+    },
+  });
 
   // A press held still reads the hour under it, felt at each column it crosses, and holds still
   // what scrolls around it.
@@ -624,6 +659,8 @@ export function ForecastGrid({
       reader.current.lock(false);
     },
   });
+  // A finger either reads the hours or pulls the day before: the first to begin keeps it.
+  const touch = useCompetingGestures(press, pull);
 
   // Every hour, or the table's step again, with the hour pressed kept where it stands.
   function toggleHours(time: number) {
@@ -780,28 +817,15 @@ export function ForecastGrid({
             scrollEnabled={reading === undefined}
             scrollEventThrottle={16}
             onScroll={onScroll}
-            onScrollBeginDrag={(event) => {
-              dragging.current = true;
-              // A phone that does not bounce has no pull to measure: being at the start offers it.
-              if (
-                Platform.OS === "android" &&
-                onEarlier &&
-                event.nativeEvent.contentOffset.x <= 0
-              ) {
-                setOffered(true);
-              }
-            }}
-            onScrollEndDrag={() => {
-              dragging.current = false;
-              stopHold("pull");
-            }}
+            // The scroll and a pull past the start both follow the finger.
+            simultaneousWith={pull}
             onContentSizeChange={() => {
               if (pendingX.current === null) return;
               scrollTo(pendingX.current);
               pendingX.current = null;
             }}
           >
-            <GestureDetector gesture={press}>
+            <GestureDetector gesture={touch}>
               <View style={{ width }}>
                 {/* The days, each a band over its hours whose name follows them: a press shows
                     every hour, or the step. */}
