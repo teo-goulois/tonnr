@@ -1,5 +1,6 @@
+import { ChevronLeftIcon, XIcon } from "@repo/ui/icon";
 import { type NavigationAction, router, useNavigation, usePreventRemove } from "expo-router";
-import { type ReactNode, useEffect, useState } from "react";
+import { Children, type ReactNode, useEffect, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -8,11 +9,12 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { Button } from "./button";
+import { Button, IconButton } from "./button";
 import { Text } from "./text";
 
 // What a screen needs to be a form sheet: its options are `formSheet` (sheet-options.ts), given
@@ -22,15 +24,27 @@ import { Text } from "./text";
 // back of Android, a link. iOS asks in an action sheet and Android in a dialog, each the
 // platform's way.
 
+/** The words of the question, which a form may say in its own: the alert editor's are the web's. */
+export type DiscardWords = { title: string; message: string; leave: string; stay: string };
+
+function discardWords(): DiscardWords {
+  return {
+    title: m.native_discard_title(),
+    message: m.native_discard_message(),
+    leave: m.native_discard(),
+    stay: m.native_keep_editing(),
+  };
+}
+
 /** Asks whether to lose what was written. True when the person said to. */
-export function askToDiscard(): Promise<boolean> {
+export function askToDiscard(words: DiscardWords = discardWords()): Promise<boolean> {
   return new Promise((resolve) => {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          title: m.native_discard_title(),
-          message: m.native_discard_message(),
-          options: [m.native_discard(), m.native_keep_editing()],
+          title: words.title,
+          message: words.message,
+          options: [words.leave, words.stay],
           destructiveButtonIndex: 0,
           cancelButtonIndex: 1,
         },
@@ -39,11 +53,11 @@ export function askToDiscard(): Promise<boolean> {
       return;
     }
     Alert.alert(
-      m.native_discard_title(),
-      m.native_discard_message(),
+      words.title,
+      words.message,
       [
-        { text: m.native_keep_editing(), style: "cancel", onPress: () => resolve(false) },
-        { text: m.native_discard(), style: "destructive", onPress: () => resolve(true) },
+        { text: words.stay, style: "cancel", onPress: () => resolve(false) },
+        { text: words.leave, style: "destructive", onPress: () => resolve(true) },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },
     );
@@ -54,14 +68,14 @@ export function askToDiscard(): Promise<boolean> {
  * Holds the screen while `dirty`, and asks before it is left. `close` leaves without asking,
  * once what was written is saved. `onDiscard` is called once the person said to lose it.
  */
-export function useSheetGuard(dirty: boolean, onDiscard?: () => void) {
+export function useSheetGuard(dirty: boolean, onDiscard?: () => void, words?: DiscardWords) {
   const navigation = useNavigation();
   // Where the person goes once they said to lose what was written, or once it was saved: the
   // guard is let go first, and the way out taken after, so that it is not asked about again.
   const [leaving, setLeaving] = useState<NavigationAction | "back" | null>(null);
 
   usePreventRemove(dirty && leaving === null, ({ data }) => {
-    void askToDiscard().then((discard) => {
+    void askToDiscard(words).then((discard) => {
       if (!discard) return;
       onDiscard?.();
       setLeaving(data.action);
@@ -144,6 +158,119 @@ export function SheetHeader({
           </Button>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+type PanelHeaderProps = {
+  title: string;
+  /** A line under the title, in the theme's ink: the place a form is about. */
+  description?: string | undefined;
+  /** The line in the muted ink, as a dialog's description is: why an account is asked for. */
+  mutedDescription?: boolean;
+  /** Goes back a step inside the sheet: a chevron before the title. */
+  onBack?: (() => void) | undefined;
+  /** Leaves the sheet, by the cross at its end. With the guard, `useSheetGuard(...).cancel`. */
+  onClose: () => void;
+  /** What stands before the cross: a few round buttons of its own. */
+  actions?: ReactNode;
+};
+
+/**
+ * The head of a sheet as the web's drawer draws it on a phone (`ViewerDrawer`): a chevron that
+ * goes back when there is a step to go back to, the title at the theme's large step at the start,
+ * a line under it, then what the sheet offers and the cross that closes it. What a form sends is
+ * at its foot, in `SheetFooter`, never in its head.
+ */
+export function PanelHeader({
+  title,
+  description,
+  mutedDescription = false,
+  onBack,
+  onClose,
+  actions,
+}: PanelHeaderProps) {
+  const { space } = useTheme();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: space.xs,
+        // Room over it for the grabber that the platform draws at the top of the sheet.
+        paddingTop: space.m,
+        paddingHorizontal: space.m,
+      }}
+    >
+      <View
+        style={{ flexDirection: "row", alignItems: "flex-start", gap: space.xxs, flexShrink: 1 }}
+      >
+        {onBack ? (
+          <IconButton
+            icon={ChevronLeftIcon}
+            label={m.action_back()}
+            variant="ghost"
+            onPress={onBack}
+            style={{ marginLeft: -space.xs, marginTop: -space.xs }}
+          />
+        ) : null}
+        <View style={{ gap: space.xxs, flexShrink: 1 }}>
+          <Text size="l" weight="medium" numberOfLines={1} accessibilityRole="header">
+            {title}
+          </Text>
+          {description ? (
+            <Text size="s" tone={mutedDescription ? "muted" : "default"}>
+              {description}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.xxs,
+          marginRight: -space.xs,
+          marginTop: -space.xs,
+        }}
+      >
+        {actions}
+        <IconButton icon={XIcon} label={m.action_close()} variant="ghost" onPress={onClose} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The foot of a sheet, as the web's drawer lays it: what the form sends, its buttons sharing the
+ * sheet's width (give each `fill`), with the room the web gives it. `pinned` stands it under what
+ * scrolls, above the bottom of the phone, as the alert editor's; otherwise it ends the form.
+ */
+export function SheetFooter({
+  children,
+  pinned = false,
+}: {
+  children: ReactNode;
+  pinned?: boolean;
+}) {
+  const { space } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        gap: space.xs,
+        paddingHorizontal: pinned ? space.m : 0,
+        paddingTop: pinned ? space.xs : 0,
+        paddingBottom: pinned ? Math.max(space.m, insets.bottom) : 0,
+      }}
+    >
+      {Children.toArray(children).map((child, index) => (
+        <View key={index} style={{ flex: 1, minWidth: 0 }}>
+          {child}
+        </View>
+      ))}
     </View>
   );
 }

@@ -18,5 +18,5 @@ Status: decided on 2026-10-21, at Téo's request, after he asked why the forms d
 ## Consequences
 
 - `AGENTS.md` names the handbook's page and this decision where it speaks of the interface. A form written by hand fails `pnpm run check` before anyone reads it.
-- The app for phones keeps its own forms and its own kit (decision 069): the handbook's page is the web's. Whether its forms take TanStack Form with adapters of the native kit is a decision of its own.
+- The app for phones keeps its own forms and its own kit (decision 069): the handbook's page is the web's. Its forms take TanStack Form with adapters of its own kit, by decision 078.
 - A form says more than it did. A button that stayed grey says why under a field once pressed, and a field that had a placeholder for a name has a label. A form whose adapter lays its description under the control, as the profile's questions do, says its hint after its choices.

@@ -49,7 +49,8 @@ export const light = {
   "cte-focus": "#262626",
   "option-badge-foreground": "#262626",
   "navigation-active-foreground": "#fafafa",
-  "emphasis-chart-fill": "#26262633"
+  "emphasis-chart-fill": "#26262633",
+  "focus-ring": "#00000080"
 } as const;
 
 export const dark = {
@@ -99,7 +100,8 @@ export const dark = {
   "cte-focus": "#e5e5e5",
   "option-badge-foreground": "#e5e5e5",
   "navigation-active-foreground": "#202020",
-  "emphasis-chart-fill": "#e5e5e533"
+  "emphasis-chart-fill": "#e5e5e533",
+  "focus-ring": "#ffffff80"
 } as const satisfies Record<keyof typeof light, string>;
 
 export type ThemeColors = { readonly [Name in keyof typeof light]: string };

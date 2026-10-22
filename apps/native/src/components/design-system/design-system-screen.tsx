@@ -48,11 +48,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FreshnessDot } from "@/components/ui/freshness-dot";
 import { type Feel, feel } from "@/components/ui/haptics";
-import { Field, Input } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
 import { Row, RowTile, Section, SettingLine } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
 import { OptionCard, OptionCards } from "@/components/ui/option-card";
 import { Segmented } from "@/components/ui/segmented";
+import { PanelHeader, SheetFooter } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Card, Surface } from "@/components/ui/surface";
@@ -66,6 +67,8 @@ import { THEME_CHOICES, type ThemeChoice } from "@/lib/theme-choice";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import type { ThemeColors } from "@/theme/tokens";
+
+import { FormSamples } from "./form-samples";
 
 // Every component of the app's kit, with its variants and its states, and the icons as the app
 // draws them: the design system of Téo's handbook, which a development build alone opens
@@ -682,27 +685,65 @@ function Fields() {
   const { space } = useTheme();
   const [name, setName] = useState("");
   const [sent, setSent] = useState(false);
+  const [note, setNote] = useState("");
+  const [bearing, setBearing] = useState("270");
   return (
     <View style={{ gap: space.m }}>
       <Field
         label="Name of the list"
+        description="Only the people you share it with read it."
         error={sent && !name.trim() ? "Give your list a name." : undefined}
       >
-        <Input
-          value={name}
-          onChangeText={setName}
-          placeholder="New list"
-          invalid={sent && !name.trim()}
-          accessibilityLabel="Name of the list"
-        />
+        <Input value={name} onChangeText={setName} placeholder="New list" />
       </Field>
       <Button variant="secondary" onPress={() => setSent(true)} style={{ alignSelf: "flex-start" }}>
         Send, never disabled
       </Button>
+      <Field label="Note">
+        <Textarea value={note} onChangeText={setNote} placeholder="A few words" />
+      </Field>
+      <Field label="From">
+        <Input
+          value={bearing}
+          onChangeText={setBearing}
+          keyboardType="number-pad"
+          maxLength={3}
+          end="°"
+        />
+      </Field>
       <Field label="Link">
-        <Input value="https://tonnr.app/l/abc123" readOnly accessibilityLabel="Link" />
+        <Input value="https://tonnr.app/l/abc123" readOnly />
       </Field>
       <Input value="Cannot be typed in" editable={false} accessibilityLabel="Disabled" />
+    </View>
+  );
+}
+
+function SheetParts() {
+  const { colors, space } = useTheme();
+  return (
+    <View style={{ gap: space.m }}>
+      <Surface style={{ paddingBottom: space.m, gap: space.m }}>
+        <PanelHeader
+          title="New alert"
+          description="La Gravière"
+          onBack={() => {}}
+          onClose={() => {}}
+        />
+        <View style={{ paddingHorizontal: space.m }}>
+          <SheetFooter>
+            <Button fill>Save the alert</Button>
+          </SheetFooter>
+        </View>
+      </Surface>
+      <Surface style={{ paddingBottom: space.m, backgroundColor: colors["neutral-1"] }}>
+        <PanelHeader
+          title="Sign in"
+          description="An account keeps your alerts."
+          mutedDescription
+          onClose={() => {}}
+        />
+      </Surface>
     </View>
   );
 }
@@ -1032,13 +1073,17 @@ export function DesignSystemScreen() {
       <Block title="Map">
         <MapParts />
       </Block>
+      <Block title="Form">
+        <FormSamples />
+      </Block>
       <Block title="Sheet">
+        <SheetParts />
         <Button variant="secondary" onPress={() => router.push("/design-system-sheet")}>
           Open a form sheet
         </Button>
         <Note>
-          Change something in it, then swipe it down or press Cancel: it asks before it loses what
-          changed.
+          Write something in it, then swipe it down or press its cross: it asks before it loses what
+          was written.
         </Note>
       </Block>
       <Block title="Surfer profile">

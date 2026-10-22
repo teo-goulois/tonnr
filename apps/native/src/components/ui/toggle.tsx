@@ -1,5 +1,5 @@
 import { CheckIcon } from "@repo/ui/icon";
-import { type ReactNode, useEffect } from "react";
+import { type ComponentRef, type ReactNode, type Ref, useEffect } from "react";
 import { Pressable, View } from "react-native";
 import Animated, {
   Easing,
@@ -15,6 +15,8 @@ import { edge } from "./edge";
 import { feel } from "./haptics";
 import { TARGET } from "./metrics";
 import { Text } from "./text";
+
+type ViewRef = ComponentRef<typeof View>;
 
 // A word to press in and out among others, as the web's outlined toggles draw it (`ToggleGroup
 // variant="outline" size="sm"`): a pill with the theme's fine edge, as tall as a finger on a
@@ -34,9 +36,18 @@ type ToggleProps = {
   /** The step of the theme's type its word takes: `s`, the web's `sm`, or `m`, the body's. */
   size?: "s" | "m";
   disabled?: boolean;
+  /** Where a screen reader is moved, as a form gives the first toggle of a wrong group the focus. */
+  ref?: Ref<ViewRef>;
 };
 
-export function Toggle({ label, pressed, onPress, size = "s", disabled = false }: ToggleProps) {
+export function Toggle({
+  label,
+  pressed,
+  onPress,
+  size = "s",
+  disabled = false,
+  ref,
+}: ToggleProps) {
   const { colors, space, motion } = useTheme();
   const shown = useSharedValue(pressed ? 1 : 0);
 
@@ -78,6 +89,7 @@ export function Toggle({ label, pressed, onPress, size = "s", disabled = false }
 
   return (
     <Pressable
+      ref={ref}
       accessibilityRole="togglebutton"
       accessibilityLabel={label}
       accessibilityState={{ checked: pressed, disabled }}

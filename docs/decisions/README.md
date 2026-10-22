@@ -81,3 +81,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [075. Building and updating the apps, with no service of Expo's](075-building-and-updating-the-apps.md)
 - [076. Forms](076-forms.md)
 - [077. The sea and the land of the phone's map, drawn by the app as the web draws them](077-the-sea-of-the-phones-map.md)
+- [078. The forms of the app for phones](078-the-phones-forms.md)

@@ -95,6 +95,7 @@ Do not edit: change the theme there, then run `pnpm --filter @repo/ui run native
       --option-badge-foreground: #262626;
       --navigation-active-foreground: #fafafa;
       --emphasis-chart-fill: #26262633;
+      --focus-ring: #00000080;
       --background: #ffffff;
       --foreground: #000000;
       --surface: #fafafa;
@@ -180,6 +181,7 @@ Do not edit: change the theme there, then run `pnpm --filter @repo/ui run native
       --option-badge-foreground: #e5e5e5;
       --navigation-active-foreground: #202020;
       --emphasis-chart-fill: #e5e5e533;
+      --focus-ring: #ffffff80;
       --background: #000000;
       --foreground: #ffffff;
       --surface: #202020;

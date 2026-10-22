@@ -1,74 +1,47 @@
-import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 
-import { Row, Section } from "@/components/ui/list";
-import { Segmented } from "@/components/ui/segmented";
-import { SheetHeader, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
+import { FormScroll, useSelector } from "@/components/ui/form";
+import { PanelHeader, SheetFooter, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { useTell } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme";
 
-// A form sheet of the design system: two settings that make it hold what changed, the header
-// that cancels and saves, over a scroll view in a SheetRoot, and the guard that asks before a
-// swipe, Cancel or Android's back loses it.
+import { SampleFields, useSampleForm } from "./form-samples";
 
-type Settings = { unit: "m" | "ft"; push: boolean };
-const SAVED: Settings = { unit: "m", push: true };
+// A form sheet of the design system, as the web's drawer holds a form: its head with the title
+// and the cross, the form in the keyboard's scroll view, and what sends it pinned at its foot.
+// The guard asks before a swipe, the cross or Android's back loses what was written.
 
 export function SampleSheet() {
   const { colors, space } = useTheme();
   const tell = useTell();
-  const [settings, setSettings] = useState(SAVED);
-  const [saving, setSaving] = useState(false);
-  const dirty = settings.unit !== SAVED.unit || settings.push !== SAVED.push;
+  const form = useSampleForm((name) => {
+    tell({ title: `Saved ${name}`, tone: "success" });
+    close();
+  });
+  const dirty = useSelector(form.store, (state) => state.isDirty && !state.isSubmitted);
   const { close, cancel } = useSheetGuard(dirty);
 
-  // The header stands over the scroll view, which SheetRoot keeps where the sheet lays it out.
+  // The head stands over the scroll view, which SheetRoot keeps where the sheet lays it out.
   return (
-    <SheetRoot style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader
-        title="Sample settings"
-        onCancel={cancel}
-        canSave={dirty}
-        saving={saving}
-        onSave={() => {
-          setSaving(true);
-          setTimeout(() => {
-            setSaving(false);
-            tell({ title: "Saved", tone: "success" });
-            close();
-          }, 800);
-        }}
-      />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ gap: space.l, paddingBottom: space.xl }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ gap: space.l, paddingHorizontal: space.m }}>
-          <Section title="Height">
-            <Row title="Unit" value={settings.unit === "m" ? "Meters" : "Feet"} />
-          </Section>
-          <Segmented
-            label="Height"
-            fill
-            options={[
-              { value: "m", label: "Meters" },
-              { value: "ft", label: "Feet" },
-            ]}
-            value={settings.unit}
-            onChange={(unit) => setSettings((now) => ({ ...now, unit }))}
-          />
-          <Section footer="Change something, then leave without saving: the sheet asks first.">
-            <Row
-              title="Push on this phone"
-              toggle={{
-                value: settings.push,
-                onChange: (push) => setSettings((now) => ({ ...now, push })),
-              }}
-            />
-          </Section>
-        </View>
-      </ScrollView>
+    <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <form.AppForm>
+        <PanelHeader
+          title="A sample form"
+          description="Send it empty: each field says what is wrong."
+          onClose={cancel}
+        />
+        <FormScroll
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: space.m, paddingBottom: space.xl }}
+        >
+          <View style={{ gap: space.m }}>
+            <SampleFields form={form} />
+          </View>
+        </FormScroll>
+        <SheetFooter pinned>
+          <form.SubmitButton fill>Save the spot</form.SubmitButton>
+        </SheetFooter>
+      </form.AppForm>
     </SheetRoot>
   );
 }

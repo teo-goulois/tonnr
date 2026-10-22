@@ -71,8 +71,24 @@ const COLOR_NAMES = [
   "emphasis-chart-fill",
 ];
 
+/**
+ * The color of the ring a field draws around itself while it is written in, from the outline the
+ * web gives it, `2px solid color-mix(in srgb, <color> <share>%, transparent)`, as a hex with its
+ * alpha: the app draws the ring itself.
+ */
+function focusRing(values) {
+  const outline = resolve(values.get("focus-ring-outline"), values);
+  const found = /color-mix\(in srgb,\s*(#[0-9a-f]{6})\s+(\d+)%,\s*transparent\)/i.exec(outline);
+  if (!found) throw new Error(`--focus-ring-outline is not a share of a color: ${outline}`);
+  const alpha = Math.round((Number(found[2]) / 100) * 255);
+  return `${found[1].toLowerCase()}${alpha.toString(16).padStart(2, "0")}`;
+}
+
 function colors(values) {
-  return Object.fromEntries(COLOR_NAMES.map((name) => [name, resolve(values.get(name), values)]));
+  return {
+    ...Object.fromEntries(COLOR_NAMES.map((name) => [name, resolve(values.get(name), values)])),
+    "focus-ring": focusRing(values),
+  };
 }
 
 const light = colors(root);
