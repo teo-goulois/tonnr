@@ -44,10 +44,11 @@ export default function RootLayout() {
                 <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="pause-alert" options={formSheet({ detents: "fit" })} />
                 {/* A place opens low, over the map that stays alive under it, and rises to be
-                    read: decision 040's two heights. */}
+                    read: decision 040's two heights. The map is never dimmed, and a press on it
+                    never closes the sheet, as the web's drawer stands beside the map. */}
                 <Stack.Screen
                   name="place/[kind]/[id]"
-                  options={formSheet({ detents: [FOLD_NONE, RAISED], undimmedUpTo: 0 })}
+                  options={formSheet({ detents: [FOLD_NONE, RAISED], undimmedUpTo: "last" })}
                 />
                 <Stack.Screen name="place/save" options={formSheet({ detents: "fit" })} />
                 <Stack.Screen name="place/menu" options={formSheet({ detents: "fit" })} />
