@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
 import { keepCopy } from "@/components/alerts/copies";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { ConditionsSummary } from "@/components/sessions/liked-conditions";
 import { placeParam, usePlaceKnown } from "@/components/sessions/session-place";
 import { SessionRow } from "@/components/sessions/session-row";
@@ -22,7 +23,6 @@ import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
 import { LinesLoading, TabFailure } from "./tab-states";
-import { AccountPrompt } from "@/components/auth/account-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
