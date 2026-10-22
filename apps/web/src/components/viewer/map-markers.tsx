@@ -155,8 +155,8 @@ export function BuoyPill({
       className={cn(
         // structure & layout
         "pointer-events-auto flex h-7 cursor-pointer items-center gap-xxs rounded-full py-0.5 pr-xs pl-0.5",
-        // typography
-        "font-medium whitespace-nowrap tabular-nums",
+        // typography: the theme's type at 12, which the map would give its own Helvetica
+        "font-sans text-[12px]/5 font-medium whitespace-nowrap tabular-nums",
         // border & background
         "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
         // transitions
@@ -240,8 +240,8 @@ export function WindBadge({
       className={cn(
         // structure & layout
         "pointer-events-auto flex h-5.5 cursor-pointer items-center gap-0.5 rounded-(--radius-xs) px-1.5",
-        // typography
-        "text-xs font-medium whitespace-nowrap tabular-nums",
+        // typography: the theme's type, regular at 11
+        "font-sans text-xs font-normal whitespace-nowrap tabular-nums",
         // border: a ring of the surface, so two badges that touch stay apart
         "edge [--edge-color:var(--neutral-1)] [--edge-width:var(--border-m)]",
         // transitions
@@ -324,8 +324,8 @@ export function BreakPill({
         // structure & layout
         "flex h-7 max-w-56 items-center gap-xxs rounded-full py-0.5",
         mirrored ? "flex-row-reverse pr-0.5 pl-s" : "pr-s pl-0.5",
-        // typography
-        "font-medium whitespace-nowrap",
+        // typography: the theme's type at 12, which the map would give its own Helvetica
+        "font-sans text-[12px]/5 font-medium whitespace-nowrap",
         // border & background
         "edge bg-neutral-1 text-neutral-10 [--edge-color:var(--neutral-10-transparent)]",
         // state: selected
