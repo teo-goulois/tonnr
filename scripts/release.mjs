@@ -707,8 +707,8 @@ async function buildForIos() {
   const runtime = await checkRuntime("ios", fingerprint ? readFileSync(fingerprint, "utf8") : "");
 
   // A profile of the App Store for the app and for each extension, made for this release with
-  // the distribution certificate alone, which the export signs with by hand: left to choose,
-  // xcodebuild signed a release through Apple's cloud with the key on this Mac all the same.
+  // the distribution certificate alone, which the export signs with by hand: in automatic
+  // signing, xcodebuild chooses between that key and Apple's cloud by rules Apple does not say.
   const identifiers = identifiersOf(archive);
   if (identifiers.length === 0 || identifiers.some((identifier) => !identifier)) {
     failKeeping(checkout, "The archive, whose identifiers could not be read,");
