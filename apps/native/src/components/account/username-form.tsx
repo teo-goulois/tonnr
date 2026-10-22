@@ -13,16 +13,22 @@ import { useSaveUsername, useUsernameFree } from "./use-username";
 
 /**
  * Chooses the name others read of an account, its first or another, as the web's `UsernameForm`
- * does: it says whether the name is free before it is sent, and why not once it was. Decision 041.
+ * does: it says whether the name is free before it is sent, and why not once it was. Its Save
+ * stands at its own width and waits only for a name other than the account's own: a name that
+ * is no username is refused under the field once it is sent (decision 076). Decision 041.
  */
 export function UsernameForm({
   current,
   onSaved,
+  onCancel,
   autoFocus = false,
 }: {
   // The account's username. Null for an account that has none yet.
   current: string | null;
   onSaved: (username: string) => void;
+  // Left out where the form cannot be left, as on the way to a first contribution, or where the
+  // stack's own back leaves it.
+  onCancel?: () => void;
   autoFocus?: boolean;
 }) {
   const { space } = useTheme();
@@ -52,7 +58,7 @@ export function UsernameForm({
   }
 
   return (
-    <View style={{ gap: space.m }}>
+    <View style={{ gap: space.s }}>
       <Field
         label={m.auth_username()}
         value={typed}
@@ -70,14 +76,17 @@ export function UsernameForm({
         error={says.error}
         hint={says.hint}
       />
-      <Button
-        fill
-        loading={saving}
-        disabled={username === current || username.length === 0}
-        onPress={() => void send()}
-      >
-        {m.username_save()}
-      </Button>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
+        {/* The account's own name is not sent again: there is nothing to save. */}
+        <Button loading={saving} disabled={username === current} onPress={() => void send()}>
+          {m.username_save()}
+        </Button>
+        {onCancel ? (
+          <Button variant="ghost" disabled={saving} onPress={onCancel}>
+            {m.action_cancel()}
+          </Button>
+        ) : null}
+      </View>
     </View>
   );
 }

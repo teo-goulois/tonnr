@@ -7,6 +7,7 @@ import { useAccount } from "@/lib/account";
 
 import { useKeptSettings } from "./kept-settings";
 import { forgetOnPhone } from "./leave";
+import { useComeBackAfterRestart } from "./restart";
 
 /**
  * Forgets what the phone kept for an account once it learns that the account is no longer the
@@ -27,12 +28,14 @@ function useForgetWhenLeft() {
 /**
  * What the app does with the account as it runs, whatever screen is open: the units and the
  * density in force, the phone's kept things forgotten when the account leaves, the questions
- * of decision 063 asked once, and a session that was timed and not written offered once
- * (decision 074). The tabs mount it; it draws nothing.
+ * of decision 063 asked once, a session that was timed and not written offered once (decision
+ * 074), and the account's tab opened again after a change of language started the app again.
+ * The tabs mount it; it draws nothing.
  */
 export function useAccountStart() {
   useKeptSettings();
   useForgetWhenLeft();
+  useComeBackAfterRestart();
   useOnboardingOnce();
   useLiveSessionOffer();
 }

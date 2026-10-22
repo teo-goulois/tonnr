@@ -1,38 +1,24 @@
-import type { ConnectedAgent } from "@repo/client/viewer/types";
-import { SparkleIcon, XIcon } from "@repo/ui/icon";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { View } from "react-native";
 
-import { SwipeRow } from "@/components/alerts/swipe-row";
-import { confirmDestructive } from "@/components/saved/confirm";
+import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
-import { Row, Section } from "@/components/ui/list";
+import { Section } from "@/components/ui/list";
+import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
-import { formatDate } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-// What an assistant says of itself: its site's host, and since when the account let it read.
-function describe(agent: ConnectedAgent) {
-  let host: string | undefined;
-  try {
-    host = agent.site ? new URL(agent.site).host : undefined;
-  } catch {
-    host = undefined;
-  }
-  const since = agent.since ? m.native_agent_since({ date: formatDate(agent.since) }) : undefined;
-  return [host, since].filter(Boolean).join(" · ") || undefined;
-}
-
 /**
- * The assistants the account signed in to read it (decision 047), each of which a swipe, or a
- * press, disconnects once the person said to. Nothing when there is none: an account connects
- * one from the assistant itself, which `/connect` on the web answers.
+ * The assistants the account signed in to read it (decision 047), as the web's `AccountPanel`
+ * lists them: what they are over the list, then each by its name with what disconnects it at
+ * once. Nothing when there is none: an account connects one from the assistant itself, which
+ * `/connect` on the web answers.
  */
 export function AgentsSection() {
-  const { colors } = useTheme();
+  const { space } = useTheme();
   const { signedIn } = useAccount();
   const queryClient = useQueryClient();
   const tell = useTell();
@@ -53,42 +39,36 @@ export function AgentsSection() {
   const agents = listed.data?.agents ?? [];
   if (!signedIn || agents.length === 0) return null;
 
-  async function ask(agent: ConnectedAgent) {
-    const name = agent.name ?? m.connect_client_unnamed();
-    const sure = await confirmDestructive({
-      title: m.native_agent_disconnect_title({ name }),
-      message: m.native_agent_disconnect_message(),
-      confirm: m.account_agent_disconnect(),
-    });
-    if (sure) disconnect.mutate({ clientId: agent.clientId });
-  }
-
   return (
-    <Section title={m.account_agents_title()} footer={m.account_agents_hint()}>
-      {agents.map((agent) => (
-        <SwipeRow
-          key={agent.clientId}
-          trailing={{
-            label: m.account_agent_disconnect(),
-            icon: XIcon,
-            tone: "danger",
-            onAct: () => void ask(agent),
-          }}
-        >
-          {/* The row's own ground, over the action that the swipe uncovers behind it. */}
-          <View style={{ backgroundColor: colors["cte-surface"] }}>
-            <Row
-              icon={SparkleIcon}
-              title={agent.name ?? m.connect_client_unnamed()}
-              description={describe(agent)}
-              onPress={() => void ask(agent)}
-              chevron={false}
-              disabled={disconnect.isPending && disconnect.variables?.clientId === agent.clientId}
-              accessibilityHint={m.account_agent_disconnect()}
-            />
-          </View>
-        </SwipeRow>
-      ))}
+    <Section plain title={m.account_agents_title()} lead={m.account_agents_hint()}>
+      <View style={{ gap: space.xs }}>
+        {agents.map((agent) => {
+          const name = agent.name ?? m.connect_client_unnamed();
+          return (
+            <View
+              key={agent.clientId}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: space.s,
+              }}
+            >
+              <Text numberOfLines={1} style={{ flexShrink: 1 }}>
+                {name}
+              </Text>
+              <Button
+                variant="outline"
+                disabled={disconnect.isPending && disconnect.variables?.clientId === agent.clientId}
+                onPress={() => disconnect.mutate({ clientId: agent.clientId })}
+                accessibilityHint={name}
+              >
+                {m.account_agent_disconnect()}
+              </Button>
+            </View>
+          );
+        })}
+      </View>
     </Section>
   );
 }

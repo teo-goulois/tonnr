@@ -1,42 +1,25 @@
-import { APP_NAME, REPOSITORY_URL } from "@repo/config/app";
-import {
-  AtSignFillIcon,
-  BellIcon,
-  BookOpenIcon,
-  ChartAreaFillDuoIcon,
-  EyeSlashFillDuoIcon,
-  FileTextIcon,
-  GithubIcon,
-  GlobalIcon,
-  Link2Icon,
-  MapPinIcon,
-  InfoIcon,
-  LayersIcon,
-  LockIcon,
-  LogbookIcon,
-  LogOutIcon,
-  MailIcon,
-  MoonIcon,
-  PaintbrushIcon,
-  PenIcon,
-  PeopleFillDuoIcon,
-  SunIcon,
-  SurferFillIcon,
-  TrashIcon,
-  WaterLevelFillDuoIcon,
-  WaveIcon,
-  WindIcon,
-} from "@repo/ui/icon";
-import { useQuery } from "@tanstack/react-query";
+import { UNIT_CHOICES } from "@repo/client/units";
+import { APP_NAME } from "@repo/config/app";
+import { LOCALES } from "@repo/config/locales";
+import { LogOutIcon } from "@repo/ui/icon";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Application from "expo-application";
 import { type Href, router } from "expo-router";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 
+import { AccountPrompt } from "@/components/auth/account-prompt";
+import { useStanding } from "@/components/contributions/use-standing";
 import { useProfile } from "@/components/profile/use-profile";
 import { profileWords } from "@/components/profile/profile-words";
-import { confirmDestructive } from "@/components/saved/confirm";
+import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
-import { Row, Section } from "@/components/ui/list";
+import { Row, Section, SettingLine } from "@/components/ui/list";
+import { TARGET } from "@/components/ui/metrics";
+import { Segmented } from "@/components/ui/segmented";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
+import { THEME_CHOICES } from "@/lib/theme-choice";
 import { useTheme } from "@/lib/theme";
 import { type Units, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -45,10 +28,12 @@ import { orpc } from "@/utils/orpc";
 
 import { AccountHeader } from "./account-header";
 import { AgentsSection } from "./agents";
-import { densityName, useDensity, usePalette } from "./display";
+import { DENSITIES, densityName, PALETTES, setPalette, useDensity, usePalette } from "./display";
+import { useSaveDensity, useSaveUnits } from "./kept-settings";
 import { useSignOut } from "./leave";
 import { useOpenPage } from "./open-page";
 import { rankName } from "./rank-badge";
+import { restartInLanguage } from "./restart";
 import {
   blocksWords,
   friendsWords,
@@ -57,76 +42,194 @@ import {
   points,
   THEME_WORDS,
 } from "./settings-words";
+import type { SitePage } from "./site-pages";
 import { unitName } from "./unit-name";
 import { setConsent, setErrorReports, useConsent, useErrorReports } from "./use-consent";
 import { useOwnAccount, useSendVerification } from "./use-own-account";
 
-const MEASURE_ICONS = {
-  windSpeed: WindIcon,
-  height: WaveIcon,
-  temperature: SunIcon,
-  distance: MapPinIcon,
-  precipitation: WaterLevelFillDuoIcon,
-} satisfies Record<keyof Units, unknown>;
-
 const go = (href: Href) => () => router.push(href);
 
+/** The choice of one measurement's unit, on a line, which saves at once: decision 033. */
+function UnitLine<Measure extends keyof Units>({
+  measure,
+  label,
+  units,
+  onSave,
+}: {
+  measure: Measure;
+  label: string;
+  units: Units;
+  onSave: (change: Partial<Units>) => void;
+}) {
+  // Each measure's choices are its own units, which the shared list does not say by its type.
+  const offered = UNIT_CHOICES[measure] as unknown as readonly Units[Measure][];
+  return (
+    <SettingLine label={label}>
+      <Segmented
+        label={label}
+        options={offered.map((unit) => ({ value: unit, label: unitName(measure, unit) }))}
+        value={units[measure]}
+        onChange={(unit) => onSave({ [measure]: unit } as Partial<Units>)}
+      />
+    </SettingLine>
+  );
+}
+
 /**
- * The account's tab, as a phone's settings are: who is signed in, then what the account is in
- * the guides and the log, how it is told of its alerts, how the app draws and writes, its
- * language, the assistants it connected, its privacy, what the app is, and at the end what signs
- * out and what deletes it. A visitor has the settings the phone keeps and the two ways in. The
- * web's `AccountPanel` says the same: decisions 040, 041, 044, 047, 061, 063 and 071.
+ * A page of the site in a line of small links, as the web's panel lists its legal texts: it is
+ * drawn at its line's height and reaches a finger's height past it.
+ */
+function PageLink({ label, onPress }: { label: string; onPress: () => void }) {
+  const { colors, type } = useTheme();
+  const slop = Math.ceil((TARGET - type.s.line) / 2);
+  return (
+    <Pressable accessibilityRole="link" onPress={onPress} hitSlop={{ top: slop, bottom: slop }}>
+      {({ pressed }) => (
+        <Text size="s" style={{ color: pressed ? colors["neutral-10"] : colors["neutral-7"] }}>
+          {label}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+/**
+ * What the app may tell of how it is used and of what breaks, as the web's `AnalyticsSetting`
+ * offers it to a visitor and an account alike: off until said yes (decision 044), and the error
+ * reports apart once it is, unless the instance's operator turned them off (decision 054).
+ */
+function AnalyticsSection() {
+  const consent = useConsent();
+  const errorReports = useErrorReports();
+  const granted = consent === "granted";
+  // An instance that does not answer leaves the reports as they were, as the web's does.
+  const instance = useQuery(
+    orpc.v1.errorReports.get.queryOptions({ enabled: granted, retry: false }),
+  );
+  return (
+    <Section plain title={m.analytics_title()} lead={m.analytics_description()}>
+      <Button
+        variant="secondary"
+        onPress={() => setConsent(granted ? "denied" : "granted")}
+        style={{ alignSelf: "flex-start" }}
+      >
+        {granted ? m.analytics_disable() : m.analytics_allow()}
+      </Button>
+      {/* An instance whose operator turned them off has no reports to choose. */}
+      {granted && instance.data?.on !== false ? (
+        <Row
+          title={m.analytics_errors()}
+          description={m.analytics_errors_description()}
+          toggle={{ value: errorReports, onChange: setErrorReports }}
+        />
+      ) : null}
+    </Section>
+  );
+}
+
+/** The place of the tab while the phone's session is read: who is signed in, and sections. */
+function AccountSkeleton() {
+  const { space, type } = useTheme();
+  return (
+    <Loading>
+      <View style={{ gap: space.l }}>
+        <View style={{ gap: space.xs }}>
+          <Skeleton height={type.m.size} width="45%" />
+          <Skeleton height={type.s.size} width="65%" />
+        </View>
+        {[2, 3, 5].map((rows) => (
+          <View key={rows} style={{ gap: space.s }}>
+            <Skeleton height={type.s.size} width="30%" />
+            {Array.from({ length: rows }, (_, row) => (
+              <Skeleton key={row} height={TARGET} />
+            ))}
+          </View>
+        ))}
+      </View>
+    </Loading>
+  );
+}
+
+/**
+ * The account's tab, as the web's `AccountPanel` draws it on a phone, in its order: who is
+ * signed in, then the sessions and the profile, the community, the units, the alerts, how the app
+ * draws and its language, the assistants it connected, what the app is, what it may tell, and at
+ * the end what signs out, what deletes the account, and the app's version. A visitor has the
+ * settings the phone keeps and the two ways in. Decisions 040, 041, 044, 047, 061, 063 and 071.
  */
 export function AccountScreen() {
-  const { colors, space, choice } = useTheme();
-  const { openPage, openAddress } = useOpenPage();
+  const { colors, space, choice, choose } = useTheme();
+  const { openPage } = useOpenPage();
+  const queryClient = useQueryClient();
   const own = useOwnAccount();
   const check = useSendVerification();
   const signOut = useSignOut();
   const units = useUnits();
+  const saveUnits = useSaveUnits();
   const density = useDensity();
+  const saveDensity = useSaveDensity();
   const palette = usePalette();
-  const consent = useConsent();
-  const errorReports = useErrorReports();
   const signedIn = own.signedIn === true;
   const account = own.account;
+  const [isLeaving, setLeaving] = useState(false);
 
   const profiling = useProfile();
-  const standing = useQuery(
-    orpc.v1.contributions.mine.queryOptions({ enabled: signedIn, retry: false }),
-  );
+  // The contributions step reads the same question: a pull on either reads both again.
+  const standing = useStanding();
   const friends = useQuery(orpc.v1.friends.list.queryOptions({ enabled: signedIn, retry: false }));
   const blocks = useQuery(orpc.v1.blocks.list.queryOptions({ enabled: signedIn, retry: false }));
 
-  const refreshing = own.isRefetching || standing.isRefetching || friends.isRefetching;
+  const refreshing =
+    own.isRefetching ||
+    standing.isRefetching ||
+    friends.isRefetching ||
+    blocks.isRefetching ||
+    profiling.isRefetching;
   const refresh = () => {
     void own.refetch();
     void standing.refetch();
     void friends.refetch();
     void blocks.refetch();
+    void queryClient.invalidateQueries({ queryKey: orpc.v1.agents.list.key() });
     profiling.retry();
   };
 
-  async function askSignOut() {
-    const sure = await confirmDestructive({
-      title: m.native_sign_out_title(),
-      ...(account && { message: account.email }),
-      confirm: m.auth_sign_out(),
-    });
-    if (!sure) return;
+  // As the web: signing out asks nothing, and whoever signs out goes back to the map, which a
+  // phone opens on in the web's landing's place.
+  async function leave() {
+    setLeaving(true);
     await signOut();
+    setLeaving(false);
     feel("done");
     router.replace("/");
   }
 
+  const page = (of: SitePage) => () => void openPage(of);
   const score = standing.data?.score ?? 0;
   const rank = standing.data?.rank ?? null;
   const version = `${Application.nativeApplicationVersion ?? "0.0.0"} (${Application.nativeBuildVersion ?? "0"})`;
+  // The name and the address are the session's until the API says them, as the web's panel
+  // reads them, and so is the username the account is called by, until the API says its own.
+  const username = account ? account.username : own.session?.username;
+  const name = account?.name ?? own.session?.name ?? "";
+
+  if (own.signedIn === undefined) {
+    return (
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}
+        contentContainerStyle={{ padding: space.m, paddingBottom: space.xxl }}
+      >
+        <AccountSkeleton />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
       style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}
       contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.xxl }}
       refreshControl={
@@ -139,44 +242,43 @@ export function AccountScreen() {
         ) : undefined
       }
     >
-      <AccountHeader
-        isPending={own.isPending}
-        account={
-          signedIn && account
-            ? {
-                username: account.username,
-                email: account.email,
-                rank,
-                checked: account.checksAddresses ? account.emailVerified : undefined,
-              }
-            : undefined
-        }
-        onSendCheck={check.send}
-        isSendingCheck={check.isSending}
-      />
-
       {signedIn ? (
-        <Section title={m.native_account_you()}>
+        <AccountHeader
+          title={username ? `@${username}` : name}
+          email={account?.email ?? own.session?.email ?? ""}
+          rank={rank}
+          // What chooses a username waits for the API, which knows the one in force.
+          username={account?.username}
+          check={
+            account?.checksAddresses && !account.emailVerified
+              ? { isSending: check.isSending, onSend: check.send }
+              : undefined
+          }
+        />
+      ) : (
+        <AccountPrompt text={m.account_sign_in_prompt()} />
+      )}
+
+      {/* What the account surfed, and what the sea did then, and what it said of itself. */}
+      {signedIn ? (
+        <Section plain title={m.sessions_section()}>
           <Row
-            icon={AtSignFillIcon}
-            title={m.auth_username()}
-            value={account?.username ? `@${account.username}` : m.username_choose()}
-            onPress={go("/account/username")}
-          />
-          <Row
-            icon={SurferFillIcon}
             title={m.profile_title()}
             description={profileWords(profiling.profile) ?? m.profile_hint()}
             onPress={go("/account/profile")}
           />
           <Row
-            icon={LogbookIcon}
             title={m.sessions_title()}
             description={m.sessions_hint()}
             onPress={go("/account/logbook")}
           />
+        </Section>
+      ) : null}
+
+      {/* What the account wrote in the guides of the spots, and where it stands. */}
+      {signedIn ? (
+        <Section plain title={m.community_title()}>
           <Row
-            icon={PenIcon}
             title={m.contributions_title()}
             description={
               score > 0
@@ -186,18 +288,34 @@ export function AccountScreen() {
             onPress={go("/account/contributions")}
           />
           <Row
-            icon={PeopleFillDuoIcon}
             title={m.friends_title()}
             description={friendsWords(friends.data?.friends.length)}
             onPress={go("/account/friends")}
           />
+          <Row
+            title={m.blocks_title()}
+            description={blocksWords(blocks.data?.blocks.length)}
+            onPress={go("/account/blocked")}
+          />
         </Section>
       ) : null}
 
+      {/* The units every measurement is written in, on every screen: decision 033. */}
+      <Section plain title={m.units_title()}>
+        {MEASURES.map(({ measure, label }) => (
+          <UnitLine
+            key={measure}
+            measure={measure}
+            label={label()}
+            units={units}
+            onSave={saveUnits}
+          />
+        ))}
+      </Section>
+
       {signedIn ? (
-        <Section title={m.native_account_notifications()}>
+        <Section plain title={m.alerts_title()}>
           <Row
-            icon={BellIcon}
             title={m.command_alerts_settings()}
             description={m.account_alerts_hint()}
             onPress={go("/account/alerts")}
@@ -205,130 +323,100 @@ export function AccountScreen() {
         </Section>
       ) : null}
 
-      {/* The units every measurement is written in, on every screen: decision 033. */}
-      <Section title={m.units_title()}>
-        {MEASURES.map(({ measure, label }) => (
-          <Row
-            key={measure}
-            icon={MEASURE_ICONS[measure]}
-            title={label()}
-            value={unitName(measure, units[measure])}
-            onPress={go({ pathname: "/account/unit", params: { measure } })}
+      <Section plain title={m.account_display()}>
+        <SettingLine label={m.account_theme()}>
+          <Segmented
+            label={m.account_theme()}
+            options={THEME_CHOICES.map((value) => ({ value, label: THEME_WORDS[value]() }))}
+            value={choice}
+            onChange={choose}
           />
-        ))}
-      </Section>
-
-      <Section title={m.account_display()}>
-        <Row
-          icon={MoonIcon}
-          title={m.account_theme()}
-          value={THEME_WORDS[choice]()}
-          onPress={go("/account/theme")}
-        />
-        <Row
-          icon={LayersIcon}
-          title={m.account_density()}
-          value={densityName(density)}
-          onPress={go("/account/density")}
-        />
-        <Row
-          icon={PaintbrushIcon}
-          title={m.account_palette()}
-          value={palette === "windguru" ? "Windguru" : APP_NAME}
-          onPress={go("/account/palette")}
-        />
-      </Section>
-
-      <Section>
-        <Row
-          icon={GlobalIcon}
-          title={m.account_language()}
-          value={LANGUAGES[getLocale()]}
-          onPress={go("/account/language")}
-        />
+        </SettingLine>
+        {/* The colors of the week's table in a panel: Windguru's, which the app starts with, or
+            its own. */}
+        <SettingLine label={m.account_palette()}>
+          <Segmented
+            label={m.account_palette()}
+            options={PALETTES.map((value) => ({
+              value,
+              label: value === "windguru" ? "Windguru" : APP_NAME,
+            }))}
+            value={palette}
+            onChange={setPalette}
+          />
+        </SettingLine>
+        {/* How much of the forecast a panel shows: in words, the details, or everything.
+            Decision 061. */}
+        <SettingLine label={m.account_density()}>
+          <Segmented
+            label={m.account_density()}
+            options={DENSITIES.map((value) => ({ value, label: densityName(value) }))}
+            value={density}
+            onChange={saveDensity}
+          />
+        </SettingLine>
+        {/* The app starts again in the language chosen, on this tab (decision 069). */}
+        <SettingLine label={m.account_language()}>
+          <Segmented
+            label={m.account_language()}
+            options={LOCALES.map((value) => ({ value, label: LANGUAGES[value] }))}
+            value={getLocale()}
+            onChange={restartInLanguage}
+          />
+        </SettingLine>
       </Section>
 
       <AgentsSection />
 
-      {/* Whether the app may tell what is used and what breaks: off until said yes. Decision 044. */}
-      <Section title={m.native_account_privacy()} footer={m.analytics_description()}>
-        <Row
-          icon={ChartAreaFillDuoIcon}
-          title={m.analytics_title()}
-          toggle={{
-            value: consent === "granted",
-            onChange: (on) => setConsent(on ? "granted" : "denied"),
-          }}
-        />
-        {consent === "granted" ? (
-          <Row
-            icon={InfoIcon}
-            title={m.analytics_errors()}
-            description={m.analytics_errors_description()}
-            toggle={{ value: errorReports, onChange: setErrorReports }}
-          />
-        ) : null}
-        <Row
-          icon={LockIcon}
-          title={m.analytics_details()}
-          onPress={() => void openPage("privacy")}
-        />
-        {signedIn ? (
-          <Row
-            icon={EyeSlashFillDuoIcon}
-            title={m.blocks_title()}
-            description={blocksWords(blocks.data?.blocks.length)}
-            onPress={go("/account/blocked")}
-          />
-        ) : null}
-      </Section>
-
       {/* The pages beside the app, in the browser the system opens over it. */}
-      <Section title={m.account_about({ app: APP_NAME })}>
+      <Section plain title={m.account_about({ app: APP_NAME })}>
         <Row
-          icon={InfoIcon}
           title={m.account_about_home({ app: APP_NAME })}
           description={m.account_about_home_hint()}
-          onPress={() => void openPage("home")}
+          onPress={page("home")}
         />
-        <Row icon={BookOpenIcon} title={m.learn_footer()} onPress={() => void openPage("learn")} />
-        <Row icon={Link2Icon} title={m.page_sources()} onPress={() => void openPage("sources")} />
-        <Row icon={FileTextIcon} title={m.terms_title()} onPress={() => void openPage("terms")} />
-        <Row icon={LockIcon} title={m.privacy_title()} onPress={() => void openPage("privacy")} />
-        <Row icon={FileTextIcon} title={m.legal_title()} onPress={() => void openPage("legal")} />
-        <Row icon={MailIcon} title={m.contact_nav()} onPress={() => void openPage("contact")} />
-        <Row
-          icon={GithubIcon}
-          title={m.native_source_code()}
-          description={m.landing_footer_license()}
-          onPress={() => void openAddress(REPOSITORY_URL)}
-        />
-        <Row title={m.native_version()} value={version} />
+        <Row title={m.learn_footer()} onPress={page("learn")} />
+        <Row title={m.page_sources()} onPress={page("sources")} />
+        <View
+          style={{ flexDirection: "row", flexWrap: "wrap", columnGap: space.m, rowGap: space.xs }}
+        >
+          <PageLink label={m.terms_title()} onPress={page("terms")} />
+          <PageLink label={m.privacy_title()} onPress={page("privacy")} />
+          <PageLink label={m.legal_title()} onPress={page("legal")} />
+        </View>
       </Section>
 
+      <AnalyticsSection />
+
       {signedIn ? (
-        <View style={{ gap: space.l }}>
-          <Section>
-            <Row
-              icon={LogOutIcon}
-              title={m.auth_sign_out()}
-              destructive
-              chevron={false}
-              onPress={() => void askSignOut()}
-            />
-          </Section>
-          {/* Last of all, apart: the step that deletes the account says what goes first. */}
-          <Section>
-            <Row
-              icon={TrashIcon}
-              title={m.delete_account_title()}
-              description={m.delete_account_hint()}
-              destructive
-              onPress={go("/account/delete")}
-            />
-          </Section>
-        </View>
+        <Button
+          variant="outline"
+          icon={LogOutIcon}
+          loading={isLeaving}
+          onPress={() => void leave()}
+          style={{ alignSelf: "flex-start" }}
+        >
+          {m.auth_sign_out()}
+        </Button>
       ) : null}
+
+      {/* Last of all, apart from the rest: the step that deletes the account says what goes
+          before it asks. */}
+      {signedIn ? (
+        <Section plain>
+          <Row
+            title={m.delete_account_title()}
+            description={m.delete_account_hint()}
+            destructive
+            onPress={go("/account/delete")}
+          />
+        </Section>
+      ) : null}
+
+      {/* The build a phone runs, which a store's build has no other place to say. */}
+      <Text size="s" tone="muted">
+        {`${m.native_version()} ${version}`}
+      </Text>
     </ScrollView>
   );
 }

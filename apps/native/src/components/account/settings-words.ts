@@ -31,10 +31,6 @@ export const MEASURES: { measure: keyof Units; label: () => string }[] = [
   { measure: "precipitation", label: m.units_precipitation },
 ];
 
-export function isMeasure(value: unknown): value is keyof Units {
-  return MEASURES.some((one) => one.measure === value);
-}
-
 /** "12 points", or "1 point", by the plural rules of the app's language. */
 export function points(count: number) {
   return new Intl.PluralRules(getLocale()).select(count) === "one"

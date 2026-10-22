@@ -1,166 +1,78 @@
 import type { Rank } from "@repo/client/viewer/types";
-import { CircleCheckIcon, PersonIcon } from "@repo/ui/icon";
-import { router } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 
-import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
-import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
-import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
+import { useTell } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { RankBadge } from "./rank-badge";
+import { UsernameForm } from "./username-form";
 
-const AVATAR = 56;
-
-/** The account's initial on a round tile, as a phone's settings open on who is signed in. */
-function Avatar({ name }: { name: string | undefined }) {
-  const { colors } = useTheme();
-  const initial = name?.replace(/^@/, "").charAt(0).toUpperCase();
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: AVATAR,
-        height: AVATAR,
-        borderRadius: AVATAR / 2,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: colors["neutral-3"],
-      }}
-    >
-      {initial ? (
-        <Text size="l" weight="medium" dense>
-          {initial}
-        </Text>
-      ) : (
-        <Glyph icon={PersonIcon} size={24} color={colors["neutral-7"]} />
-      )}
-    </View>
-  );
-}
-
-type SignedIn = {
-  username: string | null;
+type AccountHeaderProps = {
+  // What the account is called by: `@username` once it has one, else its name.
+  title: string;
   email: string;
   rank: Rank | null | undefined;
-  // Undefined on an instance that does not check addresses.
-  checked: boolean | undefined;
+  // What the API says of the username: null for an account that has chosen none yet, and
+  // undefined while the API has not said, when nothing is offered to choose one.
+  username: string | null | undefined;
+  // Given when the account's address is not checked yet, on an instance that checks addresses.
+  check?: { isSending: boolean; onSend: () => void } | undefined;
 };
 
 /**
- * Who is signed in, at the top of the account's tab: the name others read and the rank reached,
- * the address and whether it is checked, with the mail that checks it again. A visitor reads what
- * an account is for, and the two ways in. Decisions 026, 040 and 041.
+ * Who is signed in, at the top of the account's tab, as the web's `AccountPanel` writes it: the
+ * name others read and the rank reached, the address under it, then what chooses a username, which
+ * unfolds its form in place, and while the address is not checked the mail that checks it again.
+ * Decisions 026, 040 and 041.
  */
-export function AccountHeader({
-  account,
-  isPending,
-  onSendCheck,
-  isSendingCheck,
-}: {
-  // Undefined for a visitor.
-  account: SignedIn | undefined;
-  isPending: boolean;
-  onSendCheck: () => void;
-  isSendingCheck: boolean;
-}) {
-  const { colors, space, radius } = useTheme();
+export function AccountHeader({ title, email, rank, username, check }: AccountHeaderProps) {
+  const { space } = useTheme();
+  const tell = useTell();
+  const [isNaming, setNaming] = useState(false);
 
-  if (isPending) {
-    return (
-      <Surface style={{ flexDirection: "row", gap: space.m, padding: space.m }}>
-        <Skeleton width={AVATAR} height={AVATAR} round />
-        <View style={{ flex: 1, justifyContent: "center" }}>
-          <SkeletonText lines={2} />
-        </View>
-      </Surface>
-    );
-  }
-
-  if (!account) {
-    return (
-      <Surface style={{ gap: space.m, padding: space.m }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
-          <Avatar name={undefined} />
-          <Text style={{ flex: 1 }}>{m.account_sign_in_prompt()}</Text>
-        </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
-          <Button onPress={() => router.push("/sign-in")} style={{ flexGrow: 1 }}>
-            {m.auth_sign_in()}
-          </Button>
-          <Button
-            variant="secondary"
-            onPress={() => router.push({ pathname: "/sign-in", params: { mode: "sign-up" } })}
-            style={{ flexGrow: 1 }}
-          >
-            {m.auth_create_account()}
-          </Button>
-        </View>
-      </Surface>
-    );
-  }
-
-  const name = account.username ? `@${account.username}` : account.email;
   return (
-    <Surface style={{ gap: space.s, padding: space.m }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
-        <Avatar name={name} />
-        <View style={{ flex: 1, gap: space.xxs }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-            <Text
-              size="l"
-              weight="medium"
-              numberOfLines={1}
-              accessibilityRole="header"
-              style={{ flexShrink: 1 }}
-            >
-              {name}
-            </Text>
-            {account.rank ? <RankBadge rank={account.rank} /> : null}
-          </View>
-          {account.username ? (
-            <Text size="s" tone="muted" numberOfLines={1}>
-              {account.email}
-            </Text>
-          ) : null}
-          {account.checked === true ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xxs }}>
-              <Glyph icon={CircleCheckIcon} size={14} color={colors["neutral-7"]} />
-              <Text size="s" tone="muted">
-                {m.verify_title_checked()}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+    <View style={{ alignItems: "flex-start", gap: space.xxs }}>
+      {/* An account is called by its username once it has one, with the rank it reached. */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, maxWidth: "100%" }}>
+        <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {title}
+        </Text>
+        {rank ? <RankBadge rank={rank} /> : null}
       </View>
-      {account.checked === false ? (
-        <View
-          style={{
-            gap: space.xs,
-            padding: space.s,
-            borderRadius: radius.xs,
-            borderCurve: "continuous",
-            backgroundColor: colors["warning-transparent"],
-          }}
-        >
-          <Text size="s" weight="medium">
-            {m.verify_not_checked()}
-          </Text>
-          <Text size="s">{m.native_verify_why()}</Text>
-          <Button
-            variant="secondary"
-            loading={isSendingCheck}
-            onPress={onSendCheck}
-            style={{ alignSelf: "flex-start" }}
-          >
+      <Text size="s" tone="muted" numberOfLines={1} style={{ maxWidth: "100%" }}>
+        {email}
+      </Text>
+      {username === undefined ? null : isNaming ? (
+        <View style={{ alignSelf: "stretch", marginTop: space.xs }}>
+          <UsernameForm
+            current={username}
+            onSaved={(chosen) => {
+              setNaming(false);
+              tell({ title: m.username_saved({ username: chosen }), tone: "success" });
+            }}
+            onCancel={() => setNaming(false)}
+          />
+        </View>
+      ) : (
+        <View style={{ alignItems: "flex-start", gap: space.xs, marginTop: space.xs }}>
+          {username === null ? <Text size="s">{m.username_none()}</Text> : null}
+          <Button variant="secondary" onPress={() => setNaming(true)}>
+            {username === null ? m.username_choose() : m.username_change()}
+          </Button>
+        </View>
+      )}
+      {check ? (
+        <View style={{ alignItems: "flex-start", gap: space.xs, marginTop: space.xs }}>
+          <Text size="s">{m.verify_not_checked()}</Text>
+          <Button variant="secondary" loading={check.isSending} onPress={check.onSend}>
             {m.verify_send_again()}
           </Button>
         </View>
       ) : null}
-    </Surface>
+    </View>
   );
 }

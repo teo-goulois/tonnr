@@ -1,9 +1,9 @@
 import { type Locale, localePrefix } from "@repo/config/locales";
 
 // The pages beside the app, which it opens in a browser inside itself (decision 069): the home
-// page, the guides to reading a forecast, the sources, the legal texts and the contact page, in
-// the app's language, under the prefix the web gives each language but English. A module that
-// imports nothing of React Native, so that a test reads it.
+// page, the guides to reading a forecast, the sources and the legal texts, in the app's language,
+// under the prefix the web gives each language but English. A module that imports nothing of
+// React Native, so that a test reads it.
 
 export const SITE_PAGES = {
   home: "/",
@@ -14,7 +14,6 @@ export const SITE_PAGES = {
   // The paragraph of the policy that says how an account is deleted (decision 071).
   deletion: "/privacy#delete",
   legal: "/legal",
-  contact: "/contact",
 } as const;
 
 export type SitePage = keyof typeof SITE_PAGES;

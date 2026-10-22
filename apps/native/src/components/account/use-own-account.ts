@@ -4,6 +4,7 @@ import { AppState } from "react-native";
 
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
+import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
@@ -15,10 +16,13 @@ const MINUTE_MS = 60 * 1000;
  * checked and whether this instance checks addresses, whether it has a password and what else it
  * signs in with. An answer is kept under the account it was asked for, and given for that one
  * alone. While the address is not checked, it is asked again each time the app comes back, as
- * the link of the mail opens in a browser: decision 070.
+ * the link of the mail opens in a browser: decision 070. `session` is what the phone's session
+ * says of the account, its name, its address and the username it had as it signed in, which a
+ * screen shows while the API has not answered, or when it cannot, as the web's panel does.
  */
 export function useOwnAccount() {
   const { signedIn, userId, pending } = useAccount();
+  const user = authClient.useSession().data?.user;
   const asked = useQuery(
     orpc.v1.account.get.queryOptions({
       queryKey: [...orpc.v1.account.get.queryKey(), userId],
@@ -42,6 +46,7 @@ export function useOwnAccount() {
     // Undefined while the phone's session is not known.
     signedIn: pending ? undefined : signedIn,
     account,
+    session: user && { name: user.name, email: user.email, username: user.username ?? null },
     isPending: pending || (userId !== undefined && asked.isPending),
     isError: asked.isError,
     refetch,
