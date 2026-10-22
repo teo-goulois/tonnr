@@ -810,6 +810,9 @@ export function ForecastGrid({
                     return (
                       <Pressable
                         key={first.time}
+                        // A day of one column has no room for its name, and nothing to press,
+                        // as on the web: its hour is pressed instead.
+                        disabled={count === 1}
                         onPress={() => toggleHours(first.time)}
                         style={{
                           width: count * COLUMN,
