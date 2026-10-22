@@ -7,7 +7,6 @@ import { View } from "react-native";
 import { useOpenPage } from "@/components/account/open-page";
 import { UsernameForm } from "@/components/account/username-form";
 import { TextField } from "@/components/lists/text-field";
-import { Button } from "@/components/ui/button";
 import { feel } from "@/components/ui/haptics";
 import { Loading, SkeletonText } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
@@ -86,23 +85,22 @@ function GuideField({
   );
 }
 
-/** What sending means, and where it is said in full. */
+/** What sending means, and where it is said in full: one line, which ends on its link. */
 function License() {
-  const { space } = useTheme();
   const { openPage } = useOpenPage();
   return (
-    <View style={{ gap: space.xxs }}>
-      <Text size="s" tone="muted">
-        {m.guide_license()}
-      </Text>
-      <Button
-        variant="ghost"
-        style={{ alignSelf: "flex-start", marginStart: -space.m }}
+    <Text size="s" tone="muted">
+      {m.guide_license()}{" "}
+      <Text
+        size="s"
+        tone="muted"
+        accessibilityRole="link"
         onPress={() => void openPage("terms")}
+        style={{ textDecorationLine: "underline" }}
       >
         {m.guide_license_terms()}
-      </Button>
-    </View>
+      </Text>
+    </Text>
   );
 }
 
