@@ -1,6 +1,6 @@
 import type { Session } from "@repo/client/viewer/types";
 import { likedConditions, LIKED_FROM, LIKED_SESSIONS } from "@repo/conditions/sessions/liked";
-import { BellIcon, LogbookIcon, PlusIcon } from "@repo/ui/icon";
+import { BellIcon, PlusIcon } from "@repo/ui/icon";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Fragment, useMemo, useState } from "react";
@@ -12,7 +12,6 @@ import { placeParam, usePlaceKnown } from "@/components/sessions/session-place";
 import { SessionRow } from "@/components/sessions/session-row";
 import { useSessionsAt, useSessionWrites } from "@/components/sessions/use-sessions";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Separator } from "@/components/ui/separator";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
@@ -23,6 +22,8 @@ import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
+
+import { VisitorPrompt } from "./visitor-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -129,12 +130,13 @@ function PlaceSessions({ place }: { place: SessionAt }) {
 
   if (!signedIn) {
     return pending ? null : (
-      <EmptyState
-        icon={LogbookIcon}
-        title={m.auth_reason_add_session()}
-        description={m.session_sign_in_prompt()}
-        action={{ label: m.auth_sign_in(), onPress: add }}
-      />
+      <ScrollView
+        style={{ flex: 1 }}
+        nestedScrollEnabled
+        contentContainerStyle={{ padding: space.m, paddingBottom: space.xxl }}
+      >
+        <VisitorPrompt text={m.session_sign_in_prompt()} />
+      </ScrollView>
     );
   }
   // A spot that is another's, in a list shared with the account, takes no session of it.

@@ -18,6 +18,8 @@ import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
+import { VisitorPrompt } from "./visitor-prompt";
+
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
 // Another's report that is shown is counted once this phone has had half of it in view a second
@@ -110,14 +112,7 @@ function BreakReports({ breakId }: { breakId: string }) {
               </Button>
             ) : null
           ) : (
-            <View style={{ gap: space.xs }}>
-              <Text size="s" tone="muted">
-                {m.report_sign_in_prompt()}
-              </Text>
-              <Button variant="secondary" onPress={send} style={{ alignSelf: "flex-start" }}>
-                {m.auth_sign_in()}
-              </Button>
-            </View>
+            <VisitorPrompt text={m.report_sign_in_prompt()} />
           )}
         </View>
       }
