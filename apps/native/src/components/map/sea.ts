@@ -27,6 +27,8 @@ export function levelElevation(level: number) {
   return -10_000 + (level * 256 * 256 + level * 256 + level) * 0.1;
 }
 
+const NO_SEA = "rgba(0, 0, 0, 0)";
+
 /** A color of the sea's table as MapLibre reads one. */
 function rgba(table: Uint8ClampedArray, level: number) {
   const at = level * 4;
@@ -41,7 +43,12 @@ function rgba(table: Uint8ClampedArray, level: number) {
  */
 export function seaReliefColor(metersByLevel: readonly number[]): Expression {
   const table = seaColorTable(metersByLevel);
-  const colors = Array.from({ length: 256 }, (_, level) => rgba(table, level));
+  // A transparent pixel reads as level 0, which the model's legend gives a calm sea of a few
+  // centimetres: where the model has no sea, under the land, it would draw a veil of the calm's
+  // blue. The level of no sea stays transparent.
+  const colors = Array.from({ length: 256 }, (_, level) =>
+    level === 0 ? NO_SEA : rgba(table, level),
+  );
   const stops: (number | string)[] = [];
   colors.forEach((color, level) => {
     const before = colors[level - 1];

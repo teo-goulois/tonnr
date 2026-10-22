@@ -39,10 +39,19 @@ describe("the color of the sea, read as a relief", () => {
     );
   });
 
-  it("leaves a flat sea and where the model has none transparent", () => {
-    const stops = (seaReliefColor(metersByLevel) as unknown as unknown[]).slice(3);
+  it("leaves where the model has no sea transparent, which is level 0 under the land", () => {
+    // The model's legend of 2026-10-08 gives its first levels a calm of a few centimetres, which
+    // the sea's table colors: a transparent pixel, read as level 0, would draw that blue over the
+    // land.
+    const legend = [0.078, 0.117, 0.156, ...metersByLevel.slice(3)];
+    const table = seaColorTable(legend);
+    expect(table[3]).toBeGreaterThan(0);
+    const stops = (seaReliefColor(legend) as unknown as unknown[]).slice(3);
     expect(stops[0]).toBe(levelElevation(0));
-    expect(stops[1]).toBe("rgba(59, 111, 212, 0)");
+    expect(stops[1]).toBe("rgba(0, 0, 0, 0)");
+    // The next level is the calm's color again.
+    expect(stops[2]).toBe(levelElevation(1));
+    expect(stops[3]).not.toBe("rgba(0, 0, 0, 0)");
   });
 
   it("keeps the heights in order, and a run of one color by its two ends", () => {
@@ -50,8 +59,10 @@ describe("the color of the sea, read as a relief", () => {
     const stops = (seaReliefColor(flat) as unknown as unknown[]).slice(3);
     const heights = stops.filter((_, index) => index % 2 === 0) as number[];
     expect(heights).toEqual([...heights].toSorted((a, b) => a - b));
+    // Level 0, no sea, stands apart from the calm that runs after it.
     expect(heights).toEqual([
       levelElevation(0),
+      levelElevation(1),
       levelElevation(99),
       levelElevation(100),
       levelElevation(255),

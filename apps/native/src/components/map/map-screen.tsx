@@ -220,6 +220,13 @@ export function MapScreen() {
   );
   const mapSpots = useMemo(() => list?.spots ?? spots.data ?? [], [list, spots.data]);
 
+  // Where the controls stand, clear of what the system draws, and where the screen does: what
+  // stands over the low sheet of a place that is open, and what a list is fitted inside.
+  const [frame, setFrame] = useState({ top: 0, height: window.height });
+  const controls = useRef<ComponentRef<typeof View>>(null);
+  const [screen, setScreen] = useState({ top: 0, height: window.height });
+  const root = useRef<ComponentRef<typeof View>>(null);
+
   // A list shown alone is brought into view once, when what it holds is known.
   const fitted = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -235,8 +242,23 @@ export function MapScreen() {
       waves.isPending || [...missingStations, ...missingBreaks].some((query) => query.isPending);
     if (points.length < held && waiting) return;
     fitted.current = list.id;
-    if (points.length > 0 && !selected) map.current?.fit(points);
-  }, [list, listStations, listBreaks, missingStations, missingBreaks, selected, waves.isPending]);
+    // Inside what the status bar and the bar of tabs cover, which the controls stand clear of.
+    const covered = {
+      top: Math.max(0, frame.top - screen.top),
+      bottom: Math.max(0, screen.top + screen.height - frame.top - frame.height),
+    };
+    if (points.length > 0 && !selected) map.current?.fit(points, covered);
+  }, [
+    list,
+    listStations,
+    listBreaks,
+    missingStations,
+    missingBreaks,
+    selected,
+    waves.isPending,
+    frame,
+    screen,
+  ]);
 
   // The sea at the present, and its arrows, read for the view from the tiles of its direction.
   // The web's own moment, as its timeline stands while hidden.
@@ -273,9 +295,6 @@ export function MapScreen() {
   const [listsOpen, setListsOpen] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const [creditsShown, setCreditsShown] = useState(true);
-  // Where the controls stand: over the low sheet of a place that is open, else over the bar.
-  const [frame, setFrame] = useState({ top: 0, height: window.height });
-  const controls = useRef<ComponentRef<typeof View>>(null);
   const sheetTop = window.height * (1 - LOW_SHEET) - frame.top;
   const floor = selected ? Math.max(space.s, frame.height - sheetTop + space.s) : space.s;
 
@@ -319,7 +338,13 @@ export function MapScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }}>
+    <View
+      ref={root}
+      style={{ flex: 1, backgroundColor: colors["neutral-2"] }}
+      onLayout={() =>
+        root.current?.measureInWindow((_, top, __, height) => setScreen({ top, height }))
+      }
+    >
       <StationMap
         ref={map}
         stations={drawn.buoys ? mapStations : []}

@@ -1,4 +1,5 @@
 import type { ImageEntry } from "@maplibre/maplibre-react-native";
+import { SEA_ARROW } from "@repo/client/map/sea";
 import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { AlphaType, ColorType, Skia } from "@shopify/react-native-skia";
 import { PixelRatio } from "react-native";
@@ -13,9 +14,6 @@ import { type IconInk, iconSvg } from "./svg-string";
 // web's icons painted with Skia at the phone's density, as the web paints them on a canvas. A
 // picture that cannot be painted is left out, and its disc is drawn without it.
 
-// The arrow on the sea is finer than the one that says a direction in a sheet, light with a dark
-// edge, so that it reads on every color of the sea without covering it. The web's own.
-const SEA_ARROW = { size: 15, ink: "#ffffff", edge: "rgba(0, 0, 0, 0.35)" };
 // The arrow in a buoy's disc, in the ink that reads on the disc's color.
 const DISC_ARROW = 12;
 const INK = { light: "#ffffff", dark: "#0b0b0b" };
@@ -74,9 +72,9 @@ export function mapImages(surface: string): Record<string, ImageEntry> {
         ArrowSymbolUpIcon,
         SEA_ARROW.size,
         [
-          // The edge is a wider line under the ink, half a point on each side: the icon's box is
-          // 18 of its units wide.
-          { color: SEA_ARROW.edge, widen: 18 / SEA_ARROW.size },
+          // The edge is a wider line under the ink, a point on each side, as the web draws it: the
+          // icon's box is 18 of its units wide, drawn over the arrow's size in points.
+          { color: SEA_ARROW.edge, widen: (2 * 18) / SEA_ARROW.size },
           { color: SEA_ARROW.ink },
         ],
         { strokeWidth: 1.5 },

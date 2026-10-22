@@ -10,7 +10,8 @@ import {
   type PressEvent,
   RasterDEMSource,
 } from "@maplibre/maplibre-react-native";
-import { FINGER_REACH } from "@repo/client/map/view";
+import { SEA_ARROW } from "@repo/client/map/sea";
+import { FINGER_REACH, fitPadding, fitted, type Padding } from "@repo/client/map/view";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
 import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
@@ -92,8 +93,11 @@ export type MapPress = { kind: PlaceKind; id: string; at: LngLat; point: [number
 export type StationMapHandle = {
   /** Brings a point to the middle of the map, no further out than `zoom`. */
   focus: (point: MapPoint, zoom?: number) => void;
-  /** Shows these points together. */
-  fit: (points: readonly MapPoint[]) => void;
+  /**
+   * Shows these points together, no closer than a bay, inside what the screen's bars cover at
+   * the top and at the bottom.
+   */
+  fit: (points: readonly MapPoint[], covered?: Partial<Padding>) => void;
   /** Moves the map so that a point the finger pressed stands where `y` is, from the top. */
   lift: (point: [number, number], y: number) => void;
 };
@@ -140,9 +144,8 @@ const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
 const RING = 5;
 // How long the map takes to go somewhere it was asked to.
 const MOVE_MS = 600;
-// A list on one beach is shown no closer than a bay: its box is never smaller than this.
-const FIT_SPAN = 0.04;
-const FIT_PADDING = { top: 120, right: 72, bottom: 200, left: 72 };
+// No room kept at any edge: Android keeps the room a move was given for the moves after it.
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
 
 const get = (property: string) => ["get", property] as unknown as Expression;
 const visible = (on: boolean) => (on ? "visible" : "none") as "visible" | "none";
@@ -189,10 +192,18 @@ export function StationMap({
   // The view the map opens on, read once.
   const [opening] = useState(() => openingView ?? storedView());
   const zoom = useRef(opening.zoom);
+  // How large the map is drawn, which a list is fitted in.
+  const size = useRef({ width: 0, height: 0 });
 
   // The basemap's style, which the map waits for: its names are given the web's width. One that
   // could not be read is read by the map from its address as it is.
   const basemap = useBasemap(scheme);
+  // Written once as JSON, which the map reads as a style, so that it is not written again each
+  // time the map is drawn again.
+  const mapStyle = useMemo(
+    () => (basemap.data ? JSON.stringify(basemap.data.style) : STYLE_URLS[scheme]),
+    [basemap.data, scheme],
+  );
   const surface = colors["neutral-1"];
   const ink = colors["neutral-10"];
   const accent = colors["color-1"];
@@ -206,20 +217,21 @@ export function StationMap({
         camera.current?.easeTo({
           center: [point.longitude, point.latitude],
           zoom: Math.max(zoom.current, at ?? 0),
+          padding: NO_PADDING,
           duration,
         }),
-      fit: (points) => {
+      fit: (points, covered) => {
         const box = boundsAround(points);
         if (!box) return;
-        const [west, south, east, north] = box;
-        const widen = (span: number) => Math.max(0, (FIT_SPAN - span) / 2);
-        const across = widen(east - west);
-        const up = widen(north - south);
-        camera.current?.fitBounds([west - across, south - up, east + across, north + up], {
-          padding: FIT_PADDING,
-          duration,
-          easing: "ease",
-        });
+        const padding = fitPadding(covered);
+        // The platform's fit takes no zoom to stop at: one that would come closer than a bay is
+        // a move to the box's middle at that zoom instead.
+        const fit = fitted(box, size.current, padding);
+        if (fit.capped) {
+          camera.current?.easeTo({ center: fit.center, zoom: fit.zoom, padding, duration });
+        } else {
+          camera.current?.fitBounds(box, { padding, duration, easing: "ease" });
+        }
       },
       lift: (point, y) => {
         const instance = map.current;
@@ -228,7 +240,7 @@ export function StationMap({
         void (async () => {
           const [x, middle] = await instance.project(await instance.getCenter());
           const target = await instance.unproject([x, middle + (point[1] - y)]);
-          camera.current?.easeTo({ center: target, duration });
+          camera.current?.easeTo({ center: target, padding: NO_PADDING, duration });
         })().catch(() => {
           // A map that is gone moves nowhere.
         });
@@ -297,8 +309,12 @@ export function StationMap({
     <MapLibre
       ref={map}
       style={{ flex: 1, backgroundColor: colors["neutral-2"] }}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        size.current = { width, height };
+      }}
       // The style as it came, which only the names' width was changed in.
-      mapStyle={basemap.data ? (basemap.data.style as never) : STYLE_URLS[scheme]}
+      mapStyle={mapStyle}
       // The credits are the map's own box, which the screen draws, and the legend's last line.
       attribution={false}
       logo={false}
@@ -332,11 +348,7 @@ export function StationMap({
         onMoved(state, userInteraction);
       }}
     >
-      <Camera
-        ref={camera}
-        initialViewState={{ center: opening.center, zoom: opening.zoom }}
-        maxZoom={18}
-      />
+      <Camera ref={camera} initialViewState={{ center: opening.center, zoom: opening.zoom }} />
       <Images images={images} />
 
       {/* The sea colored by its height, read as a relief over the water and under the land's
@@ -374,7 +386,7 @@ export function StationMap({
               "icon-allow-overlap": true,
               "icon-ignore-placement": true,
             }}
-            paint={{ "icon-opacity": 0.85 }}
+            paint={{ "icon-opacity": SEA_ARROW.opacity }}
           />
         </GeoJSONSource>
       ) : null}
@@ -425,90 +437,6 @@ export function StationMap({
           filter={is(selected?.kind === "station" ? selected.id : undefined)}
           layout={{ visibility: visible(layers.wind) }}
           paint={ring(WIND_RADIUS + RING)}
-        />
-      </GeoJSONSource>
-
-      {/* A break measures nothing, so it takes no color of a scale: the theme's ink. From afar
-          each is a dot, small enough for a coast full of them to stay a coast; closer, a disc with
-          a wave in it and its name beside it. One looked at lately is named from afar. */}
-      <GeoJSONSource id="breaks" data={breakData}>
-        <Layer
-          id="break-dots"
-          type="circle"
-          layout={{
-            visibility: visible(layers.breaks),
-            "circle-sort-key": ["case", isRecent, 1, 0] as never,
-          }}
-          paint={{
-            "circle-radius": byBreakDisc(
-              (disc) =>
-                [
-                  "case",
-                  isRecent,
-                  Math.max(RECENT_RADIUS, disc.radius),
-                  disc.radius,
-                ] as unknown as Expression,
-            ),
-            "circle-color": ink,
-            "circle-stroke-width": byBreakDisc((disc) => disc.edge),
-            "circle-stroke-color": surface,
-          }}
-        />
-        <Layer
-          id="break-names"
-          type="symbol"
-          minzoom={BREAK_NAME_ZOOM}
-          layout={{
-            visibility: visible(layers.breaks),
-            ...nameLayout(byBreakDisc((disc) => (disc.radius + 5) / NAME_SIZE)),
-            // Where two names would meet, the one of a break looked at lately is kept.
-            "symbol-sort-key": ["case", isRecent, 0, 1] as never,
-          }}
-          paint={namePaint}
-        />
-        <Layer
-          id="break-recent-names"
-          type="symbol"
-          maxzoom={BREAK_NAME_ZOOM}
-          filter={isRecent as never}
-          layout={{
-            visibility: visible(layers.breaks),
-            ...nameLayout(
-              byBreakDisc((disc) => (Math.max(RECENT_RADIUS, disc.radius) + 5) / NAME_SIZE),
-            ),
-          }}
-          paint={namePaint}
-        />
-        <Layer
-          id="break-waves"
-          type="symbol"
-          minzoom={BREAK_NAME_ZOOM}
-          layout={{
-            visibility: visible(layers.breaks),
-            "icon-image": IMAGES.wave,
-            // The wave fills the disc, less a margin.
-            "icon-size": byBreakDisc((disc) => (disc.radius * 1.3) / DISC_ICON),
-            "icon-padding": [3, 3, 3, 3],
-            "icon-allow-overlap": true,
-          }}
-          paint={{
-            "icon-opacity": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              BREAK_WAVE_ZOOM,
-              0,
-              BREAK_WAVE_ZOOM + 0.5,
-              1,
-            ] as never,
-          }}
-        />
-        <Layer
-          id="break-selected"
-          type="circle"
-          filter={is(selected?.kind === "break" ? selected.id : undefined)}
-          layout={{ visibility: visible(layers.breaks) }}
-          paint={ring(byBreakDisc((disc) => Math.max(RECENT_RADIUS, disc.radius) + RING))}
         />
       </GeoJSONSource>
 
@@ -586,6 +514,66 @@ export function StationMap({
         />
       </GeoJSONSource>
 
+      {/* A break measures nothing, so it takes no color of a scale: the theme's ink. From afar
+          each is a dot, small enough for a coast full of them to stay a coast; closer, a disc with
+          a wave in it and its name beside it. One looked at lately is named from afar. */}
+      <GeoJSONSource id="breaks" data={breakData}>
+        <Layer
+          id="break-dots"
+          type="circle"
+          layout={{
+            visibility: visible(layers.breaks),
+            "circle-sort-key": ["case", isRecent, 1, 0] as never,
+          }}
+          paint={{
+            "circle-radius": byBreakDisc(
+              (disc) =>
+                [
+                  "case",
+                  isRecent,
+                  Math.max(RECENT_RADIUS, disc.radius),
+                  disc.radius,
+                ] as unknown as Expression,
+            ),
+            "circle-color": ink,
+            "circle-stroke-width": byBreakDisc((disc) => disc.edge),
+            "circle-stroke-color": surface,
+          }}
+        />
+        <Layer
+          id="break-names"
+          type="symbol"
+          minzoom={BREAK_NAME_ZOOM}
+          layout={{
+            visibility: visible(layers.breaks),
+            ...nameLayout(byBreakDisc((disc) => (disc.radius + 5) / NAME_SIZE)),
+            // Where two names would meet, the one of a break looked at lately is kept.
+            "symbol-sort-key": ["case", isRecent, 0, 1] as never,
+          }}
+          paint={namePaint}
+        />
+        <Layer
+          id="break-recent-names"
+          type="symbol"
+          maxzoom={BREAK_NAME_ZOOM}
+          filter={isRecent as never}
+          layout={{
+            visibility: visible(layers.breaks),
+            ...nameLayout(
+              byBreakDisc((disc) => (Math.max(RECENT_RADIUS, disc.radius) + 5) / NAME_SIZE),
+            ),
+          }}
+          paint={namePaint}
+        />
+        <Layer
+          id="break-selected"
+          type="circle"
+          filter={is(selected?.kind === "break" ? selected.id : undefined)}
+          layout={{ visibility: visible(layers.breaks) }}
+          paint={ring(byBreakDisc((disc) => Math.max(RECENT_RADIUS, disc.radius) + RING))}
+        />
+      </GeoJSONSource>
+
       {/* The account's own spots stand above the catalogue, in the accent: a disc with a pin in
           it, where a break has a wave. */}
       <GeoJSONSource id="spots" data={spotData}>
@@ -628,6 +616,33 @@ export function StationMap({
         />
       </GeoJSONSource>
 
+      {/* The waves are the layer above the names and the spots, as on the web, so the map places
+          them first: a name then finds every disc taken, and covers none. */}
+      <Layer
+        id="break-waves"
+        type="symbol"
+        source="breaks"
+        minzoom={BREAK_NAME_ZOOM}
+        layout={{
+          visibility: visible(layers.breaks),
+          "icon-image": IMAGES.wave,
+          // The wave fills the disc, less a margin.
+          "icon-size": byBreakDisc((disc) => (disc.radius * 1.3) / DISC_ICON),
+          "icon-padding": [3, 3, 3, 3],
+          "icon-allow-overlap": true,
+        }}
+        paint={{
+          "icon-opacity": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            BREAK_WAVE_ZOOM,
+            0,
+            BREAK_WAVE_ZOOM + 0.5,
+            1,
+          ] as never,
+        }}
+      />
       {userLocation ? (
         <Marker lngLat={[userLocation.longitude, userLocation.latitude]} anchor="center">
           <UserDot label={m.locate_you_are_here()} />

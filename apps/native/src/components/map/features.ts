@@ -1,5 +1,5 @@
 import type { CircleLayerSpecification } from "@maplibre/maplibre-react-native";
-import { goingTo } from "@repo/client/map/sea";
+import { goingTo, SEA_ARROW } from "@repo/client/map/sea";
 import type { Freshness } from "@repo/client/format";
 import type { Recent } from "@repo/client/recents";
 import {
@@ -66,7 +66,7 @@ export const IMAGES = {
   pin: "spot-pin",
   arrowLight: "arrow-light",
   arrowDark: "arrow-dark",
-  seaArrow: "sea-arrow",
+  seaArrow: SEA_ARROW.image,
 } as const;
 
 // A break is a dot from afar, which grows into a disc as the map comes closer: at a few zooms, the
