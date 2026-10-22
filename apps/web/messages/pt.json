@@ -2028,7 +2028,6 @@
   "native_alert_week_open": "Mostrar os sete dias",
   "native_alert_day_hours": "{day}: {hours}",
   "native_alert_day_none": "{day}: nenhuma janela",
-  "native_alert_new_here": "Novo alerta aqui",
   "native_alert_place_unread": "Não foi possível ler o spot.",
   "native_alert_part_hint": "Abre o que o muda.",
   "native_alert_week_delta_more": "mais {count} do que ao abrir",
