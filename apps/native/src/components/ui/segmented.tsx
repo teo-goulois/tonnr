@@ -32,6 +32,11 @@ type SegmentedProps<Value extends string> = {
   onChange: (value: Value) => void;
   /** As wide as what holds it, its options of one width. */
   fill?: boolean;
+  /**
+   * Its options a small step apart rather than a step, as the web draws the spans of a buoy's
+   * lanes on a phone (`max-lg:px-xs!`), so that the row fits beside a title.
+   */
+  compact?: boolean;
   disabled?: boolean;
 };
 
@@ -41,6 +46,7 @@ export function Segmented<Value extends string>({
   value,
   onChange,
   fill = false,
+  compact = false,
   disabled = false,
 }: SegmentedProps<Value>) {
   const { colors, space, motion } = useTheme();
@@ -130,7 +136,7 @@ export function Segmented<Value extends string>({
               flex: fill ? 1 : undefined,
               alignItems: "center",
               justifyContent: "center",
-              paddingHorizontal: space.s,
+              paddingHorizontal: compact ? space.xs : space.s,
             }}
           >
             {({ pressed }) => (

@@ -290,8 +290,22 @@ function Segments() {
   const [unit, setUnit] = useState<"m" | "ft">("m");
   const [part, setPart] = useState<"news" | "mine">("news");
   const [density, setDensity] = useState<"essentials" | "details" | "everything">("details");
+  const [span, setSpan] = useState<"12h" | "24h" | "48h" | "week">("24h");
   return (
     <View style={{ gap: space.s }}>
+      <Segmented
+        label="Span"
+        compact
+        options={[
+          { value: "12h", label: "12 h" },
+          { value: "24h", label: "24 h" },
+          { value: "48h", label: "48 h" },
+          { value: "week", label: "7 d" },
+        ]}
+        value={span}
+        onChange={setSpan}
+      />
+      <Note>Compact, its options a small step apart, as a buoy's spans beside their title.</Note>
       <Segmented
         label="Height"
         options={[

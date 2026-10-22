@@ -281,6 +281,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
                   <About open={aboutOpen} onPress={() => setAboutOpen((open) => !open)} />
                   <Segmented
                     label={m.details_buoy_and_model()}
+                    compact
                     options={[
                       ...(Object.keys(SPANS) as (keyof typeof SPANS)[]).map((one) => ({
                         value: one,
