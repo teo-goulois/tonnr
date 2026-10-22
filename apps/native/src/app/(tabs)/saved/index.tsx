@@ -19,7 +19,7 @@ import {
 import { ListChips } from "@/components/lists/list-chips";
 import { NewListField } from "@/components/lists/new-list-field";
 import { useListMutations } from "@/components/lists/use-list-mutations";
-import { AccountPrompt } from "@/components/saved/account-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import type { RowContext } from "@/components/saved/actions";
 import {
   type PlaceActions,

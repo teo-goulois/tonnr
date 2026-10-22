@@ -8,7 +8,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { heldBy, listName, placesCount, refsOf } from "@/components/lists/items";
 import { TextField } from "@/components/lists/text-field";
 import { useSharedList, useSharedReader } from "@/components/lists/use-shared-list";
-import { AccountPrompt } from "@/components/saved/account-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { type PlaceItem, usePlaceActions } from "@/components/saved/place-actions";
 import { PlaceRowSkeleton } from "@/components/saved/place-row";
 import { PlaceSection, SectionHeader } from "@/components/saved/place-section";

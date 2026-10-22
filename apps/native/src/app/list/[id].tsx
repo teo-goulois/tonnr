@@ -19,7 +19,7 @@ import {
 import { ListNameField } from "@/components/lists/list-name-field";
 import { ShareSection } from "@/components/lists/share-section";
 import { useListMutations } from "@/components/lists/use-list-mutations";
-import { AccountPrompt } from "@/components/saved/account-prompt";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { confirmDestructive } from "@/components/saved/confirm";
 import { type PlaceItem, showListOnMap, usePlaceActions } from "@/components/saved/place-actions";
 import { PlaceRowSkeleton } from "@/components/saved/place-row";
