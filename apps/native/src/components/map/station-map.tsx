@@ -12,10 +12,11 @@ import {
 } from "@maplibre/maplibre-react-native";
 import { WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE, NO_READING_COLOR } from "@repo/client/sea-scales";
 import { type Ref, useImperativeHandle, useMemo, useRef, useState } from "react";
-import type {
-  AccessibilityActionEvent,
-  AccessibilityActionInfo,
-  NativeSyntheticEvent,
+import {
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
+  type NativeSyntheticEvent,
+  View,
 } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
@@ -49,6 +50,7 @@ import {
 } from "./features";
 import type { MapLayers } from "./layers";
 import { mapImages } from "./map-images";
+import { useBasemap } from "./use-basemap";
 import { type MapState, rememberMapState } from "./map-state";
 import { SEA_ENCODING, SEA_MAX_ZOOM, seaReliefColor, seaTileUrl } from "./sea";
 import { arrowFeatures, type SeaArrow } from "./sea-arrows";
@@ -91,8 +93,6 @@ export type StationMapHandle = {
   fit: (points: readonly MapPoint[]) => void;
   /** Moves the map so that a point the finger pressed stands where `y` is, from the top. */
   lift: (point: [number, number], y: number) => void;
-  /** Opens the map's credits, as the platform lists them. */
-  showCredits: () => void;
 };
 
 type StationMapProps = {
@@ -131,9 +131,6 @@ type StationMapProps = {
   onMoved: (state: MapState, byHand: boolean) => void;
 };
 
-// The first name of each basemap, under which the arrows of the sea are drawn: a name is read
-// over them.
-const FIRST_LABEL = { light: "waterway_line_label", dark: "water_name" } as const;
 // What a selected place's ring adds to its disc.
 const RING = 5;
 // How long the map takes to go somewhere it was asked to.
@@ -188,6 +185,9 @@ export function StationMap({
   const [opening] = useState(() => openingView ?? storedView());
   const zoom = useRef(opening.zoom);
 
+  // The basemap's style, which the map waits for: its names are given the web's width. One that
+  // could not be read is read by the map from its address as it is.
+  const basemap = useBasemap(scheme);
   const surface = colors["neutral-1"];
   const ink = colors["neutral-10"];
   const accent = colors["color-1"];
@@ -228,7 +228,6 @@ export function StationMap({
           // A map that is gone moves nowhere.
         });
       },
-      showCredits: () => void map.current?.showAttribution(),
     }),
     [duration],
   );
@@ -273,12 +272,16 @@ export function StationMap({
     "circle-stroke-color": ink,
   });
 
+  // The tone of the map's place while it waits, which the map covers as it draws.
+  if (basemap.isPending) return <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }} />;
+
   return (
     <MapLibre
       ref={map}
       style={{ flex: 1, backgroundColor: colors["neutral-2"] }}
-      mapStyle={STYLE_URLS[scheme]}
-      // The credits are the legend's last line, which opens the platform's list of them.
+      // The style as it came, which only the names' width was changed in.
+      mapStyle={basemap.data ? (basemap.data.style as never) : STYLE_URLS[scheme]}
+      // The credits are the map's own box, which the screen draws, and the legend's last line.
       attribution={false}
       logo={false}
       compass={false}
@@ -345,7 +348,7 @@ export function StationMap({
           <Layer
             id="sea-arrows"
             type="symbol"
-            beforeId={FIRST_LABEL[scheme]}
+            beforeId={basemap.data?.firstLabel}
             layout={{
               "icon-image": IMAGES.seaArrow,
               "icon-rotate": get("rotate"),

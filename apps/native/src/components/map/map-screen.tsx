@@ -34,10 +34,13 @@ import { orpc } from "@/utils/orpc";
 import { describeStation, describeWind } from "./describe";
 import { type MapPlace, withRecents } from "./features";
 import { DEFAULT_LAYERS, layersForList, layersFrom, LAYERS_KEY, type MapLayers } from "./layers";
+import { creditParts, joinedCredits } from "./basemap";
 import { MapButtons } from "./map-buttons";
+import { MapCredits } from "./map-credits";
 import { readSeaTile } from "./map-images";
 import { useLocate } from "./locate";
 import { MapLegend } from "./map-legend";
+import { useBasemapAttribution } from "./use-basemap";
 import { currentMapState, onMapRequest } from "./map-state";
 import { MapListChips } from "./list-chips";
 import { LOW_SHEET, placeHref, placeOf } from "./place-route";
@@ -57,10 +60,6 @@ import { bboxOf, type Bounds, LOCATE_ZOOM, type LngLat, visibleBounds } from "./
 // buttons and its legend at the bottom where the thumb is, over the bar of tabs. A press on a
 // marker opens its place as a sheet over the map, which stays alive under it; a press held puts a
 // new spot there. `?list=<id>` shows one of the account's lists alone, as the saved tab links to.
-
-// The basemap's credits, which the map shows as it opens and folds once it is moved: its names,
-// as the style writes them, which no language changes. The sea's are the API's.
-const BASEMAP_CREDITS = "© OpenFreeMap © OpenMapTiles © OpenStreetMap";
 
 /** The layers the legend switched, kept on the phone as the browser keeps them. */
 function useMapLayers() {
@@ -83,7 +82,7 @@ function useMapLayers() {
 }
 
 export function MapScreen() {
-  const { colors, space } = useTheme();
+  const { colors, space, scheme } = useTheme();
   const window = useWindowDimensions();
   const { signedIn } = useAccount();
   const requireAccount = useRequireAccount();
@@ -301,9 +300,17 @@ export function MapScreen() {
   const joined = lists.data?.joined ?? [];
   const hasLists = signedIn && ownLists.length + joined.length > 0;
   const windThinned = (wind.data?.apartKm ?? 0) > WIND_APART_KM || wind.data?.truncated === true;
-  const credits = [BASEMAP_CREDITS, drawn.sea && sea.data ? sea.data.source.attribution : null]
-    .filter(Boolean)
-    .join(" · ");
+  // Whose data the map draws, the sea's first as the web writes them: the basemap's names, as its
+  // tiles write them, which no language changes, and the sea's, the API's.
+  const basemapCredits = useBasemapAttribution(scheme);
+  const credits = useMemo(
+    () =>
+      joinedCredits([
+        drawn.sea && sea.data ? creditParts(sea.data.source.attribution) : [],
+        creditParts(basemapCredits),
+      ]),
+    [drawn.sea, sea.data, basemapCredits],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors["neutral-2"] }}>
@@ -373,24 +380,21 @@ export function MapScreen() {
               </Pressable>
             ) : null}
           </View>
+          {/* At the top, whose data the map draws, as it opens and once the legend asks: it folds
+              as soon as a finger moves the map. */}
           {creditsShown ? (
             <Animated.View
               exiting={FadeOut}
               pointerEvents="box-none"
-              style={{ position: "absolute", top: space.xs, left: space.s, right: space.s }}
+              style={{
+                position: "absolute",
+                top: space.s,
+                left: space.s,
+                right: space.s,
+                alignItems: "flex-end",
+              }}
             >
-              {!waves.isPending && !waves.isError ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={m.map_credits()}
-                  onPress={() => map.current?.showCredits()}
-                  style={{ alignSelf: "flex-start" }}
-                >
-                  <Text size="xxs" tone="muted" style={creditsText(colors)}>
-                    {credits}
-                  </Text>
-                </Pressable>
-              ) : null}
+              <MapCredits parts={credits} onFold={() => setCreditsShown(false)} />
             </Animated.View>
           ) : null}
 
@@ -421,7 +425,10 @@ export function MapScreen() {
                     if (open) setListsOpen(false);
                   }}
                   maxHeight={Math.max(160, frame.height - floor - space.xxl * 2)}
-                  onShowCredits={() => map.current?.showCredits()}
+                  onShowCredits={() => {
+                    setCreditsShown(true);
+                    setLegendOpen(false);
+                  }}
                   windTruncated={!list && windThinned}
                   breaksTruncated={!list && breaks.data?.next != null}
                 />
@@ -487,16 +494,5 @@ function pill(
     borderRadius: 16,
     backgroundColor: colors["neutral-1"],
     ...edge(colors["neutral-10-transparent"], { inset: true }),
-  };
-}
-
-/** The credits as the web writes them over its map: small, on a veil of the surface. */
-function creditsText(colors: ReturnType<typeof useTheme>["colors"]) {
-  return {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: "hidden" as const,
-    backgroundColor: `${colors["neutral-1"]}cc`,
   };
 }

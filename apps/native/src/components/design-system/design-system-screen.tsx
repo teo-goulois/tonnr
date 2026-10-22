@@ -17,6 +17,8 @@ import { type ReactNode, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { ScopedTheme } from "uniwind";
 
+import { BASEMAP_ATTRIBUTION, creditParts, joinedCredits } from "@/components/map/basemap";
+import { MapCredits } from "@/components/map/map-credits";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
 import { Button, IconButton } from "@/components/ui/button";
@@ -494,6 +496,33 @@ function Icons() {
   );
 }
 
+/** What floats over the map, which the map's screen draws with the kit. */
+function MapParts() {
+  const { space } = useTheme();
+  const [creditsShown, setCreditsShown] = useState(true);
+  return (
+    <View style={{ gap: space.s }}>
+      {creditsShown ? (
+        <MapCredits
+          parts={joinedCredits([
+            creditParts("Generated using E.U. Copernicus Marine Service Information"),
+            creditParts(BASEMAP_ATTRIBUTION),
+          ])}
+          onFold={() => setCreditsShown(false)}
+        />
+      ) : (
+        <Button variant="secondary" onPress={() => setCreditsShown(true)}>
+          Show the credits
+        </Button>
+      )}
+      <Note>
+        The credits open as the map does, fold at their button or once the map is moved, and open
+        again from the legend.
+      </Note>
+    </View>
+  );
+}
+
 /** A few components in one theme, whatever theme is in force: light and dark side by side. */
 function InTheme({ theme }: { theme: "light" | "dark" }) {
   return (
@@ -575,6 +604,9 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Empty, error and loading">
         <States />
+      </Block>
+      <Block title="Map">
+        <MapParts />
       </Block>
       <Block title="Sheet">
         <Button variant="secondary" onPress={() => router.push("/design-system-sheet")}>
