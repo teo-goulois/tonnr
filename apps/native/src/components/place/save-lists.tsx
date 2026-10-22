@@ -1,21 +1,20 @@
-import { ArrowLeftIcon, CheckIcon, CirclePlusIcon, ListsIcon } from "@repo/ui/icon";
+import { ArrowLeftIcon, CheckIcon, PlusIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { BackHandler, Platform, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Field } from "@/components/auth/field";
 import { NAME_MOST } from "@/components/lists/new-list-field";
-import { TextField } from "@/components/lists/text-field";
 import type { PlaceRef } from "@/components/saved/sea-now";
-import { Glyph } from "@/components/shared/glyph";
+import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Button, IconButton } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { feel } from "@/components/ui/haptics";
-import { Row, Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
-import { Surface } from "@/components/ui/surface";
+import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { SheetRoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
@@ -24,12 +23,21 @@ import { m } from "@/paraglide/messages";
 import { choicesOf } from "./lists";
 import { useLists } from "./use-lists";
 
-// What the bookmark of a place opens: the account's lists, the favorites first, each with the
-// platform's check while it holds the place, which a press changes at once; then a new list, named in
-// a second step of the same sheet rather than in a sheet over it, and the way to the lists
-// themselves. The web's `StationActions` on a phone. Decision 017.
+// What the bookmark of a place opens: the account's lists, the favorites first, each with a check
+// before it while it holds the place, which a press changes at once; then a new list, named in a
+// second step of the same sheet rather than in a sheet over it, and the way to the lists
+// themselves. Plain rows under a line, as the web's `StationActions` draws them in its sheet on a
+// phone. Decision 017.
 
-/** The head of a step of the sheet: its title, and what goes back or closes. */
+// The column a check stands in before a list's name, the web's `1rem`, and the size of what is
+// drawn there, its `size-4.5`.
+const MARK_COLUMN = 16;
+const MARK = 18;
+
+/**
+ * The head of a step of the sheet: its title, and what goes back or closes. A title alone stands
+ * in the middle, as the web's sheet sets it on a phone.
+ */
 export function StepHeader({
   title,
   onBack,
@@ -40,6 +48,7 @@ export function StepHeader({
   onClose?: () => void;
 }) {
   const { space } = useTheme();
+  const alone = !onBack && !onClose;
   return (
     <View
       style={{
@@ -55,7 +64,12 @@ export function StepHeader({
       {onBack && (
         <IconButton icon={ArrowLeftIcon} label={m.action_back()} variant="ghost" onPress={onBack} />
       )}
-      <Text weight="medium" accessibilityRole="header" numberOfLines={2} style={{ flex: 1 }}>
+      <Text
+        weight="medium"
+        accessibilityRole="header"
+        numberOfLines={2}
+        style={{ flex: 1, textAlign: alone ? "center" : undefined }}
+      >
         {title}
       </Text>
       {onClose && (
@@ -67,22 +81,28 @@ export function StepHeader({
   );
 }
 
-/** A list of the sheet: its name, and a check while it holds the place. */
-function ListRow({
+/** A row of the sheet's menu: what is drawn before its words, in their column, and its words. */
+function MenuRow({
   title,
-  checked,
+  mark,
   onPress,
+  disabled = false,
+  checked,
 }: {
   title: string;
-  checked: boolean;
+  mark?: GlyphIcon;
   onPress: () => void;
+  disabled?: boolean;
+  /** For a list, whether it holds the place: a check is drawn before it while it does. */
+  checked?: boolean;
 }) {
   const { colors, space } = useTheme();
   return (
     <Pressable
-      accessibilityRole="checkbox"
+      accessibilityRole={checked === undefined ? "button" : "checkbox"}
       accessibilityLabel={title}
-      accessibilityState={{ checked }}
+      accessibilityState={checked === undefined ? { disabled } : { checked, disabled }}
+      disabled={disabled}
       onPress={() => {
         feel("select");
         onPress();
@@ -91,26 +111,30 @@ function ListRow({
         minHeight: TARGET,
         flexDirection: "row",
         alignItems: "center",
-        gap: space.s,
+        gap: space.xs,
         paddingHorizontal: space.m,
-        paddingVertical: space.xs,
+        paddingVertical: space.xxs,
         backgroundColor: pressed ? colors["neutral-3"] : undefined,
+        opacity: disabled ? 0.64 : 1,
       })}
     >
-      <Text style={{ flex: 1 }}>{title}</Text>
-      <View style={{ width: 20, alignItems: "center" }}>
-        {checked && <Glyph icon={CheckIcon} size={18} color={colors["color-1"]} />}
+      <View style={{ width: MARK_COLUMN, alignItems: "center", opacity: 0.8 }}>
+        {mark && (checked ?? true) ? (
+          <Glyph icon={mark} size={MARK} color={colors["neutral-10"]} />
+        ) : null}
       </View>
+      <Text style={{ flex: 1 }}>{title}</Text>
     </Pressable>
   );
 }
 
-export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) {
+export function SaveToLists({ place }: { place: PlaceRef }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
   const { lists, save, createWith, isCreating } = useLists();
   const [isNaming, setIsNaming] = useState(false);
   const [listName, setListName] = useState("");
+  const [missing, setMissing] = useState(false);
   const named = listName.trim();
   // Android's back goes from the second step to the first, as the button over it does.
   useEffect(() => {
@@ -122,8 +146,13 @@ export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) 
     return () => listener.remove();
   }, [isNaming]);
 
+  // The button is never grey: a name left empty is said under its field, as the web says it.
   const create = () => {
-    if (!named || isCreating) return;
+    if (isCreating) return;
+    if (!named) {
+      setMissing(true);
+      return;
+    }
     createWith(named, place, () => {
       setListName("");
       setIsNaming(false);
@@ -136,31 +165,29 @@ export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) 
         <StepHeader title={m.saved_new_list()} onBack={() => setIsNaming(false)} />
         <View
           style={{
-            gap: space.m,
+            gap: space.l,
             paddingHorizontal: space.m,
             paddingTop: space.s,
             paddingBottom: insets.bottom + space.m,
           }}
         >
-          <Text size="s" tone="muted">
-            {m.saved_new_list_text()}
-          </Text>
-          <Surface insetEdge style={{ paddingHorizontal: space.m }}>
-            <TextField
-              accessibilityLabel={m.saved_list_name()}
-              placeholder={m.saved_list_name()}
-              value={listName}
-              onChangeText={setListName}
-              maxLength={NAME_MOST}
-              autoFocus
-              autoCapitalize="sentences"
-              returnKeyType="done"
-              submitBehavior="blurAndSubmit"
-              onSubmitEditing={create}
-              style={{ flex: 0 }}
-            />
-          </Surface>
-          <Button fill onPress={create} disabled={!named} loading={isCreating}>
+          <Field
+            label={m.saved_list_name()}
+            value={listName}
+            onChangeText={(next) => {
+              setListName(next);
+              if (next.trim()) setMissing(false);
+            }}
+            error={missing ? m.saved_list_name_missing() : undefined}
+            maxLength={NAME_MOST}
+            disabled={isCreating}
+            autoFocus
+            autoCapitalize="sentences"
+            returnKeyType="done"
+            submitBehavior="blurAndSubmit"
+            onSubmitEditing={create}
+          />
+          <Button fill onPress={create} loading={isCreating}>
             {m.saved_create_list()}
           </Button>
         </View>
@@ -171,62 +198,58 @@ export function SaveToLists({ place, name }: { place: PlaceRef; name: string }) 
   const choices = lists.data ? choicesOf(lists.data, place) : undefined;
 
   return (
-    // The lists' scroll view stands under the header and the place's name: SheetRoot keeps
-    // react-native-screens from moving it over them.
+    // The lists' scroll view stands under the header: SheetRoot keeps react-native-screens from
+    // moving it over it.
     <SheetRoot>
-      <StepHeader title={m.saved_add_to_list()} onClose={() => router.back()} />
-      <Text size="s" tone="muted" numberOfLines={1} style={{ paddingHorizontal: space.m }}>
-        {name}
-      </Text>
+      <StepHeader title={m.saved_add_to_list()} />
       <ScrollView
         contentContainerStyle={{
-          gap: space.l,
-          padding: space.m,
+          paddingTop: space.s,
           paddingBottom: insets.bottom + space.m,
         }}
       >
         {lists.isError ? (
-          <ErrorState
-            title={m.saved_load_failed()}
-            onRetry={() => void lists.refetch()}
-            retrying={lists.isRefetching}
-          />
+          <View style={{ paddingHorizontal: space.m }}>
+            <ErrorState
+              title={m.saved_load_failed()}
+              onRetry={() => void lists.refetch()}
+              retrying={lists.isRefetching}
+            />
+          </View>
         ) : !choices ? (
           <Loading>
-            <View style={{ gap: space.xs }}>
-              <Skeleton height={44} />
-              <Skeleton height={44} />
+            <View style={{ gap: space.xs, paddingHorizontal: space.m }}>
+              <Skeleton height={TARGET} />
+              <Skeleton height={TARGET} />
             </View>
           </Loading>
         ) : (
-          <Section>
-            {choices.map((choice) => (
-              <ListRow
-                key={choice.id}
-                title={choice.name}
-                checked={choice.checked}
-                onPress={() => save(choice.id, place, !choice.checked)}
-              />
-            ))}
-          </Section>
+          choices.map((choice) => (
+            <MenuRow
+              key={choice.id}
+              title={choice.name}
+              mark={CheckIcon}
+              checked={choice.checked}
+              onPress={() => save(choice.id, place, !choice.checked)}
+            />
+          ))
         )}
-        <Section>
-          <Row
-            title={m.saved_new_list_here()}
-            icon={CirclePlusIcon}
-            chevron={false}
-            disabled={!choices}
-            onPress={() => setIsNaming(true)}
-          />
-          <Row
-            title={m.saved_manage_lists()}
-            icon={ListsIcon}
-            onPress={() => {
-              router.dismissAll();
-              router.navigate("/saved");
-            }}
-          />
-        </Section>
+        <View style={{ paddingHorizontal: space.m, paddingVertical: space.xxs }}>
+          <Separator />
+        </View>
+        <MenuRow
+          title={m.saved_new_list_here()}
+          mark={PlusIcon}
+          disabled={!choices}
+          onPress={() => setIsNaming(true)}
+        />
+        <MenuRow
+          title={m.saved_manage_lists()}
+          onPress={() => {
+            router.dismissAll();
+            router.navigate("/saved");
+          }}
+        />
       </ScrollView>
     </SheetRoot>
   );

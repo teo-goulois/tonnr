@@ -14,7 +14,6 @@ import { SessionsTab } from "@/components/place-tabs/sessions";
 import { Tabs } from "@/components/ui/tabs";
 import { SheetRoot } from "@/components/ui/sheet";
 import { useAccount } from "@/lib/account";
-import type { Route } from "@/lib/links";
 import { useRecentViews } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
@@ -136,9 +135,7 @@ export function PlaceSheet({
           );
           return;
         }
-        router.push(
-          `/place/save?kind=${kind}&id=${encodeURIComponent(id)}&name=${encodeURIComponent(name ?? "")}` as Route,
-        );
+        router.push({ pathname: "/place/save", params: { kind, id } });
       }
     : undefined;
   const copy = sharedSpot
