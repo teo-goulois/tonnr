@@ -266,6 +266,7 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
           <View
             style={{
               flexDirection: "row",
+              flexWrap: "wrap",
               alignItems: "center",
               justifyContent: "space-between",
               gap: space.xs,
@@ -328,7 +329,7 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
         {/* Who said it stands under the value, out of the row's press: its name asks of its own. */}
         {value && line.origin === "contribution" ? (
           <View style={{ marginTop: -space.xxs, paddingStart: under, paddingBottom: space.xxs }}>
-            <Author by={line.by} onBlock={blockerOf(line.by)} />
+            <Author by={line.by} onBlock={blockerOf(line.by)} under />
           </View>
         ) : null}
       </View>
