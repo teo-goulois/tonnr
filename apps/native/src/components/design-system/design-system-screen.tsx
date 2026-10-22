@@ -910,12 +910,13 @@ function MapParts() {
         <WindBadge speedKnots={18} directionDegrees={270} selected />
       </Line>
       <Note>A wind station's badge, on the color of its speed; selected, ringed in the ink.</Note>
-      <Line>
+      {/* One a line: a selected pill grows from its disc, past what stands beside it. */}
+      <View style={{ alignItems: "flex-start", gap: space.s }}>
         <BreakPill name="La Torche" selected />
         <BreakPill name="My secret reef" selected own />
         <BreakPill name="La Torche" selected mirrored />
         <BreakPill name="Pointe de la Torche, the long left by the rocks" />
-      </Line>
+      </View>
       <Note>
         The break or the spot in hand, grown from its disc; mirrored where the right has no room,
         and cut short past 224 points.
