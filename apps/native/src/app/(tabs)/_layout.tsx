@@ -5,7 +5,8 @@ import { Platform } from "react-native";
 
 import { useAccountStart } from "@/components/account/account-start";
 import { LoginWall, useVisitorWall } from "@/components/auth/login-wall";
-import { TAB_ROUTES, tabUnder } from "@/components/map/place-route";
+import { aloneOf, mapRouteOf, type TabsState } from "@/components/lists/alone";
+import { placeOf, TAB_ROUTES, tabUnder } from "@/components/map/place-route";
 import { useQuickActions } from "@/lib/quick-actions";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -30,16 +31,18 @@ export default function TabsLayout() {
   // While the instance is closed to visitors, a visitor meets the wall, with no tabs (decision 039),
   // except on a list opened by its link, in the saved tab or alone on the map, and the places it
   // holds, which open then too, as the web's ?shared= does: the wall comes back once the visitor
-  // leaves the list for another tab.
+  // leaves the list for another tab. The map's own link counts while the map, or a place's sheet
+  // over it, is in view.
   const walled = useVisitorWall();
   const pathname = usePathname();
   const root = useNavigation<Navigation>();
   useTabUnder(pathname, root);
   const { shared } = useGlobalSearchParams<{ shared?: string }>();
+  const onMap = pathname === "/" || placeOf(pathname) !== undefined;
   const byLink =
     pathname.startsWith("/saved/shared/") ||
     Boolean(shared) ||
-    mapParamsOf(root).shared !== undefined;
+    (onMap && mapLinkOf(root) !== undefined);
   if (walled && !byLink) return <LoginWall />;
   return (
     <NativeTabs
@@ -107,11 +110,6 @@ export default function TabsLayout() {
   );
 }
 
-type TabsState = {
-  key: string;
-  index: number;
-  routes: readonly { name: string; params?: object | undefined }[];
-};
 /** The root's navigation, whose state holds the tabs'. */
 type Navigation = {
   getState(): { routes: readonly { name: string; state?: unknown }[] } | undefined;
@@ -125,18 +123,10 @@ function tabsOf(root: Navigation) {
     | undefined;
 }
 
-/** The list a route of the map shows alone, by its id or by its link, as its parameters say it. */
-function aloneOf(params: object | undefined) {
-  const { list, shared } = (params ?? {}) as { list?: unknown; shared?: unknown };
-  if (typeof shared === "string" && shared) return { shared };
-  if (typeof list === "string" && list) return { list };
-  return undefined;
-}
-
-/** What the map's route shows alone, read from the tabs, whatever screen is in front. */
-function mapParamsOf(root: Navigation): { list?: string; shared?: string } {
-  const map = tabsOf(root)?.routes.find((one) => one.name === TAB_ROUTES.map);
-  return aloneOf(map?.params) ?? {};
+/** The link of the list the map shows alone, read from the tabs, whatever screen is in front. */
+function mapLinkOf(root: Navigation) {
+  const alone = aloneOf(mapRouteOf(tabsOf(root))?.params);
+  return alone && "shared" in alone ? alone.shared : undefined;
 }
 
 /**
