@@ -658,6 +658,8 @@ const TideDay = memo(function TideDay({
         now={nowHeight === undefined ? undefined : now}
         // The tide's line at now is the muted grey, as the web's is.
         nowColor={colors["neutral-7"]}
+        // Down to the hours, as its low waters' lines go, past the room under the curve.
+        nowTo={PLOT_BOTTOM}
         press={state}
         marks={marks}
         overlay={overlay}

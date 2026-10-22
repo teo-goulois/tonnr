@@ -80,6 +80,9 @@ type SeaChartProps = {
   // The color of the dashed line at now: the theme's ink, as the lanes and the wind draw it,
   // unless the chart says another, as the tide's does.
   nowColor?: string;
+  // Where the line at now ends, when it goes past the plot to the hours under it, as the tide's
+  // does beside its low waters, whose room the plot leaves under its curve.
+  nowTo?: number;
   band?: ChartBand;
   // Whether a finger reads it, and the press it reads with: `useChartReading`.
   press?: ChartPressState<typeof PRESS_INIT>;
@@ -164,6 +167,7 @@ const Curves = memo(function Curves({
   midnights = [],
   now,
   nowColor,
+  nowTo,
   band,
   press,
   marks,
@@ -208,6 +212,19 @@ const Curves = memo(function Curves({
         yAxis={[{ lineColor: "transparent", tickCount: 0 }]}
         chartPressState={press}
         chartPressConfig={{ pan: { activateAfterLongPress: 300 } }}
+        // Out of the plot's clip, the line at now that reaches past it.
+        renderOutside={({ xScale, chartBounds }) =>
+          nowTo !== undefined && now !== undefined && now > start && now < end ? (
+            <SkiaLine
+              p1={vec(xScale(now), chartBounds.top)}
+              p2={vec(xScale(now), nowTo)}
+              color={nowColor ?? colors["neutral-10"]}
+              strokeWidth={1}
+            >
+              <DashPathEffect intervals={[3, 3]} />
+            </SkiaLine>
+          ) : null
+        }
         onScaleChange={(x, y) =>
           onGeometry({
             x,
@@ -352,7 +369,7 @@ const Curves = memo(function Curves({
                   </Fragment>
                 );
               })}
-              {now !== undefined && now > start && now < end && (
+              {nowTo === undefined && now !== undefined && now > start && now < end && (
                 <SkiaLine
                   p1={vec(x(now), chartBounds.top)}
                   p2={vec(x(now), chartBounds.bottom)}
