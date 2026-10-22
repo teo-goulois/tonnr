@@ -714,7 +714,8 @@ export function ForecastGrid({
     scrollTo(index * COLUMN - Math.max(0, viewWidth.current / 2 - COLUMN));
   };
 
-  // A name and its unit, beside its row.
+  // A name and its unit, beside its row, in the small type as on the web: only a name too long
+  // for the column, in some language, shrinks a little to fit.
   const names = (
     <View style={{ width: LABELS }}>
       {/* The corner over the days and the hours is empty: each day's name follows its hours. */}
@@ -727,7 +728,7 @@ export function ForecastGrid({
             flexDirection: "row",
             alignItems: "center",
             gap: space.xxs,
-            paddingRight: space.xxs,
+            paddingRight: space.xs,
           }}
         >
           {spec.kind === "value" && (
@@ -747,7 +748,14 @@ export function ForecastGrid({
             </>
           )}
           {spec.kind === "direction" && (
-            <Text size="xs" tone="muted" numberOfLines={1} dense adjustsFontSizeToFit>
+            <Text
+              size="xs"
+              tone="muted"
+              numberOfLines={1}
+              dense
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
               {m.details_direction()}
             </Text>
           )}
