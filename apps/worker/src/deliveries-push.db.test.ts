@@ -1323,76 +1323,82 @@ describe.skipIf(!TEST_DATABASE_URL)("the pushes of the alerts", () => {
     expect(await states()).toEqual([["found", "expired"]]);
   });
 
-  it("keep no mail waiting, however many of them a pass hands over", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const post = testMailer();
-    const mail = {
-      mailer: post.mailer,
-      webOrigin: "https://app.example.org",
-      apiOrigin: "https://api.example.org",
-      dailyLimit: 200,
-    };
-    const { db } = database;
-    // The owner is told by mail alone.
-    await db.delete(pushSubscription);
-    await db.update(user).set({ emailVerified: true });
-    await settings({ byMail: true, mailKey: "the-key" });
-    // Three other accounts, each with an alert on a spot and a browser whose push service
-    // says no: nothing is told, so that each of their pushes has the same hours to say.
-    const others = ["one", "two", "three"];
-    for (const id of others) {
-      await db.insert(user).values({ id, name: id, email: `${id}@example.org` });
-      await db.insert(alertSettings).values({
-        userId: id,
-        daylightOnly: false,
-        quietFrom: null,
-        quietTo: null,
-        onEvening: false,
-        onBegin: false,
-      });
-      await db.insert(spot).values({
-        id: `spot-${id}`,
-        userId: id,
-        name: id,
-        latitude: 43.63,
-        longitude: -1.46,
-      });
-      await db.insert(alert).values({
-        id: `alert-${id}`,
-        userId: id,
-        name: id,
-        criteria: { waveHeightMeters: { min: 1 } },
-      });
-      await db
-        .insert(alertSpot)
-        .values({ spotId: `spot-${id}`, alertId: `alert-${id}`, position: 0 });
-      service.answers.set(await subscribe(`browser-${id}`, id), 403);
-    }
-    await found();
-    // Each has a day's pushes that waited since before the owner's mail was written.
-    const earlier = new Date(Date.now() - HOUR_MS);
-    for (const id of others) {
-      const [made] = await db.select().from(notification).where(eq(notification.userId, id));
-      if (!made) throw new Error("no notification");
-      const copies = Array.from({ length: ACCOUNT_DAILY_PUSHES }, (_, index) => `${id}-${index}`);
-      await db
-        .insert(notification)
-        .values(copies.map((copy) => ({ ...made, id: copy, key: copy })));
-      await db.insert(notificationDelivery).values(
-        copies.map((notificationId) => ({
-          notificationId,
-          channel: "push" as const,
-          dueAt: earlier,
-          expiresAt: new Date(SATURDAY + 12 * HOUR_MS),
-        })),
-      );
-    }
+  // Four accounts with an alert, a spot and a browser each, then two passes, take from three to
+  // six seconds on CI's runner beside the other packages.
+  it(
+    "keep no mail waiting, however many of them a pass hands over",
+    { timeout: 30_000 },
+    async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const post = testMailer();
+      const mail = {
+        mailer: post.mailer,
+        webOrigin: "https://app.example.org",
+        apiOrigin: "https://api.example.org",
+        dailyLimit: 200,
+      };
+      const { db } = database;
+      // The owner is told by mail alone.
+      await db.delete(pushSubscription);
+      await db.update(user).set({ emailVerified: true });
+      await settings({ byMail: true, mailKey: "the-key" });
+      // Three other accounts, each with an alert on a spot and a browser whose push service
+      // says no: nothing is told, so that each of their pushes has the same hours to say.
+      const others = ["one", "two", "three"];
+      for (const id of others) {
+        await db.insert(user).values({ id, name: id, email: `${id}@example.org` });
+        await db.insert(alertSettings).values({
+          userId: id,
+          daylightOnly: false,
+          quietFrom: null,
+          quietTo: null,
+          onEvening: false,
+          onBegin: false,
+        });
+        await db.insert(spot).values({
+          id: `spot-${id}`,
+          userId: id,
+          name: id,
+          latitude: 43.63,
+          longitude: -1.46,
+        });
+        await db.insert(alert).values({
+          id: `alert-${id}`,
+          userId: id,
+          name: id,
+          criteria: { waveHeightMeters: { min: 1 } },
+        });
+        await db
+          .insert(alertSpot)
+          .values({ spotId: `spot-${id}`, alertId: `alert-${id}`, position: 0 });
+        service.answers.set(await subscribe(`browser-${id}`, id), 403);
+      }
+      await found();
+      // Each has a day's pushes that waited since before the owner's mail was written.
+      const earlier = new Date(Date.now() - HOUR_MS);
+      for (const id of others) {
+        const [made] = await db.select().from(notification).where(eq(notification.userId, id));
+        if (!made) throw new Error("no notification");
+        const copies = Array.from({ length: ACCOUNT_DAILY_PUSHES }, (_, index) => `${id}-${index}`);
+        await db
+          .insert(notification)
+          .values(copies.map((copy) => ({ ...made, id: copy, key: copy })));
+        await db.insert(notificationDelivery).values(
+          copies.map((notificationId) => ({
+            notificationId,
+            channel: "push" as const,
+            dueAt: earlier,
+            expiresAt: new Date(SATURDAY + 12 * HOUR_MS),
+          })),
+        );
+      }
 
-    // As many pushes as a run may hand over were, and the mail left at that pass all the same.
-    expect(await pass(out, mail)).toMatchObject({ mails: 1, pushes: 0, failed: 60 });
-    expect(post.sent()).toHaveLength(1);
-    expect(service.asked()).toHaveLength(60);
-  });
+      // As many pushes as a run may hand over were, and the mail left at that pass all the same.
+      expect(await pass(out, mail)).toMatchObject({ mails: 1, pushes: 0, failed: 60 });
+      expect(post.sent()).toHaveLength(1);
+      expect(service.asked()).toHaveLength(60);
+    },
+  );
 
   it("do not stand before the mails, however many wait on an instance that has no keys", async () => {
     // An account with a browser and with mail, on an instance whose worker sends mail alone.
