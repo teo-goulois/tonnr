@@ -118,8 +118,16 @@ export function PlaceMenu({
   async function act(action: string) {
     if (action === "alert" && alertPlace) {
       const next = `/alert/new?place=${encodeURIComponent(alertPlace)}` as Route;
-      onAlert();
-      requireAccount(m.auth_reason_add_alert(), () => router.push(next), next);
+      // A visitor has no alerts tab yet: the sheet turns to it once there is an account, as the
+      // web's panel turns to the alert it begins once signed in.
+      requireAccount(
+        m.auth_reason_add_alert(),
+        () => {
+          onAlert();
+          router.push(next);
+        },
+        next,
+      );
     } else if (action === "share" && url) {
       await shareLink({ title: name, message: m.place_share_text({ name, app: APP_NAME }), url });
     } else if (action.startsWith(DIRECTIONS) && destination) {
