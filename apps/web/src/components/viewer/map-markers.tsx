@@ -1,4 +1,5 @@
 import { GAUGE, GAUGE_CHIP, GAUGE_RADIUS, gaugeDashes } from "@repo/client/map/markers";
+import { goingTo } from "@repo/client/map/sea";
 import { ArrowUpIcon, BookmarkFillIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 import type { ComponentProps, CSSProperties } from "react";
@@ -20,7 +21,7 @@ export function DirectionArrow({
       aria-hidden
       strokeWidth={2.25}
       className={cn("size-3.5 shrink-0", className)}
-      style={{ rotate: `${fromDegrees + 180}deg` }}
+      style={{ rotate: `${goingTo(fromDegrees)}deg` }}
     />
   );
 }

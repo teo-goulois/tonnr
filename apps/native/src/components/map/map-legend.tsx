@@ -1,3 +1,4 @@
+import { GAUGE } from "@repo/client/map/markers";
 import { type ScaleStop, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@repo/client/sea-scales";
 import { ChevronDownIcon, InfoIcon, LayersIcon } from "@repo/ui/icon";
 import { Pressable, ScrollView, View } from "react-native";
@@ -31,8 +32,9 @@ import { LEGEND_SWITCH_HEIGHT, SWITCH_GUESS, switchFit } from "./switch-fit";
 // credits, which the licences ask a reader to find: OpenStreetMap's and OpenFreeMap's always,
 // and Copernicus's whenever the sea is colored (decision 018).
 
-// The gauge of a buoy's pill, which the legend draws smaller.
-const GAUGE_SAMPLE = 24;
+// The gauge of a buoy's pill, which the legend draws at two thirds of its box, as the web's does,
+// drawn a point closer to what stands around it on each side.
+const GAUGE_SAMPLE = { scale: 0.67, margin: -4 };
 // The values written under a scale. The others only take part in the gradient.
 const WAVE_TICKS = [0, 1, 2, 3, 5, 8];
 const WIND_TICKS = [0, 10, 20, 30, 50];
@@ -182,12 +184,12 @@ function Freshness() {
         >
           <View
             style={{
-              width: GAUGE_SAMPLE,
-              height: GAUGE_SAMPLE,
-              margin: -4,
+              width: GAUGE.box,
+              height: GAUGE.box,
+              margin: GAUGE_SAMPLE.margin,
               alignItems: "center",
               justifyContent: "center",
-              transform: [{ scale: 0.67 }],
+              transform: [{ scale: GAUGE_SAMPLE.scale }],
             }}
           >
             <FreshnessGauge freshness={item.freshness} color={colors["neutral-10"]} />

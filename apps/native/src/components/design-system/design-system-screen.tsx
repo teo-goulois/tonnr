@@ -1,3 +1,4 @@
+import { GAUGE } from "@repo/client/map/markers";
 import { scaleColor, WAVE_HEIGHT_SCALE } from "@repo/client/sea-scales";
 import {
   BellIcon,
@@ -896,7 +897,12 @@ function MapParts() {
         {(["fresh", "aging", "old", "none"] as const).map((freshness) => (
           <View
             key={freshness}
-            style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
+            style={{
+              width: GAUGE.box,
+              height: GAUGE.box,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
             <FreshnessGauge freshness={freshness} color={colors["neutral-10"]} />
           </View>

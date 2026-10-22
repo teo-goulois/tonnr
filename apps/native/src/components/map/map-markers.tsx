@@ -5,6 +5,7 @@ import {
   gaugeDashes,
   SELECTED_SCALE,
 } from "@repo/client/map/markers";
+import { goingTo } from "@repo/client/map/sea";
 import { scaleColor, scaleInk, WAVE_HEIGHT_SCALE, WIND_SPEED_SCALE } from "@repo/client/sea-scales";
 import { ArrowUpIcon, BookmarkFillIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { useEffect, useState } from "react";
@@ -38,7 +39,7 @@ const PILL = 28;
 const DISC = 24;
 // The figure of a pill, which no step of the theme is: 12 points.
 const FIGURE = { fontSize: 12, lineHeight: 16 };
-// A press of the map's pills and badges: what the platform's own annotation takes.
+// The most Dynamic Type may grow a figure of the map: not at all, as the web's keeps its size.
 const FIXED = 1;
 // The ring of the gauge, whose dashes a phone measures in points.
 const SLOT = (2 * Math.PI * GAUGE_RADIUS) / GAUGE.bars;
@@ -46,7 +47,7 @@ const SLOT = (2 * Math.PI * GAUGE_RADIUS) / GAUGE.bars;
 /** An arrow that points where the waves or the wind are going, from the bearing they come from. */
 function DirectionArrow({ fromDegrees, color }: { fromDegrees: number; color: string }) {
   return (
-    <View style={{ transform: [{ rotate: `${fromDegrees + 180}deg` }] }}>
+    <View style={{ transform: [{ rotate: `${goingTo(fromDegrees)}deg` }] }}>
       <Glyph icon={ArrowUpIcon} size={12} color={color} strokeWidth={2.25} />
     </View>
   );
