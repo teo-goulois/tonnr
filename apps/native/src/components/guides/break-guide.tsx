@@ -1,6 +1,6 @@
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
 import type { Guide, GuideLine, GuideOwn, SurfBreak } from "@repo/client/viewer/types";
-import { ChevronRightIcon, PenIcon, PlusIcon } from "@repo/ui/icon";
+import { PenIcon, PlusIcon } from "@repo/ui/icon";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 
@@ -267,9 +267,7 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
           accessibilityHint={m.native_guide_line_hint()}
           onPress={onOpen}
           style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space.s,
+            justifyContent: "center",
             minHeight: TARGET,
             marginHorizontal: -space.xs,
             paddingHorizontal: space.xs,
@@ -279,15 +277,12 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
             backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
           })}
         >
-          <View style={{ flex: 1 }}>
-            <CharacteristicRow
-              icon={<CharacteristicIcon field={field.key} given={value ?? []} faint={!value} />}
-              label={field.label()}
-            >
-              {value ? <WordsReading field={field.key} given={value} /> : <AddLabel />}
-            </CharacteristicRow>
-          </View>
-          <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-6"]} />
+          <CharacteristicRow
+            icon={<CharacteristicIcon field={field.key} given={value ?? []} faint={!value} />}
+            label={field.label()}
+          >
+            {value ? <WordsReading field={field.key} given={value} /> : <AddLabel />}
+          </CharacteristicRow>
         </Pressable>
         {/* Who said it stands under the value, out of the row's press: its name asks of its own. */}
         {value && line.origin === "contribution" ? (
