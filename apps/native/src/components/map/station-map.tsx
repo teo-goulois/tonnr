@@ -138,8 +138,9 @@ type StationMapProps = {
   onMoved: (state: MapState, byHand: boolean) => void;
 };
 
-// The layers a press can land on.
-const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots"];
+// The layers a press can land on: the dots, and a buoy's figures, which stand beside its dot as
+// the web's pill holds them and open the buoy as the pill does.
+const DOT_LAYERS = ["spot-dots", "break-dots", "station-dots", "wind-dots", "station-figures"];
 // What a selected place's ring adds to its disc.
 const RING = 5;
 // How long the map takes to go somewhere it was asked to.
