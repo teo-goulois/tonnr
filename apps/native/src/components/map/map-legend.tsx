@@ -6,7 +6,7 @@ import {
 } from "@repo/client/sea-scales";
 import { ChevronDownIcon, InfoIcon, LayersIcon } from "@repo/ui/icon";
 import { Pressable, ScrollView, View } from "react-native";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,6 +28,7 @@ import { m } from "@/paraglide/messages";
 
 import { FADE } from "./features";
 import type { MapLayers } from "./layers";
+import { LEGEND_SWITCH_HEIGHT, SWITCH_GUESS, switchFit } from "./switch-fit";
 
 // What the map's colors mean, and the switch of each of its layers: the web's `MapLegend` as a
 // phone has it (decision 040), at the bottom left of the map where the thumb is, its title kept
@@ -39,12 +40,9 @@ import type { MapLayers } from "./layers";
 const WAVE_TICKS = [0, 1, 2, 3, 5, 8];
 const WIND_TICKS = [0, 10, 20, 30, 50];
 const WIDTH = 256;
-// The platform's switch is wider and taller than the web's, 38 by 22: the legend draws it at three
-// quarters, which is 38 by 23 on an iPhone, and takes the room that it then leaves.
-const SWITCH_SCALE = 0.75;
-const SWITCH = { width: 51, height: 31 };
-// A row is as tall as its switch drawn small, and a finger is given the rest of a target around it.
-const ROW = Math.ceil(SWITCH.height * SWITCH_SCALE);
+// A row is as tall as the web's switch, which the platform's is drawn as tall as, and a finger is
+// given the rest of a target around it.
+const ROW = LEGEND_SWITCH_HEIGHT;
 // The line of the credits, as the web's.
 const CREDITS_ROW = 32;
 
@@ -121,6 +119,9 @@ function LayerRow({
     onChange(!value);
   };
   const slop = (TARGET - ROW) / 2;
+  // The platform's switch, measured as it is laid out, is drawn as tall as the web's.
+  const [natural, setNatural] = useState<{ width: number; height: number }>(SWITCH_GUESS);
+  const fit = switchFit(natural);
   return (
     <View style={{ gap: space.xs }}>
       {/* The row is the switch's label, as the web's is: a press on either flips it. */}
@@ -146,10 +147,14 @@ function LayerRow({
           pointerEvents="none"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            if (width !== natural.width || height !== natural.height) setNatural({ width, height });
+          }}
           style={{
-            transform: [{ scale: SWITCH_SCALE }],
-            marginVertical: -(SWITCH.height * (1 - SWITCH_SCALE)) / 2,
-            marginHorizontal: -(SWITCH.width * (1 - SWITCH_SCALE)) / 2,
+            transform: [{ scale: fit.scale }],
+            marginVertical: fit.marginVertical,
+            marginHorizontal: fit.marginHorizontal,
           }}
         >
           <Switch value={value} onChange={onChange} />
