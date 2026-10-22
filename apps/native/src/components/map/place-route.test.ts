@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  givesToSheet,
   newSpotHref,
   opensRaised,
   placeHref,
@@ -60,5 +61,20 @@ describe("the sheet of a spot just added", () => {
     expect(newSpotHref("s/1")).toBe("/place/spot/s%2F1?new=1");
     expect(placeOf(newSpotHref("s1").split("?")[0]!)).toEqual({ kind: "spot", id: "s1" });
     expect(opensRaised({ kind: "spot", id: "s1", new: "1" })).toBe(true);
+  });
+});
+
+describe("one sheet of a place", () => {
+  it("gives the address of a place to the sheet that is open", () => {
+    expect(givesToSheet(placeHref("break", "b1"), true)).toBe(true);
+    expect(givesToSheet(`${placeHref("break", "b1")}?tab=reports`, true)).toBe(true);
+    expect(givesToSheet(newSpotHref("s1"), true)).toBe(true);
+  });
+
+  it("opens a sheet when none is open, and any other address as it would", () => {
+    expect(givesToSheet(placeHref("break", "b1"), false)).toBe(false);
+    expect(givesToSheet("/place/save?kind=break&id=b1", true)).toBe(false);
+    expect(givesToSheet("/saved/shared/t1", true)).toBe(false);
+    expect(givesToSheet("/", true)).toBe(false);
   });
 });

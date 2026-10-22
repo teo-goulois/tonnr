@@ -38,6 +38,11 @@ export function hideSheet(route: string) {
   told();
 }
 
+/** Whether the sheet of a place is open, in front or under another sheet. */
+export function isSheetOpen() {
+  return sheets.size > 0;
+}
+
 /** What the sheet in front takes of the screen, or nothing when no sheet is open. */
 export function currentSheet(): Sheet {
   return current;

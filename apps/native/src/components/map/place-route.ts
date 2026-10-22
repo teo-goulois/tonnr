@@ -50,6 +50,15 @@ export function placeOf(pathname: string): { kind: PlaceKind; id: string } | und
   }
 }
 
+/**
+ * Whether an address is given to the sheet of a place that is open, in place of a new sheet over
+ * it: the address of a place, while one is open, as the web has one panel, which shows what was
+ * chosen last.
+ */
+export function givesToSheet(route: string, sheetOpen: boolean) {
+  return sheetOpen && placeOf(route.split("?")[0] ?? "") !== undefined;
+}
+
 /** The route of each tab of decision 040 in the tabs' navigator, `app/(tabs)/`. */
 export const TAB_ROUTES: Record<PhoneTab, string> = {
   map: "index",

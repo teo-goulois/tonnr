@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { currentMapState, moveMap } from "@/components/map/map-state";
+import { giveToSheet } from "@/components/map/open-place";
 import { placeHref } from "@/components/map/place-route";
 import { spotsQuery, wavesQuery } from "@/components/map/queries";
 import { middleOf, PLACE_ZOOM } from "@/components/map/view";
@@ -63,7 +64,10 @@ export function SearchScreen() {
       router.back();
       return;
     }
-    router.replace(placeHref(found.kind, found.id));
+    // The sheet of a place that is open under the search is given the place, as the web's one
+    // panel is, and the search closes; or a sheet takes the search's place.
+    const href = placeHref(found.kind, found.id);
+    if (!giveToSheet(href)) router.replace(href);
   }
 
   return (

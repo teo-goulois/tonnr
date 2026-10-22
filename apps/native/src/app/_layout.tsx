@@ -92,7 +92,9 @@ export default function RootLayout() {
                 {/* A place pressed on the map opens low, over the map that stays alive under it,
                     and rises to be read: decision 040's two heights. What was chosen anywhere
                     else opens raised, as the web's drawer opens it. The map is never dimmed, and a
-                    press on it never closes the sheet, as the web's drawer stands beside the map. */}
+                    press on it never closes the sheet, as the web's drawer stands beside the map.
+                    There is one, as the web has one panel: a place opened while one is open is
+                    given to it (`open-place.ts`). */}
                 <Stack.Screen
                   name="place/[kind]/[id]"
                   options={({ route }) =>

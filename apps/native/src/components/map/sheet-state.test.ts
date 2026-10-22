@@ -4,6 +4,7 @@ import {
   currentSheet,
   floorOver,
   hideSheet,
+  isSheetOpen,
   NO_SHEET,
   onSheetChange,
   showSheet,
@@ -30,6 +31,14 @@ describe("the sheet in front", () => {
     expect(currentSheet()).toEqual({ height: 320, raised: false });
     hideSheet("a");
     expect(currentSheet()).toEqual(NO_SHEET);
+  });
+
+  it("says whether a sheet is open, wherever it stands", () => {
+    expect(isSheetOpen()).toBe(false);
+    showSheet("a", { height: 300, raised: true });
+    expect(isSheetOpen()).toBe(true);
+    hideSheet("a");
+    expect(isSheetOpen()).toBe(false);
   });
 
   it("tells its listeners of a change, and of nothing that changes nothing", () => {

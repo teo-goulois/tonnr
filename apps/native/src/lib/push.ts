@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { Platform } from "react-native";
 
+import { openRoute } from "@/components/map/open-place";
 import { ENV } from "@/env";
 import { m } from "@/paraglide/messages";
 import { client } from "@/utils/orpc";
@@ -199,5 +200,5 @@ export function openNotification(response: Notifications.NotificationResponse) {
     const place = /^\/place\/(break|spot)\/([^?]+)/.exec(destination.route);
     if (place) return router.push(`/session/new?place=${place[1]}:${place[2]}` as Route);
   }
-  if ("route" in destination) router.push(destination.route);
+  if ("route" in destination) openRoute(destination.route);
 }

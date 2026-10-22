@@ -2,7 +2,9 @@ import type { SessionPlace } from "@repo/client/sessions/types";
 import { type Href, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
+import { giveToSheet } from "@/components/map/open-place";
 import { useAccount } from "@/lib/account";
+import type { Route } from "@/lib/links";
 import { orpc } from "@/utils/orpc";
 
 export { placeOfParam, placeParam } from "./session-logic";
@@ -47,9 +49,11 @@ export function usePlaceName(place: Pick<SessionPlace, "kind" | "id"> | null, gi
 
 /**
  * Opens a place on the map, as a press on its marker does: the map's tab first, then the place's
- * sheet over it. A place of the log is read where it is surfed.
+ * sheet over it, or the sheet that is open given the place. A place of the log is read where it is
+ * surfed.
  */
 export function openPlaceOnMap(href: Href) {
+  if (typeof href === "string" && giveToSheet(href as Route)) return;
   router.navigate("/");
   router.push(href);
 }
