@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { endOfLastWholeDay, goingTo, levelsOf, seaArrowsReader, seaTimeAt, seaTimes } from "./sea";
+import {
+  endOfLastWholeDay,
+  goingTo,
+  levelsOf,
+  paintSea,
+  seaArrowsReader,
+  seaTimeAt,
+  seaTimes,
+  spreadSea,
+} from "./sea";
 
 const HOUR = 60 * 60 * 1000;
 const STEP = 3 * HOUR;
@@ -112,5 +121,47 @@ describe("the arrows on the sea", () => {
 
   it("reads a transparent pixel as no sea", () => {
     expect([...levelsOf([10, 10, 10, 255, 0, 0, 0, 0])]).toEqual([10, -1]);
+  });
+});
+
+// What `spreadSea` and `paintSea` draw is what `SEA_DRAWING` names: a test that changes here
+// changes it.
+describe("the sea spread to the shore", () => {
+  it("gives each blank pixel the level of the nearest one that has sea", () => {
+    // Four pixels in a row, RGBA: sea at 10, two blanks, sea at 20.
+    const pixels = new Uint8ClampedArray([
+      10, 10, 10, 255, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20, 255,
+    ]);
+    spreadSea(pixels, 4, 1);
+    expect([...pixels]).toEqual([
+      10, 10, 10, 255, 10, 10, 10, 255, 20, 20, 20, 255, 20, 20, 20, 255,
+    ]);
+  });
+
+  it("reaches the rows above and below", () => {
+    // Two pixels across and two down: one has sea, the rest is blank.
+    const pixels = new Uint8Array([10, 10, 10, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    spreadSea(pixels, 2, 2);
+    expect([...pixels]).toEqual(Array.from({ length: 4 }, () => [10, 10, 10, 255]).flat());
+  });
+
+  it("leaves a tile with no sea empty", () => {
+    const pixels = new Uint8Array(16);
+    spreadSea(pixels, 2, 2);
+    expect([...pixels]).toEqual(Array.from({ length: 16 }, () => 0));
+  });
+});
+
+describe("the sea painted in its colors", () => {
+  const colors = new Uint8ClampedArray(256 * 4).map((_, index) => index % 251);
+
+  it("colors each level by its color, and leaves the blank transparent", () => {
+    const pixels = new Uint8Array([2, 2, 2, 255, 0, 0, 0, 0]);
+    expect(paintSea(pixels, colors)).toBe(true);
+    expect([...pixels]).toEqual([8, 9, 10, 11, 0, 0, 0, 0]);
+  });
+
+  it("says when a tile holds no sea", () => {
+    expect(paintSea(new Uint8Array(8), colors)).toBe(false);
   });
 });

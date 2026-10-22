@@ -38,7 +38,7 @@ import {
   wrapLongitude,
   writeView,
 } from "@repo/client/map/view";
-import { SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
+import { paintSea, SEA_ARROW, SEA_MAX_ZOOM } from "@repo/client/map/sea";
 import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { cn } from "@repo/ui/lib/utils";
 
@@ -268,15 +268,7 @@ function addSeaProtocol(maplibre: typeof import("maplibre-gl")) {
     const pixels = image.data;
     rememberSea(request.url, pixels, tile.width);
     spreadSea(pixels, tile.width, tile.height);
-    for (let index = 0; index < pixels.length; index += 4) {
-      // A tile with no sea in it is transparent, and stays so.
-      if (pixels[index + 3] === 0) continue;
-      const color = pixels[index]! * 4;
-      pixels[index] = seaColors[color]!;
-      pixels[index + 1] = seaColors[color + 1]!;
-      pixels[index + 2] = seaColors[color + 2]!;
-      pixels[index + 3] = seaColors[color + 3]!;
-    }
+    paintSea(pixels, seaColors);
     context.putImageData(image, 0, 0);
     return { data: canvas.transferToImageBitmap() };
   });

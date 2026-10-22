@@ -11,8 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
     "@repo/conditions": "workspace:*",
-    "@repo/config": "workspace:*"
+    "@repo/config": "workspace:*",
+    "pbf": "^5.1.2"
   },
   "devDependencies": {
     "@repo/api": "workspace:*",

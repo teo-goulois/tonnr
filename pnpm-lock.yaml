@@ -742,9 +742,6 @@ importers:
       '@inlang/paraglide-js':
         specifier: ^2.26.0
         version: 2.26.0(typescript@7.0.2)(vite@8.3.3)
-      '@mapbox/vector-tile':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.15.4(@opentelemetry/api@1.9.1)
@@ -796,9 +793,6 @@ importers:
       next-themes:
         specifier: 'catalog:'
         version: 0.4.6(react-dom@19.3.0)(react@19.3.0)
-      pbf:
-        specifier: ^5.1.2
-        version: 5.1.2
       posthog-js:
         specifier: ^1.438.7
         version: 1.438.7(@types/react@19.3.0)(react@19.3.0)
@@ -1067,12 +1061,18 @@ importers:
 
   packages/client:
     dependencies:
+      '@mapbox/vector-tile':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@repo/conditions':
         specifier: workspace:*
         version: link:../conditions
       '@repo/config':
         specifier: workspace:*
         version: link:../config
+      pbf:
+        specifier: ^5.1.2
+        version: 5.1.2
     devDependencies:
       '@repo/api':
         specifier: workspace:*

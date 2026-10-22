@@ -28,6 +28,60 @@ export const SEA_ARROW = {
   opacity: 0.85,
 } as const;
 
+/**
+ * The version of what `spreadSea` and `paintSea` draw. An app that keeps a tile it drew by its
+ * address puts it there, and asks the tile again once it changes: whatever makes them draw a tile
+ * otherwise changes it, which their tests hold.
+ */
+export const SEA_DRAWING = 1;
+
+/**
+ * Gives every empty pixel of a sea tile, given as RGBA, the value of the nearest pixel that has
+ * one, so that the sea reaches the shore: the model leaves out the cells that touch the land. A
+ * tile with no sea at all stays empty.
+ */
+export function spreadSea(pixels: Uint8Array | Uint8ClampedArray, width: number, height: number) {
+  const queue = new Int32Array(width * height);
+  let filled = 0;
+  for (let pixel = 0; pixel < queue.length; pixel++) {
+    if (pixels[pixel * 4 + 3] !== 0) queue[filled++] = pixel;
+  }
+  if (filled === 0) return;
+
+  const spread = (from: number, to: number) => {
+    if (pixels[to * 4 + 3] !== 0) return;
+    pixels.copyWithin(to * 4, from * 4, from * 4 + 4);
+    queue[filled++] = to;
+  };
+  for (let next = 0; next < filled && filled < queue.length; next++) {
+    const from = queue[next]!;
+    const column = from % width;
+    if (column > 0) spread(from, from - 1);
+    if (column < width - 1) spread(from, from + 1);
+    if (from >= width) spread(from, from - width);
+    if (from < queue.length - width) spread(from, from + width);
+  }
+}
+
+/**
+ * Colors each pixel of a gray sea tile, given as RGBA, by the color its level has in `colors`,
+ * `seaColorTable`'s: four bytes a level. A transparent pixel has no sea, and stays so. Whether the
+ * tile holds any sea.
+ */
+export function paintSea(pixels: Uint8Array | Uint8ClampedArray, colors: Uint8ClampedArray) {
+  let sea = false;
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] === 0) continue;
+    sea = true;
+    const color = pixels[index]! * 4;
+    pixels[index] = colors[color]!;
+    pixels[index + 1] = colors[color + 1]!;
+    pixels[index + 2] = colors[color + 2]!;
+    pixels[index + 3] = colors[color + 3]!;
+  }
+  return sea;
+}
+
 /** The moments the model has a field for, as the API says them. */
 export type SeaFields = { start: Date; end: Date; stepSeconds: number };
 

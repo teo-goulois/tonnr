@@ -1,42 +1,11 @@
-import { VectorTile } from "@mapbox/vector-tile";
+import { LAND_TILE_SIZE, waterOf } from "@repo/client/map/land";
 import { levelsOf, seaArrowsReader } from "@repo/client/map/sea";
-import { PbfReader } from "pbf";
+
+export { LAND_TILE_SIZE } from "@repo/client/map/land";
+export { spreadSea } from "@repo/client/map/sea";
 
 // Land tiles go through this protocol, which draws them from the basemap's own tiles.
 export const LAND_PROTOCOL = "landtile";
-// The basemap draws a tile over this many pixels of the screen.
-export const LAND_TILE_SIZE = 512;
-
-// A polygon, among the kinds of geometry a vector tile holds.
-const POLYGON = 3;
-
-/**
- * Gives every empty pixel of a sea tile the value of the nearest pixel that has one, so that the
- * sea reaches the shore: the model leaves out the cells that touch the land. A tile with no sea at
- * all stays empty.
- */
-export function spreadSea(pixels: Uint8ClampedArray, width: number, height: number) {
-  const queue = new Int32Array(width * height);
-  let filled = 0;
-  for (let pixel = 0; pixel < queue.length; pixel++) {
-    if (pixels[pixel * 4 + 3] !== 0) queue[filled++] = pixel;
-  }
-  if (filled === 0) return;
-
-  const spread = (from: number, to: number) => {
-    if (pixels[to * 4 + 3] !== 0) return;
-    pixels.copyWithin(to * 4, from * 4, from * 4 + 4);
-    queue[filled++] = to;
-  };
-  for (let next = 0; next < filled && filled < queue.length; next++) {
-    const from = queue[next]!;
-    const column = from % width;
-    if (column > 0) spread(from, from - 1);
-    if (column < width - 1) spread(from, from + 1);
-    if (from >= width) spread(from, from - width);
-    if (from < queue.length - width) spread(from, from + width);
-  }
-}
 
 // What the model says in each sea tile the map has drawn, by the tile's time and place: a gray
 // level, or -1 where it says nothing. The heights written on the sea are read here.
@@ -160,9 +129,8 @@ export function landTiles(basemapTiles: string, colors: { land: string; water: s
 }
 
 /**
- * Draws the land of a basemap tile, and leaves the sea transparent. The basemap describes the
- * water and not the land, so the land is what the sea leaves. A lake keeps the color the basemap
- * gives it: the sea's colors pass under it as under the land.
+ * Draws the land of a basemap tile, and leaves the sea transparent: the outlines both apps read,
+ * in `@repo/client/map/land`, painted on a canvas.
  */
 async function drawLand(address: string, signal: AbortSignal) {
   const url = new URL(address.replace(`${LAND_PROTOCOL}:`, "https:"));
@@ -172,35 +140,20 @@ async function drawLand(address: string, signal: AbortSignal) {
 
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`The basemap tile answered ${response.status}`);
-  const layer = new VectorTile(new PbfReader(await response.arrayBuffer())).layers.water;
 
   const size = LAND_TILE_SIZE * Math.min(2, Math.ceil(window.devicePixelRatio));
+  const outlines = waterOf(await response.arrayBuffer(), size);
   const canvas = new OffscreenCanvas(size, size);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("The land tile has no canvas to draw on");
   context.fillStyle = land;
   context.fillRect(0, 0, size, size);
-  if (!layer) return canvas.transferToImageBitmap();
+  if (!outlines) return canvas.transferToImageBitmap();
 
-  const scale = size / layer.extent;
-  const sea = new Path2D();
-  const lakes = new Path2D();
-  for (let index = 0; index < layer.length; index++) {
-    const feature = layer.feature(index);
-    if (feature.type !== POLYGON || feature.properties.brunnel === "tunnel") continue;
-    const path = feature.properties.class === "ocean" ? sea : lakes;
-    for (const ring of feature.loadGeometry()) {
-      ring.forEach((point, corner) => {
-        if (corner === 0) path.moveTo(point.x * scale, point.y * scale);
-        else path.lineTo(point.x * scale, point.y * scale);
-      });
-      path.closePath();
-    }
-  }
   context.fillStyle = water;
-  context.fill(lakes);
+  context.fill(new Path2D(outlines.lakes));
   context.globalCompositeOperation = "destination-out";
-  context.fill(sea);
+  context.fill(new Path2D(outlines.ocean));
   return canvas.transferToImageBitmap();
 }
 
