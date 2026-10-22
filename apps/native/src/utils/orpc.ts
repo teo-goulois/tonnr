@@ -2,8 +2,9 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { AppRouterClient } from "@repo/api/routers/index";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, focusManager } from "@tanstack/react-query";
 import { fetch as expoFetch } from "expo/fetch";
+import { AppState } from "react-native";
 
 import { linkHeaders } from "@/components/lists/shared-link";
 import { ENV } from "@/env";
@@ -13,6 +14,15 @@ import { getLocale } from "@/paraglide/runtime";
 
 export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, retry: 1 } },
+});
+
+// The app is in focus while it is on the screen, as a browser's tab is for the web's queries: a
+// query in view that is older than its minute is asked again as the app comes back, as the web's
+// is as its window does, and none is asked at intervals while the app is away. TanStack Query's
+// own way for React Native.
+focusManager.setEventListener((handleFocus) => {
+  const listening = AppState.addEventListener("change", (state) => handleFocus(state === "active"));
+  return () => listening.remove();
 });
 
 /**

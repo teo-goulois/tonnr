@@ -7,8 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
+import { useMemo, useState } from "react";
 
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
@@ -21,9 +20,8 @@ import { orpc } from "@/utils/orpc";
 // that signs in after another never reads the first one's.
 
 const MINUTE_MS = 60 * 1000;
-// What the list of notifications grows by as it is scrolled to its end, up to what the API gives.
-const PAGE = 50;
-const MOST = 200;
+// The notifications the list shows, the web's fifty, and the notices of a page, its thirty.
+const NOTIFICATIONS = 50;
 const NOTICES_PAGE = 30;
 
 type NoticePage = {
@@ -37,20 +35,15 @@ export function useNews(isShown: boolean) {
   const { signedIn, userId } = useAccount();
   const queryClient = useQueryClient();
   const tell = useTell();
-  const [limit, setLimit] = useState(PAGE);
   const [isPulled, setPulled] = useState(false);
 
-  const notificationsKey = [
-    ...orpc.v1.notifications.list.queryKey({ input: { limit } }),
-    userId,
-  ] as const;
+  const input = { limit: NOTIFICATIONS };
+  const notificationsKey = [...orpc.v1.notifications.list.queryKey({ input }), userId] as const;
   const notifications = useQuery(
     orpc.v1.notifications.list.queryOptions({
-      input: { limit },
+      input,
       queryKey: notificationsKey,
       enabled: signedIn && isShown,
-      // A longer page keeps the shorter one in view while it comes.
-      placeholderData: (previous) => previous,
       meta: { quiet: true },
     }),
   );
@@ -119,26 +112,6 @@ export function useNews(isShown: boolean) {
     () => notices.data?.pages.flatMap((page) => page.notices),
     [notices.data],
   );
-  const unreadHere =
-    (notificationList ?? []).filter((one) => one.readAt === null).length +
-    (noticeList ?? []).filter((one) => one.readAt === null).length;
-
-  // The API reads one at a time: every one the list shows unread is told, together.
-  const readAll = () => {
-    const unreadNotifications = (notificationList ?? []).filter((one) => one.readAt === null);
-    const unreadNotices = (noticeList ?? []).filter((one) => one.readAt === null);
-    readNotifications(new Set(unreadNotifications.map((one) => one.id)));
-    readNotices(new Set(unreadNotices.map((one) => one.id)));
-    void Promise.all([
-      ...unreadNotifications.map((one) => markNotification.mutateAsync({ id: one.id })),
-      ...unreadNotices.map((one) => markNotice.mutateAsync({ id: one.id })),
-    ])
-      .catch(failed)
-      .finally(settle);
-  };
-
-  const canGrow =
-    notificationList !== undefined && notificationList.length >= limit && limit < MOST;
   return {
     notifications: notificationList,
     notices: noticeList,
@@ -154,30 +127,29 @@ export function useNews(isShown: boolean) {
         setPulled(false),
       );
     },
-    unreadHere,
     readNotification,
     readNotice,
-    readAll,
-    // Older things told, as the list is scrolled to its end.
-    hasMore: canGrow || notices.hasNextPage,
-    isLoadingMore: notices.isFetchingNextPage || (notifications.isFetching && canGrow),
-    loadMore: () => {
+    // The older notices of reports, a page at a time, as the web's "Older reports" loads them.
+    hasMoreNotices: notices.hasNextPage,
+    isLoadingMoreNotices: notices.isFetchingNextPage,
+    loadMoreNotices: () => {
       if (notices.hasNextPage && !notices.isFetchingNextPage) void notices.fetchNextPage();
-      if (canGrow) setLimit((now) => Math.min(MOST, now + PAGE));
     },
   };
 }
 
 /**
  * How many of what its alerts told and of its notices of reports the account has not read, as
- * the web's bar counts them (`useUnreadAlerts`): asked again every five minutes, and when the app
- * comes back to the screen. None for a visitor.
+ * the web's bar counts them (`useUnreadAlerts`): asked again every five minutes, and each time the
+ * app comes back to the screen, which utils/orpc.ts tells every query. None for a visitor.
  */
 export function useUnreadCount() {
   const { userId } = useAccount();
   const asked = {
     enabled: userId !== undefined,
     refetchInterval: 5 * MINUTE_MS,
+    // However recent it is: a push may have come while the app was away.
+    refetchOnWindowFocus: "always" as const,
     meta: { quiet: true },
   };
   const alerts = { unreadOnly: true, limit: UNREAD_NOTIFICATIONS_COUNTED };
@@ -196,17 +168,6 @@ export function useUnreadCount() {
       ...asked,
     }),
   );
-  const { refetch: refetchUnread } = unread;
-  const { refetch: refetchNotices } = notices;
-  useEffect(() => {
-    if (userId === undefined) return;
-    const listening = AppState.addEventListener("change", (state) => {
-      if (state !== "active") return;
-      void refetchUnread();
-      void refetchNotices();
-    });
-    return () => listening.remove();
-  }, [userId, refetchUnread, refetchNotices]);
   if (userId === undefined) return 0;
   return (unread.data?.notifications.length ?? 0) + (notices.data?.unread ?? 0);
 }

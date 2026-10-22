@@ -1,11 +1,13 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
 
 import { endWindowActivitiesOf } from "@/activities/window-activity";
 import { Button } from "@/components/ui/button";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
+import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
@@ -16,18 +18,30 @@ import { orpc } from "@/utils/orpc";
  */
 export default function PauseAlert() {
   const { alert, until } = useLocalSearchParams<{ alert?: string; until?: string }>();
+  const { type } = useTheme();
+  const queryClient = useQueryClient();
   const pause = useMutation(orpc.v1.alerts.pauseToday.mutationOptions());
   const { mutate } = pause;
 
   useEffect(() => {
     if (!alert || !until) return;
-    // The Live Activity of the alert's window goes from the phone at once: the worker would end it
-    // at its next pass (decision 074).
     mutate(
       { id: alert, until: new Date(until) },
-      { onSuccess: () => void endWindowActivitiesOf(alert).catch(() => {}) },
+      {
+        onSuccess: (saved) => {
+          // The alerts' list says it is paused, which it goes back to.
+          queryClient.setQueryData(orpc.v1.alerts.list.queryKey(), (answer) =>
+            answer
+              ? { alerts: answer.alerts.map((one) => (one.id === saved.id ? saved : one)) }
+              : answer,
+          );
+          // The Live Activity of the alert's window goes from the phone at once: the worker
+          // would end it at its next pass (decision 074).
+          void endWindowActivitiesOf(alert).catch(() => {});
+        },
+      },
     );
-  }, [alert, until, mutate]);
+  }, [alert, until, mutate, queryClient]);
 
   const over = pause.error && "status" in pause.error && pause.error.status === 409;
   const said = pause.isSuccess
@@ -43,7 +57,13 @@ export default function PauseAlert() {
       <Text size="l" weight="medium">
         {m.native_pause_title()}
       </Text>
-      <Text tone="muted">{said ?? "…"}</Text>
+      {said === null ? (
+        <Loading>
+          <Skeleton width="80%" height={type.m.line} />
+        </Loading>
+      ) : (
+        <Text tone="muted">{said}</Text>
+      )}
       <Button variant="secondary" onPress={() => router.replace("/alerts")}>
         {m.native_pause_back()}
       </Button>

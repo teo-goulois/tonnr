@@ -1,44 +1,40 @@
 import type { Alert } from "@repo/client/viewer/types";
-import { BellIcon, PlusIcon } from "@repo/ui/icon";
-import { Stack, router } from "expo-router";
-import { type ReactNode, useState } from "react";
-import { Pressable, ScrollView, SectionList, View } from "react-native";
+import { SettingsIcon } from "@repo/ui/icon";
+import { Stack, router, useLocalSearchParams } from "expo-router";
+import { FlatList, RefreshControl, ScrollView, View } from "react-native";
 
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { placeHref } from "@/components/map/place-route";
-import { Glyph } from "@/components/shared/glyph";
-import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
+import { openPlaceOnMap } from "@/components/sessions/session-place";
+import { Button, IconButton } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
-import { feel } from "@/components/ui/haptics";
-import { TARGET } from "@/components/ui/metrics";
-import { Segmented } from "@/components/ui/segmented";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Tabs } from "@/components/ui/tabs";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import type { Route } from "@/lib/links";
-import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
 
 import { AlertRow } from "./alert-row";
-import { GroupTitle, GroupedCell } from "./grouped";
 import { NoticeRow, NotificationRow } from "./news-rows";
-import { type Told, byDay, placeOf, toldOf } from "./told";
+import { type Told, toldOf } from "./told";
 import { useAlertActions, useAlerts } from "./use-alerts";
 import { useNews } from "./use-news";
 
-// The tab of the alerts, the web's `AlertsPanel` as a phone draws a list: a large title, a choice
-// between what was told and the account's alerts, each a list grouped as the platform groups one.
-// What was told comes in the days it came on, the newest first, under titles that stay while
-// their rows scroll, each with a dot while it is not read, a swipe that reads it, and more as the
-// list reaches its end. The alerts each have their switch, a swipe that pauses one for today and
-// one that deletes it, and a long press with the rest. Both are pulled down to be read again.
-// Decisions 031, 040, 068 and 072.
+// The tab of the alerts, the web's `AlertsPanel` as a phone's tab draws it: the platform's large
+// title with the web's one action, the gear that opens the alerts' settings in the account's
+// tab, then the underlined tabs of what was told and of the account's alerts, whose rows stand
+// on the screen's own ground. What was told is one list, the newest first, the notifications and
+// the notices of reports together: a notification is pressed to be read, and a notice opens its
+// break on its reports, on the map. The alerts each have their switch. A visitor is asked for an
+// account. What the web has not stays out of sight until it is reached for: the swipes and the
+// long press of a row, and a list pulled down to be read again. The tab in view is in the
+// address, `?view=mine`, as it is in the web's, `?alerts=mine`. Decisions 031, 040, 068 and 072.
 
 type View_ = "news" | "mine";
 type Item = { kind: "told"; told: Told } | { kind: "alert"; alert: Alert };
-type Group = { key: string; title: string | null; data: Item[] };
 
 const keyOf = (item: Item) =>
   item.kind === "alert"
@@ -47,97 +43,74 @@ const keyOf = (item: Item) =>
       ? `notice:${item.told.notice.id}`
       : `notification:${item.told.notification.id}`;
 
-/** The rows a list stands in for while it loads, in the shapes they will take. */
-function Placeholder() {
-  const { space } = useTheme();
+/** What was told while it loads, the web's `AlertRowSkeleton`: a sign and two lines, three times. */
+function NewsPlaceholder() {
+  const { space, type } = useTheme();
   return (
     <Loading>
-      {[0, 1, 2].map((index) => (
-        <GroupedCell key={index} first={index === 0} last={index === 2}>
-          <View style={{ flexDirection: "row", gap: space.s, padding: space.m }}>
-            <Skeleton width={18} height={18} round />
-            <View style={{ flex: 1, gap: space.xs }}>
-              <Skeleton width="45%" height={16} />
-              <Skeleton width="70%" height={13} />
+      <View style={{ gap: space.xxs }}>
+        {[0, 1, 2].map((index) => (
+          <View key={index} style={{ flexDirection: "row", gap: space.s, padding: space.xs }}>
+            <View style={{ paddingTop: 2 }}>
+              <Skeleton width={18} height={18} round />
+            </View>
+            <View style={{ flex: 1, gap: space.xxs }}>
+              <Skeleton width="40%" height={type.m.line} />
+              <Skeleton width="60%" height={type.s.line} />
             </View>
           </View>
-        </GroupedCell>
-      ))}
+        ))}
+      </View>
     </Loading>
   );
 }
 
-/** A button of the header with a symbol and no name, a finger's size at least. */
-function HeaderButton({
-  label,
-  onPress,
-  children,
-}: {
-  label: string;
-  onPress: () => void;
-  children: ReactNode;
-}) {
+/** The alerts while they load, as the web's `MyAlerts` waits: two lines. */
+function MinePlaceholder() {
+  const { space, type } = useTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={8}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minWidth: TARGET,
-        minHeight: TARGET,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: pressed ? 0.5 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
+    <Loading>
+      <View style={{ gap: space.s, paddingHorizontal: space.xs }}>
+        <Skeleton width="40%" height={type.m.line} />
+        <Skeleton width="60%" height={type.m.line} />
+      </View>
+    </Loading>
   );
+}
+
+/** The room between two rows, the web's `gap-xxs`. */
+function Gap() {
+  const { space } = useTheme();
+  return <View style={{ height: space.xxs }} />;
 }
 
 export function AlertsScreen() {
   const { colors, space } = useTheme();
   const { signedIn, pending } = useAccount();
-  const requireAccount = useRequireAccount();
-  const [view, setView] = useState<View_>("news");
+  const params = useLocalSearchParams<{ view?: string }>();
+  const view: View_ = params.view === "mine" ? "mine" : "news";
   const now = useNow();
   const news = useNews(signedIn && view === "news");
   const mine = useAlerts();
   const actions = useAlertActions();
 
-  const newAlert = () => requireAccount(m.alerts_sign_in_prompt(), () => router.push("/alert/new"));
-
   const header = (
     <Stack.Screen
       options={{
-        title: m.alerts_title(),
-        headerRight: () =>
-          !signedIn ? null : view === "news" ? (
-            news.unreadHere > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => {
-                  feel("done");
-                  news.readAll();
-                }}
-                style={({ pressed }) => ({
-                  minHeight: TARGET,
-                  justifyContent: "center",
-                  opacity: pressed ? 0.5 : 1,
-                })}
-              >
-                <Text weight="medium" dense>
-                  {m.native_mark_all_read()}
-                </Text>
-              </Pressable>
-            ) : null
-          ) : (
-            <HeaderButton label={m.alert_new()} onPress={newAlert}>
-              <Glyph icon={PlusIcon} size={22} color={colors["neutral-10"]} />
-            </HeaderButton>
-          ),
+        // How to be told is a setting of the account: its tab opens on it, as the web's panel.
+        // The web's ghost gear, its icon at the web's size, in a button the platform's bar holds.
+        headerRight: signedIn
+          ? () => (
+              <IconButton
+                icon={SettingsIcon}
+                label={m.command_alerts_settings()}
+                variant="ghost"
+                size="small"
+                iconSize={20}
+                onPress={() => router.navigate("/account/alerts")}
+              />
+            )
+          : undefined,
       }}
     />
   );
@@ -149,164 +122,154 @@ export function AlertsScreen() {
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           style={{ backgroundColor: colors["cte-canvas"] }}
-          contentContainerStyle={{ paddingTop: space.l }}
+          contentContainerStyle={{ padding: space.m }}
         >
           {pending ? (
-            <Placeholder />
+            // The rows' room is laid outside the words, as in the list.
+            <View style={{ marginHorizontal: -space.xs }}>
+              {view === "mine" ? <MinePlaceholder /> : <NewsPlaceholder />}
+            </View>
           ) : (
-            <EmptyState
-              icon={BellIcon}
-              title={m.alerts_title()}
-              description={m.alerts_sign_in_prompt()}
-              action={{
-                label: m.auth_sign_in(),
-                onPress: () => requireAccount(m.alerts_sign_in_prompt(), () => {}),
-              }}
-            />
+            <AccountPrompt text={m.alerts_sign_in_prompt()} />
           )}
         </ScrollView>
       </>
     );
   }
 
-  const groups: Group[] =
+  // What was told waits for both kinds, as the web's panel does, so that the notices do not come
+  // in among the notifications once these are drawn.
+  const items: Item[] =
     view === "news"
-      ? byDay(toldOf(news.notifications ?? [], news.notices ?? []), now).map((day) => ({
-          key: day.key,
-          title: day.title,
-          data: day.data.map((told): Item => ({ kind: "told", told })),
-        }))
-      : mine.alerts && mine.alerts.length > 0
-        ? [
-            {
-              key: "mine",
-              title: null,
-              data: mine.alerts.map((alert): Item => ({ kind: "alert", alert })),
-            },
-          ]
-        : [];
+      ? news.isPending
+        ? []
+        : toldOf(news.notifications ?? [], news.notices ?? []).map((told) => ({
+            kind: "told",
+            told,
+          }))
+      : (mine.alerts ?? []).map((alert) => ({ kind: "alert", alert }));
 
-  const isPending = view === "news" ? news.isPending : mine.isPending;
-  const isError = view === "news" ? news.isError : mine.isError;
+  // What the alerts told could not be loaded: it is said over the notices that came, which stay,
+  // where the web's panel says it alone.
+  const newsFailed =
+    view === "news" && !news.isPending && news.isError && news.notifications === undefined;
 
-  const empty = isPending ? (
-    <Placeholder />
-  ) : isError ? (
-    <ErrorState
-      title={view === "news" ? m.alerts_load_failed() : m.alerts_mine_load_failed()}
-      onRetry={view === "news" ? news.refresh : mine.refetch}
-    />
-  ) : view === "news" ? (
-    <EmptyState icon={BellIcon} title={m.alerts_empty()} />
-  ) : (
-    <EmptyState
-      icon={BellIcon}
-      title={m.alerts_mine_empty()}
-      action={{ label: m.alert_create(), onPress: newAlert }}
-    />
+  const line = (text: string) => (
+    <Text tone="muted" style={{ paddingHorizontal: space.xs }}>
+      {text}
+    </Text>
   );
+  const empty =
+    view === "news" ? (
+      news.isPending ? (
+        <NewsPlaceholder />
+      ) : newsFailed ? undefined : (
+        line(m.alerts_empty())
+      )
+    ) : mine.isPending ? (
+      <MinePlaceholder />
+    ) : mine.isError ? (
+      <View style={{ paddingHorizontal: space.xs }}>
+        <ErrorState
+          plain
+          title={m.alerts_mine_load_failed()}
+          onRetry={mine.refresh}
+          retrying={mine.isRefreshing}
+        />
+      </View>
+    ) : (
+      line(m.alerts_mine_empty())
+    );
 
-  const renderItem = ({ item, index, section }: { item: Item; index: number; section: Group }) => {
-    const first = index === 0;
-    const last = index === section.data.length - 1;
-    if (item.kind === "alert") {
-      return (
-        <GroupedCell first={first} last={last}>
-          <AlertRow alert={item.alert} actions={actions} />
-        </GroupedCell>
-      );
-    }
+  const renderItem = ({ item }: { item: Item }) => {
+    if (item.kind === "alert") return <AlertRow alert={item.alert} actions={actions} plain />;
     const { told } = item;
     if (told.kind === "notice") {
       const { notice } = told;
       return (
-        <GroupedCell first={first} last={last}>
-          <NoticeRow
-            notice={notice}
-            now={now}
-            onRead={() => news.readNotice(notice)}
-            onOpen={() => {
-              news.readNotice(notice);
-              router.push(`${placeHref("break", notice.breakId)}?tab=reports` as Route);
-            }}
-          />
-        </GroupedCell>
+        <NoticeRow
+          notice={notice}
+          now={now}
+          onRead={() => news.readNotice(notice)}
+          onOpen={() => {
+            news.readNotice(notice);
+            openPlaceOnMap(`${placeHref("break", notice.breakId)}?tab=reports` as Route);
+          }}
+        />
       );
     }
     const { notification } = told;
     return (
-      <GroupedCell first={first} last={last}>
-        <NotificationRow
-          notification={notification}
-          now={now}
-          onRead={() => news.readNotification(notification)}
-          onOpen={() => {
-            news.readNotification(notification);
-            // It opens the place it speaks of, as its push does; one of several is read here.
-            const place = placeOf(notification);
-            if (place) router.push(placeHref(place.kind, place.id));
-          }}
-        />
-      </GroupedCell>
+      <NotificationRow
+        notification={notification}
+        now={now}
+        onRead={() => news.readNotification(notification)}
+      />
     );
   };
 
   return (
     <>
       {header}
-      <SectionList<Item, Group>
-        sections={groups}
+      <FlatList<Item>
+        data={items}
         keyExtractor={keyOf}
         renderItem={renderItem}
-        renderSectionHeader={({ section }) =>
-          section.title ? <GroupTitle title={section.title} /> : null
-        }
-        stickySectionHeadersEnabled
+        ItemSeparatorComponent={Gap}
         contentInsetAdjustmentBehavior="automatic"
         style={{ backgroundColor: colors["cte-canvas"] }}
-        contentContainerStyle={{ paddingBottom: space.xxl }}
+        // The rows' room is laid outside the words, which stand in line with the tabs, as the
+        // web's `-mx-xs` list of `px-xs` rows.
+        contentContainerStyle={{
+          paddingHorizontal: space.m - space.xs,
+          paddingTop: space.m,
+          paddingBottom: space.xxl,
+        }}
         ListHeaderComponent={
-          <View
-            style={{ paddingHorizontal: space.m, paddingTop: space.xs, paddingBottom: space.s }}
-          >
-            <Segmented<View_>
+          <View style={{ paddingHorizontal: space.xs, paddingBottom: space.m, gap: space.m }}>
+            <Tabs<View_>
               label={m.alerts_title()}
-              fill
               options={[
-                {
-                  value: "news",
-                  label:
-                    news.unreadHere > 0
-                      ? `${m.alerts_tab_news()} · ${news.unreadHere}`
-                      : m.alerts_tab_news(),
-                },
+                { value: "news", label: m.alerts_tab_news() },
                 { value: "mine", label: m.alerts_tab_mine() },
               ]}
               value={view}
-              onChange={setView}
+              onChange={(next) => router.setParams({ view: next })}
             />
+            {newsFailed ? (
+              <ErrorState
+                plain
+                title={m.alerts_load_failed()}
+                onRetry={news.refresh}
+                retrying={news.isRefreshing}
+              />
+            ) : null}
           </View>
         }
-        ListEmptyComponent={<View style={{ paddingTop: space.s }}>{empty}</View>}
+        ListEmptyComponent={empty}
         ListFooterComponent={
-          view === "news" && news.isLoadingMore ? (
-            <View style={{ paddingTop: space.s }}>
-              <Placeholder />
-            </View>
-          ) : view === "news" && news.hasMore && groups.length > 0 ? (
-            <View style={{ alignItems: "center", paddingTop: space.m }}>
-              <Button variant="ghost" onPress={news.loadMore}>
+          // The older notices of reports, which the list loads a page at a time: decision 068.
+          view === "news" && news.hasMoreNotices && items.length > 0 ? (
+            <View
+              style={{ alignItems: "flex-start", paddingHorizontal: space.xs, paddingTop: space.s }}
+            >
+              <Button
+                variant="ghost"
+                loading={news.isLoadingMoreNotices}
+                onPress={news.loadMoreNotices}
+              >
                 {m.alerts_more_notices()}
               </Button>
             </View>
           ) : undefined
         }
-        onEndReachedThreshold={0.5}
-        onEndReached={() => {
-          if (view === "news" && news.hasMore && !news.isLoadingMore) news.loadMore();
-        }}
-        refreshing={view === "news" ? news.isRefreshing : mine.isRefreshing}
-        onRefresh={view === "news" ? news.refresh : mine.refresh}
+        refreshControl={
+          <RefreshControl
+            refreshing={view === "news" ? news.isRefreshing : mine.isRefreshing}
+            onRefresh={view === "news" ? news.refresh : mine.refresh}
+            tintColor={colors["neutral-7"]}
+          />
+        }
       />
     </>
   );

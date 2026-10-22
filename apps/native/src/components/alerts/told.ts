@@ -3,9 +3,9 @@ import { momentOf } from "@repo/conditions/alerts/clock";
 
 import { sizeName } from "@/components/profile/profile-words";
 import {
+  compassName,
   formatAgo,
   formatClock,
-  formatDate,
   formatDay,
   formatDayAndClock,
   formatSeconds,
@@ -13,10 +13,8 @@ import {
 import { formatDistance, formatHeight } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { bearingWords } from "./words";
-
-// What the alerts told and the notices of reports, in words, and in the days they came on: what
-// the web's `AlertsPanel` writes, for the list of the alerts' tab. Decisions 031 and 068.
+// What the alerts told and the notices of reports, in words: what the web's `AlertsPanel` writes,
+// for the list of the alerts' tab. Decisions 031 and 068.
 
 export type Moment = AlertNotification["moment"];
 type Line = AlertNotification["payload"]["lines"][number];
@@ -68,36 +66,31 @@ export function notificationTitle(notification: AlertNotification) {
 }
 
 /**
- * What the nearest wave station measured as a window began, in a line, and whom its readings are
- * credited to: the whole sea where it stands, given for the reader to judge. Undefined when it
- * read no height.
+ * What the nearest wave station measured as a window began, and whom its readings are credited
+ * to: the whole sea where it stands, given for the reader to judge. The row draws the direction
+ * as an arrow and its point between the period and the hour, as the web's `Bearing`; a screen
+ * reader hears it named in full. Undefined when it read no height.
  */
 export function buoyWords(line: Line, zone: string) {
   const buoy = line.buoy;
   if (!buoy || buoy.significantHeightMeters === null) return undefined;
+  const measured = `${m.alerts_station({ name: buoy.name, distance: formatDistance(buoy.distanceKm) })} ${formatHeight(buoy.significantHeightMeters)}`;
+  const period =
+    buoy.peakPeriodSeconds === null ? undefined : formatSeconds(buoy.peakPeriodSeconds);
+  const direction = buoy.peakDirectionDegrees ?? undefined;
+  const at = formatDayAndClock(new Date(buoy.observedAt), zone);
   return {
-    said: [
-      `${m.alerts_station({ name: buoy.name, distance: formatDistance(buoy.distanceKm) })} ${formatHeight(buoy.significantHeightMeters)}`,
-      ...(buoy.peakPeriodSeconds === null ? [] : [formatSeconds(buoy.peakPeriodSeconds)]),
-      ...(buoy.peakDirectionDegrees === null ? [] : [bearingWords(buoy.peakDirectionDegrees)]),
-      formatDayAndClock(new Date(buoy.observedAt), zone),
-    ].join(" · "),
+    measured,
+    period,
+    direction,
+    at,
+    spoken: [measured, period, direction === undefined ? undefined : compassName(direction), at]
+      .filter(Boolean)
+      .join(", "),
     credit: buoy.attribution
       ? m.alerts_station_credit({ attribution: buoy.attribution })
       : undefined,
   };
-}
-
-/**
- * The place a notification opens, as its push does: the one it speaks of, and none when it
- * speaks of several, whose list is where it stands. Decision 031, "Push".
- */
-export function placeOf(notification: AlertNotification) {
-  const [line, other] = notification.payload.lines;
-  if (!line || other) return undefined;
-  return line.breakId
-    ? ({ kind: "break", id: line.breakId } as const)
-    : ({ kind: "spot", id: line.spotId } as const);
 }
 
 /** What a notice of reports says: how many reports at its break, and the newest still shown. */
@@ -123,7 +116,7 @@ export function noticeWords(notice: ReportNotice) {
   return { title, said };
 }
 
-/** How long ago something was told: "just now" in its first minute. */
+/** How long ago a notice of reports was told: "just now" in its first minute, as the web's. */
 export function agoWords(at: Date, now: number) {
   return now - at.getTime() < 60_000 ? m.report_just_now() : formatAgo(at, now);
 }
@@ -143,41 +136,4 @@ export function toldOf(notifications: AlertNotification[], notices: ReportNotice
     })),
     ...notices.map((notice): Told => ({ kind: "notice", at: notice.updatedAt.getTime(), notice })),
   ].sort((a, b) => b.at - a.at);
-}
-
-// A day of the phone's calendar, which what was told is grouped by.
-const dayKey = (at: number) => {
-  const date = new Date(at);
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-};
-
-/** What was told, in the days it came on, the newest first, each named as a list names it. */
-export function byDay(told: Told[], now: number) {
-  const today = dayKey(now);
-  const yesterday = dayKey(new Date(now).setDate(new Date(now).getDate() - 1));
-  const days: { key: string; title: string; data: Told[] }[] = [];
-  for (const one of told) {
-    const key = dayKey(one.at);
-    const day = days.at(-1);
-    if (day?.key === key) {
-      day.data.push(one);
-      continue;
-    }
-    days.push({
-      key,
-      title:
-        key === today
-          ? m.session_day_today()
-          : key === yesterday
-            ? m.session_day_yesterday()
-            : formatDate(new Date(one.at), now),
-      data: [one],
-    });
-  }
-  return days;
-}
-
-/** Whether something told is read. */
-export function isRead(one: Told) {
-  return (one.kind === "notification" ? one.notification.readAt : one.notice.readAt) !== null;
 }

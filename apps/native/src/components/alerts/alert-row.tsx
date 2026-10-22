@@ -5,6 +5,7 @@ import { Alert as Dialog, Platform, Pressable, View } from "react-native";
 
 import { confirmDestructive } from "@/components/saved/confirm";
 import { Glyph } from "@/components/shared/glyph";
+import { Badge } from "@/components/ui/badge";
 import { feel } from "@/components/ui/haptics";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
@@ -12,29 +13,31 @@ import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
+import { AlertSummary } from "./alert-summary";
 import { alertLine } from "./summary";
 import { SwipeRow } from "./swipe-row";
 import type { AlertActions } from "./use-alerts";
 
-// An alert in a list: its name, its places, what it asks and its switch, as the web's `MyAlerts`
-// and `SpotAlerts` list it. A press opens it. A swipe from the leading edge pauses it for today,
-// or lifts the pause (decision 072), and one from the trailing edge deletes it, with an undo. A
-// long press opens the platform's menu over the row: on iOS its context menu, which lifts the row
-// as its preview, on Android a dialog of the same actions. A screen reader finds them all among
-// the row's actions.
+// An alert in a list, as the web's `MyAlerts` lists it: its name, its places, what it asks and
+// its switch; or as its `SpotAlerts` does in a place's panel, what it asks before its other
+// places, with a chevron. A press opens it. What the web has no way to show stays out of sight
+// until it is reached for: a swipe from the leading edge pauses it for today, or lifts the pause
+// (decision 072), and one from the trailing edge deletes it, with an undo; a long press opens the
+// platform's menu over the row, on iOS its context menu, which lifts the row as its preview, on
+// Android a dialog of the same actions. A screen reader finds them all among the row's actions,
+// in the words of the web's buttons. A paused alert says so beside its name.
 
 type AlertRowProps = {
   alert: Alert;
   actions: AlertActions;
   /**
    * The place whose panel lists it: its other places are said after "Also on", under what it
-   * asks, and a chevron ends what a press opens, as the web's `SpotAlerts` draws its rows.
+   * asks, and a chevron says that it opens, as the web's `SpotAlerts` draws it.
    */
   placeId?: string;
   /**
-   * Drawn as the web draws its rows of alerts: on the sheet's own ground, with the web's room
-   * around it and a rounded ground as it is pressed. The alerts' tab keeps the ground of its
-   * grouped cells.
+   * The web's list: the row on the screen's own ground, its words in line with the list's and its
+   * press tinted in the transparent third grey. Else a cell of a grouped list, on the surface.
    */
   plain?: boolean;
 };
@@ -57,9 +60,11 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
       : placeId === undefined
         ? names.join(" · ")
         : `${m.alert_also_on()} ${names.join(" · ")}`;
-  // A list of every alert names its places first; a place's list, what it asks first, since the
-  // place is the one in view.
-  const atPlace = placeId !== undefined;
+  const places = placesLine ? (
+    <Text size="s" tone="muted" numberOfLines={1}>
+      {placesLine}
+    </Text>
+  ) : null;
 
   const open = () => actions.open(alert);
   const togglePause = () => (paused ? actions.resume(alert) : actions.pause(alert));
@@ -94,18 +99,18 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
       accessibilityLabel={[
         alert.name,
         paused ? m.native_alert_paused() : undefined,
-        ...(atPlace ? [line.spoken, placesLine] : [placesLine, line.spoken]),
+        ...(placeId === undefined ? [placesLine, line.spoken] : [line.spoken, placesLine]),
       ]
         .filter(Boolean)
         .join(". ")}
       accessibilityHint={m.alert_open({ name: alert.name })}
       accessibilityActions={[
-        { name: "duplicate", label: m.native_alert_duplicate() },
+        { name: "duplicate", label: m.alert_copy({ name: alert.name }) },
         {
           name: "pause",
           label: paused ? m.native_alert_resume() : m.native_push_not_today(),
         },
-        { name: "delete", label: m.action_delete() },
+        { name: "delete", label: m.alert_delete({ name: alert.name }) },
       ]}
       onAccessibilityAction={(event) => {
         const action = event.nativeEvent.actionName;
@@ -121,21 +126,20 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
     >
       {({ pressed }) => (
         <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            ...(plain
+          style={[
+            { flexDirection: "row", alignItems: "center", gap: space.xs },
+            plain
               ? {
-                  gap: space.xs,
-                  padding: space.xs,
+                  paddingHorizontal: space.xs,
+                  paddingVertical: space.xs,
                   borderRadius: radius.xs,
-                  borderCurve: "continuous" as const,
-                  backgroundColor: pressed ? colors["neutral-3"] : "transparent",
+                  borderCurve: "continuous",
+                  backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
                 }
-              : { paddingVertical: space.s, paddingStart: space.m, opacity: pressed ? 0.6 : 1 }),
-          }}
+              : { paddingVertical: space.s, paddingStart: space.m, opacity: pressed ? 0.6 : 1 },
+          ]}
         >
-          <View style={{ flex: 1, gap: space.xxs }}>
+          <View style={{ flex: 1, minWidth: 0, gap: space.xxs }}>
             <View
               style={{
                 flexDirection: "row",
@@ -147,42 +151,16 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
               <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
                 {alert.name}
               </Text>
-              {paused ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: space.xxs,
-                    paddingHorizontal: space.xs,
-                    paddingVertical: 2,
-                    borderRadius: radius.xs,
-                    backgroundColor: colors["warning-transparent"],
-                  }}
-                >
-                  <PauseGlyph />
-                  <Text size="xs" weight="medium" dense>
-                    {m.native_alert_paused()}
-                  </Text>
-                </View>
-              ) : null}
+              {paused ? <Badge tone="warning">{m.native_alert_paused()}</Badge> : null}
             </View>
-            {placesLine && !atPlace ? (
-              <Text size="s" tone="muted" numberOfLines={1}>
-                {placesLine}
-              </Text>
-            ) : null}
-            {line.shown ? (
-              <Text size="s" tone="muted" numberOfLines={2}>
-                {line.shown}
-              </Text>
-            ) : null}
-            {placesLine && atPlace ? (
-              <Text size="s" tone="muted" numberOfLines={1}>
-                {placesLine}
-              </Text>
-            ) : null}
+            {placeId === undefined ? places : null}
+            {/* Two alerts of one place are told apart by what they ask. */}
+            <AlertSummary alert={alert} />
+            {placeId === undefined ? null : places}
           </View>
-          {atPlace ? <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-7"]} /> : null}
+          {placeId === undefined ? null : (
+            <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-7"]} />
+          )}
         </View>
       )}
     </Pressable>
@@ -198,10 +176,14 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
       }}
       trailing={{ label: m.action_delete(), icon: TrashIcon, tone: "danger", onAct: remove }}
     >
+      {/* The ground a swipe moves over what it reveals: the screen's, or the grouped list's. Its
+          parts stretch to the row's height, which the alert's words give: iOS's menu trigger
+          does not centre what stands beside it, so the switch centres itself in its own column,
+          as the web's row centres it. */}
       <View
         style={{
           flexDirection: "row",
-          alignItems: "center",
+          alignItems: "stretch",
           gap: space.s,
           // A plain row stands on the sheet's ground, which hides the swipe's under it as the
           // cell's surface does, and keeps its switch a small step in from its end.
@@ -230,21 +212,17 @@ export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowPro
         ) : (
           body(open)
         )}
-        <Switch
-          value={alert.enabled}
-          disabled={actions.switching.includes(alert.id)}
-          label={m.alerts_mine_switch({ name: alert.name })}
-          onChange={(enabled) => actions.flip(alert, enabled)}
-        />
+        <View style={{ justifyContent: "center" }}>
+          <Switch
+            value={alert.enabled}
+            disabled={actions.switching.includes(alert.id)}
+            label={m.alerts_mine_switch({ name: alert.name })}
+            onChange={(enabled) => actions.flip(alert, enabled)}
+          />
+        </View>
       </View>
     </SwipeRow>
   );
-}
-
-// The sign of a pause, beside its words: a pause is told by more than its color.
-function PauseGlyph() {
-  const { colors } = useTheme();
-  return <Glyph icon={PauseIcon} size={12} color={colors["neutral-10"]} />;
 }
 
 /**
