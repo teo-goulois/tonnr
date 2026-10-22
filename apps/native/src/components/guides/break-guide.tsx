@@ -7,11 +7,11 @@ import { Pressable, View } from "react-native";
 import { useBlock } from "@/components/friends/blocking";
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { ErrorState } from "@/components/ui/error-state";
 import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -413,20 +413,16 @@ function Question({
       <Text size="s" weight="medium" accessibilityRole="header">
         {QUESTIONS[question].label()}
       </Text>
-      <View
-        role="group"
-        accessibilityLabel={QUESTIONS[question].label()}
-        style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}
-      >
+      <ToggleGroup label={QUESTIONS[question].label()}>
         {answers.map((answer) => (
-          <Chip
+          <Toggle
             key={answer}
             label={readAnswer(question, answer)}
-            selected={mine === answer}
+            pressed={mine === answer}
             onPress={() => onAnswer(question, answer)}
           />
         ))}
-      </View>
+      </ToggleGroup>
       <Text size="s" tone="muted">
         {spreadText(spread, listed)}
       </Text>

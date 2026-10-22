@@ -5,8 +5,8 @@ import { View } from "react-native";
 import { usePlaceRecord } from "@/components/place/use-place";
 import { useSpotActions } from "@/components/place/use-spot";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -103,19 +103,15 @@ function DescribeSheet({
         const pressed: readonly string[] = said[field.key] ?? [];
         return (
           <View key={field.key} style={{ gap: space.xs }}>
-            <Text size="s" weight="medium" accessibilityRole="header">
+            <Text weight="medium" accessibilityRole="header">
               {field.label()}
             </Text>
-            <View
-              role="group"
-              accessibilityLabel={field.label()}
-              style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}
-            >
+            <ToggleGroup label={field.label()}>
               {field.words.map(({ word, reading }) => (
-                <Chip
+                <Toggle
                   key={word}
                   label={reading()}
-                  selected={pressed.includes(word)}
+                  pressed={pressed.includes(word)}
                   disabled={spots.isChanging}
                   onPress={() =>
                     // A list with nothing pressed is one that is not said. Each press adds to
@@ -133,7 +129,7 @@ function DescribeSheet({
                   }
                 />
               ))}
-            </View>
+            </ToggleGroup>
           </View>
         );
       })}

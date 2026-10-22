@@ -8,11 +8,11 @@ import { useOpenPage } from "@/components/account/open-page";
 import { UsernameForm } from "@/components/account/username-form";
 import { TextField } from "@/components/lists/text-field";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { feel } from "@/components/ui/haptics";
 import { Loading, SkeletonText } from "@/components/ui/skeleton";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -228,16 +228,12 @@ export function WordsSheet({
             {pressed.length > 0 ? wordsText(field.key, pressed) : field.label()}
           </Text>
         </View>
-        <View
-          role="group"
-          accessibilityLabel={field.label()}
-          style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}
-        >
+        <ToggleGroup label={field.label()}>
           {field.words.map(({ word, reading }) => (
-            <Chip
+            <Toggle
               key={word}
               label={reading()}
-              selected={pressed.includes(word)}
+              pressed={pressed.includes(word)}
               disabled={actions.isSending}
               onPress={() =>
                 setPressed((before) =>
@@ -246,7 +242,7 @@ export function WordsSheet({
               }
             />
           ))}
-        </View>
+        </ToggleGroup>
         <Refusal why={refused} />
         <License />
       </Writer>
