@@ -15,7 +15,8 @@ import { TARGET } from "./metrics";
 import { Text } from "./text";
 
 // A choice among a few, as the web's segments draw it (`TabsList variant="segment"`): a pill of
-// the theme's muted ground, on which the one chosen stands on its surface with its edge, which
+// the theme's muted ground, its options in the theme's faint grey, the web's tabs' own, on which
+// the one chosen stands in the theme's ink on its surface with its edge, which
 // moves to the next on the theme's motion, and stays still for a reader who asked for no motion.
 // Under `lg` the web gives it a button's height, as decision 040 asks.
 const SEGMENT_HEIGHT = 32;
@@ -143,7 +144,7 @@ export function Segmented<Value extends string>({
                     ? colors["neutral-4"]
                     : selected || pressed
                       ? colors["neutral-10"]
-                      : colors["neutral-7"],
+                      : colors["neutral-6"],
                 }}
               >
                 {option.label}
