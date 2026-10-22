@@ -24,6 +24,8 @@ type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
 // How long a sheet given a new low height takes to reach it, past which it is measured.
 const SETTLING_MS = 400;
+// By when a sheet the platform says nothing of has begun to be shown.
+const SHOWN_BY_MS = 600;
 
 // The height each sheet stands at, and its low height, by its route: a sheet given another place,
 // by a press on the map or from anywhere else, keeps them, though the place is drawn anew in it.
@@ -100,13 +102,44 @@ export function useFoldHeight(detent: number, atRest: boolean) {
   const placeKind = place?.kind;
   const placeId = place?.id;
   const [shift, setShift] = useState(measuredShift);
+  // The map is told the sheet's height as the platform begins to show it, and not as it is
+  // mounted, which comes earlier by the time its panel takes to be drawn: what stands on it then
+  // rises with it. Until then the sheet is said with no height, so that it counts as open and
+  // selects its place. It is told as the sheet begins to go, and not once it is gone, so that
+  // what stands on it comes down with it, and told again that it stands when a swipe that began
+  // to close it lets it go.
+  const [showing, setShowing] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
+    const starts = navigation.addListener("transitionStart", (event) => {
+      if (event.data.closing) setLeaving(true);
+      else setShowing(true);
+    });
+    const ends = navigation.addListener("transitionEnd", (event) => {
+      if (!event.data.closing) {
+        setShowing(true);
+        setLeaving(false);
+      }
+    });
+    // A platform that says nothing of the opening has begun to show the sheet by then.
+    const timer = setTimeout(() => setShowing(true), SHOWN_BY_MS);
+    return () => {
+      starts();
+      ends();
+      clearTimeout(timer);
+    };
+  }, [navigation]);
+  useEffect(() => {
+    if (leaving) {
+      hideSheet(route.key);
+      return;
+    }
     showSheet(route.key, {
-      height: low * largest + shift,
+      height: showing ? low * largest + shift : 0,
       raised: detent > 0,
       place: placeKind && placeId ? { kind: placeKind, id: placeId } : undefined,
     });
-  }, [route.key, low, largest, shift, detent, placeKind, placeId]);
+  }, [route.key, showing, leaving, low, largest, shift, detent, placeKind, placeId]);
   // Measured once the low sheet is at rest, and once it has taken a new low height, which the
   // platform gives it without saying when it is reached.
   const top = useRef<ComponentRef<typeof View>>(null);

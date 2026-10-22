@@ -13,7 +13,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   Easing,
   FadeIn,
@@ -109,6 +109,10 @@ const BUTTONS_IN = 6;
 const SPINNER = { width: 14, height: 14 };
 // Nothing covers the map but the bars, which the map is drawn under as the web's is.
 const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
+// How long iOS's sheet takes to open, close or move to another height, and its curve, which what
+// stands on it takes too.
+const IOS_SHEET_MS = 500;
+const IOS_SHEET_CURVE = [0.32, 0.72, 0, 1] as const;
 
 export function MapScreen() {
   const { colors, space, scheme, motion } = useTheme();
@@ -429,13 +433,18 @@ export function MapScreen() {
         });
   }, [isCovered, reduceMotion, footOpacity, motion]);
   const footFade = useAnimatedStyle(() => ({ opacity: footOpacity.value }));
+  // They move with the sheet they stand on, on its own time: iOS's sheet takes about half a
+  // second, on the curve the web's drawers of iOS's kind take, where the web's own drawer and its
+  // foot both take the theme's large motion. Android's sheet keeps to the theme's.
   const footMove = useMemo(
     () =>
       reduceMotion
         ? undefined
-        : LinearTransition.duration(motion.largeDuration).easing(
-            Easing.bezier(...motion.largeEasing),
-          ),
+        : Platform.OS === "ios"
+          ? LinearTransition.duration(IOS_SHEET_MS).easing(Easing.bezier(...IOS_SHEET_CURVE))
+          : LinearTransition.duration(motion.largeDuration).easing(
+              Easing.bezier(...motion.largeEasing),
+            ),
     [reduceMotion, motion],
   );
 
