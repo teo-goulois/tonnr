@@ -130,9 +130,10 @@ type IconButtonProps = {
   label: string;
   /**
    * The variants of `Button`, and `surface`: the theme's surface with its edge, as the map's
-   * buttons float over it.
+   * buttons float over it, and `inverse`, the theme's ink with no edge, as a map's button is
+   * filled while what it shows is narrowed (a list shown alone).
    */
-  variant?: ButtonVariant | "surface";
+  variant?: ButtonVariant | "surface" | "inverse";
   onPress?: () => void;
   disabled?: boolean;
   loading?: boolean;
@@ -141,6 +142,11 @@ type IconButtonProps = {
    * says it too, with the filled icon, as a bookmark is filled while a list holds the place.
    */
   selected?: boolean;
+  /**
+   * For a button that unfolds something beside it, whether it is unfolded, which a screen reader
+   * says: a surface button is then drawn pressed, in the theme's third grey, as the web's is.
+   */
+  expanded?: boolean;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -155,6 +161,7 @@ export function IconButton({
   disabled = false,
   loading = false,
   selected,
+  expanded,
   accessibilityHint,
   style,
   testID,
@@ -169,21 +176,25 @@ export function IconButton({
             edge: colors["neutral-10-transparent"],
           }
         : {
-            background: colors["neutral-1"],
+            background: expanded ? colors["neutral-3"] : colors["neutral-1"],
             label: colors["neutral-10"],
             edge: colors["neutral-10-transparent"],
           }
-      : lookOf(variant, disabled, colors);
+      : variant === "inverse"
+        ? disabled
+          ? { background: colors["neutral-3"], label: colors["neutral-6"] }
+          : { background: colors["neutral-10"], label: colors["neutral-1"] }
+        : lookOf(variant, disabled, colors);
 
   return (
     <HeroButton
-      variant={variant === "surface" ? "secondary" : variant}
+      variant={variant === "surface" ? "secondary" : variant === "inverse" ? "primary" : variant}
       isIconOnly
       isDisabled={disabled || loading}
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: disabled || loading, busy: loading, selected }}
+      accessibilityState={{ disabled: disabled || loading, busy: loading, selected, expanded }}
       testID={testID}
       style={[
         {

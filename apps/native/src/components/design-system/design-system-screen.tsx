@@ -3,6 +3,7 @@ import {
   BookmarkFillIcon,
   BookmarkIcon,
   GlobalIcon,
+  ListsIcon,
   LogOutIcon,
   MapIcon,
   PlusIcon,
@@ -180,6 +181,10 @@ function Buttons() {
         <IconButton icon={BookmarkFillIcon} label="Saved" variant="surface" selected />
         <IconButton icon={MapIcon} label="Map" variant="surface" disabled />
         <IconButton icon={BellIcon} label="Alerts" loading />
+      </Line>
+      <Line>
+        <IconButton icon={ListsIcon} label="Lists, unfolded" variant="surface" expanded />
+        <IconButton icon={ListsIcon} label="A list shown alone" variant="inverse" />
       </Line>
       <Note>A button with a name is the theme's one height; a round one is 48 points.</Note>
     </View>

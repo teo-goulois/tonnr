@@ -6,7 +6,14 @@ import {
 } from "@repo/client/sea-scales";
 import { ChevronDownIcon, InfoIcon, LayersIcon } from "@repo/ui/icon";
 import { Pressable, ScrollView, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { useEffect } from "react";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { Glyph } from "@/components/shared/glyph";
 import { edge } from "@/components/ui/edge";
@@ -31,7 +38,15 @@ import type { MapLayers } from "./layers";
 // The values written under a scale. The others only take part in the gradient.
 const WAVE_TICKS = [0, 1, 2, 3, 5, 8];
 const WIND_TICKS = [0, 10, 20, 30, 50];
-const WIDTH = 264;
+const WIDTH = 256;
+// The platform's switch is wider and taller than the web's, 38 by 22: the legend draws it at three
+// quarters, which is 38 by 23 on an iPhone, and takes the room that it then leaves.
+const SWITCH_SCALE = 0.75;
+const SWITCH = { width: 51, height: 31 };
+// A row is as tall as its switch drawn small, and a finger is given the rest of a target around it.
+const ROW = Math.ceil(SWITCH.height * SWITCH_SCALE);
+// The line of the credits, as the web's.
+const CREDITS_ROW = 32;
 
 /** A scale as a bar, its stops evenly spaced, so that the small values get as much room. */
 function ScaleBar({
@@ -43,14 +58,13 @@ function ScaleBar({
   ticks: number[];
   figure?: (tick: number) => string;
 }) {
-  const { space } = useTheme();
   const last = scale.length - 1;
   const gradient = scale.map((stop, index) => `${stop.color} ${(index / last) * 100}%`).join(", ");
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{ gap: space.xxs }}
+      style={{ gap: 2 }}
     >
       <View
         style={{
@@ -106,19 +120,19 @@ function LayerRow({
     feel(value ? "toggle-off" : "toggle-on");
     onChange(!value);
   };
+  const slop = (TARGET - ROW) / 2;
   return (
     <View style={{ gap: space.xs }}>
-      <View
+      {/* The row is the switch's label, as the web's is: a press on either flips it. */}
+      <Pressable
         accessible
         accessibilityRole="switch"
         accessibilityLabel={description ? `${label}, ${description}` : label}
         accessibilityState={{ checked: value }}
-        accessibilityActions={[{ name: "activate" }]}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === "activate") flip();
-        }}
+        hitSlop={{ top: slop, bottom: slop }}
+        onPress={flip}
         style={{
-          minHeight: TARGET,
+          minHeight: ROW,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -128,10 +142,19 @@ function LayerRow({
         <Text size="s" weight="medium" style={{ flexShrink: 1 }}>
           {label}
         </Text>
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            transform: [{ scale: SWITCH_SCALE }],
+            marginVertical: -(SWITCH.height * (1 - SWITCH_SCALE)) / 2,
+            marginHorizontal: -(SWITCH.width * (1 - SWITCH_SCALE)) / 2,
+          }}
+        >
           <Switch value={value} onChange={onChange} />
         </View>
-      </View>
+      </Pressable>
       {value ? children : null}
     </View>
   );
@@ -194,9 +217,20 @@ export function MapLegend({
   windTruncated,
   breaksTruncated,
 }: MapLegendProps) {
-  const { colors, space, radius } = useTheme();
+  const { colors, space, radius, motion } = useTheme();
   // The scales are written in the reader's units.
   useUnits();
+  // The arrow points where the legend will go: up while it is folded. It turns on the theme's
+  // motion, and stays still for a reader who asked for none.
+  const reduceMotion = useReducedMotion();
+  const turned = useSharedValue(expanded ? 0 : 180);
+  useEffect(() => {
+    const to = expanded ? 0 : 180;
+    turned.value = reduceMotion
+      ? to
+      : withTiming(to, { duration: motion.duration, easing: Easing.bezier(...motion.easing) });
+  }, [expanded, reduceMotion, turned, motion]);
+  const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${turned.value}deg` }] }));
   const set = (change: Partial<MapLayers>) => onLayersChange({ ...layers, ...change });
 
   return (
@@ -240,21 +274,20 @@ export function MapLegend({
         <Text weight="medium" dense numberOfLines={1} style={{ flexShrink: 1 }}>
           {m.map_legend()}
         </Text>
-        <View
-          style={{
-            marginLeft: "auto",
-            // The arrow points where the legend will go: up while it is folded.
-            transform: [{ rotate: expanded ? "0deg" : "180deg" }],
-          }}
-        >
+        <Animated.View style={[{ marginLeft: "auto" }, chevron]}>
           <Glyph icon={ChevronDownIcon} size={16} color={colors["neutral-7"]} />
-        </View>
+        </Animated.View>
       </Pressable>
 
       {expanded ? (
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={{ flexShrink: 1 }}>
+        // It comes in at once, as the web's does.
+        <View style={{ flexShrink: 1 }}>
           <ScrollView
-            contentContainerStyle={{ gap: space.s, padding: space.m, paddingBottom: space.xs }}
+            contentContainerStyle={{
+              gap: space.s,
+              paddingHorizontal: space.s,
+              paddingTop: space.s,
+            }}
           >
             <LayerRow
               label={m.map_wave_height({ unit: heightUnit() })}
@@ -306,8 +339,11 @@ export function MapLegend({
             <Pressable
               accessibilityRole="button"
               onPress={onShowCredits}
+              hitSlop={{ top: (TARGET - CREDITS_ROW) / 2, bottom: (TARGET - CREDITS_ROW) / 2 }}
               style={({ pressed }) => ({
-                minHeight: TARGET,
+                minHeight: CREDITS_ROW,
+                marginHorizontal: -space.xxs,
+                paddingHorizontal: space.xxs,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: space.xs,
@@ -320,7 +356,7 @@ export function MapLegend({
               </Text>
             </Pressable>
           </ScrollView>
-        </Animated.View>
+        </View>
       ) : null}
     </View>
   );

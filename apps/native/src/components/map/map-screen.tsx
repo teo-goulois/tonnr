@@ -14,12 +14,12 @@ import {
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Spinner } from "heroui-native";
 
 import { listName } from "@/components/lists/items";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
 import { ROUND } from "@/components/ui/metrics";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
@@ -80,6 +80,12 @@ function useMapLayers() {
   }, []);
   return [layers, choose] as const;
 }
+
+// How much further in from the edge the map's buttons stand than its legend, so that they stand
+// over the middle of the "+" of the bar of tabs: the web's.
+const BUTTONS_IN = 6;
+// The spinner of the map's status, as the web's.
+const SPINNER = { width: 14, height: 14 };
 
 export function MapScreen() {
   const { colors, space, scheme } = useTheme();
@@ -351,35 +357,6 @@ export function MapScreen() {
             controls.current?.measureInWindow((_, top, __, height) => setFrame({ top, height }))
           }
         >
-          {/* At the top, what the map says of itself: the buoys that load, or could not, and
-              whose data it draws, as it opens. */}
-          <View
-            pointerEvents="box-none"
-            style={{ alignItems: "center", gap: space.xs, paddingTop: space.xs }}
-          >
-            {waves.isPending && !list ? (
-              <Animated.View
-                entering={FadeIn}
-                exiting={FadeOut}
-                accessibilityRole="progressbar"
-                accessibilityLabel={m.map_loading()}
-                style={pill(colors, space)}
-              >
-                <Skeleton width={12} height={12} round />
-                <Text size="s">{m.map_loading()}</Text>
-              </Animated.View>
-            ) : null}
-            {waves.isError && !list ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityHint={m.action_retry()}
-                onPress={() => void waves.refetch()}
-                style={pill(colors, space)}
-              >
-                <Text size="s">{m.map_load_failed()}</Text>
-              </Pressable>
-            ) : null}
-          </View>
           {/* At the top, whose data the map draws, as it opens and once the legend asks: it folds
               as soon as a finger moves the map. */}
           {creditsShown ? (
@@ -407,14 +384,44 @@ export function MapScreen() {
             style={{
               position: "absolute",
               left: space.s,
-              right: space.s,
+              // The buttons stand over the middle of the "+" of the bar, which is wider than them.
+              right: space.s + BUTTONS_IN,
               bottom: floor,
               flexDirection: "row",
               alignItems: "flex-end",
               gap: space.xs,
             }}
           >
-            <View pointerEvents="box-none" style={{ flex: 1, alignItems: "flex-start" }}>
+            <View
+              pointerEvents="box-none"
+              style={{ flex: 1, alignItems: "flex-start", gap: space.xs }}
+            >
+              {/* What the map says of itself: the buoys that load, or could not, over the legend.
+                  The lists unfold where it stands, and it leaves them the room. */}
+              {waves.isPending && !list && !(listsOpen && hasLists) ? (
+                <Animated.View
+                  entering={FadeIn}
+                  exiting={FadeOut}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={m.map_loading()}
+                  style={pill(colors, space)}
+                >
+                  <Spinner size="sm" color={colors["neutral-10"]} style={SPINNER}>
+                    <Spinner.Indicator iconProps={SPINNER} />
+                  </Spinner>
+                  <Text size="s">{m.map_loading()}</Text>
+                </Animated.View>
+              ) : null}
+              {waves.isError && !list && !(listsOpen && hasLists) ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint={m.action_retry()}
+                  onPress={() => void waves.refetch()}
+                  style={pill(colors, space)}
+                >
+                  <Text size="s">{m.map_load_failed()}</Text>
+                </Pressable>
+              ) : null}
               {listsOpen && hasLists ? null : (
                 <MapLegend
                   layers={layers}
@@ -443,7 +450,7 @@ export function MapScreen() {
                     top: 0,
                     // Beside the lists' button, the first of the column.
                     right: ROUND + space.xs,
-                    width: window.width - 2 * space.s - ROUND - space.xs,
+                    width: window.width - 2 * space.s - BUTTONS_IN - ROUND - space.xs,
                     height: ROUND,
                     flexDirection: "row",
                   }}
@@ -480,7 +487,7 @@ export function MapScreen() {
   );
 }
 
-/** A short line of the map's own, floating at the top: the web's status pill. */
+/** A short line of the map's own, over its legend: the web's status pill. */
 function pill(
   colors: ReturnType<typeof useTheme>["colors"],
   space: ReturnType<typeof useTheme>["space"],
@@ -489,10 +496,11 @@ function pill(
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: space.xs,
-    minHeight: 32,
     paddingHorizontal: space.s,
-    borderRadius: 16,
+    paddingVertical: space.xxs,
+    borderRadius: 999,
+    borderCurve: "continuous" as const,
     backgroundColor: colors["neutral-1"],
-    ...edge(colors["neutral-10-transparent"], { inset: true }),
+    ...edge(colors["neutral-10-transparent"]),
   };
 }

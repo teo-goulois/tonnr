@@ -32,9 +32,10 @@ export function MapButtons({ isLocating, located, onLocate, onSearch, lists }: M
       {lists ? (
         <IconButton
           icon={ListsIcon}
-          variant={lists.showing ? "primary" : "surface"}
+          // Filled while the map shows one list alone, as the chip of that list is.
+          variant={lists.showing ? "inverse" : "surface"}
           label={lists.showing ? m.lists_showing({ name: lists.showing }) : m.lists_filter()}
-          selected={lists.open}
+          expanded={lists.open}
           onPress={() => {
             feel("select");
             lists.onToggle();
