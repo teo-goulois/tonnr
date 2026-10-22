@@ -1,10 +1,10 @@
 import { ArrowUpIcon } from "@repo/ui/icon";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import Svg, { Line } from "react-native-svg";
 
 import { goingTo } from "@/components/map/features";
 import { Glyph } from "@/components/shared/glyph";
-import { Text, type TextProps } from "@/components/ui/text";
+import { DENSE_SCALE, Text, type TextProps } from "@/components/ui/text";
 import { compassName, compassPoint, formatNumber } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
@@ -68,6 +68,12 @@ export function Bearing({
   ...text
 }: BearingProps) {
   const { colors, space, type } = useTheme();
+  // The arrow grows with the letters beside it, as far as the reader's type takes them.
+  const { fontScale } = useWindowDimensions();
+  const grown = Math.min(
+    fontScale,
+    text.maxFontSizeMultiplier ?? (text.dense ? DENSE_SCALE : fontScale),
+  );
   const name = named ? compassName(degrees) : compassPoint(degrees);
   return (
     <View
@@ -79,7 +85,7 @@ export function Bearing({
     >
       <DirectionArrow
         fromDegrees={degrees}
-        size={arrow ?? Math.round(type[size].size * ARROW_EM)}
+        size={arrow ?? Math.round(type[size].size * ARROW_EM * grown)}
         color={color ?? colors["neutral-10"]}
       />
       <Text
