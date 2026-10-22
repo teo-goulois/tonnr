@@ -16,7 +16,7 @@ import { WindChart } from "@/components/charts/wind-chart";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { formatDayAndClock, formatNumber, toKnots } from "@/lib/format";
+import { compassName, formatDayAndClock, formatNumber, toKnots } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatWind, useUnits, windFigure, windUnit } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -203,8 +203,18 @@ export function WindDetails({
               </Text>
             )
           }
-          figure={bearing === null ? undefined : <Bearing degrees={bearing} size="m" arrow={16} />}
-          said={m.details_direction()}
+          // In the tile's figure, as large as the wind's and the gusts', with an arrow at the size
+          // of its type, as the web writes it.
+          figure={
+            bearing === null ? undefined : (
+              <Bearing degrees={bearing} size="l" weight="medium" arrow={20} dense />
+            )
+          }
+          said={
+            bearing === null
+              ? `${m.details_direction()}, –`
+              : `${m.details_direction()}, ${m.alert_from()} ${compassName(bearing)}, ${formatNumber(bearing, 0)}°`
+          }
           isLoading={isReading}
         />
       </View>
