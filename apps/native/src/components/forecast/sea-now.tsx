@@ -1,9 +1,9 @@
 import type { Verdict } from "@repo/conditions/sea-now";
 import { Fragment, type ReactNode } from "react";
-import { type TextStyle, View } from "react-native";
+import { Platform, type TextStyle, View } from "react-native";
 
 import { shoreWord } from "@/components/saved/sea-figures";
-import { SkeletonText } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { compassName, formatClock, formatSeconds } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
@@ -22,6 +22,8 @@ import type { SeaNowFacts } from "./now";
 type Judged = Verdict["fits"][number];
 type Judgement = "fits" | "off" | undefined;
 
+const NO_BREAK = "\u00a0";
+
 const PART_NAMES: Record<Judged, () => string> = {
   swell: m.page_now_part_swell,
   size: m.page_now_part_size,
@@ -39,20 +41,23 @@ export function listOf(things: Judged[]) {
 /**
  * A part of the sentence that its writer sets, in the darker type: underlined, or on the ground
  * its judgement gives it, with a thin space each side so that the ground is not cut at the
- * letters.
+ * letters. Android draws an underline solid and in the letters' ink, which would weigh more than
+ * the web's faint dotted one: there the darker type alone sets the part apart.
  */
 function Part({ children, judged }: { children: ReactNode; judged?: Judgement }) {
   const { colors } = useTheme();
-  const look: TextStyle =
+  const look: TextStyle | undefined =
     judged === "fits"
       ? { backgroundColor: colors["success-transparent"] }
       : judged === "off"
         ? { backgroundColor: colors["error-transparent"] }
-        : {
-            textDecorationLine: "underline",
-            textDecorationStyle: "dotted",
-            textDecorationColor: colors["neutral-5"],
-          };
+        : Platform.OS === "ios"
+          ? {
+              textDecorationLine: "underline",
+              textDecorationStyle: "dotted",
+              textDecorationColor: colors["neutral-5"],
+            }
+          : undefined;
   return (
     <Text weight="medium" style={[{ color: colors["neutral-10"] }, look]}>
       {judged ? "\u2009" : ""}
@@ -64,7 +69,7 @@ function Part({ children, judged }: { children: ReactNode; judged?: Judgement })
 
 export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: boolean }) {
   useUnits();
-  const { colors, space, radius } = useTheme();
+  const { colors, space, radius, type } = useTheme();
   const { waves, wind, tide, verdict } = facts;
 
   const judgementOf = (thing: Judged): Judgement =>
@@ -75,11 +80,15 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
         : verdict.off.includes(thing)
           ? "off"
           : undefined;
+  // A direction is never cut at the end of a line: no-break spaces hold its word, its arrow and
+  // its name together, as the web's `whitespace-nowrap` does.
   const direction = (degrees: number) => (
     <>
-      {m.alert_from()}{" "}
-      <DirectionArrow fromDegrees={degrees} size={13} color={colors["neutral-10"]} />{" "}
-      {compassName(degrees)}
+      {m.alert_from()}
+      {NO_BREAK}
+      <DirectionArrow fromDegrees={degrees} size={13} color={colors["neutral-10"]} />
+      {NO_BREAK}
+      {compassName(degrees).replaceAll(" ", NO_BREAK)}
     </>
   );
 
@@ -130,8 +139,10 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
         {m.page_now_title()}
       </Text>
       {isLoading ? (
+        // As tall as the two lines of the sentence that takes its place.
         <View style={{ gap: space.xs }}>
-          <SkeletonText lines={2} />
+          <Skeleton height={type.m.line} />
+          <Skeleton height={type.m.line} width="66%" />
         </View>
       ) : first === undefined && windFirst === undefined ? (
         <Text size="s" tone="muted">
@@ -160,7 +171,8 @@ export function SeaNow({ facts, isLoading }: { facts: SeaNowFacts; isLoading: bo
                   fromDegrees={tide.trend === "rising" ? 180 : 0}
                   size={13}
                   color={colors["neutral-10"]}
-                />{" "}
+                />
+                {NO_BREAK}
                 {tide.trend === "rising" ? m.alert_trend_rising() : m.alert_trend_falling()}
               </Part>
               {tide.next && (
