@@ -14,13 +14,12 @@ export type SpotDraft = {
   name: string;
   // The name the search or the map gave the draft. A name the person wrote is not replaced.
   suggested: string;
-  // Where the marker stands: where it was put, or the middle of the map until then.
+  // Where the marker stands once it was put. Until then, where the map opened, which nothing draws.
   point: MapPoint;
   // The break of the catalogue the marker was put on, until it is moved off it.
   breakId?: string | undefined;
-  // Whether the person put the marker somewhere: a press held on the map that opened the sheet,
-  // the map moved or pressed, a place found. Until then it stands where the map was, and the
-  // spot is not saved there.
+  // Whether the person put the marker somewhere: a press held on the map that opened the sheet, a
+  // press on the map, a place found. Until then no marker is drawn, and the spot is not saved.
   placed: boolean;
 };
 
@@ -131,6 +130,17 @@ export function nudged(point: MapPoint, bounds: Bounds, heading: Heading): MapPo
     latitude: Math.max(-85, Math.min(85, point.latitude + up * tall * STEP)),
     longitude: wrapLongitude(point.longitude + across * wide * STEP),
   };
+}
+
+/**
+ * Where a step of a screen reader starts: the marker once it was put, and the middle of what the
+ * map shows until then, since no marker stands anywhere yet and the map may have moved.
+ */
+export function stepFrom(draft: SpotDraft, bounds: Bounds): MapPoint {
+  if (draft.placed) return draft.point;
+  const [west, south, east, north] = bounds;
+  const wide = west > east ? east - west + 360 : east - west;
+  return { latitude: (south + north) / 2, longitude: wrapLongitude(west + wide / 2) };
 }
 
 /** The marker's point as the web writes it under its map. */

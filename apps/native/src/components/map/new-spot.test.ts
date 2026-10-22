@@ -8,6 +8,7 @@ import {
   nudged,
   placedAt,
   pointOf,
+  stepFrom,
   writePoint,
 } from "./new-spot";
 
@@ -113,6 +114,16 @@ describe("a step of the marker", () => {
   it("goes round the world across the antimeridian", () => {
     const bounds = [170, -10, -170, 10] as [number, number, number, number];
     expect(nudged({ latitude: 0, longitude: 179 }, bounds, "east").longitude).toBeCloseTo(-178.5);
+  });
+
+  it("starts from the marker once it was put, and from the middle of the map until then", () => {
+    const bounds = [-2, 43, -1, 44] as [number, number, number, number];
+    const opened = draftAt({ latitude: 46, longitude: -3 }, false);
+    expect(stepFrom(opened, bounds)).toEqual({ latitude: 43.5, longitude: -1.5 });
+    const put = placedAt(opened, HOSSEGOR);
+    expect(stepFrom(put, bounds)).toEqual(HOSSEGOR);
+    const across = [170, -10, -170, 10] as [number, number, number, number];
+    expect(stepFrom(opened, across)).toEqual({ latitude: 0, longitude: 180 });
   });
 });
 

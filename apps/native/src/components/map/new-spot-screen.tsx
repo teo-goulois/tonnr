@@ -39,6 +39,7 @@ import {
   placedAt,
   pointOf,
   type SpotDraft,
+  stepFrom,
   writePoint,
 } from "./new-spot";
 import { placeHref } from "./place-route";
@@ -57,10 +58,11 @@ import {
 } from "./view";
 
 // Adding a spot of the account's own (decision 006): finding the place, putting the marker and
-// naming it, in that order, as the web's `NewSpotPanel` does it, in a sheet of the platform's. A press
-// on the map puts the marker there, a finger drags it from there, and a press on a surf break puts
-// it on the break, which the spot is then made from. The search finds the breaks and the places by their name, and the phone says where the
-// reader is. A spot of the account's or a break within 150 metres is said, with what goes to it.
+// naming it, in that order, as the web's `NewSpotPanel` does it, in a sheet of the platform's. A
+// press on the map puts the marker there, a finger drags it from there, and a press on a surf break
+// puts it on the break, which the spot is then made from. The search finds the breaks and the
+// places by their name, and the phone says where the reader is. A spot of the account's or a break
+// within 150 metres is said, with what goes to it.
 // Saved, the spot's sheet takes this one's place, over the map that has gone there.
 
 // What this map draws: the surf breaks, to put a spot on one, and the account's own spots, which
@@ -145,6 +147,10 @@ export function NewSpotScreen() {
   useEffect(() => {
     if (nearSaid) AccessibilityInfo.announceForAccessibility(nearSaid);
   }, [nearSaid]);
+
+  // What to do with the marker, as the web says it: where to put it until it is put somewhere, then
+  // how to move it.
+  const hint = draft.placed ? m.spot_marker_hint() : m.spot_place_hint();
 
   const guard = useSheetGuard(!made && (touched || draft.name.trim().length > 0));
   // Once the guard has let go, the spot's sheet opens in this one's place.
@@ -277,14 +283,15 @@ export function NewSpotScreen() {
             seaTime={undefined}
             arrows={[]}
             userLocation={located}
-            // Once put, on the map's middle or where a press held opened the sheet.
+            // Drawn once it was put: by a press, a place found or the press held that opened the
+            // sheet.
             draft={draft.placed ? draft.point : null}
             draftLabel={m.native_spot_marker()}
             onDraftMoved={(point) => putAt(point)}
             opening={opening.view}
             remembers={false}
             accessibilityLabel={m.native_spot_marker()}
-            accessibilityHint={m.spot_marker_hint()}
+            accessibilityHint={hint}
             accessibilityValue={draft.placed ? { text: writePoint(draft.point) } : undefined}
             accessibilityActions={HEADINGS.map((name) => ({
               name,
@@ -293,7 +300,7 @@ export function NewSpotScreen() {
             onAccessibilityAction={(event) => {
               const heading = event.nativeEvent.actionName as Heading;
               if (bounds && HEADINGS.includes(heading)) {
-                putAt(nudged(draft.point, bounds, heading));
+                putAt(nudged(stepFrom(draft, bounds), bounds, heading));
               }
             }}
             onPress={press}
@@ -347,7 +354,7 @@ export function NewSpotScreen() {
           >
             <View style={{ gap: space.xxs }}>
               <Text size="s" tone="muted">
-                {m.spot_marker_hint()}
+                {hint}
               </Text>
               {draft.placed ? (
                 <Text size="xs" tone="muted" numeric>
