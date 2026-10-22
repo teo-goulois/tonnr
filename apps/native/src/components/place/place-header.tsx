@@ -7,8 +7,17 @@ import {
   PinPlusIcon,
   XIcon,
 } from "@repo/ui/icon";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 
 import { useOpenPage } from "@/components/account/open-page";
 import { Glyph } from "@/components/shared/glyph";
@@ -33,25 +42,67 @@ const LOCK = 14;
 const TITLE_WAITING = 192;
 const LINE_WAITING = { break: 128, other: 96 };
 
-/** How recent a station's reading is: a dot, which the words beside it say too. */
+// The dot of a station's reading, the web's `size-1.5`, and how long its ring takes to ping.
+const DOT = 6;
+const PING_MS = 1000;
+
+/**
+ * How recent a station's reading is: a dot, which the words beside it say too. A fresh one beats,
+ * a ring of its color going out from it as Tailwind's `animate-ping` does, a second at a time,
+ * unless motion was refused.
+ */
 function FreshnessDot({ freshness }: { freshness: Freshness }) {
   const { colors } = useTheme();
+  const reduceMotion = useReducedMotion();
+  const beats = freshness === "fresh" && !reduceMotion;
+  const ping = useSharedValue(0);
+  useEffect(() => {
+    if (!beats) {
+      ping.value = 0;
+      return;
+    }
+    // Out to twice its size and gone by three quarters of the second, then still.
+    ping.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: PING_MS * 0.75, easing: Easing.bezier(0, 0, 0.2, 1) }),
+        withTiming(1, { duration: PING_MS * 0.25 }),
+        withTiming(0, { duration: 0 }),
+      ),
+      -1,
+    );
+  }, [beats, ping]);
+  const ring = useAnimatedStyle(() => ({
+    opacity: 1 - ping.value,
+    transform: [{ scale: 1 + ping.value }],
+  }));
+  const color =
+    freshness === "fresh"
+      ? colors.success
+      : freshness === "aging"
+        ? colors.warning
+        : colors["neutral-6"];
+
   return (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={{
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor:
-          freshness === "fresh"
-            ? colors.success
-            : freshness === "aging"
-              ? colors.warning
-              : colors["neutral-6"],
-      }}
-    />
+      style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: color }}
+    >
+      {beats && (
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              width: DOT,
+              height: DOT,
+              borderRadius: DOT / 2,
+              backgroundColor: color,
+            },
+            ring,
+          ]}
+        />
+      )}
+    </View>
   );
 }
 
