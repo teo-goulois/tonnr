@@ -1,20 +1,20 @@
-import { BellIcon, PlusIcon } from "@repo/ui/icon";
+import { PlusIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 
 import { AlertRow } from "@/components/alerts/alert-row";
-import { GroupedCell } from "@/components/alerts/grouped";
 import { useAlertActions, useAlerts } from "@/components/alerts/use-alerts";
 import { placeParam } from "@/components/sessions/session-logic";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
-import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
+
+import { LinesLoading, TabFailure } from "./tab-states";
+import { VisitorPrompt } from "./visitor-prompt";
 
 export type PlaceTabProps = { kind: "break" | "station" | "spot"; id: string };
 
@@ -48,52 +48,37 @@ export function AlertsTab({ kind, id }: PlaceTabProps) {
 
   let content: ReactNode;
   if (!signedIn && !pending) {
-    content = (
-      <EmptyState
-        icon={BellIcon}
-        title={m.alert_offer()}
-        description={m.alerts_sign_in_prompt()}
-        action={{ label: m.alert_create(), onPress: newHere }}
-      />
-    );
+    // A visitor's sheet has no alerts' tab: this is seen for a moment, as an account signs out.
+    content = <VisitorPrompt text={m.alerts_sign_in_prompt()} />;
   } else if (pending || isPending) {
-    content = (
-      <Loading>
-        {[0, 1].map((index) => (
-          <GroupedCell key={index} first={index === 0} last={index === 1}>
-            <View style={{ gap: space.xs, padding: space.m }}>
-              <Skeleton width="40%" height={16} />
-              <Skeleton width="75%" height={13} />
-            </View>
-          </GroupedCell>
-        ))}
-      </Loading>
-    );
+    // As the web's panel of a spot: two lines to come, and what failed in a line with a retry.
+    content = <LinesLoading />;
   } else if (isError) {
-    content = <ErrorState title={m.alerts_mine_load_failed()} onRetry={refetch} />;
+    content = <TabFailure text={m.alerts_mine_load_failed()} onRetry={refetch} />;
   } else if (!here?.length) {
     content = (
-      <EmptyState
-        icon={BellIcon}
-        title={m.alert_none()}
-        action={{ label: m.alert_create(), onPress: newHere }}
-      />
+      <View style={{ gap: space.s, alignItems: "flex-start" }}>
+        <Text size="s" tone="muted">
+          {m.alert_none()}
+        </Text>
+        <Button variant="secondary" onPress={newHere}>
+          {m.alert_create()}
+        </Button>
+      </View>
     );
   } else {
     content = (
-      <View style={{ gap: space.m }}>
-        <View>
-          {here.map((alert, index) => (
-            <GroupedCell key={alert.id} first={index === 0} last={index === here.length - 1}>
-              <AlertRow alert={alert} actions={actions} placeId={id} />
-            </GroupedCell>
+      <View style={{ gap: space.m, alignItems: "flex-start" }}>
+        {/* The web's plain rows, a small step apart with no line between them, which run a
+            small step past the panel so that their words line up with the rest. */}
+        <View style={{ gap: space.xxs, marginHorizontal: -space.xs, alignSelf: "stretch" }}>
+          {here.map((alert) => (
+            <AlertRow key={alert.id} alert={alert} actions={actions} placeId={id} plain />
           ))}
         </View>
-        <View style={{ paddingHorizontal: space.m, alignItems: "flex-start" }}>
-          <Button variant="secondary" icon={PlusIcon} onPress={newHere}>
-            {m.native_alert_new_here()}
-          </Button>
-        </View>
+        <Button variant="secondary" icon={PlusIcon} onPress={newHere}>
+          {m.alert_new()}
+        </Button>
       </View>
     );
   }
@@ -102,7 +87,7 @@ export function AlertsTab({ kind, id }: PlaceTabProps) {
     <ScrollView
       style={{ flex: 1 }}
       nestedScrollEnabled
-      contentContainerStyle={{ paddingVertical: space.s, paddingBottom: space.xxl }}
+      contentContainerStyle={{ padding: space.m, paddingBottom: space.xxl }}
       refreshControl={
         signedIn ? (
           <RefreshControl

@@ -1,5 +1,5 @@
 import type { Alert } from "@repo/client/viewer/types";
-import { PauseIcon, PlayIcon, TrashIcon } from "@repo/ui/icon";
+import { ChevronRightIcon, PauseIcon, PlayIcon, TrashIcon } from "@repo/ui/icon";
 import { Link } from "expo-router";
 import { Alert as Dialog, Platform, Pressable, View } from "react-native";
 
@@ -26,14 +26,23 @@ import type { AlertActions } from "./use-alerts";
 type AlertRowProps = {
   alert: Alert;
   actions: AlertActions;
-  /** The place whose panel lists it: its other places are said after "Also on". */
+  /**
+   * The place whose panel lists it: its other places are said after "Also on", under what it
+   * asks, and a chevron ends what a press opens, as the web's `SpotAlerts` draws its rows.
+   */
   placeId?: string;
+  /**
+   * Drawn as the web draws its rows of alerts: on the sheet's own ground, with the web's room
+   * around it and a rounded ground as it is pressed. The alerts' tab keeps the ground of its
+   * grouped cells.
+   */
+  plain?: boolean;
 };
 
 /** Whether an alert is paused for today: the API says null once the pause is over. */
 export const isPaused = (alert: Alert) => alert.awayUntil !== null;
 
-export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
+export function AlertRow({ alert, actions, placeId, plain = false }: AlertRowProps) {
   const { colors, space, radius } = useTheme();
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
@@ -48,6 +57,9 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
       : placeId === undefined
         ? names.join(" · ")
         : `${m.alert_also_on()} ${names.join(" · ")}`;
+  // A list of every alert names its places first; a place's list, what it asks first, since the
+  // place is the one in view.
+  const atPlace = placeId !== undefined;
 
   const open = () => actions.open(alert);
   const togglePause = () => (paused ? actions.resume(alert) : actions.pause(alert));
@@ -82,8 +94,7 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
       accessibilityLabel={[
         alert.name,
         paused ? m.native_alert_paused() : undefined,
-        placesLine,
-        line.spoken,
+        ...(atPlace ? [line.spoken, placesLine] : [placesLine, line.spoken]),
       ]
         .filter(Boolean)
         .join(". ")}
@@ -111,47 +122,67 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
       {({ pressed }) => (
         <View
           style={{
-            gap: space.xxs,
-            paddingVertical: space.s,
-            paddingStart: space.m,
-            opacity: pressed ? 0.6 : 1,
+            flexDirection: "row",
+            alignItems: "center",
+            ...(plain
+              ? {
+                  gap: space.xs,
+                  padding: space.xs,
+                  borderRadius: radius.xs,
+                  borderCurve: "continuous" as const,
+                  backgroundColor: pressed ? colors["neutral-3"] : "transparent",
+                }
+              : { paddingVertical: space.s, paddingStart: space.m, opacity: pressed ? 0.6 : 1 }),
           }}
         >
-          <View
-            style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexWrap: "wrap" }}
-          >
-            <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {alert.name}
-            </Text>
-            {paused ? (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: space.xxs,
-                  paddingHorizontal: space.xs,
-                  paddingVertical: 2,
-                  borderRadius: radius.xs,
-                  backgroundColor: colors["warning-transparent"],
-                }}
-              >
-                <PauseGlyph />
-                <Text size="xs" weight="medium" dense>
-                  {m.native_alert_paused()}
-                </Text>
-              </View>
+          <View style={{ flex: 1, gap: space.xxs }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space.xs,
+                flexWrap: "wrap",
+              }}
+            >
+              <Text weight="medium" numberOfLines={1} style={{ flexShrink: 1 }}>
+                {alert.name}
+              </Text>
+              {paused ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: space.xxs,
+                    paddingHorizontal: space.xs,
+                    paddingVertical: 2,
+                    borderRadius: radius.xs,
+                    backgroundColor: colors["warning-transparent"],
+                  }}
+                >
+                  <PauseGlyph />
+                  <Text size="xs" weight="medium" dense>
+                    {m.native_alert_paused()}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            {placesLine && !atPlace ? (
+              <Text size="s" tone="muted" numberOfLines={1}>
+                {placesLine}
+              </Text>
+            ) : null}
+            {line.shown ? (
+              <Text size="s" tone="muted" numberOfLines={2}>
+                {line.shown}
+              </Text>
+            ) : null}
+            {placesLine && atPlace ? (
+              <Text size="s" tone="muted" numberOfLines={1}>
+                {placesLine}
+              </Text>
             ) : null}
           </View>
-          {placesLine ? (
-            <Text size="s" tone="muted" numberOfLines={1}>
-              {placesLine}
-            </Text>
-          ) : null}
-          {line.shown ? (
-            <Text size="s" tone="muted" numberOfLines={2}>
-              {line.shown}
-            </Text>
-          ) : null}
+          {atPlace ? <Glyph icon={ChevronRightIcon} size={16} color={colors["neutral-7"]} /> : null}
         </View>
       )}
     </Pressable>
@@ -172,8 +203,10 @@ export function AlertRow({ alert, actions, placeId }: AlertRowProps) {
           flexDirection: "row",
           alignItems: "center",
           gap: space.s,
-          paddingEnd: space.m,
-          backgroundColor: colors["cte-surface"],
+          // A plain row stands on the sheet's ground, which hides the swipe's under it as the
+          // cell's surface does, and keeps its switch a small step in from its end.
+          paddingEnd: plain ? space.xs : space.m,
+          backgroundColor: colors[plain ? "cte-canvas" : "cte-surface"],
         }}
       >
         {Platform.OS === "ios" ? (
