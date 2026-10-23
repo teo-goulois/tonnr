@@ -42,3 +42,52 @@ export function signsInAgainWith<Provider extends string>(
 ) {
   return offered.filter((provider) => signsInWith.includes(provider));
 }
+
+/** What a press that deletes an account of Apple's came to. */
+export type AppleDeletion =
+  | { deleted: true }
+  | { refused: DeletionRefusal }
+  // Nothing was deleted: the sheet was closed, or it or the new sign-in failed, with what to say.
+  | { kept: true; refusal?: string }
+  // The sheet's token signed in another account, which is now the one of the phone.
+  | { other: true };
+
+/**
+ * Deletes an account that signs in with Apple, after Apple's sheet, whose code goes with the
+ * deletion: the API exchanges it to revoke what Apple gave the app, once the account is deleted,
+ * so a refusal leaves it unused for the next press, within Apple's five minutes. An account
+ * without a password whose session the API finds too old signs in again with the same sheet's
+ * token, and the same code goes with the deletion that follows: one sheet does both. A token that
+ * signs in another account deletes nothing. Decision 071.
+ */
+export async function deleteWithApple<
+  Sheet extends { answered: true; authorizationCode: string | null },
+>(
+  password: string | undefined,
+  accountId: string | undefined,
+  steps: {
+    ask: () => Promise<Sheet | { answered: false; refusal?: string | undefined }>;
+    send: (
+      password: string | undefined,
+      code: string | undefined,
+    ) => Promise<DeletionRefusal | undefined>;
+    signIn: (
+      sheet: Sheet,
+    ) => Promise<{ signedIn: true } | { signedIn: false; refusal?: string | undefined }>;
+    signedInAs: () => Promise<string | undefined>;
+  },
+): Promise<AppleDeletion> {
+  const sheet = await steps.ask();
+  if (!sheet.answered) return { kept: true, ...(sheet.refusal && { refusal: sheet.refusal }) };
+  const code = sheet.authorizationCode ?? undefined;
+  const refusal = await steps.send(password, code);
+  if (refusal === undefined) return { deleted: true };
+  if (refusal !== "session" || password !== undefined) return { refused: refusal };
+  const signedIn = await steps.signIn(sheet);
+  if (!signedIn.signedIn) {
+    return { kept: true, ...(signedIn.refusal && { refusal: signedIn.refusal }) };
+  }
+  if ((await steps.signedInAs()) !== accountId) return { other: true };
+  const again = await steps.send(undefined, code);
+  return again === undefined ? { deleted: true } : { refused: again };
+}

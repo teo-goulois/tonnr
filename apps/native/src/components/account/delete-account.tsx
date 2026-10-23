@@ -118,7 +118,9 @@ function PasswordForm({ deletion }: { deletion: Deletion }) {
 /**
  * One step into the account's tab: what goes with the account and what stays, which account it
  * is, the password again or, for an account without one whose session the API finds too old, a
- * new sign-in with its own provider, and the button, as the web's `DeleteAccount` draws them.
+ * new sign-in with its own provider, and the button, as the web's `DeleteAccount` draws them. On
+ * an iPhone, an account that signs in with Apple is asked Apple's sheet as the button is pressed,
+ * which `useAccountDeletion` does.
  * Nothing brings an account back, so the step says it before the button, which deletes at its
  * press, as the web's does: its name says which account goes. Decision 071.
  */

@@ -194,12 +194,8 @@ export function useReportWrites() {
         void refresh();
         tell({ title: m.report_flagged(), tone: "success" });
         return true;
-      } catch (error) {
-        const refused = error as { code?: string };
-        tell({
-          title: refused.code === "FORBIDDEN" ? m.report_flag_young() : m.report_flag_failed(),
-          tone: "danger",
-        });
+      } catch {
+        tell({ title: m.report_flag_failed(), tone: "danger" });
         return false;
       }
     },

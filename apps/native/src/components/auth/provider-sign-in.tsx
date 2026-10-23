@@ -82,10 +82,16 @@ const appHeaders = () => ({ "expo-origin": APP_ORIGIN, "X-App": appHeader() });
 const newNonce = () => `${uuid.v4()}${uuid.v4()}`.replaceAll("-", "");
 
 /**
- * Signs in with Apple through the system's sheet, then gives the API the token Apple answered,
- * with the link that brought the visitor, which a new account keeps (decision 041).
+ * What Apple's sheet answered: the token that signs in, with the nonce it holds, and the code
+ * that the API exchanges once to revoke what Apple gave the app (decision 071). Or nothing, with
+ * what to say when the sheet did not close by the person's choice.
  */
-export async function signInWithApple(invitation?: string): Promise<ProviderOutcome> {
+export type AppleSheet =
+  | { answered: true; identityToken: string; nonce: string; authorizationCode: string | null }
+  | { answered: false; refusal?: string };
+
+/** Asks Apple through the system's sheet, for the address alone. */
+export async function askApple(): Promise<AppleSheet> {
   const nonce = newNonce();
   let credential: AppleAuthentication.AppleAuthenticationCredential;
   try {
@@ -96,15 +102,30 @@ export async function signInWithApple(invitation?: string): Promise<ProviderOutc
     });
   } catch (error) {
     // Closing the sheet is a choice, which the sheet itself said.
-    if ((error as { code?: string }).code === "ERR_REQUEST_CANCELED") return { signedIn: false };
-    return { signedIn: false, refusal: m.auth_failed() };
+    if ((error as { code?: string }).code === "ERR_REQUEST_CANCELED") return { answered: false };
+    return { answered: false, refusal: m.auth_failed() };
   }
-  if (!credential.identityToken) return { signedIn: false, refusal: m.auth_failed() };
+  if (!credential.identityToken) return { answered: false, refusal: m.auth_failed() };
+  return {
+    answered: true,
+    identityToken: credential.identityToken,
+    nonce,
+    authorizationCode: credential.authorizationCode,
+  };
+}
 
+/**
+ * Gives the API the token Apple's sheet answered, with the link that brought the visitor, which a
+ * new account keeps (decision 041).
+ */
+export async function signInWithAppleToken(
+  sheet: Extract<AppleSheet, { answered: true }>,
+  invitation?: string,
+): Promise<ProviderOutcome> {
   const answer = await authClient.signIn
     .social({
       provider: "apple",
-      idToken: { token: credential.identityToken, nonce },
+      idToken: { token: sheet.identityToken, nonce: sheet.nonce },
       ...(invitation && { additionalData: { invitation } }),
       fetchOptions: { headers: appHeaders() },
     })
@@ -114,6 +135,13 @@ export async function signInWithApple(invitation?: string): Promise<ProviderOutc
     return { signedIn: false, refusal: refusalWords(answer.error.code, answer.error.message) };
   }
   return { signedIn: true };
+}
+
+/** Signs in with Apple through the system's sheet, then gives the API its token. */
+export async function signInWithApple(invitation?: string): Promise<ProviderOutcome> {
+  const sheet = await askApple();
+  if (!sheet.answered) return { signedIn: false, ...(sheet.refusal && { refusal: sheet.refusal }) };
+  return signInWithAppleToken(sheet, invitation);
 }
 
 /**

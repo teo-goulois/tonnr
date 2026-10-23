@@ -173,9 +173,8 @@ export function useReports({ signedIn, account, breakId, status }: Asked): Repor
         void refresh();
         toast.success(m.report_flagged());
         return true;
-      } catch (error) {
-        const refused = error as { code?: string };
-        toast.error(refused.code === "FORBIDDEN" ? m.report_flag_young() : m.report_flag_failed());
+      } catch {
+        toast.error(m.report_flag_failed());
         return false;
       }
     },
