@@ -49,6 +49,13 @@ export function PrivacyPage() {
         <p>{m.privacy_account_sessions()}</p>
       </LegalSection>
 
+      {/* What the app for phones keeps on the phone, which signing out forgets, and where it
+          asks the phone's position: decisions 069, 070 and 074. */}
+      <LegalSection title={m.privacy_phone_title()}>
+        <p>{m.privacy_phone_storage()}</p>
+        <p>{m.privacy_phone_location()}</p>
+      </LegalSection>
+
       <LegalSection title={m.privacy_content_title()}>
         <p>{m.privacy_content_text()}</p>
         <List
@@ -124,6 +131,8 @@ export function PrivacyPage() {
             );
           })}
         </ul>
+        {/* That whoever receives the data protects it as this policy does: guideline 5.1.1(i). */}
+        <p>{m.privacy_recipients_protection()}</p>
         <p>{m.privacy_recipients_transfer()}</p>
         <p>{m.privacy_recipients_none()}</p>
       </LegalSection>

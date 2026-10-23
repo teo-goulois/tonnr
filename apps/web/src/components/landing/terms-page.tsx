@@ -50,6 +50,9 @@ export function TermsPage() {
 
       <LegalSection title={m.terms_use_title()}>
         <p>{m.terms_use_text(who)}</p>
+        {/* What App Review asks of an app whose accounts write for others to read: no
+            tolerance, and a flag answered within a day (guideline 1.2, decisions 067 and 071). */}
+        <p>{m.terms_use_tolerance(who)}</p>
         <p>{m.terms_use_suspension(who)}</p>
       </LegalSection>
 
