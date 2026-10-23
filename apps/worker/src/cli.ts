@@ -102,7 +102,7 @@ try {
       ),
     );
   } else if (job === "moderation") {
-    // What accounts flagged and contested, mailed to the instance's address: decision 067.
+    // What accounts flagged and contested, mailed to the instance's operators: decision 067.
     const out = moderationOutOf(ENV);
     if (!out) throw new Error("This instance sends no mail: neither UNOSEND_API_KEY nor SMTP_URL");
     moderationDone(await Effect.runPromise(tellModeration(db, out)));

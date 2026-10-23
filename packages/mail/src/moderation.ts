@@ -4,8 +4,8 @@ import type { Locale } from "@repo/config/locales";
 import { footerLine, heading, mailPage, note, panel, paragraph } from "./design";
 import type { Mail } from "./index";
 
-// The mail that tells the instance's address what accounts flagged and contested since the last
-// one, so that an operator reads it within the hour: decision 067. It names each report and each
+// The mail that tells the instance's operators what accounts flagged and contested since the last
+// one, so that they read it within the hour: decision 067. It names each report and each
 // line of a guide with its reason, and of the account that flagged it no more than whether its
 // flag counts among those that hide a report.
 

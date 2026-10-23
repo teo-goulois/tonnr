@@ -4,19 +4,20 @@ import type { Database } from "@repo/db";
 import { countCalls } from "@repo/db/calls";
 import { operator } from "@repo/db/schema/access";
 import { alertSettings } from "@repo/db/schema/alerts";
+import { user } from "@repo/db/schema/auth";
 import { breakContribution, contributionVerdict } from "@repo/db/schema/community";
 import { surfReport, surfReportFlag } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
 import { type MailSettings, type Mailer, createMailer } from "@repo/mail";
 import { type FlaggedReport, type ContestedLine, moderationMail } from "@repo/mail/moderation";
-import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { Effect } from "effect";
 
 import type { Done } from "./runs";
 import { StoreError } from "./store";
 
 // Decision 067: what accounts flagged of the reports and contested of the guides is mailed to
-// the instance's address, `CONTACT_EMAIL`, so that an operator reads it within the hour, as
+// the instance's operators, who act on it in the admin, so that they read it within the hour, as
 // Apple asks of an app whose accounts write that it acts on what is reported within a day. One
 // mail in an hour of the clock at most, and none when nothing is new, counted apart from the
 // instance's mails of the day, which accounts that sign up may spend. A flag or a contest is
@@ -25,9 +26,10 @@ import { StoreError } from "./store";
 // flagged but whether its flag counts.
 
 /**
- * The name the mail is counted under, and nowhere else: once in an hour of the clock, so
- * twenty-four a day at most, outside the instance's day of mails (`MAIL_PROVIDER`), which made-up
- * sign-ups may spend whole and would then hold back until midnight what tells of an abuse.
+ * The name a round of the mail is counted under, and nowhere else: one round in an hour of the
+ * clock, so twenty-four mails a day at most to each reader, outside the instance's day of mails
+ * (`MAIL_PROVIDER`), which made-up sign-ups may spend whole and would then hold back until
+ * midnight what tells of an abuse.
  */
 export const MODERATION_MAIL_PROVIDER = "moderation-mail";
 // How many flags, and how many contests, a mail names at most: the others wait for the next.
@@ -52,7 +54,10 @@ export function moderationOutOf(
   };
 }
 
-/** What a run did: what it named, and whether its mail left, waited for its hour, or failed. */
+/**
+ * What a run did: what it named, whether it waited for its hour, and how many of its mails, one
+ * to each reader, the provider took and did not take.
+ */
 export type ModerationRun = {
   flags: number;
   contests: number;
@@ -61,27 +66,33 @@ export type ModerationRun = {
   failed: number;
 };
 
+/** Who a mail goes to, and the language it is written in. */
+type Reader = { to: string; locale: Locale };
+
 /**
- * The language the mail is written in: that of the instance's first operator who said one, in
- * the settings of their alerts, as every mail to an account takes it. English otherwise.
+ * Who reads the mail: each operator of the instance at their checked address, in the language
+ * they chose for their alerts, as every mail to an account takes it, English otherwise. The
+ * instance's address, `CONTACT_EMAIL`, only when no operator has a checked address, in the
+ * language of the first operator who chose one: an instance run from a clone that left that
+ * address as it came would otherwise mail what its accounts wrote to whoever makes the product.
  */
-async function operatorsLocale(db: Database): Promise<Locale> {
-  const [first] = await db
-    .select({ locale: alertSettings.locale })
+async function readersOf(db: Database): Promise<Reader[]> {
+  const operators = await db
+    .select({ to: user.email, checked: user.emailVerified, locale: alertSettings.locale })
     .from(operator)
-    .innerJoin(alertSettings, eq(alertSettings.userId, operator.userId))
-    .where(isNotNull(alertSettings.locale))
-    .orderBy(asc(operator.createdAt), asc(operator.userId))
-    .limit(1);
-  return first?.locale ?? "en";
+    .innerJoin(user, eq(user.id, operator.userId))
+    .leftJoin(alertSettings, eq(alertSettings.userId, operator.userId))
+    .orderBy(asc(operator.createdAt), asc(operator.userId));
+  const checked = operators.filter((one) => one.checked);
+  if (checked.length > 0) {
+    return checked.map((one) => ({ to: one.to, locale: one.locale ?? "en" }));
+  }
+  const chosen = operators.find((one) => one.locale !== null)?.locale;
+  return [{ to: CONTACT_EMAIL, locale: chosen ?? "en" }];
 }
 
-/** Mails what was flagged and contested since the last mail, to `to`. */
-export async function runModeration(
-  db: Database,
-  out: ModerationOut,
-  to: string = CONTACT_EMAIL,
-): Promise<ModerationRun> {
+/** Mails what was flagged and contested since the last mail, to each of its readers. */
+export async function runModeration(db: Database, out: ModerationOut): Promise<ModerationRun> {
   const flags = await db
     .select({
       reportId: surfReportFlag.reportId,
@@ -154,9 +165,7 @@ export async function runModeration(
     reason: contest.reason ?? "",
   }));
   const admin = out.adminOrigin;
-  const mail = moderationMail({
-    to,
-    locale: await operatorsLocale(db),
+  const content = {
     reports: [...reports.values()],
     contests: lines,
     more: flags.length > NAMED_AT_MOST || contests.length > NAMED_AT_MOST,
@@ -166,10 +175,19 @@ export async function runModeration(
           guides: `${admin}/moderation?kind=guides&queue=contested`,
         }
       : null,
-  });
-  if ((await out.mailer.send(mail)) !== "accepted") return { ...run, failed: 1 };
+  };
+  // One mail to each reader, one after the other.
+  let mailed = 0;
+  let failed = 0;
+  for (const reader of await readersOf(db)) {
+    const sent = await out.mailer.send(moderationMail({ ...content, ...reader }));
+    if (sent === "accepted") mailed += 1;
+    else failed += 1;
+  }
+  if (mailed === 0) return { ...run, failed };
 
-  // What the mail named is told. A flag or a contest that went meanwhile, with its report or its
+  // What the mail named is told once one reader's mail was taken: a reader whose mail was not
+  // reads it in the admin. A flag or a contest that went meanwhile, with its report or its
   // account, has nothing left to mark.
   const now = new Date();
   if (named.flags.length > 0) {
@@ -209,10 +227,10 @@ export async function runModeration(
         ),
       );
   }
-  return { ...run, mailed: 1 };
+  return { ...run, mailed, failed };
 }
 
-/** The job: what was flagged and contested, mailed to the instance's address. */
+/** The job: what was flagged and contested, mailed to the instance's operators. */
 export const tellModeration = (db: Database, out: ModerationOut) =>
   Effect.tryPromise({
     try: () => runModeration(db, out),
@@ -222,7 +240,10 @@ export const tellModeration = (db: Database, out: ModerationOut) =>
 /** What a run says it did. */
 export function moderationDone(run: ModerationRun): Done {
   if (run.mailed + run.held + run.failed > 0) {
-    const became = run.mailed > 0 ? "mailed" : run.held > 0 ? "held for the hour" : "not taken";
+    const became =
+      run.held > 0
+        ? "held for the hour"
+        : `mailed, taken for ${run.mailed} of ${run.mailed + run.failed} readers`;
     console.log(`moderation: ${run.flags} flags and ${run.contests} contests, ${became}`);
   }
   return { counts: { ...run }, degraded: run.failed > 0 };

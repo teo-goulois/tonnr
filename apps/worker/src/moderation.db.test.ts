@@ -8,16 +8,16 @@ import { providerCalls } from "@repo/db/schema/forecasts";
 import { surfReport, surfReportFlag } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
-import { MAIL_PROVIDER } from "@repo/mail";
+import { MAIL_PROVIDER, type Mailer } from "@repo/mail";
 import { testMailer } from "@repo/mail/testing";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { MODERATION_MAIL_PROVIDER, type ModerationOut, runModeration } from "./moderation";
 
 const ADMIN = "https://admin.example.org";
 
-// What accounts flagged and contested, mailed to the instance's address: decision 067.
+// What accounts flagged and contested, mailed to the instance's operators: decision 067.
 describe.skipIf(!TEST_DATABASE_URL)("the mail of what accounts flagged", () => {
   let database: Awaited<ReturnType<typeof createTestDatabase>>;
   let mail: ReturnType<typeof testMailer>;
@@ -104,6 +104,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mail of what accounts flagged", () => {
       contests: 1,
       mailed: 1,
     });
+    // No operator has a checked address: the instance's address reads it.
     const [sent] = mail.sent();
     expect(sent?.to).toBe(CONTACT_EMAIL);
     expect(sent?.text).toContain("The point");
@@ -191,13 +192,63 @@ describe.skipIf(!TEST_DATABASE_URL)("the mail of what accounts flagged", () => {
     expect(kept?.toldAt).toBeNull();
   });
 
-  it("is written in the language of the first operator who said one, and links nowhere without an admin app", async () => {
+  it("mails each operator at their checked address in their language, and marks told once one mail was taken", async () => {
+    const { db } = database;
+    // Two operators with a checked address, the second without a language, and one without.
+    await db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(inArray(user.id, ["boss", "keeper"]));
+    await db
+      .insert(operator)
+      .values([{ userId: "boss" }, { userId: "keeper" }, { userId: "author" }]);
+    await db.insert(alertSettings).values([
+      { userId: "boss", locale: "fr" },
+      { userId: "author", locale: "es" },
+    ]);
+    await flag("flagger");
+    // The provider takes the mail of one and not of the other.
+    const refusing: Mailer = {
+      via: "unosend",
+      send: async (one) =>
+        one.to === "keeper@example.org" ? "failed" : await mail.mailer.send(one),
+    };
+
+    expect(await runModeration(db, { ...out, mailer: refusing })).toMatchObject({
+      flags: 1,
+      mailed: 1,
+      failed: 1,
+    });
+    expect(mail.sent().map((one) => [one.to, one.subject])).toEqual([
+      ["boss@example.org", "À modérer sur Tonnr"],
+    ]);
+    // Told all the same: the operator whose mail was not taken reads it in the admin.
+    const [told] = await db.select({ toldAt: surfReportFlag.toldAt }).from(surfReportFlag);
+    expect(told?.toldAt).not.toBeNull();
+
+    // Both mails taken, each in its reader's language.
+    await db.delete(providerCalls);
+    await contest("keeper");
+    expect(await runModeration(db, out)).toMatchObject({ contests: 1, mailed: 2, failed: 0 });
+    expect(
+      mail
+        .sent()
+        .slice(1)
+        .map((one) => [one.to, one.subject]),
+    ).toEqual([
+      ["boss@example.org", "À modérer sur Tonnr"],
+      ["keeper@example.org", "To moderate on Tonnr"],
+    ]);
+  });
+
+  it("mails the instance's address while no operator has a checked address, in the language of the first operator who chose one, and links nowhere without an admin app", async () => {
     await database.db.insert(operator).values({ userId: "boss" });
     await database.db.insert(alertSettings).values({ userId: "boss", locale: "fr" });
     await flag("flagger");
 
     await runModeration(database.db, { ...out, adminOrigin: null });
     const [sent] = mail.sent();
+    expect(sent?.to).toBe(CONTACT_EMAIL);
     expect(sent?.subject).toBe("À modérer sur Tonnr");
     expect(sent?.text).toContain("Choquant · compte pour le masquer");
     expect(sent?.html).not.toContain("href=");

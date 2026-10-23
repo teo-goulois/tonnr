@@ -76,7 +76,7 @@ const mailOut = mailOutOf(ENV);
 // instance that holds none of the three ways out, or whose worker was not given the web app's
 // address: an account's devices are then sent nothing.
 const pushOut = pushOutOf(ENV);
-// What mails the instance's address what accounts flagged and contested: its way out of mail,
+// What mails the instance's operators what accounts flagged and contested: its way out of mail,
 // with the admin's address. Null on an instance that sends no mail: the job is then not run,
 // and not listed. Decision 067.
 const moderationOut = moderationOutOf(ENV);
@@ -102,7 +102,7 @@ const jobs: Scheduled[] = [
   // an hour, between two passes of the moments: decision 074. On every instance, so that one
   // whose worker no longer holds Apple's key still lets go of what ran and forgets it.
   { name: ACTIVITIES_QUEUE, schedule: "7,22,37,52 * * * *" },
-  // What accounts flagged and contested, mailed to the instance's address once an hour at most,
+  // What accounts flagged and contested, mailed to the instance's operators once an hour at most,
   // and looked at every quarter of an hour so that it leaves within the hour: decision 067.
   ...(moderationOut ? [{ name: MODERATION_QUEUE, schedule: "4,19,34,49 * * * *" }] : []),
 ];
@@ -326,7 +326,7 @@ await boss.work(
   attemptOf(ACTIVITIES_QUEUE, (db) => followActivities(db, pushOut?.ios ?? null), activitiesDone),
 );
 
-// What accounts flagged and contested since the last mail, to the instance's address.
+// What accounts flagged and contested since the last mail, to the instance's operators.
 if (moderationOut) {
   await boss.createQueue(MODERATION_QUEUE, { policy: "stately", ...once });
   await boss.updateQueue(MODERATION_QUEUE, once);
