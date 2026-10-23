@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   answersOf,
+  asksOver,
   hasAnswer,
   isTabPath,
   NO_ANSWERS,
@@ -62,16 +63,37 @@ describe("the questions an account is asked once", () => {
     ).toEqual({ ...NO_ANSWERS, level: "pro", boards: ["gun"] });
   });
 
-  it("open on a tab's own screen, and wait while a sheet stands over the tabs", () => {
+  it("know a tab's own screen", () => {
     expect(isTabPath("/")).toBe(true);
     expect(isTabPath("/account")).toBe(true);
     expect(isTabPath("/account/profile")).toBe(true);
     expect(isTabPath("/saved")).toBe(true);
+    expect(isTabPath("/saved/shared/abc")).toBe(true);
     expect(isTabPath("/alerts")).toBe(true);
     expect(isTabPath("/alert/new")).toBe(false);
-    expect(isTabPath("/sign-in")).toBe(false);
     expect(isTabPath("/place/break/12")).toBe(false);
-    expect(isTabPath("/onboarding")).toBe(false);
+  });
+
+  it("open over a tab or a place's sheet, as the web's open over the map whatever panel is open", () => {
+    expect(asksOver("/")).toBe(true);
+    expect(asksOver("/account")).toBe(true);
+    expect(asksOver("/saved")).toBe(true);
+    // An account made from a place's sheet is asked there, once the sign-in has closed.
+    expect(asksOver("/place/break/12")).toBe(true);
+    expect(asksOver("/place/station/abc")).toBe(true);
+    expect(asksOver("/place/spot/7")).toBe(true);
+  });
+
+  it("wait while a sheet that holds something else stands over the tabs, or an invitation", () => {
+    expect(asksOver("/sign-in")).toBe(false);
+    expect(asksOver("/place/save")).toBe(false);
+    expect(asksOver("/place/publish")).toBe(false);
+    expect(asksOver("/place/move")).toBe(false);
+    expect(asksOver("/alert/new")).toBe(false);
+    expect(asksOver("/session/live")).toBe(false);
+    expect(asksOver("/onboarding")).toBe(false);
+    expect(asksOver("/", "a1b2")).toBe(false);
+    expect(asksOver("/", "")).toBe(true);
   });
 });
 

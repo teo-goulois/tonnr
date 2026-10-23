@@ -1,14 +1,14 @@
 import { DENSITY_OF_READING } from "@repo/client/density";
 import type { ProfileAnswers, SurferProfile } from "@repo/client/viewer/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, usePathname } from "expo-router";
+import { router, useGlobalSearchParams, usePathname } from "expo-router";
 import { useEffect, useRef } from "react";
 
 import { useSaveDensity } from "@/components/account/kept-settings";
 import { useAccount } from "@/lib/account";
 import { orpc } from "@/utils/orpc";
 
-import { isTabPath } from "./profiling";
+import { asksOver } from "./profiling";
 
 /**
  * What the account said of itself as a surfer, and what keeps or puts off its answers: decision
@@ -59,15 +59,17 @@ export function useProfile() {
 
 /**
  * Opens the questions once, as the web asks them: to an account that was never asked, after its
- * first sign-in or at its next visit, once nothing stands over the tabs. Decision 063.
+ * first sign-in, wherever it signed in from, or at its next visit, over a tab or a place's sheet,
+ * once the sheet it signed in with and what it went on to have closed. Decision 063.
  */
 export function useOnboardingOnce() {
   const { signedIn, userId } = useAccount();
   const path = usePathname();
+  const { invite } = useGlobalSearchParams<{ invite?: string }>();
   const read = useQuery(orpc.v1.profile.get.queryOptions({ enabled: signedIn, retry: false }));
   // The account it was opened for in this run of the app, so that it opens once.
   const opened = useRef<string | undefined>(undefined);
-  const free = isTabPath(path);
+  const free = asksOver(path, invite);
 
   useEffect(() => {
     if (!signedIn || !userId || !free || !read.isSuccess || read.data !== null) return;

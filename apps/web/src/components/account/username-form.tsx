@@ -1,4 +1,5 @@
-import { USERNAME_MAX, USERNAME_MIN } from "@repo/config/username";
+import { liveUsernameFault as liveFaultIn } from "@repo/client/username";
+import { USERNAME_MAX } from "@repo/config/username";
 import { Button } from "@repo/ui/components/ui/button";
 import type { FormInput } from "@repo/ui/components/form/form-input";
 import { refuseField } from "@repo/ui/hooks/form/form-context";
@@ -9,7 +10,7 @@ import { z } from "zod";
 
 import { m } from "@/paraglide/messages.js";
 
-import { typedUsername, usernameFault, useUsernameFree } from "./username";
+import { typedUsername, USERNAME_WORDS, usernameFault, useUsernameFree } from "./username";
 
 /**
  * What a username field says as it is typed: what is wrong with the name once it is long enough
@@ -17,8 +18,7 @@ import { typedUsername, usernameFault, useUsernameFree } from "./username";
  * it is sent. Given as the field's `onChange` validator, and left out where no username is asked.
  */
 export function liveUsernameFault({ value }: { value: string }) {
-  const username = typedUsername(value);
-  return username.length >= USERNAME_MIN ? usernameFault(username) : undefined;
+  return liveFaultIn(value, USERNAME_WORDS);
 }
 
 /** Keeps a username in small letters as it is typed, as it is kept. The field's listener. */

@@ -97,10 +97,23 @@ export function hasAnswer(step: Step, answers: ProfileAnswers, username: string 
   }
 }
 
-/**
- * Whether a path of the app is a tab's own screen, with nothing over it: the onboarding opens
- * there alone, and waits while a sheet stands over the tabs, as the web's waits for a dialog.
- */
+/** Whether a path of the app is a tab's own screen, with nothing over it. */
 export function isTabPath(path: string) {
   return path === "/" || /^\/(saved|alerts|account)(\/|$)/.test(path);
+}
+
+/** Whether a path is a place's sheet over the map, `/place/<kind>/<id>`. */
+const isPlacePath = (path: string) => /^\/place\/[^/]+\/[^/]+$/.test(path);
+
+/**
+ * Whether the questions may open over what is in view, as the web asks them over the map whatever
+ * panel stands beside it: on a tab's own screen, or over a place's sheet, which stays over the map
+ * as one goes from place to place, and from which an account is often made. They wait while a
+ * sheet that holds something else stands over the tabs, the sign-in's, a list's or an alert's
+ * that a page asked for, and while a link's invitation is asked over the map, as the web waits
+ * for its dialog. Decision 063.
+ */
+export function asksOver(path: string, invite?: string | string[] | undefined) {
+  if (invite !== undefined && invite.length > 0) return false;
+  return isTabPath(path) || isPlacePath(path);
 }

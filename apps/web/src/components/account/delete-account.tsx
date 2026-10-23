@@ -1,3 +1,9 @@
+import {
+  type DeletionMessages,
+  type DeletionRefusal,
+  refusalOf,
+  refusalWords,
+} from "@repo/client/account/deletion";
 import { DELETED_USERNAME_DAYS } from "@repo/config/account";
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -10,8 +16,16 @@ import { ProviderButton } from "@/components/auth/provider-sign-in";
 import type { Provider } from "@/lib/provider-auth";
 import { m } from "@/paraglide/messages.js";
 
-/** Why the API did not delete the account, as the step says it. */
-export type DeletionRefusal = "password" | "session" | "many" | "operator" | "failed";
+// Why the API did not delete the account, read the same way by the app for phones.
+export { type DeletionRefusal, refusalOf };
+
+const REFUSALS: DeletionMessages = {
+  delete_account_wrong_password: m.delete_account_wrong_password,
+  delete_account_stale: m.delete_account_stale,
+  delete_account_many: m.delete_account_many,
+  delete_account_operator: m.delete_account_operator,
+  delete_account_failed: m.delete_account_failed,
+};
 
 /** What deletes the account, and what it asks first: decision 071. The route gives it. */
 export type AccountDeletion = {
@@ -34,25 +48,6 @@ export type AccountDeletion = {
   onDelete: (password: string | undefined) => Promise<DeletionRefusal | undefined>;
   // Signs in again with that provider, and comes back to this step.
   onSignInAgain: (provider: Provider) => void;
-};
-
-/** Why the API did not delete the account, as its refusal says. */
-export function refusalOf(error: unknown): DeletionRefusal {
-  const refused = error as { code?: string; data?: { refused?: string } };
-  if (refused.code === "FORBIDDEN") {
-    return refused.data?.refused === "session" ? "session" : "password";
-  }
-  if (refused.code === "TOO_MANY_REQUESTS") return "many";
-  if (refused.code === "CONFLICT") return "operator";
-  return "failed";
-}
-
-const REFUSALS: Record<DeletionRefusal, () => string> = {
-  password: m.delete_account_wrong_password,
-  session: m.delete_account_stale,
-  many: m.delete_account_many,
-  operator: m.delete_account_operator,
-  failed: m.delete_account_failed,
 };
 
 /**
@@ -129,7 +124,7 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
             {/* A wrong password is said under its field: another refusal is said here. */}
             {refused && refused !== "password" && (
               <p role="alert" className="text-s text-error">
-                {REFUSALS[refused]()}
+                {refusalWords(refused, REFUSALS)}
               </p>
             )}
             <div>
@@ -162,7 +157,7 @@ export function DeleteAccount({ deletion }: { deletion: AccountDeletion }) {
         <div className="grid justify-items-start gap-s">
           {refused && (
             <p role="alert" className="text-s text-error">
-              {REFUSALS[refused]()}
+              {refusalWords(refused, REFUSALS)}
             </p>
           )}
           <Button

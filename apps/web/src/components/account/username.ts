@@ -1,4 +1,10 @@
-import { type UsernameProblem, usernameProblem } from "@repo/config/username";
+import {
+  asksIfFree,
+  typedUsername,
+  usernameFault as faultIn,
+  type UsernameMessages,
+  usernameRefusal as refusalIn,
+} from "@repo/client/username";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -6,36 +12,32 @@ import { authClient } from "@/lib/auth-client";
 import { m } from "@/paraglide/messages.js";
 import { orpc } from "@/utils/orpc";
 
+// The rules of a username, which `packages/client/src/username.ts` says for both apps, in this
+// app's words.
+
 // How long typing must have stopped before the API is asked whether a username is free.
 const ASK_WAIT_MS = 400;
 
-const FAULTS: Record<UsernameProblem, () => string> = {
-  short: m.username_too_short,
-  long: m.username_too_long,
-  characters: m.username_characters,
-  reserved: m.username_reserved,
+/** The words of a username's faults, from this app's messages. */
+export const USERNAME_WORDS: UsernameMessages = {
+  username_too_short: m.username_too_short,
+  username_too_long: m.username_too_long,
+  username_characters: m.username_characters,
+  username_reserved: m.username_reserved,
+  username_taken: m.username_taken,
 };
 
 /** What is typed as a username, as it is kept: in small letters. */
-export const typedUsername = (typed: string) => typed.trim().toLowerCase();
+export { typedUsername };
 
 /** Why a text is no username, in the reader's language. Undefined for one that is. */
-export function usernameFault(username: string) {
-  const problem = usernameProblem(username);
-  return problem ? FAULTS[problem]() : undefined;
-}
+export const usernameFault = (username: string) => faultIn(username, USERNAME_WORDS);
 
 /**
  * What a refusal of the sign-in library says of a username, in the reader's language. Undefined
  * for a refusal of something else, which the library words itself.
  */
-export function usernameRefusal(code: string | undefined) {
-  if (code === "USERNAME_IS_ALREADY_TAKEN") return m.username_taken();
-  if (code === "USERNAME_TOO_SHORT") return m.username_too_short();
-  if (code === "USERNAME_TOO_LONG") return m.username_too_long();
-  if (code === "INVALID_USERNAME") return m.username_reserved();
-  return undefined;
-}
+export const usernameRefusal = (code: string | undefined) => refusalIn(code, USERNAME_WORDS);
 
 /**
  * Whether a username is free, asked of the API once typing has stopped. Undefined while it is
@@ -43,7 +45,7 @@ export function usernameRefusal(code: string | undefined) {
  */
 export function useUsernameFree(username: string, own?: string | null) {
   const [answer, setAnswer] = useState<{ of: string; isFree: boolean }>();
-  const asks = usernameProblem(username) === null && username !== own;
+  const asks = asksIfFree(username, own);
 
   useEffect(() => {
     if (!asks) return;

@@ -29,14 +29,15 @@ export function useAccountDeletion() {
   const [signingIn, setSigningIn] = useState<Provider>();
   const account = own.account;
 
+  // Answers why the API refused, once it has answered, and nothing once the account is gone.
   async function deleteAccount(password: string | undefined) {
     setRefused(undefined);
     try {
       await remove.mutateAsync(password === undefined ? {} : { password });
     } catch (error) {
-      feel("failed");
-      setRefused(refusalOf(error));
-      return;
+      const refusal = refusalOf(error);
+      setRefused(refusal);
+      return refusal;
     }
     // The account and its sessions are gone: the phone lets go of its push keys and its cookie,
     // and of what it loaded and kept for the account. The account's tab goes back to its first
@@ -45,6 +46,7 @@ export function useAccountDeletion() {
     tell({ title: m.delete_account_done(), tone: "success" });
     if (router.canDismiss()) router.dismissAll();
     router.replace("/");
+    return undefined;
   }
 
   async function signInAgain(provider: Provider) {
@@ -71,7 +73,9 @@ export function useAccountDeletion() {
     isDeleting: remove.isPending,
     signingIn,
     refused,
-    onDelete: (password: string | undefined) => void deleteAccount(password),
+    /** Deletes the account, and answers why the API refused, or nothing once it is gone. */
+    onDelete: (password: string | undefined): Promise<DeletionRefusal | undefined> =>
+      deleteAccount(password),
     onSignInAgain: (provider: Provider) => void signInAgain(provider),
   };
 }

@@ -1,38 +1,29 @@
+import {
+  accountNamed,
+  type DeletionMessages,
+  type DeletionRefusal,
+  refusalOf,
+  refusalWords as wordsIn,
+} from "@repo/client/account/deletion";
+
 import { m } from "@/paraglide/messages";
 
 // What the step that deletes the account reads of the API's refusal and of the account, as the
-// web's `DeleteAccount` reads them: decision 071. A module that imports nothing of React Native,
-// so that a test reads it.
+// web's `DeleteAccount` reads them, from `packages/client/src/account/deletion.ts`: decision 071.
+// A module that imports nothing of React Native, so that a test reads it.
 
-/** Why the API did not delete the account, as the step says it. */
-export type DeletionRefusal = "password" | "session" | "many" | "operator" | "failed";
+export { accountNamed, type DeletionRefusal, refusalOf };
 
-/** Why the API did not delete the account, as its refusal says. */
-export function refusalOf(error: unknown): DeletionRefusal {
-  const refused = error as { code?: string; data?: { refused?: string } } | null;
-  if (refused?.code === "FORBIDDEN") {
-    return refused.data?.refused === "session" ? "session" : "password";
-  }
-  if (refused?.code === "TOO_MANY_REQUESTS") return "many";
-  if (refused?.code === "CONFLICT") return "operator";
-  return "failed";
-}
-
-const REFUSALS: Record<DeletionRefusal, () => string> = {
-  password: m.delete_account_wrong_password,
-  session: m.delete_account_stale,
-  many: m.delete_account_many,
-  operator: m.delete_account_operator,
-  failed: m.delete_account_failed,
+const REFUSALS: DeletionMessages = {
+  delete_account_wrong_password: m.delete_account_wrong_password,
+  delete_account_stale: m.delete_account_stale,
+  delete_account_many: m.delete_account_many,
+  delete_account_operator: m.delete_account_operator,
+  delete_account_failed: m.delete_account_failed,
 };
 
 /** A refusal in the reader's language. */
-export const refusalWords = (refused: DeletionRefusal) => REFUSALS[refused]();
-
-/** The account the step deletes, by the name others read, or its address before it has one. */
-export function accountNamed(account: { username: string | null; email: string }) {
-  return account.username ? `@${account.username}` : account.email;
-}
+export const refusalWords = (refused: DeletionRefusal) => wordsIn(refused, REFUSALS);
 
 /** What the button that deletes says: the account's name, since a new sign-in may be another. */
 export function deleteLabel(account: { username: string | null } | undefined) {

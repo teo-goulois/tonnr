@@ -1,17 +1,18 @@
 import { DELETED_USERNAME_DAYS } from "@repo/config/account";
-import { useState } from "react";
 import { View } from "react-native";
+import { z } from "zod";
 
-import { Field } from "@/components/auth/field";
 import { PASSWORD_MAX } from "@/components/auth/sign-in-words";
 import { ProviderButton } from "@/components/auth/provider-sign-in";
 import { Button } from "@/components/ui/button";
+import { refuseField, useAppForm, useFormSend } from "@/components/ui/form";
+import { feel } from "@/components/ui/haptics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { accountNamed, deleteLabel, refusalWords } from "./deletion";
+import { accountNamed, type DeletionRefusal, deleteLabel, refusalWords } from "./deletion";
 import { Step } from "./settings-steps";
 import { useAccountDeletion } from "./use-account-deletion";
 
@@ -28,6 +29,92 @@ function Said({ title, children }: { title: string; children: string }) {
   );
 }
 
+/** A refusal that is not about the password, said where the web says it: over the button. */
+function Refusal({ refused }: { refused: DeletionRefusal }) {
+  return (
+    <Text tone="danger" size="s" accessibilityRole="alert" accessibilityLiveRegion="polite">
+      {refusalWords(refused)}
+    </Text>
+  );
+}
+
+// The button at its own width, at the start, its name cut short rather than wrapped.
+const AT_ITS_WIDTH = { alignSelf: "flex-start", maxWidth: "100%" } as const;
+
+type Deletion = ReturnType<typeof useAccountDeletion>;
+
+function usePasswordForm(deletion: Deletion) {
+  return useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({
+        password: z.string().min(1, m.delete_account_password_missing()),
+      }),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      const refusal = await deletion.onDelete(value.password);
+      // A wrong password is said under its field, which the form gives the focus and the phone
+      // buzzes for; another refusal is said over the button, and buzzed for here.
+      if (refusal === "password") refuseField(formApi, "password", refusalWords(refusal));
+      else if (refusal) feel("failed");
+    },
+  });
+}
+
+/**
+ * The password given again and the button that deletes, as the web's form: a password left out
+ * is said under its field once the button is pressed, which is never held still for it, and so
+ * is a wrong one, until the field changes (decision 076). The field waits while the account is
+ * deleted, as the web's.
+ */
+function PasswordFields({
+  form,
+  deletion,
+}: {
+  form: ReturnType<typeof usePasswordForm>;
+  deletion: Deletion;
+}) {
+  const { space } = useTheme();
+  const send = useFormSend();
+  const { refused } = deletion;
+  return (
+    <View style={{ gap: space.s }}>
+      <form.AppField name="password">
+        {(field) => (
+          <field.Input
+            label={m.delete_account_password()}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
+            autoComplete="current-password"
+            maxLength={PASSWORD_MAX}
+            returnKeyType="done"
+            // The keyboard stays while a password left out is said under the field.
+            submitBehavior="submit"
+            onSubmitEditing={() => void send()}
+            editable={!deletion.isDeleting}
+          />
+        )}
+      </form.AppField>
+      {/* A wrong password is said under its field: another refusal is said here. */}
+      {refused && refused !== "password" ? <Refusal refused={refused} /> : null}
+      <form.SubmitButton variant="danger" pending={deletion.isDeleting} style={AT_ITS_WIDTH}>
+        {deleteLabel(deletion.account)}
+      </form.SubmitButton>
+    </View>
+  );
+}
+
+function PasswordForm({ deletion }: { deletion: Deletion }) {
+  const form = usePasswordForm(deletion);
+  return (
+    <form.AppForm>
+      <PasswordFields form={form} deletion={deletion} />
+    </form.AppForm>
+  );
+}
+
 /**
  * One step into the account's tab: what goes with the account and what stays, which account it
  * is, the password again or, for an account without one whose session the API finds too old, a
@@ -38,44 +125,9 @@ function Said({ title, children }: { title: string; children: string }) {
 export function DeleteAccountStep() {
   const { space } = useTheme();
   const deletion = useAccountDeletion();
-  const [password, setPassword] = useState("");
-  // A password that was not given, said under its field once the button was pressed: the button
-  // is never held still to stop a form that is not whole (decision 076).
-  const [missing, setMissing] = useState(false);
-  // Typed since the last press: a wrong password is no longer said under the field, as the web's
-  // form drops a refusal once its field changes.
-  const [retyped, setRetyped] = useState(false);
   const { account, hasPassword, refused } = deletion;
   // An account without a password signs in again once the API says its session is too old.
   const signsInFirst = hasPassword === false && refused === "session";
-  const label = deleteLabel(account);
-
-  const send = (given: string | undefined) => {
-    if (deletion.isDeleting) return;
-    if (given === "") {
-      setMissing(true);
-      return;
-    }
-    setRetyped(false);
-    deletion.onDelete(given);
-  };
-
-  const refusal = refused ? (
-    <Text tone="danger" size="s" accessibilityRole="alert" accessibilityLiveRegion="polite">
-      {refusalWords(refused)}
-    </Text>
-  ) : null;
-  // The button at its own width, at the start, its name cut short rather than wrapped.
-  const button = (given: string | undefined) => (
-    <Button
-      variant="danger"
-      loading={deletion.isDeleting}
-      onPress={() => send(given)}
-      style={{ alignSelf: "flex-start", maxWidth: "100%" }}
-    >
-      {label}
-    </Button>
-  );
 
   return (
     <Step title={m.delete_account_title()}>
@@ -96,36 +148,7 @@ export function DeleteAccountStep() {
           <Skeleton height={80} />
         </Loading>
       ) : hasPassword ? (
-        <View style={{ gap: space.s }}>
-          <Field
-            label={m.delete_account_password()}
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setMissing(false);
-              setRetyped(true);
-            }}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="password"
-            autoComplete="current-password"
-            maxLength={PASSWORD_MAX}
-            returnKeyType="done"
-            onSubmitEditing={() => send(password)}
-            disabled={deletion.isDeleting}
-            error={
-              missing
-                ? m.delete_account_password_missing()
-                : refused === "password" && !retyped
-                  ? refusalWords(refused)
-                  : undefined
-            }
-          />
-          {/* A wrong password is said under its field: another refusal is said here. */}
-          {refused && refused !== "password" ? refusal : null}
-          {button(password)}
-        </View>
+        <PasswordForm deletion={deletion} />
       ) : signsInFirst ? (
         <View style={{ gap: space.s }}>
           <Text size="s" accessibilityRole="alert" accessibilityLiveRegion="polite">
@@ -145,8 +168,20 @@ export function DeleteAccountStep() {
         </View>
       ) : (
         <View style={{ gap: space.s }}>
-          {refusal}
-          {button(undefined)}
+          {refused ? <Refusal refused={refused} /> : null}
+          <Button
+            variant="danger"
+            loading={deletion.isDeleting}
+            onPress={() => {
+              if (deletion.isDeleting) return;
+              void deletion.onDelete(undefined).then((refusal) => {
+                if (refusal) feel("failed");
+              });
+            }}
+            style={AT_ITS_WIDTH}
+          >
+            {deleteLabel(account)}
+          </Button>
         </View>
       )}
     </Step>

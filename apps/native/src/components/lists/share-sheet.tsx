@@ -1,12 +1,13 @@
 import type { SavedList } from "@repo/client/viewer/types";
 import { CopyIcon, LockIcon } from "@repo/ui/icon";
 import * as Clipboard from "expo-clipboard";
-import { useState } from "react";
 import { Platform, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { z } from "zod";
 
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
+import { useAppForm, useFormSend } from "@/components/ui/form";
 import { feel } from "@/components/ui/haptics";
 import { Field, Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
@@ -248,7 +249,79 @@ function LinkField({
   );
 }
 
-/** The password the link will ask for, which the owner gives here, then forgets. */
+function usePasswordForm(busy: boolean, onAdd: (password: string) => Promise<unknown>) {
+  return useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({
+        password: z
+          .string()
+          .min(PASSWORD_LEAST, m.share_password_short({ least: PASSWORD_LEAST }))
+          .max(PASSWORD_MOST),
+      }),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      if (busy) return;
+      try {
+        await onAdd(value.password);
+      } catch {
+        // What failed was told: what was typed stays, to be sent again.
+        return;
+      }
+      feel("done");
+      formApi.reset();
+    },
+  });
+}
+
+function PasswordFields({
+  form,
+  busy,
+}: {
+  form: ReturnType<typeof usePasswordForm>;
+  busy: boolean;
+}) {
+  const { space, type } = useTheme();
+  const send = useFormSend();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.xs }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <form.AppField name="password">
+          {(field) => (
+            <field.Input
+              label={m.share_password()}
+              placeholder={m.share_password_placeholder()}
+              maxLength={PASSWORD_MOST}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
+              returnKeyType="done"
+              // The keyboard stays while a password too short is said under the field.
+              submitBehavior="submit"
+              onSubmitEditing={() => void send()}
+              editable={!busy}
+            />
+          )}
+        </form.AppField>
+      </View>
+      {/* The button stands beside the field, under its name, as the web's. */}
+      <form.SubmitButton
+        variant="secondary"
+        pending={busy}
+        style={{ marginTop: type.m.line + space.xs }}
+      >
+        {m.share_password_add()}
+      </form.SubmitButton>
+    </View>
+  );
+}
+
+/**
+ * The password the link will ask for, which the owner gives here, then forgets, as the web's
+ * form: one too short is said under its field once sent, and the field waits while the link
+ * changes, as the web's.
+ */
 function PasswordField({
   busy,
   onAdd,
@@ -256,56 +329,10 @@ function PasswordField({
   busy: boolean;
   onAdd: (password: string) => Promise<unknown>;
 }) {
-  const { space } = useTheme();
-  const [password, setPassword] = useState("");
-  const [short, setShort] = useState(false);
-
-  const add = () => {
-    if (busy) return;
-    if (password.length < PASSWORD_LEAST) {
-      feel("failed");
-      setShort(true);
-      return;
-    }
-    void onAdd(password).then(
-      () => {
-        feel("done");
-        setPassword("");
-      },
-      // What failed was told: what was typed stays, to be sent again.
-      () => {},
-    );
-  };
-
+  const form = usePasswordForm(busy, onAdd);
   return (
-    <Field
-      label={m.share_password()}
-      error={short ? m.share_password_short({ least: PASSWORD_LEAST }) : undefined}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
-        <Input
-          value={password}
-          onChangeText={(typed) => {
-            setPassword(typed);
-            setShort(false);
-          }}
-          placeholder={m.share_password_placeholder()}
-          accessibilityLabel={m.share_password()}
-          invalid={short}
-          maxLength={PASSWORD_MOST}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-          textContentType="none"
-          returnKeyType="done"
-          submitBehavior="blurAndSubmit"
-          onSubmitEditing={add}
-          editable={!busy}
-        />
-        <Button variant="secondary" onPress={add} loading={busy}>
-          {m.share_password_add()}
-        </Button>
-      </View>
-    </Field>
+    <form.AppForm>
+      <PasswordFields form={form} busy={busy} />
+    </form.AppForm>
   );
 }

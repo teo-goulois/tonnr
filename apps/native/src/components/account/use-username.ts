@@ -1,4 +1,4 @@
-import { usernameProblem } from "@repo/config/username";
+import { asksIfFree } from "@repo/client/username";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -18,7 +18,7 @@ const ASK_WAIT_MS = 400;
  */
 export function useUsernameFree(username: string, own?: string | null) {
   const [answer, setAnswer] = useState<{ of: string; isFree: boolean }>();
-  const asks = usernameProblem(username) === null && username !== own;
+  const asks = asksIfFree(username, own);
 
   useEffect(() => {
     if (!asks) return;

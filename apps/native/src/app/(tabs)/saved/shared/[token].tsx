@@ -1,9 +1,9 @@
 import { LockIcon } from "@repo/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { type ComponentRef, useEffect, useRef, useState } from "react";
+import { type ComponentRef, type RefObject, useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, type TextInput, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { z } from "zod";
 
 import { listName } from "@/components/lists/items";
 import { useListInView } from "@/components/lists/list-in-view";
@@ -14,8 +14,8 @@ import { openOnMap, usePlaceActions } from "@/components/saved/place-actions";
 import { RowsWaiting } from "@/components/saved/place-section";
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
+import { FormScroll, refuseField, useAppForm, useFormSend } from "@/components/ui/form";
 import { feel } from "@/components/ui/haptics";
-import { Field, Input } from "@/components/ui/input";
 import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
@@ -209,10 +209,63 @@ function SharedList({
   );
 }
 
+function usePasswordForm(checking: boolean, onTry: (password: string) => void) {
+  return useAppForm({
+    defaultValues: { password: "" },
+    validators: {
+      onSubmit: z.object({ password: z.string().min(1, m.shared_password_missing()) }),
+    },
+    onSubmit: ({ value }) => {
+      if (checking) return;
+      onTry(value.password);
+    },
+  });
+}
+
+function PasswordFields({
+  form,
+  checking,
+  input,
+}: {
+  form: ReturnType<typeof usePasswordForm>;
+  checking: boolean;
+  input: RefObject<ComponentRef<typeof TextInput> | null>;
+}) {
+  const send = useFormSend();
+  return (
+    <>
+      <form.AppField name="password">
+        {(field) => (
+          <field.Input
+            ref={input}
+            label={m.shared_password()}
+            secureTextEntry
+            maxLength={72}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            autoFocus
+            returnKeyType="go"
+            // The keyboard stays while a password left out is said under the field.
+            submitBehavior="submit"
+            onSubmitEditing={() => void send()}
+            editable={!checking}
+          />
+        )}
+      </form.AppField>
+      <form.SubmitButton pending={checking} fill>
+        {m.shared_open()}
+      </form.SubmitButton>
+    </>
+  );
+}
+
 /**
  * What a list that asks for a password shows before it, as the web's `SharedDoor`: that it asks
- * one, the field, and what opens the list. An empty field, a wrong password and too many of them
- * are said under the field, which takes the keyboard back with the API's answer.
+ * one, the field, and what opens the list. A password left out is said under the field once
+ * sent, and so is what the API said of one, a wrong password or too many of them, each time it
+ * is said, until the field changes; the field waits while the password is checked, and takes the
+ * keyboard back with the API's answer (decision 076).
  */
 function PasswordDoor({
   refusal,
@@ -225,35 +278,28 @@ function PasswordDoor({
 }) {
   const { colors, space } = useTheme();
   const input = useRef<ComponentRef<typeof TextInput>>(null);
-  const [password, setPassword] = useState("");
-  const [missing, setMissing] = useState(false);
   // How many times a password was given: the API's answer to each is said under the field, even
-  // when it is the same as the last, until something else is typed.
+  // when it is the same as the last.
   const [tries, setTries] = useState(0);
-  const [typedSince, setTypedSince] = useState(false);
-  const refused = tries > 0 && !checking && refusal !== undefined && !typedSince;
-
-  useEffect(() => {
-    if (tries > 0 && !checking && refusal) input.current?.focus();
-  }, [tries, checking, refusal]);
-
-  const open = () => {
-    if (checking) return;
-    if (!password) {
-      feel("failed");
-      setMissing(true);
-      return;
-    }
-    setTypedSince(false);
+  const form = usePasswordForm(checking, (password) => {
     setTries((count) => count + 1);
     onPassword(password);
-  };
+  });
+
+  useEffect(() => {
+    if (tries === 0 || checking || !refusal) return;
+    feel("failed");
+    refuseField(
+      form,
+      "password",
+      refusal === "wrong" ? m.shared_password_wrong() : m.shared_password_closed(),
+    );
+    input.current?.focus();
+  }, [form, tries, checking, refusal]);
 
   return (
-    <KeyboardAwareScrollView
+    <FormScroll
       contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={space.l}
       contentContainerStyle={{
         flexGrow: 1,
         justifyContent: "center",
@@ -271,43 +317,9 @@ function PasswordDoor({
         </View>
         <Text tone="muted">{m.shared_locked_text()}</Text>
       </View>
-      <Field
-        label={m.shared_password()}
-        error={
-          missing
-            ? m.shared_password_missing()
-            : refused
-              ? refusal === "wrong"
-                ? m.shared_password_wrong()
-                : m.shared_password_closed()
-              : undefined
-        }
-      >
-        <Input
-          ref={input}
-          value={password}
-          onChangeText={(typed) => {
-            setPassword(typed);
-            setMissing(false);
-            setTypedSince(true);
-          }}
-          accessibilityLabel={m.shared_password()}
-          invalid={missing || refused}
-          secureTextEntry
-          maxLength={72}
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="off"
-          autoFocus
-          returnKeyType="go"
-          submitBehavior="blurAndSubmit"
-          onSubmitEditing={open}
-          editable={!checking}
-        />
-      </Field>
-      <Button onPress={open} loading={checking} fill>
-        {m.shared_open()}
-      </Button>
-    </KeyboardAwareScrollView>
+      <form.AppForm>
+        <PasswordFields form={form} checking={checking} input={input} />
+      </form.AppForm>
+    </FormScroll>
   );
 }

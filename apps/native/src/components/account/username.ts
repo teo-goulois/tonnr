@@ -1,43 +1,48 @@
-import { USERNAME_MIN, type UsernameProblem, usernameProblem } from "@repo/config/username";
+import {
+  liveUsernameFault as liveFaultIn,
+  typedUsername,
+  usernameFault as faultIn,
+  type UsernameMessages,
+  usernameRefusal as refusalIn,
+} from "@repo/client/username";
+import { USERNAME_MIN } from "@repo/config/username";
 
 import { m } from "@/paraglide/messages";
 
-// The rules of a username, which is what others read of an account (decision 041), as the web's
-// `UsernameForm` says them: `packages/config/src/username.ts` holds them for the API and both
-// apps. A module that imports nothing of React Native, so that a test reads it.
+// The rules of a username, which is what others read of an account (decision 041), in the app's
+// words: `packages/client/src/username.ts` says them for both apps, and `packages/config/src/
+// username.ts` what a username is, for the API too. A module that imports nothing of React
+// Native, so that a test reads it.
 
-const FAULTS: Record<UsernameProblem, () => string> = {
-  short: m.username_too_short,
-  long: m.username_too_long,
-  characters: m.username_characters,
-  reserved: m.username_reserved,
+export { typedUsername };
+
+const WORDS: UsernameMessages = {
+  username_too_short: m.username_too_short,
+  username_too_long: m.username_too_long,
+  username_characters: m.username_characters,
+  username_reserved: m.username_reserved,
+  username_taken: m.username_taken,
 };
 
-/** What is typed as a username, as it is kept: in small letters, without spaces around it. */
-export const typedUsername = (typed: string) => typed.trim().toLowerCase();
-
 /** Why a text is no username, in the reader's language. Undefined for one that is. */
-export function usernameFault(username: string) {
-  const problem = usernameProblem(username);
-  return problem ? FAULTS[problem]() : undefined;
-}
+export const usernameFault = (username: string) => faultIn(username, WORDS);
+
+/**
+ * What a username field says as it is typed: what is wrong with the name once it is long enough
+ * to be one. Given as the field's `onChange` validator, as the web's.
+ */
+export const liveUsernameFault = ({ value }: { value: string }) => liveFaultIn(value, WORDS);
 
 /**
  * What a refusal of the sign-in library says of a username, in the reader's language. Undefined
  * for a refusal of something else, which the library words itself.
  */
-export function usernameRefusal(code: string | undefined) {
-  if (code === "USERNAME_IS_ALREADY_TAKEN") return m.username_taken();
-  if (code === "USERNAME_TOO_SHORT") return m.username_too_short();
-  if (code === "USERNAME_TOO_LONG") return m.username_too_long();
-  if (code === "INVALID_USERNAME") return m.username_reserved();
-  return undefined;
-}
+export const usernameRefusal = (code: string | undefined) => refusalIn(code, WORDS);
 
 /**
- * What a field of a username says under it: what is wrong, said once the name is long enough to
- * be judged or once it was sent, then whether the API said it is taken; else that it is free, or
- * the rules.
+ * What a field of a username says under it, for a form that keeps its state by hand, as the
+ * sign-up's: what is wrong, said once the name is long enough to be judged or once it was sent,
+ * then whether the API said it is taken; else that it is free, or the rules.
  */
 export function usernameSays({
   username,
