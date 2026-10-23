@@ -23,12 +23,6 @@ import { orpc } from "@/utils/orpc";
 
 // How often the reports are asked again while one of the reader's is being checked.
 const CHECKING_EVERY_MS = 4000;
-/**
- * How far from its break a photo of a report may be taken, which the API judges: the app only
- * warns before sending. The rule is `REPORT_RADIUS_KM` of packages/media/src/report-checks.ts,
- * which the app may not import (decision 069).
- */
-export const REPORT_RADIUS_KM = 2;
 
 // Whether one of the reader's reports is still being checked.
 const isChecking = (reports: readonly Report[] | undefined) =>
@@ -56,20 +50,11 @@ export function useBreakReports(breakId: string | undefined) {
 /** Where the phone stands, and how precisely, as `reports.create` takes it. */
 export type PhonePosition = { latitude: number; longitude: number; accuracyM: number | null };
 
-/** Whether the phone may say where it stands: allowed, refused, or not asked yet. */
-export async function positionAllowed(): Promise<"granted" | "denied" | "undetermined"> {
-  try {
-    const { status } = await getForegroundPermissionsAsync();
-    return status;
-  } catch {
-    return "denied";
-  }
-}
-
 /**
- * Where the phone stands, asking leave first when it was never asked. Null when it will not say,
- * or says nothing in ten seconds: a report is sent all the same, and a photo whose file says where
- * it was taken still passes.
+ * Where the phone stands, asking leave first when it was never asked, as the report is sent and
+ * not before, as the web asks the browser. Null when it will not say, or says nothing in ten
+ * seconds: a report is sent all the same, and a photo whose file says where it was taken still
+ * passes.
  */
 export async function whereThePhoneIs(ask: boolean): Promise<PhonePosition | null> {
   try {

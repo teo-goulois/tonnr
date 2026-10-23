@@ -2,8 +2,18 @@ import type { SurfSize } from "@repo/client/sessions/types";
 import { scaleColor, WAVE_HEIGHT_SCALE } from "@repo/client/sea-scales";
 import { SIZES, SURF_FACES } from "@repo/conditions/sessions/sizes";
 import { SurferFillIcon, WaveFillIcon } from "@repo/ui/icon";
-import { isValidElement, type ReactElement, type ReactNode, useId } from "react";
-import { Pressable, View } from "react-native";
+import {
+  type ComponentRef,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useId,
+  useState,
+} from "react";
+import { BackHandler, Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
   Circle,
   ClipPath,
@@ -19,16 +29,22 @@ import Svg, {
 import { sizeFace as faceWords, sizeName } from "@/components/profile/profile-words";
 import type { GlyphIcon } from "@/components/shared/glyph";
 import { drawTree, type SvgRenderer } from "@/components/shared/svg-tree";
+import { Button } from "@/components/ui/button";
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
+import { PanelHeader } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { heightFigure, heightUnit, useUnits } from "@/lib/units";
+import { m } from "@/paraglide/messages";
+
+import { Pill } from "./pill";
 
 // How big the waves of a session looked, said by its surfer against a body: decision 043. The
 // pictures are the web's `SurfSizePicture`, drawn with react-native-svg from the same two icons of
 // Nucleo, to one scale, which the questions of decision 063 draw too; a size's name and its face
-// are said in their words (`profile-words.ts`).
+// are said in their words (`profile-words.ts`). What was said stands on a pill of the form's line,
+// which opens a step of the sheet where it is said, as the web's `SurfSizeInput` opens a drawer.
 
 export { sizeName };
 
@@ -268,6 +284,120 @@ export function SizeChoices({ label, value, least, front, onPick }: SizeChoicesP
           })}
         </View>
       ))}
+    </View>
+  );
+}
+
+/** What was said of the waves on a pill, which opens the step where it is said. */
+export function SizesPill({
+  ref,
+  waves,
+  sets,
+  onPress,
+  disabled,
+  accessibilityHint,
+}: {
+  /** What a screen reader is moved to when the line is the form's first wrong one. */
+  ref?: Ref<ComponentRef<typeof View>>;
+  waves: SurfSize | null;
+  sets: SurfSize | null;
+  onPress: () => void;
+  disabled: boolean;
+  accessibilityHint?: string | undefined;
+}) {
+  useUnits();
+  const said = sizesWords(waves, sets);
+  return (
+    <Pill
+      ref={ref}
+      shown={said ?? m.surf_size_add()}
+      faint={said === null}
+      disabled={disabled}
+      onPress={onPress}
+      accessibilityLabel={said ? m.surf_size_said({ waves: said }) : m.surf_size_ask()}
+      accessibilityHint={accessibilityHint}
+    />
+  );
+}
+
+type SizesStepProps = {
+  waves: SurfSize | null;
+  sets: SurfSize | null;
+  onDone: (waves: SurfSize | null, sets: SurfSize | null) => void;
+  /** Back to the form, as the web's cross closes its drawer over the form. */
+  onClose: () => void;
+};
+
+/**
+ * How big the waves looked, as a step of the sheet with the web drawer's head: most of the waves,
+ * then the sets, the hint under the title, a chevron back to the waves once at the sets, and the
+ * cross back to the form. Each is chosen among nine pictures of a surfer beside a wave. No size is
+ * offered before the surfer says one, so that none is said for being offered; the sets are never
+ * smaller than the waves. "Clear" stands under the waves' pictures once something was said.
+ * Android's back goes a step back too.
+ */
+export function SizesStep({ waves, sets, onDone, onClose }: SizesStepProps) {
+  const { space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState<"waves" | "sets">("waves");
+  const [picked, setPicked] = useState<SurfSize | null>(waves);
+  const isSets = step === "sets" && picked !== null;
+
+  useEffect(() => {
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (isSets) setStep("waves");
+      else onClose();
+      return true;
+    });
+    return () => listener.remove();
+  }, [isSets, onClose]);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <PanelHeader
+        title={isSets ? m.surf_size_sets() : m.surf_size_waves()}
+        description={m.surf_size_hint()}
+        onBack={isSets ? () => setStep("waves") : undefined}
+        onClose={onClose}
+      />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          gap: space.m,
+          padding: space.m,
+          paddingBottom: insets.bottom + space.xl,
+        }}
+      >
+        {isSets ? (
+          <SizeChoices
+            key="sets"
+            label={m.surf_size_sets()}
+            // The sets said before stay chosen while they are no smaller than the waves.
+            value={sets && SIZES.indexOf(sets) >= SIZES.indexOf(picked) ? sets : null}
+            least={picked}
+            // Each set is drawn behind the waves that were said.
+            front={picked}
+            onPick={(size) => onDone(picked, size)}
+          />
+        ) : (
+          <>
+            <SizeChoices
+              key="waves"
+              label={m.surf_size_waves()}
+              value={picked}
+              onPick={(size) => {
+                setPicked(size);
+                setStep("sets");
+              }}
+            />
+            {(waves ?? sets) ? (
+              <Button variant="ghost" fill onPress={() => onDone(null, null)}>
+                {m.surf_size_clear()}
+              </Button>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }

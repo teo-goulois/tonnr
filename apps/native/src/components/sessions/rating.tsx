@@ -1,5 +1,5 @@
 import { RatingFillIcon, RatingHalfIcon, RatingIcon } from "@repo/ui/icon";
-import { type ComponentRef, useRef } from "react";
+import { type ComponentRef, type Ref, useImperativeHandle, useRef } from "react";
 import { type GestureResponderEvent, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
@@ -77,11 +77,13 @@ export function RatingStars({ rating, size = 14 }: { rating: number | null; size
   );
 }
 
-// Each star is a finger's height, and they stand close: a press beside the one it was meant for
-// is set right by sliding.
-const STAR_WIDTH = 36;
-const STAR_HEIGHT = 44;
-const STAR_SIZE = 26;
+// Each star stands in a box of 30 by 40 with an icon of 24, as the web's (`h-10 w-7.5`, `size-6`),
+// and they stand close: a press beside the one it was meant for is set right by sliding. A finger
+// is given 44 points of height all the same.
+const STAR_WIDTH = 30;
+const STAR_HEIGHT = 40;
+const STAR_SIZE = 24;
+const STAR_SLOP = 2;
 
 /**
  * A rating as it is given: five stars, by halves. A press on a star gives it whole, a press on its
@@ -90,17 +92,23 @@ const STAR_SIZE = 26;
  * A screen reader sets it by halves with a swipe up or down.
  */
 export function RatingInput({
+  ref,
   value,
   onChange,
   label,
+  accessibilityHint,
   disabled = false,
 }: {
+  /** What a screen reader is moved to when a form's line is its first wrong one. */
+  ref?: Ref<ComponentRef<typeof View>>;
   value: number | null;
   onChange: (rating: number | null) => void;
   label: string;
+  accessibilityHint?: string | undefined;
   disabled?: boolean;
 }) {
   const box = useRef<ComponentRef<typeof View>>(null);
+  useImperativeHandle(ref, () => box.current as ComponentRef<typeof View>, []);
   // Where the stars stand across the screen, read as a press begins.
   const across = useRef<{ x: number; width: number } | null>(null);
   // What the press began on, and how the finger went: a slide that goes up or down is a scroll.
@@ -149,6 +157,7 @@ export function RatingInput({
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       accessibilityValue={{
         min: 0,
         max: MOST,
@@ -198,6 +207,7 @@ export function RatingInput({
       onResponderTerminate={() => {
         press.current = null;
       }}
+      hitSlop={{ top: STAR_SLOP, bottom: STAR_SLOP }}
       style={{ flexDirection: "row", opacity: disabled ? 0.6 : 1 }}
     >
       {STARS.map((star) => (

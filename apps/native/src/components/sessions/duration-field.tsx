@@ -6,109 +6,141 @@ import {
   withinLengths,
 } from "@repo/client/sessions/rules";
 import { MinusIcon, PlusIcon } from "@repo/ui/icon";
-import { useState } from "react";
-import { View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { useEffect, useState } from "react";
+import { BackHandler, ScrollView, View } from "react-native";
 
-import { IconButton } from "@/components/ui/button";
-import { Chip, ChipRow } from "@/components/ui/chip";
-import { feel } from "@/components/ui/haptics";
-import { Text } from "@/components/ui/text";
+import { Button, IconButton } from "@/components/ui/button";
+import { MorphText } from "@/components/ui/morph-text";
+import { Segmented } from "@/components/ui/segmented";
+import { PanelHeader } from "@/components/ui/sheet";
+import { Slider } from "@/components/ui/slider";
 import { formatDuration } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
+
+// How long a session lasted, as the web's `DurationInput` asks it: the five usual lengths and a
+// last choice for another, in one segment as wide as its line, and that last choice opening a step
+// of the sheet, as the web opens a drawer, where a length of one's own is set five minutes at a
+// time, from a quarter of an hour to eight hours, and kept once "Done" is pressed. A length that is
+// none of the usual ones is written on that last choice. Decision 043, where Téo asked for both.
+
+// The last choice, which is no length of its own.
+const OWN = "own";
 
 type DurationFieldProps = {
   // In minutes.
   value: number;
   onChange: (minutes: number) => void;
+  /** Opens the step where a length of one's own is set. */
+  onOwn: () => void;
+  label: string;
   disabled?: boolean;
-  /** The room of what holds it, which the row of chips crosses to its edges. */
-  bleed?: number;
 };
 
-/**
- * How long a session lasted: the five usual lengths, a chip each, and a last one for another
- * length, which unfolds a line where it is set five minutes at a time, from a quarter of an hour
- * to eight hours. A length that is none of the usual ones is written on that last chip. The web's
- * `DurationInput` asks the same, its length of one's own in a drawer. Decision 043.
- */
 export function DurationField({
   value,
   onChange,
+  onOwn,
+  label,
   disabled = false,
-  bleed = 0,
 }: DurationFieldProps) {
-  const { space } = useTheme();
   const isUsual = USUAL_LENGTHS.includes(value);
-  // Whether the line of one's own length is open: always while the length is one's own.
-  const [isOwn, setIsOwn] = useState(!isUsual);
-  const shownOwn = isOwn || !isUsual;
-  const step = (by: number) => {
-    const next = withinLengths(value + by);
-    if (next === value) return;
-    feel("select");
-    onChange(next);
-  };
+  return (
+    <Segmented<string>
+      label={label}
+      fill
+      flush
+      disabled={disabled}
+      options={[
+        ...USUAL_LENGTHS.map((minutes) => ({
+          value: String(minutes),
+          label: formatDuration(minutes),
+        })),
+        // The last choice becomes the length that was set, and its letters move to it.
+        {
+          value: OWN,
+          label: isUsual ? m.session_duration_other() : formatDuration(value),
+          morph: true,
+        },
+      ]}
+      value={isUsual ? String(value) : OWN}
+      // The last choice changes nothing by itself: its step does, once it is answered. Pressed
+      // again, it opens its step again.
+      onChange={(next) => (next === OWN ? onOwn() : onChange(Number(next)))}
+      onReselect={(next) => {
+        if (next === OWN) onOwn();
+      }}
+    />
+  );
+}
+
+type DurationStepProps = {
+  // The length the step opens on: the one the form holds.
+  value: number;
+  /** Keeps the length that was set. */
+  onDone: (minutes: number) => void;
+  /** Back to the form, the length left as it was, as the web's cross closes its drawer. */
+  onClose: () => void;
+};
+
+/**
+ * A length of one's own, as a step of the sheet: the length, whose figures move to what it
+ * becomes, a slider between a button that takes five minutes away and one that adds them, and
+ * "Done". Android's back goes back to the form, as the cross does.
+ */
+export function DurationStep({ value, onDone, onClose }: DurationStepProps) {
+  const { space } = useTheme();
+  const [own, setOwn] = useState(() => withinLengths(value));
+  // A step from the length as it is then: two presses in a row are two steps.
+  const step = (by: number) => setOwn((current) => withinLengths(current + by));
+
+  useEffect(() => {
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      onClose();
+      return true;
+    });
+    return () => listener.remove();
+  }, [onClose]);
 
   return (
-    <View style={{ gap: space.xs }}>
-      <ChipRow label={m.session_duration()} bleed={bleed}>
-        {USUAL_LENGTHS.map((minutes) => (
-          <Chip
-            key={minutes}
-            label={formatDuration(minutes)}
-            selected={!shownOwn && value === minutes}
-            disabled={disabled}
-            onPress={() => {
-              setIsOwn(false);
-              onChange(minutes);
-            }}
-          />
-        ))}
-        <Chip
-          label={isUsual ? m.session_duration_other() : formatDuration(value)}
-          selected={shownOwn}
-          disabled={disabled}
-          onPress={() => setIsOwn(true)}
-        />
-      </ChipRow>
-      {shownOwn ? (
-        <Animated.View
-          entering={FadeIn}
-          exiting={FadeOut}
-          style={{ flexDirection: "row", alignItems: "center", gap: space.s }}
-        >
+    <View style={{ flex: 1 }}>
+      <PanelHeader title={m.session_duration()} onClose={onClose} />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: space.l, padding: space.m }}>
+        {/* The slider says the length to who cannot see it. Its figures slide as it moves. */}
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <MorphText size="xl" weight="medium" numeric align="center">
+            {formatDuration(own)}
+          </MorphText>
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
           <IconButton
             icon={MinusIcon}
             label={m.session_duration_less()}
-            disabled={disabled || value <= LEAST_MINUTES}
+            disabled={own <= LEAST_MINUTES}
             onPress={() => step(-STEP_MINUTES)}
           />
-          <View
-            accessible
-            accessibilityRole="adjustable"
-            accessibilityLabel={m.session_duration()}
-            accessibilityValue={{ text: formatDuration(value) }}
-            accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-            onAccessibilityAction={(event) => {
-              if (event.nativeEvent.actionName === "increment") step(STEP_MINUTES);
-              if (event.nativeEvent.actionName === "decrement") step(-STEP_MINUTES);
-            }}
-            style={{ flex: 1, alignItems: "center" }}
-          >
-            <Text size="xl" weight="medium" numeric dense>
-              {formatDuration(value)}
-            </Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Slider
+              label={m.session_duration()}
+              value={own}
+              min={LEAST_MINUTES}
+              max={MOST_MINUTES}
+              step={STEP_MINUTES}
+              format={formatDuration}
+              onChange={(next) => setOwn(withinLengths(next))}
+            />
           </View>
           <IconButton
             icon={PlusIcon}
             label={m.session_duration_more()}
-            disabled={disabled || value >= MOST_MINUTES}
+            disabled={own >= MOST_MINUTES}
             onPress={() => step(STEP_MINUTES)}
           />
-        </Animated.View>
-      ) : null}
+        </View>
+        <Button fill onPress={() => onDone(own)}>
+          {m.session_duration_done()}
+        </Button>
+      </ScrollView>
     </View>
   );
 }

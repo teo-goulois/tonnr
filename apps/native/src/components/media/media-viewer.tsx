@@ -4,20 +4,11 @@ import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useRef, useState } from "react";
-import {
-  AccessibilityInfo,
-  FlatList,
-  Platform,
-  Pressable,
-  ScrollView,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { AccessibilityInfo, FlatList, Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
-import { TARGET } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTheme } from "@/lib/theme";
 import { dark } from "@/theme/tokens";
@@ -26,10 +17,13 @@ import { m } from "@/paraglide/messages";
 // The photos and the videos of a session or a report, one at a time over the whole screen, dark
 // whatever the theme so that a photo is seen as it was taken: a finger slides from one to the next,
 // two fingers bring a photo closer, and a video plays when it is asked to, with its sound. The
-// web's `MediaViewer` does the same. Decision 066.
+// web's `MediaViewer` does the same, and is laid out the same: how many there are and the cross
+// on a row of their own, then the photo within the room under it.
 
 const INK = dark["neutral-10"];
 const GROUND = dark["neutral-1"];
+// The web's round button over the viewer, `size-10`, which a finger is given more room around.
+const ROUND = 40;
 
 /** A photo at its size within the screen, which two fingers bring closer on iOS. */
 function PhotoPage({ item, width, height }: { item: MediaItem; width: number; height: number }) {
@@ -109,7 +103,8 @@ type MediaViewerProps = {
 export function MediaViewer({ items, initialId, label, onClose }: MediaViewerProps) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  // The room under the bar, which a page fills: known once it is laid out.
+  const [room, setRoom] = useState<{ width: number; height: number } | null>(null);
   const ready = items.filter((item) => item.state === "ready");
   const first = Math.max(
     0,
@@ -118,15 +113,26 @@ export function MediaViewer({ items, initialId, label, onClose }: MediaViewerPro
   const [index, setIndex] = useState(first);
   const list = useRef<FlatList<MediaItem>>(null);
 
+  // How many there are, and which is shown, said as the web's count says it to a screen reader.
+  const tellCount = (at: number) =>
+    AccessibilityInfo.announceForAccessibility(
+      m.media_count({ index: at + 1, count: ready.length }),
+    );
+
   const go = (next: number) => {
     if (next < 0 || next >= ready.length || next === index) return;
     list.current?.scrollToIndex({ index: next, animated: true });
     setIndex(next);
     feel("select");
-    AccessibilityInfo.announceForAccessibility(
-      m.media_count({ index: next + 1, count: ready.length }),
-    );
+    tellCount(next);
   };
+
+  // A page is the room's whole width, which the list pages by, and holds its photo within the
+  // web's margins: a step on each side, and the bottom of the phone under it.
+  const inset = { side: space.s, bottom: Math.max(space.s, insets.bottom) };
+  const shown = room
+    ? { width: room.width - 2 * inset.side, height: room.height - inset.bottom }
+    : null;
 
   return (
     <View
@@ -135,42 +141,14 @@ export function MediaViewer({ items, initialId, label, onClose }: MediaViewerPro
       style={{ flex: 1, backgroundColor: GROUND }}
     >
       <StatusBar style="light" />
-      <FlatList
-        ref={list}
-        data={ready}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={first}
-        getItemLayout={(_, at) => ({ length: width, offset: width * at, index: at })}
-        windowSize={3}
-        initialNumToRender={1}
-        onMomentumScrollEnd={(event) => {
-          const next = Math.round(event.nativeEvent.contentOffset.x / width);
-          if (next !== index) {
-            setIndex(next);
-            feel("select");
-          }
-        }}
-        renderItem={({ item, index: at }) =>
-          item.kind === "video" ? (
-            <VideoPage item={item} width={width} height={height} active={at === index} />
-          ) : (
-            <PhotoPage item={item} width={width} height={height} />
-          )
-        }
-      />
       <View
-        pointerEvents="box-none"
         style={{
-          position: "absolute",
-          top: insets.top + space.xs,
-          left: space.m,
-          right: space.m,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: space.s,
+          padding: space.s,
+          paddingTop: Math.max(space.s, insets.top),
         }}
       >
         {ready.length > 1 ? (
@@ -178,7 +156,7 @@ export function MediaViewer({ items, initialId, label, onClose }: MediaViewerPro
           <Text
             size="s"
             numeric
-            style={{ color: INK }}
+            style={{ color: dark["neutral-7"] }}
             accessibilityRole="adjustable"
             accessibilityLabel={label}
             accessibilityValue={{ text: m.media_count({ index: index + 1, count: ready.length }) }}
@@ -199,16 +177,69 @@ export function MediaViewer({ items, initialId, label, onClose }: MediaViewerPro
           onPress={onClose}
           hitSlop={4}
           style={({ pressed }) => ({
-            width: TARGET,
-            height: TARGET,
-            borderRadius: TARGET / 2,
+            width: ROUND,
+            height: ROUND,
+            borderRadius: ROUND / 2,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: pressed ? dark["neutral-4"] : dark["neutral-3"],
+            backgroundColor: pressed
+              ? dark["neutral-4-transparent"]
+              : dark["neutral-3-transparent"],
           })}
         >
           <Glyph icon={XIcon} size={16} color={INK} />
         </Pressable>
+      </View>
+      <View
+        style={{ flex: 1 }}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          if (width !== room?.width || height !== room?.height) setRoom({ width, height });
+        }}
+      >
+        {room && shown ? (
+          <FlatList
+            ref={list}
+            data={ready}
+            keyExtractor={(item) => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={first}
+            getItemLayout={(_, at) => ({ length: room.width, offset: room.width * at, index: at })}
+            windowSize={3}
+            initialNumToRender={1}
+            onMomentumScrollEnd={(event) => {
+              const next = Math.round(event.nativeEvent.contentOffset.x / room.width);
+              if (next !== index) {
+                setIndex(next);
+                feel("select");
+                tellCount(next);
+              }
+            }}
+            renderItem={({ item, index: at }) => (
+              <View
+                style={{
+                  width: room.width,
+                  height: room.height,
+                  paddingHorizontal: inset.side,
+                  paddingBottom: inset.bottom,
+                }}
+              >
+                {item.kind === "video" ? (
+                  <VideoPage
+                    item={item}
+                    width={shown.width}
+                    height={shown.height}
+                    active={at === index}
+                  />
+                ) : (
+                  <PhotoPage item={item} width={shown.width} height={shown.height} />
+                )}
+              </View>
+            )}
+          />
+        ) : null}
       </View>
     </View>
   );

@@ -1,24 +1,96 @@
+import type { SessionDraft, Upload } from "@repo/client/sessions/types";
 import { describe, expect, it } from "vitest";
 
 import {
   dayWords,
+  isAskingOf,
+  mediaIdsOf,
   nearestPlace,
   placeOfParam,
   placeParam,
-  startFromPhoto,
+  sessionChanges,
+  startFault,
   withClock,
   withDay,
 } from "./session-logic";
 
-describe("when a new session began, from its first photo", () => {
-  it("is the first photo's moment, on five minutes, when it is of the past", () => {
-    const now = new Date(2026, 9, 19, 12, 0).getTime();
-    expect(startFromPhoto(new Date(2026, 9, 19, 8, 12, 33), now)?.getTime()).toBe(
-      new Date(2026, 9, 19, 8, 10).getTime(),
+describe("when a session began", () => {
+  const now = new Date(2026, 9, 19, 12, 0).getTime();
+
+  it("may be up to a quarter of an hour ahead of now, as the API takes it", () => {
+    expect(startFault(new Date(2026, 9, 19, 8, 10), now)).toBeUndefined();
+    expect(startFault(new Date(2026, 9, 19, 12, 15), now)).toBeUndefined();
+  });
+
+  it("is refused, in the web's words, once it is further ahead", () => {
+    expect(startFault(new Date(2026, 9, 19, 12, 20), now)).toBe(
+      "A session is written once it has begun.",
     );
-    expect(startFromPhoto(new Date(2026, 9, 19, 13, 0), now)).toBeNull();
-    expect(startFromPhoto(new Date(2001, 0, 1), now)).toBeNull();
-    expect(startFromPhoto(null, now)).toBeNull();
+  });
+});
+
+describe("the photos and the videos a session is saved with", () => {
+  const upload = (key: string, state: Upload["state"], id: string | null): Upload => ({
+    key,
+    name: `${key}.jpg`,
+    purpose: "session",
+    kind: "photo",
+    type: "image/jpeg",
+    preview: `file:///${key}.jpg`,
+    progress: state === "sending" ? 0.5 : 1,
+    state,
+    error: null,
+    id,
+  });
+  const uploads = new Map([
+    ["a", upload("a", "sending", null)],
+    ["b", upload("b", "sending", "media-b")],
+    ["c", upload("c", "failed", "media-c")],
+  ]);
+
+  it("are the ones kept and each file sent that has an id, in their order", () => {
+    const entries = [{ kept: "media-k" }, { upload: "a" }, { upload: "b" }, { upload: "c" }];
+    expect(mediaIdsOf(entries, uploads)).toEqual(["media-k", "media-b"]);
+  });
+
+  it("wait while a file being sent has no id yet", () => {
+    expect(isAskingOf([{ upload: "a" }], uploads)).toBe(true);
+    expect(isAskingOf([{ kept: "media-k" }, { upload: "b" }, { upload: "c" }], uploads)).toBe(
+      false,
+    );
+  });
+});
+
+describe("what of a session differs from the one it changes", () => {
+  const session = {
+    startedAt: new Date(2026, 9, 18, 7, 30),
+    durationMinutes: 90,
+    rating: 4,
+    note: "Glassy",
+    waveSize: "chest" as const,
+    setSize: null,
+  };
+  const same: SessionDraft = {
+    startedAt: new Date(2026, 9, 18, 7, 30),
+    durationMinutes: 90,
+    rating: 4,
+    note: "Glassy",
+    waveSize: "chest",
+    setSize: null,
+    mediaIds: ["m1"],
+  };
+
+  it("is nothing while each part is as it was", () => {
+    expect(sessionChanges(session, same, ["m1"])).toEqual({});
+  });
+
+  it("is each part that changed, the photos when their order did", () => {
+    expect(
+      sessionChanges(session, { ...same, rating: null, note: "", mediaIds: ["m2", "m1"] }, [
+        "m1",
+        "m2",
+      ]),
+    ).toEqual({ rating: null, note: "", mediaIds: ["m2", "m1"] });
   });
 });
 

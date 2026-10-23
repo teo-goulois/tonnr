@@ -1,23 +1,17 @@
-import type { SessionPlace } from "@repo/client/sessions/types";
+import type { SessionDraft, SessionPlace, Upload } from "@repo/client/sessions/types";
 import { daysBefore, isAhead } from "@repo/client/sessions/rules";
+import type { Session } from "@repo/client/viewer/types";
 import { distanceKm } from "@repo/client/viewer/samples";
 
+import type { MediaEntry } from "@/components/media/media-strip";
 import { formatDate } from "@/lib/format";
 import { m } from "@/paraglide/messages";
 
 // The rules of a session's form in the app for phones that read no screen: how its day is said,
-// its day and its hour each set by a picker of their own, when it began from its first photo,
-// and where it most likely was. What the web's form holds too, its usual start and length and how
-// far ahead it may be, is packages/client/src/sessions/rules.ts. Decision 043.
-
-const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
-
-/** A moment on the round five minutes before it, as a session's start is said. */
-export function onFiveMinutes(moment: Date) {
-  const step = 5 * MINUTE_MS;
-  return new Date(Math.floor(moment.getTime() / step) * step);
-}
+// its day and its hour each set by a picker of their own, when a start is refused, the photos and
+// the videos it is saved with, what of it differs from the session it changes, and where it most
+// likely was. What the web's form holds too, its usual start and length and how far ahead it may
+// be, is packages/client/src/sessions/rules.ts. Decision 043.
 
 /** The day of `day` at the hour of `clock`, on the phone's clock. */
 export function withDay(clock: Date, day: Date) {
@@ -41,17 +35,56 @@ export function dayWords(day: Date, now: number) {
   return formatDate(day, now);
 }
 
+/** Why a start is not one a session may have, as the web's form says it, or nothing. */
+export function startFault(start: Date, now: number) {
+  return isAhead(start, now) ? m.session_when_ahead() : undefined;
+}
+
+/** The ids a session is saved with: what it keeps, and each file sent that the API gave one. */
+export function mediaIdsOf(entries: readonly MediaEntry[], uploads: ReadonlyMap<string, Upload>) {
+  return entries.flatMap((entry) => {
+    if ("kept" in entry) return [entry.kept];
+    const upload = uploads.get(entry.upload);
+    return upload?.id && upload.state !== "failed" ? [upload.id] : [];
+  });
+}
+
+/** Whether a file is still waiting for its id from the API: a moment, before the form is sent. */
+export function isAskingOf(entries: readonly MediaEntry[], uploads: ReadonlyMap<string, Upload>) {
+  return entries.some((entry) => {
+    if ("kept" in entry) return false;
+    const upload = uploads.get(entry.upload);
+    return upload?.state === "sending" && upload.id === null;
+  });
+}
+
+/** What a session's form compares itself with: the session it changes, or what a new one opened with. */
+export type SessionBase = Pick<
+  Session,
+  "startedAt" | "durationMinutes" | "rating" | "note" | "waveSize" | "setSize"
+>;
+
 /**
- * When a new session began, from its first photo: the moment the photo was taken, on a round five
- * minutes before and never ahead of now, when the photo is of the last ten years. A photo is taken during
- * a session, rarely at its very start: it is the best the phone knows.
+ * What of a session as it is written differs from `base`, as the web's form says it to the API:
+ * the photos and the videos when their ids or their order changed, and each other part that is
+ * not what `base` holds. `keptIds` are the ones `base` keeps.
  */
-export function startFromPhoto(taken: Date | null, now: number) {
-  if (!taken) return null;
-  const at = onFiveMinutes(taken);
-  if (isAhead(at, now)) return null;
-  if (now - at.getTime() > 10 * 365 * DAY_MS) return null;
-  return at;
+export function sessionChanges(
+  base: SessionBase,
+  draft: SessionDraft,
+  keptIds: readonly string[],
+): Partial<SessionDraft> {
+  return {
+    ...(draft.mediaIds.join() !== keptIds.join() && { mediaIds: draft.mediaIds }),
+    ...(draft.startedAt.getTime() !== base.startedAt.getTime() && { startedAt: draft.startedAt }),
+    ...(draft.durationMinutes !== base.durationMinutes && {
+      durationMinutes: draft.durationMinutes,
+    }),
+    ...(draft.rating !== (base.rating ?? null) && { rating: draft.rating }),
+    ...(draft.note !== (base.note ?? "") && { note: draft.note }),
+    ...(draft.waveSize !== (base.waveSize ?? null) && { waveSize: draft.waveSize }),
+    ...(draft.setSize !== (base.setSize ?? null) && { setSize: draft.setSize }),
+  };
 }
 
 type Point = { latitude: number; longitude: number };

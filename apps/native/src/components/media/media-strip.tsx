@@ -3,13 +3,12 @@ import type { MediaItem } from "@repo/client/viewer/types";
 import type { MediaPurpose } from "@repo/config/media";
 import { PlusIcon } from "@repo/ui/icon";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { useEffect, useRef, useState } from "react";
+import { type ComponentRef, type Ref, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { Glyph } from "@/components/shared/glyph";
 import { feel } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
-import { useTell } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -19,17 +18,13 @@ import { pickMedia, tellCameraDenied } from "./pick-media";
 // The photos and the videos of a form, on a line of it: a strip of squares, each with how far it
 // went, and a last one that adds more from the camera or the library. A file goes up as soon as it
 // is chosen, while the rest of the form is filled in, and one that failed is sent again with a
-// press. Decision 066.
+// press. Why one failed is told wherever the app is, by `UploadFailures`, as the web's `-media.ts`
+// tells it. Decision 066.
 
 const TILE = 64;
 
 /** A photo or a video of a form: one the session keeps, by its id, or one being sent, by its key. */
 export type MediaEntry = { kept: string } | { upload: string };
-
-/** The id a session is saved with, or null while the API has given none. */
-export function entryId(entry: MediaEntry, uploads: ReadonlyMap<string, Upload>) {
-  return "kept" in entry ? entry.kept : (uploads.get(entry.upload)?.id ?? null);
-}
 
 type MediaStripProps = {
   purpose: MediaPurpose;
@@ -47,6 +42,13 @@ type MediaStripProps = {
   onRetry: (key: string) => void;
   // Opens a photo or a video the session keeps, in the viewer.
   onOpen?: (item: MediaItem) => void;
+  // How far the strip reaches past its line on each side, as the web's `-mx-xs px-xs`: its first
+  // tile stays in line with what stands over it, and it scrolls to the edge of its group.
+  bleed?: number;
+  // Given by the form's `field.Control`: set on what adds a file, which a screen reader is moved to
+  // when the strip is wrong, and what it hears there, its fault.
+  focusRef?: Ref<ComponentRef<typeof View>>;
+  accessibilityHint?: string | undefined;
 };
 
 export function MediaStrip({
@@ -61,26 +63,13 @@ export function MediaStrip({
   onRemove,
   onRetry,
   onOpen,
+  bleed = 0,
+  focusRef,
+  accessibilityHint,
 }: MediaStripProps) {
   const { colors, space, radius } = useTheme();
-  const tell = useTell();
   const [isPicking, setIsPicking] = useState(false);
   const full = entries.length >= most;
-
-  // A file of this form that fails is told once, with why.
-  const told = useRef(new Set<string>());
-  useEffect(() => {
-    for (const entry of entries) {
-      if (!("upload" in entry)) continue;
-      const upload = uploads.get(entry.upload);
-      if (upload?.state === "failed" && !told.current.has(upload.key)) {
-        told.current.add(upload.key);
-        tell({ title: upload.error ?? m.media_send_failed({ name: upload.name }), tone: "danger" });
-      } else if (upload?.state === "sending") {
-        told.current.delete(entry.upload);
-      }
-    }
-  }, [entries, uploads, tell]);
 
   async function add() {
     if (isPicking) return;
@@ -103,7 +92,12 @@ export function MediaStrip({
         horizontal
         showsHorizontalScrollIndicator={false}
         accessibilityLabel={m.media_title()}
-        contentContainerStyle={{ gap: space.xs, paddingVertical: space.xxs }}
+        style={{ marginHorizontal: -bleed, flexGrow: 0 }}
+        contentContainerStyle={{
+          gap: space.xs,
+          paddingVertical: space.xxs,
+          paddingHorizontal: bleed,
+        }}
       >
         {entries.map((entry, index) => {
           const key = "kept" in entry ? entry.kept : entry.upload;
@@ -115,6 +109,7 @@ export function MediaStrip({
               <MediaTile
                 key={key}
                 size={TILE}
+                corner={radius.xs}
                 uri={item.thumb}
                 recyclingKey={item.id}
                 video={item.kind === "video"}
@@ -137,7 +132,9 @@ export function MediaStrip({
             <MediaTile
               key={key}
               size={TILE}
+              corner={radius.xs}
               uri={upload.kind === "photo" ? upload.preview : null}
+              videoFile={upload.kind === "video" ? upload.preview : null}
               video={upload.kind === "video"}
               durationMs={null}
               cover={
@@ -157,8 +154,10 @@ export function MediaStrip({
         })}
         {!full && !paused ? (
           <Pressable
+            ref={focusRef}
             accessibilityRole="button"
             accessibilityLabel={m.media_add()}
+            accessibilityHint={accessibilityHint}
             accessibilityState={{ disabled: disabled || isPicking, busy: isPicking }}
             disabled={disabled || isPicking}
             onPress={() => void add()}
@@ -167,7 +166,7 @@ export function MediaStrip({
               height: TILE,
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: Math.min(radius.xs, TILE / 4),
+              borderRadius: radius.xs,
               borderCurve: "continuous",
               backgroundColor: pressed ? colors["neutral-4"] : colors["neutral-3"],
               opacity: disabled ? 0.5 : 1,
@@ -177,8 +176,9 @@ export function MediaStrip({
           </Pressable>
         ) : null}
       </ScrollView>
+      {/* In line with the line's name over the strip, as the web's `px-xxs`. */}
       {paused ? (
-        <Text size="s" tone="muted">
+        <Text size="s" tone="muted" style={{ paddingHorizontal: space.xxs }}>
           {m.media_paused()}
         </Text>
       ) : null}

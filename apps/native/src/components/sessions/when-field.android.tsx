@@ -1,91 +1,52 @@
 import { DateTimePicker } from "@expo/ui/community/datetime-picker";
 import { getCalendars } from "expo-localization";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 
-import { Text } from "@/components/ui/text";
 import { formatClock } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
+import { Pill } from "./pill";
 import { dayWords, withClock, withDay } from "./session-logic";
 import type { WhenFieldProps } from "./when-field";
 
-// When a session began, on the platform's own pickers, as the web's two pills open the device's:
-// on Android two pills, each opening Material's dialog, which stands while it is open. iOS's are
-// in `when-field.tsx`. Decision 043.
-
-/** A value on a pill, which opens Android's dialog for it. */
-function Pill({
-  shown,
-  label,
-  onPress,
-  disabled,
-  invalid,
-}: {
-  shown: string;
-  label: string;
-  onPress: () => void;
-  disabled: boolean;
-  invalid: boolean;
-}) {
-  const { colors, space } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, ${shown}`}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={{ top: 6, bottom: 6 }}
-      style={({ pressed }) => ({
-        minHeight: 36,
-        justifyContent: "center",
-        paddingHorizontal: space.s,
-        borderRadius: 999,
-        backgroundColor: pressed ? colors["neutral-4"] : colors["neutral-3"],
-      })}
-    >
-      <Text
-        numeric
-        dense
-        style={{
-          color: disabled ? colors["neutral-6"] : invalid ? colors.error : colors["neutral-10"],
-        }}
-      >
-        {shown}
-      </Text>
-    </Pressable>
-  );
-}
+// When a session began, as the web's form writes it: two pills, its day, "Today", "Yesterday" or
+// its date, and its hour, each opening Material's dialog, which stands while it is open, as the
+// web's pill opens the device's control. iOS's are in `when-field.tsx`. Decision 043.
 
 export function WhenField({
+  ref,
   value,
   onChange,
   now,
   disabled = false,
-  invalid = false,
+  accessibilityHint,
 }: WhenFieldProps) {
   const { colors, space } = useTheme();
   const today = new Date(now);
-  // The picker that is open on Android, while it is.
+  // The picker that is open, while it is.
   const [open, setOpen] = useState<"day" | "clock" | null>(null);
+  const day = dayWords(value, now);
+  const clock = formatClock(value);
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs, flexShrink: 1 }}>
       <Pill
-        shown={dayWords(value, now)}
-        label={m.session_day()}
-        onPress={() => setOpen("day")}
+        ref={ref}
+        shown={day}
         disabled={disabled}
-        invalid={false}
+        onPress={() => setOpen("day")}
+        accessibilityLabel={`${m.session_day()}, ${day}`}
+        accessibilityHint={accessibilityHint}
       />
       <Pill
-        shown={formatClock(value)}
-        label={m.session_clock()}
-        onPress={() => setOpen("clock")}
+        shown={clock}
+        numeric
         disabled={disabled}
-        invalid={invalid}
+        onPress={() => setOpen("clock")}
+        accessibilityLabel={`${m.session_clock()}, ${clock}`}
+        accessibilityHint={accessibilityHint}
       />
       {open ? (
         <DateTimePicker

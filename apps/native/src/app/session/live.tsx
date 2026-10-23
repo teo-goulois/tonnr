@@ -1,15 +1,14 @@
 import type { SessionPlace } from "@repo/client/sessions/types";
 import { APP_NAME } from "@repo/config/app";
-import { LogbookIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { BackHandler, Platform, ScrollView, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type SessionWind, sessionShown } from "@/activities/session-shown";
+import { sessionShown } from "@/activities/session-shown";
 import { sessionWriting } from "@/activities/writing";
-import { Bearing } from "@/components/forecast/bearing";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { confirmDestructive } from "@/components/saved/confirm";
 import {
   type LiveSession,
@@ -17,15 +16,14 @@ import {
   elapsedOf,
   liveMinutes,
 } from "@/components/sessions/live-logic";
+import { FigureLine, LiveSea } from "@/components/sessions/live-sea";
 import { PlacePicker } from "@/components/sessions/place-picker";
-import { StepHeader } from "@/components/sessions/session-form";
 import { dayWords, placeOfParam } from "@/components/sessions/session-logic";
 import { usePlaceKnown } from "@/components/sessions/session-place";
 import { useNearestPlace } from "@/components/sessions/use-nearest";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Row, Section } from "@/components/ui/list";
-import { TARGET } from "@/components/ui/metrics";
+import { PanelHeader, SheetRoot } from "@/components/ui/sheet";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
@@ -48,7 +46,9 @@ import { m } from "@/paraglide/messages";
 // (its choice "Now"), by an address that names a place, `?place=<break|spot>:<id>`, or
 // `?place=last` for the place looked at last (decision 042), which no widget or quick action
 // opens yet, by the session's Live Activity or its notification, `?end=1` to end it, and by the
-// app as it starts, for a session that was never ended or never written.
+// app as it starts, for a session that was never ended or never written. The web has no such
+// screen: it is drawn as the web's sheets are (`ViewerDrawer`), its head with the title at the
+// start and the cross, a chevron back where there is a step to go back to, and rows on its ground.
 
 type Params = {
   // Where it is: `<break|spot>:<id>`, or `last` for the place looked at last.
@@ -86,15 +86,6 @@ function useLiveState(session: LiveSession | null) {
   return session ? state : null;
 }
 
-/** Where the sheet that signs in goes on to: this screen, with the place it was opened at. */
-function liveNext(place: string | undefined, name: string | undefined) {
-  const query = [
-    place ? `place=${encodeURIComponent(place)}` : null,
-    place && name ? `name=${encodeURIComponent(name)}` : null,
-  ].filter((part) => part !== null);
-  return query.length > 0 ? `/session/live?${query.join("&")}` : "/session/live";
-}
-
 /** Leaves the screen: back, or to the map when a link opened it with nothing under it. */
 function leave() {
   if (router.canGoBack()) router.back();
@@ -118,39 +109,65 @@ async function askToForget() {
   leave();
 }
 
-function Header({ title }: { title: string }) {
-  return <StepHeader title={title} backLabel={m.action_close()} onBack={leave} />;
+/**
+ * A step of the screen: the sheet's head, then what it holds under it, which `SheetRoot` keeps
+ * where the sheet lays it out when it scrolls. Android's back takes an `inner` step back to the
+ * one it was opened from, as its chevron does, and as the form's step that asks where does.
+ */
+function Step({
+  title,
+  description,
+  onBack,
+  inner = false,
+  children,
+}: {
+  title: string;
+  description?: string | undefined;
+  onBack?: (() => void) | undefined;
+  inner?: boolean;
+  children?: ReactNode;
+}) {
+  const { colors } = useTheme();
+  useEffect(() => {
+    if (!inner || !onBack) return;
+    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
+      onBack();
+      return true;
+    });
+    return () => listener.remove();
+  }, [inner, onBack]);
+  return (
+    <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <PanelHeader title={title} description={description} onBack={onBack} onClose={leave} />
+      {children}
+    </SheetRoot>
+  );
 }
 
-/**
- * The wind measured as the session began, a line of the list: where it comes from as everywhere
- * in the app, with `Bearing`, and the line as it is said to a screen reader.
- */
-function WindRow({ wind }: { wind: SessionWind }) {
-  const { space } = useTheme();
+/** What stands under the head while a session starts, ends, or is read: its time and its sea. */
+function LiveSkeleton({ label }: { label?: string }) {
+  const { space, type } = useTheme();
   return (
-    <View
-      accessible
-      accessibilityLabel={wind.spoken}
-      style={{
-        minHeight: TARGET,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        alignItems: "center",
-        paddingHorizontal: space.m,
-        paddingVertical: space.xs,
-      }}
-    >
-      <Text style={wind.bearing ? { marginRight: space.xxs } : undefined}>{wind.before}</Text>
-      {wind.bearing ? <Bearing degrees={wind.bearing.from} size="m" /> : null}
-      {wind.after ? <Text>{wind.after}</Text> : null}
-    </View>
+    <Loading {...(label !== undefined && { label })}>
+      <View style={{ gap: space.l, padding: space.m }}>
+        <View style={{ alignItems: "center", gap: space.xs }}>
+          <Skeleton height={type.xxl.line} width="50%" />
+          <Skeleton height={type.m.size} width="30%" />
+        </View>
+        <View style={{ gap: space.s }}>
+          <Skeleton height={type.m.size} width="45%" />
+          <Skeleton height={type.s.size} />
+          <Skeleton height={type.s.size} />
+          <Skeleton height={type.s.size} width="60%" />
+        </View>
+      </View>
+    </Loading>
   );
 }
 
 /** A session that runs: where, the time since its start, what the sea did then, and its end. */
 function Running({ session, asked }: { session: LiveSession; asked: SessionPlace | null }) {
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const insets = useSafeAreaInsets();
   const now = useSecond(true);
   const [isEnding, setEnding] = useState(false);
@@ -161,9 +178,9 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
 
   if (isMoving) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <StepHeader title={m.native_live_where()} onBack={() => setMoving(false)} />
+      <Step title={m.native_live_where()} onBack={() => setMoving(false)} inner>
         <KeyboardAwareScrollView
+          style={{ flex: 1 }}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ padding: space.m, paddingBottom: insets.bottom + space.xl }}
         >
@@ -174,14 +191,20 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
             }}
           />
         </KeyboardAwareScrollView>
-      </View>
+      </Step>
     );
   }
 
+  // The place is said under the title, as the web's sheet of a new session says it, and chosen
+  // again by the chevron back, as there.
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-      <Header title={m.native_live_title()} />
+    <Step
+      title={m.native_live_title()}
+      description={session.place.name}
+      onBack={() => setMoving(true)}
+    >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           gap: space.l,
           padding: space.m,
@@ -191,14 +214,6 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
         {elsewhere ? (
           <Text tone="muted">{m.native_live_other({ place: session.place.name })}</Text>
         ) : null}
-        <Section>
-          <Row
-            icon={session.place.kind === "spot" ? PinIcon : WaveIcon}
-            title={session.place.name}
-            accessibilityHint={m.native_session_place_change()}
-            onPress={() => setMoving(true)}
-          />
-        </Section>
         <View style={{ alignItems: "center", gap: space.xs }}>
           <Text
             size="xxl"
@@ -212,17 +227,7 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
           <Text tone="muted">{shown.since}</Text>
         </View>
         {/* The sea, once `places.now` answered, which it may never do. */}
-        {session.figures ? (
-          <Section title={m.native_live_sea_at_start()}>
-            {shown.lines.map((line) => (
-              <Row key={line} title={line} chevron={false} />
-            ))}
-            {shown.wind ? <WindRow key="wind" wind={shown.wind} /> : null}
-            {shown.lines.length === 0 && !shown.wind ? (
-              <Row title={m.native_live_nothing()} chevron={false} />
-            ) : null}
-          </Section>
-        ) : null}
+        {session.figures ? <LiveSea figures={session.figures} /> : null}
         {/* Once the phone said it could not show the session, and not while it is asked. */}
         {session.shown === false ? (
           <Text size="s" tone="muted">
@@ -231,7 +236,7 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
               : m.native_live_hidden_android({ name: APP_NAME })}
           </Text>
         ) : null}
-        <View style={{ gap: space.s }}>
+        <View style={{ gap: space.xs }}>
           <Button
             loading={isEnding}
             onPress={() => {
@@ -246,22 +251,23 @@ function Running({ session, asked }: { session: LiveSession; asked: SessionPlace
           </Button>
         </View>
       </ScrollView>
-    </View>
+    </Step>
   );
 }
 
 /** A session that ended and was not written, or that was never ended: offered to be written. */
 function Unwritten({ session, state }: { session: LiveSession; state: "ended" | "unended" }) {
-  const { colors, space } = useTheme();
+  const { space } = useTheme();
   const insets = useSafeAreaInsets();
   const [now] = useState(Date.now);
   const start = new Date(session.startedAt);
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-      <Header
-        title={state === "ended" ? m.native_live_ended_title() : m.native_live_unended_title()}
-      />
+    <Step
+      title={state === "ended" ? m.native_live_ended_title() : m.native_live_unended_title()}
+      description={session.place.name}
+    >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           gap: space.l,
           padding: space.m,
@@ -271,66 +277,59 @@ function Unwritten({ session, state }: { session: LiveSession; state: "ended" | 
         <Text tone="muted">
           {state === "ended" ? m.native_live_ended() : m.native_live_unended()}
         </Text>
-        <Section>
-          <Row
-            icon={session.place.kind === "spot" ? PinIcon : WaveIcon}
-            title={session.place.name}
-            chevron={false}
-          />
-          <Row
-            title={m.session_when()}
-            value={`${dayWords(start, now)} ${formatClock(start)}`}
-            chevron={false}
+        <View>
+          <FigureLine
+            name={m.session_when()}
+            parts={[{ text: `${dayWords(start, now)} ${formatClock(start)}` }]}
           />
           {session.endedAt === undefined ? null : (
-            <Row
-              title={m.session_duration()}
-              value={formatDuration(liveMinutes(session.startedAt, session.endedAt))}
-              chevron={false}
+            <FigureLine
+              name={m.session_duration()}
+              parts={[{ text: formatDuration(liveMinutes(session.startedAt, session.endedAt)) }]}
             />
           )}
-        </Section>
-        <View style={{ gap: space.s }}>
+        </View>
+        <View style={{ gap: space.xs }}>
           <Button onPress={openForm}>{m.native_live_write()}</Button>
           <Button variant="ghost" onPress={() => void askToForget()}>
             {m.native_live_forget()}
           </Button>
         </View>
       </ScrollView>
-    </View>
+    </Step>
   );
 }
 
 /** Where a session that begins now is: the place the phone stands near, or asked. */
 function Where({ onPick }: { onPick: (place: SessionPlace) => void }) {
-  const { colors, space } = useTheme();
+  const { space, type } = useTheme();
   const insets = useSafeAreaInsets();
   const nearest = useNearestPlace(true);
   const [isAsking, setAsking] = useState(false);
 
   if (!nearest.settled) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <Header title={m.native_live_title()} />
+      <Step title={m.native_live_title()}>
         <Loading>
           <View style={{ gap: space.l, padding: space.m }}>
-            <Skeleton height={56} />
-            <Skeleton height={48} />
+            <View style={{ gap: space.xxs }}>
+              <Skeleton height={type.m.size} width="60%" />
+              <Skeleton height={type.s.size} width="35%" />
+            </View>
+            <Skeleton height={type.m.line + 2 * space.xs} corner="s" />
           </View>
         </Loading>
-      </View>
+      </Step>
     );
   }
 
   const near = nearest.place;
   if (near && !isAsking) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <Header title={m.native_live_title()} />
+      <Step title={m.native_live_title()}>
         <View style={{ gap: space.l, padding: space.m, paddingBottom: insets.bottom + space.xl }}>
-          <Section>
+          <Section plain>
             <Row
-              icon={near.kind === "spot" ? PinIcon : WaveIcon}
               title={near.name}
               description={m.native_session_place_near()}
               accessibilityHint={m.native_session_place_change()}
@@ -341,24 +340,20 @@ function Where({ onPick }: { onPick: (place: SessionPlace) => void }) {
             {m.native_live_start()}
           </Button>
         </View>
-      </View>
+      </Step>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-      <StepHeader
-        title={m.native_live_where()}
-        backLabel={near ? undefined : m.action_cancel()}
-        onBack={near ? () => setAsking(false) : leave}
-      />
+    <Step title={m.native_live_where()} onBack={near ? () => setAsking(false) : undefined} inner>
       <KeyboardAwareScrollView
+        style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: space.m, paddingBottom: insets.bottom + space.xl }}
       >
         <PlacePicker near={nearest.phone} onPick={onPick} />
       </KeyboardAwareScrollView>
-    </View>
+    </Step>
   );
 }
 
@@ -380,7 +375,7 @@ function useAskedPlace(param: string | undefined, name: string | undefined) {
 
 export default function LiveSessionScreen() {
   const params = useLocalSearchParams<Params>();
-  const { colors } = useTheme();
+  const { space } = useTheme();
   const { signedIn, pending } = useAccount();
   const session = useLiveSession();
   const state = useLiveState(session);
@@ -412,35 +407,28 @@ export default function LiveSessionScreen() {
   }, [signedIn, ending, session, named]);
 
   if (!signedIn) {
+    // The sheet that signs in stands over this one, and goes back to it once done: the session
+    // then starts at the place the address named, which this screen still holds.
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <Header title={m.native_live_title()} />
-        {pending ? null : (
-          <EmptyState
-            icon={LogbookIcon}
-            title={m.auth_reason_add_session()}
-            description={m.session_sign_in_prompt()}
-            action={{
-              label: m.auth_sign_in(),
-              onPress: () =>
-                router.replace({
-                  pathname: "/sign-in",
-                  params: {
-                    reason: m.auth_reason_add_session(),
-                    // On to the session at the place the address named.
-                    next: liveNext(params.place, params.name),
-                  },
-                }),
-            }}
-          />
+      <Step title={m.native_live_title()}>
+        {pending ? (
+          <LiveSkeleton />
+        ) : (
+          <View style={{ padding: space.m }}>
+            <AccountPrompt text={m.session_sign_in_prompt()} />
+          </View>
         )}
-      </View>
+      </Step>
     );
   }
 
   if (session) {
     if (ending || state === null) {
-      return <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }} />;
+      return (
+        <Step title={m.native_live_title()} description={session.place.name}>
+          <LiveSkeleton />
+        </Step>
+      );
     }
     if (state === "running") {
       return <Running session={session} asked={named} />;
@@ -450,19 +438,21 @@ export default function LiveSessionScreen() {
 
   if (ending) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <Header title={m.native_live_title()} />
-        <EmptyState icon={LogbookIcon} title={m.native_live_none()} />
-      </View>
+      <Step title={m.native_live_title()}>
+        <View style={{ padding: space.m }}>
+          <Text size="s" tone="muted">
+            {m.native_live_none()}
+          </Text>
+        </View>
+      </Step>
     );
   }
 
   if (isStarting || asked === "naming" || named) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
-        <Header title={m.native_live_title()} />
-        <EmptyState icon={LogbookIcon} title={m.native_live_starting()} />
-      </View>
+      <Step title={m.native_live_title()} description={named?.name}>
+        <LiveSkeleton label={m.native_live_starting()} />
+      </Step>
     );
   }
 
