@@ -11,8 +11,6 @@ import {
 import {
   answerAfter,
   authorName,
-  isSendableText,
-  isSendableWords,
   mayBlockAuthor,
   points,
   progressOf,
@@ -58,14 +56,8 @@ describe("the words of a guide, as the web says them (decision 041)", () => {
     expect(readSizeFactors(["double", "same"])).toMatch(/forecast/i);
   });
 
-  it("sends a text once it says something new, on one line", () => {
+  it("sends a text on one line, its spaces as one", () => {
     expect(saidOf("  On the  left\n of the jetty ")).toBe("On the left of the jetty");
-    expect(isSendableText("ab", "")).toBe(false);
-    expect(isSendableText("Park by the church", "Park by the church")).toBe(false);
-    expect(isSendableText("Park by the church", "")).toBe(true);
-    expect(isSendableWords([], [])).toBe(false);
-    expect(isSendableWords(["sand"], ["sand"])).toBe(false);
-    expect(isSendableWords(["rock", "sand"], ["sand"])).toBe(true);
   });
 
   it("says why a line or a contest cannot be sent, as the web's editors say it", () => {

@@ -1,13 +1,12 @@
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
 import type { Guide, GuideLine, GuideOwn, SurfBreak } from "@repo/client/viewer/types";
 import { PenIcon, PlusIcon } from "@repo/ui/icon";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { useBlock } from "@/components/friends/blocking";
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
-import { ErrorState } from "@/components/ui/error-state";
 import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
@@ -48,23 +47,29 @@ import {
   type TextLineName,
   writtenIn,
 } from "./guide-words";
-import { ContestSheet, TextSheet, WordsSheet } from "./line-sheets";
-import { usePresented } from "./page-sheet";
+import {
+  ContestForm,
+  TextEditor,
+  useWriter,
+  WordsEditor,
+  Writer,
+  type WriterState,
+} from "./line-editors";
 import { Author } from "./author";
 import { Tag } from "./tag";
 import type { GuideActions } from "./use-guiding";
 
 // The guide of a surf break, the second tab of its sheet, as the web's `BreakGuide` reads it:
-// decision 041. A line says its value and who gave it; a press opens, in a sheet of its own, what
-// completes or corrects it, one line at a time; what waits to be confirmed shows under it, with
-// what an account that keeps the break may say of it. Three questions are answered by each
-// account for itself. A visitor who presses a line is asked for an account and goes on to that
-// line; an account with no username chooses one first.
+// decision 041. A line says its value and who gave it; a press unfolds under it what completes or
+// corrects it, one line at a time; what waits to be confirmed shows under it, with what an
+// account that keeps the break may say of it. Three questions are answered by each account for
+// itself. A visitor who presses a line is asked for an account and goes on to that line; an
+// account with no username chooses one there first.
 
 type Proposed = GuideLine["proposed"][number];
 
-// What a sheet over the guide holds: the editor of a line, or the reason of a contest on one.
-type Shown = { line: GuideLineName; contest?: string };
+// What is unfolded in the guide: the editor of a line, or the reason of a contest on one.
+type Open = { line: GuideLineName; contest?: string };
 
 /** What a line says it lacks: a plus, and "Add". */
 function AddLabel() {
@@ -90,14 +95,12 @@ function Quiet({
   muted = false,
   disabled = false,
   onPress,
-  accessibilityHint,
 }: {
   children: string;
   icon?: GlyphIcon;
   muted?: boolean;
   disabled?: boolean;
   onPress: () => void;
-  accessibilityHint?: string;
 }) {
   const { colors, space, type } = useTheme();
   const ink = muted ? colors["neutral-7"] : colors["neutral-10"];
@@ -106,7 +109,6 @@ function Quiet({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={children}
-      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       disabled={disabled}
       hitSlop={{ top: slop, bottom: slop, left: space.xs, right: space.xs }}
@@ -137,8 +139,13 @@ type LineProps = {
   line: GuideLine;
   own: GuideOwn | undefined;
   actions: GuideActions;
+  writer: WriterState;
+  isOpen: boolean;
+  // The contribution whose contest is being written on this line, if one is.
+  contesting: string | undefined;
   onOpen: () => void;
-  onContest: (contributionId: string) => void;
+  onClose: () => void;
+  onContest: (contributionId: string | undefined) => void;
   // Blocks the author of a line, for a reader that is not its author: decision 071.
   blockerOf: (by: Proposed["by"]) => ((username: string) => void) | undefined;
 };
@@ -155,7 +162,7 @@ function Value({ line, value }: { line: GuideLineName; value: string[] | string 
  * confirmed, with what its reader may say of it, and what the reader wrote that waits to be
  * read.
  */
-function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
+function Waiting({ line, own, actions, contesting, onContest, blockerOf }: LineProps) {
   const { colors, space, radius } = useTheme();
   const mine = own?.waiting.find((one) => one.line === line.line);
   const verdictOf = (id: string) => own?.verdicts.find((one) => one.contributionId === id)?.verdict;
@@ -226,8 +233,13 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
     );
   };
 
-  const isEmpty = line.proposed.length === 0 && mine?.status !== "pending" && !mayContestSaid;
+  const isEmpty =
+    line.proposed.length === 0 && mine?.status !== "pending" && !mayContestSaid && !contesting;
   if (isEmpty) return null;
+  // The reason of a contest is written where the contest was asked, and folds away once sent.
+  const contestOf = (id: string) => (
+    <ContestForm contributionId={id} actions={actions} onDone={() => onContest(undefined)} />
+  );
 
   // What waits is a card in the theme's second grey on the sheet's ground, with its smallest
   // corners, as the web draws it.
@@ -259,7 +271,7 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
                 : m.guide_confirmed_by_some({ count: one.confirmations })}
             </Text>
           ) : null}
-          {sayOf(one)}
+          {contesting === one.id ? contestOf(one.id) : sayOf(one)}
         </View>
       ))}
       {/* What the reader wrote and nobody has read yet shows to them alone. */}
@@ -282,7 +294,8 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
           <Value line={line.line} value={mine.value} />
         </View>
       ) : null}
-      {mayContestSaid && said !== null ? (
+      {said !== null && contesting === said ? contestOf(said) : null}
+      {mayContestSaid && said !== null && contesting !== said ? (
         // Under what it contests: what a line of words says stands after its glyph.
         <View style={isTextLine(line.line) ? undefined : { paddingStart: GLYPH_SIZE + space.s }}>
           <Quiet muted onPress={() => onContest(said)}>
@@ -296,7 +309,7 @@ function Waiting({ line, own, actions, onContest, blockerOf }: LineProps) {
 
 /** A line that is said in the catalogue's words: its glyph, its name, what it says, who said so. */
 function WordsLine(props: LineProps & { field: CharacteristicField }) {
-  const { line, field, onOpen, blockerOf } = props;
+  const { line, field, own, actions, writer, isOpen, onOpen, onClose, blockerOf } = props;
   const { colors, space, radius } = useTheme();
   const value = Array.isArray(line.value) ? line.value : null;
   // Where what the line says begins: after its glyph.
@@ -304,12 +317,13 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
   return (
     <View style={{ gap: space.xs }}>
       <View>
-        {/* The row reaches a step past the text on each side, where its press is drawn. */}
+        {/* The row reaches a step past the text on each side, where its press is drawn. A second
+            press folds its editor away. */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${field.label()}, ${value ? wordsText(field.key, value) : m.guide_add()}`}
-          accessibilityHint={m.native_guide_line_hint()}
-          onPress={onOpen}
+          accessibilityState={{ expanded: isOpen }}
+          onPress={isOpen ? onClose : onOpen}
           style={({ pressed }) => ({
             justifyContent: "center",
             minHeight: TARGET,
@@ -336,13 +350,24 @@ function WordsLine(props: LineProps & { field: CharacteristicField }) {
         ) : null}
       </View>
       <Waiting {...props} />
+      {isOpen ? (
+        <Writer own={own} writer={writer}>
+          <WordsEditor
+            line={line.line}
+            field={field}
+            saved={value ?? []}
+            actions={actions}
+            onDone={onClose}
+          />
+        </Writer>
+      ) : null}
     </View>
   );
 }
 
 /** A line that is a short text: what it says in full, who wrote it, and what corrects it. */
 function TextLine(props: LineProps & { name: TextLineName }) {
-  const { line, name, own, onOpen, blockerOf } = props;
+  const { line, name, own, actions, writer, isOpen, onOpen, onClose, blockerOf } = props;
   const { space } = useTheme();
   const value = typeof line.value === "string" ? line.value : null;
   const hasMine = own?.waiting.some((one) => one.line === name) ?? false;
@@ -360,14 +385,15 @@ function TextLine(props: LineProps & { name: TextLineName }) {
         <Text size="s" weight="medium" accessibilityRole="header" style={{ flex: 1 }}>
           {TEXT_LINES[name].label()}
         </Text>
-        <Quiet
-          icon={value ? PenIcon : PlusIcon}
-          accessibilityHint={m.native_guide_line_hint()}
-          onPress={onOpen}
-        >
-          {value ? m.guide_correct() : m.guide_add()}
-        </Quiet>
+        {/* What opens the editor goes while it is open. */}
+        {isOpen ? null : (
+          <Quiet icon={value ? PenIcon : PlusIcon} onPress={onOpen}>
+            {value ? m.guide_correct() : m.guide_add()}
+          </Quiet>
+        )}
       </View>
+      {/* With nothing said, nothing yet, unless its editor is open or what the reader wrote of it
+          waits just below. */}
       {value ? (
         <View style={{ gap: space.xxs }}>
           {/* A text may be copied: an address, a car park. */}
@@ -385,12 +411,24 @@ function TextLine(props: LineProps & { name: TextLineName }) {
             ) : null}
           </View>
         </View>
-      ) : hasMine ? null : (
+      ) : isOpen || hasMine ? null : (
         <Text size="s" tone="muted">
           {m.guide_nothing_yet()}
         </Text>
       )}
       <Waiting {...props} />
+      {isOpen ? (
+        <Writer own={own} writer={writer}>
+          <TextEditor
+            line={name}
+            // A text shown from another language is not the one being written: the reader writes
+            // the line in their own, from nothing.
+            saved={value !== null && line.language === getLocale() ? value : ""}
+            actions={actions}
+            onDone={onClose}
+          />
+        </Writer>
+      ) : null}
     </View>
   );
 }
@@ -480,12 +518,7 @@ function BreakCharacteristics({ found }: { found: SurfBreak }) {
 
 type BreakGuideProps = {
   found: SurfBreak;
-  guide: {
-    data: Guide | undefined;
-    isError: boolean;
-    isRefetching: boolean;
-    refetch: () => unknown;
-  };
+  guide: { data: Guide | undefined; isError: boolean };
   // What the signed-in account wrote here and may do. Undefined for a visitor, and until the API
   // has said.
   own: GuideOwn | undefined;
@@ -498,32 +531,19 @@ type BreakGuideProps = {
  */
 export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
   const { space } = useTheme();
-  const requireAccount = useRequireAccount();
   const { block } = useBlock();
-  const sheet = usePresented<Shown>();
-  // A visitor who signs in from a line it pressed goes on to that line.
-  const asked = useRef<GuideLineName | null>(null);
+  const writer = useWriter(own);
+  // One thing is unfolded at a time: the editor of a line, or the reason of a contest on one.
+  const [open, setOpen] = useState<Open | null>(null);
   const { signedIn } = actions;
-  const { present } = sheet;
-  useEffect(() => {
-    if (!signedIn || asked.current === null) return;
-    present({ line: asked.current });
-    asked.current = null;
-  }, [signedIn, present]);
+  // A visitor is asked for an account on the new account's side of the sign-in sheet, as the
+  // web's guide asks, and goes on to the line it pressed once signed in there, and only there.
+  const requireAccount = useRequireAccount();
 
+  // The catalogue still says what it knows while the guide is on its way, or did not come: a
+  // pull reads it again.
   if (!guide.data) {
-    if (!guide.isError) return <GuideSkeleton />;
-    // The catalogue still says what it knows when the guide did not come.
-    return (
-      <View style={{ gap: space.l }}>
-        <ErrorState
-          title={m.native_guide_failed()}
-          onRetry={() => void guide.refetch()}
-          retrying={guide.isRefetching}
-        />
-        <BreakCharacteristics found={found} />
-      </View>
-    );
+    return guide.isError ? <BreakCharacteristics found={found} /> : <GuideSkeleton />;
   }
 
   const lineOf = (name: GuideLineName) => guide.data?.lines.find((line) => line.line === name);
@@ -532,16 +552,14 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
     line,
     own,
     actions,
+    writer,
     blockerOf,
-    onOpen: () => {
-      if (signedIn) {
-        sheet.present({ line: line.line });
-        return;
-      }
-      asked.current = line.line;
-      requireAccount(m.guide_sign_in(), () => sheet.present({ line: line.line }));
-    },
-    onContest: (contest) => sheet.present({ line: line.line, contest }),
+    isOpen: open?.line === line.line && open.contest === undefined,
+    contesting: open?.line === line.line ? open.contest : undefined,
+    onOpen: () =>
+      requireAccount(m.guide_sign_in(), () => setOpen({ line: line.line }), undefined, "sign-up"),
+    onClose: () => setOpen(null),
+    onContest: (contest) => setOpen(contest ? { line: line.line, contest } : null),
   });
 
   const levels = found.characteristics.abilityLevels;
@@ -551,15 +569,6 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
           levels: levels.map((level) => readAnswer("level", level)).join(", "),
         })
       : undefined;
-
-  const shown = sheet.shown;
-  const shownLine = shown ? lineOf(shown.line) : undefined;
-  const shownField = shown ? fieldOf(shown.line) : undefined;
-  const presenting = {
-    visible: sheet.visible,
-    onClose: () => sheet.dismiss(),
-    onDismissed: sheet.dismissed,
-  };
 
   return (
     <View style={{ gap: space.l }}>
@@ -594,7 +603,7 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
               mine={own?.answers[spread.question]}
               onAnswer={(question, pressed) => {
                 if (!signedIn) {
-                  requireAccount(m.guide_sign_in_answer(), () => {});
+                  requireAccount(m.guide_sign_in_answer(), () => {}, undefined, "sign-up");
                   return;
                 }
                 actions.onAnswer(question, answerAfter(own?.answers[question], pressed));
@@ -603,42 +612,6 @@ export function BreakGuide({ found, guide, own, actions }: BreakGuideProps) {
           ))}
         </View>
       </GuideSection>
-
-      {shown && shownLine ? (
-        shown.contest !== undefined ? (
-          <ContestSheet
-            key={`contest:${shown.contest}`}
-            contributionId={shown.contest}
-            actions={actions}
-            {...presenting}
-          />
-        ) : isTextLine(shown.line) ? (
-          <TextSheet
-            key={`text:${shown.line}`}
-            line={shown.line}
-            // A text shown from another language is not the one being written: the reader writes
-            // the line in their own, from nothing.
-            saved={
-              typeof shownLine.value === "string" && shownLine.language === getLocale()
-                ? shownLine.value
-                : ""
-            }
-            own={own}
-            actions={actions}
-            {...presenting}
-          />
-        ) : shownField ? (
-          <WordsSheet
-            key={`words:${shown.line}`}
-            line={shown.line}
-            field={shownField}
-            saved={Array.isArray(shownLine.value) ? shownLine.value : []}
-            own={own}
-            actions={actions}
-            {...presenting}
-          />
-        ) : null
-      ) : null}
     </View>
   );
 }

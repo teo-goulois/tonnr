@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { RefreshControl, ScrollView } from "react-native";
+import { RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BreakGuide, GuideSkeleton } from "@/components/guides/break-guide";
 import { SpotGuide } from "@/components/guides/spot-guide";
 import { useGuiding } from "@/components/guides/use-guiding";
 import { ErrorState } from "@/components/ui/error-state";
+import { FormScroll } from "@/components/ui/form";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
@@ -27,7 +28,9 @@ export function GuideTab({ kind, id }: PlaceTabProps) {
 
 /**
  * What the guide scrolls in: within the sheet's padding, as far under the head as the other
- * tabs stand, and clear of the phone's bottom edge once it is read to its end.
+ * tabs stand, and clear of the phone's bottom edge once it is read to its end. Its editors unfold
+ * in it, so it is a form's scroll view: what is written in stays above the keyboard, and a group
+ * of words that is wrong once sent is scrolled to.
  */
 function GuideScroll({
   onRefresh,
@@ -45,10 +48,9 @@ function GuideScroll({
     await onRefresh().finally(() => setIsRefreshing(false));
   };
   return (
-    <ScrollView
+    <FormScroll
       style={{ flex: 1 }}
       nestedScrollEnabled
-      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{
         paddingHorizontal: space.m,
         paddingTop: space.m,
@@ -63,7 +65,7 @@ function GuideScroll({
       }
     >
       {children}
-    </ScrollView>
+    </FormScroll>
   );
 }
 
@@ -78,7 +80,7 @@ function SpotGuideTab({ id }: { id: string }) {
     });
   return (
     <GuideScroll onRefresh={refresh}>
-      <SpotGuide id={id} />
+      <SpotGuide key={id} id={id} />
     </GuideScroll>
   );
 }
@@ -91,7 +93,7 @@ function BreakGuideTab({ id }: { id: string }) {
     // A list of words that was confirmed is what the break says: it is read again with its guide.
     <GuideScroll onRefresh={() => Promise.all([refresh(), found.refetch()])}>
       {found.data ? (
-        <BreakGuide found={found.data} guide={guide} own={own} actions={actions} />
+        <BreakGuide key={id} found={found.data} guide={guide} own={own} actions={actions} />
       ) : found.isError ? (
         <ErrorState
           title={m.native_guide_failed()}

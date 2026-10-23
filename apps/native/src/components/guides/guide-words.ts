@@ -1,3 +1,10 @@
+import {
+  type GuideFaults,
+  reasonFault,
+  TEXT_LEAST,
+  textFault,
+  wordsFault,
+} from "@repo/client/guides/rules";
 import type { GuideLineName, GuideQuestion } from "@repo/client/guides/types";
 import type { Contribution, Guide } from "@repo/client/viewer/types";
 
@@ -25,50 +32,26 @@ export const TEXT_LINES: Record<TextLineName, { label: () => string; placeholder
 
 export const isTextLine = (line: string): line is TextLineName => line in TEXT_LINES;
 
-// A text of a guide as the API takes it. Why the waves run bigger or smaller than the forecast
-// is one sentence: decision 062.
-export const TEXT_LEAST = 3;
-export const TEXT_MOST = 500;
-export const SIZE_NOTES_MOST = 140;
-export const textMostOf = (line: TextLineName) =>
-  line === "sizeNotes" ? SIZE_NOTES_MOST : TEXT_MOST;
-// A reason as the API takes it.
-export const REASON_MOST = 280;
+// A text of a guide and a reason as the API takes them, and why what was written cannot be sent,
+// as the web's editors say it: `packages/client/src/guides/rules.ts`, which both apps read.
+export { REASON_MOST, sameWords, saidOf, TEXT_LEAST, textMostOf } from "@repo/client/guides/rules";
 
-/** A text as it is sent: on one line, its spaces as one. */
-export const saidOf = (text: string) => text.replace(/\s+/g, " ").trim();
+// What the editors of a guide say is wrong under their field once Send is pressed.
+const FAULTS: GuideFaults = {
+  tooShort: () => m.guide_too_short({ count: TEXT_LEAST }),
+  same: m.guide_same,
+  wordsNone: m.guide_words_none,
+};
 
-/**
- * Why a text cannot be sent for a line, as the web's editor says it under the field once Send is
- * pressed: too short, or what the line says already. Nothing once it can be sent.
- */
-export function textRefusal(text: string, saved: string) {
-  const said = saidOf(text);
-  if (said.length < TEXT_LEAST) return m.guide_too_short({ count: TEXT_LEAST });
-  return said === saved ? m.guide_same() : undefined;
-}
+/** Why a text cannot be sent for a line: too short, or what it says already. Nothing once it can. */
+export const textRefusal = (text: string, saved: string) => textFault(text, saved, FAULTS);
 
-/** Whether a text may be sent for a line: long enough, and not what the line says already. */
-export const isSendableText = (text: string, saved: string) =>
-  textRefusal(text, saved) === undefined;
-
-/**
- * Why a list of words cannot be sent for a line: no word pressed, or the words the line says
- * already. Nothing once it can be sent.
- */
-export function wordsRefusal(pressed: readonly string[], saved: readonly string[]) {
-  if (pressed.length === 0) return m.guide_words_none();
-  const isSame = pressed.length === saved.length && pressed.every((word) => saved.includes(word));
-  return isSame ? m.guide_same() : undefined;
-}
-
-/** Whether a list of words may be sent for a line: one word at least, and not what it says. */
-export const isSendableWords = (pressed: readonly string[], saved: readonly string[]) =>
-  wordsRefusal(pressed, saved) === undefined;
+/** Why a list of words cannot be sent for a line: none, or the words it says already. */
+export const wordsRefusal = (pressed: readonly string[], saved: readonly string[]) =>
+  wordsFault(pressed, saved, FAULTS);
 
 /** Why the reason of a contest cannot be sent: too short. Nothing once it can be sent. */
-export const reasonRefusal = (reason: string) =>
-  saidOf(reason).length < TEXT_LEAST ? m.guide_too_short({ count: TEXT_LEAST }) : undefined;
+export const reasonRefusal = (reason: string) => reasonFault(reason, FAULTS);
 
 // The three questions of a guide, with the answers each takes and how they read. An answer the
 // API gains has to be given its reading here: until then it reads as the API names it.

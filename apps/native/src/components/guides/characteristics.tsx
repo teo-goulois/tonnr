@@ -119,13 +119,11 @@ export function CharacteristicIcon({
   field,
   given,
   look,
-  size = GLYPH_SIZE,
   faint = false,
 }: {
   field: ListedField;
   given: readonly string[];
   look?: SurfLook;
-  size?: number;
   faint?: boolean;
 }) {
   const { colors } = useTheme();
@@ -134,7 +132,7 @@ export function CharacteristicIcon({
     <Glyph
       key={field}
       icon={glyphOf(field, given, look)}
-      size={size}
+      size={GLYPH_SIZE}
       color={faint ? colors["neutral-6"] : colors["neutral-10"]}
     />
   );

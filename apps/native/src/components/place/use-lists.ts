@@ -53,17 +53,13 @@ export function useLists() {
     lists,
     isSaved: (place: PlaceRef) => lists.data?.some((list) => holds(list, place)) ?? false,
     save,
-    /** Makes a list by that name, with the place in it from the start. */
-    createWith: (name: string, place: PlaceRef, done: () => void) =>
-      mutations.create.mutate(
-        { name },
-        {
-          onSuccess: (list) => {
-            save(list.id, place, true);
-            done();
-          },
-        },
-      ),
-    isCreating: mutations.create.isPending,
+    /**
+     * Makes a list by that name, with the place in it from the start, and settles once it is made.
+     * What refused it is told by the mutation itself, and the promise is then refused.
+     */
+    createWith: async (name: string, place: PlaceRef) => {
+      const list = await mutations.create.mutateAsync({ name });
+      save(list.id, place, true);
+    },
   };
 }

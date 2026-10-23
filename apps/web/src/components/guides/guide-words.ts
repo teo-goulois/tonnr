@@ -18,15 +18,14 @@ export const TEXT_LINES: Record<TextLineName, { label: () => string; placeholder
 
 export const isTextLine = (line: GuideLineName): line is TextLineName => line in TEXT_LINES;
 
-// A text of a guide as the API takes it. Why the waves run bigger or smaller than the forecast
-// is one sentence: decision 062.
-export const TEXT_LEAST = 3;
-export const TEXT_MOST = 500;
-export const SIZE_NOTES_MOST = 140;
-export const textMostOf = (line: TextLineName) =>
-  line === "sizeNotes" ? SIZE_NOTES_MOST : TEXT_MOST;
-// A reason as the API takes it.
-export const REASON_MOST = 280;
+// A text of a guide and a reason as the API takes them, which the app for phones reads too.
+export {
+  REASON_MOST,
+  SIZE_NOTES_MOST,
+  TEXT_LEAST,
+  TEXT_MOST,
+  textMostOf,
+} from "@repo/client/guides/rules";
 
 // The three questions of a guide, with the answers each takes and how they read. An answer the
 // API gains has to be given its reading here: until then it reads as the API names it.

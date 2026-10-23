@@ -21,12 +21,14 @@ import { isTextLine } from "./guide-words";
 const WAITING_MS = 30 * 1000;
 
 // What was typed for a line and not sent, by account, break and line: kept while the app is
-// open, whichever sheet closes in between.
+// open, whether its editor folds away for another line or its place's sheet closes.
 const drafts = new Map<string, string>();
+
+const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
 
 /** Why the API refused a line, in the reader's language. Its own words are English. */
 function refusalOf(error: unknown) {
-  const code = (error as { code?: unknown } | null)?.code;
+  const code = codeOf(error);
   if (code === "CONFLICT") return m.guide_same();
   if (code === "FORBIDDEN") return m.guide_full();
   if (code === "TOO_MANY_REQUESTS") return m.guide_too_many();
@@ -35,14 +37,18 @@ function refusalOf(error: unknown) {
 
 /** Why the API refused a contest, in the reader's language. */
 function contestRefusalOf(error: unknown) {
-  const code = (error as { code?: unknown } | null)?.code;
+  const code = codeOf(error);
   if (code === "CONFLICT") return m.guide_contest_refused();
   if (code === "TOO_MANY_REQUESTS") return m.guide_too_many();
   return m.guide_failed();
 }
 
-/** What a sheet hears once what it sent was taken, or why not. */
-export type Outcome = { done: () => void; failed: (why: string) => void };
+/**
+ * What an editor hears once what it sent was taken, or that the guide says it already, which it
+ * says under its field. Any other refusal is about nothing in particular and is a toast, as the
+ * web says it (decision 076).
+ */
+export type Outcome = { done: () => void; same?: () => void };
 
 export type GuideActions = {
   signedIn: boolean;
@@ -53,7 +59,7 @@ export type GuideActions = {
   onPropose: (line: GuideLineName, value: string[] | string, outcome: Outcome) => void;
   onWithdraw: (contributionId: string) => void;
   onConfirm: (contributionId: string) => void;
-  onContest: (contributionId: string, reason: string, outcome: Outcome) => void;
+  onContest: (contributionId: string, reason: string, done: () => void) => void;
   onAnswer: (question: GuideQuestion, answer: string | null) => void;
 };
 
@@ -108,7 +114,11 @@ export function useGuiding(breakId: string | undefined) {
         tell({ title: m.guide_withdrawn(), tone: "success" });
         return changed();
       },
-      onError: stale,
+      // Refused as a line is, as the web words it, and the guide is read again.
+      onError: (error) => {
+        tell({ title: refusalOf(error), tone: "danger" });
+        void changed();
+      },
     }),
   );
   const confirm = useMutation(
@@ -169,7 +179,9 @@ export function useGuiding(breakId: string | undefined) {
             return changed();
           },
           onError: (error) => {
-            outcome.failed(refusalOf(error));
+            if (codeOf(error) === "CONFLICT" && outcome.same) outcome.same();
+            else tell({ title: refusalOf(error), tone: "danger" });
+            // The guide that was read was older than the API's: it is read again.
             void changed();
           },
         },
@@ -177,17 +189,17 @@ export function useGuiding(breakId: string | undefined) {
     },
     onWithdraw: (id) => withdraw.mutate({ id }),
     onConfirm: (id) => confirm.mutate({ id }),
-    onContest: (id, reason, outcome) =>
+    onContest: (id, reason, done) =>
       contest.mutate(
         { id, reason },
         {
           onSuccess: () => {
-            outcome.done();
+            done();
             tell({ title: m.guide_contested(), tone: "success" });
             return changed();
           },
           onError: (error) => {
-            outcome.failed(contestRefusalOf(error));
+            tell({ title: contestRefusalOf(error), tone: "danger" });
             void changed();
           },
         },
