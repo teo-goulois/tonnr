@@ -15,7 +15,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Pressable, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
-import { opensRaised } from "@/components/map/place-route";
+import { opensRaised, standsOver } from "@/components/map/place-route";
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
@@ -94,15 +94,19 @@ export default function RootLayout() {
                     else opens raised, as the web's drawer opens it. The map is never dimmed, and a
                     press on it never closes the sheet, as the web's drawer stands beside the map.
                     There is one, as the web has one panel: a place opened while one is open is
-                    given to it (`open-place.ts`). */}
+                    given to it (`open-place.ts`). The station nearest a place opens over the
+                    place's sheet with one height, raised, and dims what it covers, as the web's
+                    second drawer is modal: a swipe down closes it (`standsOver`). */}
                 <Stack.Screen
                   name="place/[kind]/[id]"
                   options={({ route }) =>
-                    formSheet({
-                      detents: [FOLD_NONE, RAISED],
-                      initial: opensRaised(route.params) ? 1 : 0,
-                      undimmedUpTo: "last",
-                    })
+                    standsOver(route.params)
+                      ? formSheet({ detents: [RAISED] })
+                      : formSheet({
+                          detents: [FOLD_NONE, RAISED],
+                          initial: opensRaised(route.params) ? 1 : 0,
+                          undimmedUpTo: "last",
+                        })
                   }
                 />
                 {/* As tall as what they hold, on the theme's ground to their foot, which iOS would

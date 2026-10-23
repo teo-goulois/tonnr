@@ -16,8 +16,26 @@ import { isSheetOpen } from "./sheet-state";
  */
 export function giveToSheet(route: Route) {
   if (!givesToSheet(route, isSheetOpen())) return false;
+  // What stands over the place's sheet is closed first, the sheet of the station nearest it and
+  // whatever stands over that, as the web closes its second drawer: the router gives the address
+  // to the screen nearest the front that bears a place's name, which a station's sheet bears too,
+  // and would change the heights of a sheet that is shown.
+  const above = placeSheet?.above() ?? 0;
+  if (above > 0) router.dismiss(above);
   router.dismissTo(route);
   return true;
+}
+
+// The place's sheet an address is given to, with how many screens stand over it, read from its
+// navigator's state: the one shown last that stands over no other place's sheet.
+let placeSheet: { route: string; above: () => number } | undefined;
+
+/** Names the sheet that takes a place given to it. Answers what forgets it. */
+export function holdPlaceSheet(route: string, above: () => number) {
+  placeSheet = { route, above };
+  return () => {
+    if (placeSheet?.route === route) placeSheet = undefined;
+  };
 }
 
 /** Opens an address of the app over what is in view, or gives a place's to its sheet. */

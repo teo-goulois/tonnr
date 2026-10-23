@@ -10,6 +10,7 @@ import {
   placeOf,
   pressedHref,
   selectsOnMap,
+  standsOver,
   TAB_ROUTES,
   tabUnder,
 } from "./place-route";
@@ -65,6 +66,13 @@ describe("a station opened from a place's sheet", () => {
     const params = { kind: "station", id: "ndbc/1", from: "place" };
     expect(opensRaised(params)).toBe(true);
     expect(selectsOnMap(params)).toBeUndefined();
+  });
+
+  it("stands over the place's sheet, which no other sheet of a place does", () => {
+    expect(standsOver({ kind: "station", id: "ndbc/1", from: "place" })).toBe(true);
+    expect(standsOver({ kind: "station", id: "ndbc/1", from: "map" })).toBe(false);
+    expect(standsOver({ kind: "break", id: "b1" })).toBe(false);
+    expect(standsOver(undefined)).toBe(false);
   });
 
   it("is none of the places a sheet selects otherwise", () => {

@@ -41,6 +41,15 @@ export function overHref(kind: PlaceKind, id: string) {
   return `${placeHref(kind, id)}?from=place` as Route;
 }
 
+/**
+ * Whether the sheet of a place stands over another place's sheet (`overHref`): it has one height,
+ * raised, and dims what it covers, as the web's second drawer is modal, so that a swipe down
+ * closes it and gives the place's sheet back.
+ */
+export function standsOver(params: object | undefined) {
+  return (params as { from?: unknown } | undefined)?.from === "place";
+}
+
 /** Whether the sheet of a place opens raised, by the parameters of its address. */
 export function opensRaised(params: object | undefined) {
   return (params as { from?: unknown } | undefined)?.from !== "map";
@@ -51,8 +60,8 @@ export function opensRaised(params: object | undefined) {
  * unless it stands over another place's sheet (`overHref`).
  */
 export function selectsOnMap(params: object | undefined) {
-  const { kind, id, from } = (params ?? {}) as { kind?: unknown; id?: unknown; from?: unknown };
-  if (from === "place" || typeof kind !== "string" || !KINDS.includes(kind)) return undefined;
+  const { kind, id } = (params ?? {}) as { kind?: unknown; id?: unknown };
+  if (standsOver(params) || typeof kind !== "string" || !KINDS.includes(kind)) return undefined;
   if (typeof id !== "string" || !id) return undefined;
   return { kind: kind as PlaceKind, id };
 }

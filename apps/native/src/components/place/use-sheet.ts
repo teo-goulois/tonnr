@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { opensRaised, selectsOnMap } from "@/components/map/place-route";
+import { holdPlaceSheet } from "@/components/map/open-place";
+import { opensRaised, selectsOnMap, standsOver } from "@/components/map/place-route";
 import { hideSheet, showSheet } from "@/components/map/sheet-state";
 
 import {
@@ -52,18 +53,22 @@ export function useSheetState() {
   const navigation = useNavigation<Navigation>();
   const route = useRoute();
   const [atRest, setAtRest] = useState(false);
+  // A sheet over another place's has one height, its raised one, which the platform counts as
+  // its first: it is raised whatever it says.
+  const over = standsOver(route.params);
   // Raised as it opens, unless it was pressed on the map (`opensRaised`), and where it stands once
   // it is given another place, whose parameters say nothing of it.
   const [detent, setDetent] = useState(() =>
-    sheetDetentOf(detents, route.key, opensRaised(route.params)),
+    over ? 1 : sheetDetentOf(detents, route.key, opensRaised(route.params)),
   );
   useEffect(() => {
     const opened = navigation.addListener("transitionEnd", (event) => {
       if (!event.data.closing) setAtRest(true);
     });
     const moved = navigation.addListener("sheetDetentChange", (event) => {
-      detents.set(route.key, event.data.index);
-      setDetent(event.data.index);
+      const index = over ? 1 : event.data.index;
+      detents.set(route.key, index);
+      setDetent(index);
       setAtRest(event.data.stable);
     });
     // A sheet that says nothing of its opening is at rest once it has had the time to open.
@@ -75,7 +80,7 @@ export function useSheetState() {
       // A sheet drawn anew for another place is still the route's.
       forgetLeft(navigation, route.key);
     };
-  }, [navigation, route.key]);
+  }, [navigation, route.key, over]);
   return { atRest, detent };
 }
 
@@ -105,12 +110,14 @@ export function useFoldHeight(detent: number) {
   const placeKind = place?.kind;
   const placeId = place?.id;
   const [shift, setShift] = useState(measuredShift);
+  const over = standsOver(route.params);
   // The map is told the sheet's height as the platform begins to show it, and not as it is
   // mounted, which comes earlier by the time its panel takes to be drawn: what stands on it then
   // rises with it. Until then the sheet is said with no height, so that it counts as open and
-  // selects its place. It is told as the sheet begins to go, and not once it is gone, so that
-  // what stands on it comes down with it, and told again that it stands when a swipe that began
-  // to close it lets it go.
+  // selects its place, except a sheet over another place's, which selects none and would bring
+  // what stands on the map down for a moment. It is told as the sheet begins to go, and not once
+  // it is gone, so that what stands on it comes down with it, and told again that it stands when
+  // a swipe that began to close it lets it go.
   const [showing, setShowing] = useState(false);
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {
@@ -137,12 +144,13 @@ export function useFoldHeight(detent: number) {
       hideSheet(route.key);
       return;
     }
+    if (!showing && over) return;
     showSheet(route.key, {
       height: showing ? low * largest + shift : 0,
       raised: detent > 0,
       place: placeKind && placeId ? { kind: placeKind, id: placeId } : undefined,
     });
-  }, [route.key, showing, leaving, low, largest, shift, detent, placeKind, placeId]);
+  }, [route.key, showing, leaving, low, largest, shift, detent, over, placeKind, placeId]);
   // Only a low sheet's layout is read. One far from what its share gives is left: the size of the
   // screen, which the platform lays the sheet out at before it shows it, or one taken as the sheet
   // goes from a height to another.
@@ -154,6 +162,16 @@ export function useFoldHeight(detent: number) {
     setShift(next);
   };
   useEffect(() => () => hideSheet(route.key), [route.key]);
+  // A place given to the sheet from anywhere comes to this one, once what stands over it is
+  // closed (`open-place.ts`): a station's sheet over it takes none.
+  useEffect(() => {
+    if (over) return;
+    return holdPlaceSheet(route.key, () => {
+      const state = navigation.getState();
+      const at = state?.routes.findIndex((one) => one.key === route.key) ?? -1;
+      return state && at >= 0 ? state.index - at : 0;
+    });
+  }, [navigation, route.key, over]);
   // Where the summary ends, as last told: a sheet that opened raised takes its low height once it
   // is lowered.
   const told = useRef<number | undefined>(undefined);
