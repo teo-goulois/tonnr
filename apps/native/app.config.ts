@@ -118,7 +118,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // The team that signs the app and its extensions: from the shell that builds, never written
     // here (decision 075).
     appleTeamId: process.env.APPLE_TEAM_ID,
-    infoPlist: { ...english, CFBundleAllowMixedLocalizations: true },
+    infoPlist: {
+      ...english,
+      CFBundleAllowMixedLocalizations: true,
+      // iPadOS runs this iPhone app in a window of its own and, when the iPad lies in landscape,
+      // turns a window that allows portrait alone on its side, squeezed to the screen's height
+      // (seen on iPadOS 27, and with a bare UIKit app too). Allowed every orientation on an
+      // iPad, the window stays upright and the app is laid out in it as on a phone. An iPhone
+      // reads the key without `~ipad`, which Expo writes from `orientation`, and stays in
+      // portrait.
+      "UISupportedInterfaceOrientations~ipad": [
+        "UIInterfaceOrientationPortrait",
+        "UIInterfaceOrientationPortraitUpsideDown",
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
+      ],
+    },
     // The site's links open the app, and the keychain fills its passwords: decision 073.
     // What the app shares with its extensions: the keys a push is opened with, and later the
     // widgets' data (decisions 072 and 074).
