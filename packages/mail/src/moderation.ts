@@ -191,16 +191,28 @@ const WORDS = {
   },
 } satisfies Record<Locale, Words>;
 
+// How each language quotes what someone wrote, and writes a colon: French with a space before
+// it, as the alerts' mails do, and between its guillemets.
+const QUOTES = {
+  en: ["“", "”"],
+  fr: ["« ", " »"],
+  es: ["«", "»"],
+  pt: ["«", "»"],
+} satisfies Record<Locale, [string, string]>;
+
 // What a mail quotes of what someone wrote: one line, and not all of a long one.
 const QUOTED_MOST = 200;
-function quoted(text: string) {
-  const line = text.replace(/\s+/g, " ").trim();
-  return `“${line.length > QUOTED_MOST ? `${line.slice(0, QUOTED_MOST - 1)}…` : line}”`;
-}
 
 /** The mail of what accounts flagged and contested, in the language of the instance's operator. */
 export function moderationMail(content: ModerationMailContent): Mail {
   const words: Words = WORDS[content.locale];
+  const [opening, closing] = QUOTES[content.locale];
+  const colon = content.locale === "fr" ? " :" : ":";
+  const quoted = (text: string) => {
+    const line = text.replace(/\s+/g, " ").trim();
+    const short = line.length > QUOTED_MOST ? `${line.slice(0, QUOTED_MOST - 1)}…` : line;
+    return `${opening}${short}${closing}`;
+  };
   const reports = content.reports.map((report) => ({
     title: report.breakName,
     rows: [
@@ -214,7 +226,7 @@ export function moderationMail(content: ModerationMailContent): Mail {
   }));
   const contests = content.contests.map((contest) => ({
     title: contest.breakName ?? words.gone,
-    rows: [quoted(contest.value), `${words.contested}: ${quoted(contest.reason)}`],
+    rows: [quoted(contest.value), `${words.contested}${colon} ${quoted(contest.reason)}`],
   }));
   const parts = [
     { title: words.reports, items: reports, link: content.links?.reports },
@@ -228,7 +240,7 @@ export function moderationMail(content: ModerationMailContent): Mail {
     "",
     ...parts.flatMap((part) => [
       part.title,
-      ...(part.link ? [`${words.open}: ${part.link}`] : []),
+      ...(part.link ? [`${words.open}${colon} ${part.link}`] : []),
       "",
       ...part.items.flatMap((item) => [item.title, ...item.rows.map((row) => `  ${row}`), ""]),
     ]),

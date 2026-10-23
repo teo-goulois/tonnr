@@ -68,6 +68,9 @@ describe("the mail of what accounts flagged", () => {
       // A long text is cut to one short line.
       expect(mail.text).not.toContain("x".repeat(200));
     }
-    expect(moderationMail({ ...content, locale: "fr" }).subject).toBe("À modérer sur Tonnr");
+    const french = moderationMail({ ...content, locale: "fr" });
+    expect(french.subject).toBe("À modérer sur Tonnr");
+    // French quotes between guillemets, and puts a space before a colon.
+    expect(french.text).toContain("Contesté : « There is no church »");
   });
 });
