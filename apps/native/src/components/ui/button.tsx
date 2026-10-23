@@ -15,9 +15,11 @@ import { Text } from "./text";
 //
 // `xs` is the web's `xs` as a phone draws it: 36 points, in the small type, with a smaller icon,
 // for a control in the head of a part of a panel. A finger is still given 44 points around it.
+// `l` is 48 points, the round button's height, for the buttons at the foot of a sheet that end
+// its step, which a thumb reaches for without looking.
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
-export type ButtonSize = "default" | "xs";
+export type ButtonSize = "default" | "xs" | "l";
 type Icon = GlyphIcon;
 
 // HeroUI's press clips the button to its corners, so an edge is drawn inside it.
@@ -123,7 +125,7 @@ export function Button({
         ? colors["neutral-7"]
         : look.label;
   const small = size === "xs";
-  const height = small ? XS : type.m.line + 2 * space.xs;
+  const height = small ? XS : size === "l" ? ROUND : type.m.line + 2 * space.xs;
   const slop = Math.ceil(Math.max(0, TARGET - height) / 2);
 
   return (

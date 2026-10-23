@@ -86,9 +86,11 @@ export function LiveCount({
   since: number | null;
 }) {
   const { colors, space, radius } = useTheme();
-  if (week.count === null) return null;
-  const delta = since === null ? 0 : week.count - since;
-  const said = countWords(week.count);
+  // Before the part asks anything there is no count: its place is kept, empty, so that the first
+  // value chosen moves nothing under it.
+  const isCounted = week.count !== null;
+  const delta = since === null || week.count === null ? 0 : week.count - since;
+  const said = countWords(week.count ?? 0);
   const change =
     delta > 0
       ? m.native_alert_week_delta_more({ count: delta })
@@ -97,10 +99,13 @@ export function LiveCount({
         : undefined;
   return (
     <View
-      accessible
+      accessible={isCounted}
+      accessibilityElementsHidden={!isCounted}
+      importantForAccessibility={isCounted ? "auto" : "no-hide-descendants"}
       accessibilityLiveRegion="polite"
       accessibilityLabel={change ? `${said}, ${change}` : said}
       style={{
+        opacity: isCounted ? 1 : 0,
         flexDirection: "row",
         alignItems: "center",
         gap: space.xs,
@@ -153,7 +158,7 @@ export function WeekPreview({
   notes,
   credit,
 }: WeekPreviewProps) {
-  const { colors, space } = useTheme();
+  const { colors, space, type } = useTheme();
   useUnits();
   const reduced = useReducedMotion();
   const [isOpen, setOpen] = useState(false);
@@ -178,6 +183,10 @@ export function WeekPreview({
     </>
   );
 
+  // The line of the week is as tall whatever it says, so that what stands under it does not move
+  // as the forecast is read or a condition is chosen: its two lines and its room.
+  const lineHeight = type.m.line + type.xs.line + 2 * space.s;
+
   if (state !== "ready") {
     const words = {
       nothing: m.alert_preview_no_condition(),
@@ -187,9 +196,11 @@ export function WeekPreview({
     }[state];
     return (
       <View style={{ gap: space.xs }}>
-        <Text size="s" tone="muted" accessibilityLiveRegion="polite">
-          {words}
-        </Text>
+        <View style={{ minHeight: lineHeight, justifyContent: "center" }}>
+          <Text size="s" tone="muted" accessibilityLiveRegion="polite">
+            {words}
+          </Text>
+        </View>
         {footer}
       </View>
     );
@@ -216,7 +227,7 @@ export function WeekPreview({
             setOpen((open) => !open);
           }}
           style={({ pressed }) => ({
-            minHeight: TARGET,
+            minHeight: lineHeight,
             flexDirection: "row",
             alignItems: "center",
             gap: space.s,

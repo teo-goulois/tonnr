@@ -258,6 +258,18 @@ function Buttons() {
         The web's xs, as a phone draws it: 36 points, the small type, for a control in the head of a
         part of a panel, which a finger is given 44 points around. Muted, a ghost one is grey.
       </Note>
+      <View style={{ flexDirection: "row", gap: space.xs }}>
+        <Button variant="secondary" size="l" style={{ flex: 1 }}>
+          Any
+        </Button>
+        <Button size="l" style={{ flex: 1 }}>
+          Next
+        </Button>
+      </View>
+      <Note>
+        l: 48 points, the round button's height, for the buttons at the foot of a sheet that end its
+        step, as the part of an alert's sentence does.
+      </Note>
     </View>
   );
 }

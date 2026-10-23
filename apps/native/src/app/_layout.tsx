@@ -129,7 +129,14 @@ export default function RootLayout() {
                 <Stack.Screen name="search" options={formSheet({ detents: [0.94] })} />
                 <Stack.Screen name="alert/new" options={formSheet()} />
                 <Stack.Screen name="alert/[id]" options={formSheet()} />
-                <Stack.Screen name="alert/part" options={formSheet({ detents: "fit" })} />
+                {/* As tall as what it holds, on the theme's ground to its foot, as the two above. */}
+                <Stack.Screen
+                  name="alert/part"
+                  options={{
+                    ...formSheet({ detents: "fit" }),
+                    contentStyle: { backgroundColor: canvas },
+                  }}
+                />
                 <Stack.Screen name="session/new" options={formSheet()} />
                 {/* A session in progress, timed while it lasts: decision 074. */}
                 <Stack.Screen name="session/live" options={formSheet()} />

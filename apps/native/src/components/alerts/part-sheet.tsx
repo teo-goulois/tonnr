@@ -408,11 +408,10 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
   const value = isValue
     ? (said?.value ?? "")
     : m.alert_hours({ count: writing.shortestMinutes / 60 });
-  const canAdd =
-    isValue &&
-    index <= others &&
-    isSetValue(writing.criteria, partKey, index) &&
-    others < MAX_ALTERNATIVES;
+  // "Another value" stands beside the values from the first, and waits for this one to be set:
+  // the row is there whatever is chosen, so that choosing moves nothing under it.
+  const offersAnother = isValue && index <= others && others < MAX_ALTERNATIVES;
+  const canAdd = offersAnother && isSetValue(writing.criteria, partKey, index);
 
   return (
     <View
@@ -439,7 +438,7 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
         </Text>
       </View>
 
-      {isValue && (others > 0 || index > others || canAdd) ? (
+      {isValue ? (
         <ChipRow label={label} bleed={space.m}>
           {Array.from({ length: Math.max(others, index) + 1 }, (_, at) => {
             const one = at <= others ? partSaid(writing.criteria, partKey, at) : undefined;
@@ -459,12 +458,13 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
               />
             );
           })}
-          {canAdd ? (
+          {offersAnother ? (
             <Chip
               label={m.native_alert_part_another()}
               iconLabel={m.alert_add_value({ label })}
               icon={CirclePlusIcon}
               selected={false}
+              disabled={!canAdd}
               onPress={() => router.setParams({ index: String(others + 1) })}
             />
           ) : null}
@@ -487,6 +487,7 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
         {isValue ? (
           <Button
             variant="secondary"
+            size="l"
             style={{ flex: 1 }}
             onPress={() => {
               if (index === 0) {
@@ -502,7 +503,7 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
             {index === 0 ? m.alert_part_any() : m.alert_part_remove()}
           </Button>
         ) : null}
-        <Button style={{ flex: 1 }} onPress={goOn}>
+        <Button size="l" style={{ flex: 1 }} onPress={goOn}>
           {next ? m.native_alert_part_next() : m.alert_part_done()}
         </Button>
       </View>
