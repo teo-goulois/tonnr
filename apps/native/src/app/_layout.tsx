@@ -76,6 +76,9 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
 export default function RootLayout() {
   const { scheme, colors } = useTheme();
   const canvas = colors["cte-canvas"];
+  // A sheet as tall as what it holds stands on the theme's ground to its foot, which iOS would
+  // otherwise leave to its glass under what it holds.
+  const fitSheet = { ...formSheet({ detents: "fit" }), contentStyle: { backgroundColor: canvas } };
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -87,8 +90,8 @@ export default function RootLayout() {
               <ActivitiesListener />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="create" options={formSheet({ detents: "fit" })} />
-                <Stack.Screen name="pause-alert" options={formSheet({ detents: "fit" })} />
+                <Stack.Screen name="create" options={fitSheet} />
+                <Stack.Screen name="pause-alert" options={fitSheet} />
                 {/* A place pressed on the map opens low, over the map that stays alive under it,
                     and rises to be read: decision 040's two heights. What was chosen anywhere
                     else opens raised, as the web's drawer opens it. The map is never dimmed, and a
@@ -109,34 +112,13 @@ export default function RootLayout() {
                         })
                   }
                 />
-                {/* As tall as what they hold, on the theme's ground to their foot, which iOS would
-                    otherwise leave to its glass under the rows. */}
-                <Stack.Screen
-                  name="place/save"
-                  options={{
-                    ...formSheet({ detents: "fit" }),
-                    contentStyle: { backgroundColor: canvas },
-                  }}
-                />
-                <Stack.Screen
-                  name="place/publish"
-                  options={{
-                    ...formSheet({ detents: "fit" }),
-                    contentStyle: { backgroundColor: canvas },
-                  }}
-                />
+                <Stack.Screen name="place/save" options={fitSheet} />
+                <Stack.Screen name="place/publish" options={fitSheet} />
                 <Stack.Screen name="place/move" options={formSheet()} />
                 <Stack.Screen name="search" options={formSheet({ detents: [0.94] })} />
                 <Stack.Screen name="alert/new" options={formSheet()} />
                 <Stack.Screen name="alert/[id]" options={formSheet()} />
-                {/* As tall as what it holds, on the theme's ground to its foot, as the two above. */}
-                <Stack.Screen
-                  name="alert/part"
-                  options={{
-                    ...formSheet({ detents: "fit" }),
-                    contentStyle: { backgroundColor: canvas },
-                  }}
-                />
+                <Stack.Screen name="alert/part" options={fitSheet} />
                 <Stack.Screen name="session/new" options={formSheet()} />
                 {/* A session in progress, timed while it lasts: decision 074. */}
                 <Stack.Screen name="session/live" options={formSheet()} />
@@ -144,7 +126,7 @@ export default function RootLayout() {
                 <Stack.Screen name="report/new" options={formSheet()} />
                 <Stack.Screen name="spot/new" options={formSheet()} />
                 {/* The web's dialog that shares a list, over the saved tab. */}
-                <Stack.Screen name="list/share" options={formSheet({ detents: "fit" })} />
+                <Stack.Screen name="list/share" options={fitSheet} />
                 <Stack.Screen name="sign-in" options={formSheet()} />
                 <Stack.Screen name="forgot-password" options={formSheet()} />
                 <Stack.Screen name="reset-password" options={formSheet()} />
