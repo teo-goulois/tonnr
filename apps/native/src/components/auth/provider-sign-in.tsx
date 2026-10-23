@@ -90,10 +90,8 @@ export async function signInWithApple(invitation?: string): Promise<ProviderOutc
   let credential: AppleAuthentication.AppleAuthenticationCredential;
   try {
     credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
+      // The address alone: the app keeps no name, so it asks for none (guideline 5.1.1(iii)).
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
       nonce,
     });
   } catch (error) {
