@@ -1,4 +1,9 @@
-import { privateExceptionList } from "@repo/config/errors";
+import {
+  ACTIVE_DAY_PREFIX,
+  safeEvent,
+  type ScreenCategories,
+  shouldReport,
+} from "@repo/client/analytics";
 import type { PostHog } from "posthog-js";
 import { ENV } from "@/env.public";
 import { readAnalyticsConsent, readErrorReports } from "./analytics-consent";
@@ -7,27 +12,11 @@ let client: PostHog | undefined;
 let loading: Promise<PostHog | undefined> | undefined;
 export const analyticsConfigured = Boolean(ENV.VITE_POSTHOG_PROJECT_TOKEN && ENV.VITE_POSTHOG_HOST);
 
-// SDK defaults include URLs, referrers and person properties. Only these technical fields
-// leave the app; no query/hash, place identifier, text, name, email, or input is ever forwarded.
-const SAFE_PROPERTIES = new Set([
-  "token",
-  "distinct_id",
-  "$anon_distinct_id",
-  "$session_id",
-  "$window_id",
-  "$device_id",
-  "$insert_id",
-  "$lib",
-  "$lib_version",
-  "$is_identified",
-  "$process_person_profile",
-  "surface",
-  "environment",
-  "app_version",
-  "feature",
-  "place_kind",
-  "tab",
-]);
+// The screen an error happened on, in the categories `feature_viewed` sends.
+let screen: ScreenCategories = {};
+
+// What leaves of an event, and which errors are reported, are packages/client's, which the app
+// for phones reads too: decisions 044, 054 and 069.
 export function safeBrowserEvent(
   event: {
     event: string;
@@ -37,37 +26,16 @@ export function safeBrowserEvent(
     $unset?: unknown;
   } | null,
 ) {
-  if (!event || !["$identify", "feature_viewed", "$exception"].includes(event.event)) return null;
-  const properties = Object.fromEntries(
-    Object.entries(event.properties).filter(([key]) => SAFE_PROPERTIES.has(key)),
-  );
-  // An error report says what failed and where in the code, and nothing of the page or its
-  // console: decision 054.
-  if (event.event === "$exception") {
-    properties.$exception_list = privateExceptionList(event.properties.$exception_list);
-    Object.assign(properties, screen);
-  }
-  const { $set: _set, $set_once: _once, $unset: _unset, ...safe } = event;
-  return { ...safe, properties: { ...properties, $ip: null, $geoip_disable: true } };
+  return safeEvent(event, screen);
 }
 
-// The screen an error happened on, in the categories `feature_viewed` sends.
-let screen: { feature?: string; tab?: string | undefined; place_kind?: string | undefined } = {};
-// A page that fails in a loop sends a few reports, not one per frame.
-const REPORTS_PER_PAGE = 20;
 const reported = new Set<string>();
 let watching = false;
 
 /** Sends an error that the app did not handle, while the product's pages are open. */
 export function reportError(error: unknown) {
   if (!watching || !client || !readErrorReports()) return;
-  if (!(error instanceof Error) || error.name === "AbortError") return;
-  // A refusal the API answered is the app working: only a fault is reported.
-  const status = (error as { status?: unknown }).status;
-  if (typeof status === "number" && status < 500) return;
-  const key = `${error.name}:${error.message}`;
-  if (reported.has(key) || reported.size >= REPORTS_PER_PAGE) return;
-  reported.add(key);
+  if (!shouldReport(error, reported)) return;
   client.captureException(error);
 }
 
@@ -171,7 +139,7 @@ export function stopAnalytics() {
   client?.opt_out_capturing();
   try {
     for (const key of Object.keys(localStorage))
-      if (key.startsWith("analytics-active:")) localStorage.removeItem(key);
+      if (key.startsWith(ACTIVE_DAY_PREFIX)) localStorage.removeItem(key);
   } catch {
     /* The browser may refuse storage. */
   }

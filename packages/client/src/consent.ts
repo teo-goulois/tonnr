@@ -2,8 +2,7 @@
 // yes, refused as easily as taken, and kept on the device 180 days, after which it is asked again,
 // the same in a browser and on a phone. The error reports go with the same yes, and may be turned
 // off alone. Decisions 044, 054 and 069. Each app keeps the choice in its own storage, under these
-// keys, and the app for phones sends nothing yet: its analytics read the choice once they are
-// built.
+// keys, and its analytics read it before anything leaves.
 
 export type AnalyticsConsent = "granted" | "denied" | null;
 
@@ -25,9 +24,19 @@ export function consentFrom(stored: string | null, now: number): AnalyticsConsen
   }
 }
 
-/** What the phone keeps of a choice made now. */
+/** What a device keeps of a choice made now. */
 export function consentRecord(choice: "granted" | "denied", now: number) {
   return JSON.stringify({ choice, at: now });
+}
+
+/**
+ * What a device writes as a choice is made, or forgotten: the choice and its moment, and, since
+ * a yes answers the one question, which names the error reports too, their own switch on again.
+ */
+export function consentWrites(choice: AnalyticsConsent, now: number) {
+  if (choice === null) return { set: [] as [string, string][], remove: [CONSENT_KEY] };
+  const set: [string, string][] = [[CONSENT_KEY, consentRecord(choice, now)]];
+  return { set, remove: choice === "granted" ? [ERRORS_KEY] : [] };
 }
 
 /** Whether error reports are sent: with the yes, unless they were turned off since. */

@@ -3,7 +3,7 @@ import {
   CONSENT_KEY,
   CONSENT_LIFETIME_MS,
   consentFrom,
-  consentRecord,
+  consentWrites,
   ERRORS_KEY,
 } from "@repo/client/consent";
 import { useSyncExternalStore } from "react";
@@ -34,9 +34,9 @@ export function setAnalyticsConsent(choice: AnalyticsConsent) {
   // Accepting answers the one question, which names the error reports too: they are on again.
   if (choice === "granted") errorsOff = false;
   try {
-    if (choice === "granted") localStorage.removeItem(ERRORS_KEY);
-    if (choice === null) localStorage.removeItem(CONSENT_KEY);
-    else localStorage.setItem(CONSENT_KEY, consentRecord(choice, Date.now()));
+    const { set, remove } = consentWrites(choice, Date.now());
+    for (const key of remove) localStorage.removeItem(key);
+    for (const [key, value] of set) localStorage.setItem(key, value);
   } catch {
     /* A browser that cannot store remembers the choice for this page alone. */
   }

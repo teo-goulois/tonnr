@@ -291,6 +291,18 @@ const appValues = {
   UPDATES_URL: `https://${values.UPDATES_DOMAIN}`,
   ...(values.APPLE_TEAM_ID && { APPLE_TEAM_ID: values.APPLE_TEAM_ID }),
   ...(googleServices && { GOOGLE_SERVICES_FILE: googleServices }),
+  // The stage's project of PostHog and the environment its events say, which the app sends to
+  // through the web's `/ingest` once a person said yes: Metro writes them into the JavaScript,
+  // and the config reads neither, so that they change no fingerprint (decisions 044 and 069).
+  // The stage must name its host too: the web's `/ingest` forwards to it alone, and a web app
+  // without it sends nothing and asks nothing, as the app then does.
+  ...(values.VITE_POSTHOG_PROJECT_TOKEN &&
+    values.VITE_POSTHOG_HOST && {
+      EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN: values.VITE_POSTHOG_PROJECT_TOKEN,
+      ...(values.VITE_POSTHOG_ENVIRONMENT && {
+        EXPO_PUBLIC_POSTHOG_ENVIRONMENT: values.VITE_POSTHOG_ENVIRONMENT,
+      }),
+    }),
   EXPO_NO_TELEMETRY: "1",
   EXPO_OFFLINE: "1",
 };

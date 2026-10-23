@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
-import { Button, IconButton } from "./button";
+import { IconButton } from "./button";
 import { Loading, Skeleton } from "./skeleton";
 import { Text } from "./text";
 
@@ -104,64 +104,6 @@ export function useSheetGuard(dirty: boolean, onDiscard?: () => void, words?: Di
     /** Leaves the sheet, asking first while something is held. */
     cancel: back,
   };
-}
-
-type SheetHeaderProps = {
-  title: string;
-  /** Leaves the sheet. With the guard, `useSheetGuard(...).cancel`. */
-  onCancel: () => void;
-  /** Saves what the sheet holds. Without it, the header has no Save. */
-  onSave?: () => void;
-  saveLabel?: string;
-  /** Whether what the sheet holds can be saved yet. */
-  canSave?: boolean;
-  saving?: boolean;
-};
-
-/** The header of a form sheet: Cancel, its title, Save. */
-export function SheetHeader({
-  title,
-  onCancel,
-  onSave,
-  saveLabel,
-  canSave = true,
-  saving = false,
-}: SheetHeaderProps) {
-  const { space } = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.xs,
-        // Room over it for the grabber that iOS draws at the top of the sheet.
-        paddingTop: space.s,
-        paddingBottom: space.xs,
-        paddingHorizontal: space.xs,
-      }}
-    >
-      <View style={{ flex: 1, alignItems: "flex-start" }}>
-        <Button variant="ghost" onPress={onCancel} disabled={saving}>
-          {m.action_cancel()}
-        </Button>
-      </View>
-      <Text
-        weight="medium"
-        accessibilityRole="header"
-        numberOfLines={1}
-        style={{ flexShrink: 1, textAlign: "center" }}
-      >
-        {title}
-      </Text>
-      <View style={{ flex: 1, alignItems: "flex-end" }}>
-        {onSave ? (
-          <Button onPress={onSave} disabled={!canSave} loading={saving}>
-            {saveLabel ?? m.native_save()}
-          </Button>
-        ) : null}
-      </View>
-    </View>
-  );
 }
 
 type PanelHeaderProps = {

@@ -19,6 +19,7 @@ import { TARGET } from "@/components/ui/metrics";
 import { Segmented } from "@/components/ui/segmented";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
+import { analyticsConfigured } from "@/lib/analytics";
 import { THEME_CHOICES } from "@/lib/theme-choice";
 import { useTheme } from "@/lib/theme";
 import { type Units, useUnits } from "@/lib/units";
@@ -44,7 +45,13 @@ import {
 } from "./settings-words";
 import type { SitePage } from "./site-pages";
 import { unitName } from "./unit-name";
-import { setConsent, setErrorReports, useConsent, useErrorReports } from "./use-consent";
+import {
+  setConsent,
+  setErrorReports,
+  useConsent,
+  useErrorReports,
+  useInstanceErrorReports,
+} from "./use-consent";
 import { useOwnAccount, useSendVerification } from "./use-own-account";
 
 const go = (href: Href) => () => router.push(href);
@@ -96,16 +103,16 @@ function PageLink({ label, onPress }: { label: string; onPress: () => void }) {
 /**
  * What the app may tell of how it is used and of what breaks, as the web's `AnalyticsSetting`
  * offers it to a visitor and an account alike: off until said yes (decision 044), and the error
- * reports apart once it is, unless the instance's operator turned them off (decision 054).
+ * reports apart once it is, unless the instance's operator turned them off (decision 054). A
+ * build that names no project of PostHog sends nothing, and has nothing to offer.
  */
 function AnalyticsSection() {
   const consent = useConsent();
   const errorReports = useErrorReports();
+  // What the instance answered, which the app asks once a run (`useAccountStart`).
+  const instanceErrorReports = useInstanceErrorReports();
   const granted = consent === "granted";
-  // An instance that does not answer leaves the reports as they were, as the web's does.
-  const instance = useQuery(
-    orpc.v1.errorReports.get.queryOptions({ enabled: granted, retry: false }),
-  );
+  if (!analyticsConfigured) return null;
   return (
     <Section plain title={m.analytics_title()} lead={m.analytics_description()}>
       <Button
@@ -116,7 +123,7 @@ function AnalyticsSection() {
         {granted ? m.analytics_disable() : m.analytics_allow()}
       </Button>
       {/* An instance whose operator turned them off has no reports to choose. */}
-      {granted && instance.data?.on !== false ? (
+      {granted && instanceErrorReports ? (
         <Row
           title={m.analytics_errors()}
           description={m.analytics_errors_description()}

@@ -8,9 +8,9 @@ Activation: `alert_created`. The onboarding funnel is `account_created` → `spo
 
 ## Events
 
-Every event has `surface` (`web`, or `ios` and `android` for the app for phones, which says so in `X-App`: decision 069), `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release, the app's version and build such as `1.2.0+34`, or `local`). Server events also carry `authenticated` and the browser's technical `$session_id`. No event carries inputs or resource IDs.
+Every event has `surface` (`web`, or `ios` and `android` for the app for phones, which says so in `X-App`: decision 069), `environment` (`development`, `dev`, `production`) and `app_version` (API commit, browser release, the app's version and build such as `1.2.0+34`, or `local`). Server events also carry `authenticated` and the technical `$session_id` of the browser or the app. No event carries inputs or resource IDs.
 
-Browser: `feature_viewed` with the fixed feature, place-kind and tab categories; `$identify` with opaque IDs alone; `$exception`, below. Landing: none in PostHog; Umami counts its pages.
+Browser and app for phones: `feature_viewed` with the fixed feature, place-kind and tab categories, which `featureOf` in `packages/client/src/analytics.ts` reads from the web's address and the app says from its routes (`apps/native/src/lib/analytics-screen.ts`); `$identify` with opaque IDs alone; `$exception`, below. The app sends them with posthog-react-native, which captures nothing by itself: no lifecycle, screens, touches, replay, push, flags or surveys. What leaves of either is the same allowlist, `safeEvent` in the same file. The app gives the SDK nothing of the phone, and writes `surface`, `environment` and `app_version` into each event as it leaves, since the SDK's reset forgets what is registered. It identifies by the account's ID alone, and forgets its IDs, with the device ID the SDK keeps and never sends, at a sign-out, a deletion, a change of account and a refusal, which also drops the events not sent yet (`apps/native/src/lib/analytics.ts`). Landing: none in PostHog; Umami counts its pages.
 
 Authentication: `account_created`, `account_signed_in`, `account_signed_out`, `account_updated`.
 
@@ -87,17 +87,18 @@ Successful oRPC actions:
 `$exception`, in PostHog's Error tracking, from two places:
 
 - The web app, with the same consent as the events above, on `/app` and `/login`, unless the account tab's switch turned the reports off alone or an operator turned them off for every browser on the admin's page of the instance: unhandled errors, unhandled rejections and what a route's error boundary caught. It carries the opaque IDs, `environment`, `app_version` and the screen's `feature`, `tab` and `place_kind`. Refusals under 500 and aborted requests are left out; a page sends 20 at most, each error once.
+- The app for phones, by the same rules (`shouldReport` in `packages/client/src/analytics.ts`), the same consent and the same two switches, on every screen: an error thrown that no code caught, given two seconds to leave before an error that ends the app does, a promise rejected with no handler in a build for the stores, where React Native shows it itself in development, and what the root error boundary caught. A run of the app sends 20 at most, and its frames name their files with no id: the path of an iPhone's bundle holds its container's, made at the install. A crash of the native code is not reported: App Store Connect and the Play Console show it (decision 069).
 - The API, with no consent and no person: distinct ID `api`, `service=api`, `environment`, `app_version`, and no person profile. It reports what it logs as a fault: a procedure's, the MCP server's or a route's error with a status of 500 or more.
 
-Each keeps the kind, the scrubbed message and the stack frames of an error and its causes (`packages/config/src/errors.ts`), and nothing else. Web stack traces are minified: no source maps are uploaded. The worker reports nothing yet.
+Each keeps the kind, the scrubbed message and the stack frames of an error and its causes (`packages/config/src/errors.ts`), and nothing else. Web stack traces are minified, and the app's are of its Hermes bundle: no source maps are uploaded (decisions 054 and 075). The worker reports nothing yet.
 
 ## Filters and accuracy
 
 - Production reports filter `environment=production`; pre-production reports filter `environment=dev`. Local proof events use `development`. The environment comes from release settings, never a caller-supplied property.
 - Exclude internal test accounts by their opaque auth IDs in the project's internal-traffic filter once known. Do not send emails to classify them. No real account IDs or project tokens belong in this file.
-- `app_active` is one account or anonymous device per UTC day, with a stable UUID and midnight timestamp for deduplication. The browser remembers the successful day across reloads. Analyze unique distinct IDs for daily use; identity merges can join an anonymous device to its new account.
+- `app_active` is one account or anonymous device per UTC day, with a stable UUID and midnight timestamp for deduplication. The browser remembers the successful day across reloads, and the app for phones across its starts, under the same key (`activeDayKey`). Analyze unique distinct IDs for daily use; identity merges can join an anonymous device to its new account.
 - Search, preview and read actions measure successful calls. They may repeat as queries refresh; they are not literal button-click counts.
-- Both transports require browser consent. Browser capture uses an allowlist, server capture reads no inputs/outputs. Replay, DOM capture and the SDK's own exception capture are disabled; error reports follow decision 054.
+- Both transports require consent, in the browser or in the app. Browser capture uses an allowlist, server capture reads no inputs/outputs. Replay, DOM capture and the SDK's own exception capture are disabled; error reports follow decision 054.
 
 ## Verification
 
@@ -105,6 +106,8 @@ Each keeps the kind, the scrubbed message and the stack frames of an error and i
 
 Hosted verification on the same date passed on the `dev` web stage and hosted API, deployed from `f612f3f`. The Tonnr EU project received one `app_active` after repeated controlled activity requests, with `surface=web`, `environment=dev` and the full deployed API commit in `app_version`. The browser's `feature_viewed` arrived with `environment=dev`, `surface=web` and web release `mv6sab12`. Its same-origin ingestion request returned 200. Disabling analytics cleared the remembered activity days; reloading with consent denied sent no ingestion request. The landing page sent none. The proxy was also exercised in the actual Workers runtime with a local fake upstream; redirect handling has a regression test. Local `.env` and stage build values do not update Easypanel's service environment: its API variables were configured separately before deployment.
 
+2026-10-22: the app for phones' analytics were built, with posthog-react-native 4.81.2: unit tests and the type check passed. Nothing was sent from a phone or a simulator yet. Since 2026-10-23 the release commands give a store build and `release:js` the stage's project; a store build made before names none and sends nothing until a publication reaches it.
+
 ## Configuration
 
-See [Self-hosting](self-hosting.md#product-analytics). API: `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `POSTHOG_ENVIRONMENT`. Web: the same names prefixed with `VITE_`. Optional as a group; without them the instance sends nothing. Deployment files use `packages/infra/.env.<stage>` for browser values. `envsync push` remains the operator's command.
+See [Self-hosting](self-hosting.md#product-analytics). API: `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `POSTHOG_ENVIRONMENT`. Web: the same names prefixed with `VITE_`. Optional as a group; without them the instance sends nothing. Deployment files use `packages/infra/.env.<stage>` for browser values. App for phones: `EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN` and `EXPO_PUBLIC_POSTHOG_ENVIRONMENT`, with no host, since it sends through the web's `/ingest`; without the token it sends nothing and asks nothing. The release commands give them from the stage's `VITE_POSTHOG_PROJECT_TOKEN` and `VITE_POSTHOG_ENVIRONMENT` when it also names `VITE_POSTHOG_HOST`, and they change no runtime. `envsync push` remains the operator's command.

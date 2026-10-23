@@ -2,13 +2,14 @@ import {
   type AnalyticsConsent,
   CONSENT_KEY,
   consentFrom,
-  consentRecord,
+  consentWrites,
   ERRORS_KEY,
   errorReportsOn,
 } from "@repo/client/consent";
 import { useSyncExternalStore } from "react";
 
-// The person's choice about analytics and error reports, as the phone keeps it: decision 044.
+// The person's choice about analytics and error reports, as the phone keeps it: decisions 044 and
+// 054. What is written, and for how long, is packages/client's, which the web app reads too.
 
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
@@ -18,6 +19,10 @@ const subscribe = (listener: () => void) => {
 const told = () => {
   for (const listener of listeners) listener();
 };
+
+// An operator may turn the error reports off for every device, which the API says: on until it
+// does, for this run of the app.
+let instanceErrorsOff = false;
 
 function stored(key: string) {
   try {
@@ -35,17 +40,18 @@ export function readConsent(): AnalyticsConsent {
 /** Keeps a choice for 180 days. Saying yes answers the one question, so error reports are on. */
 export function setConsent(choice: "granted" | "denied") {
   try {
-    localStorage.setItem(CONSENT_KEY, consentRecord(choice, Date.now()));
-    if (choice === "granted") localStorage.removeItem(ERRORS_KEY);
+    const { set, remove } = consentWrites(choice, Date.now());
+    for (const key of remove) localStorage.removeItem(key);
+    for (const [key, value] of set) localStorage.setItem(key, value);
   } catch {
     // A phone that keeps nothing asks again next time.
   }
   told();
 }
 
-/** Whether error reports are sent. */
+/** Whether error reports are sent: with the yes, unless the person or the instance turned them off. */
 export function readErrorReports() {
-  return errorReportsOn(readConsent(), stored(ERRORS_KEY));
+  return !instanceErrorsOff && errorReportsOn(readConsent(), stored(ERRORS_KEY));
 }
 
 export function setErrorReports(on: boolean) {
@@ -58,10 +64,23 @@ export function setErrorReports(on: boolean) {
   told();
 }
 
+/** What the instance says of the apps' error reports, which no person's choice overrides. */
+export function setInstanceErrorReports(on: boolean) {
+  if (instanceErrorsOff === !on) return;
+  instanceErrorsOff = !on;
+  told();
+}
+
+const readInstanceErrorReports = () => !instanceErrorsOff;
+
 export function useConsent() {
   return useSyncExternalStore(subscribe, readConsent, readConsent);
 }
 
 export function useErrorReports() {
   return useSyncExternalStore(subscribe, readErrorReports, readErrorReports);
+}
+
+export function useInstanceErrorReports() {
+  return useSyncExternalStore(subscribe, readInstanceErrorReports, readInstanceErrorReports);
 }

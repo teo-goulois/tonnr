@@ -11,16 +11,19 @@ import "@/lib/theme";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ErrorBoundaryProps, Stack, ThemeProvider } from "expo-router";
 import { HeroUINativeProvider } from "heroui-native";
+import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Pressable, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { opensRaised, standsOver } from "@/components/map/place-route";
+import { UploadFailures } from "@/components/media/upload-failures";
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
 import { formSheet } from "@/components/ui/sheet-options";
 import { Text } from "@/components/ui/text";
+import { reportError } from "@/lib/analytics";
 import { navigationTheme, useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { queryClient } from "@/utils/orpc";
@@ -36,10 +39,14 @@ export const unstable_settings = { anchor: "(tabs)" };
  * What the app shows in the place of a screen that stopped as it was drawn, which a store build
  * would otherwise close on, as it closed when Google's mark was drawn: one line and a press that
  * draws it again. It stands in the place of this layout and of its providers, so it draws with the
- * theme alone and React Native's own press. The error itself is in the log.
+ * theme alone and React Native's own press. The error itself is in the log, and in a report when
+ * the person said yes to them, as the web's boundary reports what it caught (decision 054).
  */
-export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors, space, radius } = useTheme();
+  useEffect(() => {
+    reportError(error);
+  }, [error]);
   return (
     <View
       accessibilityRole="alert"
@@ -88,6 +95,7 @@ export default function RootLayout() {
               <PushListener />
               <WidgetWriter />
               <ActivitiesListener />
+              <UploadFailures />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={fitSheet} />
@@ -133,6 +141,11 @@ export default function RootLayout() {
                 {/* The web's dialog over the map, which stays under it, dimmed. */}
                 <Stack.Screen
                   name="onboarding"
+                  options={{ presentation: "transparentModal", animation: "fade" }}
+                />
+                {/* The question about analytics, the web's dialog over the map too. */}
+                <Stack.Screen
+                  name="consent"
                   options={{ presentation: "transparentModal", animation: "fade" }}
                 />
                 <Stack.Screen

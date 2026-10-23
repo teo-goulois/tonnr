@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { forgetWindowActivities } from "@/activities/window-activity";
 import { useAccount } from "@/lib/account";
 import { forgetActivityStart } from "@/lib/activity-start";
-import { appHeader } from "@/lib/app-client";
+import { resetAnalytics } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { forgetLiveSession } from "@/lib/live-session";
 import { pushIsOn, switchPushOff } from "@/lib/push";
@@ -17,10 +17,12 @@ import { forgetPushKeys } from "../../../modules/push-keys";
  * Forgets on the phone what was kept for an account that is no longer signed in here: what was
  * loaded for it, what it looked at last, its session in progress, what its widgets show, which
  * the space the app shares with its extensions kept, and the names of its alerts that the Live
- * Activity of a window reads, whose switch goes off too (decision 074). The units, the theme and
- * the language stay: they are the phone's, as a browser keeps them. Decision 070.
+ * Activity of a window reads, whose switch goes off too (decision 074), and the ids its analytics
+ * sent, which start again as no one's (decision 044). The units, the theme, the language and the
+ * choice about analytics stay: they are the phone's, as a browser keeps them. Decision 070.
  */
 export function forgetOnPhone(queryClient: QueryClient) {
+  resetAnalytics();
   queryClient.clear();
   clearRecents();
   clearWidgets();
@@ -48,13 +50,12 @@ async function forgetPush(account: string | undefined) {
  * device and its keys go, the session ends at the API, its cookie leaves the keychain, and the
  * phone forgets what it kept for the account. The library's client lets go of the cookie before
  * it asks the API, so the phone is signed out whatever the API answers: a session the API could
- * not end then ends at its time, with no cookie left here to use it.
+ * not end then ends at its time, with no cookie left here to use it. The request still carries
+ * the analytics' ids, which are forgotten after it, so that the API captures the sign-out.
  */
 export async function leaveOnPhone(queryClient: QueryClient, account: string | undefined) {
   await forgetPush(account);
-  await authClient
-    .signOut({ fetchOptions: { headers: { "X-App": appHeader() } } })
-    .catch(() => null);
+  await authClient.signOut().catch(() => null);
   forgetOnPhone(queryClient);
 }
 

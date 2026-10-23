@@ -37,7 +37,9 @@ import {
   WindBadge,
 } from "@/components/map/map-markers";
 import { SpotPin } from "@/components/map/spot-pin";
+import { MediaSamples } from "@/components/media/media-samples";
 import { ProfileSamples } from "@/components/profile/profile-samples";
+import { SearchField } from "@/components/search/search-field";
 import { Glyph } from "@/components/shared/glyph";
 import { ICON_SAMPLES, ICONS } from "@/components/shared/icon-samples";
 import { AccountPrompt } from "@/components/auth/account-prompt";
@@ -56,6 +58,8 @@ import { OptionCard, OptionCards } from "@/components/ui/option-card";
 import { Segmented } from "@/components/ui/segmented";
 import { PanelHeader, SheetFooter } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { MorphText } from "@/components/ui/morph-text";
 import { Loading, Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Card, Surface } from "@/components/ui/surface";
 import { Switch } from "@/components/ui/switch";
@@ -173,6 +177,30 @@ function Type() {
   );
 }
 
+// A value its reader changes by hand, as an alert's part says it over its slider.
+const MORPHS = ["Any", "1–2 m", "1–2.5 m", "1.5–2.5 m", "3 m or more"] as const;
+
+function Morphing() {
+  const { space } = useTheme();
+  const [at, setAt] = useState(1);
+  return (
+    <View style={{ gap: space.xs }}>
+      <MorphText size="l" weight="medium" numeric>
+        {MORPHS[at] ?? ""}
+      </MorphText>
+      <Line>
+        <Button variant="outline" size="xs" onPress={() => setAt((at + 1) % MORPHS.length)}>
+          Change it
+        </Button>
+      </Line>
+      <Note>
+        What stays slides to its place, what changes fades, on the theme&apos;s large motion; still
+        for a reader who asked for no motion.
+      </Note>
+    </View>
+  );
+}
+
 function Buttons() {
   const { colors, space } = useTheme();
   const [saving, setSaving] = useState(false);
@@ -259,11 +287,11 @@ function Buttons() {
         part of a panel, which a finger is given 44 points around. Muted, a ghost one is grey.
       </Note>
       <View style={{ flexDirection: "row", gap: space.xs }}>
-        <Button variant="secondary" size="l" style={{ flex: 1 }}>
+        <Button variant="outline" size="l" style={{ flex: 1 }}>
           Any
         </Button>
         <Button size="l" style={{ flex: 1 }}>
-          Next
+          Done
         </Button>
       </View>
       <Note>
@@ -319,6 +347,36 @@ function Chips() {
       </View>
       <Note>Floating, as the row stands on the map.</Note>
     </View>
+  );
+}
+
+// The slider of a session's length of its own, and one that cannot be moved.
+function Sliders() {
+  const [minutes, setMinutes] = useState(150);
+  const said = (value: number) =>
+    `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")}`;
+  return (
+    <>
+      <Text numeric>{said(minutes)}</Text>
+      <Slider
+        label="Length"
+        value={minutes}
+        min={15}
+        max={480}
+        step={5}
+        format={said}
+        onChange={setMinutes}
+      />
+      <Slider
+        label="Disabled"
+        value={90}
+        min={15}
+        max={480}
+        step={5}
+        disabled
+        onChange={() => {}}
+      />
+    </>
   );
 }
 
@@ -381,7 +439,48 @@ function Segments() {
         value="a"
         onChange={() => {}}
       />
+      <LengthSegments />
     </View>
+  );
+}
+
+// What a session's last length becomes, each time it is asked: the step it opens is left out.
+const OWN_LENGTHS = ["2 h 15", "3 h 45", "45 min"] as const;
+
+function LengthSegments() {
+  const [length, setLength] = useState("60");
+  const [own, setOwn] = useState(-1);
+  const pickOwn = () => {
+    setOwn((at) => (at + 1) % OWN_LENGTHS.length);
+    setLength("own");
+  };
+  return (
+    <>
+      <Segmented
+        label="Length"
+        fill
+        flush
+        options={[
+          { value: "60", label: "1 h" },
+          { value: "90", label: "1 h 30" },
+          { value: "120", label: "2 h" },
+          { value: "own", label: OWN_LENGTHS[own] ?? "Other", morph: true },
+        ]}
+        value={length}
+        onChange={(next) => {
+          if (next === "own") return pickOwn();
+          setOwn(-1);
+          setLength(next);
+        }}
+        onReselect={(next) => {
+          if (next === "own") pickOwn();
+        }}
+      />
+      <Note>
+        Flush and as wide as its line, as a session&apos;s lengths: the last becomes the length that
+        was set, its letters moving to it, and a press on it once chosen asks again.
+      </Note>
+    </>
   );
 }
 
@@ -732,6 +831,43 @@ function Fields() {
   );
 }
 
+/** The field that searches: the platform's pill, and the web's field inside a panel. */
+function SearchFields() {
+  const { space } = useTheme();
+  const [query, setQuery] = useState("");
+  return (
+    <View style={{ gap: space.m }}>
+      <SearchField value={query} onChange={setQuery} label="Search" placeholder="Search the map" />
+      <SearchField
+        variant="outlined"
+        value={query}
+        onChange={setQuery}
+        label="Find the place"
+        placeholder="A beach, a town, an address"
+      />
+      <SearchField
+        variant="outlined"
+        value="Hossegor"
+        onChange={() => {}}
+        label="Waiting for its answer"
+        placeholder=""
+        pending
+      />
+      <SearchField
+        variant="outlined"
+        value="Hossegor"
+        onChange={() => {}}
+        label="Cannot be typed in"
+        placeholder=""
+        disabled
+      />
+      <Note>
+        Outlined is the new spot's search: its magnifier turns into a spinner while it waits.
+      </Note>
+    </View>
+  );
+}
+
 function SheetParts() {
   const { colors, space } = useTheme();
   return (
@@ -754,6 +890,14 @@ function SheetParts() {
           title="Sign in"
           description="An account keeps your alerts."
           mutedDescription
+          onClose={() => {}}
+        />
+      </Surface>
+      <Surface style={{ paddingBottom: space.m, backgroundColor: colors["neutral-1"] }}>
+        <PanelHeader
+          title="Ask to make La Gravière de Hossegor public?"
+          description="A moderator checks that this spot is known to all."
+          dialog
           onClose={() => {}}
         />
       </Surface>
@@ -1050,6 +1194,9 @@ export function DesignSystemScreen() {
       <Block title="Text">
         <Type />
       </Block>
+      <Block title="Morphing text">
+        <Morphing />
+      </Block>
       <Block title="Button">
         <Buttons />
       </Block>
@@ -1058,6 +1205,9 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Segmented">
         <Segments />
+      </Block>
+      <Block title="Slider">
+        <Sliders />
       </Block>
       <Block title="Tabs">
         <TabRows />
@@ -1070,6 +1220,9 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Input and field">
         <Fields />
+      </Block>
+      <Block title="Search field">
+        <SearchFields />
       </Block>
       <Block title="Option card, toggle and tile">
         <Choices />
@@ -1117,8 +1270,23 @@ export function DesignSystemScreen() {
           was written.
         </Note>
       </Block>
+      <Block title="Photos and videos">
+        <MediaSamples />
+      </Block>
       <Block title="Surfer profile">
         <ProfileSamples />
+      </Block>
+      <Block title="Analytics consent">
+        <Button
+          variant="secondary"
+          onPress={() => router.push({ pathname: "/consent", params: { sample: "1" } })}
+        >
+          Open the question
+        </Button>
+        <Note>
+          Asked once over the map, while no choice is kept, in a build that names a project of
+          PostHog. This one keeps nothing.
+        </Note>
       </Block>
       <Block title="Alerts' rows">
         <AlertSamples />

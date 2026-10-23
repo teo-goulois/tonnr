@@ -1,3 +1,4 @@
+import { activeDayKey, featureOf, SIGN_IN_FEATURE, utcDay } from "@repo/client/analytics";
 import { Button } from "@repo/ui/components/ui/button";
 import { Switch } from "@repo/ui/components/ui/switch";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@repo/ui/components/ui/dialog";
@@ -37,24 +38,12 @@ export function Analytics({
 }) {
   const consent = useAnalyticsConsent();
   const errorReports = useErrorReports();
+  // The screen's categories are packages/client's, which the app for phones says too.
   const feature = useRouterState({
-    select: (state) => {
-      const search = state.location.search as Record<string, unknown>;
-      const allowed = (key: string, values: string[], otherwise: string) =>
-        typeof search[key] === "string" && values.includes(search[key] as string)
-          ? (search[key] as string)
-          : otherwise;
-      if (state.location.pathname === "/login") return "authentication:sign_in:";
-      const panel = allowed("panel", ["saved", "alerts", "account"], "map");
-      const settings = allowed(
-        "settings",
-        ["alerts", "sessions", "friends", "contributions", "delete", "blocked"],
-        "",
-      );
-      const tab = allowed("tab", ["guide", "sessions", "alerts"], "conditions");
-      const kind = search.station ? "station" : search.break ? "break" : search.spot ? "spot" : "";
-      return [settings || panel, tab, kind].join(":");
-    },
+    select: (state) =>
+      state.location.pathname === "/login"
+        ? SIGN_IN_FEATURE
+        : featureOf(state.location.search as Record<string, unknown>),
   });
   useEffect(() => {
     if (!isReady) return;
@@ -74,11 +63,11 @@ export function Analytics({
         recording
       )
         return;
-      const today = new Date().toISOString().slice(0, 10);
+      const today = utcDay();
       if (today === day) return;
       const id = account ?? (await startAnalytics())?.get_distinct_id();
       if (!id || cancelled || readAnalyticsConsent() !== "granted") return;
-      const key = `analytics-active:${ENV.VITE_POSTHOG_ENVIRONMENT}:${id}`;
+      const key = activeDayKey(ENV.VITE_POSTHOG_ENVIRONMENT, id);
       try {
         if (localStorage.getItem(key) === today) {
           day = today;
