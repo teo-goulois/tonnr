@@ -333,7 +333,8 @@ const GROUPS: readonly Group[] = [
         id: "catalogue",
         name: () => m.sources_catalogue_name({ name: APP_NAME }),
         region: m.sources_world,
-        text: m.sources_catalogue_text,
+        text: () => m.sources_catalogue_text({ name: APP_NAME }),
+        // The catalogue's own licence. A break still names no other list. Decision 079.
         licence: ODBL,
       },
     ],

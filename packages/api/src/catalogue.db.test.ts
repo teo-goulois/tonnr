@@ -667,11 +667,12 @@ describe.skipIf(!TEST_DATABASE_URL)("the catalogue, in an operator's hands", () 
         name: "Guide's beach",
         location: ["France", "Brittany"],
         description: { text: "A beach out of the west wind.", language: "en" },
-        source: { provider: "guide", url: null, attribution: null, license: null },
+        source: { provider: null, url: null, attribution: null, license: null },
       });
-      expect((await page(breakId)).listings).toEqual([
-        { list: "guide", ref: "p001-n01", details: { pages: [1] } },
-      ]);
+      const read = await page(breakId);
+      // The operator still reads which list the break came from. A public answer does not.
+      expect(read.break.source).toMatchObject({ provider: "guide", ref: "p001-n01" });
+      expect(read.listings).toEqual([{ list: "guide", ref: "p001-n01", details: { pages: [1] } }]);
       expect(
         await failure(
           call(v1Router.candidates.add, { id: "c-add", updatedAt: at, values }, asOperator()),

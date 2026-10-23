@@ -46,7 +46,7 @@ An agent that an account signed in is listed seven more, which read what that ac
 - A tool is a route of the API, and answers the same JSON: [the reference](https://api.example.org/v1/docs) says what each field is.
 - Heights are in metres, periods in seconds, speeds in metres per second, and directions in degrees clockwise from north that the sea or the wind comes from. Times are in UTC.
 - An area is `"west,south,east,north"` in decimal degrees: `"-5.2,47.6,-4.0,48.5"`.
-- An answer names where its data comes from, in `attribution`, `source` and `license`. Whoever shows the data shows that with it.
+- An answer names where its data comes from, in `attribution`, `source` and `license`. Whoever shows the data shows that with it. A surf break's `source` is null: the catalogue is the instance's own and names no other list (decision 079).
 - A forecast takes a period of the agent's own, `start` and `end`, in place of whole days, and `stepHours` for one hour in so many: a week every three hours is a third of a week at every hour.
 - A tool asks for less than its route when the agent says nothing: 25 stations, 48 readings, 50 breaks, two days of forecast, a tide every 30 minutes. The agent asks for more within the route's bounds.
 

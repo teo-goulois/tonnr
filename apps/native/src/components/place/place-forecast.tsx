@@ -45,17 +45,9 @@ export function PlaceForecast({
     }
   };
 
-  // A break says where it comes from when the instance knows, and on what terms when it has any.
-  const source = found?.source;
-  const attribution = source?.attribution;
-  const breakOrigin =
-    attribution && source?.license
-      ? m.source_break({ attribution })
-      : attribution
-        ? m.source_break_unlicensed({ attribution })
-        : attribution;
   // The same credits from one render to the next: the forecast is drawn again when what it
-  // shows changes, and not when the tab beside it does.
+  // shows changes, and not when the tab beside it does. A break and a spot name no list
+  // (decision 079). A station still says whose it is.
   const footer = useMemo(() => {
     if (kind === "station") {
       const windAlone = station !== undefined && !station.measures.includes("waves");
@@ -68,18 +60,8 @@ export function PlaceForecast({
         />
       );
     }
-    if (kind === "spot") {
-      return <Sources origin={null} license={null} forecast={forecast.data} tides={tides.data} />;
-    }
-    return (
-      <Sources
-        origin={found ? breakOrigin : undefined}
-        license={found ? (source?.license ?? null) : undefined}
-        forecast={forecast.data}
-        tides={tides.data}
-      />
-    );
-  }, [kind, station, found, breakOrigin, source?.license, forecast.data, tides.data]);
+    return <Sources origin={null} license={null} forecast={forecast.data} tides={tides.data} />;
+  }, [kind, station, forecast.data, tides.data]);
 
   // A place that has left the catalogue, a station that is gone, or a spot that is not the
   // reader's, says so.

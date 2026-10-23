@@ -321,7 +321,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the MCP server", () => {
         await client.callTool({ name: "search_surf_breaks", arguments: { q: "guethary" } }),
       );
       expect(found.breaks).toMatchObject([
-        { id: BREAK, source: { attribution: "Test list", license: { type: "ODbL" } } },
+        {
+          id: BREAK,
+          source: { provider: null, url: null, attribution: null, license: null },
+        },
       ]);
       const [{ latitude, longitude }] = found.breaks as [(typeof found.breaks)[number]];
 

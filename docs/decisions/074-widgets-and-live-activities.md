@@ -27,7 +27,7 @@ Google's rules for Live Updates take what the person started and follows, such a
   - What fits the place's own words at the hour now and what does not, by `verdictOf`, as the sentence of a panel lays them ([decision 061](061-a-panel-that-shows-less-or-more.md)). A break's words are the catalogue's with what accounts confirmed laid over, and a spot's are what its owner said of it. A station has none, and gets no verdict.
   - The latest readings of the nearest buoy and of the nearest wind station, by `nearestStation`, each with its time and how the measured wind meets the shore. A station is its own nearest while it measures.
   - The highs and lows of the next 48 hours, computed by `nextTides`, with the height now and its way.
-  - Each source with its licence and attribution, as every answer gives them: a break's from the catalogue, null where the list gave none, a station's network, the forecast's models, and the tide station.
+  - Each source with its licence and attribution, as every answer gives them: a break's `source` is null (decision 079), a station's network, the forecast's models, and the tide station.
 - A place whose cell nobody had kept in the day gets no forecast hours. `forecasts.kept` answers nothing of a forecast more than a day old. Such a place shows what its buoy and its wind station measured, and the tide.
 - A call counts one question in the caller's hour, as a forecast does, however many places it names: `admitForecastQuestion`. It costs the provider nothing, which is why decision 057 does not count the page of a break. But Cloudflare's cache answers a page for an hour, and nothing stands in front of a phone: counting the call stops an app that calls in a loop where a forecast would be stopped. Chosen here.
 

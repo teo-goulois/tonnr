@@ -198,10 +198,7 @@ describe.skipIf(!TEST_DATABASE_URL)("making a spot public", () => {
       name: "The reef",
       latitude: 48,
       longitude: -4.5,
-      source: {
-        provider: "community",
-        license: { type: "ODbL-1.0", url: "https://opendatacommons.org/licenses/odbl/1-0/" },
-      },
+      source: { provider: null, url: null, attribution: null, license: null },
     });
     expect(found.characteristics).toMatchObject({
       breakTypes: ["reef"],

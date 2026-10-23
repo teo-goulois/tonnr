@@ -41,7 +41,8 @@ export const breakSchema = z.object({
   description: z
     .object({ text: z.string(), language: z.enum(BREAK_DESCRIPTION_LANGUAGES) })
     .nullable(),
-  // Where the break was read. Each field is null when the instance does not say.
+  // Always null. The catalogue is the instance's own and a break names no other list.
+  // The fields stay so a released client still reads them. Decision 079.
   source: z.object({
     provider: z.string().nullable(),
     // The page that shows the break.
@@ -49,6 +50,14 @@ export const breakSchema = z.object({
     attribution: z.string().nullable(),
     license: z.object({ type: z.string(), url: z.string() }).nullable(),
   }),
+});
+
+// What a public answer says of where a break was read.
+const OWN_CATALOGUE = Object.freeze({
+  provider: null,
+  url: null,
+  attribution: null,
+  license: null,
 });
 
 // What the catalogue holds of a break, with what was confirmed of it laid over.
@@ -85,13 +94,8 @@ export function describeBreak(
       row.description && row.descriptionLanguage
         ? { text: row.description, language: row.descriptionLanguage }
         : null,
-    source: {
-      provider: row.provider,
-      url: row.sourceUrl,
-      attribution: row.attribution,
-      license:
-        row.licenseType && row.licenseUrl ? { type: row.licenseType, url: row.licenseUrl } : null,
-    },
+    // The columns may still name a list. A public answer does not: decision 079.
+    source: OWN_CATALOGUE,
   };
 }
 
@@ -157,13 +161,11 @@ export const breaksRouter = {
           "the waves it works at, in meters, from `min` to `max`, a bound that is null not " +
           "given. A characteristic that is null is not known, " +
           "which is common. `description` is a few sentences the instance's operator wrote of " +
-          "the break, in the language it names, or null. The catalogue is what the " +
-          "instance's operator put in it: it is " +
-          "not every break of a coast. Breaks come in the order of their id: pass an " +
-          "answer's `next` as `after` for the ones that follow, until `next` is null. " +
-          "`source` says where a break was read and under which licence, and holds nulls " +
-          "where the instance does not say. For one break by its name, use " +
-          "search_surf_breaks, which ranks.",
+          "the break, in the language it names, or null. The catalogue is the instance's " +
+          "own: it is not every break of a coast, and a break names no other list. " +
+          "`source` is null. Breaks come in the order of their id: pass an answer's " +
+          "`next` as `after` for the ones that follow, until `next` is null. For one " +
+          "break by its name, use search_surf_breaks, which ranks.",
         defaults: { limit: 50 },
       },
     })
@@ -172,10 +174,11 @@ export const breaksRouter = {
       path: "/breaks",
       summary: "The catalogue of surf breaks, in an area or by name",
       description:
-        "The breaks the instance knows, to pick a spot from, each with what is known of it. " +
-        "Of the spots users created, the catalogue holds those an operator accepted to make " +
-        "public, with `community` as their provider. Pages follow one another through `after`, " +
-        "so the whole catalogue can be read.",
+        "The breaks of the instance's own catalogue, to pick a spot from, each with what is " +
+        "known of it. A break names no other list, and `source` is null. Of the spots users " +
+        "created, the catalogue holds those an operator accepted to make public, and names " +
+        "no account. Pages follow one another through `after`, so the whole catalogue can " +
+        "be read.",
       tags: ["Breaks"],
     })
     .input(
@@ -318,9 +321,9 @@ export const breaksRouter = {
         name: "get_surf_break",
         title: "One surf break",
         description:
-          "One surf break of the catalogue by its `id`, with its place, its time zone, " +
-          "what is known of it and where it was read, as list_surf_breaks gives them. Use " +
-          "it to read again a break whose id you hold.",
+          "One surf break of the catalogue by its `id`, with its place, its time zone and " +
+          "what is known of it, as list_surf_breaks gives them. `source` is null. Use it " +
+          "to read again a break whose id you hold.",
       },
     })
     .route({

@@ -176,11 +176,11 @@ describe.skipIf(!TEST_DATABASE_URL)("the sea at a few places", () => {
     ]);
     const [atBreak, atStation, atSpot] = answer.places;
 
-    // A break says where it was read, as the catalogue holds it.
+    // A break is the catalogue's own and names no other list, whatever the row keeps.
     expect(atBreak?.place).toMatchObject({
       kind: "break",
       name: "Mundaka",
-      source: { provider: "example", attribution: "Example list", license: null },
+      source: { provider: null, url: null, attribution: null, license: null },
     });
     // The hours from the hour now to 48 hours after it, each with how its wind meets the shore.
     const hours = atBreak?.forecast?.hours ?? [];

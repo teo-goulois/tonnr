@@ -99,18 +99,9 @@ Once the instance runs, `docker compose run --rm worker node dist/cli.mjs <job>`
 
 ## Filling the catalogue of surf breaks
 
-An instance starts with no surf break. You add them once, by hand, and they are the instance's from then on: nothing renames, moves or deletes a break afterwards because its source changed. Decision 024 gives the rules.
+The catalogue is the instance's own, under the ODbL. A break names no other list. Decision 079. An instance starts with no surf break. You add one from the admin, or once from a file of your own. Nothing then renames, moves or deletes a break. Decision 024 gives the rules.
 
-Every account and every key reads the catalogue. You answer for the lists you add, towards whoever published them and towards the people you serve.
-
-### From OpenStreetMap
-
-```bash
-docker compose run --rm worker node dist/cli.mjs breaks-fetch osm
-docker compose run --rm worker node dist/cli.mjs breaks-fetch osm --write
-```
-
-The first line asks the public Overpass servers for the list, once, and says how many breaks it gives: 340 on 2026-10-08. The second stores them, with the ODbL and the credit that the API then returns with each break. It adds only to a catalogue that holds no break, so that a place another list already gave does not stand twice. The servers are shared and often answer 504: try again later.
+Every account and every key reads the catalogue.
 
 ### From a file
 
@@ -151,7 +142,7 @@ Write the list as one JSON file, in UTF-8:
 
 - `provider` is a short name in lower case for the list. With `ref`, the break's identifier in the list, it tells a break the catalogue already holds. A file gives each `ref` once.
 - Only `provider`, and a break's `ref`, `name`, `latitude` and `longitude`, are required.
-- `license`, `attribution` and `url` say where the list comes from and on what terms. Give them when the list has them: the API returns them with each break, and null when the file gave none.
+- `provider`, `license`, `attribution` and `url` are kept on the row for the operator. A public answer holds null for each. The catalogue names no other list (decision 079). A file that gave none stores null.
 - `characteristics` takes the catalogue's own words, listed in `packages/db/src/schema/spots.ts`, and no others. Translate your list's words into them, and leave out what your list does not say. A direction of swell or wind is one of the sixteen points of the compass, in English letters. `offshoreDirectionDegrees` is where the wind blows from when it blows off the shore, from 0 to 359. `waveSizeMeters` is the height of the faces of the waves the break works at, in meters from 0 to 30: `min` and `max`, either null when the list gives no such bound. It is kept to the tenth of a meter.
 - `location` names the places the break lies in, from the widest to the nearest.
 - `details` holds whatever else the list says of the break. It is kept aside as it is, in a table that only the admin reads, to its operator.
@@ -665,7 +656,7 @@ The worker calls the providers from your server, each on its schedule, from ever
 
 - Read [Data sources](data-sources.md) before you open an instance to other people. It says what each provider allows.
 - Show a station's attribution wherever you show its data. The API returns it with every station.
-- A catalogue of surf breaks filled from OpenStreetMap is under the ODbL. Show "© OpenStreetMap contributors" wherever you show one of its breaks. The API returns the credit with each of them.
+- The catalogue of surf breaks is the instance's own, under the ODbL. A break names no other list. Decision 079.
 - The forecasts are read from the files behind Open-Meteo's API, on its public bucket on AWS, `openmeteo.s3.amazonaws.com`, under CC BY 4.0: a few kilobytes a point, from your server, with no account and no quota (decision 058). Show the forecast's attribution wherever you show it: it names Open-Meteo and the services whose models answered. The bucket promises no service: when a file cannot be read, the API below is asked instead.
 - The API as a fallback: Open-Meteo's free API, which is for sites without subscriptions or advertising, and which limits what one address may ask. Your API and your worker ask it from your server, and count each request: 8,000 a day, 4,000 an hour and 480 a minute at most, four fifths of what it allows. The day is shared: 2,500 requests for the people who look at the map, 3,900 for the worker that keeps the forecasts of the surf breaks whose page a search engine may list, once a day each, and 1,600 for the alerts (decisions 023 and 057). The pages of the web app ask nothing of Open-Meteo themselves: a page shows the forecast the worker kept, or says that it is on the map. Past a limit they ask nothing more, and a forecast they kept answers for a day, saying that it is an older one. The limits are in the code, not in a setting: another program that calls Open-Meteo from the same address is outside the count. Show the forecast's attribution wherever you show it. Decision 023 gives the rules.
 - The search that finds a place by its name asks Photon's public service, at `photon.komoot.io`, which Komoot offers for fair use and without any promise. It is sent what a surfer types, the language, the middle of the map to a tenth of a degree and the map's zoom, from your server's address. To ask another Photon, yours for instance, set `PLACES_URL` in `apps/server/.env` to its address, such as `http://photon:2322`. Your API asks it 240 times a minute at most, and leaves it alone for 30 seconds after a refusal. Show "© OpenStreetMap contributors" where the places are listed. Decision 030 gives the rules.

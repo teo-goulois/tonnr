@@ -82,3 +82,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [076. Forms](076-forms.md)
 - [077. The sea and the land of the phone's map, drawn by the app as the web draws them](077-the-sea-of-the-phones-map.md)
 - [078. The forms of the app for phones](078-the-phones-forms.md)
+- [079. The catalogue names no other list](079-the-catalogue-names-no-other-list.md)

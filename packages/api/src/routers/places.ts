@@ -96,8 +96,8 @@ const pointFields = {
   longitude: z.number(),
 };
 
-// What the place is: a break of the catalogue with where it was read, a station with its
-// network and its licence, or a spot of an account's own, which names no one.
+// What the place is: a break of the catalogue, whose `source` is null (decision 079), a
+// station with its network and its licence, or a spot of an account's own, which names no one.
 const seaPlaceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("break"), ...pointFields, source: breakSchema.shape.source }),
   stationSchema.extend({ kind: z.literal("station") }),

@@ -81,16 +81,6 @@ export function BreakPanel({
   // A break that has left the catalogue may still be in the cache, so the error comes first.
   if (found.isError) return <p className="text-s text-neutral-7">{m.break_not_found()}</p>;
 
-  // A break says where it comes from when the instance knows, and on what terms when it has any.
-  const source = found.data?.source;
-  const attribution = source?.attribution;
-  const origin =
-    attribution && source?.license
-      ? m.source_break({ attribution })
-      : attribution
-        ? m.source_break_unlicensed({ attribution })
-        : attribution;
-
   return (
     <Details
       spot={found.data}
@@ -124,12 +114,9 @@ export function BreakPanel({
         found.data && <BreakGuide found={found.data} guide={guide} own={own} guiding={guiding} />
       }
       footer={
-        <Sources
-          origin={origin}
-          license={source?.license}
-          forecast={forecast.data}
-          tides={tides.data}
-        />
+        // A break is the catalogue's own and names no other list. The forecast and the tide
+        // still say where they come from. Decision 079.
+        <Sources origin={null} license={null} forecast={forecast.data} tides={tides.data} />
       }
     />
   );

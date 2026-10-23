@@ -1,25 +1,25 @@
 # 024. One catalogue of breaks, filled once
 
-Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). Not built: the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. [Decision 049](049-catalogue-in-the-admin.md) built a way to change a break from the admin, and moved what a list said of a break to `surf_break_listing`, which an operator reads. The two tables of the private list were dropped one release later, the same day. [Decision 057](057-public-pages-of-breaks.md) gave each break the address of its page, under its country and its region, written once as it enters the catalogue.
+Status: decided by Téo on 2026-10-09 and built the same day. It replaces the weekly import of [decision 015](015-surf-breaks.md) and the private list of [decision 016](016-private-breaks.md). [Decision 079](079-the-catalogue-names-no-other-list.md) amends what a public answer says of a break: the catalogue is the instance's own, and a break names no other list. Not built: the reading of a break's best size, and the use of a break's characteristics to fill a spot's criteria. [Decision 049](049-catalogue-in-the-admin.md) built a way to change a break from the admin, and moved what a list said of a break to `surf_break_listing`, which an operator reads. The two tables of the private list were dropped one release later, the same day. [Decision 057](057-public-pages-of-breaks.md) gave each break the address of its page, under its country and its region, written once as it enters the catalogue.
 
 ## Context
 
-An instance held two lists of breaks. The catalogue, `surf_break`, took what OpenStreetMap lists, once a week: an import added the new breaks, renamed and moved the known ones, and deleted the ones the source had dropped. The private list, `private_break`, took a file by hand, for the operator alone, and kept whatever the file said of a break as the file gave it.
+An instance held two lists of breaks. A weekly import filled the catalogue, then renamed, moved and deleted breaks when that import changed. The private list, `private_break`, took a file by hand, for the operator alone, and kept whatever the file said of a break as the file gave it. That import is gone. The catalogue a person reads is the instance's own and names no other list (decision 079).
 
 Téo wants one list that belongs to the instance. A break enters it once. Nothing then renames it, moves it, or deletes it because a source changed, and no second list has to be matched against the first. What a break is like is said in Tonnr's own words, so that the app and the API can read it, where the private list kept a provider's words.
 
 ## Decision
 
 - An instance has one list of breaks, the catalogue. The private list is gone, with its two procedures and the panel the web app showed its operator.
-- A break is added once, by hand. `job breaks <file>` adds the breaks of a file, and `job breaks-fetch osm` asks OpenStreetMap for its list, once. Neither runs on a schedule, and the worker deletes the queue that the weekly import had scheduled.
+- A break is added once, by hand. `job breaks <file>` adds the breaks of a file. Nothing runs on a schedule, and the worker deletes the queue that the weekly import had scheduled.
 - A break already in the catalogue is never changed by a list. A file names its list with a short name and each break with a reference: a break known by both is left as it is, and counted.
 - `job breaks-fetch` adds only to a catalogue that holds no break. A place that two lists give would stand twice, and nothing matches one list against another.
 - `job breaks-remove <list>` deletes the breaks the catalogue holds from one list. The spots made from them keep their name and their point, and lose the link, as decision 015 said.
 - The three commands say what they would do, and do it only with `--write`. Each is one transaction, and one runs at a time.
 - What a break is like is a set of columns, each a list of words that Tonnr defines in `packages/db/src/schema/spots.ts`: the type of break, the direction of the wave, the bottom, the levels, the boards, the best seasons, the best tides, and where the swell and the wind come from when it works, as points of the compass. The direction of the offshore wind is a number of degrees. A break also says the places it lies in and its time zone.
 - Every one of these columns may be null. Null says that nobody has said.
-- A file gives these words and no others. Whoever writes the file translates a list's vocabulary into them: the worker knows no provider's format but OpenStreetMap's.
-- Where a break was read is secondary. The list's name, the break's reference and page, the licence and the attribution may all be null, and the API answers null for them. It states a licence for a break only when the list gave one.
+- A file gives these words and no others. Whoever writes the file translates its words into them.
+- A public answer of a break names no list. Decision 079: `source` is null. The catalogue's ODbL is stated once, on `/sources`.
 - What a file says of a break beyond these columns is kept aside, as the file gave it, in `surf_break_record`. No procedure and no scheduled job reads that table. It waits for the day the model of a break grows. Decision 049 keeps it in `surf_break_listing` instead, which the admin reads to its operator.
 - The catalogue is read as decision 019 says: by an account's session and by a key, and by no one without a name.
 
@@ -34,11 +34,11 @@ Téo wants one list that belongs to the instance. A break enters it once. Nothin
 
 ## Consequences
 
-- Whoever adds a list answers for it, towards its provider and towards the people the instance serves. The catalogue no longer says that a break may be republished: a list with no licence is served as any other, to every account and every key, and sign-up is open.
-- The data rule of this repository does not change: no list, and no sample of one, goes into it, and nothing fetches a list from a provider whose terms forbid it. Only the OpenStreetMap source fetches.
-- An instance starts with an empty catalogue. Its operator runs `job breaks-fetch osm --write` for the 340 breaks of decision 015, or adds a file of their own.
-- A catalogue filled from OpenStreetMap is a database under the ODbL, and stays one: its rows carry the licence and the credit, and the API returns them.
-- The catalogue no longer follows its source. A break that OpenStreetMap corrects stays as it was added, and one it adds does not arrive. An operator who wants the newer list removes the old one and fetches again, and the spots made from the old breaks lose their link.
+- Whoever adds a break answers for the catalogue, towards the people the instance serves. The catalogue is the instance's own, under the ODbL, and sign-up is open.
+- The data rule of this repository does not change: no list, and no sample of one, goes into it, and nothing fetches a list from a provider whose terms forbid it.
+- An instance starts with an empty catalogue. Its operator adds the breaks. Decision 079: the catalogue a person reads is the instance's own and names no other list.
+- A row may still hold a note for the operator. A public answer does not return it. The admin still reads it. The catalogue is under the ODbL, stated once on `/sources`.
+- A break stays as the operator left it. Nothing renames, moves or deletes it because a list changed.
 - Nothing matches a file against another. Two files that give the same place under two list names add it twice.
 - A break cannot be corrected from the app yet. Until then a correction is a statement on the database. Decision 049 lets its operator correct it from the admin.
 - `last_seen_at` is no longer written. It keeps what the weekly import wrote, and is null for a break added since.

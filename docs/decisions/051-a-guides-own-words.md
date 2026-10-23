@@ -4,7 +4,7 @@ Status: accepted on 2026-10-14. Téo asked for it that evening, reading in the a
 
 ## Context
 
-The catalogue's words for the kind of a break and its bottom came from the lists it was first filled from, which say little: a break is a beach, a reef, a point, a jetty, and its bottom sand, rock, coral or lava. A surf guide says more, with a legend of its own. A wave is shifting beach peaks, a consistent peak, a point, man-made or a rivermouth, and a few are a tidal bore or a standing wave in a river. A bottom is sand, an uneven reef, cobblestones or boulders, or a flat rock shelf, each alone or with sand. Translating these into the first words lost what a reader of the guide uses.
+The catalogue's first words for the kind of a break and its bottom say little: a break is a beach, a reef, a point, a jetty, and its bottom sand, rock, coral or lava. A surf guide says more, with a legend of its own. A wave is shifting beach peaks, a consistent peak, a point, man-made or a rivermouth, and a few are a tidal bore or a standing wave in a river. A bottom is sand, an uneven reef, cobblestones or boulders, or a flat rock shelf, each alone or with sand. Translating these into the first words lost what a reader of the guide uses.
 
 ## Decision
 
@@ -16,5 +16,5 @@ The catalogue's words for the kind of a break and its bottom came from the lists
 
 ## Rejected
 
-- **Replacing `rock` with the three hard bottoms.** The breaks that came from other lists say no more than rock, and the guide's words would be guessed for them.
+- **Replacing `rock` with the three hard bottoms.** The breaks that only say rock would have the guide's words guessed for them.
 - **A field apart for the guide's own legend.** A reader would meet two answers to the same question, and an alert or a filter would ask both.

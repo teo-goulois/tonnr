@@ -12,7 +12,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { useOpenPage } from "@/components/account/open-page";
 import { Glyph } from "@/components/shared/glyph";
 import { IconButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,8 +23,8 @@ import { m } from "@/paraglide/messages";
 import type { PlaceRecord } from "./use-place";
 
 // The head of a place's sheet, as the web's drawer heads a panel: the name, on one line, and
-// under it what the place is: a break's source, a station's last reading, a spot's owner and
-// whether it is private or public (decision 034). Then its buttons, drawn as the web's ghost
+// under it what the place is: a break of the catalogue, a station's last reading, a spot's owner
+// and whether it is private or public (decision 034). Then its buttons, drawn as the web's ghost
 // buttons: the bookmark that keeps it in lists, the menu of what is seldom done with it, what
 // copies a spot read in a shared list, and last what closes the sheet.
 
@@ -138,26 +137,14 @@ export function PlaceHeader({
   onClose: () => void;
 }) {
   const { colors, space, type } = useTheme();
-  const { openAddress } = useOpenPage();
   const { kind, name, found, station, spot, isPending, isError } = record;
 
   // What the place is, in the theme's ink, as the web draws it under the name rather than in the
   // grey its drawer gives a description.
   let line: ReactNode = null;
   if (kind === "break" && found) {
-    const source = found.source.url;
-    line = source ? (
-      <Text
-        size="s"
-        accessibilityRole="link"
-        onPress={() => void openAddress(source)}
-        style={{ textDecorationLine: "underline" }}
-      >
-        {m.break_from_catalogue()}
-      </Text>
-    ) : (
-      <Text size="s">{m.break_title()}</Text>
-    );
+    // The catalogue's own break, with no other list named. Decision 079.
+    line = <Text size="s">{m.break_title()}</Text>;
   } else if (kind === "station" && station) {
     // Its newest reading, or the one the map holds until they come.
     const observedAt = record.latest?.observedAt;

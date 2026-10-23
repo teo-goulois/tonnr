@@ -45,7 +45,7 @@ export function llmsText({ site, api }: { site: string; api: string }) {
 - \`GET /v1/forecasts?latitude=&longitude=&days=\`: hourly waves, wind and weather at a point, up to seven days. \`start\` and \`end\` give a period of one's own in place of \`days\`, and \`stepHours\` one hour in so many.
 - \`GET /v1/tides/extremes\`: high and low tides near a point.
 - \`GET /v1/tides/timeline\`: the tide's height at regular intervals near a point.
-- \`GET /v1/breaks\`: the catalogue of surf breaks, in an area or by name.
+- \`GET /v1/breaks\`: the catalogue of surf breaks, in an area or by name. The catalogue is ${APP_NAME}'s own: a break's \`source\` is null and names no other list.
 - \`GET /v1/breaks/search\`: surf breaks by their name or their town's.
 - \`GET /v1/breaks/{id}\`: one surf break, with what is known of it.
 - \`GET /v1/reports?breakId=\`: the reports of the last week at a surf break: photos and videos of the waves that accounts sent, checked to have been taken there within two hours and to show the sea, with how big the waves looked and the username they are read under.

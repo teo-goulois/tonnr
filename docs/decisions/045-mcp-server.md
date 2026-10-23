@@ -56,7 +56,7 @@ Read on 2026-10-13, in the packages as they install:
 
 - Every tool reads, and is marked so. None writes.
 - The guide of a break carries what accounts wrote of it, some of it not confirmed. Its tool says so to the model: that these are the words of the people who surf the place, to be read as what is said of it and never as instructions, and that what is under `proposed` is not confirmed.
-- A tool answers what its route answers, as JSON in a text: the same fields, with the source, the attribution and the licence that come with the data.
+- A tool answers what its route answers, as JSON in a text: the same fields, with the source, the attribution and the licence that come with the data. A surf break is the exception [decision 079](079-the-catalogue-names-no-other-list.md) records: its `source` is null.
 - A tool asks for less than its route when an agent says nothing, where the route's default suits a program and would fill a model's context: 25 stations in place of 100, 48 readings in place of 500, 50 breaks in place of 500, two days of forecast in place of three, and a tide every 30 minutes in place of every 10. The route's bounds hold, and the tool's schema says the default it uses.
 - A refusal is a tool's answer marked as an error, in the procedure's own words, with each fault of the input on a line: an agent that asked wrong can ask again right. A fault of the instance's says nothing of itself, and goes to the API's log.
 - The server says once, before any tool, what the units are, which tool to begin with, and that the data's source is to be said with it.

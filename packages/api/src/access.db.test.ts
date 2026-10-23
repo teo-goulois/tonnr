@@ -1160,12 +1160,8 @@ describe.skipIf(!TEST_DATABASE_URL)("who the API answers", () => {
         timezone: "Europe/Paris",
         page: null,
         description: { text: "A jetty that holds a left.", language: "en" },
-        source: {
-          provider: "example",
-          url: "https://example.org/a1",
-          attribution: "Test",
-          license: { type: "test", url: "https://example.org/licence" },
-        },
+        // The row names a list. A public answer does not: decision 079.
+        source: { provider: null, url: null, attribution: null, license: null },
       };
       const south = {
         id: ids.south,

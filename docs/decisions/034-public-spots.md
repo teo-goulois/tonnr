@@ -1,6 +1,6 @@
 # 034. A spot made public by a request
 
-Status: accepted on 2026-10-12. Téo asked for it that day: a spot a user adds is theirs alone, and from its panel they may ask that it be made public, "which goes to moderation on our side, to check that it is a spot known to everyone. The aim is to preserve the secret spots." He chose that an accepted spot joins the catalogue, under the Open Database License.
+Status: accepted on 2026-10-12. Téo asked for it that day: a spot a user adds is theirs alone, and from its panel they may ask that it be made public, "which goes to moderation on our side, to check that it is a spot known to everyone. The aim is to preserve the secret spots." He chose that an accepted spot joins the catalogue, under the Open Database License. [Decision 079](079-the-catalogue-names-no-other-list.md) keeps that licence as the catalogue's own. A break names no other list.
 
 ## Context
 
@@ -26,7 +26,7 @@ A surfer who puts a marker on a wave few people know must not publish it by one 
 
 - **A public spot beside the catalogue.** Two kinds of public places would need two layers on the map, two panels, and two ways to save one. A break is already what everyone shares.
 - **Keeping `visibility` as the switch, set by the operator.** A public spot would stay its owner's to rename and to move, with nobody reading the change.
-- **CC0.** Téo prefers the ODbL: it is the licence of the catalogue's first source, OpenStreetMap, and a break made here may be given back there.
+- **CC0.** Téo prefers the ODbL: it is the catalogue's own licence, and a break made here stays under it.
 - **Copying the spot into the request.** The operator would read a copy that the owner cannot correct. Reading the spot itself, and refusing to publish one that changed, keeps one thing to read.
 
 ## Consequences

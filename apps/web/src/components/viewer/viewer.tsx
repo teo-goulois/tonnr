@@ -1654,17 +1654,8 @@ export function Viewer({
               )
             )
           ) : shown.breakId ? (
-            // A break links to the page it was read on, when the instance knows one.
-            shown.found.data?.source.url ? (
-              <a
-                className="underline underline-offset-2 hover:text-neutral-10"
-                href={shown.found.data.source.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {m.break_from_catalogue()}
-              </a>
-            ) : shown.found.data ? (
+            // A break of the catalogue, which names no other list. Decision 079.
+            shown.found.data ? (
               m.break_title()
             ) : (
               !shown.found.isError && (
