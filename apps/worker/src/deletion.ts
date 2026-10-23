@@ -67,7 +67,9 @@ export async function deleteAccountByCommand(
     };
   }
   const answers = [];
-  for (const tokens of done.apple) answers.push(await apple.revoke(tokens));
+  for (const { refreshToken, accessToken } of done.apple) {
+    answers.push(await apple.revoke({ refreshToken, accessToken }));
+  }
   const revoked = answers.filter((answer) => answer === "revoked").length;
   const failed = answers.filter((answer) => answer === "failed").length;
   return {

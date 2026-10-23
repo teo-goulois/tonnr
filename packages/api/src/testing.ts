@@ -1,4 +1,4 @@
-import type { AppleRevocation, AppleTokens } from "@repo/auth/apple-revocation";
+import type { AppleRevocation, AppleTokens, CodeRevocation } from "@repo/auth/apple-revocation";
 import { createVerification } from "@repo/auth/verification";
 import type { Database } from "@repo/db";
 import { testMailer } from "@repo/mail/testing";
@@ -55,20 +55,30 @@ export function testVerification(db: Database, mailing: Mailing = {}) {
 
 /**
  * What revokes an account's tokens at Apple's, in a test, which asks Apple nothing: `asked` gives
- * the tokens it was given, and `answers` what it says of the next ones.
+ * the tokens it was given, `codes` the codes of an app with what came with them, and `answers`
+ * what it says of the next tokens. `code` is what it says of a code.
  */
-export function testApple(answer: "revoked" | "failed" = "revoked") {
+export function testApple(
+  answer: "revoked" | "failed" = "revoked",
+  code: CodeRevocation = { outcome: "revoked" },
+) {
   const asked: AppleTokens[] = [];
+  const codes: { code: string; bundle: string; appleUsers: readonly string[] }[] = [];
   let next = answer;
   const apple: AppleRevocation = {
     revoke: async (tokens) => {
       asked.push(tokens);
       return next;
     },
+    revokeCode: async (given, app) => {
+      codes.push({ code: given, ...app });
+      return code;
+    },
   };
   return {
     apple,
     asked,
+    codes,
     answers: (said: "revoked" | "failed") => {
       next = said;
     },

@@ -133,7 +133,10 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
     };
     return { context };
   };
-  const remove = (input: { password?: string }, calling: ReturnType<typeof by>) =>
+  const remove = (
+    input: { password?: string; appleAuthorizationCode?: string },
+    calling: ReturnType<typeof by>,
+  ) =>
     call(v1Router.account.delete, input, calling).then(
       (answer) => answer,
       (error: unknown) => {
@@ -444,6 +447,71 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
     expect(quiet.asked).toEqual([]);
   });
 
+  it("revokes what the app's sign-in kept nothing of through the code the app gives, and deletes the account whatever Apple says", async () => {
+    const { db } = database;
+    // Signed in from the app by an ID token, which keeps no token.
+    await db.insert(account).values({
+      id: "apple-gil",
+      accountId: "apple-sub",
+      providerId: "apple",
+      userId: "gil",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const APP = "app.example://";
+    const fromApp = (apple: ReturnType<typeof testApple>) =>
+      by("gil", "s-gil-fresh", {
+        apple: apple.apple,
+        site: APP,
+        server: { startedAt: new Date(), webOrigin: WEB, appOrigins: [APP] },
+      });
+    const apple = testApple("revoked", { outcome: "failed", at: "exchange", said: "400" });
+
+    expect(await remove({ appleAuthorizationCode: "the-code" }, fromApp(apple))).toEqual({
+      deleted: true,
+    });
+    expect(apple.codes).toEqual([
+      { code: "the-code", bundle: "app.example", appleUsers: ["apple-sub"] },
+    ]);
+    expect(await db.select().from(user).where(eq(user.id, "gil"))).toEqual([]);
+
+    // A code that comes from the web, or for an account that never signed in with Apple, is
+    // not exchanged.
+    await db.insert(account).values({
+      id: "apple-ana",
+      accountId: "apple-ana-sub",
+      providerId: "apple",
+      userId: "ana",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const fromWeb = testApple();
+    await remove(
+      { password: PASSWORD, appleAuthorizationCode: "a-code" },
+      by("ana", "s-ana", { apple: fromWeb.apple }),
+    );
+    expect(fromWeb.codes).toEqual([]);
+    const notLinked = testApple();
+    await db.insert(session).values({
+      id: "s-cy-app",
+      token: "t-cy-app",
+      userId: "cy",
+      expiresAt: new Date(Date.now() + DAY_MS),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await remove(
+      { appleAuthorizationCode: "a-code" },
+      by("cy", "s-cy-app", {
+        apple: notLinked.apple,
+        site: APP,
+        server: { startedAt: new Date(), webOrigin: WEB, appOrigins: [APP] },
+      }),
+    );
+    expect(notLinked.codes).toEqual([]);
+    expect(await db.select().from(user).where(eq(user.id, "cy"))).toEqual([]);
+  });
+
   it("revokes at Apple's with the refresh token, and answers how it went without throwing", async () => {
     const sent: { url: string; body: string }[] = [];
     const answering = (status: number | "down") =>
@@ -452,7 +520,11 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
         if (status === "down") throw new TypeError("fetch failed");
         return new Response(null, { status });
       }) as typeof fetch;
-    const client = { clientId: "app.example", clientSecret: () => "a-signed-secret" };
+    const client = {
+      clientId: "app.example",
+      clientSecret: () => "a-signed-secret",
+      secretFor: (id: string) => `a-secret-for-${id}`,
+    };
 
     expect(
       await appleRevocation(client, answering(200)).revoke({

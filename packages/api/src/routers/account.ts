@@ -9,6 +9,8 @@ import { account, session, user } from "@repo/db/schema/auth";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { reportFault } from "../analytics";
+import type { Context } from "../context";
 import { protectedProcedure } from "../index";
 
 // What deleting an account asks of it: decision 071. Its password again, or, for an account
@@ -31,6 +33,17 @@ const runsTheInstance = () =>
   new ORPCError("CONFLICT", {
     message: "An operator's account is not deleted. Take its operator rights away first.",
   });
+
+/**
+ * The bundle of the instance's app for phones a request comes from, as the origin it names
+ * itself by says it: `app.tonnr` for `app.tonnr://`, which decision 069 makes one. Null for any
+ * other site.
+ */
+function appBundleOf(context: Pick<Context, "site" | "server">) {
+  const { site } = context;
+  if (!site || !(context.server.appOrigins ?? []).includes(site)) return null;
+  return site.slice(0, -"://".length);
+}
 
 export const accountRouter = {
   get: protectedProcedure
@@ -150,10 +163,22 @@ export const accountRouter = {
         "rights are taken away first. Every session, device, spot, list, alert, session of " +
         "the log with its photos, report and contribution that was never confirmed goes with " +
         "it. What it wrote that was confirmed stays in the guides, and names nobody. Its " +
-        `username is nobody's for ${DELETED_USERNAME_DAYS} days. Decision 071.`,
+        `username is nobody's for ${DELETED_USERNAME_DAYS} days. An account that signed in ` +
+        "with Apple has its tokens revoked at Apple's, and an app of the instance gives " +
+        "`appleAuthorizationCode`, the code Apple's sheet gave it as it asked Apple again, " +
+        "within five minutes: the API exchanges it for the app's own tokens and revokes them. " +
+        "Apple's answers change nothing of the deletion. Decision 071.",
       tags: ["Account"],
     })
-    .input(z.object({ password: z.string().min(1).max(128).optional() }))
+    .input(
+      z.object({
+        password: z.string().min(1).max(128).optional(),
+        // The `authorizationCode` Apple's sheet gave the app for the account, which Apple
+        // takes once and for five minutes. Read on a request of an app of the instance alone,
+        // for an account linked to Apple. Decisions 070 and 071.
+        appleAuthorizationCode: z.string().min(1).max(1024).optional(),
+      }),
+    )
     .output(z.object({ deleted: z.literal(true) }))
     .handler(async ({ input, context }) => {
       const userId = context.session.user.id;
@@ -222,9 +247,33 @@ export const accountRouter = {
       }
 
       // Apple is asked once for each link, once the account is gone, and its answer changes
-      // nothing: the account was deleted.
-      if (context.apple) {
-        for (const tokens of outcome.apple) await context.apple.revoke(tokens);
+      // nothing: the account was deleted. A failure is a fault, which names no one.
+      if (context.apple && outcome.apple.length > 0) {
+        for (const { refreshToken, accessToken } of outcome.apple) {
+          if ((await context.apple.revoke({ refreshToken, accessToken })) === "failed") {
+            reportFault(context.analytics, "Apple did not revoke the tokens of a deleted account");
+          }
+        }
+        // What the app's sign-in by an ID token kept nothing of, through the code it gave.
+        const bundle = appBundleOf(context);
+        if (input.appleAuthorizationCode && bundle) {
+          const done = await context.apple.revokeCode(input.appleAuthorizationCode, {
+            bundle,
+            appleUsers: outcome.apple.map((link) => link.appleUser),
+          });
+          if (done.outcome === "failed") {
+            const step = done.at === "exchange" ? "the exchange of its code" : "the revocation";
+            reportFault(
+              context.analytics,
+              `Apple did not revoke the app's tokens of a deleted account: ${step} answered ${done.said}`,
+            );
+          } else if (done.outcome === "another") {
+            reportFault(
+              context.analytics,
+              "The code an app gave as its account was deleted named another Apple account: nothing was revoked",
+            );
+          }
+        }
       }
       return { deleted: true as const };
     }),

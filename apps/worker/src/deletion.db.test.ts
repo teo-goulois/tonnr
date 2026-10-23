@@ -75,6 +75,10 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account by a command", () => {
         asked.push(tokens);
         return "revoked";
       },
+      // A command has no app that gives a code.
+      revokeCode: async () => {
+        throw new Error("A command gives no code");
+      },
     };
     return { apple, asked };
   };

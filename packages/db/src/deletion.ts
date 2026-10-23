@@ -16,8 +16,15 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** What the sign-in library keeps of one link of an account to Apple, which Apple revokes. */
-export type AppleLink = { refreshToken: string | null; accessToken: string | null };
+/**
+ * What the sign-in library keeps of one link of an account to Apple, which Apple revokes: the
+ * Apple account it names, the same for the web's sign-in and the app's, and its tokens.
+ */
+export type AppleLink = {
+  appleUser: string;
+  refreshToken: string | null;
+  accessToken: string | null;
+};
 
 /** Whether this account runs the instance: an operator's account is not deleted. */
 export async function isOperator(db: Pick<Database, "select">, userId: string) {
@@ -89,7 +96,11 @@ export async function deleteAccount(
   if (await isOperator(tx, userId)) return { deleted: false, why: "operator" };
   await deleteUnconfirmed(tx, userId);
   const apple = await tx
-    .select({ refreshToken: account.refreshToken, accessToken: account.accessToken })
+    .select({
+      appleUser: account.accountId,
+      refreshToken: account.refreshToken,
+      accessToken: account.accessToken,
+    })
     .from(account)
     .where(and(eq(account.userId, userId), eq(account.providerId, "apple")));
 

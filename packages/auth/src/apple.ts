@@ -68,7 +68,8 @@ export function appleClientSecret(
  *
  * The secret is signed at once, which checks the key, and again before it runs out, whenever it
  * is read. The sign-in reads it, and so does what revokes an account's tokens as it is deleted
- * (decision 071).
+ * (decision 071). `secretFor` signs the same way for another client of the team: the bundle of
+ * an app, whose code is exchanged as its account is deleted.
  */
 export function appleClientOf(env: AppleConfig, now: () => number = Date.now) {
   const clientId = env.APPLE_SERVICES_ID?.trim();
@@ -82,19 +83,25 @@ export function appleClientOf(env: AppleConfig, now: () => number = Date.now) {
       "APPLE_SERVICES_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY must be set together, with APPLE_TEAM_ID",
     );
   }
-  const settings = { teamId, keyId: keyId!, clientId: clientId!, key: keyOf(content!) };
+  const settings = { teamId, keyId: keyId!, key: keyOf(content!) };
   const seconds = () => Math.floor(now() / 1000);
-  let issuedAt = seconds();
-  let secret = appleClientSecret(settings, issuedAt);
+  // Each client's secret, as it was last signed.
+  const signed = new Map<string, { issuedAt: number; secret: string }>();
+  const secretFor = (client: string) => {
+    const kept = signed.get(client);
+    if (kept && seconds() < kept.issuedAt + SECRET_SECONDS - SIGNED_AGAIN_BEFORE_SECONDS) {
+      return kept.secret;
+    }
+    const issuedAt = seconds();
+    const secret = appleClientSecret({ ...settings, clientId: client }, issuedAt);
+    signed.set(client, { issuedAt, secret });
+    return secret;
+  };
+  secretFor(clientId!);
   return {
-    clientId: settings.clientId,
-    clientSecret: () => {
-      if (seconds() >= issuedAt + SECRET_SECONDS - SIGNED_AGAIN_BEFORE_SECONDS) {
-        issuedAt = seconds();
-        secret = appleClientSecret(settings, issuedAt);
-      }
-      return secret;
-    },
+    clientId: clientId!,
+    clientSecret: () => secretFor(clientId!),
+    secretFor,
   };
 }
 

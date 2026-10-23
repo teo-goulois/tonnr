@@ -55,6 +55,21 @@ export function analyticsRequest(
   return app ? { distinctId, sessionId, app } : undefined;
 }
 
+/**
+ * A fault a procedure met and answered past, such as a provider's refusal of what it could do
+ * without: printed, and reported as every fault of the API is, with its message alone, which
+ * names no one (decision 054). It never throws.
+ */
+export function reportFault(analytics: Analytics | undefined, message: string) {
+  const error = new Error(message);
+  console.error(error);
+  try {
+    analytics?.report?.(error);
+  } catch {
+    /* The report never changes the answer. */
+  }
+}
+
 /** Analytics must never change whether a procedure succeeded. */
 export function captureAction(
   analytics: Analytics | undefined,

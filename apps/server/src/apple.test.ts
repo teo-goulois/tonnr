@@ -1,7 +1,7 @@
 import { generateKeyPairSync, verify } from "node:crypto";
 
 import { appleProvider } from "@repo/auth/apple";
-import { APPLE_REVOKE_URL, appleRevocationOf } from "@repo/auth/apple-revocation";
+import { APPLE_REVOKE_URL, APPLE_TOKEN_URL, appleRevocationOf } from "@repo/auth/apple-revocation";
 import { describe, expect, it } from "vitest";
 
 // A key made for the test, of the kind Apple gives: P-256, in a .p8 file's PEM.
@@ -127,5 +127,86 @@ describe("revoking at Apple's", () => {
     const secret = read(sent[0]?.get("client_secret") ?? "");
     expect(secret.signed).toBe(true);
     expect(secret.payload).toMatchObject({ iss: "TEAM123456", sub: "app.example.web" });
+  });
+
+  // An ID token as Apple's answer to an exchange holds one: its signature is not read.
+  const idToken = (sub: string) =>
+    ["e30", Buffer.from(JSON.stringify({ sub })).toString("base64url"), "c2ln"].join(".");
+  const apple = (answers: { token: Response | "down"; revoke?: Response }) => {
+    const sent: { url: string; body: URLSearchParams }[] = [];
+    const send = (async (url: string | URL | Request, init?: RequestInit) => {
+      sent.push({ url: String(url), body: new URLSearchParams(String(init?.body)) });
+      if (String(url) === APPLE_TOKEN_URL) {
+        if (answers.token === "down") throw new TypeError("fetch failed");
+        return answers.token;
+      }
+      return answers.revoke ?? new Response(null, { status: 200 });
+    }) as typeof fetch;
+    return { revocation: appleRevocationOf(settings, send)!, sent };
+  };
+  const tokens = (sub: string) =>
+    Response.json({
+      access_token: "the-access",
+      refresh_token: "the-refresh",
+      id_token: idToken(sub),
+    });
+  const app = { bundle: "app.example", appleUsers: ["apple-sub"] };
+
+  it("exchanges an app's code for its bundle, with a secret signed for it, then revokes the refresh token it got", async () => {
+    const { revocation, sent } = apple({ token: tokens("apple-sub") });
+
+    expect(await revocation.revokeCode("the-code", app)).toEqual({ outcome: "revoked" });
+    expect(sent.map((one) => one.url)).toEqual([APPLE_TOKEN_URL, APPLE_REVOKE_URL]);
+    const [exchange, revoke] = sent;
+    expect(exchange?.body.get("client_id")).toBe("app.example");
+    expect(exchange?.body.get("code")).toBe("the-code");
+    expect(exchange?.body.get("grant_type")).toBe("authorization_code");
+    const secret = read(exchange?.body.get("client_secret") ?? "");
+    expect(secret.signed).toBe(true);
+    expect(secret.payload).toMatchObject({
+      iss: "TEAM123456",
+      sub: "app.example",
+      aud: "https://appleid.apple.com",
+    });
+    expect(secret.header).toEqual({ alg: "ES256", kid: "KEY1234567" });
+    expect(Object.fromEntries(revoke?.body ?? [])).toEqual({
+      client_id: "app.example",
+      client_secret: exchange?.body.get("client_secret"),
+      token: "the-refresh",
+      token_type_hint: "refresh_token",
+    });
+  });
+
+  it("revokes nothing for another Apple account, and says what failed without throwing", async () => {
+    const another = apple({ token: tokens("someone-else") });
+    expect(await another.revocation.revokeCode("the-code", app)).toEqual({ outcome: "another" });
+    expect(another.sent).toHaveLength(1);
+
+    const refused = apple({
+      token: Response.json(
+        { error: "invalid_grant", error_description: "it said more" },
+        { status: 400 },
+      ),
+    });
+    expect(await refused.revocation.revokeCode("old-code", app)).toEqual({
+      outcome: "failed",
+      at: "exchange",
+      said: "400 invalid_grant",
+    });
+    const down = apple({ token: "down" });
+    expect(await down.revocation.revokeCode("the-code", app)).toEqual({
+      outcome: "failed",
+      at: "exchange",
+      said: "no answer",
+    });
+    const kept = apple({
+      token: tokens("apple-sub"),
+      revoke: new Response("{}", { status: 503 }),
+    });
+    expect(await kept.revocation.revokeCode("the-code", app)).toEqual({
+      outcome: "failed",
+      at: "revoke",
+      said: "503",
+    });
   });
 });
