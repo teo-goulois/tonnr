@@ -2,9 +2,9 @@ import type { ImageEntry } from "@maplibre/maplibre-react-native";
 import { SEA_ARROW } from "@repo/client/map/sea";
 import { ArrowSymbolUpIcon, PinIcon, WaveIcon } from "@repo/ui/icon";
 import { AlphaType, ColorType, Skia } from "@shopify/react-native-skia";
-import { PixelRatio } from "react-native";
 
 import type { GlyphIcon } from "@/components/shared/glyph";
+import { painted } from "@/components/shared/painted-icon";
 
 import { DISC_ICON, IMAGES } from "./features";
 import { levelsOf } from "./sea-arrows";
@@ -12,30 +12,8 @@ import { type IconInk, iconSvg } from "./svg-string";
 
 // The pictures the map draws in its discs and on its sea, which MapLibre takes as images: the
 // web's icons painted with Skia at the phone's density, as the web paints them on a canvas. A
-// picture that cannot be painted is left out, and its disc is drawn without it.
-
-/** An SVG painted into a PNG at the phone's density, as an image MapLibre takes. */
-function painted(svg: string, size: number): ImageEntry | null {
-  const scale = Math.min(3, Math.ceil(PixelRatio.get()));
-  const pixels = Math.ceil(size * scale);
-  try {
-    const dom = Skia.SVG.MakeFromString(svg);
-    const surface = Skia.Surface.Make(pixels, pixels);
-    if (!dom || !surface) return null;
-    const canvas = surface.getCanvas();
-    canvas.clear(Skia.Color("transparent"));
-    // The SVG says its size in points, which Skia keeps whatever box it is drawn in: the canvas is
-    // scaled to the density, or the picture would fill a third of its image at three pixels to
-    // the point, and MapLibre would draw it a third of its size, in its corner.
-    canvas.scale(pixels / size, pixels / size);
-    canvas.drawSvg(dom, size, size);
-    surface.flush();
-    const png = surface.makeImageSnapshot().encodeToBase64();
-    return { source: { uri: `data:image/png;base64,${png}`, scale } };
-  } catch {
-    return null;
-  }
-}
+// picture that cannot be painted is left out, and its disc is drawn without it. The painting
+// itself is `painted-icon.ts`'s, which the bar of tabs paints its art with too.
 
 function icon(
   glyph: GlyphIcon,
