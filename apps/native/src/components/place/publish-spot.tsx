@@ -2,13 +2,13 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useOpenPage } from "@/components/account/open-page";
 import { TextField } from "@/components/lists/text-field";
 import { Button } from "@/components/ui/button";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
+import { useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -25,7 +25,7 @@ const NOTE_MOST = 280;
 
 export function PublishSpot({ id }: { id: string }) {
   const { colors, space, type } = useTheme();
-  const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.m);
   const { openPage } = useOpenPage();
   const { spot: read, isOwner } = usePlaceRecord("spot", id);
   const spot = isOwner ? read : undefined;
@@ -49,7 +49,7 @@ export function PublishSpot({ id }: { id: string }) {
           gap: space.m,
           paddingTop: space.s,
           paddingHorizontal: space.m,
-          paddingBottom: insets.bottom + space.m,
+          paddingBottom: foot,
         }}
       >
         <Text size="s">{m.spot_publish_what()}</Text>

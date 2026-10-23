@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { BackHandler, Platform, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Field } from "@/components/auth/field";
 import { NAME_MOST } from "@/components/lists/new-list-field";
@@ -16,7 +15,7 @@ import { TARGET } from "@/components/ui/metrics";
 import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
-import { SheetRoot } from "@/components/ui/sheet";
+import { SheetRoot, useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -130,7 +129,7 @@ function MenuRow({
 
 export function SaveToLists({ place }: { place: PlaceRef }) {
   const { colors, space } = useTheme();
-  const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.m);
   const { lists, save, createWith, isCreating } = useLists();
   const [isNaming, setIsNaming] = useState(false);
   const [listName, setListName] = useState("");
@@ -172,7 +171,7 @@ export function SaveToLists({ place }: { place: PlaceRef }) {
             gap: space.l,
             paddingHorizontal: space.m,
             paddingTop: space.s,
-            paddingBottom: insets.bottom + space.m,
+            paddingBottom: foot,
           }}
         >
           <Field
@@ -210,7 +209,7 @@ export function SaveToLists({ place }: { place: PlaceRef }) {
       <ScrollView
         contentContainerStyle={{
           paddingTop: space.s,
-          paddingBottom: insets.bottom + space.m,
+          paddingBottom: foot,
         }}
       >
         {lists.isError ? (

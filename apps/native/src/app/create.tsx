@@ -10,7 +10,6 @@ import {
 import { router } from "expo-router";
 import { Fragment, useState } from "react";
 import { Pressable, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +18,7 @@ import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { formatClock } from "@/lib/format";
 import { useLiveSession } from "@/lib/live-session";
+import { useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -83,7 +83,7 @@ function ChoiceRow({ choice, onPress }: { choice: Choice; onPress: () => void })
 
 export default function CreateSheet() {
   const { colors, space } = useTheme();
-  const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.m);
   const { signedIn } = useAccount();
   const running = useLiveSession();
   // The second step of a session: whether it begins now or was surfed before.
@@ -161,7 +161,7 @@ export default function CreateSheet() {
         gap: space.m,
         paddingTop: space.l,
         paddingHorizontal: space.m,
-        paddingBottom: Math.max(insets.bottom, space.m),
+        paddingBottom: foot,
         backgroundColor: colors["neutral-1"],
       }}
     >

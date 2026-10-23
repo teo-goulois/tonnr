@@ -243,6 +243,20 @@ export function PanelHeader({
   );
 }
 
+// iOS 26 floats a sheet that is not at its full height above the bottom of the screen, and
+// leaves under what it holds a margin of its own, the bottom inset's, measured at 33 points on
+// an iPhone simulator: a margin added there doubled it.
+const FLOATS = Platform.OS === "ios" && Number.parseInt(String(Platform.Version), 10) >= 26;
+
+/**
+ * The room under the foot of a sheet as tall as what it holds: none on iOS 26, whose floating
+ * sheet leaves its own, and elsewhere the screen's bottom inset and `room`.
+ */
+export function useSheetFoot(room: number) {
+  const insets = useSafeAreaInsets();
+  return FLOATS ? 0 : insets.bottom + room;
+}
+
 /**
  * The foot of a sheet, as the web's drawer lays it: what the form sends, its buttons sharing the
  * sheet's width (give each `fill`), with the room the web gives it. `pinned` stands it under what

@@ -15,7 +15,6 @@ import { CirclePlusIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TextField } from "@/components/lists/text-field";
 import { shoreWord } from "@/components/saved/sea-figures";
@@ -25,6 +24,7 @@ import { TARGET } from "@/components/ui/metrics";
 import { Segmented } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/text";
 import { formatNumber } from "@/lib/format";
+import { useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
@@ -364,7 +364,7 @@ type PartSheetProps = { partKey: PartKey; index: number };
 export function PartSheet({ partKey, index }: PartSheetProps) {
   const writing = useWriting();
   const { space } = useTheme();
-  const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.m);
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
 
@@ -419,7 +419,7 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
         gap: space.m,
         paddingTop: space.l,
         paddingHorizontal: space.m,
-        paddingBottom: Math.max(insets.bottom, space.m),
+        paddingBottom: foot,
       }}
     >
       <View style={{ gap: space.xxs }}>

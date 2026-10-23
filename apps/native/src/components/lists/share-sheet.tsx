@@ -4,7 +4,6 @@ import * as Clipboard from "expo-clipboard";
 import { useState } from "react";
 import { Platform, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Glyph } from "@/components/shared/glyph";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import { Field, Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { ENV } from "@/env";
+import { useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
@@ -43,7 +43,7 @@ type ShareSheetProps = {
 
 export function ShareSheet({ list, privateSpots, mutations, onClose }: ShareSheetProps) {
   const { colors, space, radius } = useTheme();
-  const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.l);
   const tell = useTell();
   const share = list.share;
   const busy = mutations.isSharing;
@@ -80,7 +80,7 @@ export function ShareSheet({ list, privateSpots, mutations, onClose }: ShareShee
         style={{
           gap: space.l,
           padding: space.l,
-          paddingBottom: insets.bottom + space.l,
+          paddingBottom: foot,
         }}
       >
         <View style={{ gap: space.xs }}>
