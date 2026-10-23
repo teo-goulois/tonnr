@@ -22,12 +22,24 @@ import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { Analytics } from "./analytics";
 import type { Context } from "./context";
 import { v1Router } from "./routers/index";
 import { testApple, testForecasts, testPlaces, testVerification } from "./testing";
 import { createUsage, type Usage } from "./usage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// What the API reports as its faults, in a test: the message of each, which is all a report
+// keeps (decision 054).
+function faults() {
+  const said: string[] = [];
+  const analytics: Analytics = {
+    capture: () => {},
+    report: (error) => said.push(error instanceof Error ? error.message : String(error)),
+  };
+  return { analytics, said };
+}
 
 // Deleting an account, from the app or the web, at once: decision 071.
 describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
@@ -434,46 +446,134 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
       updatedAt: new Date(),
     });
     const apple = testApple("failed");
+    const reported = faults();
 
-    expect(await remove({}, by("gil", "s-gil-fresh", { apple: apple.apple }))).toEqual({
-      deleted: true,
-    });
+    expect(
+      await remove(
+        {},
+        by("gil", "s-gil-fresh", { apple: apple.apple, analytics: reported.analytics }),
+      ),
+    ).toEqual({ deleted: true });
     expect(apple.asked).toEqual([{ refreshToken: "apple-refresh", accessToken: "apple-access" }]);
     expect(await db.select().from(user).where(eq(user.id, "gil"))).toEqual([]);
+    // Apple's refusal is a fault, which names no one and holds no token.
+    expect(reported.said).toEqual(["Apple did not revoke the tokens of a deleted account"]);
+
+    // A revocation that Apple takes is no fault.
+    await db.insert(account).values({
+      id: "apple-ana",
+      accountId: "apple-ana-sub",
+      providerId: "apple",
+      userId: "ana",
+      refreshToken: "ana-refresh",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const taken = testApple();
+    const none = faults();
+    await remove(
+      { password: PASSWORD },
+      by("ana", "s-ana", { apple: taken.apple, analytics: none.analytics }),
+    );
+    expect(taken.asked).toEqual([{ refreshToken: "ana-refresh", accessToken: null }]);
+    expect(none.said).toEqual([]);
 
     // An account that never signed in with Apple has nothing asked of Apple.
+    await db.insert(session).values({
+      id: "s-cy-fresh",
+      token: "t-cy-fresh",
+      userId: "cy",
+      expiresAt: new Date(Date.now() + DAY_MS),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
     const quiet = testApple();
-    await remove({ password: PASSWORD }, by("ana", "s-ana", { apple: quiet.apple }));
+    const silent = faults();
+    expect(
+      await remove({}, by("cy", "s-cy-fresh", { apple: quiet.apple, analytics: silent.analytics })),
+    ).toEqual({ deleted: true });
     expect(quiet.asked).toEqual([]);
+    expect(silent.said).toEqual([]);
   });
 
   it("revokes what the app's sign-in kept nothing of through the code the app gives, and deletes the account whatever Apple says", async () => {
     const { db } = database;
-    // Signed in from the app by an ID token, which keeps no token.
-    await db.insert(account).values({
-      id: "apple-gil",
-      accountId: "apple-sub",
-      providerId: "apple",
-      userId: "gil",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
     const APP = "app.example://";
-    const fromApp = (apple: ReturnType<typeof testApple>) =>
-      by("gil", "s-gil-fresh", {
+    // An account the app signed in with Apple by an ID token, which keeps no token, and a
+    // session of it opened a moment ago.
+    const signedInFromApp = async (id: string) => {
+      await db.insert(account).values({
+        id: `apple-${id}`,
+        accountId: `${id}-apple-sub`,
+        providerId: "apple",
+        userId: id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await db.insert(session).values({
+        id: `s-${id}-app`,
+        token: `t-${id}-app`,
+        userId: id,
+        expiresAt: new Date(Date.now() + DAY_MS),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    };
+    const fromApp = (id: string, apple: ReturnType<typeof testApple>, analytics?: Analytics) =>
+      by(id, `s-${id}-app`, {
         apple: apple.apple,
+        analytics,
         site: APP,
         server: { startedAt: new Date(), webOrigin: WEB, appOrigins: [APP] },
       });
-    const apple = testApple("revoked", { outcome: "failed", at: "exchange", said: "400" });
 
-    expect(await remove({ appleAuthorizationCode: "the-code" }, fromApp(apple))).toEqual({
-      deleted: true,
+    // Apple refuses the code: the account is deleted, and the refusal is a fault that says the
+    // step, Apple's status and the code of its error, and nothing of the code the app gave, of
+    // the secret or of the account.
+    await signedInFromApp("ben");
+    const refusing = testApple("revoked", {
+      outcome: "failed",
+      at: "exchange",
+      said: "400 invalid_grant",
     });
-    expect(apple.codes).toEqual([
-      { code: "the-code", bundle: "app.example", appleUsers: ["apple-sub"] },
+    const refused = faults();
+    expect(
+      await remove(
+        { appleAuthorizationCode: "the-code" },
+        fromApp("ben", refusing, refused.analytics),
+      ),
+    ).toEqual({ deleted: true });
+    expect(refusing.codes).toEqual([
+      { code: "the-code", bundle: "app.example", appleUsers: ["ben-apple-sub"] },
     ]);
-    expect(await db.select().from(user).where(eq(user.id, "gil"))).toEqual([]);
+    expect(await db.select().from(user).where(eq(user.id, "ben"))).toEqual([]);
+    expect(refused.said).toEqual([
+      "Apple did not revoke the app's tokens of a deleted account: the exchange of its code answered 400 invalid_grant",
+    ]);
+
+    // A code that names another Apple account revokes nothing, which is a fault too.
+    await signedInFromApp("gil");
+    const another = testApple("revoked", { outcome: "another" });
+    const strange = faults();
+    expect(
+      await remove(
+        { appleAuthorizationCode: "a-code" },
+        fromApp("gil", another, strange.analytics),
+      ),
+    ).toEqual({ deleted: true });
+    expect(strange.said).toEqual([
+      "The code an app gave as its account was deleted named another Apple account: nothing was revoked",
+    ]);
+
+    // A code Apple takes, and revokes, is no fault.
+    await signedInFromApp("cy");
+    const taking = testApple();
+    const none = faults();
+    expect(
+      await remove({ appleAuthorizationCode: "a-code" }, fromApp("cy", taking, none.analytics)),
+    ).toEqual({ deleted: true });
+    expect(taking.codes).toHaveLength(1);
+    expect(none.said).toEqual([]);
 
     // A code that comes from the web, or for an account that never signed in with Apple, is
     // not exchanged.
@@ -491,25 +591,20 @@ describe.skipIf(!TEST_DATABASE_URL)("deleting an account", () => {
       by("ana", "s-ana", { apple: fromWeb.apple }),
     );
     expect(fromWeb.codes).toEqual([]);
-    const notLinked = testApple();
+    await db.insert(user).values({ id: "dee", name: "Dee", email: "dee@example.org" });
     await db.insert(session).values({
-      id: "s-cy-app",
-      token: "t-cy-app",
-      userId: "cy",
+      id: "s-dee-app",
+      token: "t-dee-app",
+      userId: "dee",
       expiresAt: new Date(Date.now() + DAY_MS),
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    await remove(
-      { appleAuthorizationCode: "a-code" },
-      by("cy", "s-cy-app", {
-        apple: notLinked.apple,
-        site: APP,
-        server: { startedAt: new Date(), webOrigin: WEB, appOrigins: [APP] },
-      }),
-    );
+    const notLinked = testApple();
+    expect(await remove({ appleAuthorizationCode: "a-code" }, fromApp("dee", notLinked))).toEqual({
+      deleted: true,
+    });
     expect(notLinked.codes).toEqual([]);
-    expect(await db.select().from(user).where(eq(user.id, "cy"))).toEqual([]);
   });
 
   it("revokes at Apple's with the refresh token, and answers how it went without throwing", async () => {
