@@ -62,6 +62,8 @@ export type PartSaid = {
   /** The value alone, as a part's sheet says it big: "1–2 m", or "Any". */
   value: string;
   isSet: boolean;
+  /** The sector of a direction that is set, for what draws its two ends as arrows and names. */
+  arc?: Arc;
 };
 
 /** What a value of a part says. */
@@ -93,6 +95,7 @@ export function partSaid(criteria: AlertCriteria, key: Part, index: number): Par
         to: String(arc.to),
       }),
       isSet: true,
+      arc,
     };
   }
   const range = value as Range | undefined;

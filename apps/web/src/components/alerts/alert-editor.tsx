@@ -1,3 +1,4 @@
+import { startingArc } from "@repo/client/alerts/compass";
 import {
   PLACES_MOST,
   SHORTEST_HOURS,
@@ -640,19 +641,12 @@ export function AlertEditor({
     key: ArcKey & ValuePart,
     index: number,
     at: number | null | undefined,
-    usual: Arc,
     open: boolean,
   ) {
     const value = valueAt(key, index) as Arc | undefined;
     const label = CRITERION_LABELS[key]();
     // Around where it comes from now, when the forecast says, or around the usual.
-    const around: Arc =
-      at == null
-        ? usual
-        : {
-            from: (Math.round((at - 30) / 5) * 5 + 360) % 360,
-            to: (Math.round((at + 30) / 5) * 5 + 360) % 360,
-          };
+    const around = startingArc(key, at);
     const setArc = (arc: Arc | undefined) => setValue(key, index, arc);
     return (
       <Slot
@@ -783,17 +777,11 @@ export function AlertEditor({
           open,
         );
       case "waveDirectionDegrees":
-        return sector(key, index, current?.waveDirectionDegrees, { from: 250, to: 310 }, open);
+        return sector(key, index, current?.waveDirectionDegrees, open);
       case "primarySwellDirectionDegrees":
-        return sector(
-          key,
-          index,
-          current?.primarySwellDirectionDegrees,
-          { from: 250, to: 310 },
-          open,
-        );
+        return sector(key, index, current?.primarySwellDirectionDegrees, open);
       case "windDirectionDegrees":
-        return sector(key, index, current?.windDirectionDegrees, { from: 45, to: 135 }, open);
+        return sector(key, index, current?.windDirectionDegrees, open);
       case "tide":
         return tidePart(index, open);
     }

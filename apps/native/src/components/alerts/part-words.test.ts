@@ -46,6 +46,9 @@ describe("the words of a part", () => {
     expect(said.words).toBe("from ↙\u2009NE–↖\u2009SE");
     expect(said.spoken).toBe("from northeast – southeast");
     expect(said.value).toBe("NE–SE · 45°–135°");
+    // Its sector too, for the sentence to draw each end as an arrow and its name.
+    expect(said.arc).toEqual({ from: 45, to: 135 });
+    expect(partSaid(criteria, "waveDirectionDegrees", 0).arc).toBeUndefined();
   });
 
   it("says the tide by the parts of its cycle", () => {

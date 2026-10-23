@@ -1,18 +1,18 @@
 import type { AlertDraft } from "@repo/client/alerts/alert-words";
-import { BellIcon } from "@repo/ui/icon";
 import { useQuery } from "@tanstack/react-query";
-import { type Href, router } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
-import { SheetHeader } from "@/components/ui/sheet";
-import { Loading, Skeleton } from "@/components/ui/skeleton";
-import { useTell } from "@/components/ui/toast";
+import { AccountPrompt } from "@/components/auth/account-prompt";
+import { currentMapState } from "@/components/map/map-state";
+import { middleOf } from "@/components/map/view";
 import { placeOfParam } from "@/components/sessions/session-logic";
+import { Button } from "@/components/ui/button";
+import { PanelHeader } from "@/components/ui/sheet";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
+import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
-import { useRequireAccount } from "@/lib/require-account";
 import { useTheme } from "@/lib/theme";
 import { useNow } from "@/lib/use-now";
 import { m } from "@/paraglide/messages";
@@ -25,9 +25,13 @@ import { useAlertSettings, useSpots } from "./use-alert-editor";
 
 // The two screens an alert is written on, as the web's `AlertSheet` holds its editor: a new
 // alert, at `?place=<break|spot>:<id>`, from a copy at `?copy=`, or asking where first; and an
-// alert of the account, by its id. Each waits, drawn as it will stand, for what the editor reads:
-// the account's spots, its alerts and its settings, which say whether a new alert asks about
-// mail. Decisions 031 and 064.
+// alert of the account, by its id. Each waits under the drawer's real head, drawn as the web's
+// sheet waits, for what the editor reads: the account's spots, its alerts and its settings,
+// which say whether a new alert asks about mail. A visitor is asked for an account in the
+// web's words. Decisions 031 and 064.
+
+/** Leaves the sheet: back, or to the map for a sheet with nothing under it. */
+const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
 /** The account's alerts as the API answered them, with those that wait for an undo. */
 function useAllAlerts() {
@@ -41,68 +45,81 @@ function useAllAlerts() {
   );
 }
 
-/** The sheet as it will stand, while what it writes is read: a new alert's, or a saved one's. */
-function Waiting({ title = m.alert_new() }: { title?: string }) {
+/** The sheet with the drawer's head, and what stands under it until the editor can. */
+function Sheet({
+  title,
+  description,
+  children,
+}: {
+  /** Null while it is read: a line pulses in its place. */
+  title: string | null;
+  description?: string | null | undefined;
+  children: ReactNode;
+}) {
   const { colors, space } = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader title={title} onCancel={() => router.back()} />
+    <View style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <PanelHeader title={title} description={description} onClose={leave} />
+      <View style={{ padding: space.m }}>{children}</View>
+    </View>
+  );
+}
+
+/** The sheet as the web's waits, while what it writes is read: a field, then the sentence. */
+function Waiting({
+  title,
+  description,
+}: {
+  title: string | null;
+  description?: string | null | undefined;
+}) {
+  const { space, type } = useTheme();
+  return (
+    <Sheet title={title} description={description}>
       <Loading>
-        <View style={{ gap: space.m, padding: space.m }}>
-          <Skeleton width="35%" height={13} />
-          <Skeleton height={44} />
-          <Skeleton width="55%" height={23} />
-          <Skeleton width="90%" height={31} />
-          <Skeleton width="75%" height={31} />
-          <Skeleton width="60%" height={31} />
-          <Skeleton height={60} />
+        <View style={{ gap: space.s }}>
+          <Skeleton height={type.m.line + 2 * space.xs} />
+          <Skeleton width="80%" height={type.l.line} />
+          <Skeleton width="60%" height={type.l.line} />
         </View>
       </Loading>
-    </View>
+    </Sheet>
   );
 }
 
-/** What the sheet says to a visitor: an alert is an account's. */
-function SignInFirst({ next }: { next: Href }) {
-  const { colors } = useTheme();
-  const requireAccount = useRequireAccount();
-  return (
-    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader title={m.alert_new()} onCancel={() => router.back()} />
-      <EmptyState
-        icon={BellIcon}
-        title={m.alert_offer()}
-        description={m.alerts_sign_in_prompt()}
-        action={{
-          label: m.auth_sign_in(),
-          onPress: () => requireAccount(m.alerts_sign_in_prompt(), () => {}, next),
-        }}
-      />
-    </View>
-  );
-}
-
+/** What could not be read, in the web's muted line, with what asks again. */
 function Failed({
-  sheetTitle = m.alert_new(),
   title,
+  description,
+  text,
   onRetry,
 }: {
-  sheetTitle?: string;
   title: string;
+  description?: string | undefined;
+  text: string;
   onRetry: () => void;
 }) {
-  const { colors } = useTheme();
+  const { space } = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <SheetHeader title={sheetTitle} onCancel={() => router.back()} />
-      <ErrorState title={title} onRetry={onRetry} />
-    </View>
+    <Sheet title={title} description={description}>
+      <View
+        accessibilityRole="alert"
+        accessibilityLiveRegion="polite"
+        style={{ alignItems: "flex-start", gap: space.s }}
+      >
+        <Text size="s" tone="muted">
+          {text}
+        </Text>
+        <Button variant="secondary" onPress={onRetry}>
+          {m.action_retry()}
+        </Button>
+      </View>
+    </Sheet>
   );
 }
 
 /** A new alert: at a place, from a copy, or where the person says first. */
 export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey?: string }) {
-  const { colors } = useTheme();
   const { signedIn, pending } = useAccount();
   const now = useNow();
   const copy = readCopy(copyKey);
@@ -140,6 +157,18 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
     }
     return undefined;
   }, [copy, picked, asked?.kind, asked?.id, surfBreak.data, spots.data]);
+  // What is near the middle of the map comes first in the search, from where the map was as the
+  // sheet opened, as the web's search ranks it.
+  const near = useMemo(() => {
+    const state = currentMapState();
+    return (
+      middleOf(state.bounds) ?? {
+        latitude: state.center[1],
+        longitude: state.center[0],
+        zoom: Math.round(state.zoom),
+      }
+    );
+  }, []);
 
   // A place that has alerts already takes another named after it and its rank, said whole.
   const count = place
@@ -163,8 +192,14 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [copy, place?.kind, place?.id, alerts.data !== undefined]);
 
+  // A visitor is asked for an account as the web asks it, under the sheet's head: once signed
+  // in, the sign-in sheet closes onto this one, which writes the alert.
   if (!signedIn && !pending) {
-    return <SignInFirst next={placeParam ? `/alert/new?place=${placeParam}` : "/alert/new"} />;
+    return (
+      <Sheet title={m.alert_new()}>
+        <AccountPrompt text={m.auth_reason_add_alert()} />
+      </Sheet>
+    );
   }
   // A spot that is no longer the account's is no place to write from: where is asked instead.
   const isMissing =
@@ -173,20 +208,14 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
     !spots.data.some((one) => one.id === asked.id);
   // Asked where first: the account's spots, the breaks looked at last, a search.
   if (!copy && !picked && (!asked || isMissing)) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-        <PlacePicker
-          mode="one"
-          onPick={setPicked}
-          header={<SheetHeader title={m.create_alert_spot()} onCancel={() => router.back()} />}
-        />
-      </View>
-    );
+    return <PlacePicker near={near} onPick={setPicked} onClose={leave} />;
   }
   if (spots.isError || alerts.isError || settings.isError || surfBreak.isError) {
     return (
       <Failed
-        title={
+        title={m.alert_new()}
+        description={place?.name}
+        text={
           surfBreak.isError
             ? m.native_alert_place_unread()
             : settings.isError
@@ -202,49 +231,55 @@ export function NewAlert({ placeParam, copyKey }: { placeParam?: string; copyKey
       />
     );
   }
-  if (!place || !spots.data || !alerts.data || !settings.data) return <Waiting />;
+  if (!place || !spots.data || !alerts.data || !settings.data) {
+    return <Waiting title={m.alert_new()} description={place?.name ?? null} />;
+  }
   return (
-    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <AlertEditor
-        key={`${place.kind}:${place.id}`}
-        now={now}
-        place={place}
-        spots={spots.data}
-        alert={undefined}
-        initial={initial}
-        initialPlaces={copy?.places}
-        settings={settings.data}
-      />
-    </View>
+    <AlertEditor
+      key={`${place.kind}:${place.id}`}
+      now={now}
+      place={place}
+      spots={spots.data}
+      alert={undefined}
+      initial={initial}
+      initialPlaces={copy?.places}
+      settings={settings.data}
+    />
   );
 }
 
-/** An alert of the account, to change, switch off, pause, copy or delete. */
+/** An alert of the account, to change, switch off, copy or delete. */
 export function SavedAlert({ id }: { id: string }) {
-  const { colors } = useTheme();
   const { signedIn, pending } = useAccount();
   const now = useNow();
-  const tell = useTell();
   const alerts = useAllAlerts();
   const spots = useSpots();
   const settings = useAlertSettings();
   const alert = alerts.data?.find((one) => one.id === id);
-  // An alert deleted elsewhere is no longer written: the sheet says so and closes, once.
+  // An alert deleted, here or elsewhere, is no longer written: the sheet closes, once, as the
+  // web's does. Its editor is gone by then, and with it the question before leaving.
   const isGone = alerts.data !== undefined && !alert;
-  const told = useRef(false);
+  const closed = useRef(false);
   useEffect(() => {
-    if (!isGone || told.current) return;
-    told.current = true;
-    tell({ title: m.alert_refused_gone(), tone: "danger" });
-    if (router.canGoBack()) router.back();
-  }, [isGone, tell]);
+    if (!isGone || closed.current) return;
+    closed.current = true;
+    leave();
+  }, [isGone]);
 
-  if (!signedIn && !pending) return <SignInFirst next={`/alert/${id}`} />;
+  if (!signedIn && !pending) {
+    return (
+      <Sheet title={m.alerts_tab_mine()}>
+        <AccountPrompt text={m.alerts_sign_in_prompt()} />
+      </Sheet>
+    );
+  }
+  const place = alert ? placesOfAlert(alert)[0] : undefined;
   if (alerts.isError || spots.isError) {
     return (
       <Failed
-        sheetTitle={m.alerts_tab_mine()}
-        title={m.alerts_mine_load_failed()}
+        title={alert?.name ?? m.alerts_tab_mine()}
+        description={place?.name}
+        text={m.alerts_mine_load_failed()}
         onRetry={() => {
           void alerts.refetch();
           void spots.refetch();
@@ -252,20 +287,18 @@ export function SavedAlert({ id }: { id: string }) {
       />
     );
   }
-  const place = alert ? placesOfAlert(alert)[0] : undefined;
-  // An alert that is saved is no new one, while it is read too.
-  if (!alert || !place || !spots.data)
-    return <Waiting title={alert?.name ?? m.alerts_tab_mine()} />;
+  // An alert that is saved is no new one: its name and its place pulse while they are read.
+  if (!alert || !place || !spots.data) {
+    return <Waiting title={alert?.name ?? null} description={place?.name ?? null} />;
+  }
   return (
-    <View style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}>
-      <AlertEditor
-        key={alert.id}
-        now={now}
-        place={place}
-        spots={spots.data}
-        alert={alert}
-        settings={settings.data}
-      />
-    </View>
+    <AlertEditor
+      key={alert.id}
+      now={now}
+      place={place}
+      spots={spots.data}
+      alert={alert}
+      settings={settings.data}
+    />
   );
 }

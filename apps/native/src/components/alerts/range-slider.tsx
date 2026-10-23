@@ -1,6 +1,13 @@
 import { useRef, useState } from "react";
 import { View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
@@ -11,16 +18,20 @@ import { useTheme } from "@/lib/theme";
 import { nearestThumb, snapped, stepped } from "./slider-steps";
 
 // A slider with two thumbs, for a range of the sea: the least and the most it asks, as the web's
-// `Slider` sets one with two values. A thumb moves by the steps of its range and is felt at each,
-// as a picker's wheel is; a press on the line brings the nearer thumb there. A thumb taken to the
-// end of the line leaves that side open, which the editor reads (`rangeAfter`). A screen reader
-// finds each thumb as a control it raises and lowers by a step. The alerts' settings set the hours
-// of a day with it too, an hour apart at least, saved once it is let go. Decision 031, "The
-// editor".
+// `Slider` draws one with two values on a phone: a line of the theme's third grey, filled in its
+// accent between the thumbs, and thumbs of 20 points on the theme's ground inside a line of its
+// accent, the one a finger holds a little larger, unless the reader asked for no motion. A thumb
+// moves by the steps of its range and is felt at each, as a picker's wheel is; a press on the line
+// brings the nearer thumb there. A thumb taken to the end of the line leaves that side open, which
+// the editor reads (`rangeAfter`). A screen reader finds each thumb as a control it raises and
+// lowers by a step. The alerts' settings set the hours of a day with it too, an hour apart at
+// least, saved once it is let go. One thumb is the kit's `Slider`. Decision 031, "The editor".
 
 /** How big a thumb is drawn, and how far the line runs from each side for it to fit. */
-const THUMB = 28;
+const THUMB = 20;
 const LINE = 4;
+// The web's `data-dragging:scale-120`.
+const HELD = 1.2;
 
 type RangeSliderProps = {
   /** What is set, which each thumb is named after: "The height of the waves: at least". */
@@ -59,9 +70,19 @@ export function RangeSlider({
   onCommit,
   ends = true,
 }: RangeSliderProps) {
-  const { colors } = useTheme();
+  const { colors, motion } = useTheme();
+  const still = useReducedMotion();
   const [width, setWidth] = useState(0);
   const run = Math.max(1, width - THUMB);
+  // How large each thumb is drawn: the one a finger holds grows on the theme's motion.
+  const leastScale = useSharedValue(1);
+  const mostScale = useSharedValue(1);
+  const leastGrown = useAnimatedStyle(() => ({ transform: [{ scale: leastScale.get() }] }));
+  const mostGrown = useAnimatedStyle(() => ({ transform: [{ scale: mostScale.get() }] }));
+  const timing = {
+    duration: motion.duration,
+    easing: Easing.bezier(motion.easing[0], motion.easing[1], motion.easing[2], motion.easing[3]),
+  };
   const at = (value: number) => ((value - min) / (max - min || 1)) * run;
   // The thumb a finger holds, the values as they last were, which a gesture reads, and as they
   // were when the finger came down.
@@ -100,6 +121,7 @@ export function RangeSlider({
       const thumb = nearestThumb(latest.current, value);
       holding.current = thumb;
       began.current = latest.current;
+      if (!still) (thumb === 0 ? leastScale : mostScale).set(withTiming(HELD, timing));
       move(thumb, value);
     },
     onUpdate: (event) => {
@@ -108,6 +130,8 @@ export function RangeSlider({
     },
     onFinalize: () => {
       holding.current = null;
+      leastScale.set(withTiming(1, timing));
+      mostScale.set(withTiming(1, timing));
       const [least, most] = latest.current;
       if (least !== began.current[0] || most !== began.current[1]) {
         drawn.current.onCommit?.([least, most]);
@@ -119,7 +143,7 @@ export function RangeSlider({
   const thumb = (index: 0 | 1) => {
     const value = values[index];
     return (
-      <View
+      <Animated.View
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={index === 0 ? leastLabel : mostLabel}
@@ -142,7 +166,8 @@ export function RangeSlider({
             borderRadius: THUMB / 2,
             backgroundColor: colors["neutral-1"],
           },
-          edge(colors["neutral-5"]),
+          edge(colors["color-1"]),
+          index === 0 ? leastGrown : mostGrown,
         ]}
       />
     );
@@ -160,7 +185,7 @@ export function RangeSlider({
               marginHorizontal: THUMB / 2,
               height: LINE,
               borderRadius: LINE / 2,
-              backgroundColor: colors["neutral-4"],
+              backgroundColor: colors["neutral-3"],
             }}
           />
           {width > 0 ? (

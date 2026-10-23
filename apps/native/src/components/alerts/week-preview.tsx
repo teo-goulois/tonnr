@@ -8,13 +8,19 @@ import {
 } from "@repo/client/alerts/editing";
 import type { TideSegment } from "@repo/config/sea-words";
 import { ChevronDownIcon } from "@repo/ui/icon";
-import { useMemo, useState } from "react";
-import { LayoutAnimation, Pressable, View } from "react-native";
-import { useReducedMotion } from "react-native-reanimated";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 import { Glyph } from "@/components/shared/glyph";
+import { edge } from "@/components/ui/edge";
 import { feel } from "@/components/ui/haptics";
-import { TARGET } from "@/components/ui/metrics";
 import { Surface } from "@/components/ui/surface";
 import { Text } from "@/components/ui/text";
 import { formatClock, formatDay, formatNumber, formatSeconds, toKnots } from "@/lib/format";
@@ -25,12 +31,19 @@ import { m } from "@/paraglide/messages";
 import { SEGMENT_WORDS } from "./words";
 
 // What an alert would tell over the week ahead, as the web's `WeekPreview` says it under the
-// sentence: a line with the windows and the days that have one, a dot for each day, which opens
-// on the seven days, each a bar of its hours, and a day on its windows, said in the figures the
-// alert asks and no other. And the count a part's sheet shows as its controls move, with what
-// they won or lost since it opened. Decision 031, "The editor".
+// sentence: in an outline, a line with the windows and the days that have one, a dot for each
+// day, which opens on the hours of the day marked over seven lines, each day a bar of its hours,
+// and a day on its windows, said in the figures the alert asks and no other; then what else there
+// is to say. While nothing can be judged yet it says why, and nothing more. And the count a part's
+// sheet shows as its controls move, with what they won or lost since it opened. Decision 031,
+// "The editor".
 
 const HOUR_MS = 60 * 60 * 1000;
+// The day's column and the hours', as the web's grid lays them: 2.75rem and 2.5rem.
+const DAY_COLUMN = 44;
+const HOURS_COLUMN = 40;
+// The hours marked over the days.
+const MARKS = [6, 12, 18] as const;
 
 /** How many windows, in words. */
 export function countWords(count: number) {
@@ -111,25 +124,26 @@ export function LiveCount({
         gap: space.xs,
         paddingHorizontal: space.s,
         paddingVertical: space.xs,
-        borderRadius: radius.xs,
+        borderRadius: radius.s,
         borderCurve: "continuous",
         backgroundColor: colors["neutral-2"],
       }}
     >
       <DayDots days={week.days} />
-      <Text size="s" weight="medium" numeric>
+      <Text size="s" weight="medium" numeric style={{ flexShrink: 1 }}>
         {said}
+        {delta !== 0 ? (
+          // Beside the count, a small step after it, as the web's `ms-xxs`.
+          <Text
+            size="s"
+            weight="medium"
+            numeric
+            style={{ color: delta > 0 ? colors["neutral-10"] : colors["neutral-8"] }}
+          >
+            {delta > 0 ? ` +${delta}` : ` −${-delta}`}
+          </Text>
+        ) : null}
       </Text>
-      {delta !== 0 ? (
-        <Text
-          size="s"
-          weight="medium"
-          numeric
-          style={{ color: delta > 0 ? colors["neutral-10"] : colors["neutral-8"] }}
-        >
-          {delta > 0 ? `+${delta}` : `−${-delta}`}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -144,44 +158,34 @@ type WeekPreviewProps = {
   nameOf?: (placeId: string) => string;
   /** What else there is to say: an older forecast, a place with no tide. */
   notes: string[];
-  /** Whose forecast it is. */
-  credit?: string;
 };
 
-export function WeekPreview({
-  state,
-  pieces,
-  asked,
-  now,
-  zone,
-  nameOf,
-  notes,
-  credit,
-}: WeekPreviewProps) {
-  const { colors, space, type } = useTheme();
+export function WeekPreview({ state, pieces, asked, now, zone, nameOf, notes }: WeekPreviewProps) {
+  const { colors, space, radius, type, motion } = useTheme();
   useUnits();
-  const reduced = useReducedMotion();
+  const still = useReducedMotion();
   const [isOpen, setOpen] = useState(false);
   const [day, setDay] = useState<string | null>(null);
   const days = useMemo(() => weekDays(pieces, now, zone, formatDay), [pieces, now, zone]);
-  const animate = () => {
-    if (!reduced) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  };
-
-  const footer = (
-    <>
-      {notes.map((note) => (
-        <Text key={note} size="xs" tone="muted">
-          {note}
-        </Text>
-      ))}
-      {credit ? (
-        <Text size="xs" tone="muted">
-          {credit}
-        </Text>
-      ) : null}
-    </>
-  );
+  // The chevron turns as the week opens, on the theme's motion, as the web's `transition-transform`.
+  const turn = useSharedValue(0);
+  useEffect(() => {
+    const to = isOpen ? 180 : 0;
+    turn.set(
+      still
+        ? to
+        : withTiming(to, {
+            duration: motion.duration,
+            easing: Easing.bezier(
+              motion.easing[0],
+              motion.easing[1],
+              motion.easing[2],
+              motion.easing[3],
+            ),
+          }),
+    );
+  }, [isOpen, still, turn, motion]);
+  const turned = useAnimatedStyle(() => ({ transform: [{ rotate: `${turn.get()}deg` }] }));
 
   // The line of the week is as tall whatever it says, so that what stands under it does not move
   // as the forecast is read or a condition is chosen: its two lines and its room.
@@ -195,13 +199,11 @@ export function WeekPreview({
       noSea: m.alert_preview_no_sea(),
     }[state];
     return (
-      <View style={{ gap: space.xs }}>
-        <View style={{ minHeight: lineHeight, justifyContent: "center" }}>
-          <Text size="s" tone="muted" accessibilityLiveRegion="polite">
-            {words}
-          </Text>
-        </View>
-        {footer}
+      // As tall as the week's line, so that what stands under it does not move once it is read.
+      <View style={{ minHeight: lineHeight, justifyContent: "center" }}>
+        <Text size="s" tone="muted" accessibilityLiveRegion="polite">
+          {words}
+        </Text>
       </View>
     );
   }
@@ -209,10 +211,20 @@ export function WeekPreview({
   const ringing = days.filter((one) => one.pieces.length > 0).length;
   const nowHour = hourIn(new Date(now), zone);
   const daysWords = ringing === 1 ? m.alert_week_days_one() : m.alert_week_days({ count: ringing });
+  // A day's line is one line of the small type, as on the web: a finger finds it over the room
+  // between two lines too.
+  const reach = space.xs / 2;
 
   return (
     <View style={{ gap: space.xs }}>
-      <Surface style={{ overflow: "hidden" }} insetEdge>
+      <Surface
+        variant="outline"
+        radius="s"
+        insetEdge
+        accessibilityLiveRegion="polite"
+        // The web's box has a border of a point, not the fine edge of a tile.
+        style={[{ overflow: "hidden" }, edge(colors["neutral-4"], { inset: true, width: 1 })]}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -220,9 +232,7 @@ export function WeekPreview({
           }
           accessibilityHint={m.native_alert_week_open()}
           accessibilityState={{ expanded: isOpen }}
-          accessibilityLiveRegion="polite"
           onPress={() => {
-            animate();
             feel("select");
             setOpen((open) => !open);
           }}
@@ -230,12 +240,15 @@ export function WeekPreview({
             minHeight: lineHeight,
             flexDirection: "row",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: space.s,
             padding: space.s,
-            backgroundColor: pressed ? colors["neutral-3"] : undefined,
+            borderRadius: radius.s,
+            borderCurve: "continuous",
+            backgroundColor: pressed ? colors["neutral-3-transparent"] : undefined,
           })}
         >
-          <View style={{ flex: 1 }}>
+          <View style={{ flexShrink: 1 }}>
             <Text weight="medium">{countWords(pieces.length)}</Text>
             {pieces.length > 0 ? (
               <Text size="xs" tone="muted">
@@ -243,14 +256,43 @@ export function WeekPreview({
               </Text>
             ) : null}
           </View>
-          <DayDots days={days.map((one) => one.pieces.length > 0)} />
-          <View style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}>
-            <Glyph icon={ChevronDownIcon} size={16} color={colors["neutral-7"]} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.s }}>
+            <DayDots days={days.map((one) => one.pieces.length > 0)} />
+            <Animated.View style={turned}>
+              <Glyph icon={ChevronDownIcon} size={16} color={colors["neutral-7"]} />
+            </Animated.View>
           </View>
         </Pressable>
 
         {isOpen ? (
-          <View style={{ paddingHorizontal: space.s, paddingBottom: space.s, gap: space.xxs }}>
+          <View style={{ paddingHorizontal: space.s, paddingBottom: space.s, gap: space.xs }}>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={{ flexDirection: "row", gap: space.xs }}
+            >
+              <View style={{ width: DAY_COLUMN }} />
+              <View style={{ flex: 1, height: 12 }}>
+                {MARKS.map((hour) => (
+                  // Centred on its hour: as wide as the hour's figures may be, and half of it back.
+                  <View
+                    key={hour}
+                    style={{
+                      position: "absolute",
+                      left: `${(hour / 24) * 100}%`,
+                      width: 24,
+                      marginLeft: -12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text size="xxs" tone="muted" numeric dense>
+                      {hour}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View style={{ width: HOURS_COLUMN }} />
+            </View>
             {days.map((one, at) => {
               const total = one.pieces.reduce(
                 (sum, piece) => sum + (piece.end.getTime() - piece.start.getTime()) / HOUR_MS,
@@ -273,13 +315,13 @@ export function WeekPreview({
                     }
                     accessibilityState={{ expanded: has ? isDay : undefined, disabled: !has }}
                     disabled={!has}
+                    hitSlop={{ top: reach, bottom: reach }}
                     onPress={() => {
-                      animate();
                       feel("select");
                       setDay(isDay ? null : one.key);
                     }}
                     style={{
-                      minHeight: TARGET,
+                      minHeight: type.s.line,
                       flexDirection: "row",
                       alignItems: "center",
                       gap: space.xs,
@@ -290,7 +332,7 @@ export function WeekPreview({
                       tone={has ? "default" : "muted"}
                       dense
                       numberOfLines={1}
-                      style={{ width: 64 }}
+                      style={{ width: DAY_COLUMN }}
                     >
                       {one.key}
                     </Text>
@@ -341,7 +383,7 @@ export function WeekPreview({
                       tone={has ? "default" : "muted"}
                       numeric
                       dense
-                      style={{ width: 40, textAlign: "right" }}
+                      style={{ width: HOURS_COLUMN, textAlign: "right" }}
                     >
                       {has ? m.alert_hours({ count: hours }) : "—"}
                     </Text>
@@ -349,10 +391,12 @@ export function WeekPreview({
                   {isDay ? (
                     <View
                       style={{
-                        marginLeft: 64 + space.xs,
+                        marginLeft: DAY_COLUMN + space.xs,
                         gap: space.xxs,
-                        padding: space.xs,
-                        borderRadius: 10,
+                        paddingHorizontal: space.s,
+                        paddingVertical: space.xs,
+                        borderRadius: radius.s,
+                        borderCurve: "continuous",
                         backgroundColor: colors["neutral-2"],
                       }}
                     >
@@ -363,7 +407,7 @@ export function WeekPreview({
                             {formatClock(piece.start, zone)} – {formatClock(piece.end, zone)}
                           </Text>
                           {pieceFigures(piece, asked, WRITERS).map((figure) => (
-                            <Text key={figure} size="xs" tone="muted">
+                            <Text key={figure} size="xs" style={{ color: colors["neutral-8"] }}>
                               {` · ${figure}`}
                             </Text>
                           ))}
@@ -374,13 +418,17 @@ export function WeekPreview({
                 </View>
               );
             })}
-            <Text size="xs" tone="muted">
+            <Text size="xxs" tone="muted">
               {m.alert_week_hint()}
             </Text>
           </View>
         ) : null}
       </Surface>
-      {footer}
+      {notes.map((note) => (
+        <Text key={note} size="xs" tone="muted">
+          {note}
+        </Text>
+      ))}
     </View>
   );
 }

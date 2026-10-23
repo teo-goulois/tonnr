@@ -1,41 +1,40 @@
+import type { ArcKey } from "@repo/client/alerts/alert-words";
+import { onCompass, startingArc } from "@repo/client/alerts/compass";
 import {
   SHORTEST_HOURS,
   STEPS,
   isArcPart,
   isSetValue,
   othersOf,
-  tideAsksOf,
   tideAt,
   valueAt,
 } from "@repo/client/alerts/editing";
-import { shoreWind } from "@repo/conditions/shore-wind";
 import { MAX_ALTERNATIVES } from "@repo/conditions/spots/criteria";
 import { COEFFICIENT_BANDS, type TideSegment } from "@repo/config/sea-words";
 import { CirclePlusIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { useEffect, useId, useRef, useState } from "react";
+import { InputAccessoryView, Keyboard, Platform, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { TextField } from "@/components/lists/text-field";
-import { shoreWord } from "@/components/saved/sea-figures";
 import { Button } from "@/components/ui/button";
 import { Chip, ChipRow } from "@/components/ui/chip";
-import { TARGET } from "@/components/ui/metrics";
-import { Segmented } from "@/components/ui/segmented";
+import { edge } from "@/components/ui/edge";
+import { Input } from "@/components/ui/input";
+import { MorphText } from "@/components/ui/morph-text";
+import { SheetFooter, SheetRoot } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { formatNumber } from "@/lib/format";
-import { useSheetFoot } from "@/components/ui/sheet";
 import { useTheme } from "@/lib/theme";
 import { useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
 import { type PartKey, type Writing, readWriting, useWriting } from "./bridge";
 import { Compass } from "./compass";
-import { onCompass, sameArc, shoreSectors } from "./compass-angles";
 import { CycleDial } from "./cycle-dial";
-import { partLabel, partSaid, sectorWords } from "./part-words";
+import { partLabel, partSaid } from "./part-words";
 import { RangeSlider } from "./range-slider";
-import { AlertTideChart } from "./tide-chart";
 import { LiveCount } from "./week-preview";
 import {
   type Arc,
@@ -53,41 +52,33 @@ import {
 } from "./words";
 
 // What changes a part of an alert's sentence, in a sheet of the platform's that rises over the
-// editor's as the web's drawer rises over its sheet: the part's name and its value big at the
-// top, the controls a phone has for it, the windows of the week as they move, and two buttons,
-// "any", which leaves the part asking nothing, and "done". A part takes other values, chosen
-// above its controls and added with a "+", and one of them is taken out with "remove". As a new
-// alert is said a part at a time, "next" goes on to the next part in the same sheet. The sheet
-// reads and writes the editor through `bridge.ts`. Decision 031, "The editor".
-
-// Where the swell or the wind comes from at this hour, by the part's own figure.
-const NOW_OF: Partial<
-  Record<Part, "waveDirectionDegrees" | "primarySwellDirectionDegrees" | "windDirectionDegrees">
-> = {
-  waveDirectionDegrees: "waveDirectionDegrees",
-  primarySwellDirectionDegrees: "primarySwellDirectionDegrees",
-  windDirectionDegrees: "windDirectionDegrees",
-};
-
-/** A sector around a bearing, sixty degrees wide, on the dial's steps. */
-const around = (at: number): Arc => ({
-  from: onCompass(Math.round((at - 30) / 5) * 5),
-  to: onCompass(Math.round((at + 30) / 5) * 5),
-});
+// editor's as the web's drawer rises over its sheet, and holds what the drawer holds on a phone:
+// the part's name and its value big at the top, in the middle, the value's figures moving to what
+// they become; under them the row of the part's values, there from the first with "another
+// value", which waits until the value in hand is set; the controls of the part, the web's, and the
+// windows of the week as they move, whose place is kept before there are any, which scroll on a
+// small phone; and at its foot two buttons, an outlined "any", which leaves the part asking
+// nothing, or "remove" for an other value, and "done". Choosing a value moves nothing in it. An
+// other value is also added by the "+" of the sentence and opens here at its index, as the web's
+// drawer opens for it. As a new alert is said a part at a time, "done" goes on to the next part.
+// The sheet reads and writes the editor through `bridge.ts`. Decision 031, "The editor".
 
 /** One end of a sector, typed, for what the dial's steps are too coarse for. */
 function DegreeField({
   word,
   label,
   degrees,
+  keyboard,
   onChange,
 }: {
   word: string;
   label: string;
   degrees: number;
+  /** The bar over the number pad that closes it, on iOS, whose pad has no key that does. */
+  keyboard: string | undefined;
   onChange: (degrees: number) => void;
 }) {
-  const { colors, space, radius } = useTheme();
+  const { space } = useTheme();
   // What is typed, which may be empty for a moment; the dial's moves write over it.
   const [typed, setTyped] = useState(String(degrees));
   const [isEditing, setEditing] = useState(false);
@@ -96,41 +87,63 @@ function DegreeField({
   }, [degrees, isEditing]);
   return (
     <View style={{ flex: 1, gap: space.xxs }}>
-      <Text size="xs" tone="muted">
+      <Text
+        size="xs"
+        tone="muted"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {word}
       </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          minHeight: TARGET,
-          paddingHorizontal: space.s,
-          borderRadius: radius.xs,
-          borderCurve: "continuous",
-          backgroundColor: colors["neutral-3"],
+      <Input
+        value={typed}
+        end="°"
+        keyboardType="number-pad"
+        returnKeyType="done"
+        maxLength={3}
+        inputAccessoryViewID={keyboard}
+        accessibilityLabel={label}
+        onFocus={() => setEditing(true)}
+        onBlur={() => {
+          setEditing(false);
+          setTyped(String(degrees));
         }}
-      >
-        <TextField
-          value={typed}
-          keyboardType="number-pad"
-          maxLength={3}
-          accessibilityLabel={label}
-          onFocus={() => setEditing(true)}
-          onBlur={() => {
-            setEditing(false);
-            setTyped(String(degrees));
-          }}
-          onChangeText={(text) => {
-            setTyped(text);
-            const number = Number(text);
-            if (text === "" || !Number.isFinite(number)) return;
-            onChange(onCompass(Math.round(number)));
-          }}
-          style={{ fontVariant: ["tabular-nums"] }}
-        />
-        <Text tone="muted">°</Text>
-      </View>
+        onChangeText={(text) => {
+          setTyped(text);
+          const number = Number(text);
+          if (text === "" || !Number.isFinite(number)) return;
+          onChange(onCompass(Math.round(number)));
+        }}
+      />
     </View>
+  );
+}
+
+/**
+ * The bar over the number pad of the degrees, on iOS, as Safari's over the web's field: its one
+ * button closes the pad. Android's pad has a key of its own that does.
+ */
+function DegreesKeyboard({ id }: { id: string }) {
+  const { colors, space } = useTheme();
+  if (Platform.OS !== "ios") return null;
+  return (
+    <InputAccessoryView nativeID={id} backgroundColor={colors["neutral-2"]}>
+      <View
+        style={[
+          {
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            paddingHorizontal: space.xs,
+            paddingVertical: space.xxs,
+          },
+          edge(colors["neutral-4"]),
+        ]}
+      >
+        <Button variant="ghost" size="xs" onPress={() => Keyboard.dismiss()}>
+          {m.native_alert_degrees_done()}
+        </Button>
+      </View>
+    </InputAccessoryView>
   );
 }
 
@@ -170,79 +183,55 @@ function SectorControls({
   index,
 }: {
   writing: Writing;
-  partKey: Part;
+  partKey: ArcKey & Part;
   index: number;
 }) {
   const { space } = useTheme();
+  const keyboard = useId();
   const label = partLabel(partKey);
-  const value = valueAt(writing.criteria, partKey as Exclude<Part, "tide">, index) as
-    | Arc
-    | undefined;
-  const field = NOW_OF[partKey];
-  const at = field ? writing.hourNow?.[field] : null;
-  const isWind = partKey === "windDirectionDegrees";
+  const value = valueAt(writing.criteria, partKey, index) as Arc | undefined;
+  const at = writing.hourNow?.[partKey];
   // Around where it comes from now, when the forecast says, or around the usual.
-  const shown =
-    value ?? (at != null ? around(at) : isWind ? { from: 45, to: 135 } : { from: 250, to: 310 });
+  const shown = value ?? startingArc(partKey, at);
   const set = (arc: Arc) => writing.setValue(partKey, index, arc);
-  const offshore = isWind ? writing.offshore : null;
-  const sectors = offshore != null ? shoreSectors(offshore) : null;
-  const words = sectorWords(shown);
-  const meets =
-    offshore != null
-      ? [shoreWind(shown.from, offshore), shoreWind(shown.to, offshore)].map(shoreWord)
-      : [];
   return (
-    <View style={{ gap: space.s }}>
-      <Compass arc={shown} now={at} offshore={offshore} label={label} onChange={set} />
-      <View accessible style={{ alignItems: "center", gap: 2 }}>
-        <Text size="s" weight="medium" numeric accessibilityLabel={words.spoken}>
-          {words.shown}
-        </Text>
-        {meets.length > 0 ? (
-          <Text size="xs" tone="muted">
-            {meets[0] === meets[1] ? meets[0] : `${meets[0]} – ${meets[1]}`}
-          </Text>
-        ) : null}
-      </View>
-      {sectors ? (
-        <View style={{ gap: space.xxs }}>
-          <Text size="xs" tone="muted" accessibilityRole="header">
-            {m.native_alert_wind_shore()}
-          </Text>
-          <ChipRow label={m.native_alert_wind_shore()}>
-            {(
-              [
-                [sectors.offshore, m.wind_offshore()],
-                [sectors.crossOffshore, m.native_alert_wind_to_cross_offshore()],
-                [sectors.crossShore, m.native_alert_wind_to_cross_shore()],
-              ] as const
-            ).map(([arc, name]) => (
-              <Chip
-                key={name}
-                label={name}
-                selected={sameArc(value, arc)}
-                onPress={() => set(arc)}
-              />
-            ))}
-          </ChipRow>
+    <>
+      <Compass arc={shown} now={at} label={label} onChange={set} />
+      {/* The bar over the pad stands in the fields' own box, which lays no room between. */}
+      <View>
+        <View style={{ flexDirection: "row", gap: space.xs }}>
+          <DegreeField
+            word={m.alert_degrees_from()}
+            label={m.alert_sector_from({ label })}
+            degrees={shown.from}
+            keyboard={Platform.OS === "ios" ? keyboard : undefined}
+            onChange={(from) => set({ ...shown, from })}
+          />
+          <DegreeField
+            word={m.alert_degrees_to()}
+            label={m.alert_sector_to({ label })}
+            degrees={shown.to}
+            keyboard={Platform.OS === "ios" ? keyboard : undefined}
+            onChange={(to) => set({ ...shown, to })}
+          />
         </View>
-      ) : null}
-      <View style={{ flexDirection: "row", gap: space.xs }}>
-        <DegreeField
-          word={m.alert_degrees_from()}
-          label={m.alert_sector_from({ label })}
-          degrees={shown.from}
-          onChange={(from) => set({ ...shown, from })}
-        />
-        <DegreeField
-          word={m.alert_degrees_to()}
-          label={m.alert_sector_to({ label })}
-          degrees={shown.to}
-          onChange={(to) => set({ ...shown, to })}
-        />
+        <DegreesKeyboard id={keyboard} />
       </View>
-    </View>
+    </>
+  );
+}
+
+/** The name of a group of toggles, small and grey over it, as the web's. */
+function GroupName({ children }: { children: string }) {
+  return (
+    <Text
+      size="xs"
+      tone="muted"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {children}
+    </Text>
   );
 }
 
@@ -263,15 +252,8 @@ function TideControls({ writing, index }: { writing: Writing; index: number }) {
       tideCoefficients: ask.tideCoefficients,
       ...next,
     });
-  const cycles = tideAsksOf(writing.criteria).flatMap((one) =>
-    one.tideCycle ? [one.tideCycle] : [],
-  );
-  const lasts =
-    writing.tideLasts === null
-      ? undefined
-      : m.alert_tide_lasts({ lasts: durationWords(writing.tideLasts) });
   return (
-    <View style={{ gap: space.s }}>
+    <>
       <CycleDial value={ask.tideCycle ?? []} onChange={(tideCycle) => choose({ tideCycle })} />
       {before ? (
         <Text size="xs" tone="muted">
@@ -280,18 +262,15 @@ function TideControls({ writing, index }: { writing: Writing; index: number }) {
       ) : null}
       {writing.hasCoefficients ? (
         <View style={{ gap: space.xxs }}>
-          <Text size="xs" tone="muted" accessibilityRole="header">
-            {m.alert_label_coefficient()}
-          </Text>
-          <ChipRow label={m.alert_label_coefficient()}>
+          <GroupName>{m.alert_label_coefficient()}</GroupName>
+          <ToggleGroup label={m.alert_label_coefficient()}>
             {COEFFICIENT_BANDS.map((band) => {
               const on = ask.tideCoefficients?.includes(band) ?? false;
               return (
-                <Chip
+                <Toggle
                   key={band}
                   label={BAND_FIGURES[band]}
-                  iconLabel={m.alert_label_coefficient()}
-                  selected={on}
+                  pressed={on}
                   onPress={() =>
                     choose({
                       tideCoefficients: COEFFICIENT_BANDS.filter((one) =>
@@ -302,60 +281,38 @@ function TideControls({ writing, index }: { writing: Writing; index: number }) {
                 />
               );
             })}
-          </ChipRow>
+          </ToggleGroup>
         </View>
       ) : null}
-      {writing.hasTide && writing.tide.length > 1 ? (
-        <View style={{ gap: space.xxs }}>
-          <AlertTideChart
-            tide={writing.tide}
-            extremes={writing.extremes}
-            cycles={cycles}
-            zone={writing.zone}
-            label={[m.native_alert_tide_ahead(), lasts].filter(Boolean).join(" ")}
-          />
-          <Text size="xs" tone="muted">
-            {[m.native_alert_tide_ahead(), lasts].filter(Boolean).join(" ")}
-          </Text>
-        </View>
-      ) : !writing.hasTide ? (
-        <Text size="xs" tone="muted">
-          {m.native_alert_tide_none()}
-        </Text>
-      ) : null}
-    </View>
+    </>
   );
 }
 
 function ShortestControls({ writing }: { writing: Writing }) {
-  const { space } = useTheme();
+  const { colors } = useTheme();
   const hours = writing.shortestMinutes / 60;
   const tooShort = writing.tideLasts !== null && writing.tideLasts < writing.shortestMinutes;
   return (
-    <View style={{ gap: space.s }}>
-      <Segmented
-        label={m.alert_label_shortest()}
-        fill
-        options={SHORTEST_HOURS.map((one) => ({
-          value: String(one),
-          label: m.alert_hours({ count: one }),
-        }))}
-        value={
-          SHORTEST_HOURS.includes(hours as (typeof SHORTEST_HOURS)[number]) ? String(hours) : null
-        }
-        onChange={(chosen) => writing.setShortest(Number(chosen) * 60)}
-      />
+    <>
+      <ToggleGroup label={m.alert_label_shortest()}>
+        {SHORTEST_HOURS.map((one) => (
+          <Toggle
+            key={one}
+            label={m.alert_hours({ count: one })}
+            pressed={one === hours}
+            onPress={() => {
+              if (one !== hours) writing.setShortest(one * 60);
+            }}
+          />
+        ))}
+      </ToggleGroup>
       {writing.tideLasts !== null ? (
-        <Text size="xs" tone={tooShort ? "default" : "muted"}>
-          {tooShort
-            ? m.alert_tide_short({
-                lasts: durationWords(writing.tideLasts),
-                shortest: durationWords(writing.shortestMinutes),
-              })
-            : m.alert_tide_lasts({ lasts: durationWords(writing.tideLasts) })}
+        // Darker when no window that long can come, as the web says it.
+        <Text size="xs" tone="muted" style={tooShort ? { color: colors["neutral-9"] } : undefined}>
+          {m.alert_tide_lasts({ lasts: durationWords(writing.tideLasts) })}
         </Text>
       ) : null}
-    </View>
+    </>
   );
 }
 
@@ -363,8 +320,7 @@ type PartSheetProps = { partKey: PartKey; index: number };
 
 export function PartSheet({ partKey, index }: PartSheetProps) {
   const writing = useWriting();
-  const { space } = useTheme();
-  const foot = useSheetFoot(space.m);
+  const { colors, space } = useTheme();
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
 
@@ -395,6 +351,8 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
   const step = (STEPS as readonly string[]).indexOf(partKey);
   const isGuided = index === 0 && step >= 0 && step === writing.revealed;
   const next = isGuided && step < STEPS.length - 1 ? STEPS[step + 1] : undefined;
+  // Done: the next part of a new alert takes this one's place, as the web's next drawer opens
+  // once this one closed; otherwise the sheet closes.
   const goOn = () => {
     if (next) {
       writing.left(partKey, index, true);
@@ -412,83 +370,117 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
   // the row is there whatever is chosen, so that choosing moves nothing under it.
   const offersAnother = isValue && index <= others && others < MAX_ALTERNATIVES;
   const canAdd = offersAnother && isSetValue(writing.criteria, partKey, index);
+  // The tide's words are long: they wrap a step smaller and do not move.
+  const isLong = partKey === "tide";
 
   return (
-    <View
-      style={{
-        gap: space.m,
-        paddingTop: space.l,
-        paddingHorizontal: space.m,
-        paddingBottom: foot,
-      }}
-    >
-      <View style={{ gap: space.xxs }}>
-        <Text size="s" tone="muted">
+    // The controls' scroll view stands under the head: SheetRoot keeps react-native-screens from
+    // moving it over it. The sheet is as tall as what it holds, and no taller than the screen,
+    // where what scrolls gives way.
+    <SheetRoot style={{ flexShrink: 1, backgroundColor: colors["cte-canvas"] }}>
+      <View
+        style={{
+          alignItems: "center",
+          gap: space.xxs,
+          // The web's grab bar and the room under it, where iOS draws its own.
+          paddingTop: space.m + space.xxs,
+          paddingHorizontal: space.m,
+        }}
+      >
+        <Text
+          size="s"
+          tone="muted"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ textAlign: "center" }}
+        >
           {label}
         </Text>
-        <Text
-          size="l"
-          weight="medium"
-          numeric
+        <View
+          accessible
           accessibilityRole="header"
           accessibilityLiveRegion="polite"
-          accessibilityLabel={said?.spoken ? `${label}: ${said.spoken}` : `${label}: ${value}`}
+          accessibilityLabel={`${label}: ${said?.spoken ?? value}`}
+          style={{ alignSelf: "stretch" }}
         >
-          {value}
-        </Text>
+          {isLong ? (
+            <Text size="m" weight="medium" style={{ textAlign: "center" }}>
+              {value}
+            </Text>
+          ) : (
+            <MorphText size="l" weight="medium" numeric align="center" accessible={false}>
+              {value}
+            </MorphText>
+          )}
+        </View>
       </View>
 
+      {/* The part's values, from the first, with "Another value" waiting for this one to be set:
+          the row is there whatever is chosen, so that choosing moves nothing under it. */}
       {isValue ? (
-        <ChipRow label={label} bleed={space.m}>
-          {Array.from({ length: Math.max(others, index) + 1 }, (_, at) => {
-            const one = at <= others ? partSaid(writing.criteria, partKey, at) : undefined;
-            const name = one?.isSet
-              ? one.value
-              : at === 0
-                ? m.alert_part_any()
-                : m.alert_to_choose();
-            return (
+        <View style={{ paddingHorizontal: space.m, paddingTop: space.m }}>
+          <ChipRow label={label} bleed={space.m}>
+            {Array.from({ length: Math.max(others, index) + 1 }, (_, at) => {
+              const one = at <= others ? partSaid(writing.criteria, partKey, at) : undefined;
+              const name = one?.isSet
+                ? one.value
+                : at === 0
+                  ? m.alert_part_any()
+                  : m.alert_to_choose();
+              return (
+                <Chip
+                  // The values of a part keep their order: nothing else tells them apart.
+                  // oxlint-disable-next-line react/no-array-index-key
+                  key={at}
+                  label={at === 0 ? name : `${m.alert_or_word()} ${name}`}
+                  selected={at === index}
+                  onPress={() => router.setParams({ index: String(at) })}
+                />
+              );
+            })}
+            {offersAnother ? (
               <Chip
-                // The values of a part keep their order: nothing else tells them apart.
-                // oxlint-disable-next-line react/no-array-index-key
-                key={at}
-                label={at === 0 ? name : `${m.alert_or_word()} ${name}`}
-                selected={at === index}
-                onPress={() => router.setParams({ index: String(at) })}
+                label={m.native_alert_part_another()}
+                iconLabel={m.alert_add_value({ label })}
+                icon={CirclePlusIcon}
+                selected={false}
+                disabled={!canAdd}
+                onPress={() => router.setParams({ index: String(others + 1) })}
               />
-            );
-          })}
-          {offersAnother ? (
-            <Chip
-              label={m.native_alert_part_another()}
-              iconLabel={m.alert_add_value({ label })}
-              icon={CirclePlusIcon}
-              selected={false}
-              disabled={!canAdd}
-              onPress={() => router.setParams({ index: String(others + 1) })}
-            />
-          ) : null}
-        </ChipRow>
+            ) : null}
+          </ChipRow>
+        </View>
       ) : null}
 
-      {partKey === "shortest" ? (
-        <ShortestControls writing={writing} />
-      ) : partKey === "tide" ? (
-        <TideControls writing={writing} index={index} />
-      ) : isArcPart(partKey) ? (
-        <SectorControls writing={writing} partKey={partKey} index={index} />
-      ) : (
-        <RangeControls writing={writing} partKey={partKey as RangeKey & Part} index={index} />
-      )}
+      <KeyboardAwareScrollView
+        keyboardShouldPersistTaps="handled"
+        alwaysBounceVertical={false}
+        bottomOffset={space.l}
+        contentContainerStyle={{
+          gap: space.s,
+          padding: space.m,
+          // The foot stands a small step under what scrolls: together, the web's room.
+          paddingBottom: space.m - space.xs,
+        }}
+      >
+        {partKey === "shortest" ? (
+          <ShortestControls writing={writing} />
+        ) : partKey === "tide" ? (
+          <TideControls writing={writing} index={index} />
+        ) : isArcPart(partKey) ? (
+          <SectorControls writing={writing} partKey={partKey as ArcKey & Part} index={index} />
+        ) : (
+          <RangeControls writing={writing} partKey={partKey as RangeKey & Part} index={index} />
+        )}
+        <LiveCount week={writing.week} since={since} />
+      </KeyboardAwareScrollView>
 
-      <LiveCount week={writing.week} since={since} />
-
-      <View style={{ flexDirection: "row", gap: space.xs }}>
+      <SheetFooter pinned fit>
         {isValue ? (
           <Button
-            variant="secondary"
+            variant="outline"
             size="l"
-            style={{ flex: 1 }}
+            fill
             onPress={() => {
               if (index === 0) {
                 // "Any": the part asks nothing, and a new alert goes on to its next part.
@@ -503,10 +495,10 @@ export function PartSheet({ partKey, index }: PartSheetProps) {
             {index === 0 ? m.alert_part_any() : m.alert_part_remove()}
           </Button>
         ) : null}
-        <Button size="l" style={{ flex: 1 }} onPress={goOn}>
-          {next ? m.native_alert_part_next() : m.alert_part_done()}
+        <Button size="l" fill onPress={goOn}>
+          {m.alert_part_done()}
         </Button>
-      </View>
-    </View>
+      </SheetFooter>
+    </SheetRoot>
   );
 }

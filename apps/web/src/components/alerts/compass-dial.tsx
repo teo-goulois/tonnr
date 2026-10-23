@@ -1,3 +1,10 @@
+import {
+  COMPASS_STEP,
+  bearingOf,
+  onCompass,
+  onDial as position,
+  onStep,
+} from "@repo/client/alerts/compass";
 import { type PointerEvent as ReactPointerEvent, useRef } from "react";
 
 import { compassPoint } from "@/lib/format";
@@ -9,16 +16,9 @@ import type { Arc } from "./alert-words";
 // The dial is drawn at its own size, so that its letters are the theme's.
 const SIZE = 176;
 const RADIUS = 66;
-// A handle moves by this many degrees, dragged or with the arrows.
-const STEP = 5;
-
-const position = (degrees: number, radius: number) => {
-  const angle = (degrees * Math.PI) / 180;
-  return { x: radius * Math.sin(angle), y: -radius * Math.cos(angle) };
-};
-const onCompass = (degrees: number) => ((degrees % 360) + 360) % 360;
-// Where a handle that moves comes to rest: on one of the dial's steps.
-const onStep = (degrees: number) => onCompass(Math.round(degrees / STEP) * STEP);
+// A handle moves by this many degrees, dragged or with the arrows: the steps, the angles and
+// where a point stands live in packages/client, which the app for phones draws its dial with.
+const STEP = COMPASS_STEP;
 
 type CompassDialProps = {
   // The sector, clockwise from `from` to `to`. Equal ends are the whole compass.
@@ -45,7 +45,7 @@ export function CompassDial({ arc, now, label, onChange }: CompassDialProps) {
     if (!box) return 0;
     const dx = event.clientX - (box.left + box.width / 2);
     const dy = event.clientY - (box.top + box.height / 2);
-    return onStep((Math.atan2(dx, -dy) * 180) / Math.PI);
+    return onStep(bearingOf(dx, dy));
   }
   const move = (end: "from" | "to", degrees: number) => {
     if (degrees !== ends[end]) onChange({ ...ends, [end]: degrees });

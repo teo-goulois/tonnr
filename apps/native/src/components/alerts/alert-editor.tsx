@@ -4,45 +4,49 @@ import {
   askedFiguresOf,
   isSetValue,
   longestFitting,
-  othersOf,
   tideAsksOf,
   tideLastsOf,
   weekDays,
   weekStateOf,
   withValue,
 } from "@repo/client/alerts/editing";
-import type { Alert, AlertSettings, Spot } from "@repo/client/viewer/types";
-import { ChevronDownIcon, CopyIcon, PauseIcon, PlayIcon, TrashIcon } from "@repo/ui/icon";
+import type { Alert, AlertCriteria, AlertSettings, Spot } from "@repo/client/viewer/types";
+import { ChevronDownIcon, CopyIcon, TrashIcon } from "@repo/ui/icon";
 import { router } from "expo-router";
-import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
-import { BackHandler, LayoutAnimation, Pressable, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
+import { LayoutAnimation, Platform, Pressable, View } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useReducedMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { z } from "zod";
 
-import { TextField } from "@/components/lists/text-field";
-import { StepHeader } from "@/components/place/save-lists";
 import { Glyph } from "@/components/shared/glyph";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
+import { FormScroll, useAppForm, useFormSend } from "@/components/ui/form";
 import { feel } from "@/components/ui/haptics";
 import { Row, Section } from "@/components/ui/list";
 import { TARGET } from "@/components/ui/metrics";
-import { SheetHeader, useSheetGuard } from "@/components/ui/sheet";
-import { Surface } from "@/components/ui/surface";
+import { PanelHeader, SheetFooter, SheetRoot, useSheetGuard } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
+import { Toggle, ToggleGroup } from "@/components/ui/toggle";
 import { formatDay } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { formatHeight, useUnits } from "@/lib/units";
 import { m } from "@/paraglide/messages";
 
-import { askToDelete, isPaused } from "./alert-row";
+import { askToDelete } from "./alert-row";
 import { type PartKey, publishWriting, withdrawWriting } from "./bridge";
 import { type AlertPlace, keepCopy } from "./copies";
-import { PlacePicker } from "./place-picker";
 import { partLabel, partSaid } from "./part-words";
-import { Sentence, type SentencePiece } from "./sentence";
-import { placesWords } from "./summary";
-import { useAlertActions } from "./use-alerts";
-import { useOffshore, usePreview, useSaveAlert, useTideAt } from "./use-alert-editor";
+import { Sentence, type SentencePart, type SentencePiece } from "./sentence";
+import { saidValues } from "./sentence-values";
+import {
+  useDeleteAlert,
+  useOffshore,
+  usePreview,
+  useSaveAlert,
+  useTideAt,
+} from "./use-alert-editor";
 import { WeekPreview } from "./week-preview";
 import {
   type AlertDraft,
@@ -53,6 +57,7 @@ import {
   afterRead,
   afterSpotsRead,
   asked,
+  conditionsKey,
   durationWords,
   hasSeaAhead,
   heldBack,
@@ -65,13 +70,18 @@ import {
   setPart,
 } from "./words";
 
-// An alert written in a sheet of its own, the web's `AlertEditor` as a phone writes it: Cancel
-// and Save in the sheet's header, its name, the places it is set on, and the alert said in one
-// sentence whose parts each open a sheet of the platform's over this one, with the controls a
-// phone has for them; under it, what the sentence would tell over the week ahead, judged here
-// as each part moves by the rules the worker judges by, what holds its windows back, and for an
-// alert that is saved its switch, its pause, a copy and deleting it. A new alert is said a part
-// at a time. What is written is not lost without a question. Decision 031, "The editor".
+// An alert written in a sheet of its own, the web's `AlertSheet` with its `AlertEditor` as a
+// phone draws them: the drawer's head, with the alert's name, or "New alert", over the place it
+// is written from, and the cross; then its name, and the alert said in one sentence whose parts
+// each open a sheet of the platform's over this one, with the controls a phone has for them, a
+// "+" after a part's last value and an "×" after each other one; under it, what the sentence
+// would tell over the week ahead, judged here as each part moves by the rules the worker judges
+// by, what holds its windows back, the account's other spots it may be set on too, the mail it
+// asks about once, and for an alert that is saved its switch. Its bar stays at the foot: "Save
+// the alert", and for one that is saved, a copy and the trash. A new alert is said a part at a
+// time. It is a form of the kit (decision 078): once sent, a name that is missing or a sentence
+// that asks nothing is said under it, and what is written is not lost without the web's question.
+// Decision 031, "The editor".
 
 /** An alert as an editor holds it: the parts that can be changed. */
 export const draftOf = (alert: Alert): AlertDraft => ({
@@ -82,6 +92,12 @@ export const draftOf = (alert: Alert): AlertDraft => ({
   spotIds: alert.spotIds,
   breakIds: alert.breakIds,
 });
+
+/** Hands a field what the form's button does, for its return key. */
+function Sending({ children }: { children: (send: () => void) => ReactNode }) {
+  const send = useFormSend();
+  return children(() => void send());
+}
 
 type AlertEditorProps = {
   now: number;
@@ -109,11 +125,12 @@ export function AlertEditor({
 }: AlertEditorProps) {
   const owner = useId();
   const { colors, space } = useTheme();
+  const insets = useSafeAreaInsets();
   // The heights and the wind are written in the unit their reader chose.
   useUnits();
   const reduced = useReducedMotion();
-  const actions = useAlertActions();
-  const { save, isSaving } = useSaveAlert();
+  const { save: saveAlert, isSaving } = useSaveAlert();
+  const { deleteNow, isDeleting } = useDeleteAlert();
 
   const saved = useMemo<AlertDraft>(
     () =>
@@ -159,9 +176,8 @@ export function AlertEditor({
   const asksSomething = Object.keys(sent).length > 0;
   const zone = settings?.zone ?? undefined;
 
-  // The places of the alert, named from what is known of them: the place it is written from,
-  // the copy's, the alert's, the account's spots, and the breaks added here.
-  const [added, setAdded] = useState<AlertPlace[]>([]);
+  // The places of the alert, named from what is known of them: the place it is written from, the
+  // copy's, the alert's and the account's spots.
   const known = useMemo(() => {
     const byId = new Map<string, AlertPlace>();
     const keep = (one: AlertPlace) => byId.set(one.id, one);
@@ -169,7 +185,7 @@ export function AlertEditor({
     initialPlaces?.forEach(keep);
     alert?.places.forEach((one) => {
       const id = one.spotId ?? one.breakId;
-      if (id)
+      if (id) {
         keep({
           kind: one.spotId ? "spot" : "break",
           id,
@@ -177,6 +193,7 @@ export function AlertEditor({
           latitude: one.latitude,
           longitude: one.longitude,
         });
+      }
     });
     spots.forEach((one) =>
       keep({
@@ -187,9 +204,8 @@ export function AlertEditor({
         longitude: one.longitude,
       }),
     );
-    added.forEach(keep);
     return byId;
-  }, [place, initialPlaces, alert, spots, added]);
+  }, [place, initialPlaces, alert, spots]);
   const places = useMemo(
     () =>
       [
@@ -207,7 +223,6 @@ export function AlertEditor({
     [draft.spotIds, draft.breakIds, known, place.latitude, place.longitude],
   );
   const nameOf = (placeId: string) => known.get(placeId)?.name ?? "";
-  const isFull = places.length >= PLACES_MOST;
 
   // What the conditions give at each place, judged here over every hour the preview gave.
   const preview = usePreview(draft.spotIds, draft.breakIds);
@@ -310,33 +325,55 @@ export function AlertEditor({
   const openPart = (key: PartKey, index = 0) =>
     router.push({ pathname: "/alert/part", params: { part: key, index: String(index) } });
 
-  // The sentence, its parts and their other values, each after "or".
-  const part = (key: Part, index: number, step?: number): SentencePiece => {
+  // A value of a part, as the sentence says it: a direction is drawn with its arrows.
+  const part = (key: Part, index: number, step?: number): SentencePart => {
     const said = partSaid(criteria, key, index);
     return {
-      kind: "part",
-      part: {
-        key: `${key}-${index}`,
-        words: said.words,
-        spoken: said.spoken,
-        label: partLabel(key),
-        isSet: said.isSet,
-        current: step !== undefined && step === revealed && revealed < STEPS.length,
-        onPress: () => openPart(key, index),
-      },
+      key: `${key}-${index}`,
+      words: said.words,
+      spoken: said.spoken,
+      label: partLabel(key),
+      isSet: said.isSet,
+      ...(said.arc ? { sector: { from: said.arc.from, to: said.arc.to } } : {}),
+      current: step !== undefined && step === revealed && revealed < STEPS.length,
+      onPress: () => openPart(key, index),
     };
   };
-  const said = (key: Part, after: string | undefined, step?: number): SentencePiece[] => {
-    const list: SentencePiece[] = [part(key, 0, step)];
-    for (let index = 1; index <= othersOf(criteria, key); index++) {
-      if (isSetValue(criteria, key, index)) list.push({ kind: "or" }, part(key, index));
+  /**
+   * A part of the sentence with its other values, each after "or" and followed by an "×" that
+   * takes it away, as the web's. The "+" stands after the last value said, once that one is set
+   * and the part has room for one more, and the comma after it.
+   */
+  const said = (key: Part, after: string, step?: number): SentencePiece[] => {
+    const label = partLabel(key);
+    const values = saidValues(criteria, key);
+    const list: SentencePiece[] = [{ kind: "part", part: part(key, 0, step) }];
+    for (const index of values.others) {
+      list.push(
+        { kind: "or" },
+        { kind: "part", part: part(key, index) },
+        {
+          kind: "remove",
+          key: `${key}-${index}`,
+          label,
+          onPress: () => setValue(key, index, undefined),
+        },
+      );
     }
-    const last = list.at(-1);
-    if (last?.kind === "part" && after) last.part.after = after;
+    if (values.canAdd) {
+      list.push({
+        kind: "add",
+        key,
+        label,
+        // The new value opens at once, and the sentence says nothing of it until it is chosen.
+        onPress: () => openPart(key, values.adds),
+      });
+    }
+    if (after) list.push({ kind: "mark", text: after });
     return list;
   };
   const words = (text: string): SentencePiece => ({ kind: "words", text });
-  const comma = (step: number) => (shows(step) ? "," : undefined);
+  const comma = (step: number) => (shows(step) ? "," : "");
   const sentence: SentencePiece[] = [
     words(m.alert_says_waves()),
     ...said("waveHeightMeters", comma(1), 0),
@@ -358,10 +395,10 @@ export function AlertEditor({
               label: partLabel("shortest"),
               isSet: true,
               current: revealed === 6,
-              after: ".",
               onPress: () => openPart("shortest"),
             },
           },
+          { kind: "mark" as const, text: "." },
         ]
       : []),
   ];
@@ -373,20 +410,29 @@ export function AlertEditor({
       saved.criteria.primarySwellHeightMeters !== undefined ||
       saved.criteria.primarySwellDirectionDegrees !== undefined,
   );
+  // Mail is offered, and taken unless the account says no.
   const [wantsMail, setWantsMail] = useState(true);
-  const [step, setStep] = useState<"sentence" | "places">("sentence");
 
+  // The spots that may share the alert: the account's others, whatever alerts they are in.
+  const neighbours = spots.filter((one) => one.id !== place.id);
+  const isFull = draft.spotIds.length + draft.breakIds.length >= PLACES_MOST;
   const parts = partsToSave(drafting, saved);
   const isDirty = !alert || Object.keys(parts).length > 0;
-  const canSave = isDirty && asksSomething && draft.name.trim().length > 0 && !isSaving;
+  // Saving and deleting take turns: neither is asked while the other is on its way.
+  const isBusy = isSaving || isDeleting;
   // Something is written that leaving would lose: a part that was changed, a save that has not
   // answered, or a new alert that asks something already, as a copy does before it is touched.
   const isHeld = isUnsaved(drafting, saved) || (!alert && asksSomething);
-  const guard = useSheetGuard(isHeld);
+  const guard = useSheetGuard(isHeld, undefined, {
+    title: m.alert_leave_title(),
+    message: m.alert_leave_unsaved(),
+    leave: m.alert_leave(),
+    stay: m.alert_stay(),
+  });
   const asksMail = !alert && settings?.byMail === null && settings.mail !== "off";
 
-  const submit = () => {
-    if (!canSave) return;
+  function save() {
+    if (isBusy) return;
     const name = draft.name.trim();
     const whole = { ...draft, name, criteria: sent };
     const patch = {
@@ -397,216 +443,201 @@ export function AlertEditor({
     // A new alert is sent whole, and one that is saved by the parts that were changed.
     const sending = alert ? patch : whole;
     setDrafting((current) => ({ ...current, sending }));
-    void save(alert, whole, patch, asksMail ? wantsMail : undefined).then((answer) => {
+    return saveAlert(alert, whole, patch, asksMail ? wantsMail : undefined).then((answer) => {
       setDrafting((current) => afterAnswer(current, sending, answer && draftOf(answer)));
       if (answer) guard.close();
     });
-  };
+  }
+
+  // The form checks the alert as it is sent: a name, and a sentence that asks something. What is
+  // written lives in the draft, whose rules packages/client keeps for the web's editor too: the
+  // form holds the name and the conditions as the draft says them, and the name typed here goes
+  // to the draft. Decisions 076 and 078.
+  const form = useAppForm({
+    defaultValues: { name: draft.name, criteria: sent },
+    validators: {
+      onSubmit: z.object({
+        name: z.string().trim().min(1, m.alert_name_needed()),
+        criteria: z.custom<AlertCriteria>(
+          (value) => Object.keys(asked(value as AlertCriteria)).length > 0,
+          m.alert_asks_nothing(),
+        ),
+      }),
+    },
+    onSubmit: () => save(),
+  });
+  useEffect(() => {
+    if (form.getFieldValue("name") !== draft.name) {
+      form.setFieldValue("name", draft.name, { dontUpdateMeta: true, dontRunListeners: true });
+    }
+  }, [form, draft.name]);
+  // Only conditions that say something else change the field: a draft drawn again says the same,
+  // and what the form said of it stays.
+  useEffect(() => {
+    if (conditionsKey(form.getFieldValue("criteria")) !== conditionsKey(sent)) {
+      form.setFieldValue("criteria", sent, { dontUpdateMeta: true });
+    }
+  }, [form, sent]);
 
   const animate = () => {
     if (!reduced) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   };
+  // The bar rides on the keyboard as the web's does, the room under it given back while it does.
+  const footerBottom = Math.max(space.m, insets.bottom);
 
-  // Android's back goes from the places to the sentence, as the button over them does.
-  useEffect(() => {
-    if (step !== "places") return;
-    const listener = BackHandler.addEventListener("hardwareBackPress", () => {
-      setStep("sentence");
-      return true;
-    });
-    return () => listener.remove();
-  }, [step]);
-
-  if (step === "places") {
-    const ids = (kind: AlertPlace["kind"]) => (kind === "spot" ? draft.spotIds : draft.breakIds);
-    const idsKey = (kind: AlertPlace["kind"]) => (kind === "spot" ? "spotIds" : "breakIds");
-    return (
-      <PlacePicker
-        mode="many"
-        near={place}
-        chosen={places}
-        isFull={isFull}
-        onPick={(one) => {
-          if (isFull || ids(one.kind).includes(one.id)) return;
-          setAdded((all) => [...all.filter((other) => other.id !== one.id), one]);
-          set(idsKey(one.kind), [...ids(one.kind), one.id]);
-        }}
-        onRemove={(one) => {
-          if (places.length <= 1) return;
-          set(
-            idsKey(one.kind),
-            ids(one.kind).filter((id) => id !== one.id),
-          );
-        }}
-        header={
-          <View style={{ paddingBottom: space.xs }}>
-            <StepHeader title={m.native_alert_label_places()} onBack={() => setStep("sentence")} />
-          </View>
-        }
-      />
-    );
-  }
-
-  const placeNames = places.map((one) => one.name).filter(Boolean);
-  if (placeNames.length === 0) placeNames.push(place.name);
   return (
-    <View style={{ flex: 1 }}>
-      <SheetHeader
-        title={alert?.name ?? m.alert_new()}
-        onCancel={guard.cancel}
-        onSave={submit}
-        canSave={canSave}
-        saving={isSaving}
-      />
-      <KeyboardAwareScrollView
-        keyboardShouldPersistTaps="handled"
-        bottomOffset={space.l}
-        contentContainerStyle={{
-          gap: space.l,
-          paddingHorizontal: space.m,
-          paddingTop: space.xs,
-          paddingBottom: space.xxl,
-        }}
-      >
-        <View style={{ gap: space.xs }}>
-          <Text size="s" weight="medium" tone="muted" nativeID="alert-name">
-            {m.alert_name_label()}
-          </Text>
-          <Surface insetEdge style={{ paddingHorizontal: space.m }}>
-            <TextField
-              value={draft.name}
-              maxLength={80}
-              onChangeText={(name) => set("name", name)}
-              accessibilityLabel={m.alert_name_label()}
-              accessibilityLabelledBy="alert-name"
-              autoCapitalize="sentences"
-              returnKeyType="done"
-              style={{ flex: 0 }}
-            />
-          </Surface>
-        </View>
+    <SheetRoot style={{ flex: 1, backgroundColor: colors["neutral-1"] }}>
+      <form.AppForm>
+        <PanelHeader
+          title={alert?.name ?? m.alert_new()}
+          description={place.name}
+          onClose={guard.cancel}
+        />
+        <FormScroll
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: space.l, padding: space.m, paddingBottom: space.l }}
+        >
+          <Sending>
+            {(send) => (
+              <form.AppField
+                name="name"
+                listeners={{ onChange: ({ value }) => set("name", value) }}
+              >
+                {(field) => (
+                  <field.Input
+                    label={m.alert_name_label()}
+                    maxLength={80}
+                    autoCapitalize="sentences"
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                    onSubmitEditing={send}
+                  />
+                )}
+              </form.AppField>
+            )}
+          </Sending>
 
-        <View style={{ gap: space.s }}>
-          <Sentence
-            size="m"
-            pieces={[
-              words(m.native_alert_says_at()),
-              {
-                kind: "part",
-                part: {
-                  key: "places",
-                  words: placesWords(placeNames),
-                  label: m.native_alert_label_places(),
-                  isSet: true,
-                  onPress: () => setStep("places"),
-                },
-              },
-            ]}
-          />
-          <Sentence pieces={sentence} />
-          {tooShort && shows(5) && tideLasts !== null ? (
-            <View style={{ gap: space.xs, alignItems: "flex-start" }}>
-              <Text size="s" tone="muted">
-                {m.alert_tide_short({
-                  lasts: durationWords(tideLasts),
-                  shortest: durationWords(draft.shortestMinutes),
-                })}
-              </Text>
-              {fits !== undefined ? (
-                <Button variant="secondary" onPress={() => set("shortestMinutes", fits * 60)}>
-                  {m.alert_tide_short_fit({ hours: m.alert_hours({ count: fits }) })}
-                </Button>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-
-        {revealed >= STEPS.length ? (
+          {/* The alert, said. Every underlined part opens what changes it. */}
           <View style={{ gap: space.s }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: isAdvancedOpen }}
-              onPress={() => {
-                animate();
-                feel("select");
-                setAdvancedOpen((open) => !open);
-              }}
-              style={({ pressed }) => ({
-                minHeight: TARGET,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space.xs,
-                opacity: pressed ? 0.6 : 1,
-              })}
-            >
-              <Text size="s" tone="muted" style={{ flexShrink: 1 }}>
-                {m.alert_advanced()}
-              </Text>
-              <View style={{ transform: [{ rotate: isAdvancedOpen ? "180deg" : "0deg" }] }}>
-                <Glyph icon={ChevronDownIcon} size={14} color={colors["neutral-7"]} />
-              </View>
-            </Pressable>
-            {isAdvancedOpen ? (
-              <View style={{ gap: space.s }}>
-                <Text size="s" tone="muted">
-                  {m.alert_advanced_about()}
-                  {hourNow &&
-                  hourNow.waveHeightMeters !== null &&
-                  hourNow.primarySwellHeightMeters != null
-                    ? ` ${m.alert_advanced_now({
-                        waves: formatHeight(hourNow.waveHeightMeters),
-                        swell: formatHeight(hourNow.primarySwellHeightMeters),
-                      })}`
-                    : ""}
+            {/* The sentence is the field of the conditions: what is wrong with it is said under it. */}
+            <form.AppField name="criteria">
+              {(field) => (
+                <field.Control<AlertCriteria>>
+                  {(control) => (
+                    <Sentence ref={control.focusRef} hint={control.hint} pieces={sentence} />
+                  )}
+                </field.Control>
+              )}
+            </form.AppField>
+            {tooShort && shows(5) && tideLasts !== null ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: space.xs,
+                }}
+              >
+                <Text size="s" style={{ color: colors["neutral-8"] }}>
+                  {m.alert_tide_short({
+                    lasts: durationWords(tideLasts),
+                    shortest: durationWords(draft.shortestMinutes),
+                  })}
                 </Text>
-                <Sentence
-                  pieces={[
-                    words(m.alert_says_swell()),
-                    ...said("primarySwellHeightMeters", ","),
-                    ...said("primarySwellDirectionDegrees", "."),
-                  ]}
-                />
+                {fits !== undefined ? (
+                  <Button variant="outline" onPress={() => set("shortestMinutes", fits * 60)}>
+                    {m.alert_tide_short_fit({ hours: m.alert_hours({ count: fits }) })}
+                  </Button>
+                ) : null}
               </View>
             ) : null}
           </View>
-        ) : null}
 
-        <WeekPreview
-          state={weekState}
-          pieces={pieces}
-          asked={askedFiguresOf(sent)}
-          now={now}
-          zone={zone}
-          nameOf={tried.length > 1 ? nameOf : undefined}
-          notes={notes}
-          credit={
-            preview.data
-              ? m.native_alert_forecast_credit({
-                  attribution: preview.data.forecastSource.attribution,
-                })
-              : undefined
-          }
-        />
+          {revealed >= STEPS.length ? (
+            <View style={{ gap: space.xs }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isAdvancedOpen }}
+                onPress={() => {
+                  animate();
+                  feel("select");
+                  setAdvancedOpen((open) => !open);
+                }}
+                style={({ pressed }) => ({
+                  minHeight: TARGET,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  alignSelf: "flex-start",
+                  gap: space.xs,
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text size="s" style={{ flexShrink: 1, color: colors["neutral-8"] }}>
+                  {m.alert_advanced()}
+                </Text>
+                <View style={{ transform: [{ rotate: isAdvancedOpen ? "180deg" : "0deg" }] }}>
+                  <Glyph icon={ChevronDownIcon} size={14} color={colors["neutral-8"]} />
+                </View>
+              </Pressable>
+              {isAdvancedOpen ? (
+                <View style={{ gap: space.xs }}>
+                  <Text size="s" tone="muted">
+                    {m.alert_advanced_about()}
+                    {hourNow &&
+                    hourNow.waveHeightMeters !== null &&
+                    hourNow.primarySwellHeightMeters != null
+                      ? ` ${m.alert_advanced_now({
+                          waves: formatHeight(hourNow.waveHeightMeters),
+                          swell: formatHeight(hourNow.primarySwellHeightMeters),
+                        })}`
+                      : ""}
+                  </Text>
+                  <Sentence
+                    pieces={[
+                      words(m.alert_says_swell()),
+                      ...said("primarySwellHeightMeters", ","),
+                      ...said("primarySwellDirectionDegrees", "."),
+                    ]}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
-        {asksSomething && held.length > 0 ? (
-          <View style={{ gap: space.xs }}>
-            <Text size="s" weight="medium" tone="muted" accessibilityRole="header">
-              {m.alert_held_title()}
-            </Text>
-            <Surface style={{ padding: space.s, gap: space.s }}>
+          {/* What the sentence would tell over the week ahead. */}
+          <WeekPreview
+            state={weekState}
+            pieces={pieces}
+            asked={askedFiguresOf(sent)}
+            now={now}
+            zone={zone}
+            nameOf={tried.length > 1 ? nameOf : undefined}
+            notes={notes}
+          />
+
+          {asksSomething && held.length > 0 ? (
+            <View style={{ gap: space.xs }}>
+              <Text size="s" weight="medium" accessibilityRole="header">
+                {m.alert_held_title()}
+              </Text>
               {held.map(([key, hours]) => (
                 <View
                   key={key}
-                  style={{ flexDirection: "row", alignItems: "center", gap: space.s }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: space.s,
+                  }}
                 >
-                  <Text size="s" style={{ flex: 1 }}>
+                  <Text size="s" style={{ flexShrink: 1 }}>
                     {CRITERION_LABELS[key]()}{" "}
                     <Text size="s" tone="muted">
                       {m.alert_held_alone({ hours })}
                     </Text>
                   </Text>
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     onPress={() => {
                       feel("select");
                       set("criteria", loosened(criteria, key));
@@ -616,76 +647,127 @@ export function AlertEditor({
                   </Button>
                 </View>
               ))}
-            </Surface>
-          </View>
-        ) : null}
+            </View>
+          ) : null}
 
-        {asksMail ? (
-          <Section>
-            <Row
-              title={m.alert_mail_ask()}
-              description={
-                settings?.mail === "unchecked"
-                  ? m.alert_mail_ask_hint_unchecked()
-                  : m.alert_mail_ask_hint()
-              }
-              toggle={{ value: wantsMail, onChange: setWantsMail }}
-            />
-          </Section>
-        ) : null}
+          {neighbours.length > 0 ? (
+            <View style={{ gap: space.xs }}>
+              {/* The group is named by it: a screen reader hears it there, not twice. */}
+              <Text
+                size="s"
+                weight="medium"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {m.alert_also_on()}
+              </Text>
+              <ToggleGroup label={m.alert_also_on()}>
+                {neighbours.map((one) => {
+                  const isIn = draft.spotIds.includes(one.id);
+                  return (
+                    <Toggle
+                      key={one.id}
+                      label={one.name}
+                      pressed={isIn}
+                      // A spot can still be taken out of an alert that is full.
+                      disabled={isFull && !isIn}
+                      onPress={() => {
+                        const others = draft.spotIds.filter(
+                          (id) => id !== place.id && id !== one.id,
+                        );
+                        const pressed = isIn ? others : [...others, one.id];
+                        set("spotIds", place.kind === "spot" ? [place.id, ...pressed] : pressed);
+                      }}
+                    />
+                  );
+                })}
+              </ToggleGroup>
+              {isFull ? (
+                <Text size="xs" tone="muted">
+                  {m.alert_spots_most({ count: PLACES_MOST })}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
 
-        {alert ? (
-          <>
-            <Section footer={isPaused(alert) ? undefined : m.native_alert_pause_hint()}>
+          {asksMail ? (
+            <Section plain>
+              <Row
+                title={m.alert_mail_ask()}
+                description={
+                  settings?.mail === "unchecked"
+                    ? m.alert_mail_ask_hint_unchecked()
+                    : m.alert_mail_ask_hint()
+                }
+                toggle={{ value: wantsMail, onChange: setWantsMail }}
+              />
+            </Section>
+          ) : null}
+
+          {/* An alert that is saved may be turned off without being deleted. A new one is on. */}
+          {alert ? (
+            <Section plain>
               <Row
                 title={m.alert_enabled_label()}
                 toggle={{ value: draft.enabled, onChange: (enabled) => set("enabled", enabled) }}
               />
-              <Row
-                title={isPaused(alert) ? m.native_alert_resume() : m.native_push_not_today()}
-                description={isPaused(alert) ? m.native_alert_paused() : undefined}
-                icon={isPaused(alert) ? PlayIcon : PauseIcon}
-                chevron={false}
-                disabled={actions.pausing}
-                onPress={() => (isPaused(alert) ? actions.resume(alert) : actions.pause(alert))}
-              />
             </Section>
-            <Section>
-              <Row
-                title={m.native_alert_duplicate()}
-                icon={CopyIcon}
-                chevron={false}
-                disabled={!asksSomething}
-                accessibilityHint={m.alert_copy({ name: draft.name })}
-                onPress={() => {
-                  const key = keepCopy({
-                    draft: {
-                      ...draft,
-                      name: m.alert_copy_name({ name: draft.name }),
-                      criteria: sent,
-                    },
-                    places,
-                  });
-                  router.replace({ pathname: "/alert/new", params: { copy: key } });
-                }}
-              />
-              <Row
-                title={m.alert_delete({ name: alert.name })}
-                icon={TrashIcon}
-                destructive
-                chevron={false}
-                onPress={() =>
-                  void askToDelete(alert).then((yes) => {
-                    if (!yes) return;
-                    guard.close();
-                    actions.remove(alert);
-                  })
-                }
-              />
-            </Section>
-          </>
-        ) : null}
-      </KeyboardAwareScrollView>
-    </View>
+          ) : null}
+        </FormScroll>
+
+        <KeyboardStickyView
+          // iOS leaves a large sheet where it stands as the keyboard comes; Android's sheet moves
+          // with it by itself.
+          enabled={Platform.OS === "ios"}
+          offset={{ opened: footerBottom - space.s }}
+        >
+          <SheetFooter pinned>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.xs }}>
+              <View style={{ flex: 1 }}>
+                {/* An alert that is saved and was not changed has nothing to send. */}
+                <form.SubmitButton fill pending={isSaving} disabled={!isDirty || isDeleting}>
+                  {m.alert_save()}
+                </form.SubmitButton>
+              </View>
+              {/* A saved alert may be copied into another, and deleted. */}
+              {alert ? (
+                <>
+                  <IconButton
+                    icon={CopyIcon}
+                    label={m.alert_copy({ name: draft.name })}
+                    variant="ghost"
+                    disabled={isBusy || !asksSomething}
+                    onPress={() => {
+                      const key = keepCopy({
+                        draft: {
+                          ...draft,
+                          name: m.alert_copy_name({ name: draft.name }),
+                          criteria: sent,
+                        },
+                        // The copy is written from the same place, as the web's: its first.
+                        places: [place, ...places.filter((one) => one.id !== place.id)],
+                      });
+                      router.replace({ pathname: "/alert/new", params: { copy: key } });
+                    }}
+                  />
+                  <IconButton
+                    icon={TrashIcon}
+                    label={m.alert_delete({ name: alert.name })}
+                    variant="ghost"
+                    loading={isDeleting}
+                    disabled={isBusy}
+                    onPress={() =>
+                      void askToDelete(alert).then((yes) => {
+                        if (yes) void deleteNow(alert);
+                      })
+                    }
+                  />
+                </>
+              ) : null}
+            </View>
+          </SheetFooter>
+        </KeyboardStickyView>
+      </form.AppForm>
+    </SheetRoot>
   );
 }

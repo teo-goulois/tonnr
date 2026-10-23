@@ -240,3 +240,35 @@ export function useSaveAlert() {
 
   return { save, isSaving: create.isPending || update.isPending };
 }
+
+/**
+ * Deletes an alert from its editor at once, as the web's does once asked, with no undo: the
+ * question was the platform's, and the toast says it is done. The editor's screen closes once
+ * the alert is gone from the list. A list's swipe deletes with an undo instead (`deleting.ts`).
+ */
+export function useDeleteAlert() {
+  const queryClient = useQueryClient();
+  const tell = useTell();
+  const listKey = orpc.v1.alerts.list.queryKey();
+  const remove = useMutation(orpc.v1.alerts.delete.mutationOptions());
+
+  const deleteNow = (alert: Alert) =>
+    remove
+      .mutateAsync({ id: alert.id })
+      .then(() => {
+        queryClient.setQueryData(listKey, (answer) =>
+          answer ? { alerts: answer.alerts.filter((one) => one.id !== alert.id) } : answer,
+        );
+        tell({ title: m.alert_deleted({ name: alert.name }), tone: "success" });
+      })
+      .catch((error: unknown) =>
+        tell({ title: refusalOf(error, m.alert_delete_failed()), tone: "danger" }),
+      )
+      .finally(() => {
+        // An alert changes what its places say of themselves: both lists are asked for again.
+        void queryClient.invalidateQueries({ queryKey: listKey });
+        void queryClient.invalidateQueries({ queryKey: orpc.v1.spots.key() });
+      });
+
+  return { deleteNow, isDeleting: remove.isPending };
+}
