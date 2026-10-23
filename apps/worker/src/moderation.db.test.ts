@@ -8,8 +8,9 @@ import { providerCalls } from "@repo/db/schema/forecasts";
 import { surfReport, surfReportFlag } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
 import { createTestDatabase, TEST_DATABASE_URL } from "@repo/db/testing";
+import { MAIL_PROVIDER } from "@repo/mail";
 import { testMailer } from "@repo/mail/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { MODERATION_MAIL_PROVIDER, type ModerationOut, runModeration } from "./moderation";
@@ -28,7 +29,7 @@ describe.skipIf(!TEST_DATABASE_URL)("the mail of what accounts flagged", () => {
   afterAll(() => database?.drop());
   beforeEach(async () => {
     mail = testMailer();
-    out = { mailer: mail.mailer, adminOrigin: ADMIN, dailyLimit: 200 };
+    out = { mailer: mail.mailer, adminOrigin: ADMIN };
     const { db } = database;
     await db.delete(breakContribution);
     await db.delete(user);
@@ -153,6 +154,28 @@ describe.skipIf(!TEST_DATABASE_URL)("the mail of what accounts flagged", () => {
     });
     expect(mail.sent()[1]?.text).not.toContain("Reports of the waves");
     expect(mail.sent()[1]?.text).toContain("No church there");
+  });
+
+  it("leaves when the instance's mails of the day are spent, and spends none of them", async () => {
+    // Made-up sign-ups spent the day's mails.
+    await database.db.insert(providerCalls).values({
+      provider: MAIL_PROVIDER,
+      bucket: "day",
+      start: sql`date_trunc('day', now(), 'UTC')`,
+      calls: 200,
+    });
+    await flag("flagger");
+
+    expect(await runModeration(database.db, out)).toMatchObject({ flags: 1, mailed: 1 });
+    expect(mail.sent()).toHaveLength(1);
+    const counted = await database.db
+      .select({ provider: providerCalls.provider, calls: providerCalls.calls })
+      .from(providerCalls)
+      .orderBy(providerCalls.provider);
+    expect(counted).toEqual([
+      { provider: MAIL_PROVIDER, calls: 200 },
+      { provider: MODERATION_MAIL_PROVIDER, calls: 1 },
+    ]);
   });
 
   it("marks nothing told when its mail was not taken", async () => {

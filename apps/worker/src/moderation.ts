@@ -7,30 +7,34 @@ import { alertSettings } from "@repo/db/schema/alerts";
 import { breakContribution, contributionVerdict } from "@repo/db/schema/community";
 import { surfReport, surfReportFlag } from "@repo/db/schema/reports";
 import { surfBreak } from "@repo/db/schema/spots";
-import { MAIL_PROVIDER, type MailSettings, type Mailer, createMailer } from "@repo/mail";
+import { type MailSettings, type Mailer, createMailer } from "@repo/mail";
 import { type FlaggedReport, type ContestedLine, moderationMail } from "@repo/mail/moderation";
 import { and, asc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { Effect } from "effect";
 
-import { DEFAULT_DAILY_MAILS } from "./deliveries";
 import type { Done } from "./runs";
 import { StoreError } from "./store";
 
 // Decision 067: what accounts flagged of the reports and contested of the guides is mailed to
 // the instance's address, `CONTACT_EMAIL`, so that an operator reads it within the hour, as
 // Apple asks of an app whose accounts write that it acts on what is reported within a day. One
-// mail in an hour of the clock at most, and none when nothing is new. A flag or a contest is
+// mail in an hour of the clock at most, and none when nothing is new, counted apart from the
+// instance's mails of the day, which accounts that sign up may spend. A flag or a contest is
 // marked told once the mail that names it was taken: one that came meanwhile, or that a mail
 // left for the next, is named by the next one. The mail names nothing of the account that
 // flagged but whether its flag counts.
 
-/** The name the mail is counted under: once in an hour of the clock. */
+/**
+ * The name the mail is counted under, and nowhere else: once in an hour of the clock, so
+ * twenty-four a day at most, outside the instance's day of mails (`MAIL_PROVIDER`), which made-up
+ * sign-ups may spend whole and would then hold back until midnight what tells of an abuse.
+ */
 export const MODERATION_MAIL_PROVIDER = "moderation-mail";
 // How many flags, and how many contests, a mail names at most: the others wait for the next.
 const NAMED_AT_MOST = 100;
 
 /** What the worker sends the mail with, and the admin's address, which the mail links to. */
-export type ModerationOut = { mailer: Mailer; adminOrigin: string | null; dailyLimit: number };
+export type ModerationOut = { mailer: Mailer; adminOrigin: string | null };
 
 /**
  * What an instance's settings let the worker mail its address with: its way out of mail, and
@@ -38,17 +42,13 @@ export type ModerationOut = { mailer: Mailer; adminOrigin: string | null; dailyL
  * is then the one place that says what waits.
  */
 export function moderationOutOf(
-  settings: MailSettings & {
-    ADMIN_ORIGIN?: string | undefined;
-    EMAIL_DAILY_LIMIT?: number | undefined;
-  },
+  settings: MailSettings & { ADMIN_ORIGIN?: string | undefined },
 ): ModerationOut | null {
   const mailer = createMailer(settings);
   if (!mailer) return null;
   return {
     mailer,
     adminOrigin: settings.ADMIN_ORIGIN ? new URL(settings.ADMIN_ORIGIN).origin : null,
-    dailyLimit: settings.EMAIL_DAILY_LIMIT ?? DEFAULT_DAILY_MAILS,
   };
 }
 
@@ -129,11 +129,10 @@ export async function runModeration(
   };
   run.flags = named.flags.length;
   run.contests = named.contests.length;
-  // One mail in an hour of the clock, counted with the instance's mails of the day, before it
-  // leaves. A mail the provider did not take spends its hour: the next hour tries again.
+  // One mail in an hour of the clock, counted before it leaves under its own name alone. A mail
+  // the provider did not take spends its hour: the next hour tries again.
   const full = await countCalls(db, [
     { provider: MODERATION_MAIL_PROVIDER, bucket: "hour", span: "hour", limit: 1 },
-    { provider: MAIL_PROVIDER, bucket: "day", span: "day", limit: out.dailyLimit },
   ]);
   if (full) return { ...run, held: 1 };
 
