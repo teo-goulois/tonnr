@@ -12,6 +12,7 @@ import { useTheme } from "@/lib/theme";
 import { edge } from "./edge";
 import { feel } from "./haptics";
 import { TARGET } from "./metrics";
+import { MorphText } from "./morph-text";
 import { Text } from "./text";
 
 // A choice among a few, as the web's segments draw it (`TabsList variant="segment"`): a pill of
@@ -21,7 +22,15 @@ import { Text } from "./text";
 // Under `lg` the web gives it a button's height, as decision 040 asks.
 const SEGMENT_HEIGHT = 32;
 
-export type SegmentedOption<Value extends string> = { value: Value; label: string };
+export type SegmentedOption<Value extends string> = {
+  value: Value;
+  label: string;
+  /**
+   * Its words move to what they become (`MorphText`), as the web's last length of a session moves
+   * from "Other" to the length that was set.
+   */
+  morph?: boolean;
+};
 
 type SegmentedProps<Value extends string> = {
   /** What is chosen, which a screen reader says before the options. */
@@ -37,7 +46,17 @@ type SegmentedProps<Value extends string> = {
    * lanes on a phone (`max-lg:px-xs!`), so that the row fits beside a title.
    */
   compact?: boolean;
+  /**
+   * Its options with no room of their own at their sides, as the web draws the lengths of a
+   * session (`px-0`), so that six share a phone's width with `fill`.
+   */
+  flush?: boolean;
   disabled?: boolean;
+  /**
+   * A press on the option already chosen, which changes nothing by itself: the last length of a
+   * session's, which opens its step again, as the web's tab answers its own click.
+   */
+  onReselect?: (value: Value) => void;
 };
 
 export function Segmented<Value extends string>({
@@ -47,7 +66,9 @@ export function Segmented<Value extends string>({
   onChange,
   fill = false,
   compact = false,
+  flush = false,
   disabled = false,
+  onReselect,
 }: SegmentedProps<Value>) {
   const { colors, space, motion } = useTheme();
   const [layouts, setLayouts] = useState<Partial<Record<Value, LayoutRectangle>>>({});
@@ -127,7 +148,10 @@ export function Segmented<Value extends string>({
               setLayouts((known) => ({ ...known, [option.value]: layout }));
             }}
             onPress={() => {
-              if (selected) return;
+              if (selected) {
+                onReselect?.(option.value);
+                return;
+              }
               feel("select");
               onChange(option.value);
             }}
@@ -136,26 +160,40 @@ export function Segmented<Value extends string>({
               flex: fill ? 1 : undefined,
               alignItems: "center",
               justifyContent: "center",
-              paddingHorizontal: compact ? space.xs : space.s,
+              paddingHorizontal: flush ? 0 : compact ? space.xs : space.s,
             }}
           >
-            {({ pressed }) => (
-              <Text
-                size="s"
-                weight={selected ? "medium" : "regular"}
-                dense
-                numberOfLines={1}
-                style={{
-                  color: disabled
-                    ? colors["neutral-4"]
-                    : selected || pressed
-                      ? colors["neutral-10"]
-                      : colors["neutral-6"],
-                }}
-              >
-                {option.label}
-              </Text>
-            )}
+            {({ pressed }) => {
+              const ink = disabled
+                ? colors["neutral-4"]
+                : selected || pressed
+                  ? colors["neutral-10"]
+                  : colors["neutral-6"];
+              return option.morph ? (
+                // The option says its words already: the moving ones are not read again.
+                <MorphText
+                  size="s"
+                  weight={selected ? "medium" : "regular"}
+                  color={ink}
+                  align="center"
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {option.label}
+                </MorphText>
+              ) : (
+                <Text
+                  size="s"
+                  weight={selected ? "medium" : "regular"}
+                  dense
+                  numberOfLines={1}
+                  style={{ color: ink }}
+                >
+                  {option.label}
+                </Text>
+              );
+            }}
           </Pressable>
         );
       })}

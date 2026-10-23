@@ -1942,6 +1942,7 @@
   "alert_sector_degrees": "{arc} · {from}°–{to}°",
   "alert_degrees_from": "De",
   "alert_degrees_to": "À",
+  "native_alert_degrees_done": "OK",
   "alert_says_lasts": "et que ça dure au moins",
   "alert_tide_lasts": "Ta marée dure environ {lasts}.",
   "alert_tide_short": "Ta marée ne dure qu'environ {lasts} : un créneau d'au moins {shortest} n'arrivera jamais.",

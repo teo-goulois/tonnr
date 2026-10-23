@@ -1942,6 +1942,7 @@
   "alert_sector_degrees": "{arc} · {from}°–{to}°",
   "alert_degrees_from": "De",
   "alert_degrees_to": "A",
+  "native_alert_degrees_done": "OK",
   "alert_says_lasts": "y que dure al menos",
   "alert_tide_lasts": "Tu marea dura unas {lasts}.",
   "alert_tide_short": "Tu marea solo dura unas {lasts}: una ventana de al menos {shortest} no llegará nunca.",

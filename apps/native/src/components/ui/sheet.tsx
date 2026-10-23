@@ -16,13 +16,14 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { Button, IconButton } from "./button";
+import { Loading, Skeleton } from "./skeleton";
 import { Text } from "./text";
 
 // What a screen needs to be a form sheet: its options are `formSheet` (sheet-options.ts), given
-// to its `Stack.Screen` where the stack is laid out; its header, Cancel, its title and Save;
-// and the guard that asks before what was written is lost, as `apps/web/src/lib/unsaved.ts`
-// asks on the web. The guard holds the screen, so every way out asks: Cancel, a swipe down, the
-// back of Android, a link. iOS asks in an action sheet and Android in a dialog, each the
+// to its `Stack.Screen` where the stack is laid out; the web drawer's head and foot, `PanelHeader`
+// and `SheetFooter`; and the guard that asks before what was written is lost, as
+// `apps/web/src/lib/unsaved.ts` asks on the web. The guard holds the screen, so every way out
+// asks: the cross, a swipe down, the back of Android, a link. iOS asks in an action sheet and Android in a dialog, each the
 // platform's way.
 
 /** The words of the question, which a form may say in its own: the alert editor's are the web's. */
@@ -164,11 +165,26 @@ export function SheetHeader({
 }
 
 type PanelHeaderProps = {
-  title: string;
-  /** A line under the title, in the theme's ink: the place a form is about. */
-  description?: string | undefined;
+  /** Null while it is on its way: a line pulses in its place, as the web's skeleton of a title. */
+  title: string | null;
+  /**
+   * A line under the title, in the theme's ink: the place a form is about. Null while it is on
+   * its way, which a shorter line pulses in place of.
+   */
+  description?: string | null | undefined;
   /** The line in the muted ink, as a dialog's description is: why an account is asked for. */
   mutedDescription?: boolean;
+  /**
+   * The head of what the web asks in a dialog (`DialogTitle` and `DialogDescription`): the title
+   * on as many lines as it takes, and the line under it at the body's size in the muted ink, a
+   * small step under it.
+   */
+  dialog?: boolean;
+  /**
+   * The room between the title and the line under it, where the web gives a head its own: the
+   * sign-in's dialog, `gap-xxs`. The theme's small step for a dialog, its smallest otherwise.
+   */
+  gap?: number;
   /** Goes back a step inside the sheet: a chevron before the title. */
   onBack?: (() => void) | undefined;
   /** Leaves the sheet, by the cross at its end. With the guard, `useSheetGuard(...).cancel`. */
@@ -187,11 +203,13 @@ export function PanelHeader({
   title,
   description,
   mutedDescription = false,
+  dialog = false,
+  gap,
   onBack,
   onClose,
   actions,
 }: PanelHeaderProps) {
-  const { space } = useTheme();
+  const { space, type } = useTheme();
   return (
     <View
       style={{
@@ -216,12 +234,27 @@ export function PanelHeader({
             style={{ marginLeft: -space.xs, marginTop: -space.xs }}
           />
         ) : null}
-        <View style={{ gap: space.xxs, flexShrink: 1 }}>
-          <Text size="l" weight="medium" numberOfLines={1} accessibilityRole="header">
-            {title}
-          </Text>
-          {description ? (
-            <Text size="s" tone={mutedDescription ? "muted" : "default"}>
+        <View style={{ gap: gap ?? (dialog ? space.xs : space.xxs), flexShrink: 1 }}>
+          {title === null ? (
+            <Loading>
+              <Skeleton width={160} height={type.l.line} />
+            </Loading>
+          ) : (
+            <Text
+              size="l"
+              weight="medium"
+              numberOfLines={dialog ? undefined : 1}
+              accessibilityRole="header"
+            >
+              {title}
+            </Text>
+          )}
+          {description === null ? (
+            <Loading>
+              <Skeleton width={120} height={type.s.line} />
+            </Loading>
+          ) : description ? (
+            <Text size={dialog ? "m" : "s"} tone={mutedDescription || dialog ? "muted" : "default"}>
               {description}
             </Text>
           ) : null}
@@ -260,17 +293,22 @@ export function useSheetFoot(room: number) {
 /**
  * The foot of a sheet, as the web's drawer lays it: what the form sends, its buttons sharing the
  * sheet's width (give each `fill`), with the room the web gives it. `pinned` stands it under what
- * scrolls, above the bottom of the phone, as the alert editor's; otherwise it ends the form.
+ * scrolls, above the bottom of the phone, as the alert editor's; otherwise it ends the form. A
+ * sheet as tall as what it holds says `fit`: the room under it is then `useSheetFoot`'s, which iOS
+ * 26's floating sheet leaves itself.
  */
 export function SheetFooter({
   children,
   pinned = false,
+  fit = false,
 }: {
   children: ReactNode;
   pinned?: boolean;
+  fit?: boolean;
 }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
+  const foot = useSheetFoot(space.m);
   return (
     <View
       style={{
@@ -278,7 +316,7 @@ export function SheetFooter({
         gap: space.xs,
         paddingHorizontal: pinned ? space.m : 0,
         paddingTop: pinned ? space.xs : 0,
-        paddingBottom: pinned ? Math.max(space.m, insets.bottom) : 0,
+        paddingBottom: !pinned ? 0 : fit ? foot : Math.max(space.m, insets.bottom),
       }}
     >
       {Children.toArray(children).map((child, index) => (

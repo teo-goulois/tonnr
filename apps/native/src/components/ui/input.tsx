@@ -276,8 +276,8 @@ export function Textarea(props: Omit<InputProps, "end" | "multiline">) {
   return <TextBox {...props} lines="several" />;
 }
 
-// The web's textarea on a phone, `max-sm:min-h-20.5`.
-const TEXTAREA_LEAST = 82;
+// The web's textarea on a phone, `max-sm:min-h-20.5`, which a skeleton of one takes too.
+export const TEXTAREA_LEAST = 82;
 
 function TextBox({
   ref,

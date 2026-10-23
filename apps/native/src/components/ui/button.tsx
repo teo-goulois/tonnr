@@ -1,5 +1,12 @@
 import { Button as HeroButton, Spinner } from "heroui-native";
-import { Image, type ImageSourcePropType, type StyleProp, type ViewStyle } from "react-native";
+import type { ComponentRef, Ref } from "react";
+import {
+  Image,
+  type ImageSourcePropType,
+  type StyleProp,
+  type View,
+  type ViewStyle,
+} from "react-native";
 
 import { Glyph, type GlyphIcon } from "@/components/shared/glyph";
 import { type TonnrTheme, useTheme } from "@/lib/theme";
@@ -97,6 +104,8 @@ type ButtonProps = {
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** The button's view, which a dialog gives the screen reader's focus as it opens. */
+  ref?: Ref<ComponentRef<typeof View>>;
 };
 
 /** A button with a name. */
@@ -115,6 +124,7 @@ export function Button({
   accessibilityHint,
   style,
   testID,
+  ref,
 }: ButtonProps) {
   const { colors, space, type, radius } = useTheme();
   const look = lookOf(variant, disabled, colors);
@@ -130,6 +140,8 @@ export function Button({
 
   return (
     <HeroButton
+      // HeroUI types its ref as the component where React Native gives the view it draws.
+      ref={ref as Ref<typeof View> | undefined}
       // HeroUI's outline draws a border of its own: the theme's edge is drawn below instead.
       variant={variant === "outline" ? "ghost" : variant}
       isDisabled={disabled || loading}

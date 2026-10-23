@@ -1942,6 +1942,7 @@
   "alert_sector_degrees": "{arc} · {from}°–{to}°",
   "alert_degrees_from": "De",
   "alert_degrees_to": "A",
+  "native_alert_degrees_done": "OK",
   "alert_says_lasts": "e durar pelo menos",
   "alert_tide_lasts": "A tua maré dura cerca de {lasts}.",
   "alert_tide_short": "A tua maré só dura cerca de {lasts}: uma janela de pelo menos {shortest} nunca vai chegar.",

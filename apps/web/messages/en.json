@@ -1942,6 +1942,7 @@
   "alert_sector_degrees": "{arc} · {from}°–{to}°",
   "alert_degrees_from": "From",
   "alert_degrees_to": "To",
+  "native_alert_degrees_done": "Done",
   "alert_says_lasts": "and it lasts at least",
   "alert_tide_lasts": "Your tide lasts about {lasts}.",
   "alert_tide_short": "Your tide only lasts about {lasts}: a window of at least {shortest} will never come.",

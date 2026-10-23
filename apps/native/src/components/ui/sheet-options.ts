@@ -2,7 +2,7 @@ import type { NativeStackNavigationOptions } from "expo-router";
 
 // How a screen presents itself as the platform's own sheet, through expo-router: a form sheet,
 // with the heights it rests at and a grabber, and no header of the navigation's, since
-// `SheetHeader` draws one inside. Its corners are the system's, concentric with the phone's on
+// `PanelHeader` draws one inside. Its corners are the system's, concentric with the phone's on
 // iOS and Material's on Android. A module that imports nothing at run time, so that a test reads it.
 
 export type SheetOptions = {
