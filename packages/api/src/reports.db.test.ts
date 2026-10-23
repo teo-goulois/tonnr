@@ -261,13 +261,17 @@ describe.skipIf(!TEST_DATABASE_URL)("the reports of the waves at a break", () =>
   it("hides a report three accounts flagged, and lets none of them flag twice", async () => {
     const shown = await report("ana");
     await publish(shown.id);
-    // Its author does not flag it, and a day-old account is needed.
+    // Its author does not flag it.
     await expect(
       call(v1Router.reports.flag, { id: shown.id, reason: "not_here" }, by("ana")),
     ).rejects.toEqual(refusal("NOT_FOUND"));
-    await expect(
-      call(v1Router.reports.flag, { id: shown.id, reason: "not_here" }, by("new")),
-    ).rejects.toEqual(refusal("FORBIDDEN"));
+    // An account under a day old, or with no username, is heard and hides nothing.
+    expect(
+      await call(v1Router.reports.flag, { id: shown.id, reason: "offensive" }, by("new")),
+    ).toEqual({ hidden: false });
+    expect(
+      await call(v1Router.reports.flag, { id: shown.id, reason: "offensive" }, by("nameless")),
+    ).toEqual({ hidden: false });
     expect(
       await call(v1Router.reports.flag, { id: shown.id, reason: "not_sea" }, by("ben")),
     ).toEqual({
@@ -286,7 +290,36 @@ describe.skipIf(!TEST_DATABASE_URL)("the reports of the waves at a break", () =>
     );
     const [row] = await database.db.select().from(surfReport).where(eq(surfReport.id, shown.id));
     expect(row?.state).toBe("hidden");
-    expect(await database.db.select().from(surfReportFlag)).toHaveLength(3);
+    const flags = await database.db
+      .select({ userId: surfReportFlag.userId, counts: surfReportFlag.counts })
+      .from(surfReportFlag);
+    expect(flags.sort((a, b) => a.userId.localeCompare(b.userId))).toEqual([
+      { userId: "ben", counts: true },
+      { userId: "cy", counts: true },
+      { userId: "dee", counts: true },
+      { userId: "nameless", counts: false },
+      { userId: "new", counts: false },
+    ]);
+  });
+
+  it("hides nothing with the flags of accounts that do not count, which come to an operator", async () => {
+    const shown = await report("ana");
+    await publish(shown.id);
+    await database.db.insert(user).values([
+      { id: "young", name: "Young", email: "young@example.org", username: "young", createdAt: AT },
+      { id: "nobody", name: "Nobody", email: "nobody@example.org", createdAt: AT },
+    ]);
+    for (const id of ["new", "nameless", "young", "nobody"]) {
+      expect(
+        await call(v1Router.reports.flag, { id: shown.id, reason: "offensive" }, by(id)),
+      ).toEqual({ hidden: false });
+    }
+    const [row] = await database.db.select().from(surfReport).where(eq(surfReport.id, shown.id));
+    expect(row?.state).toBe("published");
+
+    await database.db.insert(operator).values({ userId: "dee" });
+    const reviewed = await call(v1Router.reports.review, { state: "flagged" }, by("dee", ADMIN));
+    expect(reviewed.reports[0]?.flags).toMatchObject({ count: 4, counted: 0 });
   });
 
   it("lets an operator read every check and decide, and records what it decided", async () => {

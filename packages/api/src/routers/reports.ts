@@ -38,7 +38,10 @@ const DAY_MS = 24 * HOUR_MS;
 // How many reports an account sends in a day, and at one break in an hour.
 const REPORTS_A_DAY = 10;
 const REPORTS_AN_HOUR_HERE = 1;
-// How many reports an account flags in a day, and how old it must be to flag one.
+// How many reports an account flags in a day, and how old it must be for its flag to count
+// among those that hide a report. A younger one's flag, or one of an account with no username,
+// is kept and comes to an operator all the same: Apple asks that anyone may flag what they read
+// (guideline 1.2), and three accounts made for it must not hide a report. Decision 067.
 const FLAGS_A_DAY = 20;
 const FLAGGER_AGE_MS = DAY_MS;
 
@@ -114,6 +117,9 @@ const reviewedSchema = reportSchema.extend({
   decidedAt: z.date().nullable(),
   flags: z.object({
     count: z.number().int(),
+    // Those of accounts that had a username and were a day old, which hide a report: the others
+    // come to the operator alone.
+    counted: z.number().int(),
     reasons: z.array(z.string()),
   }),
   // Every medium, with what was checked of it.
@@ -401,8 +407,10 @@ export const reportsRouter = {
       path: "/reports/{id}/flag",
       summary: "Say that a report should not be shown",
       description:
-        "Once for each account, which has a username and is a day old. Three accounts hide it " +
-        "until an operator decides. An account flags twenty reports a day.",
+        "Once for each account, with a reason that an operator of the instance reads. Three " +
+        "accounts that have a username and are a day old hide it until an operator decides: " +
+        "the flag of another account comes to the operator, and hides nothing. An account " +
+        `flags ${FLAGS_A_DAY} reports a day. Decision 067.`,
       tags: ["Reports"],
     })
     .input(
@@ -421,9 +429,11 @@ export const reportsRouter = {
           .select({ username: user.username, createdAt: user.createdAt })
           .from(user)
           .where(eq(user.id, userId));
-        if (!account?.username || account.createdAt.getTime() > now - FLAGGER_AGE_MS) {
-          return { refused: "young" as const, hidden: false };
-        }
+        // Whether this flag counts among those that hide the report, as the account is now.
+        const counts =
+          account !== undefined &&
+          account.username !== null &&
+          account.createdAt.getTime() <= now - FLAGGER_AGE_MS;
         const [flagged] = await tx
           .select({ count: count() })
           .from(surfReportFlag)
@@ -446,21 +456,24 @@ export const reportsRouter = {
         }
         await tx
           .insert(surfReportFlag)
-          .values({ reportId: report.id, userId, reason: input.reason, createdAt: new Date(now) })
+          .values({
+            reportId: report.id,
+            userId,
+            reason: input.reason,
+            counts,
+            createdAt: new Date(now),
+          })
           .onConflictDoNothing();
-        if ((await flagsOf(tx, report)) < FLAGS_HIDE) return { refused: null, hidden: false };
+        if (!counts || (await flagsOf(tx, report)) < FLAGS_HIDE) {
+          return { refused: null, hidden: false };
+        }
         await tx.update(surfReport).set({ state: "hidden" }).where(eq(surfReport.id, report.id));
         return { refused: null, hidden: true };
       });
       if (refusal.refused === null) return { hidden: refusal.hidden };
       if (refusal.refused === "none") throw notFound(input.id);
-      if (refusal.refused === "many") {
-        throw new ORPCError("TOO_MANY_REQUESTS", {
-          message: `An account flags ${FLAGS_A_DAY} reports a day at most.`,
-        });
-      }
-      throw new ORPCError("FORBIDDEN", {
-        message: "A report is flagged by an account that has a username and is a day old.",
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: `An account flags ${FLAGS_A_DAY} reports a day at most.`,
       });
     }),
 
@@ -561,7 +574,11 @@ export const reportsRouter = {
           : Promise.resolve([]),
         ids.length > 0
           ? context.db
-              .select({ reportId: surfReportFlag.reportId, reason: surfReportFlag.reason })
+              .select({
+                reportId: surfReportFlag.reportId,
+                reason: surfReportFlag.reason,
+                counts: surfReportFlag.counts,
+              })
               .from(surfReportFlag)
               .where(inArray(surfReportFlag.reportId, ids))
           : Promise.resolve([]),
@@ -590,6 +607,8 @@ export const reportsRouter = {
             decidedAt: row.report.decidedAt,
             flags: {
               count: flags.filter((flag) => flag.reportId === row.report.id).length,
+              counted: flags.filter((flag) => flag.reportId === row.report.id && flag.counts)
+                .length,
               reasons: flags
                 .filter((flag) => flag.reportId === row.report.id)
                 .flatMap((flag) => (flag.reason ? [flag.reason] : [])),

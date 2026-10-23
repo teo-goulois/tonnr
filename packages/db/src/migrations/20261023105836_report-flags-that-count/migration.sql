@@ -1,0 +1,1 @@
+ALTER TABLE "surf_report_flag" ADD COLUMN "counts" boolean DEFAULT true NOT NULL;

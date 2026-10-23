@@ -24,7 +24,10 @@ import { describeMedia, mediaItemSchema } from "./media";
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/** How many accounts' flags hide a report until an operator decides. */
+/**
+ * How many accounts' flags hide a report until an operator decides. A flag of an account with no
+ * username, or under a day old, comes to the operator and is not one of them.
+ */
 export const FLAGS_HIDE = 3;
 
 /** A report as anyone reads it, with what its author alone reads of it. */
@@ -139,7 +142,10 @@ export function shownSince(now: number) {
   return new Date(now - REPORT_SHOWN_HOURS * HOUR_MS);
 }
 
-/** How many accounts said a report should not be shown, since an operator last restored it. */
+/**
+ * How many accounts said a report should not be shown, since an operator last restored it,
+ * counting those whose flag counts toward hiding it.
+ */
 export async function flagsOf(
   db: Pick<Database, "select">,
   row: Pick<ReportRow, "id" | "restoredAt">,
@@ -150,6 +156,7 @@ export async function flagsOf(
     .where(
       and(
         eq(surfReportFlag.reportId, row.id),
+        eq(surfReportFlag.counts, true),
         row.restoredAt ? gt(surfReportFlag.createdAt, row.restoredAt) : undefined,
       ),
     );

@@ -1,5 +1,6 @@
 import {
   bigserial,
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -162,7 +163,10 @@ export const surfReport = pgTable(
   ],
 );
 
-/** An account that said a report should not be shown, once, with why. */
+/**
+ * An account that said a report should not be shown, once, with why. Every account's flag is
+ * kept and comes to an operator; only some hide a report. Decision 067.
+ */
 export const surfReportFlag = pgTable(
   "surf_report_flag",
   {
@@ -173,6 +177,9 @@ export const surfReportFlag = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     reason: text("reason").$type<"not_here" | "not_now" | "not_sea" | "offensive" | "other">(),
+    // Whether it counts among the flags that hide a report: it was given by an account that had
+    // a username and was a day old, as it gave it. Every flag before this column did.
+    counts: boolean("counts").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
