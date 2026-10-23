@@ -88,7 +88,8 @@ describe("the low height of a place's sheet", () => {
     expect(lowDetent(400, 852, largest) * largest).toBeGreaterThanOrEqual(400);
     // Its bounds stay shares of the screen.
     expect(lowDetent(100, 852, largest) * largest).toBeGreaterThanOrEqual(0.3 * 852);
-    expect(largestSheet(852, 40, false)).toBe(812);
+    // Android's sheet measures its heights against the whole screen as it opens.
+    expect(largestSheet(852, 40, false)).toBe(852);
   });
 
   it("never reaches the raised height", () => {

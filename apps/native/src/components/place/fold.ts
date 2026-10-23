@@ -14,16 +14,18 @@ export const FOLD_MARGIN = 16;
 
 /**
  * How far under the top of the screen the platform lets a sheet rise, past the safe area: iOS
- * leaves this room over a sheet at its largest, where what it covers shows. Android leaves none.
+ * leaves this room over a sheet at its largest, where what it covers shows.
  */
 export const IOS_SHEET_GAP = 10;
 
 /**
- * The height of a sheet at its largest, which the platform measures its heights against: the
- * screen less its safe area at the top and, on iOS, the room it leaves there.
+ * The height of a sheet at its largest, which the platform measures its heights against: on iOS
+ * the screen less its safe area at the top and the room it leaves there; on Android the screen,
+ * which react-native-screens measures a sheet's heights against as it opens, before it is told
+ * the safe area (`SheetDelegate.tryResolveMaxFormSheetHeight`).
  */
 export function largestSheet(screenHeight: number, topInset: number, ios: boolean) {
-  return screenHeight - topInset - (ios ? IOS_SHEET_GAP : 0);
+  return ios ? screenHeight - topInset - IOS_SHEET_GAP : screenHeight;
 }
 
 /**

@@ -27,12 +27,16 @@ type Navigation = NativeStackNavigationProp<Record<string, object | undefined>>;
 
 // By when a sheet the platform says nothing of has begun to be shown.
 const SHOWN_BY_MS = 600;
+// How long the sheet keeps a height before its layout is read as the one it stands at.
+const SETTLED_MS = 150;
 
 // The height each sheet stands at, and its low height, by its route: a sheet given another place,
 // by a press on the map or from anywhere else, keeps them, though the place is drawn anew in it.
 // They are forgotten once the route has left.
 const detents = new Map<string, number>();
 const lows = new Map<string, number>();
+// The routes whose sheet the platform has begun to show: a place drawn anew in it is shown at once.
+const shown = new Set<string>();
 
 // How far over the height its share gives it the low sheet stands, as last measured: the same for
 // every sheet of the app, which a sheet that opens raised takes before it is measured itself.
@@ -43,6 +47,7 @@ function forgetLeft(navigation: Navigation, route: string) {
   if (navigation.getState()?.routes.some((one) => one.key === route)) return;
   detents.delete(route);
   lows.delete(route);
+  shown.delete(route);
 }
 
 /**
@@ -117,8 +122,9 @@ export function useFoldHeight(detent: number) {
   // selects its place, except a sheet over another place's, which selects none and would bring
   // what stands on the map down for a moment. It is told as the sheet begins to go, and not once
   // it is gone, so that what stands on it comes down with it, and told again that it stands when
-  // a swipe that began to close it lets it go.
-  const [showing, setShowing] = useState(false);
+  // a swipe that began to close it is let go, which the platform says as a gesture cancelled. A
+  // place drawn anew in a sheet that is shown is told at once.
+  const [showing, setShowing] = useState(() => shown.has(route.key));
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {
     const starts = navigation.addListener("transitionStart", (event) => {
@@ -131,14 +137,19 @@ export function useFoldHeight(detent: number) {
         setLeaving(false);
       }
     });
+    const stays = navigation.addListener("gestureCancel", () => setLeaving(false));
     // A platform that says nothing of the opening has begun to show the sheet by then.
     const timer = setTimeout(() => setShowing(true), SHOWN_BY_MS);
     return () => {
       starts();
       ends();
+      stays();
       clearTimeout(timer);
     };
   }, [navigation]);
+  useEffect(() => {
+    if (showing) shown.add(route.key);
+  }, [showing, route.key]);
   useEffect(() => {
     if (leaving) {
       hideSheet(route.key);
@@ -151,15 +162,25 @@ export function useFoldHeight(detent: number) {
       place: placeKind && placeId ? { kind: placeKind, id: placeId } : undefined,
     });
   }, [route.key, showing, leaving, low, largest, shift, detent, over, placeKind, placeId]);
-  // Only a low sheet's layout is read. One far from what its share gives is left: the size of the
-  // screen, which the platform lays the sheet out at before it shows it, or one taken as the sheet
-  // goes from a height to another.
+  // The sheet's layout is read once it has kept a height a moment: iOS lays the sheet out again at
+  // each step of a finger that drags it, and only the height it comes to rest at is one. A low
+  // sheet's alone is read, against the low height in force then, and one far from what its share
+  // gives is left: the size of the screen, which the platform lays the sheet out at before it
+  // shows it, or a height the sheet is leaving for another.
+  const now = useRef({ detent, low, largest, width, floating });
+  now.current = { detent, low, largest, width, floating };
+  const settling = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(settling.current), []);
   const measure = (laidOut: number) => {
-    if (detent !== 0) return;
-    const next = sheetShift(standingHeight(laidOut, width, floating), low * largest);
-    if (next === undefined) return;
-    measuredShift = next;
-    setShift(next);
+    clearTimeout(settling.current);
+    settling.current = setTimeout(() => {
+      const at = now.current;
+      if (at.detent !== 0) return;
+      const next = sheetShift(standingHeight(laidOut, at.width, at.floating), at.low * at.largest);
+      if (next === undefined) return;
+      measuredShift = next;
+      setShift(next);
+    }, SETTLED_MS);
   };
   useEffect(() => () => hideSheet(route.key), [route.key]);
   // A place given to the sheet from anywhere comes to this one, once what stands over it is
@@ -176,7 +197,9 @@ export function useFoldHeight(detent: number) {
   // is lowered.
   const told = useRef<number | undefined>(undefined);
   const fit = (foldBottom: number) => {
-    if (detent !== 0) return;
+    // Android's sheet takes its heights as it opens, and no other while it is open: it keeps the
+    // one it opened at, which the map is told.
+    if (detent !== 0 || Platform.OS !== "ios") return;
     const next = lowDetent(foldBottom, height, largest);
     if (current.current !== undefined && !isWorthMoving(current.current, next)) return;
     current.current = next;
