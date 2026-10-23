@@ -131,7 +131,7 @@ const HAND_WITHIN_MS = (WRITE_SECONDS - 60) * 1000;
 // that hands a message over long before.
 const LEFT_BEHIND_MS = 2 * WRITE_SECONDS * 1000;
 /** How many mails the instance lets out in a day, unless its settings say otherwise. */
-const DEFAULT_DAILY_MAILS = 200;
+export const DEFAULT_DAILY_MAILS = 200;
 
 /** What the worker sends alert mails with: the way out, and the two addresses a mail links to. */
 export type MailOut = {

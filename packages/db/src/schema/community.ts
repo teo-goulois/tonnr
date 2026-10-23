@@ -148,6 +148,10 @@ export const contributionVerdict = pgTable(
     // that waits, and for a confirmation.
     dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // When the mail that tells the instance's address what was contested named a contest: the
+    // worker's `tell-moderation` (decision 067). Null until then, and for a confirmation. A
+    // contest made before that mail existed is taken as told.
+    toldAt: timestamp("told_at", { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.contributionId, table.userId] }),
@@ -156,6 +160,10 @@ export const contributionVerdict = pgTable(
     index("contribution_verdict_waiting_idx")
       .on(table.createdAt)
       .where(sql`${table.verdict} = 'contest' and ${table.dismissedAt} is null`),
+    // The contests that no mail named yet.
+    index("contribution_verdict_untold_idx")
+      .on(table.createdAt)
+      .where(sql`${table.verdict} = 'contest' and ${table.toldAt} is null`),
   ],
 );
 

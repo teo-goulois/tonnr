@@ -11,6 +11,7 @@ import { forgetUsernames } from "./deletion";
 import { createForecasts, pruneKeptForecasts } from "./forecasts";
 import { ingest, providersOf, retiredProviderIdsOf } from "./ingest";
 import { activitiesDone, followActivities } from "./live-activities";
+import { moderationDone, moderationOutOf, tellModeration } from "./moderation";
 import { momentsDone, tellMoments } from "./moments";
 import { keepListedForecasts, pagesDone } from "./pages";
 import { listenForUploads, mediaDone, processMedia } from "./media";
@@ -61,6 +62,7 @@ const PAGES_QUEUE = "keep-listed-forecasts";
 const MEDIA_QUEUE = "process-media";
 const REPORTS_QUEUE = "tell-reports";
 const ACTIVITIES_QUEUE = "follow-live-activities";
+const MODERATION_QUEUE = "tell-moderation";
 // The bucket of the photos and the videos. Null on an instance that keeps none: the job that
 // makes them is then not run, and not listed. Decision 066.
 const storage = createStorage(ENV);
@@ -74,6 +76,10 @@ const mailOut = mailOutOf(ENV);
 // instance that holds none of the three ways out, or whose worker was not given the web app's
 // address: an account's devices are then sent nothing.
 const pushOut = pushOutOf(ENV);
+// What mails the instance's address what accounts flagged and contested: its way out of mail,
+// with the admin's address. Null on an instance that sends no mail: the job is then not run,
+// and not listed. Decision 067.
+const moderationOut = moderationOutOf(ENV);
 // Every job the scheduler runs, with its schedule. A queue that is not here cannot be run.
 const jobs: Scheduled[] = [
   ...providers.map((provider) => ({ name: `ingest-${provider.id}`, schedule: provider.schedule })),
@@ -96,6 +102,9 @@ const jobs: Scheduled[] = [
   // an hour, between two passes of the moments: decision 074. On every instance, so that one
   // whose worker no longer holds Apple's key still lets go of what ran and forgets it.
   { name: ACTIVITIES_QUEUE, schedule: "7,22,37,52 * * * *" },
+  // What accounts flagged and contested, mailed to the instance's address once an hour at most,
+  // and looked at every quarter of an hour so that it leaves within the hour: decision 067.
+  ...(moderationOut ? [{ name: MODERATION_QUEUE, schedule: "4,19,34,49 * * * *" }] : []),
 ];
 // The queues an earlier version scheduled to import the catalogue of breaks. It is filled once
 // and by hand since decision 024, so they are deleted below, and their jobs leave the list.
@@ -316,6 +325,18 @@ await boss.work(
   withStart,
   attemptOf(ACTIVITIES_QUEUE, (db) => followActivities(db, pushOut?.ios ?? null), activitiesDone),
 );
+
+// What accounts flagged and contested since the last mail, to the instance's address.
+if (moderationOut) {
+  await boss.createQueue(MODERATION_QUEUE, { policy: "stately", ...once });
+  await boss.updateQueue(MODERATION_QUEUE, once);
+  await boss.schedule(MODERATION_QUEUE, scheduled(MODERATION_QUEUE).schedule);
+  await boss.work(
+    MODERATION_QUEUE,
+    withStart,
+    attemptOf(MODERATION_QUEUE, (db) => tellModeration(db, moderationOut), moderationDone),
+  );
+}
 
 // A queue that stayed would keep queueing runs that nothing works.
 for (const queue of retiredBreakQueues) {

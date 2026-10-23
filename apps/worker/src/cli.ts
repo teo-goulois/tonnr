@@ -15,6 +15,7 @@ import { ENV } from "./env.server";
 import { updateExposure } from "./exposure";
 import { createForecasts } from "./forecasts";
 import { ingest, providersOf } from "./ingest";
+import { moderationDone, moderationOutOf, tellModeration } from "./moderation";
 import { tellMoments } from "./moments";
 import { keepListedForecasts } from "./pages";
 import { mediaDone, processMedia } from "./media";
@@ -27,7 +28,8 @@ import { pushKeys } from "./push-keys";
 import { reportNoticesDone, tellReports } from "./report-notices";
 
 // Runs one job once and exits: `pnpm --filter worker run job ndbc`, `... job alerts`,
-// `... job moments`, `... job exposure`, `... job pages`, `... job media`, or `... job reports`. Eight more take a value and write only with `--write`:
+// `... job moments`, `... job exposure`, `... job pages`, `... job media`, `... job reports`, or
+// `... job moderation`. Eight more take a value and write only with `--write`:
 // `... job breaks <file>`, `... job breaks-fetch <source>`, `... job breaks-remove <list>`,
 // `... job candidates <folder>`, `... job candidates-remove <list>`,
 // `... job operator <account id>`, `... job operator-remove <account id>` and
@@ -59,6 +61,7 @@ const others = [
   "pages",
   "media",
   "reports",
+  "moderation",
   "push-keys",
   ...Object.keys(commands),
 ];
@@ -98,6 +101,11 @@ try {
         tellReports(db, { push: pushOutOf(ENV), storage: createStorage(ENV) }),
       ),
     );
+  } else if (job === "moderation") {
+    // What accounts flagged and contested, mailed to the instance's address: decision 067.
+    const out = moderationOutOf(ENV);
+    if (!out) throw new Error("This instance sends no mail: neither UNOSEND_API_KEY nor SMTP_URL");
+    moderationDone(await Effect.runPromise(tellModeration(db, out)));
   } else if (job === "moments") {
     await Effect.runPromise(tellMoments(db, mailOutOf(ENV), pushOutOf(ENV)));
   } else if (job === "push-keys") {

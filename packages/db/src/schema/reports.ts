@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
@@ -181,10 +182,17 @@ export const surfReportFlag = pgTable(
     // a username and was a day old, as it gave it. Every flag before this column did.
     counts: boolean("counts").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // When the mail that tells the instance's address what was flagged named it: the worker's
+    // `tell-moderation`. Null until then. A flag given before that mail existed is taken as told.
+    toldAt: timestamp("told_at", { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.reportId, table.userId] }),
     index("surf_report_flag_userId_idx").on(table.userId),
+    // The flags that no mail named yet.
+    index("surf_report_flag_untold_idx")
+      .on(table.createdAt)
+      .where(sql`${table.toldAt} is null`),
   ],
 );
 

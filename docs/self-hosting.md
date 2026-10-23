@@ -622,6 +622,7 @@ Set these in `apps/server/.env`, or in the API's environment on another platform
 - The library that sends the mail would report its use to its authors. The instance tells it not to.
 - The log keeps how a mail failed, never to whom it went.
 - The landing's form sends the ideas of its readers, and `/contact` their messages, to `CONTACT_EMAIL`, in `packages/config/src/app.ts`, through the same mail: put your own address there. 20 a day at most, counted with the day's mails. Without mail, the form gives that address to write to.
+- The worker mails the same address what accounts flagged of the reports and contested of the guides, so that you read it within the hour: its job `tell-moderation`, every quarter of an hour, one mail an hour at most and only when something is new, counted with the day's mails. It needs the way out of mail on the worker, as the alerts' mails do. The mail links to the admin's moderation when the worker reads `ADMIN_ORIGIN`, which Docker Compose gives it with `apps/server/.env`: on another platform, set it on the worker's service too. Decision 067.
 
 ## Météo-France's wind stations
 

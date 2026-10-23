@@ -532,7 +532,8 @@ export const contributionsRouter = {
           .values({ contributionId: held.id, userId, verdict: "contest", reason: input.reason })
           .onConflictDoUpdate({
             target: [contributionVerdict.contributionId, contributionVerdict.userId],
-            set: { verdict: "contest", reason: input.reason, createdAt: sql`now()` },
+            // A confirmation that becomes a contest is a contest the operator is told of.
+            set: { verdict: "contest", reason: input.reason, createdAt: sql`now()`, toldAt: null },
           });
         return { contested: true as const };
       });
