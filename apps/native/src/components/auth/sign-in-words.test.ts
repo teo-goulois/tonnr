@@ -3,7 +3,20 @@ import { afterEach, describe, expect, it } from "vitest";
 import { m } from "@/paraglide/messages";
 import { baseLocale, setLocale } from "@/paraglide/runtime.js";
 
-import { emailFault, insideNext, passwordFault, refusalWords, signInParams } from "./sign-in-words";
+import {
+  emailSchema,
+  insideNext,
+  PASSWORD_RULES,
+  passwordSchema,
+  refusalWords,
+  signInParams,
+} from "./sign-in-words";
+
+/** What a schema says is wrong with a value, or nothing. */
+const faultOf = (
+  schema: { safeParse: (value: unknown) => { error?: { issues: { message: string }[] } } },
+  value: string,
+) => schema.safeParse(value).error?.issues[0]?.message;
 
 afterEach(() => {
   void setLocale(baseLocale, { reload: false });
@@ -41,15 +54,27 @@ describe("the sheet that signs in", () => {
 });
 
 describe("what a form of the sign-in says is wrong", () => {
-  it("takes an address with a domain, whatever spaces were typed around it", () => {
-    expect(emailFault(" surfer@example.com ")).toBeUndefined();
-    expect(emailFault("surfer@example")).toBe(m.auth_email_invalid());
-    expect(emailFault("surfer")).toBe(m.auth_email_invalid());
+  it("takes an address as the web's forms do, whatever spaces the keyboard left around it", () => {
+    expect(faultOf(emailSchema(), " surfer@example.com ")).toBeUndefined();
+    expect(faultOf(emailSchema(), "surfer@example")).toBe(m.auth_email_invalid());
+    expect(faultOf(emailSchema(), "surfer")).toBe(m.auth_email_invalid());
+    // An address the API would refuse is refused here first, as on the web.
+    expect(faultOf(emailSchema(), "a..b@example.com")).toBe(m.auth_email_invalid());
+  });
+
+  it("says what is wrong in the language in force as the form is drawn", () => {
+    void setLocale("fr", { reload: false });
+    expect(faultOf(emailSchema(), "surfer")).toBe(m.auth_email_invalid());
+    expect(faultOf(passwordSchema(), "court")).toBe(m.auth_password_too_short());
   });
 
   it("takes a password of eight characters at least, as the library does", () => {
-    expect(passwordFault("1234567")).toBe(m.auth_password_too_short());
-    expect(passwordFault("12345678")).toBeUndefined();
+    expect(faultOf(passwordSchema(), "1234567")).toBe(m.auth_password_too_short());
+    expect(faultOf(passwordSchema(), "12345678")).toBeUndefined();
+  });
+
+  it("tells iOS's passwords the lengths the library takes", () => {
+    expect(PASSWORD_RULES).toBe("minlength: 8; maxlength: 128;");
   });
 
   it("says a suspended account and a refused username in the reader's language", () => {

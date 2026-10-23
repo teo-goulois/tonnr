@@ -27,20 +27,22 @@ function ResetPassword() {
   const [spent, setSpent] = useState(false);
 
   // The new password closes every session of the account, this browser's too: it signs in again.
+  // A password the API finds too short is said under its field, and the other refusals in a toast.
   async function reset(newPassword: string) {
-    if (!token) return;
+    if (!token) return undefined;
     const answer = await authClient.resetPassword({ newPassword, token });
     if (!answer.error) {
       toast.success(m.reset_done());
       await navigate({ to: "/login" });
-      return;
+      return undefined;
     }
     if (answer.error.code === "INVALID_TOKEN" || answer.error.code === "USER_NOT_FOUND") {
-      return setSpent(true);
+      setSpent(true);
+      return undefined;
     }
-    toast.error(
-      answer.error.code === "PASSWORD_TOO_SHORT" ? m.auth_password_too_short() : m.auth_failed(),
-    );
+    if (answer.error.code === "PASSWORD_TOO_SHORT") return m.auth_password_too_short();
+    toast.error(m.auth_failed());
+    return undefined;
   }
 
   return (

@@ -1,4 +1,5 @@
 import { buttonVariants } from "@repo/ui/components/ui/button";
+import { refuseField } from "@repo/ui/hooks/form/form-context";
 import { useAppForm } from "@repo/ui/hooks/form/form";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
@@ -14,8 +15,9 @@ type ResetPasswordPageProps = {
   // False when the link carries no token, or the API said that it works no more: once used, or
   // after its hour.
   isValid: boolean;
-  // Sets the new password. It resolves once the API answered, whatever it answered.
-  onReset: (password: string) => Promise<void>;
+  // Sets the new password. It resolves once the API answered, with why it refuses the password
+  // when that is what it refused, which the page says under the field.
+  onReset: (password: string) => Promise<string | undefined>;
 };
 
 /**
@@ -25,7 +27,10 @@ type ResetPasswordPageProps = {
 export function ResetPasswordPage({ isValid, onReset }: ResetPasswordPageProps) {
   const form = useAppForm({
     defaultValues: { password: "" },
-    onSubmit: ({ value }) => onReset(value.password),
+    onSubmit: async ({ value, formApi }) => {
+      const why = await onReset(value.password);
+      if (why) refuseField(formApi, "password", why);
+    },
     validators: {
       onSubmit: z.object({
         password: z.string().min(PASSWORD_MIN, m.auth_password_too_short()).max(PASSWORD_MAX),

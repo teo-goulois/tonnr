@@ -4,9 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGlobalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { AppState, View } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FormScroll } from "@/components/ui/form";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useTheme } from "@/lib/theme";
@@ -17,6 +17,10 @@ import { AuthForm } from "./auth-form";
 import type { AuthMode } from "./sign-in-words";
 
 const MINUTE_MS = 60 * 1000;
+
+// The web's column of one page (`PageColumn`), `max-w-(--container-sm)`: 24rem, which a large
+// phone is wider than.
+const COLUMN_MOST = 384;
 
 /**
  * Whether a visitor meets the wall: the instance is closed to visitors, as `visitors.get` says
@@ -63,10 +67,10 @@ export function useVisitorWall() {
 }
 
 /**
- * What the app shows in place of its tabs while the instance is closed to visitors: why, and the
- * form that signs in or creates an account, with the link of `?invite=` that brought the visitor,
- * which a sign-up keeps (decision 041). It has no tabs: it leads nowhere but in. Decisions 039
- * and 040.
+ * What the app shows in place of its tabs while the instance is closed to visitors, as the web's
+ * `LoginWall` in its page's column: why, and the form that signs in or creates an account, with
+ * the link of `?invite=` that brought the visitor, which a sign-up keeps (decision 041). It has
+ * no tabs: it leads nowhere but in. Decisions 039 and 040.
  */
 export function LoginWall() {
   const { colors, space } = useTheme();
@@ -77,27 +81,31 @@ export function LoginWall() {
   const [mode, setMode] = useState<AuthMode>(invitation ? "sign-up" : "sign-in");
 
   return (
-    <KeyboardAwareScrollView
+    <FormScroll
       style={{ flex: 1, backgroundColor: colors["cte-canvas"] }}
       contentContainerStyle={{
         flexGrow: 1,
         justifyContent: "center",
-        gap: space.l,
-        paddingTop: insets.top + space.l,
-        paddingBottom: insets.bottom + space.l,
+        paddingTop: insets.top + space.xl,
+        paddingBottom: insets.bottom + space.xl,
         paddingHorizontal: space.m,
       }}
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={space.l}
     >
-      <View style={{ gap: space.xs }}>
-        <Text size="l" weight="medium" accessibilityRole="header">
-          {m.wall_title()}
-        </Text>
-        <Text tone="muted">{m.wall_text({ name: APP_NAME })}</Text>
+      <View style={{ width: "100%", maxWidth: COLUMN_MOST, alignSelf: "center", gap: space.l }}>
+        <View style={{ gap: space.xs }}>
+          <Text size="l" weight="medium" accessibilityRole="header">
+            {m.wall_title()}
+          </Text>
+          <Text tone="muted">{m.wall_text({ name: APP_NAME })}</Text>
+        </View>
+        {/* Once signed in, the account's session takes the wall down by itself. */}
+        <AuthForm
+          mode={mode}
+          onModeChange={setMode}
+          invitation={invitation}
+          onSignedIn={() => {}}
+        />
       </View>
-      {/* Once signed in, the account's session takes the wall down by itself. */}
-      <AuthForm mode={mode} onModeChange={setMode} invitation={invitation} onSignedIn={() => {}} />
-    </KeyboardAwareScrollView>
+    </FormScroll>
   );
 }

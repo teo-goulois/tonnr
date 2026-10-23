@@ -1,10 +1,13 @@
+import { z } from "zod";
+
 import { m } from "@/paraglide/messages";
 
 import { usernameRefusal } from "../account/username";
 
-// What the sheet that signs in reads of its address and says of a refusal, in the web's words
-// (`AuthForm`, `LoginWall`): decisions 039, 041 and 070. A module that imports nothing of React
-// Native, so that a test reads it.
+// What the sheet that signs in reads of its address, checks of what is typed in it and says of a
+// refusal, in the web's words (`AuthForm`, `ForgotPasswordPage`, `ResetPasswordPage`,
+// `LoginWall`): decisions 039, 041, 070 and 078. A module that imports nothing of React Native,
+// so that a test reads it.
 
 export type AuthMode = "sign-in" | "sign-up";
 
@@ -12,18 +15,21 @@ export type AuthMode = "sign-in" | "sign-up";
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 128;
 
-// An address as a person writes one: something, an at sign, a domain with a dot. The library
-// says the rest.
-const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** What iOS's passwords are told of a new one, so that the password they make is taken. */
+export const PASSWORD_RULES = `minlength: ${PASSWORD_MIN}; maxlength: ${PASSWORD_MAX};`;
 
-/** Why a text is no address, in the reader's language. Undefined for one that is. */
-export function emailFault(email: string) {
-  return ADDRESS.test(email.trim()) ? undefined : m.auth_email_invalid();
+/**
+ * An address, as the web's forms check one (`z.email`), whatever spaces the keyboard left around
+ * it: a suggestion of the keyboard ends with one. Built as a form is drawn, in the language in
+ * force.
+ */
+export function emailSchema() {
+  return z.string().trim().pipe(z.email(m.auth_email_invalid()));
 }
 
-/** Why a text is no password the library takes. Undefined for one that is. */
-export function passwordFault(password: string) {
-  return password.length < PASSWORD_MIN ? m.auth_password_too_short() : undefined;
+/** A password the library takes, as a sign-up and a new password check it. */
+export function passwordSchema() {
+  return z.string().min(PASSWORD_MIN, m.auth_password_too_short()).max(PASSWORD_MAX);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { uuid } from "expo";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
@@ -149,8 +149,8 @@ export function signInWith(provider: Provider, invitation?: string) {
 
 /**
  * The button of one provider, in the words and the look its rules ask for: Apple's is the
- * system's own, black on a light screen and white on a dark one; Google's is the theme's, with
- * Google's mark.
+ * system's own, black on a light screen and white on a dark one; Google's is the theme's outline
+ * button, as the web's, with Google's mark.
  */
 export function ProviderButton({
   provider,
@@ -187,7 +187,7 @@ export function ProviderButton({
   }
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       picture={GOOGLE_MARK}
       fill
       loading={pending}
@@ -202,7 +202,8 @@ export function ProviderButton({
 
 /**
  * A button for each provider the instance offers and this phone can show, Apple's first, over
- * the address and the password, with the line that parts them. Nothing when there is none.
+ * the address and the password, with the line that parts them, each a step of the form's room
+ * from the next, as the web's stand in its form. Nothing when there is none.
  */
 export function ProviderSignIn({
   invitation,
@@ -210,12 +211,18 @@ export function ProviderSignIn({
   onPendingChange,
   onSignedIn,
   onRefused,
+  under,
 }: {
   invitation?: string | undefined;
   disabled: boolean;
   onPendingChange: (pending: boolean) => void;
   onSignedIn: () => void;
   onRefused: (refusal: string | undefined) => void;
+  /**
+   * What stands under the buttons, over the line that parts them from the address: the texts a
+   * new account accepts, which a button may create one by (App Review's guideline 1.2).
+   */
+  under?: ReactNode;
 }) {
   const { space } = useTheme();
   const offered = useOfferedProviders();
@@ -237,13 +244,13 @@ export function ProviderSignIn({
       onSignedIn();
       return;
     }
-    if (outcome.refusal) feel("failed");
+    // The form tells a refusal in a toast, which buzzes as it comes.
     onRefused(outcome.refusal);
   }
 
   if (offered.length === 0) return null;
   return (
-    <View style={{ gap: space.s }}>
+    <View style={{ gap: space.m }}>
       {offered.map((provider) => (
         <ProviderButton
           key={provider}
@@ -253,6 +260,7 @@ export function ProviderSignIn({
           onPress={() => void signIn(provider)}
         />
       ))}
+      {under}
       <View
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"

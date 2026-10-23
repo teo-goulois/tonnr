@@ -15,4 +15,4 @@ Status: decided on 2026-10-22, as the app for phones was drawn again to look and
 ## Consequences
 
 - A button that stayed grey on the phone says why under a field once pressed, as on the web.
-- `components/auth/field.tsx`, the second field, goes once the forms that draw it are moved to the kit.
+- The second field the app had, `components/auth/field.tsx`, is gone: every form of the app is drawn with the kit's.
