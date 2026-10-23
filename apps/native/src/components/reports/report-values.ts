@@ -1,4 +1,5 @@
 import type { SurfSize, Upload } from "@repo/client/sessions/types";
+import { hasInsult } from "@repo/config/insults";
 import { REPORT_NOTE_MOST } from "@repo/config/media";
 import { z } from "zod";
 
@@ -36,7 +37,11 @@ export function reportSchema(uploadsNow: () => Uploads) {
         m.report_media_missing(),
       ),
     sizes: z.custom<Sizes>(),
-    note: z.string().max(REPORT_NOTE_MOST),
+    // Everyone reads the note at the break: it holds no insult, as the API checks too.
+    note: z
+      .string()
+      .max(REPORT_NOTE_MOST)
+      .refine((note) => !hasInsult(note), m.report_note_insult()),
   });
 }
 

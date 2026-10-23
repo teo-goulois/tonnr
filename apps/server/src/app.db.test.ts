@@ -2455,6 +2455,21 @@ describe.skipIf(!TEST_DATABASE_URL)("the API over HTTP", () => {
       expect(await database.db.select().from(user)).toEqual([]);
     });
 
+    it("is refused when it holds an insult, with a code of its own, at sign-up and later", async () => {
+      const made = await signUpAs("kai_connard", "kai@example.org");
+      expect(made.status).toBe(400);
+      expect((await bodyOf<{ code?: string }>(made)).code).toBe("USERNAME_IS_AN_INSULT");
+      expect(await database.db.select().from(user)).toEqual([]);
+
+      const ben = await signUp("ben");
+      const chosen = await choose(ben, "Salope_42");
+      expect(chosen.status).toBe(400);
+      expect((await bodyOf<{ code?: string }>(chosen)).code).toBe("USERNAME_IS_AN_INSULT");
+      expect((await accountOf(ben)).username).toBeNull();
+      // A name with a word inside it that is no insult is taken.
+      expect((await choose(ben, "connaisseur")).status).toBe(200);
+    });
+
     it("opens no session: an account signs in by its address", async () => {
       await signUpAs("Ana");
       const attempt = await send("POST", "/api/auth/sign-in/username", {

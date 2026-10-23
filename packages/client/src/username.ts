@@ -1,4 +1,9 @@
-import { USERNAME_MIN, type UsernameProblem, usernameProblem } from "@repo/config/username";
+import {
+  USERNAME_INSULT,
+  USERNAME_MIN,
+  type UsernameProblem,
+  usernameProblem,
+} from "@repo/config/username";
 
 // What the web app and the app for phones say of a username before they send it, and of the
 // sign-in library's refusals of one, in the words each app gives: `packages/config/src/
@@ -11,6 +16,7 @@ export type UsernameMessages = {
   username_too_long: () => string;
   username_characters: () => string;
   username_reserved: () => string;
+  username_insult: () => string;
   username_taken: () => string;
 };
 
@@ -19,6 +25,7 @@ const FAULTS: Record<UsernameProblem, keyof UsernameMessages> = {
   long: "username_too_long",
   characters: "username_characters",
   reserved: "username_reserved",
+  insult: "username_insult",
 };
 
 /** What is typed as a username, as it is kept: in small letters, without spaces around it. */
@@ -56,5 +63,6 @@ export function usernameRefusal(code: string | undefined, messages: UsernameMess
   if (code === "USERNAME_TOO_SHORT") return messages.username_too_short();
   if (code === "USERNAME_TOO_LONG") return messages.username_too_long();
   if (code === "INVALID_USERNAME") return messages.username_reserved();
+  if (code === USERNAME_INSULT) return messages.username_insult();
   return undefined;
 }

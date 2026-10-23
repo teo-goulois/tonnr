@@ -1,4 +1,10 @@
-import { USERNAME_MAX, USERNAME_MIN, usernameProblem } from "@repo/config/username";
+import { hasInsult } from "@repo/config/insults";
+import {
+  USERNAME_INSULT,
+  USERNAME_MAX,
+  USERNAME_MIN,
+  usernameProblem,
+} from "@repo/config/username";
 import type { Database } from "@repo/db";
 import { removedUsername } from "@repo/db/schema/access";
 import { user } from "@repo/db/schema/auth";
@@ -64,12 +70,22 @@ export function usernameHooks(database: Database) {
 /**
  * An account changes its username for another, and does not go back to none: what it wrote in a
  * guide would name nobody at its own word. The library takes `null` for a field it does not
- * require, and checks nothing of it, so the request is refused before it gets there.
+ * require, and checks nothing of it, so the request is refused before it gets there. A username
+ * that holds an insult is refused here too, as an account signs up or chooses one, with a code
+ * of its own, which the apps say in their words: the library's check says only that it is no
+ * username (guideline 1.2, decision 041).
  */
 export const keepsUsername = createAuthMiddleware(async (answering) => {
-  if (answering.path !== "/update-user") return;
+  if (answering.path !== "/update-user" && answering.path !== "/sign-up/email") return;
   const body: unknown = answering.body;
   if (typeof body !== "object" || body === null || !("username" in body)) return;
+  if (typeof body.username === "string" && hasInsult(body.username)) {
+    throw new APIError("BAD_REQUEST", {
+      code: USERNAME_INSULT,
+      message: "A username holds no insult.",
+    });
+  }
+  if (answering.path !== "/update-user") return;
   if (typeof body.username !== "string") {
     throw new APIError("BAD_REQUEST", {
       message: "A username is changed for another. It is not taken off.",

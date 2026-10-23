@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import type { Forecasts } from "@repo/conditions/forecasts/forecasts";
 import { hourOf } from "@repo/conditions/forecasts/week";
 import { setsFit } from "@repo/conditions/sessions/sizes";
+import { hasInsult } from "@repo/config/insults";
 import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST, REPORT_TERMS } from "@repo/config/media";
 import type { Database } from "@repo/db";
 import { holdAccounts } from "@repo/db/accounts";
@@ -59,8 +60,9 @@ const noteSchema = z
   .trim()
   .max(REPORT_NOTE_MOST)
   .refine((note) => !hasControlCharacter(note), "must not contain control characters")
-  // What everyone reads holds no address to go elsewhere.
-  .refine((note) => !hasAddress(note), "must not contain an address");
+  // What everyone reads holds no address to go elsewhere, and no insult (guideline 1.2).
+  .refine((note) => !hasAddress(note), "must not contain an address")
+  .refine((note) => !hasInsult(note), "must not contain an insult");
 
 /**
  * Adds one to a count of each report that is shown and is not the caller's. One statement for
@@ -143,7 +145,8 @@ export const reportsRouter = {
       summary: "Show the waves at a break as they are now",
       description:
         "One to four photos and videos sent beforehand with `POST /media` for `report`, with " +
-        "how big the waves looked and a few words. Takes an account that has a username, and " +
+        "how big the waves looked and a few words, with no address and no insult. Takes an " +
+        "account that has a username, and " +
         "the version of the terms its photos are sent under. `device` is where the phone stands, " +
         "which places a photo whose file says nothing of where it was taken: an iPhone's " +
         "browser takes it out. `offsetMinutes` is the browser's own, which reads a camera's " +

@@ -1,4 +1,5 @@
 import { APP_NAME, APP_SLUG } from "./app";
+import { hasInsult } from "./insults";
 
 // A username is what others read of an account: on a line of a guide it wrote, and among its
 // friends. Decision 041. The sign-in library holds it, and the web app checks it with the same
@@ -36,7 +37,10 @@ const RESERVED = new Set([
   "undefined",
 ]);
 
-export type UsernameProblem = "short" | "long" | "characters" | "reserved";
+/** The code of the sign-in library's refusal of a username that holds an insult. */
+export const USERNAME_INSULT = "USERNAME_IS_AN_INSULT";
+
+export type UsernameProblem = "short" | "long" | "characters" | "reserved" | "insult";
 
 /**
  * Why a text is no username, or null for one that is. Whether another account has it is the
@@ -47,5 +51,7 @@ export function usernameProblem(given: string): UsernameProblem | null {
   if (given.length > USERNAME_MAX) return "long";
   if (!CHARACTERS.test(given)) return "characters";
   if (RESERVED.has(given.toLowerCase())) return "reserved";
+  // An underscore or a digit parts its words: "kai_connard" is refused, "connaisseur" is not.
+  if (hasInsult(given)) return "insult";
   return null;
 }

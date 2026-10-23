@@ -14,10 +14,31 @@ const WORDS = {
   username_too_long: () => "Use 20 characters at most.",
   username_characters: () => "Use letters without accents, digits or _.",
   username_reserved: () => "This username is not available.",
+  username_insult: () => "Pick another username: this one reads as an insult.",
   username_taken: () => "This username is taken.",
 };
 
 describe("a username, as both apps check it before they ask", () => {
+  it("holds no insult, whole or parted by an underscore or a digit, and keeps its innocent words", () => {
+    for (const name of ["connard", "Kai_Connard", "salope42", "bitches_club", "PUTA_ola"]) {
+      expect(usernameFault(name, WORDS), name).toBe(WORDS.username_insult());
+    }
+    for (const name of [
+      "connaisseur",
+      "puto_surf",
+      "retard_42",
+      "spices",
+      "scunthorpe",
+      "bastia",
+    ]) {
+      expect(usernameFault(name, WORDS), name).toBeUndefined();
+    }
+  });
+
+  it("says the library's refusal of an insult in its own words", () => {
+    expect(usernameRefusal("USERNAME_IS_AN_INSULT", WORDS)).toBe(WORDS.username_insult());
+  });
+
   it("is kept in small letters, without spaces around it", () => {
     expect(typedUsername("  Kelly_S ")).toBe("kelly_s");
   });

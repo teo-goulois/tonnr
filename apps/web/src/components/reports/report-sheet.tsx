@@ -1,3 +1,4 @@
+import { hasInsult } from "@repo/config/insults";
 import { REPORT_MOST_MEDIA, REPORT_NOTE_MOST } from "@repo/config/media";
 import { useAppForm } from "@repo/ui/hooks/form/form";
 import { cn } from "@repo/ui/lib/utils";
@@ -61,7 +62,11 @@ function ReportForm({ wide, reporting }: { wide: boolean; reporting: Reporting }
           .array(z.string())
           .refine((keys) => keys.some((key) => stateOf(key) === "sent"), m.report_media_missing()),
         sizes: z.custom<Sizes>(),
-        note: z.string().max(REPORT_NOTE_MOST),
+        // Everyone reads the note at the break: it holds no insult, as the API checks too.
+        note: z
+          .string()
+          .max(REPORT_NOTE_MOST)
+          .refine((note) => !hasInsult(note), m.report_note_insult()),
       }),
     },
     onSubmit: async ({ value }) => {

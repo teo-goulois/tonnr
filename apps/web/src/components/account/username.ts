@@ -24,6 +24,7 @@ export const USERNAME_WORDS: UsernameMessages = {
   username_too_long: m.username_too_long,
   username_characters: m.username_characters,
   username_reserved: m.username_reserved,
+  username_insult: m.username_insult,
   username_taken: m.username_taken,
 };
 

@@ -8,6 +8,7 @@
     "./activities": "./src/activities.ts",
     "./app": "./src/app.ts",
     "./errors": "./src/errors.ts",
+    "./insults": "./src/insults.ts",
     "./links": "./src/links.ts",
     "./locales": "./src/locales.ts",
     "./media": "./src/media.ts",

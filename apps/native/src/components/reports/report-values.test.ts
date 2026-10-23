@@ -64,6 +64,16 @@ describe("the form of a report", () => {
     expect(checked.success).toBe(false);
   });
 
+  it("refuses a note that holds an insult, in words of its own, and takes one that does not", () => {
+    const uploads = uploadsOf(upload("up", "sent"));
+    const schema = reportSchema(() => uploads);
+    const insult = schema.safeParse({ ...EMPTY_REPORT, entries: ["up"], note: "Quel connard" });
+    expect(insult.success).toBe(false);
+    expect(insult.error?.issues.map((issue) => issue.message)).toEqual([m.report_note_insult()]);
+    const plain = { ...EMPTY_REPORT, entries: ["up"], note: "Un connaisseur dit mi-marée" };
+    expect(schema.safeParse(plain).success).toBe(true);
+  });
+
   it("says a file is still going up while one of its own is", () => {
     const uploads = uploadsOf(upload("up", "sent"), upload("going", "sending"));
     expect(isGoingOf(["up", "going"], uploads)).toBe(true);

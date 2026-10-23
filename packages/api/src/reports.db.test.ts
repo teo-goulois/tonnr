@@ -169,6 +169,10 @@ describe.skipIf(!TEST_DATABASE_URL)("the reports of the waves at a break", () =>
     await expect(report("ana", "point", { note: "Better at www.example.com" })).rejects.toEqual(
       refusal("BAD_REQUEST"),
     );
+    // So is a note that holds an insult, which everyone at the break would read.
+    await expect(report("ana", "point", { note: "Le connard du pic" })).rejects.toEqual(
+      refusal("BAD_REQUEST"),
+    );
   });
 
   it("takes one report an hour at a break, and ten a day", async () => {

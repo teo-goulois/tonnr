@@ -14,6 +14,7 @@ describe("a username, as the app checks it before it asks", () => {
     expect(usernameFault("a".repeat(21))).toBe(m.username_too_long());
     expect(usernameFault("josé")).toBe(m.username_characters());
     expect(usernameFault("admin")).toBe(m.username_reserved());
+    expect(usernameFault("kai_connard")).toBe(m.username_insult());
     expect(usernameFault("kelly_s")).toBeUndefined();
   });
 
