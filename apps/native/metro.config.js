@@ -11,6 +11,7 @@ const { withUniwindConfig } = require("uniwind/metro");
 // message the compiled files do not have yet. The watcher keeps no process alive that would
 // otherwise end, such as an export.
 const { execFile, execFileSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
 const { watch } = require("node:fs");
 const path = require("node:path");
 
@@ -34,9 +35,20 @@ try {
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-module.exports = withVarlockMetroConfig(
+const wrapped = withVarlockMetroConfig(
   withUniwindConfig(wrapWithReanimatedMetroConfig(config), {
     cssEntryFile: "./src/global.css",
     dtsFile: "./src/uniwind-types.d.ts",
   }),
 );
+
+// Metro keeps what it transformed under a key made of a file's text, in a directory every
+// checkout of the machine shares, which Uniwind names. What Varlock writes into a file as it is
+// transformed, the values of the app's settings, is not in that key: a build whose values
+// changed and no file did would take the transforms of the last one, a store build included.
+// The key is given the values Varlock loaded, hashed, which change only with them.
+wrapped.cacheVersion = createHash("sha256")
+  .update(process.env.__VARLOCK_ENV ?? "")
+  .digest("hex");
+
+module.exports = wrapped;
