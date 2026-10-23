@@ -1,10 +1,12 @@
+import type { Spot } from "@repo/client/viewer/types";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Keyboard, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { z } from "zod";
 
-import { Field } from "@/components/auth/field";
+import { AccountPrompt } from "@/components/auth/account-prompt";
 import { DEFAULT_LAYERS } from "@/components/map/layers";
 import { type Heading, NAME_MOST, nudged, writePoint } from "@/components/map/new-spot";
 import { BREAK_LIMIT, MINUTE_MS, spotsQuery } from "@/components/map/queries";
@@ -16,25 +18,33 @@ import {
   SPOT_ZOOM,
   visibleBounds,
 } from "@/components/map/view";
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { useAppForm, useFormSend, useSelector } from "@/components/ui/form";
 import { feel } from "@/components/ui/haptics";
-import { SheetHeader, useSheetGuard } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useSheetGuard } from "@/components/ui/sheet";
+import { Loading, Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 import { orpc } from "@/utils/orpc";
 
-import { usePlaceRecord } from "./use-place";
+import { PlaceHeader } from "./place-header";
+import { type PlaceRecord, usePlaceRecord } from "./use-place";
 import { useSpotActions } from "./use-spot";
 
 // Renaming a spot of the account's own and moving it, in one sheet, as the web's `SpotEditor`
-// does both with the marker of `NewSpotPanel`: its name in a field, and the marker of a new spot,
-// which a finger drags, a press on the map brings to the point pressed, and a screen reader moves a
-// step at a time, all as the new spot's sheet does. The spot itself is drawn by its marker alone
-// while it moves. Saved, the name and the point go together. A name left empty is said under its
-// field, as the web says it. Cancel, a swipe or the back of Android ask before a spot renamed or
-// moved is left as it was. Decision 006.
+// does both in the spot's own drawer, with the marker of `NewSpotPanel`. The sheet keeps the
+// spot's head, its name, what it says of its privacy, and the cross. Under the map: its name in
+// the kit's field, where the marker stands, then Save and Cancel at their own width. The marker
+// is the new spot's: a finger drags it, a press on the map brings it to the point pressed, and a
+// screen reader moves it a step at a time. The spot itself is drawn by its marker alone while it
+// moves. Saved, the name and the point go together; while they are saved, the marker stays where
+// it is. A name left empty is said under its field once sent, which takes the focus, as the web
+// says it (decisions 076 and 078). Cancel, the cross, a swipe or the back of Android ask before a
+// spot renamed or moved is left as it was. A spot that is gone, or not the account's, is said
+// so. Decision 006.
 
 // What this map draws: the surf breaks and the account's own spots, to put a spot beside them.
 // Nothing of the sea.
@@ -47,16 +57,66 @@ const HEADING_LABELS: Record<Heading, () => string> = {
   west: m.native_spot_move_west,
 };
 
+/** What a spot's name must be, said in the reader's language: the sheet that adds one says it too. */
+export const spotNameSchema = () => z.string().trim().min(1, m.spot_name_missing());
+
+/**
+ * The form of a spot's name, which the new spot's sheet holds too: it says nothing before it is
+ * sent, and `onSave` is given the name trimmed.
+ */
+export function useSpotNameForm(name: string, onSave: (name: string) => void) {
+  return useAppForm({
+    defaultValues: { name },
+    validators: { onSubmit: z.object({ name: spotNameSchema() }) },
+    onSubmit: ({ value }) => onSave(value.name.trim()),
+  });
+}
+
+export type SpotNameForm = ReturnType<typeof useSpotNameForm>;
+
 export function MoveSpot({ id }: { id: string }) {
+  const { space } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { signedIn } = useAccount();
+  const record = usePlaceRecord("spot", id);
+  // A spot's head reads the hour only for a station: one moment does for the sheet.
+  const [now] = useState(() => Date.now());
+  // Nothing is written until the spot is in hand: until then the sheet closes without asking.
+  const { cancel } = useSheetGuard(false);
+
+  // The editor opens on a spot of the account's own, once it is read, as the web's does.
+  if (record.spot && record.isOwner) {
+    return <SpotEditor record={record} spot={record.spot} now={now} />;
+  }
+  const gone = record.isError || record.spot !== undefined;
+  return (
+    <View className="flex-1 bg-background">
+      <PlaceHeader record={record} now={now} isSaved={false} saveLabel="" onClose={cancel} />
+      {gone ? (
+        <View style={{ padding: space.m, paddingBottom: insets.bottom + space.m }}>
+          {signedIn ? (
+            <ErrorState plain title={m.spot_not_found()} />
+          ) : (
+            <AccountPrompt text={m.spot_sign_in_prompt()} />
+          )}
+        </View>
+      ) : (
+        <View style={{ flex: 1, padding: space.m }}>
+          <Loading>
+            <Skeleton height={320} />
+          </Loading>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function SpotEditor({ record, spot, now }: { record: PlaceRecord; spot: Spot; now: number }) {
   const { space } = useTheme();
   const insets = useSafeAreaInsets();
   const keyboardShown = useKeyboardState((state) => state.isVisible);
   const { signedIn } = useAccount();
-  const { spot, isOwner } = usePlaceRecord("spot", id);
   const actions = useSpotActions();
-  // The name once the person typed it. Until then, the spot's.
-  const [name, setName] = useState<string>();
-  const [missing, setMissing] = useState(false);
   // Where the marker stands once the person moved it. Until then, where the spot is.
   const [point, setPoint] = useState<MapPoint>();
   const [bounds, setBounds] = useState<Bounds | null>(null);
@@ -72,10 +132,13 @@ export function MoveSpot({ id }: { id: string }) {
   );
 
   const at = point ?? spot;
-  const written = name ?? spot?.name ?? "";
-  const renamed = spot !== undefined && name !== undefined && name.trim() !== spot.name;
+  const form = useSpotNameForm(spot.name, (name) => {
+    if (actions.isChanging) return;
+    Keyboard.dismiss();
+    actions.edit(spot, { name, latitude: at.latitude, longitude: at.longitude }, guard.close);
+  });
+  const renamed = useSelector(form.store, (state) => state.values.name.trim() !== spot.name);
   const moved =
-    spot !== undefined &&
     point !== undefined &&
     (Math.abs(point.latitude - spot.latitude) > 1e-6 ||
       Math.abs(point.longitude - spot.longitude) > 1e-6);
@@ -83,44 +146,30 @@ export function MoveSpot({ id }: { id: string }) {
 
   /** Puts the marker at `next`, where the map shows it already. */
   function putAt(next: MapPoint) {
+    // It stays where it is while the spot is being saved, as the web's marker does.
+    if (actions.isChanging) return;
     feel("select");
     setPoint(next);
   }
 
-  function save() {
-    if (!spot || !at || !isOwner || actions.isChanging) return;
-    const trimmed = written.trim();
-    if (!trimmed) {
-      setMissing(true);
-      return;
-    }
-    Keyboard.dismiss();
-    actions.edit(
-      spot,
-      { name: trimmed, latitude: at.latitude, longitude: at.longitude },
-      guard.close,
-    );
-  }
-
   return (
     <View className="flex-1 bg-background">
-      <SheetHeader
-        title={spot?.name ?? m.spot_edit()}
-        onCancel={guard.cancel}
-        onSave={save}
-        saveLabel={m.spot_edit_save()}
-        canSave={spot !== undefined}
-        saving={actions.isChanging}
-      />
-      {/* The keyboard pushes up what is typed in: the map gives way to it. */}
-      <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
-        {spot ? (
-          <View style={{ flex: 1, overflow: "hidden" }}>
+      <form.AppForm>
+        <PlaceHeader
+          record={record}
+          now={now}
+          isSaved={false}
+          saveLabel=""
+          onClose={guard.cancel}
+        />
+        {/* The keyboard pushes up what is typed in: the map gives way to it. */}
+        <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1 }}>
+          <View style={{ flex: 1, overflow: "hidden", marginTop: space.s }}>
             <StationMap
               stations={[]}
               wind={[]}
               breaks={breaks.data?.breaks ?? []}
-              spots={(spots.data ?? []).filter((one) => one.id !== id)}
+              spots={(spots.data ?? []).filter((one) => one.id !== spot.id)}
               selected={undefined}
               layers={LAYERS}
               sea={undefined}
@@ -133,14 +182,14 @@ export function MoveSpot({ id }: { id: string }) {
               remembers={false}
               accessibilityLabel={m.native_spot_marker()}
               accessibilityHint={m.spot_marker_hint()}
-              accessibilityValue={at ? { text: writePoint(at) } : undefined}
+              accessibilityValue={{ text: writePoint(at) }}
               accessibilityActions={HEADINGS.map((heading) => ({
                 name: heading,
                 label: HEADING_LABELS[heading](),
               }))}
               onAccessibilityAction={(event) => {
                 const heading = event.nativeEvent.actionName as Heading;
-                if (at && bounds && HEADINGS.includes(heading)) {
+                if (bounds && HEADINGS.includes(heading)) {
                   putAt(nudged(at, bounds, heading));
                 }
               }}
@@ -152,48 +201,74 @@ export function MoveSpot({ id }: { id: string }) {
               }}
             />
           </View>
-        ) : (
-          <View style={{ flex: 1, padding: space.m }}>
-            <Skeleton height={320} />
-          </View>
-        )}
-        {/* The web's form: the name, then where the marker stands. */}
-        <View
-          style={{
-            gap: space.m,
-            paddingHorizontal: space.m,
-            paddingTop: space.s,
-            paddingBottom: keyboardShown ? space.s : Math.max(insets.bottom, space.s),
-          }}
-        >
-          <Field
-            label={m.spot_name_label()}
-            placeholder={m.spot_name_placeholder()}
-            value={written}
-            onChangeText={(next) => {
-              setName(next);
-              if (next.trim()) setMissing(false);
+          <View
+            style={{
+              paddingHorizontal: space.m,
+              paddingTop: space.m,
+              paddingBottom: keyboardShown ? space.s : Math.max(insets.bottom, space.s),
             }}
-            error={missing ? m.spot_name_missing() : undefined}
+          >
+            <SpotEditorFields
+              form={form}
+              at={at}
+              isSaving={actions.isChanging}
+              onCancel={guard.cancel}
+            />
+          </View>
+        </KeyboardAvoidingView>
+      </form.AppForm>
+    </View>
+  );
+}
+
+/**
+ * The web's editor under the map: the name, where the marker stands, then Save and Cancel at
+ * their own width. The field's return key sends the form as Save does.
+ */
+function SpotEditorFields({
+  form,
+  at,
+  isSaving,
+  onCancel,
+}: {
+  form: SpotNameForm;
+  at: MapPoint;
+  isSaving: boolean;
+  onCancel: () => void;
+}) {
+  const { space } = useTheme();
+  const send = useFormSend();
+  return (
+    <View style={{ gap: space.m }}>
+      <form.AppField name="name">
+        {(field) => (
+          <field.Input
+            label={m.spot_name_label()}
             maxLength={NAME_MOST}
-            disabled={!spot || actions.isChanging}
+            editable={!isSaving}
             autoComplete="off"
-            autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="done"
-            submitBehavior="blurAndSubmit"
-            onSubmitEditing={save}
+            // The keyboard stays while a name left empty is said under the field.
+            submitBehavior="submit"
+            onSubmitEditing={() => void send()}
           />
-          <View style={{ gap: space.xxs }}>
-            <Text size="s" tone="muted">
-              {m.spot_marker_hint()}
-            </Text>
-            <Text size="xs" tone="muted" numeric>
-              {at ? writePoint(at) : " "}
-            </Text>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        )}
+      </form.AppField>
+      <View style={{ gap: space.xxs }}>
+        <Text size="s" tone="muted">
+          {m.spot_marker_hint()}
+        </Text>
+        <Text size="xs" tone="muted" numeric>
+          {writePoint(at)}
+        </Text>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.xs }}>
+        <form.SubmitButton pending={isSaving}>{m.spot_edit_save()}</form.SubmitButton>
+        <Button variant="ghost" disabled={isSaving} onPress={onCancel}>
+          {m.action_cancel()}
+        </Button>
+      </View>
     </View>
   );
 }

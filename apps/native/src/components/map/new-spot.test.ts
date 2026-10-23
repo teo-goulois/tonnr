@@ -82,25 +82,21 @@ describe("what a new spot is saved with", () => {
 });
 
 describe("what stands near the marker", () => {
-  const spots = [{ id: "s1", name: "Mine", latitude: 43.6655, longitude: -1.4423 }];
-  const breaks = [BREAK, { id: "b2", name: "Les Culs Nus", latitude: 43.6648, longitude: -1.4425 }];
+  const spots = [
+    { id: "s2", name: "Next door", latitude: 43.6658, longitude: -1.4423 },
+    { id: "s1", name: "Mine", latitude: 43.6655, longitude: -1.4423 },
+  ];
 
-  it("is a spot of the account's and a break within 150 metres", () => {
-    const near = nearOf(draftAt(HOSSEGOR, true), spots, breaks);
-    expect(near.spot?.id).toBe("s1");
-    expect(near.break?.id).toBe("b2");
+  it("is the nearest spot of the account's within 150 metres", () => {
+    expect(nearOf(draftAt(HOSSEGOR, true), spots)?.id).toBe("s1");
   });
 
-  it("is no break once the spot is made from one", () => {
-    const onBreak = placedAt(draftAt(HOSSEGOR, false), breaks[1]!, { breakId: "b2" });
-    expect(nearOf(onBreak, spots, breaks).break).toBeUndefined();
+  it("is nothing further away", () => {
+    expect(nearOf(draftAt({ latitude: 43.68, longitude: -1.4423 }, true), spots)).toBeUndefined();
   });
 
   it("is nothing before the marker is put", () => {
-    expect(nearOf(draftAt(HOSSEGOR, false), spots, breaks)).toEqual({
-      spot: undefined,
-      break: undefined,
-    });
+    expect(nearOf(draftAt(HOSSEGOR, false), spots)).toBeUndefined();
   });
 });
 

@@ -5,7 +5,7 @@ import { type Bounds, type MapPoint, nearestWithin, wrapLongitude } from "./view
 // the person writes one, as the web's route does it. A module that imports nothing at run time,
 // so that a test reads it.
 
-/** A spot or a break this close to the marker is the same place, as far as a warning goes. */
+/** A spot this close to the marker is the same place, as far as a warning goes. */
 export const SAME_PLACE_METERS = 150;
 /** A name as the API takes it. */
 export const NAME_MOST = 80;
@@ -94,20 +94,16 @@ export function createInput(draft: SpotDraft) {
 type Named = MapPoint & { id: string; name: string };
 
 /**
- * What stands within 150 metres of the marker, the nearest of each: a spot the account has
- * already, and a break of the catalogue the draft is not made from. Nothing before the marker
- * was put.
+ * The spot the account has already within 150 metres of the marker, the nearest, as the web
+ * warns of it: two spots may share a place, and the spot is saved all the same if asked
+ * (decision 006). Nothing before the marker was put.
  */
-export function nearOf<Spot extends Named, Break extends Named>(
+export function nearOf<Spot extends Named>(
   draft: SpotDraft,
   spots: readonly Spot[] | undefined,
-  breaks: readonly Break[] | undefined,
-): { spot: Spot | undefined; break: Break | undefined } {
-  if (!draft.placed) return { spot: undefined, break: undefined };
-  return {
-    spot: nearestWithin(spots, draft.point, SAME_PLACE_METERS),
-    break: draft.breakId ? undefined : nearestWithin(breaks, draft.point, SAME_PLACE_METERS),
-  };
+): Spot | undefined {
+  if (!draft.placed) return undefined;
+  return nearestWithin(spots, draft.point, SAME_PLACE_METERS);
 }
 
 export type Heading = "north" | "south" | "east" | "west";
