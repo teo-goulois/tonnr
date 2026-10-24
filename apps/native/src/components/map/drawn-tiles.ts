@@ -81,3 +81,23 @@ export function paletteName(colors: Uint8ClampedArray) {
   }
   return (hash >>> 0).toString(36);
 }
+
+type TileFailed = (kind: TileKind) => void;
+const failedListeners = new Set<TileFailed>();
+
+/**
+ * Hears of each tile the app could not draw: its source was slow or refused it. MapLibre never
+ * asks such a tile again, so whoever shows the tiles asks again (`sea-sources.ts`). Returns what
+ * stops hearing.
+ */
+export function onTileFailed(listener: TileFailed) {
+  failedListeners.add(listener);
+  return () => {
+    failedListeners.delete(listener);
+  };
+}
+
+/** Says that a tile of `kind` could not be drawn. */
+export function tellTileFailed(kind: TileKind) {
+  for (const listener of failedListeners) listener(kind);
+}

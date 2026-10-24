@@ -5,7 +5,7 @@ import { AlphaType, BlendMode, ColorType, ImageFormat, Skia } from "@shopify/rea
 import { PixelRatio } from "react-native";
 
 import { serveTiles, type TileAnswer } from "../../../modules/map-tiles";
-import { paletteName, readTile, type TileAsked } from "./drawn-tiles";
+import { paletteName, readTile, tellTileFailed, type TileAsked } from "./drawn-tiles";
 
 // The tiles the app draws itself (decision 077), painted with Skia as the web paints them on a
 // canvas, with the same rules: the sea of the model's gray tile spread to the shore and colored by
@@ -24,18 +24,37 @@ export function seaPalette(metersByLevel: readonly number[]) {
 
 const RGBA = { colorType: ColorType.RGBA_8888, alphaType: AlphaType.Unpremul };
 
-// A tile of the source that failed is asked again later, and one it does not have never is.
-const failed = (response: Response): TileAnswer => ({
-  status: response.status === 404 ? 404 : 503,
-});
+// A tile whose source failed is asked again by the map, which hears of it (`tellTileFailed`), and
+// one the source does not have never is.
+const failed = (status: number): TileAnswer => ({ status: status === 404 ? 404 : 503 });
+
+// How long a tile's source is waited for. MapLibre gives up on a tile after 30 seconds and never
+// asks it again: the app answers first, so that the map hears of it and asks again.
+const SOURCE_WAIT_MS = 20_000;
+
+/** The source of a tile, its status and its bytes, within `SOURCE_WAIT_MS`. */
+async function fetchSource(address: string, signal: AbortSignal) {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  signal.addEventListener("abort", stop);
+  const timer = setTimeout(stop, SOURCE_WAIT_MS);
+  try {
+    const response = await fetch(address, { signal: controller.signal });
+    if (!response.ok) return { status: response.status, bytes: null };
+    return { status: response.status, bytes: await response.arrayBuffer() };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", stop);
+  }
+}
 
 async function drawSea(tile: TileAsked, signal: AbortSignal): Promise<TileAnswer> {
   const colors = palettes.get(tile.params.get("palette") ?? "");
   // A palette not named since the app started: the map asks again once it is.
   if (!colors) return { status: 503 };
-  const response = await fetch(tile.source, { signal });
-  if (!response.ok) return failed(response);
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const response = await fetchSource(tile.source, signal);
+  if (!response.bytes) return failed(response.status);
+  const bytes = new Uint8Array(response.bytes);
   // MapLibre no longer wants it.
   if (signal.aborted) return { status: 503 };
   const gray = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
@@ -78,9 +97,9 @@ async function drawLand(tile: TileAsked, signal: AbortSignal): Promise<TileAnswe
   const land = tile.params.get("land");
   const water = tile.params.get("water");
   if (!land || !water) return { status: 404 };
-  const response = await fetch(tile.source, { signal });
-  if (!response.ok) return failed(response);
-  const basemapTile = await response.arrayBuffer();
+  const response = await fetchSource(tile.source, signal);
+  if (!response.bytes) return failed(response.status);
+  const basemapTile = response.bytes;
   if (signal.aborted) return { status: 503 };
   const outlines = waterOf(basemapTile, LAND_PIXELS);
   if (!outlines?.ocean && !outlines?.lakes) {
@@ -118,6 +137,11 @@ export function drawTiles() {
   serveTiles(async (address, signal) => {
     const tile = readTile(address);
     if (!tile) return { status: 404 };
-    return tile.kind === "sea" ? drawSea(tile, signal) : drawLand(tile, signal);
+    const answer = await (tile.kind === "sea" ? drawSea(tile, signal) : drawLand(tile, signal))
+      // A source that did not answer in time, or not at all.
+      .catch((): TileAnswer => ({ status: 503 }));
+    // A tile MapLibre no longer wants did not fail.
+    if (answer.status === 503 && !signal.aborted) tellTileFailed(tile.kind);
+    return answer;
   });
 }

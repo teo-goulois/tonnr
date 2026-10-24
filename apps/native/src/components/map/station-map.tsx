@@ -86,9 +86,10 @@ import { mapImages } from "./map-images";
 import { BREAK_PILL_POINT, BreakPill, BuoyPill, UserDot, WindBadge } from "./map-markers";
 import { useBasemap, useBasemapTiles } from "./use-basemap";
 import { type MapState, rememberMapState } from "./map-state";
-import { landTiles, seaTiles } from "./drawn-tiles";
+import { landTiles, onTileFailed, seaTiles } from "./drawn-tiles";
 import { drawTiles, seaPalette } from "./tile-painter";
 import { arrowFeatures, type SeaArrow } from "./sea-arrows";
+import { askAgainIn, drawnWhole, momentOf, seaKey, showing, type SeaSources } from "./sea-sources";
 import { SPOT_PIN_FOOT, SpotPin } from "./spot-pin";
 import {
   boundsAround,
@@ -470,56 +471,98 @@ export function StationMap({
         : undefined,
     [basemapTiles, landColor, waterColor],
   );
-  // Each moment of the sea is a source of its own. The one in view stays until the next has its
-  // tiles, then one fades into the other, so that the sea never goes blank between two moments.
-  // MapLibre says once a style is loaded that the map is drawn, and then only frame by frame: the
-  // coming moment is shown at the first frame drawn whole after one that waited for tiles.
+  // Each moment of the sea is a source of its own, and so is each time a moment is asked again:
+  // a tile the app could not draw is never asked again by MapLibre, so the map asks the moment
+  // again, after a while, as a new source, whose tiles that came MapLibre has already
+  // (`sea-sources.ts`). The source in view stays under the next until the next is drawn whole,
+  // and the next fades in over it, so that the sea never goes blank between the two. MapLibre says
+  // once a style is loaded that the map is drawn, and then only frame by frame: the coming source
+  // is shown at the first frame drawn whole after one that waited for tiles.
   const seaMoment = seaTime?.toISOString();
-  const [seaState, setSeaState] = useState<{ shown?: string; going?: string }>({
-    shown: seaMoment,
-  });
+  const [askedAgain, setAskedAgain] = useState<{ moment?: string; tries: number }>({ tries: 0 });
+  const seaTries = askedAgain.moment === seaMoment ? askedAgain.tries : 0;
+  const seaInForce = seaMoment === undefined ? undefined : seaKey(seaMoment, seaTries);
+  const [seaState, setSeaState] = useState<SeaSources>({ shown: seaInForce });
   const seaOn = Boolean(layers.sea && sea && seaTime && seaPaletteName && land);
-  // The first moment is shown at once, and a sea not drawn shows the moment in force once it is.
+  // The first source is shown at once, and a sea not drawn shows the source in force once it is.
   if (
     (!seaOn || seaState.shown === undefined) &&
-    (seaState.shown !== seaMoment || seaState.going !== undefined)
+    (seaState.shown !== seaInForce || seaState.under !== undefined)
   ) {
-    setSeaState({ shown: seaMoment });
+    setSeaState({ shown: seaInForce });
   }
-  const { shown: seaShown, going: seaGoing } = seaState;
-  const comingSea = seaOn && seaMoment !== seaShown ? seaMoment : undefined;
-  const comesBack = comingSea !== undefined && comingSea === seaGoing;
-  const seaMoments = [...new Set([seaGoing, seaShown, comingSea])].filter(
-    (moment): moment is string => moment !== undefined,
+  const { shown: seaShown, under: seaUnder } = seaState;
+  const comingSea = seaOn && seaInForce !== seaShown ? seaInForce : undefined;
+  const comesBack = comingSea !== undefined && comingSea === seaUnder;
+  const seaSources = [...new Set([seaUnder, seaShown, comingSea])].filter(
+    (key): key is string => key !== undefined,
   );
-  const revealSea = useCallback(
-    (moment: string) =>
-      setSeaState((state) =>
-        state.shown === moment ? state : { shown: moment, going: state.shown },
-      ),
-    [],
-  );
-  // The moment whose tiles come, and whether a frame was drawn without all of them.
-  const awaitedSea = useRef<{ moment: string; loading: boolean } | undefined>(undefined);
+  // Whether a tile of the sea failed since the shown source was shown, and when it was.
+  const seaFailed = useRef(false);
+  const seaShownAt = useRef(0);
+  const revealSea = useCallback((key: string) => {
+    seaFailed.current = false;
+    seaShownAt.current = Date.now();
+    setSeaState((state) => showing(state, key));
+  }, []);
+  // The failures of the moment in force in a row, and the asking again they wait for.
+  const seaFailures = useRef<{ moment?: string; count: number }>({ count: 0 });
+  const askingAgain = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const momentInForce = useRef(seaMoment);
+  momentInForce.current = seaMoment;
+  useEffect(() => {
+    const stop = onTileFailed((kind) => {
+      if (kind !== "sea") return;
+      seaFailed.current = true;
+      const moment = momentInForce.current;
+      if (askingAgain.current !== undefined || moment === undefined) return;
+      const failures = seaFailures.current.moment === moment ? seaFailures.current.count + 1 : 1;
+      seaFailures.current = { moment, count: failures };
+      askingAgain.current = setTimeout(() => {
+        askingAgain.current = undefined;
+        setAskedAgain((asked) => ({
+          moment,
+          tries: (asked.moment === moment ? asked.tries : 0) + 1,
+        }));
+      }, askAgainIn(failures));
+    });
+    return () => {
+      stop();
+      clearTimeout(askingAgain.current);
+      askingAgain.current = undefined;
+    };
+  }, []);
+  // The source under the shown one goes once the shown one has faded in and is drawn whole, with
+  // no tile failed since it was shown.
+  const seaDrawnWhole = useRef(false);
+  const settleSea = useCallback(() => {
+    if (!seaDrawnWhole.current || seaFailed.current) return;
+    if (Date.now() - seaShownAt.current < SEA_FADE_MS) return;
+    seaFailures.current = { count: 0 };
+    setSeaState((state) => drawnWhole(state));
+  }, []);
+  // The source whose tiles come, and whether a frame was drawn without all of them.
+  const awaitedSea = useRef<{ key: string; loading: boolean } | undefined>(undefined);
   useEffect(() => {
     awaitedSea.current = undefined;
     if (comingSea === undefined) return;
-    // The moment that fades out still has its tiles.
+    // The source under the shown one has its tiles.
     if (comesBack) {
       revealSea(comingSea);
       return;
     }
-    awaitedSea.current = { moment: comingSea, loading: false };
-    // A moment whose tiles do not come does not hold the sea back for ever.
+    awaitedSea.current = { key: comingSea, loading: false };
+    // A source whose tiles do not come does not hold the sea back for ever: the one in view stays
+    // under it.
     const timer = setTimeout(() => revealSea(comingSea), SEA_WAIT_MS);
     return () => clearTimeout(timer);
   }, [comingSea, comesBack, revealSea]);
-  // Gone once it has faded.
+  // Once the shown source has faded in, the one under it goes if the map is drawn whole by then.
   useEffect(() => {
-    if (seaGoing === undefined) return;
-    const timer = setTimeout(() => setSeaState((state) => ({ shown: state.shown })), SEA_FADE_MS);
+    if (seaUnder === undefined) return;
+    const timer = setTimeout(settleSea, SEA_FADE_MS);
     return () => clearTimeout(timer);
-  }, [seaGoing]);
+  }, [seaShown, seaUnder, settleSea]);
   const stationData = useMemo(() => stationFeatures(stations), [stations]);
   const windData = useMemo(() => windFeatures(wind), [wind]);
   const breakData = useMemo(() => placeFeatures(breaks, "break"), [breaks]);
@@ -559,13 +602,19 @@ export function StationMap({
         layout();
       }}
       onDidFinishRenderingFrame={() => {
+        seaDrawnWhole.current = false;
         if (awaitedSea.current) awaitedSea.current.loading = true;
       }}
       onDidFinishRenderingFrameFully={() => {
+        seaDrawnWhole.current = true;
         const awaited = awaitedSea.current;
-        if (!awaited?.loading) return;
+        if (!awaited) {
+          settleSea();
+          return;
+        }
+        if (!awaited.loading) return;
         awaitedSea.current = undefined;
-        revealSea(awaited.moment);
+        revealSea(awaited.key);
       }}
       onDidFinishLoadingMap={() => {
         setLoaded(true);
@@ -656,25 +705,26 @@ export function StationMap({
               paint={{ "raster-fade-duration": 0 }}
             />
           </RasterSource>
-          {seaMoments.map((moment) => (
+          {seaSources.map((key) => (
             <RasterSource
-              key={moment}
-              id={`sea:${moment}`}
-              tiles={[seaTiles(sea.tileUrlTemplate, new Date(moment), seaPaletteName)]}
+              key={key}
+              id={`sea:${key}`}
+              tiles={[seaTiles(sea.tileUrlTemplate, new Date(momentOf(key)), seaPaletteName)]}
               tileSize={256}
               minzoom={sea.minZoom}
               maxzoom={Math.min(sea.maxZoom, SEA_MAX_ZOOM)}
               attribution={sea.source.attribution}
             >
               <Layer
-                id={`sea:${moment}`}
+                id={`sea:${key}`}
                 type="raster"
                 beforeId={`land:${land.tiles}`}
                 paint={{
                   "raster-resampling": "linear",
-                  // The first moment fades in as its tiles come, and the next into the one before.
-                  "raster-fade-duration": seaMoments.length > 1 ? 0 : SEA_FADE_MS,
-                  "raster-opacity": moment === seaShown ? 1 : moment === seaGoing ? 0 : SEA_COMING,
+                  // The first source fades in as its tiles come, and the next over the one before,
+                  // which stays under it.
+                  "raster-fade-duration": seaSources.length > 1 ? 0 : SEA_FADE_MS,
+                  "raster-opacity": key === seaShown || key === seaUnder ? 1 : SEA_COMING,
                   "raster-opacity-transition": { duration: SEA_FADE_MS, delay: 0 },
                 }}
               />
