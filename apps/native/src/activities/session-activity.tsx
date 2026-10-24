@@ -69,27 +69,31 @@ function SessionActivity(props: SessionShown) {
         </Text>
       </HStack>
     );
-  // No spread: the build would write it with a helper of its own, which the runtime has not.
-  const lines = wind === null ? tides : tides.concat([wind]);
+  // The wind's line has the width of the activity to itself, under the lines that "End" stands
+  // beside: it is the longest of them, and in Spanish or Portuguese it did not fit beside the
+  // button, which iOS cut short with an ellipsis.
   const surfer = (
     <Image systemName="figure.surfing" modifiers={[accessibilityLabel(props.title)]} />
   );
   return {
     banner: (
-      <HStack alignment="center" spacing={12} modifiers={[padding({ all: 16 })]}>
-        <VStack alignment="leading" spacing={2}>
-          <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1)]}>{props.place}</Text>
-          <Text
-            timerInterval={range}
-            countsDown={false}
-            modifiers={[font({ size: 30, weight: "semibold" }), monospacedDigit()]}
-          />
-          <Text modifiers={[small, muted]}>{props.since}</Text>
-          {lines}
-        </VStack>
-        <Spacer />
-        <Link destination={props.endUrl} label={props.end} />
-      </HStack>
+      <VStack alignment="leading" spacing={2} modifiers={[padding({ all: 16 })]}>
+        <HStack alignment="center" spacing={12}>
+          <VStack alignment="leading" spacing={2}>
+            <Text modifiers={[font({ textStyle: "headline" }), lineLimit(1)]}>{props.place}</Text>
+            <Text
+              timerInterval={range}
+              countsDown={false}
+              modifiers={[font({ size: 30, weight: "semibold" }), monospacedDigit()]}
+            />
+            <Text modifiers={[small, muted]}>{props.since}</Text>
+            {tides}
+          </VStack>
+          <Spacer />
+          <Link destination={props.endUrl} label={props.end} />
+        </HStack>
+        {wind}
+      </VStack>
     ),
     compactLeading: surfer,
     compactTrailing: (
@@ -107,13 +111,16 @@ function SessionActivity(props: SessionShown) {
       />
     ),
     expandedBottom: (
-      <HStack alignment="center" spacing={12}>
-        <VStack alignment="leading" spacing={2}>
-          {lines}
-        </VStack>
-        <Spacer />
-        <Link destination={props.endUrl} label={props.end} />
-      </HStack>
+      <VStack alignment="leading" spacing={2}>
+        <HStack alignment="center" spacing={12}>
+          <VStack alignment="leading" spacing={2}>
+            {tides}
+          </VStack>
+          <Spacer />
+          <Link destination={props.endUrl} label={props.end} />
+        </HStack>
+        {wind}
+      </VStack>
     ),
   };
 }
