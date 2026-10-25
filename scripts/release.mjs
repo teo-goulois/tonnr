@@ -813,6 +813,17 @@ async function buildForAndroid() {
     env: buildEnv,
   });
   const android = path.join(native, "android");
+  // The texts iOS shows as the app asks for a permission stand at the top of each language of
+  // `locales` in app.config.ts, but English's, and Expo writes them into Android's resources too,
+  // where nothing reads them. Lint's check of a release then stops the build: a translation with
+  // no English text (ExtraTranslation). Moving them under `ios` changes the config, and so the
+  // runtime of the iOS build, which waits for the next iOS store build. Until then, the release
+  // tells lint to pass over that one issue, in android/, which the prebuild writes again each time.
+  writeFileSync(
+    path.join(android, "app", "lint.xml"),
+    '<?xml version="1.0" encoding="UTF-8"?>\n<lint>\n' +
+      '    <issue id="ExtraTranslation" severity="ignore" />\n</lint>\n',
+  );
   // The upload key goes to Gradle in a file of its own, in a directory that only this account
   // reads, outside the checkout, which a project property names and which is deleted once Gradle
   // is done: Gradle's environment, which Metro and every other tool of the build inherit, holds
