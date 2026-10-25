@@ -11,6 +11,8 @@ android {
   defaultConfig {
     versionCode 1
     versionName '1.0.0'
+    // What R8 must keep of MapLibre for the app's release build, which shrinks its code.
+    consumerProguardFiles 'proguard-rules.pro'
   }
 }
 
