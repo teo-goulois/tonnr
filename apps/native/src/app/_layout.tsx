@@ -10,6 +10,7 @@ import "@/lib/theme";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ErrorBoundaryProps, Stack, ThemeProvider } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { HeroUINativeProvider } from "heroui-native";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -96,6 +97,10 @@ export default function RootLayout() {
               <WidgetWriter />
               <ActivitiesListener />
               <UploadFailures />
+              {/* The icons of the system's bar in the theme in force, which the screens stand under:
+                  Android drew them white over the light map. A screen that draws its own ground
+                  sets its own, as the media viewer does. */}
+              <StatusBar style={scheme === "dark" ? "light" : "dark"} />
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="create" options={fitSheet} />
