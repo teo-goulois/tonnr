@@ -1,6 +1,7 @@
 import { router, useNavigation } from "expo-router";
 import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
+import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -282,6 +283,14 @@ export function PlaceSheet({
 // How far the panel's edges fade while more of it is hidden past them, the web's `--fade-size`.
 const FADE = 24;
 
+// On Android the forecast's scroll view is the gesture handler's, as the week's table's is: a
+// chart's held press, a gesture of the gesture handler, otherwise keeps a drag anywhere in the
+// panel from scrolling it. It scrolls nested, which the sheet looks for (modules/sheet-scroll).
+const ForecastScrollView =
+  Platform.OS === "android"
+    ? Animated.createAnimatedComponent(GestureScrollView)
+    : Animated.ScrollView;
+
 /**
  * The forecast's scroll view, which holds still under the finger while a chart or the week's
  * table is read, the web's panel with its room around what it holds. Its top and its bottom fade
@@ -312,9 +321,10 @@ function ForecastScroll({ bottom, children }: { bottom: number; children: ReactN
   return (
     <ReadingLock onLock={setLocked}>
       <View style={{ flex: 1 }}>
-        <Animated.ScrollView
+        <ForecastScrollView
           style={{ flex: 1 }}
           scrollEnabled={!locked}
+          nestedScrollEnabled
           keyboardShouldPersistTaps="handled"
           onScroll={onScroll}
           scrollEventThrottle={16}
@@ -331,7 +341,7 @@ function ForecastScroll({ bottom, children }: { bottom: number; children: ReactN
           }}
         >
           {children}
-        </Animated.ScrollView>
+        </ForecastScrollView>
         <Animated.View
           pointerEvents="none"
           style={[{ position: "absolute", top: 0, left: 0, right: 0 }, over]}

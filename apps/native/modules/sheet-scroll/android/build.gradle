@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.tonnr'
+version = '1.0.0'
+
+android {
+  namespace "app.tonnr.sheetscroll"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // The version react-native-screens builds its sheets with: the helper reads its internals.
+  implementation 'com.google.android.material:material:1.13.0'
+}
