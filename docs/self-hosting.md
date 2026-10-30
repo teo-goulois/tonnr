@@ -75,6 +75,7 @@ The command builds what `main` holds on the remote named `origin`, in a checkout
 - The web app tells search engines not to list a stage. Add `WEB_INDEXED=true` to the stage's file when you want yours listed: `robots.txt` then names a sitemap, at `/sitemap.xml`.
 - Add `WEB_REDIRECTS=www.example.org` to the stage's file when the web app should answer at `www.` too: Cloudflare gives that name a record and a certificate, and the web app sends every request there on to the same page at `WEB_DOMAIN`, with a `301`. Several names are separated by commas.
 - To check a stage, sign in from its address. That proves the web app, the API, and `CORS_ORIGIN` agree.
+- Headless browsers behind residential proxies can open `/app` by the tens of thousands a day, each from an address of its own, so the API's limit by address stops none: every one counts as a visitor in the page counts and asks the API what a visitor asks. Téo's instance has had a custom rule of the zone, under Security, then WAF, since 2026-10-30. It sends a managed challenge to `/app`, `/fr/app`, `/es/app` and `/pt/app` and every path under them, unless `cf.client.bot` is true. The landing, the pages of the breaks, the short addresses and `/.well-known/` are left alone, and the apps for phones call the API directly. The rule is set by hand, in the dashboard or through Cloudflare's API, and the deploy command neither writes it nor removes it. To set it through the API, the token also needs Zone WAF: Edit on the zone, and Analytics: Read to see what it stops.
 
 ## Updating
 
