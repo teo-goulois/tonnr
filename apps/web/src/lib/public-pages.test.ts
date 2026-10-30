@@ -189,7 +189,7 @@ describe("searchEngineFile", () => {
 
   it("names the sitemap in robots.txt on a stage that is listed", async () => {
     const robots = await (await answer("/robots.txt", true))?.text();
-    expect(robots).toContain("Disallow:\n");
+    expect(robots).toContain("Disallow: /app\nDisallow: /fr/app\n");
     expect(robots).toContain("Sitemap: https://site.example/sitemap.xml");
   });
 
@@ -217,9 +217,11 @@ describe("searchEngineFile", () => {
     expect((await answer("/sitemap-spots-0.xml", true, refusing))?.status).toBe(503);
   });
 
-  it("lets robots in on a stage that is not listed, and gives them no sitemap", async () => {
+  it("lets robots in on a stage that is not listed, but the product, and gives them no sitemap", async () => {
     const robots = await (await answer("/robots.txt", false))?.text();
-    expect(robots).toContain("Disallow:\n");
+    expect(robots?.match(/^Disallow: .*$/gm)).toEqual(
+      locales.map((locale) => `Disallow: ${locale === "en" ? "" : `/${locale}`}/app`),
+    );
     expect(robots).not.toContain("Sitemap");
     expect(await answer("/sitemap.xml", false)).toBeUndefined();
     expect(await answer("/sitemap-spots-0.xml", false)).toBeUndefined();

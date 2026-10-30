@@ -209,12 +209,17 @@ export function spotsSitemapXml(site: string, breaks: SitemapPage[]) {
 }
 
 /**
- * `robots.txt` lets every robot read every page, listed or not: a page that a stage keeps out of
- * search engines says so in a header, which a robot reads only if it may come (decision 021). A
- * stage that is listed names its sitemap.
+ * `robots.txt` lets every robot read every page, listed or not, but the product: a page that a
+ * stage keeps out of search engines says so in a header, which a robot reads only if it may come,
+ * and `/app` is a map that a robot draws for nothing and that asks the API at each look
+ * (decision 021). A stage that is listed names its sitemap.
  */
 export function robotsTxt(site: string, indexed: boolean) {
-  const lines = ["# https://www.robotstxt.org/robotstxt.html", "User-agent: *", "Disallow:"];
+  const lines = [
+    "# https://www.robotstxt.org/robotstxt.html",
+    "User-agent: *",
+    ...locales.map((locale) => `Disallow: ${locale === baseLocale ? "" : `/${locale}`}/app`),
+  ];
   if (indexed) lines.push("", `Sitemap: ${site}/sitemap.xml`);
   return `${lines.join("\n")}\n`;
 }
