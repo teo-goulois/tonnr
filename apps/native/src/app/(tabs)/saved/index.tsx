@@ -30,6 +30,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Text } from "@/components/ui/text";
 import { useAccount } from "@/lib/account";
+import { isGone } from "@/lib/kept-answers";
 import { useRecentPlaces } from "@/lib/recents";
 import { useTheme } from "@/lib/theme";
 import { useNow } from "@/lib/use-now";
@@ -130,7 +131,8 @@ export default function SavedScreen() {
           <Everything
             lists={lists.data?.lists ?? []}
             joined={lists.data?.joined ?? []}
-            failed={lists.isError}
+            // Lists the phone kept stand where the network does not reach (decision 080).
+            failed={lists.isError && lists.data === undefined}
             onRetry={() => void lists.refetch()}
             retrying={lists.isFetching}
             spots={spots}
@@ -264,7 +266,7 @@ function SpotsSection({
           onPress: () => router.push("/spot/new"),
         }}
       />
-      {spots.isError ? (
+      {spots.isError && spots.data === undefined ? (
         <ErrorState
           plain
           title={m.spots_load_failed()}
@@ -417,9 +419,11 @@ function ChosenList({ id, own, chips, onPick, actions, now }: ChosenListProps) {
   const mutations = useListMutations();
   // The map reads the same list alone, as it asks it.
   const view = useQuery({ ...orpc.v1.lists.view.queryOptions({ input: { id } }), retry: false });
+  // A list the phone kept stands where the network does not reach (decision 080).
+  const gone = isGone(view);
   useEffect(() => {
-    if (view.isError) onPick(undefined);
-  }, [view.isError, onPick]);
+    if (gone) onPick(undefined);
+  }, [gone, onPick]);
 
   const list = view.data;
   const access = list?.access ?? (own === undefined ? undefined : own ? "owner" : "member");

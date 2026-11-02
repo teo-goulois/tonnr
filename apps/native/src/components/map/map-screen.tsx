@@ -35,6 +35,7 @@ import { ROUND } from "@/components/ui/metrics";
 import { Text } from "@/components/ui/text";
 import { useTell } from "@/components/ui/toast";
 import { useAccount } from "@/lib/account";
+import { isGone } from "@/lib/kept-answers";
 import type { Route } from "@/lib/links";
 import { useRecentPlaces } from "@/lib/recents";
 import { useRequireAccount } from "@/lib/require-account";
@@ -199,8 +200,9 @@ export function MapScreen() {
   const lists = useQuery(orpc.v1.lists.list.queryOptions({ enabled: signedIn }));
   const spots = useQuery(spotsQuery(signedIn));
 
-  // A list that was deleted, or that its owner shares no more, gives the whole map back.
-  const listGone = listId !== undefined && listView.isError;
+  // A list that was deleted, or that its owner shares no more, gives the whole map back. One the
+  // phone kept stands where the network does not reach (decision 080).
+  const listGone = listId !== undefined && isGone(listView);
   useEffect(() => {
     if (!listGone) return;
     tell({ title: m.list_gone(), tone: "danger" });
@@ -646,7 +648,7 @@ export function MapScreen() {
                   <Text size="s">{m.map_loading()}</Text>
                 </Animated.View>
               ) : null}
-              {waves.isError && !list && !(listsOpen && hasLists) ? (
+              {waves.isError && !waves.data && !list && !(listsOpen && hasLists) ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityHint={m.action_retry()}

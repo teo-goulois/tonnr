@@ -415,6 +415,9 @@ importers:
       '@shopify/react-native-skia':
         specifier: 2.14.0
         version: 2.14.0(react-native-reanimated@4.7.1)(react-native-worklets@0.13.0)(react-native@0.88.0)(react@19.3.0)
+      '@tanstack/query-persist-client-core':
+        specifier: 5.104.1
+        version: 5.104.1
       '@tanstack/react-form':
         specifier: ^1.33.5
         version: 1.33.5(@tanstack/react-start@1.168.60)(react-dom@19.3.0)(react@19.3.0)
@@ -4677,6 +4680,7 @@ packages:
   '@smithy/core@3.36.0':
     resolution: {integrity: sha512-3hJiwG1F5t1SoXqp/yOCmYXziyx7ZVqF63S5W6YU201e/qwVaHPex+E/3vvyY9a3ORq/b+BydeNZpP2saQ9X2g==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -4898,6 +4902,9 @@ packages:
 
   '@tanstack/query-devtools@5.104.1':
     resolution: {integrity: sha512-wmXnQbnwEz+SctYMTrwsOWWNHKhCsVgtaliL9E+VI2vx2Xr773d/MpcrbIU1hEOUqC3p7x59swXFUPDLbplT3g==}
+
+  '@tanstack/query-persist-client-core@5.104.1':
+    resolution: {integrity: sha512-ONiadXqe56iNrw6RESqKILpTIVG9ZMI/DageTQnrBDt/nZ6WiP4G13iIiMwJEsiO12gQ3Gychx8tcFIPw4k25g==}
 
   '@tanstack/react-form@1.33.5':
     resolution: {integrity: sha512-LlRB28qJwO/QCGaHvWnbdh4haBgTFiZVmzA2uzxSBS3YA7/IqrQ6HOBK70CkFQ+DbflZ7NawsmSln13h5iIdTA==}
@@ -13895,6 +13902,10 @@ snapshots:
       superjson: 2.2.6
     transitivePeerDependencies:
       - csstype
+
+  '@tanstack/query-persist-client-core@5.104.1':
+    dependencies:
+      '@tanstack/query-core': 5.104.1
 
   '@tanstack/react-form@1.33.5(@tanstack/react-start@1.168.60)(react-dom@19.3.0)(react@19.3.0)':
     dependencies:

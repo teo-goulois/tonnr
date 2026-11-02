@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { forgetWindowActivities } from "@/activities/window-activity";
 import { useAccount } from "@/lib/account";
 import { forgetActivityStart } from "@/lib/activity-start";
+import { forgetKeptAnswers } from "@/lib/answer-store";
 import { resetAnalytics } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { forgetLiveSession } from "@/lib/live-session";
@@ -15,15 +16,17 @@ import { forgetPushKeys } from "../../../modules/push-keys";
 
 /**
  * Forgets on the phone what was kept for an account that is no longer signed in here: what was
- * loaded for it, what it looked at last, its session in progress, what its widgets show, which
- * the space the app shares with its extensions kept, and the names of its alerts that the Live
- * Activity of a window reads, whose switch goes off too (decision 074), and the ids its analytics
+ * loaded for it, in memory and in the answers kept to be read without network (decision 080),
+ * what it looked at last, its session in progress, what its widgets show, which the space the app
+ * shares with its extensions kept, and the names of its alerts that the Live Activity of a window
+ * reads, whose switch goes off too (decision 074), and the ids its analytics
  * sent, which start again as no one's (decision 044). The units, the theme, the language and the
  * choice about analytics stay: they are the phone's, as a browser keeps them. Decision 070.
  */
 export function forgetOnPhone(queryClient: QueryClient) {
   resetAnalytics();
   queryClient.clear();
+  void forgetKeptAnswers();
   clearRecents();
   clearWidgets();
   forgetActivityStart();

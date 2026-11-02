@@ -27,6 +27,7 @@ import { useMemo, useState } from "react";
 
 import { wavesQuery } from "@/components/map/queries";
 import { useAccount } from "@/lib/account";
+import { isGone, whyNotRefreshed } from "@/lib/kept-answers";
 import { orpc } from "@/utils/orpc";
 
 import type { PlaceKind } from "./tabs";
@@ -175,13 +176,15 @@ export function usePlaceRecord(kind: PlaceKind, id: string) {
   // A break is named once it is read, as the web's panel names it, and one that has left the
   // catalogue is not.
   const name = kind === "break" ? found.data?.name : point?.name;
+  // What the phone kept of a place stands where the network does not reach, until the API says
+  // that the place is gone (decision 080).
   const isError =
     kind === "break"
-      ? found.isError
+      ? isGone(found)
       : kind === "station"
         ? // A station the map holds is shown from what it holds, whatever its history answers.
-          history.isError && !known
-        : !listed && !pending && (asked.isError || !signedIn);
+          isGone(history) && !known
+        : !listed && !pending && (isGone(asked) || !signedIn);
 
   return {
     kind,
@@ -298,9 +301,25 @@ export function usePlaceConditions(record: PlaceRecord, now: number) {
     }),
   );
 
+  // What the sheet shows that could not be read again, the forecast and a station's readings,
+  // with the moment the oldest of them was read: the sheet says so (decision 080).
+  const notRefreshed = [forecast, ...(kind === "station" ? [record.history] : [])].filter(
+    (query) => query.data !== undefined && whyNotRefreshed(query) !== undefined,
+  );
+  const kept =
+    notRefreshed.length === 0
+      ? undefined
+      : {
+          why: notRefreshed.some((query) => whyNotRefreshed(query) === "offline")
+            ? ("offline" as const)
+            : ("refused" as const),
+          readAt: Math.min(...notRefreshed.map((query) => query.dataUpdatedAt)),
+        };
+
   // The place is on its way: what is asked at its point waits for it.
   const waiting = point === undefined && !record.isError;
   return {
+    kept,
     forecast: loadable<Forecast>(forecast, waiting),
     tides: loadable<TideTimeline>(tides, waiting && !windAlone),
     extremes: loadable<TideExtremes>(extremes, waiting && !windAlone),

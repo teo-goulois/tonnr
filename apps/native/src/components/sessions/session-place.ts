@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { giveToSheet } from "@/components/map/open-place";
 import { useAccount } from "@/lib/account";
+import { isGone } from "@/lib/kept-answers";
 import type { Route } from "@/lib/links";
 import { orpc } from "@/utils/orpc";
 
@@ -39,7 +40,8 @@ export function usePlaceKnown(place: Pick<SessionPlace, "kind" | "id"> | null, g
     }),
   );
   const asked = place?.kind === "spot" ? atSpot : atBreak;
-  return { name: given ?? asked.data?.name, point: asked.data, isMissing: asked.isError };
+  // A place the phone kept stands where the network does not reach (decision 080).
+  return { name: given ?? asked.data?.name, point: asked.data, isMissing: isGone(asked) };
 }
 
 /** The name of a place, as the route gave it or as the API answers it. */

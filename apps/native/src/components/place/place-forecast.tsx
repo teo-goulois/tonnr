@@ -6,6 +6,7 @@ import { SizeAgainstForecast } from "@/components/forecast/size-against-forecast
 import { Sources } from "@/components/forecast/sources";
 import { WindDetails } from "@/components/forecast/wind-details";
 import { Text } from "@/components/ui/text";
+import { formatAgo } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
@@ -33,10 +34,13 @@ export function PlaceForecast({
   const { colors, space, radius } = useTheme();
   const { kind, found, station, spot, history } = record;
   const { forecast, tides, extremes } = conditions;
-  // A sheltered station's note stands over its panel, and the low sheet ends under the panel's
-  // summary all the same, as the web measures its fold from the top of the sheet: where the panel
-  // starts under the note, and where its summary ends in it, each known by its own layout.
+  // A sheltered station's note stands over its panel, and so does the line that says the panel
+  // shows what was read last, as the network could not read it again (decision 080). The low
+  // sheet ends under the panel's summary all the same, as the web measures its fold from the top
+  // of the sheet: where the panel starts under the notes, and where its summary ends in it, each
+  // known by its own layout.
   const sheltered = kind === "station" && station?.exposure === "sheltered";
+  const { kept } = conditions;
   const panelTop = useRef<number | undefined>(undefined);
   const summaryEnd = useRef<number | undefined>(undefined);
   const foldUnderNote = () => {
@@ -80,10 +84,15 @@ export function PlaceForecast({
   const readings = history.data?.readings;
   // The map's last reading of the station stands until its history comes.
   const latest = record.latest;
-  // A station the map holds is known at once: one that measures the wind alone opens on its own
-  // panel, never on a buoy's first.
-  if (kind === "station" && station && !station.measures.includes("waves")) {
-    return (
+  // The panel stays where it is as a note comes or goes, so that it is not drawn again.
+  const fold = (bottom: number) => {
+    summaryEnd.current = bottom;
+    foldUnderNote();
+  };
+  // A station that measures the wind alone opens on its own panel, never on a buoy's first: the
+  // map knows it at once.
+  const panel =
+    kind === "station" && station && !station.measures.includes("waves") ? (
       <WindDetails
         now={now}
         station={station}
@@ -94,60 +103,57 @@ export function PlaceForecast({
         onHistoryExtend={record.onHistoryExtend}
         forecast={forecast}
         footer={footer}
-        onFold={onFold}
+        onFold={fold}
+      />
+    ) : (
+      <ForecastPanel
+        now={now}
+        forecast={forecast}
+        tides={tides}
+        extremes={extremes}
+        onTideExtend={conditions.onTideExtend}
+        onFold={fold}
+        footer={footer}
+        {...(kind === "station"
+          ? {
+              station,
+              readings,
+              latest,
+              historyPending: history.isLoading,
+            }
+          : {
+              spot: record.point,
+              words: kind === "break" ? found?.characteristics : spot?.characteristics,
+              offshoreFrom:
+                kind === "break"
+                  ? found?.characteristics.offshoreDirectionDegrees
+                  : spot?.characteristics?.offshoreDirectionDegrees,
+              nearby: conditions.nearby,
+              nearbyWind: conditions.nearbyWind,
+              onOpenStation,
+              sizeAgainst:
+                kind === "break" ? (
+                  <SizeAgainstForecast
+                    learned={conditions.sizeFactor}
+                    locals={found?.characteristics.sizeFactors}
+                    hours={forecast.data?.hours}
+                    now={now}
+                  />
+                ) : undefined,
+            })}
       />
     );
-  }
 
-  const panel = (
-    <ForecastPanel
-      now={now}
-      forecast={forecast}
-      tides={tides}
-      extremes={extremes}
-      onTideExtend={conditions.onTideExtend}
-      onFold={
-        sheltered
-          ? (bottom) => {
-              summaryEnd.current = bottom;
-              foldUnderNote();
-            }
-          : onFold
-      }
-      footer={footer}
-      {...(kind === "station"
-        ? {
-            station,
-            readings,
-            latest,
-            historyPending: history.isLoading,
-          }
-        : {
-            spot: record.point,
-            words: kind === "break" ? found?.characteristics : spot?.characteristics,
-            offshoreFrom:
-              kind === "break"
-                ? found?.characteristics.offshoreDirectionDegrees
-                : spot?.characteristics?.offshoreDirectionDegrees,
-            nearby: conditions.nearby,
-            nearbyWind: conditions.nearbyWind,
-            onOpenStation,
-            sizeAgainst:
-              kind === "break" ? (
-                <SizeAgainstForecast
-                  learned={conditions.sizeFactor}
-                  locals={found?.characteristics.sizeFactors}
-                  hours={forecast.data?.hours}
-                  now={now}
-                />
-              ) : undefined,
+  return (
+    <View style={{ gap: space.l }}>
+      {kept && (
+        <Text size="s" tone="muted">
+          {(kept.why === "offline" ? m.native_place_kept_offline : m.native_place_kept_refused)({
+            ago: formatAgo(new Date(kept.readAt), now),
           })}
-    />
-  );
-
-  if (sheltered) {
-    return (
-      <View style={{ gap: space.l }}>
+        </Text>
+      )}
+      {sheltered && (
         <Text
           size="s"
           style={{
@@ -160,16 +166,15 @@ export function PlaceForecast({
         >
           {m.station_sheltered_note()}
         </Text>
-        <View
-          onLayout={(event) => {
-            panelTop.current = event.nativeEvent.layout.y;
-            foldUnderNote();
-          }}
-        >
-          {panel}
-        </View>
+      )}
+      <View
+        onLayout={(event) => {
+          panelTop.current = event.nativeEvent.layout.y;
+          foldUnderNote();
+        }}
+      >
+        {panel}
       </View>
-    );
-  }
-  return panel;
+    </View>
+  );
 }
