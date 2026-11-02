@@ -2027,6 +2027,7 @@
   "native_auth_google_none": "You're not signed in with Google. Try again, or use your email.",
   "native_delete_account_apple_other": "That Apple ID signs in to another account, which is now the one signed in here. Nothing was deleted.",
   "native_version": "Version",
+  "native_update_load": "Load the new version",
   "native_profile_load_failed": "Your answers could not be loaded.",
   "native_account_load_failed": "Your account couldn't be loaded.",
   "native_push_refused": "Notifications are blocked for {name}. Allow them in Settings, then switch them on here.",

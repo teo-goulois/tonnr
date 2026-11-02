@@ -5,6 +5,7 @@ import { LogOutIcon } from "@repo/ui/icon";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Application from "expo-application";
 import { type Href, router } from "expo-router";
+import * as Updates from "expo-updates";
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 
@@ -23,6 +24,7 @@ import { analyticsConfigured } from "@/lib/analytics";
 import { THEME_CHOICES } from "@/lib/theme-choice";
 import { useTheme } from "@/lib/theme";
 import { type Units, useUnits } from "@/lib/units";
+import { updateName } from "@/lib/updates";
 import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { orpc } from "@/utils/orpc";
@@ -214,7 +216,17 @@ export function AccountScreen() {
   const page = (of: SitePage) => () => void openPage(of);
   const score = standing.data?.score ?? 0;
   const rank = standing.data?.rank ?? null;
-  const version = `${Application.nativeApplicationVersion ?? "0.0.0"} (${Application.nativeBuildVersion ?? "0"})`;
+  // The binary's version and build, then the update of its JavaScript it runs, if any.
+  const update = Updates.isEmbeddedLaunch ? null : updateName(Updates.updateId);
+  const version = [
+    `${Application.nativeApplicationVersion ?? "0.0.0"} (${Application.nativeBuildVersion ?? "0"})`,
+    update,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // An update downloaded since the app started, which it runs as it comes back after a while
+  // (decision 075), or at once from here.
+  const { isUpdatePending } = Updates.useUpdates();
   // The name and the address are the session's until the API says them, as the web's panel
   // reads them, and so is the username the account is called by, until the API says its own.
   const username = account ? account.username : own.session?.username;
@@ -424,6 +436,16 @@ export function AccountScreen() {
       <Text size="s" tone="muted">
         {`${m.native_version()} ${version}`}
       </Text>
+      {isUpdatePending ? (
+        <Button
+          variant="secondary"
+          size="xs"
+          onPress={() => void Updates.reloadAsync().catch(() => {})}
+          style={{ alignSelf: "flex-start" }}
+        >
+          {m.native_update_load()}
+        </Button>
+      ) : null}
     </ScrollView>
   );
 }

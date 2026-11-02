@@ -22,6 +22,7 @@ import { UploadFailures } from "@/components/media/upload-failures";
 import { FOLD_NONE, RAISED } from "@/components/place/fold";
 import { ActivitiesListener } from "@/components/shared/activities-listener";
 import { PushListener } from "@/components/shared/push-listener";
+import { UpdatesOnReturn } from "@/components/shared/updates-on-return";
 import { formSheet } from "@/components/ui/sheet-options";
 import { Text } from "@/components/ui/text";
 import { reportError } from "@/lib/analytics";
@@ -97,6 +98,7 @@ export default function RootLayout() {
               <WidgetWriter />
               <ActivitiesListener />
               <UploadFailures />
+              <UpdatesOnReturn />
               {/* The icons of the system's bar in the theme in force, which the screens stand under:
                   Android drew them white over the light map. A screen that draws its own ground
                   sets its own, as the media viewer does. */}

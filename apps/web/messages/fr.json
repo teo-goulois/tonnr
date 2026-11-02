@@ -2027,6 +2027,7 @@
   "native_auth_google_none": "Tu n'es pas connecté avec Google. Réessaie, ou utilise ton e-mail.",
   "native_delete_account_apple_other": "Cet identifiant Apple ouvre un autre compte, qui est maintenant connecté ici. Rien n'a été supprimé.",
   "native_version": "Version",
+  "native_update_load": "Charger la nouvelle version",
   "native_profile_load_failed": "Tes réponses n'ont pas pu être chargées.",
   "native_account_load_failed": "Ton compte n'a pas pu être chargé.",
   "native_push_refused": "Les notifications sont bloquées pour {name}. Autorise-les dans les Réglages, puis active-les ici.",

@@ -2027,6 +2027,7 @@
   "native_auth_google_none": "No has iniciado sesión con Google. Vuelve a intentarlo o usa tu correo.",
   "native_delete_account_apple_other": "Ese ID de Apple abre otra cuenta, que ahora es la que tiene la sesión iniciada aquí. No se ha eliminado nada.",
   "native_version": "Versión",
+  "native_update_load": "Cargar la nueva versión",
   "native_profile_load_failed": "No se han podido cargar tus respuestas.",
   "native_account_load_failed": "No se ha podido cargar tu cuenta.",
   "native_push_refused": "Las notificaciones están bloqueadas para {name}. Permítelas en Ajustes y actívalas aquí.",
