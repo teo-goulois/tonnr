@@ -1,14 +1,10 @@
-import { sunAltitude } from "../sun";
+import { FIRST_LIGHT_DEGREES, sunAltitude } from "../sun";
 import { localTime } from "./clock";
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 // Clocks are set forward and back on a quarter of an hour of UTC, and no zone is off it by less.
 const QUARTER_MS = 15 * MINUTE_MS;
-// Day, to a surfer, is from first light to last: the sun no more than this far under the
-// horizon, which is when civil twilight begins and ends. About half an hour before sunrise
-// and after sunset on most coasts.
-const FIRST_LIGHT_DEGREES = -6;
 
 /** A stretch of time, from its first moment to the moment it ends. */
 export type Interval = { start: Date; end: Date };

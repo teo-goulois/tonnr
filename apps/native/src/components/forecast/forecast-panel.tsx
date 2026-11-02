@@ -22,6 +22,7 @@ import { useTheme } from "@/lib/theme";
 import { m } from "@/paraglide/messages";
 
 import { Block } from "./block";
+import { Daylight } from "./daylight";
 import { DaysAhead } from "./days-ahead";
 import { DensitySwitch } from "./density-switch";
 import { ForecastGrid, GRID_ROWS, type GridRow } from "./forecast-grid";
@@ -204,6 +205,8 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
       {forecast.isUnavailable ? m.forecast_unavailable() : m.forecast_none()}
     </Text>
   );
+  // When it gets light and dark there, drawn at every density, under the tide.
+  const daylight = place && <Daylight now={now} place={place} />;
   const more = <DensitySwitch density={density} onChange={props.onDensityChange} />;
 
   if (density === "essentials") {
@@ -229,6 +232,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
           none
         )}
         {tide}
+        {daylight}
         {more}
         {props.footer}
       </View>
@@ -339,6 +343,7 @@ const Conditions = memo(function Conditions(props: ConditionsProps) {
       )}
 
       {tide}
+      {daylight}
       {more}
       {props.footer}
     </View>

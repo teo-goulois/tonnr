@@ -29,6 +29,7 @@ import { MapCredits } from "@/components/map/map-credits";
 import { Offer } from "@/components/map/new-spot-offer";
 import { RankBadge } from "@/components/account/rank-badge";
 import { AlertSamples } from "@/components/alerts/alert-samples";
+import { Daylight } from "@/components/forecast/daylight";
 import {
   BreakPill,
   BuoyPill,
@@ -74,6 +75,9 @@ import { m } from "@/paraglide/messages";
 import type { ThemeColors } from "@/theme/tokens";
 
 import { FormSamples } from "./form-samples";
+
+// Where the daylight samples are read.
+const BREST = { latitude: 48.39, longitude: -4.49 };
 
 // Every component of the app's kit, with its variants and its states, and the icons as the app
 // draws them: the design system of Téo's handbook, which a development build alone opens
@@ -1290,6 +1294,16 @@ export function DesignSystemScreen() {
       </Block>
       <Block title="Alerts' rows">
         <AlertSamples />
+      </Block>
+      <Block title="Daylight">
+        {/* Brest on a morning, in the evening once its last light is gone, and Tromsø at
+            midsummer, where the sun crosses nothing. */}
+        <Daylight now={new Date(2026, 10, 2, 8).getTime()} place={BREST} />
+        <Daylight now={new Date(2026, 10, 2, 21).getTime()} place={BREST} />
+        <Daylight
+          now={new Date(2026, 5, 21, 12).getTime()}
+          place={{ latitude: 69.65, longitude: 18.96 }}
+        />
       </Block>
       <Block title="Toast">
         <Toasts />

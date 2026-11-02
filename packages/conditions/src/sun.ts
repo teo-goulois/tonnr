@@ -3,6 +3,14 @@ const RADIANS = Math.PI / 180;
 
 // The sun's disc has just gone under a flat horizon, seen through the air.
 const SUNSET_DEGREES = -0.833;
+// Day, to a surfer, is from first light to last: the sun no more than this far under the
+// horizon, which is when civil twilight begins and ends. About half an hour before sunrise and
+// after sunset on most coasts.
+export const FIRST_LIGHT_DEGREES = -6;
+
+// How far apart the sun is looked at for its crossings: it crosses a height once at most in that
+// time, and the crossing is then found to the second.
+const STEP_MS = 10 * 60 * 1000;
 
 /**
  * How high the sun is at a place and a moment, in degrees above the horizon, by the
@@ -30,4 +38,50 @@ export function sunAltitude(time: number, latitude: number, longitude: number) {
 /** Whether the sun is under the horizon at a place and a moment. */
 export function isNight(time: number, latitude: number, longitude: number) {
   return sunAltitude(time, latitude, longitude) < SUNSET_DEGREES;
+}
+
+/**
+ * The moments of a day the sun crosses first light and the horizon, on its way up and on its way
+ * down, between two moments, at a place. A crossing that does not happen that day, as near the
+ * poles, is null: the sun stays up, or stays under.
+ */
+export type SunTimes = {
+  firstLight: Date | null;
+  sunrise: Date | null;
+  sunset: Date | null;
+  lastLight: Date | null;
+};
+
+export function sunTimes(from: number, to: number, latitude: number, longitude: number): SunTimes {
+  const crossings = (degrees: number) => {
+    let rising: Date | null = null;
+    let setting: Date | null = null;
+    const above = (moment: number) => sunAltitude(moment, latitude, longitude) >= degrees;
+    let before = from;
+    let wasAbove = above(before);
+    while (before < to) {
+      const after = Math.min(before + STEP_MS, to);
+      const isAbove = above(after);
+      if (isAbove !== wasAbove) {
+        let [same, other] = [before, after];
+        while (other - same > 1000) {
+          const middle = (same + other) / 2;
+          if (above(middle) === wasAbove) same = middle;
+          else other = middle;
+        }
+        if (isAbove) rising ??= new Date(Math.round(other));
+        else setting ??= new Date(Math.round(other));
+      }
+      [before, wasAbove] = [after, isAbove];
+    }
+    return { rising, setting };
+  };
+  const light = crossings(FIRST_LIGHT_DEGREES);
+  const sun = crossings(SUNSET_DEGREES);
+  return {
+    firstLight: light.rising,
+    sunrise: sun.rising,
+    sunset: sun.setting,
+    lastLight: light.setting,
+  };
 }

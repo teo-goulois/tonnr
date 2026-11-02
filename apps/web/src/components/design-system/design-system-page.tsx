@@ -101,6 +101,7 @@ import {
   WindBadge,
 } from "@/components/viewer/map-markers";
 import { Details } from "@/components/viewer/details/details";
+import { Daylight } from "@/components/viewer/details/daylight";
 import { NearbyWindStation } from "@/components/viewer/details/parts";
 import { SeaNow } from "@/components/viewer/details/sea-now";
 import { SizeAgainstForecast } from "@/components/viewer/size-against-forecast";
@@ -1168,6 +1169,22 @@ export function DesignSystemPage() {
             tide={null}
             verdict={null}
             isLoading={false}
+          />
+        </div>
+        {/* When it gets light and dark: Brest on a morning, in the evening once its last light is
+            gone, and Tromsø at midsummer, where the sun crosses nothing. */}
+        <div className="grid max-w-96 gap-m">
+          <Daylight
+            now={new Date(2026, 10, 2, 8).getTime()}
+            place={{ latitude: 48.39, longitude: -4.49 }}
+          />
+          <Daylight
+            now={new Date(2026, 10, 2, 21).getTime()}
+            place={{ latitude: 48.39, longitude: -4.49 }}
+          />
+          <Daylight
+            now={new Date(2026, 5, 21, 12).getTime()}
+            place={{ latitude: 69.65, longitude: 18.96 }}
           />
         </div>
       </Section>
