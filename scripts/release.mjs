@@ -513,7 +513,7 @@ async function publishJavaScript() {
     const { sent, kept } = await main.publish.writeAll(bucket, writes);
     console.log(
       `\nPublished: ${sent} objects written, and ${kept} files the bucket held already. ` +
-        "The apps of each runtime take it at their second start.",
+        "The apps of each runtime download it as they start or come back to the screen, and run it at their next start or as they come back after fifteen minutes away.",
     );
   } catch (error) {
     // The pointers are written last: those written before the fault are the only part of the
