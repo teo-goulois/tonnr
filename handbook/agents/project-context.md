@@ -1,9 +1,11 @@
 <!--
-Generated from apps/web/content/handbook/agents/project-context.md.
-Do not edit this snapshot directly. Run `pnpm knowledge:build` after changing the handbook.
+Handbook e5f830e9c232, from https://teogoulois.com/code/agents/project-context.
+Replaced on every handbook update: record a project's exceptions in docs/decisions/, not here.
 -->
 
 # Project context for agents
+
+How I preserve the small amount of project context and durable decisions future agents actually need.
 
 Create only context that will prevent rediscovery. Preserve and extend existing
 files instead of replacing them.

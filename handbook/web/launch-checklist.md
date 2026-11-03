@@ -1,9 +1,11 @@
 <!--
-Generated from apps/web/content/handbook/web/launch-checklist.md.
-Do not edit this snapshot directly. Run `pnpm knowledge:build` after changing the handbook.
+Handbook e5f830e9c232, from https://teogoulois.com/code/web/launch-checklist.
+Replaced on every handbook update: record a project's exceptions in docs/decisions/, not here.
 -->
 
 # Launch checklist
+
+The production checks I use before publishing a public landing page.
 
 Use this checklist immediately before publishing a public landing page. Apply
 only relevant items, mark excluded items `N/A` with one reason, and report every
@@ -103,12 +105,14 @@ verified on the deployed URL.
 - [ ] The questions to answer and the provider choice are explicit. Use Umami for
       simple website traffic and CTA measurement; use PostHog for product funnels,
       journeys, activation, retention, or replay. Follow
-      [Analytics](analytics.md).
+      [Analytics](../stack/analytics.md).
 - [ ] Automatic pageviews and the primary intent/conversion events use a stable,
       documented taxonomy and fire exactly once. Successful signups, purchases, or
       other durable outcomes are confirmed server-side when possible.
 - [ ] Production, preview, development, internal, and test traffic can be
       distinguished. Analytics failures never block the user's action.
+- [ ] The Umami script sets `data-domains` to the production hosts, so
+      previews, localhost, and copies of the site send nothing.
 - [ ] Event properties, URLs, identity, consent, and optional session replay have
       been reviewed for personal or sensitive data.
 - [ ] A controlled production visit and primary CTA appear in the intended

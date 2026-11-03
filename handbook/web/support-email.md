@@ -1,9 +1,11 @@
 <!--
-Generated from apps/web/content/handbook/web/support-email.md.
-Do not edit this snapshot directly. Run `pnpm knowledge:build` after changing the handbook.
+Handbook e5f830e9c232, from https://teogoulois.com/code/web/support-email.
+Replaced on every handbook update: record a project's exceptions in docs/decisions/, not here.
 -->
 
 # Support email
+
+A simple low-volume support inbox using Cloudflare Email Routing and Gmail, with its limits made explicit.
 
 Use this recipe for a low-volume inbox managed by one person, such as
 `support@example.com`. It has no additional service cost: Cloudflare Email

@@ -1,9 +1,11 @@
 <!--
-Generated from apps/web/content/handbook/web/ui/forms.md.
-Do not edit this snapshot directly. Run `pnpm knowledge:build` after changing the handbook.
+Handbook e5f830e9c232, from https://teogoulois.com/code/web/ui/forms.
+Replaced on every handbook update: record a project's exceptions in docs/decisions/, not here.
 -->
 
 # Forms
+
+The product and engineering principles behind my form primitives, adapters, validation, and feedback patterns.
 
 Use TanStack Form through one project-level `useAppForm` and keep three explicit layers.
 
@@ -22,6 +24,6 @@ Use TanStack Form through one project-level `useAppForm` and keep three explicit
 
 ## Reference implementation
 
-- [Forms overview](/components/forms) explains the TanStack Form architecture and installation.
-- [Form Input](/components/forms/input) covers the thin input adapter and invalid-state behavior.
-- [Date Time Picker](/components/forms/date-time-picker) applies the same pattern to a richer control.
+- [Forms overview](https://teogoulois.com/toolkit/forms) explains the TanStack Form architecture and installation.
+- [Form Input](https://teogoulois.com/toolkit/forms/input) covers the thin input adapter and invalid-state behavior.
+- [Date Time Picker](https://teogoulois.com/toolkit/forms/date-time-picker) applies the same pattern to a richer control.

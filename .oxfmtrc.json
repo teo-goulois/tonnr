@@ -3,6 +3,8 @@
     "packages/db/src/migrations/**",
     "GUI.md",
     "gui/**",
+    "HANDBOOK.md",
+    "handbook/**",
     ".agents/**",
     "apps/native/src/theme/tonnr.css",
     "apps/native/src/theme/tokens.ts",
