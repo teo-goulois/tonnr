@@ -1,6 +1,6 @@
 # HANDBOOK — how Téo builds
 
-Revision `0aa73bf22aec` of Téo Goulois's handbook (https://teogoulois.com/code). The
+Revision `e5f830e9c232` of Téo Goulois's handbook (https://teogoulois.com/code). The
 pages in `handbook/` are a snapshot of it: they change only when the project
 updates the handbook, and every update replaces them.
 
@@ -56,6 +56,12 @@ record one: the next update replaces them.
   the agreed scope.
 - `handbook-audit`: report where the project drifts from this revision, and
   what an update would change.
+
+An agent without them installs them once, for every project:
+
+```sh
+npx skills add teo-goulois/skills --skill handbook-build handbook-convert handbook-audit --global
+```
 
 ## Interface
 

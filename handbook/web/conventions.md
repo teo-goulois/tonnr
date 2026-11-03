@@ -1,5 +1,5 @@
 <!--
-Handbook 0aa73bf22aec, from https://teogoulois.com/code/web/conventions.
+Handbook e5f830e9c232, from https://teogoulois.com/code/web/conventions.
 Replaced on every handbook update: record a project's exceptions in docs/decisions/, not here.
 -->
 
