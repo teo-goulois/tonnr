@@ -84,3 +84,4 @@ Numbered records of durable decisions. Add one when a decision changes product s
 - [078. The forms of the app for phones](078-the-phones-forms.md)
 - [079. The catalogue names no other list](079-the-catalogue-names-no-other-list.md)
 - [080. What the app for phones keeps to read without network](080-what-the-phone-keeps-to-read-offline.md)
+- [081. Variables from a secrets manager](081-variables-from-a-secrets-manager.md)

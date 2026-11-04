@@ -67,6 +67,8 @@ You need a Cloudflare account that holds the zone of your domain, and the web ap
 4. Set the API's `CORS_ORIGIN` to `https://` and that host name, and restart the API.
 5. Run `pnpm run deploy:web <stage>`. It shows what it will change and asks before it does. `--yes` does not ask. `--dry-run` only shows, once a first deployment has made the state store below.
 
+A secrets manager can give the same variables instead of the two files: where `packages/infra/.env.<stage>` is not there, the commands read the shell, once it names the stage in `DEPLOY_STAGE`, such as `infisical run --env prod --path /infra -- pnpm run deploy:web prod` (decision 081).
+
 The command builds what `main` holds on the remote named `origin`, in a checkout of its own, and never what your working tree holds. It installs the dependencies there, so it needs the licence key of the icons, in the root `.env` or in the shell. Run it again to deploy a newer `main`.
 
 - Cloudflare makes the DNS record and the certificate of the host name. A first deployment may take a minute to answer.

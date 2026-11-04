@@ -28,7 +28,8 @@
 // keys and whether the R2 token may read the bucket.
 //
 // The stage's values come from `packages/infra/.env.<stage>`, the account of Cloudflare from
-// `packages/infra/.env`, and the keys from the root `.env`, which names the files they lie in.
+// `packages/infra/.env`, and the keys from the root `.env`, which names the files they lie in, or
+// all three from the shell where the stage has no file (`stageVariables` in `scripts/lib`).
 // None is printed, and none goes to the install or to Expo's tools, which run code that other
 // people wrote: the key of the updates signs here and the R2 token writes from here. xcodebuild
 // is given the path of the key of App Store Connect in its arguments, and altool the directory it
@@ -64,10 +65,10 @@ import {
   git,
   keptShell,
   licenceKey,
-  readEnvFile,
+  noStage,
   removeCheckout,
-  root,
   run,
+  stageVariables,
   start,
 } from "./lib/checkout.mjs";
 
@@ -116,12 +117,11 @@ const platforms = kind === "js" ? (only ? [only] : [...PLATFORMS]) : [kind];
 const pathOf = (value) =>
   value?.startsWith("~/") ? path.join(os.homedir(), value.slice(2)) : value;
 
-const settings = readEnvFile(path.join(root, ".env")) ?? {};
-const access = readEnvFile(path.join(root, "packages", "infra", ".env")) ?? {};
-const values = readEnvFile(path.join(root, "packages", "infra", `.env.${stage}`));
-if (!values) {
-  fail(`packages/infra/.env.${stage} is missing: the stage "${stage}" has no values here.`);
-}
+const stageOf = stageVariables(stage);
+const values = stageOf.values;
+if (!values) fail(noStage(stage));
+const settings = stageOf.settings ?? {};
+const access = stageOf.access ?? {};
 
 const faults = [];
 /** A file the root `.env` names, which must be there. */
