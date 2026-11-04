@@ -24,8 +24,8 @@ export const HOSTS: { hosts: Hosted; name: string; address: string; phone?: stri
   },
   {
     hosts: "api",
-    name: "Scaleway SAS",
-    address: "8 rue de la Ville-l'Évêque, 75008 Paris, France",
+    name: "OVH SAS",
+    address: "2 rue Kellermann, 59100 Roubaix, France",
   },
 ];
 
@@ -42,7 +42,7 @@ export const RECIPIENTS: {
   // nothing of a request: decision 075.
   { name: "Cloudflare", does: m.privacy_does_web, where: m.privacy_where_us },
   { name: "Cloudflare R2", does: m.privacy_does_media, where: m.privacy_where_us },
-  { name: "Scaleway", does: m.privacy_does_api, where: m.privacy_where_france },
+  { name: "OVH", does: m.privacy_does_api, where: m.privacy_where_france },
   { name: "Unosend", does: m.privacy_does_mail, where: m.privacy_where_us },
   { name: "PostHog", does: m.privacy_does_analytics, where: m.privacy_where_eu },
   { name: "Umami", does: m.privacy_does_audience },
