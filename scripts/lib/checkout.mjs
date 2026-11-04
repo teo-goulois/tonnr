@@ -46,6 +46,37 @@ export function readEnvFile(file) {
   return parseEnv(readFileSync(file, "utf8"));
 }
 
+/**
+ * What a command that deploys or releases a stage reads: the stage's values, from
+ * `packages/infra/.env.<stage>`, the access to Cloudflare, from `packages/infra/.env`, and the
+ * settings of the root `.env`. A checkout with no file of the stage takes the three from the
+ * shell, which a secrets manager fills, such as `infisical run --env <stage> --path /infra`, and
+ * only when the shell says that stage in `DEPLOY_STAGE`: a shell of another stage's values deploys
+ * nothing. An empty value counts as one not set, as in the files. Each is null when it is not
+ * there, and none is printed.
+ */
+export function stageVariables(stage) {
+  const infra = path.join(root, "packages", "infra");
+  const values = readEnvFile(path.join(infra, `.env.${stage}`));
+  if (values) {
+    return {
+      values,
+      access: readEnvFile(path.join(infra, ".env")),
+      settings: readEnvFile(path.join(root, ".env")),
+    };
+  }
+  if (process.env.DEPLOY_STAGE !== stage) return { values: null, access: null, settings: null };
+  const shell = Object.fromEntries(
+    Object.entries(process.env).filter(([, value]) => value !== undefined && value !== ""),
+  );
+  return { values: shell, access: shell, settings: shell };
+}
+
+/** Why a stage has no values, in the words of a command that reads them. */
+export const noStage = (stage) =>
+  `packages/infra/.env.${stage} is missing, and the shell holds no values of the stage "${stage}"` +
+  `: write the file, or run the command where a secrets manager gives them with DEPLOY_STAGE=${stage}.`;
+
 // The command under way, and whether someone asked to stop.
 let child = null;
 let stopped = false;

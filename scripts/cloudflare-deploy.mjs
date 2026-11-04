@@ -5,8 +5,9 @@
 //
 // It builds what `main` holds on the remote, in a checkout of its own, so that work in progress
 // in this checkout never goes online. The access to Cloudflare comes from `packages/infra/.env`
-// and the stage's values from `packages/infra/.env.<stage>`. Git ignores both, and neither is
-// printed here. Decision 021 gives the reasons.
+// and the stage's values from `packages/infra/.env.<stage>`, or both from the shell where the
+// stage has no file (`stageVariables` in `scripts/lib/checkout.mjs`). Git ignores both files, and
+// nothing of either is printed here. Decision 021 gives the reasons.
 import path from "node:path";
 
 import {
@@ -15,13 +16,11 @@ import {
   failKeeping,
   keptShell,
   licenceKey,
-  readEnvFile,
+  noStage,
   removeCheckout,
-  root,
   run,
+  stageVariables,
 } from "./lib/checkout.mjs";
-
-const infra = path.join(root, "packages", "infra");
 
 // The apps of the stack, by the name `packages/infra/alchemy.run.ts` gives each.
 const APPS = ["web", "admin", "updates"];
@@ -39,12 +38,9 @@ if (
   fail(`Usage: cloudflare-deploy <${APPS.join("|")}> <stage> [--dry-run] [--yes]`);
 }
 
-const access = readEnvFile(path.join(infra, ".env"));
+const { access, values } = stageVariables(stage);
+if (!values) fail(noStage(stage));
 if (!access) fail("packages/infra/.env is missing. packages/infra/.env.example shows it.");
-const values = readEnvFile(path.join(infra, `.env.${stage}`));
-if (!values) {
-  fail(`packages/infra/.env.${stage} is missing: the stage "${stage}" has no values here.`);
-}
 
 const faults = [];
 if (!access.CLOUDFLARE_API_TOKEN) faults.push("CLOUDFLARE_API_TOKEN is not set in .env");
